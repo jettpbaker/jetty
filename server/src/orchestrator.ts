@@ -1,18 +1,13 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
-import type { ChromePushData, PushMessage } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
 import type { Agent } from './agent'
+import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 
 import { StoreError } from './store'
-
-export type Hub = {
-  pushThread(threadId: string, message: Extract<PushMessage, { sub: 'thread' }>): void
-  pushChrome(data: ChromePushData): void
-}
 
 export type Orchestrator = ReturnType<typeof createOrchestrator>
 

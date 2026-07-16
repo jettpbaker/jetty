@@ -3,9 +3,10 @@ import { join } from 'node:path'
 
 import { EchoAgent } from './agent'
 import { openDb } from './db'
+import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
 import { createStore } from './store'
-import { createWs, type ConnData } from './ws'
+import { createWs } from './ws'
 
 export type ServerOptions = {
   home?: string
@@ -22,9 +23,9 @@ export function startServer(opts: ServerOptions = {}) {
   const store = createStore(db)
   const agent = new EchoAgent()
 
-  let orch: ReturnType<typeof createOrchestrator>
-  const ws = createWs(store, () => orch)
-  orch = createOrchestrator(store, agent, ws.hub)
+  const hub = createHub()
+  const orch = createOrchestrator(store, agent, hub)
+  const ws = createWs(store, orch, hub)
 
   const server = Bun.serve<ConnData>({
     port,

@@ -5,20 +5,14 @@ import {
   RequestMessage,
   type MethodName,
   type ParamsOf,
-  type PushMessage,
   type ResponseMessage,
-  type ChromePushData,
 } from '@jetty/shared/wire'
 
+import type { Hub, ConnData } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
 import { StoreError } from './store'
-
-export type ConnData = {
-  chrome: boolean
-  threads: Set<string>
-}
 
 export type WsServer = {
   handlers: {
@@ -26,53 +20,11 @@ export type WsServer = {
     message(ws: ServerWebSocket<ConnData>, raw: string | Buffer): void
     close(ws: ServerWebSocket<ConnData>): void
   }
-  hub: {
-    pushThread(threadId: string, message: Extract<PushMessage, { sub: 'thread' }>): void
-    pushChrome(data: ChromePushData): void
-  }
 }
 
-export function createWs(store: Store, getOrch: () => Orchestrator): WsServer {
-  const chromeSubs = new Set<ServerWebSocket<ConnData>>()
-  const threadSubs = new Map<string, Set<ServerWebSocket<ConnData>>>()
-
-  function send(ws: ServerWebSocket<ConnData>, msg: ResponseMessage | PushMessage) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(msg))
-    }
-  }
-
+export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
   function respond(ws: ServerWebSocket<ConnData>, msg: ResponseMessage) {
-    send(ws, msg)
-  }
-
-  function pushChrome(data: ChromePushData) {
-    const msg: PushMessage = { sub: 'chrome', data }
-    for (const ws of chromeSubs) send(ws, msg)
-  }
-
-  function pushThread(threadId: string, message: Extract<PushMessage, { sub: 'thread' }>) {
-    const subs = threadSubs.get(threadId)
-    if (!subs) return
-    for (const ws of subs) send(ws, message)
-  }
-
-  function subscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
-    ws.data.threads.add(threadId)
-    let set = threadSubs.get(threadId)
-    if (!set) {
-      set = new Set()
-      threadSubs.set(threadId, set)
-    }
-    set.add(ws)
-  }
-
-  function unsubscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
-    ws.data.threads.delete(threadId)
-    const set = threadSubs.get(threadId)
-    if (!set) return
-    set.delete(ws)
-    if (set.size === 0) threadSubs.delete(threadId)
+    hub.send(ws, msg)
   }
 
   async function dispatch(
@@ -86,13 +38,10 @@ export function createWs(store: Store, getOrch: () => Orchestrator): WsServer {
       throw new StoreError('invalid_params', parsed.error.issues[0]?.message ?? 'Invalid params')
     }
 
-    const orch = getOrch()
-
     switch (method) {
       case 'chrome.subscribe': {
-        ws.data.chrome = true
-        chromeSubs.add(ws)
-        send(ws, {
+        hub.subscribeChrome(ws)
+        hub.send(ws, {
           sub: 'chrome',
           data: {
             type: 'snapshot',
@@ -105,30 +54,30 @@ export function createWs(store: Store, getOrch: () => Orchestrator): WsServer {
       case 'project.create': {
         const p = parsed.data as ParamsOf<'project.create'>
         const project = store.createProject(p.path, p.title)
-        pushChrome({ type: 'project.upserted', project })
+        hub.pushChrome({ type: 'project.upserted', project })
         return { project }
       }
       case 'thread.create': {
         const p = parsed.data as ParamsOf<'thread.create'>
         const thread = store.createThread(p.projectId)
-        pushChrome({ type: 'thread.upserted', thread })
+        hub.pushChrome({ type: 'thread.upserted', thread })
         return { thread }
       }
       case 'thread.archive': {
         const p = parsed.data as ParamsOf<'thread.archive'>
         const thread = store.archiveThread(p.threadId)
-        pushChrome({ type: 'thread.upserted', thread })
+        hub.pushChrome({ type: 'thread.upserted', thread })
         return null
       }
       case 'thread.subscribe': {
         const p = parsed.data as ParamsOf<'thread.subscribe'>
         const thread = store.getThread(p.threadId)
         if (!thread) throw new StoreError('not_found', `Thread ${p.threadId} not found`)
-        subscribeThread(ws, p.threadId)
+        hub.subscribeThread(ws, p.threadId)
         const state = store.getThreadState(p.threadId)
         if (p.afterSeq !== undefined) {
           for (const ev of store.getEventsAfter(p.threadId, p.afterSeq)) {
-            send(ws, {
+            hub.send(ws, {
               sub: 'thread',
               threadId: p.threadId,
               seq: ev.seq,
@@ -142,7 +91,7 @@ export function createWs(store: Store, getOrch: () => Orchestrator): WsServer {
       }
       case 'thread.unsubscribe': {
         const p = parsed.data as ParamsOf<'thread.unsubscribe'>
-        unsubscribeThread(ws, p.threadId)
+        hub.unsubscribeThread(ws, p.threadId)
         return null
       }
       case 'turn.start': {
@@ -166,7 +115,6 @@ export function createWs(store: Store, getOrch: () => Orchestrator): WsServer {
   }
 
   return {
-    hub: { pushThread, pushChrome },
     handlers: {
       open(ws) {
         ws.data.chrome = false
@@ -220,14 +168,7 @@ export function createWs(store: Store, getOrch: () => Orchestrator): WsServer {
       },
 
       close(ws) {
-        chromeSubs.delete(ws)
-        for (const threadId of ws.data.threads) {
-          const set = threadSubs.get(threadId)
-          if (!set) continue
-          set.delete(ws)
-          if (set.size === 0) threadSubs.delete(threadId)
-        }
-        ws.data.threads.clear()
+        hub.dropConnection(ws)
       },
     },
   }
