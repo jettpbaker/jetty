@@ -4,7 +4,9 @@
   "categories": {
     "correctness": "error"
   },
-  "rules": {},
+  "rules": {
+    "unicorn/no-array-for-each": "error"
+  },
   "env": {
     "browser": true,
     "node": true,

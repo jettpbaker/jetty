@@ -21,6 +21,7 @@ plan and status checklist — keep it current as chunks land.
 - If you need a paragraph-long comment to justify why the workaround is OK, the code
   is wrong — fix the code.
 - Use `type`, not `interface`.
+- Use `for...of`, not `.forEach()`.
 - Chunk design notes live in `docs/chunks/` only while a chunk is in flight. Once
   it's built and Jett has confirmed it, delete the note. The code is the docs.
 
