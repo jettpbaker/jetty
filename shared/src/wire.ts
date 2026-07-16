@@ -128,7 +128,17 @@ export const RequestMessage = z.object({
 })
 export type RequestMessage = z.infer<typeof RequestMessage>
 
-export const WireError = z.object({ code: z.string(), message: z.string() })
+export const ErrorCode = z.enum([
+  'invalid_request',
+  'invalid_params',
+  'unknown_method',
+  'not_found',
+  'turn_active',
+  'internal',
+])
+export type ErrorCode = z.infer<typeof ErrorCode>
+
+export const WireError = z.object({ code: ErrorCode, message: z.string() })
 export type WireError = z.infer<typeof WireError>
 
 export const ResponseMessage = z.object({

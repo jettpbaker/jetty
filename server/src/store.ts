@@ -2,7 +2,7 @@ import type { SessionStatus, ThreadEvent } from '@jetty/shared/events'
 import type { Database } from 'bun:sqlite'
 
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
-import { newId, type Project, type ThreadMeta } from '@jetty/shared/wire'
+import { newId, type ErrorCode, type Project, type ThreadMeta } from '@jetty/shared/wire'
 import { basename } from 'node:path'
 
 export type AppendedEvent = {
@@ -202,7 +202,7 @@ export function createStore(db: Database) {
 
 export class StoreError extends Error {
   constructor(
-    readonly code: string,
+    readonly code: ErrorCode,
     message: string
   ) {
     super(message)
