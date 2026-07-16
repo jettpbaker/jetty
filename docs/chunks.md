@@ -30,3 +30,5 @@ Later, maybe:
 - per-turn checkpoints, more agents via ACP, terminal stream, a desktop shell (PWA
   first).
 - richer PermissionMode UX — revisit what modes we actually expose and how.
+- walk Jett through the subscription model (chrome vs per-thread, why not one global
+  sub) properly — at latest as part of the chunk 4 design review.
