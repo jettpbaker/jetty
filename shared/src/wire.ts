@@ -1,31 +1,32 @@
-import { z } from "zod";
-import { uuidv7 } from "uuidv7";
-import { ApprovalDecision } from "./items";
-import { SequencedEvent, SessionStatus } from "./events";
-import { ThreadState } from "./reducer";
+import { uuidv7 } from 'uuidv7'
+import { z } from 'zod'
 
-export const newId = (): string => uuidv7();
+import { SequencedEvent, SessionStatus } from './events'
+import { ApprovalDecision } from './items'
+import { ThreadState } from './reducer'
 
-export const MAX_IMAGES_PER_TURN = 8;
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const newId = (): string => uuidv7()
+
+export const MAX_IMAGES_PER_TURN = 8
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 export const PermissionMode = z.enum([
-  "default",
-  "acceptEdits",
-  "auto",
-  "plan",
-  "dontAsk",
-  "bypassPermissions",
-]);
-export type PermissionMode = z.infer<typeof PermissionMode>;
+  'default',
+  'acceptEdits',
+  'auto',
+  'plan',
+  'dontAsk',
+  'bypassPermissions',
+])
+export type PermissionMode = z.infer<typeof PermissionMode>
 
 export const Project = z.object({
   id: z.string(),
   path: z.string(),
   title: z.string(),
   createdAt: z.number().int(),
-});
-export type Project = z.infer<typeof Project>;
+})
+export type Project = z.infer<typeof Project>
 
 export const ThreadMeta = z.object({
   id: z.string(),
@@ -34,34 +35,34 @@ export const ThreadMeta = z.object({
   status: SessionStatus,
   archived: z.boolean(),
   updatedAt: z.number().int(),
-});
-export type ThreadMeta = z.infer<typeof ThreadMeta>;
+})
+export type ThreadMeta = z.infer<typeof ThreadMeta>
 
 export const UploadAttachment = z.object({
   name: z.string(),
-  mimeType: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+  mimeType: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
   dataUrl: z.string(),
-});
-export type UploadAttachment = z.infer<typeof UploadAttachment>;
+})
+export type UploadAttachment = z.infer<typeof UploadAttachment>
 
 export const methods = {
-  "shell.subscribe": {
+  'shell.subscribe': {
     params: z.object({}),
     result: z.null(),
   },
-  "project.create": {
+  'project.create': {
     params: z.object({ path: z.string(), title: z.string().optional() }),
     result: z.object({ project: Project }),
   },
-  "thread.create": {
+  'thread.create': {
     params: z.object({ projectId: z.string() }),
     result: z.object({ thread: ThreadMeta }),
   },
-  "thread.archive": {
+  'thread.archive': {
     params: z.object({ threadId: z.string() }),
     result: z.null(),
   },
-  "thread.subscribe": {
+  'thread.subscribe': {
     params: z.object({
       threadId: z.string(),
       afterSeq: z.number().int().nonnegative().optional(),
@@ -71,11 +72,11 @@ export const methods = {
       seq: z.number().int().nonnegative(),
     }),
   },
-  "thread.unsubscribe": {
+  'thread.unsubscribe': {
     params: z.object({ threadId: z.string() }),
     result: z.null(),
   },
-  "turn.start": {
+  'turn.start': {
     params: z.object({
       threadId: z.string(),
       text: z.string(),
@@ -85,11 +86,11 @@ export const methods = {
     }),
     result: z.object({ turnId: z.string() }),
   },
-  "turn.interrupt": {
+  'turn.interrupt': {
     params: z.object({ threadId: z.string() }),
     result: z.null(),
   },
-  "approval.respond": {
+  'approval.respond': {
     params: z.object({
       threadId: z.string(),
       itemId: z.string(),
@@ -98,49 +99,49 @@ export const methods = {
     }),
     result: z.null(),
   },
-} as const;
+} as const
 
-export type MethodName = keyof typeof methods;
-export type ParamsOf<M extends MethodName> = z.infer<(typeof methods)[M]["params"]>;
-export type ResultOf<M extends MethodName> = z.infer<(typeof methods)[M]["result"]>;
+export type MethodName = keyof typeof methods
+export type ParamsOf<M extends MethodName> = z.infer<(typeof methods)[M]['params']>
+export type ResultOf<M extends MethodName> = z.infer<(typeof methods)[M]['result']>
 
-const methodNames = Object.keys(methods) as [MethodName, ...MethodName[]];
+const methodNames = Object.keys(methods) as [MethodName, ...MethodName[]]
 
 export const RequestFrame = z.object({
   id: z.string(),
   method: z.enum(methodNames),
   params: z.unknown(),
-});
-export type RequestFrame = z.infer<typeof RequestFrame>;
+})
+export type RequestFrame = z.infer<typeof RequestFrame>
 
-export const WireError = z.object({ code: z.string(), message: z.string() });
-export type WireError = z.infer<typeof WireError>;
+export const WireError = z.object({ code: z.string(), message: z.string() })
+export type WireError = z.infer<typeof WireError>
 
 export const ResponseFrame = z.object({
   id: z.string(),
   ok: z.boolean(),
   result: z.unknown().optional(),
   error: WireError.optional(),
-});
-export type ResponseFrame = z.infer<typeof ResponseFrame>;
+})
+export type ResponseFrame = z.infer<typeof ResponseFrame>
 
-export const ShellPushData = z.discriminatedUnion("type", [
+export const ShellPushData = z.discriminatedUnion('type', [
   z.object({
-    type: z.literal("snapshot"),
+    type: z.literal('snapshot'),
     projects: z.array(Project),
     threads: z.array(ThreadMeta),
   }),
-  z.object({ type: z.literal("project.upserted"), project: Project }),
-  z.object({ type: z.literal("thread.upserted"), thread: ThreadMeta }),
-  z.object({ type: z.literal("thread.removed"), threadId: z.string() }),
-]);
-export type ShellPushData = z.infer<typeof ShellPushData>;
+  z.object({ type: z.literal('project.upserted'), project: Project }),
+  z.object({ type: z.literal('thread.upserted'), thread: ThreadMeta }),
+  z.object({ type: z.literal('thread.removed'), threadId: z.string() }),
+])
+export type ShellPushData = z.infer<typeof ShellPushData>
 
-export const PushFrame = z.discriminatedUnion("sub", [
-  z.object({ sub: z.literal("shell"), data: ShellPushData }),
-  SequencedEvent.extend({ sub: z.literal("thread"), threadId: z.string() }),
-]);
-export type PushFrame = z.infer<typeof PushFrame>;
+export const PushFrame = z.discriminatedUnion('sub', [
+  z.object({ sub: z.literal('shell'), data: ShellPushData }),
+  SequencedEvent.extend({ sub: z.literal('thread'), threadId: z.string() }),
+])
+export type PushFrame = z.infer<typeof PushFrame>
 
-export const ServerFrame = z.union([PushFrame, ResponseFrame]);
-export type ServerFrame = z.infer<typeof ServerFrame>;
+export const ServerFrame = z.union([PushFrame, ResponseFrame])
+export type ServerFrame = z.infer<typeof ServerFrame>
