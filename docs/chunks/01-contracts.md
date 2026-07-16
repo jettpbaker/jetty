@@ -1,6 +1,6 @@
 # chunk 1: contracts (`shared/`)
 
-The contracts package is the mental model of the whole app: what a thread *is*, what
+The contracts package is the mental model of the whole app: what a thread _is_, what
 events flow through it, and what the browser and server say to each other. Both sides
 import from here; nothing else in the codebase gets to invent a shape. zod v4 schemas
 are the source of truth, TypeScript types are inferred from them.

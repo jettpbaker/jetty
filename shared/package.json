@@ -1,0 +1,15 @@
+{
+  "name": "@jetty/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./items": "./src/items.ts",
+    "./events": "./src/events.ts",
+    "./reducer": "./src/reducer.ts",
+    "./wire": "./src/wire.ts"
+  },
+  "dependencies": {
+    "uuidv7": "^1.2.1",
+    "zod": "^4.4.3"
+  }
+}
