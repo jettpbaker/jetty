@@ -7,7 +7,7 @@ stays and tracks status.
 - [x] **1. contracts** — zod schemas in `shared/` for timeline items, thread events,
       the reducer, and the ws method catalog. The shared vocabulary both sides
       import; nothing outside `shared/` gets to invent a shape.
-- [ ] **2. server skeleton** — Bun.serve with ws dispatch over the method table,
+- [x] **2. server skeleton** — Bun.serve with ws dispatch over the method table,
       sqlite persistence (event log + projections + chrome tables), and a fake echo
       agent proving turn → events → push end to end before Claude enters the picture.
 - [ ] **3. claude adapter** — claude-agent-sdk sessions mapped to normalized events;
