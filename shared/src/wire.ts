@@ -28,6 +28,19 @@ export const Project = z.object({
 })
 export type Project = z.infer<typeof Project>
 
+export const ThreadGitStatus = z.object({
+  branch: z.string(),
+  dirty: z.boolean(),
+  pr: z
+    .object({
+      number: z.number().int().positive(),
+      state: z.enum(['draft', 'open', 'merged', 'closed']),
+      url: z.string(),
+    })
+    .nullable(),
+})
+export type ThreadGitStatus = z.infer<typeof ThreadGitStatus>
+
 export const ThreadMeta = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -35,6 +48,7 @@ export const ThreadMeta = z.object({
   status: SessionStatus,
   archived: z.boolean(),
   updatedAt: z.number().int(),
+  git: ThreadGitStatus.optional(),
 })
 export type ThreadMeta = z.infer<typeof ThreadMeta>
 
@@ -46,7 +60,7 @@ export const UploadAttachment = z.object({
 export type UploadAttachment = z.infer<typeof UploadAttachment>
 
 export const methods = {
-  'shell.subscribe': {
+  'chrome.subscribe': {
     params: z.object({}),
     result: z.null(),
   },
@@ -107,25 +121,25 @@ export type ResultOf<M extends MethodName> = z.infer<(typeof methods)[M]['result
 
 const methodNames = Object.keys(methods) as [MethodName, ...MethodName[]]
 
-export const RequestFrame = z.object({
+export const RequestMessage = z.object({
   id: z.string(),
   method: z.enum(methodNames),
   params: z.unknown(),
 })
-export type RequestFrame = z.infer<typeof RequestFrame>
+export type RequestMessage = z.infer<typeof RequestMessage>
 
 export const WireError = z.object({ code: z.string(), message: z.string() })
 export type WireError = z.infer<typeof WireError>
 
-export const ResponseFrame = z.object({
+export const ResponseMessage = z.object({
   id: z.string(),
   ok: z.boolean(),
   result: z.unknown().optional(),
   error: WireError.optional(),
 })
-export type ResponseFrame = z.infer<typeof ResponseFrame>
+export type ResponseMessage = z.infer<typeof ResponseMessage>
 
-export const ShellPushData = z.discriminatedUnion('type', [
+export const ChromePushData = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('snapshot'),
     projects: z.array(Project),
@@ -135,13 +149,13 @@ export const ShellPushData = z.discriminatedUnion('type', [
   z.object({ type: z.literal('thread.upserted'), thread: ThreadMeta }),
   z.object({ type: z.literal('thread.removed'), threadId: z.string() }),
 ])
-export type ShellPushData = z.infer<typeof ShellPushData>
+export type ChromePushData = z.infer<typeof ChromePushData>
 
-export const PushFrame = z.discriminatedUnion('sub', [
-  z.object({ sub: z.literal('shell'), data: ShellPushData }),
+export const PushMessage = z.discriminatedUnion('sub', [
+  z.object({ sub: z.literal('chrome'), data: ChromePushData }),
   SequencedEvent.extend({ sub: z.literal('thread'), threadId: z.string() }),
 ])
-export type PushFrame = z.infer<typeof PushFrame>
+export type PushMessage = z.infer<typeof PushMessage>
 
-export const ServerFrame = z.union([PushFrame, ResponseFrame])
-export type ServerFrame = z.infer<typeof ServerFrame>
+export const ServerMessage = z.union([PushMessage, ResponseMessage])
+export type ServerMessage = z.infer<typeof ServerMessage>

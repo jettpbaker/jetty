@@ -27,15 +27,4 @@ TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.
 
 ## progress
 
-Building in order, one chunk at a time:
-
-- [ ] 1. contracts — event vocabulary + ws message catalog (`shared/`)
-- [ ] 2. server skeleton — ws protocol, sqlite, fake echo agent to prove the pipeline
-- [ ] 3. claude adapter — sdk → normalized events, resume, interrupt
-- [ ] 4. web shell — sidebar, thread view, streaming chat
-- [ ] 5. approvals + permission modes
-- [ ] 6. image paste
-- [ ] 7. diff viewer (sdk `getWorkspaceDiff` first)
-
-Later, maybe: per-turn checkpoints, more agents via ACP, terminal stream, a desktop
-shell (PWA first).
+The chunk-by-chunk plan and current status live in [docs/chunks.md](docs/chunks.md).

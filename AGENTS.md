@@ -11,8 +11,8 @@ actually understands the codebase. That means:
 - UI rides default shadcn styles until a dedicated design pass at the end. Don't
   hand-tweak styles before then.
 
-README.md holds the project description and the progress checklist; keep the
-checklist current as chunks land.
+README.md holds the project description; `docs/chunks.md` is the persistent build
+plan and status checklist — keep it current as chunks land.
 
 ## code
 
