@@ -1,0 +1,8 @@
+{
+  "name": "@jetty/server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@jetty/shared": "workspace:*"
+  }
+}
