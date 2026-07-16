@@ -4,7 +4,7 @@ The build plan, in order. This file is persistent — in-flight design notes liv
 `docs/chunks/` and get deleted once a chunk is built and confirmed, but this index
 stays and tracks status.
 
-- [ ] **1. contracts** — zod schemas in `shared/` for timeline items, thread events,
+- [x] **1. contracts** — zod schemas in `shared/` for timeline items, thread events,
       the reducer, and the ws method catalog. The shared vocabulary both sides
       import; nothing outside `shared/` gets to invent a shape.
 - [ ] **2. server skeleton** — Bun.serve with ws dispatch over the method table,
