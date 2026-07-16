@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { EchoAgent } from './agent'
+import { createEchoAgent } from './agent'
 import { openDb } from './db'
 import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
@@ -21,7 +21,7 @@ export function startServer(opts: ServerOptions = {}) {
 
   const db = openDb(home)
   const store = createStore(db)
-  const agent = new EchoAgent()
+  const agent = createEchoAgent()
 
   const hub = createHub()
   const orch = createOrchestrator(store, agent, hub)

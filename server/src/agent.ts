@@ -17,79 +17,10 @@ export type Agent = {
 const CHUNK_MS = 8
 const STEP_MS = 5
 
-export class EchoAgent implements Agent {
-  #controllers = new Map<string, AbortController>()
+export function createEchoAgent(): Agent {
+  const controllers = new Map<string, AbortController>()
 
-  interrupt(threadId: string) {
-    this.#controllers.get(threadId)?.abort()
-  }
-
-  async startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void> {
-    const prev = this.#controllers.get(input.threadId)
-    prev?.abort()
-    const ac = new AbortController()
-    this.#controllers.set(input.threadId, ac)
-    const { signal } = ac
-
-    try {
-      emit({ type: 'turn.started', turnId: input.turnId })
-
-      const reasoningId = newId()
-      const reasoning: ThreadItem = {
-        id: reasoningId,
-        turnId: input.turnId,
-        createdAt: Date.now(),
-        kind: 'reasoning',
-        text: '',
-      }
-      emit({ type: 'item.started', item: reasoning })
-      await this.#emitChunks(emit, reasoningId, 'Thinking about your message…', signal)
-      emit({ type: 'item.completed', itemId: reasoningId })
-
-      const toolId = newId()
-      const tool: ThreadItem = {
-        id: toolId,
-        turnId: input.turnId,
-        createdAt: Date.now(),
-        kind: 'tool_call',
-        toolName: 'echo',
-        input: { text: input.text },
-        output: '',
-        status: 'running',
-      }
-      emit({ type: 'item.started', item: tool })
-      await this.#emitChunks(emit, toolId, `echo: ${input.text}`, signal)
-      emit({ type: 'item.completed', itemId: toolId, patch: { status: 'succeeded' } })
-
-      const assistantId = newId()
-      const assistant: ThreadItem = {
-        id: assistantId,
-        turnId: input.turnId,
-        createdAt: Date.now(),
-        kind: 'assistant_message',
-        text: '',
-      }
-      emit({ type: 'item.started', item: assistant })
-      await this.#emitChunks(emit, assistantId, input.text, signal)
-      emit({ type: 'item.completed', itemId: assistantId })
-
-      emit({
-        type: 'turn.completed',
-        turnId: input.turnId,
-        usage: { inputTokens: input.text.length, outputTokens: input.text.length },
-        costUsd: 0,
-      })
-    } catch (err) {
-      if (!isAbortError(err)) throw err
-      emit({ type: 'turn.failed', turnId: input.turnId, error: 'interrupted' })
-    } finally {
-      if (this.#controllers.get(input.threadId) === ac) {
-        this.#controllers.delete(input.threadId)
-      }
-    }
-  }
-
-  async #emitChunks(
+  async function emitChunks(
     emit: (event: ThreadEvent) => void,
     itemId: string,
     text: string,
@@ -101,6 +32,73 @@ export class EchoAgent implements Agent {
       emit({ type: 'item.delta', itemId, delta: text.slice(i, i + size) })
     }
     await sleep(STEP_MS, signal)
+  }
+
+  return {
+    interrupt(threadId: string) {
+      controllers.get(threadId)?.abort()
+    },
+
+    async startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void> {
+      controllers.get(input.threadId)?.abort()
+      const ac = new AbortController()
+      controllers.set(input.threadId, ac)
+      const { signal } = ac
+
+      try {
+        emit({ type: 'turn.started', turnId: input.turnId })
+
+        const reasoning: ThreadItem = {
+          id: newId(),
+          turnId: input.turnId,
+          createdAt: Date.now(),
+          kind: 'reasoning',
+          text: '',
+        }
+        emit({ type: 'item.started', item: reasoning })
+        await emitChunks(emit, reasoning.id, 'Thinking about your message…', signal)
+        emit({ type: 'item.completed', itemId: reasoning.id })
+
+        const tool: ThreadItem = {
+          id: newId(),
+          turnId: input.turnId,
+          createdAt: Date.now(),
+          kind: 'tool_call',
+          toolName: 'echo',
+          input: { text: input.text },
+          output: '',
+          status: 'running',
+        }
+        emit({ type: 'item.started', item: tool })
+        await emitChunks(emit, tool.id, `echo: ${input.text}`, signal)
+        emit({ type: 'item.completed', itemId: tool.id, patch: { status: 'succeeded' } })
+
+        const assistant: ThreadItem = {
+          id: newId(),
+          turnId: input.turnId,
+          createdAt: Date.now(),
+          kind: 'assistant_message',
+          text: '',
+        }
+        emit({ type: 'item.started', item: assistant })
+        await emitChunks(emit, assistant.id, input.text, signal)
+        emit({ type: 'item.completed', itemId: assistant.id })
+
+        emit({
+          type: 'turn.completed',
+          turnId: input.turnId,
+          usage: { inputTokens: input.text.length, outputTokens: input.text.length },
+          costUsd: 0,
+        })
+      } catch (err) {
+        if (!isAbortError(err)) throw err
+        emit({ type: 'turn.failed', turnId: input.turnId, error: 'interrupted' })
+      } finally {
+        if (controllers.get(input.threadId) === ac) {
+          controllers.delete(input.threadId)
+        }
+      }
+    },
   }
 }
 
