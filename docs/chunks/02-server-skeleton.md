@@ -35,7 +35,7 @@ server/src/
 2. **The Agent interface** — the seam Claude plugs into in chunk 3:
 
    ```ts
-   interface Agent {
+   type Agent = {
      startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void>
      interrupt(threadId: string): void
    }
