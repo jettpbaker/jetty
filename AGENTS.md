@@ -37,6 +37,11 @@ plan and status checklist — keep it current as chunks land.
 - Components come from a strict ladder: use a shadcn/ui or AI Elements component
   if one fits; else compose one from shadcn primitives; truly custom only when
   both fail, and say so in the PR/walkthrough.
+- Icons are Phosphor (`@phosphor-icons/react`), never lucide. Registry components
+  arrive speaking lucide — swapping their icon imports to Phosphor equivalents is
+  part of adding them (lucide's `Chevron*` is Phosphor's `Caret*`). oxlint bans
+  `lucide-react` imports so a missed swap fails the lint gate. Weight/stroke
+  tuning waits for the design pass — plain swaps until then.
 
 - Act on pointer-down, not click, wherever it's safe (Carmack's "act on press"):
   fixed-position controls like sidebar items, tabs, buttons, toggles. It reads as
