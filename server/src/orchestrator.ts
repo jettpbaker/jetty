@@ -59,7 +59,7 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
       if (!thread) throw new StoreError('not_found', `Thread ${input.threadId} not found`)
 
       const existingTurnId = activeTurnId(input.threadId)
-      if (existingTurnId) {
+      if (existingTurnId && agent.steer(input.threadId, input.text)) {
         const userItem: ThreadItem = {
           id: newId(),
           turnId: existingTurnId,
@@ -70,12 +70,9 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
         }
         append(input.threadId, { type: 'item.started', item: userItem })
         append(input.threadId, { type: 'item.completed', itemId: userItem.id })
-
-        if (agent.steer(input.threadId, input.text)) {
-          return { turnId: existingTurnId }
-        }
-        // Lost race — fall through to a fresh turn.
+        return { turnId: existingTurnId }
       }
+      // No active turn, or the warm session vanished mid-race — fresh turn.
 
       const turnId = newId()
       liveTurns.set(input.threadId, turnId)
