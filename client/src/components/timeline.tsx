@@ -4,9 +4,10 @@ import { Virtuoso } from 'react-virtuoso'
 
 import { TimelineItem } from './timeline-item'
 
-export function Timeline({ items }: { items: ThreadItem[] }) {
+export function Timeline({ threadId, items }: { threadId: string; items: ThreadItem[] }) {
   return (
     <Virtuoso
+      key={threadId}
       className='flex-1'
       data={items}
       computeItemKey={(_index, item) => item.id}

@@ -21,10 +21,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { MoreHorizontalIcon, PlusIcon, SettingsIcon } from 'lucide-react'
-import { type MouseEvent, useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
 
@@ -39,17 +40,6 @@ function statusDotClass(status: SessionStatus): string {
       return 'bg-destructive'
     case 'idle':
       return 'bg-muted-foreground/40'
-  }
-}
-
-// Fires the pointer path immediately (act-on-press) while still activating from
-// the keyboard, which arrives as a click with detail === 0.
-function pressHandlers(run: () => void) {
-  return {
-    onPointerDown: run,
-    onClick: (event: MouseEvent<HTMLElement>) => {
-      if (event.detail === 0) run()
-    },
   }
 }
 

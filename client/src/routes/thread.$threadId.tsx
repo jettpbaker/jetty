@@ -28,7 +28,7 @@ function ThreadPage() {
       <header className='flex h-12 shrink-0 items-center border-b px-2'>
         <SidebarTrigger />
       </header>
-      <Timeline items={state.items} />
+      <Timeline threadId={threadId} items={state.items} />
       <div className='mx-auto w-full max-w-3xl shrink-0 p-4'>
         <Composer threadId={threadId} status={state.status} />
       </div>

@@ -2,8 +2,11 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { syncTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
 import './styles.css'
+
+syncTheme()
 
 const router = createRouter({ routeTree })
 
