@@ -279,49 +279,53 @@ export function PromptInputAttachment({ data, className, ...props }: PromptInput
 
   return (
     <PromptInputHoverCard>
-      <HoverCardTrigger asChild>
-        <div
-          className={cn(
-            'group relative flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-md border border-border px-1.5 font-medium text-sm transition-all hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-            className
-          )}
-          key={data.id}
-          {...props}
-        >
-          <div className='relative size-5 shrink-0'>
-            <div className='absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded bg-background transition-opacity group-hover:opacity-0'>
-              {isImage ? (
-                <img
-                  alt={filename || 'attachment'}
-                  className='size-5 object-cover'
-                  height={20}
-                  src={data.url}
-                  width={20}
-                />
-              ) : (
-                <div className='flex size-5 items-center justify-center text-muted-foreground'>
-                  <PaperclipIcon className='size-3' />
-                </div>
-              )}
+      <HoverCardTrigger
+        closeDelay={0}
+        delay={0}
+        render={
+          <div
+            className={cn(
+              'group relative flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-md border border-border px-1.5 font-medium text-sm transition-all hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
+              className
+            )}
+            key={data.id}
+            {...props}
+          >
+            <div className='relative size-5 shrink-0'>
+              <div className='absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded bg-background transition-opacity group-hover:opacity-0'>
+                {isImage ? (
+                  <img
+                    alt={filename || 'attachment'}
+                    className='size-5 object-cover'
+                    height={20}
+                    src={data.url}
+                    width={20}
+                  />
+                ) : (
+                  <div className='flex size-5 items-center justify-center text-muted-foreground'>
+                    <PaperclipIcon className='size-3' />
+                  </div>
+                )}
+              </div>
+              <Button
+                aria-label='Remove attachment'
+                className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  attachments.remove(data.id)
+                }}
+                type='button'
+                variant='ghost'
+              >
+                <XIcon />
+                <span className='sr-only'>Remove</span>
+              </Button>
             </div>
-            <Button
-              aria-label='Remove attachment'
-              className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
-              onClick={(e) => {
-                e.stopPropagation()
-                attachments.remove(data.id)
-              }}
-              type='button'
-              variant='ghost'
-            >
-              <XIcon />
-              <span className='sr-only'>Remove</span>
-            </Button>
-          </div>
 
-          <span className='flex-1 truncate'>{attachmentLabel}</span>
-        </div>
-      </HoverCardTrigger>
+            <span className='flex-1 truncate'>{attachmentLabel}</span>
+          </div>
+        }
+      />
       <PromptInputHoverCardContent className='w-auto p-2'>
         <div className='w-auto space-y-3'>
           {isImage && (
@@ -908,11 +912,13 @@ export const PromptInputActionMenuTrigger = ({
   children,
   ...props
 }: PromptInputActionMenuTriggerProps) => (
-  <DropdownMenuTrigger asChild>
-    <PromptInputButton className={className} {...props}>
-      {children ?? <PlusIcon className='size-4' />}
-    </PromptInputButton>
-  </DropdownMenuTrigger>
+  <DropdownMenuTrigger
+    render={
+      <PromptInputButton className={className} {...props}>
+        {children ?? <PlusIcon className='size-4' />}
+      </PromptInputButton>
+    }
+  />
 )
 
 export type PromptInputActionMenuContentProps = ComponentProps<typeof DropdownMenuContent>
@@ -1159,13 +1165,7 @@ export const PromptInputSelectValue = ({ className, ...props }: PromptInputSelec
 
 export type PromptInputHoverCardProps = ComponentProps<typeof HoverCard>
 
-export const PromptInputHoverCard = ({
-  openDelay = 0,
-  closeDelay = 0,
-  ...props
-}: PromptInputHoverCardProps) => (
-  <HoverCard closeDelay={closeDelay} openDelay={openDelay} {...props} />
-)
+export const PromptInputHoverCard = (props: PromptInputHoverCardProps) => <HoverCard {...props} />
 
 export type PromptInputHoverCardTriggerProps = ComponentProps<typeof HoverCardTrigger>
 

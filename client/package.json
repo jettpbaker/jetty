@@ -8,9 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@base-ui/react": "1.6.0",
     "@fontsource-variable/geist": "^5.2.9",
     "@jetty/shared": "workspace:*",
-    "@radix-ui/react-use-controllable-state": "^1.2.3",
     "@shadcn/react": "^0.2.1",
     "@tanstack/react-router": "^1.141.2",
     "ai": "^7.0.30",
@@ -20,7 +20,6 @@
     "lucide-react": "^1.25.0",
     "motion": "^12.42.2",
     "nanoid": "^6.0.0",
-    "radix-ui": "^1.6.2",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "shadcn": "^4.13.0",

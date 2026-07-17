@@ -111,12 +111,14 @@ export function AppSidebar() {
                         <span className='truncate'>{thread.title || thread.id}</span>
                       </SidebarMenuButton>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <SidebarMenuAction showOnHover>
-                            <MoreHorizontalIcon />
-                            <span className='sr-only'>Thread actions</span>
-                          </SidebarMenuAction>
-                        </DropdownMenuTrigger>
+                        <DropdownMenuTrigger
+                          render={
+                            <SidebarMenuAction showOnHover>
+                              <MoreHorizontalIcon />
+                              <span className='sr-only'>Thread actions</span>
+                            </SidebarMenuAction>
+                          }
+                        />
                         <DropdownMenuContent side='right' align='start'>
                           <DropdownMenuItem onSelect={() => void archiveThread(thread.id)}>
                             Archive
@@ -143,12 +145,14 @@ export function AppSidebar() {
                 <span>Back</span>
               </SidebarMenuButton>
             ) : (
-              <SidebarMenuButton asChild>
-                <Link to='/settings'>
-                  <SettingsIcon />
-                  <span>Settings</span>
-                </Link>
-              </SidebarMenuButton>
+              <SidebarMenuButton
+                render={
+                  <Link to='/settings'>
+                    <SettingsIcon />
+                    <span>Settings</span>
+                  </Link>
+                }
+              />
             )}
           </SidebarMenuItem>
         </SidebarMenu>

@@ -3,8 +3,8 @@
 import type { ComponentProps, ReactNode } from 'react'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useControllableState } from '@/lib/use-controllable-state'
 import { cn } from '@/lib/utils'
-import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { BrainIcon, ChevronDownIcon } from 'lucide-react'
 import { createContext, memo, useContext, useEffect, useState } from 'react'
 import { Streamdown } from 'streamdown'

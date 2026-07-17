@@ -33,11 +33,13 @@ export function NewProjectDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant='outline' size='sm' className='w-full'>
-          New project
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button variant='outline' size='sm' className='w-full'>
+            New project
+          </Button>
+        }
+      />
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
