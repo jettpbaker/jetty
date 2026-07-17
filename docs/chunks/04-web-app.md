@@ -60,6 +60,7 @@ data flow visible while the architecture is still being learned.
 
 - `/` — sidebar + empty state ("pick a thread")
 - `/thread/$threadId` — sidebar + thread view
+- `/settings` — empty placeholder page, route wired now so future settings have a home
 
 Project is implicit (threads know their project); no project route needed yet.
 
