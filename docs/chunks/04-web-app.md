@@ -3,7 +3,7 @@
 The first chunk with pixels: a Vite React SPA served by the same Bun process, talking
 to the server over the WebSocket contracts from chunk 1. Scope is "usable daily
 driver for text-only turns": sidebar, streaming timeline, composer. Approvals UI,
-permission mode picker (5), image paste (6), and diffs (7) stay in their own chunks —
+permission mode picker (5), image paste (7), and diffs (8) stay in their own chunks —
 the timeline renders those items read-only where they appear, nothing more.
 
 ## workspace layout

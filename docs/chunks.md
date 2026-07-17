@@ -18,10 +18,14 @@ stays and tracks status.
       permission mode picker per thread. Three surfaced modes: auto (default),
       full access, plan. PermissionMode on the wire is jetty vocabulary
       (auto | full_access | plan); each adapter maps it to its provider's modes.
-- [ ] **6. image paste** — clipboard/drop → client-side downscale → data URL over ws →
+- [ ] **6. local persistence** — thread-state and chrome caches persisted to
+      IndexedDB, hydrated on boot before the socket connects; `afterSeq` catch-up
+      heals whatever is behind. Persisted state can only be stale, never wrong;
+      zod-validate on read, discard what doesn't parse. Instant reloads, Linear-style.
+- [ ] **7. image paste** — clipboard/drop → client-side downscale → data URL over ws →
       attachments dir → base64 content block to Claude. Verify real Anthropic image
       limits here.
-- [ ] **7. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
+- [ ] **8. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
       fallback) rendered with `@pierre/diffs`.
 
 Later, maybe:
