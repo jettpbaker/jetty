@@ -39,6 +39,35 @@ Later, maybe:
   and `rewindFiles` restores checkpointed files — together they'd give "go back to
   this point in the thread" (t3 tracks the same cursor for this).
 - richer PermissionMode UX — revisit what modes we actually expose and how.
+- subagents + workflows rendering — SDK research done (2026-07, verified against
+  code.claude.com/docs/en/agent-sdk/subagents, /typescript, /hooks, /workflows):
+  - correlation: subagent spawns are `tool_use` blocks named `Agent` (still `Task`
+    in system:init tools list); every message from inside a subagent carries
+    `parent_tool_use_id` = the spawning tool_use id. `claude-translate.ts` types
+    this field but ignores it today — a subagent turn would interleave into the
+    main timeline and corrupt streaming ctx. Fix before rendering work.
+  - verbosity is opt-in: default = tool call + final result only;
+    `agentProgressSummaries: true` adds one-line `task_progress` messages
+    (`{type, task_id, summary?}`); `forwardSubagentText: true` streams the
+    subagent's text/thinking with `parent_tool_use_id` set — needed for a full
+    nested transcript.
+  - lifecycle: background-by-default since CLI v2.1.198 (results arrive out of
+    order); `stop_task` control request kills one subagent; Agent tool_result
+    text carries `agentId` for resume. Nesting to depth 5 (`parent_agent_id` in
+    `getSessionMessages`). Subagent transcripts are separate files under
+    `<session>/subagents/agent-<agentId>.jsonl`.
+  - approvals: subagents don't inherit parent approvals — prompts route through
+    the same `canUseTool`; UI must say which agent is asking (hook inputs carry
+    `agent_id`/`agent_type`; frontmatter `color` is a free UI hint).
+  - workflows are opaque by design: isolated run, only `task_progress`-style
+    events + final report reach the stream — render as a progress card, a full
+    transcript is impossible. `ultracode` keyword only triggers on messages
+    stamped `origin: {kind: 'human'}` (jetty doesn't stamp today). Exact
+    `Workflow` tool i/o schema unverified — check the npm `.d.ts` when needed.
+  - behavior is CLI-version-gated; read `capabilities` off system:init instead of
+    assuming.
+  - design calls open (taste, check with Jett): flat items + `parentItemId` vs
+    container item; which verbosity tier default-on; workflow card shape.
 - subprojects / thread tags: in a monorepo (say `acme-stack/` with `apps/web`,
   `apps/admin`, `services/api`), agents run best from the repo root, so the whole
   repo is one jetty project — but most threads _operate_ in one area. A sidebar-only
