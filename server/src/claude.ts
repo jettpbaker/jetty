@@ -28,7 +28,7 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000
 type SdkPermissionMode = NonNullable<Options['permissionMode']>
 
 /** Map jetty wire PermissionMode → Claude Agent SDK permissionMode. */
-const toSdkPermissionMode = (mode: PermissionMode | undefined): SdkPermissionMode => {
+function toSdkPermissionMode(mode: PermissionMode | undefined): SdkPermissionMode {
   switch (mode ?? 'auto') {
     case 'full_access':
       return 'bypassPermissions'

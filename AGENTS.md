@@ -24,6 +24,8 @@ plan and status checklist — keep it current as chunks land.
 - Use `for...of`, not `.forEach()`.
 - Factory functions over classes. Classes only for `Error` subclasses, or when a
   library demands one.
+- `function` declarations for named top-level functions; arrows only for inline
+  callbacks and single-expression helpers.
 - Chunk design notes live in `docs/chunks/` only while a chunk is in flight. Once
   it's built and Jett has confirmed it, delete the note. The code is the docs.
 
