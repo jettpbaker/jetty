@@ -25,6 +25,28 @@ describe('translate()', () => {
     expect(ctx.sessionId).toBe('sess-abc')
   })
 
+  test('subagent-internal messages (parent_tool_use_id) are dropped', () => {
+    const ctx = createTranslateCtx('t1')
+    const inner: SdkLikeMessage = {
+      type: 'stream_event',
+      parent_tool_use_id: 'toolu_agent_1',
+      event: {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      },
+    }
+    expect(translate(inner, ctx)).toEqual([])
+    expect(ctx.currentAssistantId).toBeNull()
+
+    const innerAssistant: SdkLikeMessage = {
+      type: 'assistant',
+      parent_tool_use_id: 'toolu_agent_1',
+      message: { content: [{ type: 'text', text: 'subagent text' }] },
+    }
+    expect(translate(innerAssistant, ctx)).toEqual([])
+  })
+
   test('streaming text via stream_event deltas', () => {
     const ctx = createTranslateCtx('t1')
     const start = translate(

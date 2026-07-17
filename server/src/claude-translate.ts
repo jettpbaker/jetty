@@ -74,6 +74,12 @@ type StreamEvent = {
 }
 
 export function translate(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
+  // Messages from inside a subagent carry parent_tool_use_id. We don't render
+  // subagent internals yet — dropping them keeps the Agent tool_use + its
+  // result (the SDK's default verbosity) and stops inner messages from
+  // corrupting the main timeline's streaming ctx.
+  if (msg.parent_tool_use_id != null) return []
+
   switch (msg.type) {
     case 'system':
       if (msg.subtype === 'init' && typeof msg.session_id === 'string') {
