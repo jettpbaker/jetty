@@ -17,10 +17,11 @@ doesn't lose the conversation.
    the known upgrade path — the `Agent` seam hides the difference.
 
    Mechanically each turn still opens `query()` in streaming-input mode — a queue
-   that yields the single user message — because the SDK's control requests
-   (`interrupt()`, notably) only work in that mode. So interrupts are graceful
-   (Claude stops cleanly, the session stays resumable) rather than process kills;
-   the query is closed once the result message arrives.
+   that yields the single user message — because single-message mode supports
+   neither `interrupt()` nor image attachments (chunk 6 needs the latter). So
+   interrupts are graceful (Claude stops cleanly, the session stays resumable)
+   rather than process kills; the query is closed once the result message arrives.
+   Docs: code.claude.com/docs/en/agent-sdk/{sessions,streaming-vs-single-mode}.
 
 2. **Resume cursor on the thread row.** New nullable column
    `threads.agent_session_id`, written when the SDK's init message reveals the
