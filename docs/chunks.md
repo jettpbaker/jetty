@@ -37,8 +37,10 @@ Later, maybe:
 - richer PermissionMode UX — revisit what modes we actually expose and how.
 - subprojects / thread tags: in a monorepo (say `acme-stack/` with `apps/web`,
   `apps/admin`, `services/api`), agents run best from the repo root, so the whole
-  repo is one jetty project — but most threads *operate* in one area. A sidebar-only
+  repo is one jetty project — but most threads _operate_ in one area. A sidebar-only
   grouping (tag or path label per thread) would organize this without touching agent
   behaviour: cwd stays the project root, tags are pure UI.
 - walk Jett through the subscription model (chrome vs per-thread, why not one global
   sub) properly — at latest as part of the chunk 4 design review.
+- sound effects on actions (button clicks, sends, completions) — recent micro-trend,
+  interested but not yet. Reference: https://cuelume-site.pages.dev/

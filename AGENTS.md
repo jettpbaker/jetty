@@ -31,6 +31,13 @@ plan and status checklist — keep it current as chunks land.
 
 ## ui feel
 
+- Performance is the #1 UX value. Interactions render synchronously from local
+  state; the network is never on the critical path of a click. Thread switching
+  must be instant — cached state first, catch-up patches after.
+- Components come from a strict ladder: use a shadcn/ui or AI Elements component
+  if one fits; else compose one from shadcn primitives; truly custom only when
+  both fail, and say so in the PR/walkthrough.
+
 - Act on pointer-down, not click, wherever it's safe (Carmack's "act on press"):
   fixed-position controls like sidebar items, tabs, buttons, toggles. It reads as
   instantly responsive and dodges the pressed-but-slid-off miss.

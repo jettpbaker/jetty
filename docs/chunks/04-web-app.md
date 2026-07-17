@@ -48,13 +48,35 @@ No state library. Two small hand-rolled stores exposed to React via
 
 - **chrome store**: projects + thread rows, updated by `thread.upserted` /
   `project.upserted` pushes. One subscription for the whole app lifetime.
-- **timeline store**: holds `ThreadState` for the open thread and applies pushes with
-  the *same* `applyEvent` reducer from `shared/` — the moment the client imports it,
-  the "reducer runs on both sides" claim from the README becomes literally true.
-  Subscribe on thread open, unsubscribe on leave.
+- **timeline store**: a `Map<threadId, ThreadState>` cache. Pushes for the open
+  thread are applied with the _same_ `applyEvent` reducer from `shared/` — the
+  moment the client imports it, the "reducer runs on both sides" claim from the
+  README becomes literally true. The cache is never evicted on navigation: leaving
+  a thread unsubscribes but keeps its state.
 
 If hand-rolled starts hurting we can swap in zustand later; starting bare keeps the
 data flow visible while the architecture is still being learned.
+
+## performance
+
+The #1 UX value (per AGENTS.md). Concretely for this chunk:
+
+- **instant thread switch**: clicking a thread renders synchronously from the
+  cached `ThreadState` (or an empty shell for a never-visited thread) — zero
+  network on the critical path. Then `thread.subscribe { afterSeq: cached.lastSeq }`
+  patches the gap in the background. Navigation fires on pointer-down (AGENTS.md).
+- **one delta = one component render**: item renderers are wrapped in `React.memo`,
+  and `applyEvent` already replaces only the touched item (`updateItem` copies the
+  array, swaps one index) — untouched items keep their references, so a streaming
+  delta re-renders exactly one message component.
+- **virtualized timeline**: `react-virtuoso` from day one — only the visible window
+  mounts, `followOutput` handles stick-to-bottom during streaming. Mounting a
+  500-item thread must not cost the instant switch. This is the one place we skip
+  an AI Elements component (`Conversation`, which renders the full list) for a perf
+  reason.
+- **stable refs on navigation**: TanStack Router's structural sharing keeps route
+  context references stable so switching threads doesn't cascade re-renders through
+  sidebar/composer.
 
 ## routes
 
@@ -66,26 +88,36 @@ Project is implicit (threads know their project); no project route needed yet.
 
 ## components
 
-- **sidebar**: projects as groups, threads under each, status dot from
-  `ThreadMeta.status` (running / awaiting approval / error / idle), new-thread and
-  new-project actions, archive via context or hover action. Act-on-pointer-down for
-  thread switching.
-- **timeline**: renders `ThreadState.items` in order. One renderer per item kind:
-  user/assistant messages (markdown), reasoning (collapsed by default), tool calls
-  (name + collapsible input/output), approvals (read-only card until chunk 5), plan,
-  error. Streaming text just re-renders as deltas apply.
-- **composer**: textarea, Enter to send (`turn.start`), Shift+Enter newline. While a
-  turn runs the same box sends steer messages — matching the terminal muscle memory —
-  plus a stop button wired to `turn.interrupt`.
-- **markdown**: assistant text through the streaming-friendly renderer from shadcn's
-  agent components (streamdown) rather than react-markdown — built for
-  partially-arrived markdown.
+shadcn-first per AGENTS.md — shadcn/ui core + the AI Elements registry (both are
+copy-into-repo registries, so the code lands in `client/src/components/` and is ours
+to keep clean). The plan, piece by piece:
+
+- **sidebar**: shadcn `Sidebar` family (`SidebarProvider`, `SidebarGroup` per
+  project, `SidebarMenu`/`SidebarMenuButton` per thread, `SidebarMenuAction` for
+  archive), `DropdownMenu` for thread actions, `Dialog` for new project. Status dot
+  is a plain styled span (no component needed). Rows show title + status dot.
+  Act-on-pointer-down for thread switching.
+- **timeline**: `react-virtuoso` as the list container (see performance). Item
+  renderers from AI Elements: `Message`/`MessageContent` for user + assistant,
+  `Response` (streamdown) for markdown bodies, `Reasoning` (collapsed by default),
+  `Tool` (`ToolHeader`/`ToolInput`/`ToolOutput`) for tool calls. Plan items render
+  as `Response` in a bordered container; errors as shadcn `Alert` (destructive);
+  approvals as a read-only `Card` + `Badge` until chunk 5 makes them interactive.
+- **composer**: AI Elements `PromptInput` (`PromptInputTextarea`,
+  `PromptInputSubmit` — its status prop covers the send→stop swap). Enter sends
+  (`turn.start`), Shift+Enter newline; while a turn runs the same box steers and the
+  submit button becomes stop (`turn.interrupt`).
+- **settings**: empty page, shadcn primitives when it grows content.
 
 All default shadcn styling per AGENTS.md; the design pass comes later.
 
-## open questions for Jett
+## build order
 
-- hand-rolled stores vs zustand from day one?
-- streamdown for markdown ok, or a preference for react-markdown?
-- route shape `/thread/$threadId` ok?
-- anything you want visible in the sidebar row beyond title + status dot?
+Two handoffs, reviewed separately:
+
+1. **plumbing** (grok): workspace scaffold (Vite, Tailwind, shadcn init, tooling
+   hookup), `socket.ts`, both stores with the thread-state cache, route skeleton
+   with unstyled proof-of-flow pages, tests against a real server running the echo
+   agent.
+2. **ui** (opus): the component plan above on top of the plumbing — memoized item
+   renderers, virtuoso, pointer-down navigation, composer wiring.
