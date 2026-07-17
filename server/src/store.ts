@@ -5,6 +5,9 @@ import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer
 import { newId, type ErrorCode, type Project, type ThreadMeta } from '@jetty/shared/wire'
 import { basename } from 'node:path'
 
+/** Placeholder title on new threads — "untitled" until the titler replaces it. */
+export const DEFAULT_THREAD_TITLE = 'New thread'
+
 export type AppendedEvent = {
   seq: number
   ts: number
@@ -61,6 +64,7 @@ export function createStore(db: Database) {
     'UPDATE threads SET status = ?, updated_at = ? WHERE id = ?'
   )
   const touchThread = db.prepare('UPDATE threads SET updated_at = ? WHERE id = ?')
+  const updateThreadTitle = db.prepare('UPDATE threads SET title = ?, updated_at = ? WHERE id = ?')
 
   const insertEvent = db.prepare(
     'INSERT INTO thread_events (thread_id, seq, ts, payload_json) VALUES (?, ?, ?, ?)'
@@ -148,7 +152,7 @@ export function createStore(db: Database) {
       const thread: ThreadMeta = {
         id: newId(),
         projectId,
-        title: 'New thread',
+        title: DEFAULT_THREAD_TITLE,
         status: 'idle',
         archived: false,
         updatedAt: now,
@@ -184,6 +188,14 @@ export function createStore(db: Database) {
 
     setThreadSessionId(threadId: string, sessionId: string): void {
       updateThreadSessionId.run(sessionId, threadId)
+    },
+
+    setThreadTitle(threadId: string, title: string): ThreadMeta {
+      const existing = selectThread.get(threadId) as ThreadRow | null
+      if (!existing) throw new StoreError('not_found', `Thread ${threadId} not found`)
+      const now = Date.now()
+      updateThreadTitle.run(title, now, threadId)
+      return rowToThread({ ...existing, title, updated_at: now })
     },
 
     getThreadState,

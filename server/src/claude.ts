@@ -24,6 +24,8 @@ export {
 } from './claude-translate'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
+/** Temporary cheap-testing default until a per-thread model picker exists. */
+const DEFAULT_MODEL = 'haiku'
 
 type SdkPermissionMode = NonNullable<Options['permissionMode']>
 
@@ -256,7 +258,7 @@ export function createClaudeAdapter(store: Store): Agent {
       cwd: projectPath,
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       settingSources: ['user', 'project', 'local'],
-      model: input.model,
+      model: input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL,
       permissionMode,
       allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
       includePartialMessages: true,

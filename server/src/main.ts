@@ -8,6 +8,7 @@ import { openDb } from './db'
 import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
 import { createStore, type Store } from './store'
+import { createTitler, type Titler } from './titler'
 import { createWs } from './ws'
 
 export type ServerOptions = {
@@ -16,6 +17,8 @@ export type ServerOptions = {
   hostname?: string
   /** Override agent selection (defaults to JETTY_AGENT env, then 'claude'). */
   agent?: 'echo' | 'claude'
+  /** Override titler (defaults to real titler for claude, null for echo). */
+  titler?: Titler | null
 }
 
 function selectAgent(kind: 'echo' | 'claude', store: Store): Agent {
@@ -68,7 +71,9 @@ export function startServer(opts: ServerOptions = {}) {
 
   const agent = selectAgent(agentKind, store)
   const hub = createHub()
-  const orch = createOrchestrator(store, agent, hub)
+  const titler =
+    opts.titler !== undefined ? opts.titler : agentKind === 'claude' ? createTitler() : null
+  const orch = createOrchestrator(store, agent, hub, titler)
   const ws = createWs(store, orch, hub)
 
   const server = Bun.serve<ConnData>({

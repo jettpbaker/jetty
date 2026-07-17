@@ -7,8 +7,9 @@ import { newId } from '@jetty/shared/wire'
 import type { Agent } from './agent'
 import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
+import type { Titler } from './titler'
 
-import { StoreError } from './store'
+import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 
 export type Orchestrator = ReturnType<typeof createOrchestrator>
 
@@ -19,7 +20,12 @@ export type StartTurnInput = {
   permissionMode?: PermissionMode
 }
 
-export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
+export function createOrchestrator(
+  store: Store,
+  agent: Agent,
+  hub: Hub,
+  titler: Titler | null = null
+) {
   /** In-flight agent turns (may lead store.activeTurnId briefly before turn.started). */
   const liveTurns = new Map<string, string>()
 
@@ -53,10 +59,31 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
     return liveTurns.get(threadId) ?? store.getThreadState(threadId).activeTurnId
   }
 
+  /** Fire-and-forget: never on the turn's critical path. */
+  function maybeTitle(threadId: string, text: string) {
+    if (!titler) return
+    void (async () => {
+      try {
+        const title = await titler(text)
+        if (!title) return
+        const current = store.getThread(threadId)
+        if (!current || current.title !== DEFAULT_THREAD_TITLE) return
+        const updated = store.setThreadTitle(threadId, title)
+        hub.pushChrome({ type: 'thread.upserted', thread: updated })
+      } catch {
+        // titling must never break a turn
+      }
+    })()
+  }
+
   return {
     async startTurn(input: StartTurnInput): Promise<{ turnId: string }> {
       const thread = store.getThread(input.threadId)
       if (!thread) throw new StoreError('not_found', `Thread ${input.threadId} not found`)
+
+      if (thread.title === DEFAULT_THREAD_TITLE) {
+        maybeTitle(input.threadId, input.text)
+      }
 
       const existingTurnId = activeTurnId(input.threadId)
       if (existingTurnId && agent.steer(input.threadId, input.text)) {

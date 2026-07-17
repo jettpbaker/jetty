@@ -18,12 +18,16 @@ type Running = ReturnType<typeof startServer>
 const servers: Running[] = []
 const homes: string[] = []
 
-function boot() {
+function boot(opts: Parameters<typeof startServer>[0] = {}) {
   const home = mkdtempSync(join(tmpdir(), 'jetty-test-'))
   homes.push(home)
-  const running = startServer({ home, port: 0, hostname: '127.0.0.1' })
+  const running = startServer({ home, port: 0, hostname: '127.0.0.1', ...opts })
   servers.push(running)
   return running
+}
+
+function isChromePush(msg: ServerMessage): msg is Extract<PushMessage, { sub: 'chrome' }> {
+  return 'sub' in msg && msg.sub === 'chrome'
 }
 
 afterEach(() => {
@@ -401,6 +405,119 @@ describe('server skeleton', () => {
     const turnStarted = events.filter((e) => e.type === 'turn.started')
     expect(turnStarted).toHaveLength(turnStartedCount)
     expect(turnStartedCount).toBe(1)
+
+    c.close()
+  })
+
+  test('first turn on untitled thread pushes generated title', async () => {
+    const titlerCalls: string[] = []
+    const { port, store } = boot({
+      agent: 'echo',
+      titler: async (text) => {
+        titlerCalls.push(text)
+        return 'Fix the login bug'
+      },
+    })
+    const c = await connect(port)
+    await c.request('chrome.subscribe', {})
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/title-gen',
+    })
+    const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+      projectId: project.id,
+    })
+    expect(thread.title).toBe('New thread')
+
+    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.request('turn.start', { threadId: thread.id, text: 'please fix login' })
+
+    await c.waitFor(
+      (m) =>
+        isChromePush(m) &&
+        m.data.type === 'thread.upserted' &&
+        m.data.thread.id === thread.id &&
+        m.data.thread.title === 'Fix the login bug'
+    )
+
+    expect(titlerCalls).toEqual(['please fix login'])
+    expect(store.getThread(thread.id)?.title).toBe('Fix the login bug')
+
+    c.close()
+  })
+
+  test('thread that already has a title never triggers titler', async () => {
+    let called = false
+    const { port, store } = boot({
+      agent: 'echo',
+      titler: async () => {
+        called = true
+        return 'Should not apply'
+      },
+    })
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/title-skip',
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      projectId: project.id,
+    })
+    store.setThreadTitle(thread.id, 'Existing title')
+
+    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.request('turn.start', { threadId: thread.id, text: 'hello' })
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+    // titler is sync-resolving but fire-and-forget; give it a tick
+    await Bun.sleep(20)
+
+    expect(called).toBe(false)
+    expect(store.getThread(thread.id)?.title).toBe('Existing title')
+
+    c.close()
+  })
+
+  test('titler returning null leaves title unchanged', async () => {
+    let called = false
+    const { port, store } = boot({
+      agent: 'echo',
+      titler: async () => {
+        called = true
+        return null
+      },
+    })
+    const c = await connect(port)
+    await c.request('chrome.subscribe', {})
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/title-null',
+    })
+    const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+      projectId: project.id,
+    })
+    expect(thread.title).toBe('New thread')
+
+    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.request('turn.start', { threadId: thread.id, text: 'hello' })
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+    await Bun.sleep(20)
+
+    expect(called).toBe(true)
+    expect(store.getThread(thread.id)?.title).toBe('New thread')
+
+    // No chrome push that renames the thread away from the placeholder
+    const renamed = c.messages.some(
+      (m) =>
+        isChromePush(m) &&
+        m.data.type === 'thread.upserted' &&
+        m.data.thread.id === thread.id &&
+        m.data.thread.title !== 'New thread'
+    )
+    expect(renamed).toBe(false)
 
     c.close()
   })
