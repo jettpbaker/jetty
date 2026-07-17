@@ -2,13 +2,15 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
+import type { Titler } from './titler'
+
 import { createEchoAdapter, type Agent } from './agent'
 import { createClaudeAdapter } from './claude'
+import { createClaudeTitler } from './claude-titler'
 import { openDb } from './db'
 import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
 import { createStore, type Store } from './store'
-import { createTitler, type Titler } from './titler'
 import { createWs } from './ws'
 
 export type ServerOptions = {
@@ -23,6 +25,10 @@ export type ServerOptions = {
 
 function selectAgent(kind: 'echo' | 'claude', store: Store): Agent {
   return kind === 'echo' ? createEchoAdapter() : createClaudeAdapter(store)
+}
+
+function selectTitler(kind: 'echo' | 'claude'): Titler | null {
+  return kind === 'claude' ? createClaudeTitler() : null
 }
 
 function reconcileOnStartup(store: Store) {
@@ -71,8 +77,7 @@ export function startServer(opts: ServerOptions = {}) {
 
   const agent = selectAgent(agentKind, store)
   const hub = createHub()
-  const titler =
-    opts.titler !== undefined ? opts.titler : agentKind === 'claude' ? createTitler() : null
+  const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
   const orch = createOrchestrator(store, agent, hub, titler)
   const ws = createWs(store, orch, hub)
 
