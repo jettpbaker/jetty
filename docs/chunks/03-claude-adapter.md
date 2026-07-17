@@ -8,20 +8,27 @@ doesn't lose the conversation.
 
 ## decisions
 
-1. **Query-per-turn with resume, not long-lived sessions.** Each turn calls the
-   SDK's `query()` fresh, passing `resume: sessionId` from the previous turn; the
-   CLI process exits when the turn ends. Costs ~a second of spawn time per turn,
-   buys us: no idle process management, restart-safe by construction (the resume
-   cursor is just a column), zero processes for quiet threads. The long-lived
-   prompt-queue mode t3code uses (faster follow-ups, mid-turn message queueing) is
-   the known upgrade path — the `Agent` seam hides the difference.
+1. **Process-per-burst with resume.** A burst starts when a turn starts on a quiet
+   thread: open `query()` in streaming-input mode with `resume: sessionId`, feed it
+   a real queue. Messages sent while Claude works are pushed into the live queue
+   (mid-turn queueing, t3-style) and run as follow-on turns in the same process.
+   When the queue is drained and the last result message arrives, close the query —
+   the process exits. Rapid-fire chat pays the ~1s spawn once per burst; quiet
+   threads hold zero processes; restarts can only ever lose the in-flight burst
+   (the resume cursor is a column, written every time init reveals it).
 
-   Mechanically each turn still opens `query()` in streaming-input mode — a queue
-   that yields the single user message — because single-message mode supports
-   neither `interrupt()` nor image attachments (chunk 6 needs the latter). So
-   interrupts are graceful (Claude stops cleanly, the session stays resumable)
-   rather than process kills; the query is closed once the result message arrives.
+   What we deliberately don't build from t3's model: processes that survive
+   *between* bursts, and the liveness/reaping/restart-reconciliation machinery
+   they require. Streaming-input mode is non-negotiable either way — single-message
+   mode supports neither `interrupt()` nor image attachments (chunk 6).
    Docs: code.claude.com/docs/en/agent-sdk/{sessions,streaming-vs-single-mode}.
+
+   Consequences elsewhere: the orchestrator no longer rejects `turn.start` while a
+   turn is active — it emits the user item immediately and hands the message to
+   the agent, which enqueues it. Each queued message gets its own `turnId`; the
+   agent correlates result messages to turns in order. The `turn_active` error is
+   retired. EchoAgent queues naively (runs turns back-to-back) so the behavior is
+   covered by the cheap test suite.
 
 2. **Resume cursor on the thread row.** New nullable column
    `threads.agent_session_id`, written when the SDK's init message reveals the
@@ -63,6 +70,6 @@ doesn't lose the conversation.
 
 ## explicitly out
 
-Attachments (chunk 6), mid-turn message queueing, AskUserQuestion/plan-mode
+Attachments (chunk 6), AskUserQuestion/plan-mode
 surfacing (approval UI territory, chunk 5 decides), model listing, per-thread
 provider choice, MCP servers of our own.
