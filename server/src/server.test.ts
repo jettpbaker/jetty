@@ -44,7 +44,7 @@ type Client = {
 
 function connect(port: number): Promise<Client> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`)
     const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
     const messages: ServerMessage[] = []
     const waiters: Array<{

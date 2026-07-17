@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, normalize, resolve, sep } from 'node:path'
 
 import { createEchoAdapter, type Agent } from './agent'
 import { createClaudeAdapter } from './claude'
@@ -33,6 +34,28 @@ function reconcileOnStartup(store: Store) {
   }
 }
 
+const distDir = resolve(import.meta.dir, '../../client/dist')
+
+async function serveStatic(pathname: string): Promise<Response> {
+  const indexPath = join(distDir, 'index.html')
+  if (!existsSync(indexPath)) {
+    return new Response('jetty', { status: 200 })
+  }
+
+  const requested = pathname === '/' ? '/index.html' : pathname
+  const filePath = normalize(join(distDir, requested))
+  if (!filePath.startsWith(distDir + sep)) {
+    return new Response('Not found', { status: 404 })
+  }
+
+  const file = Bun.file(filePath)
+  if (await file.exists()) {
+    return new Response(file)
+  }
+
+  return new Response(Bun.file(indexPath))
+}
+
 export function startServer(opts: ServerOptions = {}) {
   const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
   const port = opts.port ?? Number(process.env.PORT ?? 8787)
@@ -51,11 +74,15 @@ export function startServer(opts: ServerOptions = {}) {
   const server = Bun.serve<ConnData>({
     port,
     hostname,
-    fetch(req, server) {
-      if (server.upgrade(req, { data: { chrome: false, threads: new Set() } })) {
-        return undefined
+    async fetch(req, server) {
+      const url = new URL(req.url)
+      if (url.pathname === '/ws') {
+        if (server.upgrade(req, { data: { chrome: false, threads: new Set() } })) {
+          return undefined
+        }
+        return new Response('WebSocket upgrade failed', { status: 400 })
       }
-      return new Response('jetty', { status: 200 })
+      return serveStatic(url.pathname)
     },
     websocket: ws.handlers,
   })
@@ -79,7 +106,8 @@ export function startServer(opts: ServerOptions = {}) {
 
 if (import.meta.main) {
   const running = startServer()
-  console.log(`jetty listening on ws://${running.hostname}:${running.port}`)
+  console.log(`jetty listening on http://${running.hostname}:${running.port}`)
+  console.log(`websocket at ws://${running.hostname}:${running.port}/ws`)
 
   const shutdown = () => {
     console.log('shutting down…')

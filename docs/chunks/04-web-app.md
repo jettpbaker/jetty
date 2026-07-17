@@ -65,6 +65,12 @@ The #1 UX value (per AGENTS.md). Concretely for this chunk:
   cached `ThreadState` (or an empty shell for a never-visited thread) — zero
   network on the critical path. Then `thread.subscribe { afterSeq: cached.lastSeq }`
   patches the gap in the background. Navigation fires on pointer-down (AGENTS.md).
+- **last-N warm subscriptions**: the timeline store keeps the last N visited
+  threads (N=5) subscribed, LRU-evicted with `thread.unsubscribe`. Recently
+  visited threads stream into their caches in the background, so bouncing between
+  hot threads renders _current_ state instantly — no catch-up gap at all. Open
+  components don't re-render on background updates (their snapshots are untouched
+  references). Reconnect re-subscribes every held thread with its own `afterSeq`.
 - **one delta = one component render**: item renderers are wrapped in `React.memo`,
   and `applyEvent` already replaces only the touched item (`updateItem` copies the
   array, swaps one index) — untouched items keep their references, so a streaming

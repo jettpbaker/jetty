@@ -12,5 +12,9 @@
     "node": true,
     "es2026": true
   },
-  "ignorePatterns": ["dist/**"]
+  "ignorePatterns": [
+    "dist/**",
+    "client/src/components/ui/**",
+    "client/src/components/ai-elements/**"
+  ]
 }
