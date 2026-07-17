@@ -10,7 +10,7 @@ stays and tracks status.
 - [x] **2. server skeleton** — Bun.serve with ws dispatch over the method table,
       sqlite persistence (event log + projections + chrome tables), and a fake echo
       agent proving turn → events → push end to end before Claude enters the picture.
-- [ ] **3. claude adapter** — claude-agent-sdk sessions mapped to normalized events;
+- [x] **3. claude adapter** — claude-agent-sdk sessions mapped to normalized events;
       resume across restarts, interrupt, `canUseTool` surfaced as approval items.
 - [ ] **4. web app** — Vite React SPA: project/thread sidebar over `chrome.subscribe`,
       thread view with streaming timeline, composer. Default shadcn styling.
