@@ -133,7 +133,6 @@ export const ErrorCode = z.enum([
   'invalid_params',
   'unknown_method',
   'not_found',
-  'turn_active',
   'internal',
 ])
 export type ErrorCode = z.infer<typeof ErrorCode>

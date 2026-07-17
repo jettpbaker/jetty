@@ -6,7 +6,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+// Integration suite runs against the echo agent — no network, no tokens.
+process.env.JETTY_AGENT = 'echo'
+
+import { openDb } from './db'
 import { startServer } from './main'
+import { createStore } from './store'
 
 type Running = ReturnType<typeof startServer>
 
@@ -348,7 +353,7 @@ describe('server skeleton', () => {
     c.close()
   })
 
-  test('turn_active while a turn is running', async () => {
+  test('steer: second turn.start mid-turn joins active turn', async () => {
     const { port } = boot()
     const c = await connect(port)
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -358,19 +363,95 @@ describe('server skeleton', () => {
       projectId: project.id,
     })
     await c.request('thread.subscribe', { threadId: thread.id })
-    await c.request('turn.start', { threadId: thread.id, text: 'first' })
 
-    let err: Error | undefined
-    try {
-      await c.request('turn.start', { threadId: thread.id, text: 'second' })
-    } catch (e) {
-      err = e as Error
-    }
-    expect(err?.message).toMatch(/^turn_active:/)
+    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+      threadId: thread.id,
+      text: 'first',
+    })
+
+    // Wait until the agent has actually started the turn so steer has a live session.
+    await c.waitFor(
+      (m) =>
+        isThreadPush(m) &&
+        m.threadId === thread.id &&
+        m.event.type === 'turn.started' &&
+        m.event.turnId === turnId
+    )
+
+    const beforeTypes = threadEvents(c, thread.id).map((m) => m.event.type)
+    const turnStartedCount = beforeTypes.filter((t) => t === 'turn.started').length
+
+    const steered = await c.request<{ turnId: string }>('turn.start', {
+      threadId: thread.id,
+      text: 'second',
+    })
+    expect(steered.turnId).toBe(turnId)
 
     await c.waitFor(
       (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
+
+    const events = threadEvents(c, thread.id).map((m) => m.event)
+    const userItems = events.filter(
+      (e) => e.type === 'item.started' && e.item.kind === 'user_message'
+    )
+    expect(userItems.length).toBeGreaterThanOrEqual(2)
+    expect(userItems.every((e) => e.type === 'item.started' && e.item.turnId === turnId)).toBe(true)
+
+    const turnStarted = events.filter((e) => e.type === 'turn.started')
+    expect(turnStarted).toHaveLength(turnStartedCount)
+    expect(turnStartedCount).toBe(1)
+
     c.close()
+  })
+
+  test('startup reconciliation fails non-idle threads', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'jetty-reconcile-'))
+    homes.push(home)
+
+    const db = openDb(home)
+    const store = createStore(db)
+    const project = store.createProject('/tmp/reconcile', 'Reconcile')
+    const thread = store.createThread(project.id)
+    store.appendEvent(thread.id, { type: 'turn.started', turnId: 'orphan-turn' })
+    expect(store.getThreadState(thread.id).status).toBe('running')
+    db.close()
+
+    const running = startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+    servers.push(running)
+
+    const c = await connect(running.port)
+    const sub = await c.request<{
+      snapshot: { status: string; activeTurnId: string | null; lastSeq: number }
+      seq: number
+    }>('thread.subscribe', { threadId: thread.id })
+
+    expect(sub.snapshot.status).toBe('idle')
+    expect(sub.snapshot.activeTurnId).toBeNull()
+    expect(sub.snapshot.lastSeq).toBe(2)
+
+    // Replay events to confirm turn.failed was appended
+    const c2 = await connect(running.port)
+    const before = c2.messages.length
+    await c2.request('thread.subscribe', { threadId: thread.id, afterSeq: 0 })
+    await c2.waitFor(
+      (m) => isThreadPush(m) && m.threadId === thread.id && m.event.type === 'turn.failed',
+      2000
+    )
+    const failed = c2.messages
+      .slice(before)
+      .filter(
+        (m): m is Extract<PushMessage, { sub: 'thread' }> =>
+          isThreadPush(m) && m.threadId === thread.id
+      )
+      .find((m) => m.event.type === 'turn.failed')
+    expect(failed?.event).toMatchObject({
+      type: 'turn.failed',
+      turnId: 'orphan-turn',
+      error: 'server restarted',
+    })
+
+    c.close()
+    c2.close()
   })
 })

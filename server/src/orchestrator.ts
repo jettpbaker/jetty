@@ -1,5 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
+import type { PermissionMode } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
@@ -11,8 +12,16 @@ import { StoreError } from './store'
 
 export type Orchestrator = ReturnType<typeof createOrchestrator>
 
+export type StartTurnInput = {
+  threadId: string
+  text: string
+  model?: string
+  permissionMode?: PermissionMode
+}
+
 export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
-  const active = new Set<string>()
+  /** In-flight agent turns (may lead store.activeTurnId briefly before turn.started). */
+  const liveTurns = new Map<string, string>()
 
   function publish(threadId: string, appended: AppendedEvent) {
     hub.pushThread(threadId, {
@@ -40,16 +49,36 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
     }
   }
 
+  function activeTurnId(threadId: string): string | null {
+    return liveTurns.get(threadId) ?? store.getThreadState(threadId).activeTurnId
+  }
+
   return {
-    async startTurn(input: { threadId: string; text: string }): Promise<{ turnId: string }> {
+    async startTurn(input: StartTurnInput): Promise<{ turnId: string }> {
       const thread = store.getThread(input.threadId)
       if (!thread) throw new StoreError('not_found', `Thread ${input.threadId} not found`)
-      if (active.has(input.threadId)) {
-        throw new StoreError('turn_active', 'A turn is already running on this thread')
+
+      const existingTurnId = activeTurnId(input.threadId)
+      if (existingTurnId) {
+        const userItem: ThreadItem = {
+          id: newId(),
+          turnId: existingTurnId,
+          createdAt: Date.now(),
+          kind: 'user_message',
+          text: input.text,
+          attachments: [],
+        }
+        append(input.threadId, { type: 'item.started', item: userItem })
+        append(input.threadId, { type: 'item.completed', itemId: userItem.id })
+
+        if (agent.steer(input.threadId, input.text)) {
+          return { turnId: existingTurnId }
+        }
+        // Lost race — fall through to a fresh turn.
       }
 
       const turnId = newId()
-      active.add(input.threadId)
+      liveTurns.set(input.threadId, turnId)
 
       try {
         const userItem: ThreadItem = {
@@ -65,7 +94,13 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
 
         void agent
           .startTurn(
-            { threadId: input.threadId, turnId, text: input.text },
+            {
+              threadId: input.threadId,
+              turnId,
+              text: input.text,
+              model: input.model,
+              permissionMode: input.permissionMode,
+            },
             emitFor(input.threadId)
           )
           .catch((err: unknown) => {
@@ -77,10 +112,12 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
             }
           })
           .finally(() => {
-            active.delete(input.threadId)
+            if (liveTurns.get(input.threadId) === turnId) {
+              liveTurns.delete(input.threadId)
+            }
           })
       } catch (err) {
-        active.delete(input.threadId)
+        liveTurns.delete(input.threadId)
         throw err
       }
 
@@ -94,8 +131,22 @@ export function createOrchestrator(store: Store, agent: Agent, hub: Hub) {
       agent.interrupt(threadId)
     },
 
+    respondApproval(
+      threadId: string,
+      itemId: string,
+      decision: ApprovalDecision,
+      updatedPermissions?: unknown[]
+    ) {
+      if (!store.getThread(threadId)) {
+        throw new StoreError('not_found', `Thread ${threadId} not found`)
+      }
+      if (!agent.respondToApproval(threadId, itemId, decision, updatedPermissions)) {
+        throw new StoreError('not_found', `No pending approval ${itemId}`)
+      }
+    },
+
     isActive(threadId: string) {
-      return active.has(threadId)
+      return liveTurns.has(threadId) || store.getThreadState(threadId).activeTurnId !== null
     },
   }
 }

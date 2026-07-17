@@ -1,5 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
+import type { PermissionMode } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
@@ -7,18 +8,36 @@ export type TurnInput = {
   threadId: string
   turnId: string
   text: string
+  model?: string
+  permissionMode?: PermissionMode
 }
 
 export type Agent = {
   startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void>
-  interrupt(threadId: string): void
+  /** Optional reason becomes the turn.failed error (default 'interrupted'). */
+  interrupt(threadId: string, reason?: string): void
+  steer(threadId: string, text: string): boolean
+  respondToApproval(
+    threadId: string,
+    itemId: string,
+    decision: ApprovalDecision,
+    updatedPermissions?: unknown[]
+  ): boolean
 }
 
 const CHUNK_MS = 8
 const STEP_MS = 5
 
+type EchoSession = {
+  ac: AbortController
+  emit: (event: ThreadEvent) => void
+  assistantId: string | null
+  pendingSteer: string[]
+  turnId: string
+}
+
 export function createEchoAgent(): Agent {
-  const controllers = new Map<string, AbortController>()
+  const sessions = new Map<string, EchoSession>()
 
   async function emitChunks(
     emit: (event: ThreadEvent) => void,
@@ -36,13 +55,35 @@ export function createEchoAgent(): Agent {
 
   return {
     interrupt(threadId: string) {
-      controllers.get(threadId)?.abort()
+      sessions.get(threadId)?.ac.abort()
+    },
+
+    steer(threadId: string, text: string): boolean {
+      const session = sessions.get(threadId)
+      if (!session) return false
+      if (session.assistantId) {
+        session.emit({ type: 'item.delta', itemId: session.assistantId, delta: text })
+      } else {
+        session.pendingSteer.push(text)
+      }
+      return true
+    },
+
+    respondToApproval(): boolean {
+      return false
     },
 
     async startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void> {
-      controllers.get(input.threadId)?.abort()
+      sessions.get(input.threadId)?.ac.abort()
       const ac = new AbortController()
-      controllers.set(input.threadId, ac)
+      const session: EchoSession = {
+        ac,
+        emit,
+        assistantId: null,
+        pendingSteer: [],
+        turnId: input.turnId,
+      }
+      sessions.set(input.threadId, session)
       const { signal } = ac
 
       try {
@@ -80,8 +121,13 @@ export function createEchoAgent(): Agent {
           kind: 'assistant_message',
           text: '',
         }
+        session.assistantId = assistant.id
         emit({ type: 'item.started', item: assistant })
         await emitChunks(emit, assistant.id, input.text, signal)
+        for (const steered of session.pendingSteer) {
+          await emitChunks(emit, assistant.id, steered, signal)
+        }
+        session.pendingSteer = []
         emit({ type: 'item.completed', itemId: assistant.id })
 
         emit({
@@ -94,8 +140,8 @@ export function createEchoAgent(): Agent {
         if (!isAbortError(err)) throw err
         emit({ type: 'turn.failed', turnId: input.turnId, error: 'interrupted' })
       } finally {
-        if (controllers.get(input.threadId) === ac) {
-          controllers.delete(input.threadId)
+        if (sessions.get(input.threadId) === session) {
+          sessions.delete(input.threadId)
         }
       }
     },

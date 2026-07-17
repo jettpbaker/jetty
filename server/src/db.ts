@@ -26,7 +26,8 @@ function migrate(db: Database) {
       title TEXT NOT NULL,
       status TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      agent_session_id TEXT
     );
 
     CREATE TABLE IF NOT EXISTS thread_events (
@@ -43,4 +44,10 @@ function migrate(db: Database) {
       last_seq INTEGER NOT NULL
     );
   `)
+
+  try {
+    db.exec('ALTER TABLE threads ADD COLUMN agent_session_id TEXT')
+  } catch {
+    // column already exists on upgraded dbs
+  }
 }

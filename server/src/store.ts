@@ -52,6 +52,8 @@ export function createStore(db: Database) {
     `SELECT id, project_id, title, status, archived, updated_at
      FROM threads WHERE id = ?`
   )
+  const selectThreadSessionId = db.prepare('SELECT agent_session_id FROM threads WHERE id = ?')
+  const updateThreadSessionId = db.prepare('UPDATE threads SET agent_session_id = ? WHERE id = ?')
   const updateThreadArchive = db.prepare(
     'UPDATE threads SET archived = 1, updated_at = ? WHERE id = ?'
   )
@@ -171,6 +173,17 @@ export function createStore(db: Database) {
 
     listThreads(): ThreadMeta[] {
       return (selectThreads.all() as ThreadRow[]).map(rowToThread)
+    },
+
+    getThreadSessionId(threadId: string): string | null {
+      const row = selectThreadSessionId.get(threadId) as {
+        agent_session_id: string | null
+      } | null
+      return row?.agent_session_id ?? null
+    },
+
+    setThreadSessionId(threadId: string, sessionId: string): void {
+      updateThreadSessionId.run(sessionId, threadId)
     },
 
     getThreadState,

@@ -96,7 +96,12 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
       }
       case 'turn.start': {
         const p = parsed.data as ParamsOf<'turn.start'>
-        return orch.startTurn({ threadId: p.threadId, text: p.text })
+        return orch.startTurn({
+          threadId: p.threadId,
+          text: p.text,
+          model: p.model,
+          permissionMode: p.permissionMode,
+        })
       }
       case 'turn.interrupt': {
         const p = parsed.data as ParamsOf<'turn.interrupt'>
@@ -104,7 +109,8 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
         return null
       }
       case 'approval.respond': {
-        // chunk 5
+        const p = parsed.data as ParamsOf<'approval.respond'>
+        orch.respondApproval(p.threadId, p.itemId, p.decision, p.updatedPermissions)
         return null
       }
       default: {

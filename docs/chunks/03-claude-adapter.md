@@ -18,12 +18,12 @@ doesn't lose the conversation.
    (the resume cursor is a column, written every time init reveals it).
 
    What we deliberately don't build from t3's model: processes that survive
-   *between* bursts, and the liveness/reaping/restart-reconciliation machinery
+   _between_ bursts, and the liveness/reaping/restart-reconciliation machinery
    they require. Streaming-input mode is non-negotiable either way — single-message
    mode supports neither `interrupt()` nor image attachments (chunk 6).
    Docs: code.claude.com/docs/en/agent-sdk/{sessions,streaming-vs-single-mode}.
 
-   **Steer semantics:** a message sent while a turn runs joins the *active* turn
+   **Steer semantics:** a message sent while a turn runs joins the _active_ turn
    (same `turnId`, pushed into the live queue; Claude absorbs it at its next step
    boundary — identical to typing into a running Claude Code terminal). No new
    turn boundary, one result at the end. The orchestrator emits the user item
@@ -77,7 +77,7 @@ doesn't lose the conversation.
 
 5. **Sessions run with the user's real Claude setup.** `cwd` = the project's
    `path`, `systemPrompt: { preset: 'claude_code' }`, `settingSources:
-   ['user', 'project', 'local']` — so CLAUDE.md files, skills, and MCP servers
+['user', 'project', 'local']` — so CLAUDE.md files, skills, and MCP servers
    behave exactly like terminal Claude Code. `model` and `permissionMode` pass
    through from `turn.start` params; permission mode defaults to `auto`.
 
