@@ -10,14 +10,7 @@ export const newId = (): string => uuidv7()
 export const MAX_IMAGES_PER_TURN = 8
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
-export const PermissionMode = z.enum([
-  'default',
-  'acceptEdits',
-  'auto',
-  'plan',
-  'dontAsk',
-  'bypassPermissions',
-])
+export const PermissionMode = z.enum(['auto', 'full_access', 'plan'])
 export type PermissionMode = z.infer<typeof PermissionMode>
 
 export const Project = z.object({

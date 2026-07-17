@@ -34,7 +34,7 @@ describe.skipIf(!live)('claude live', () => {
           threadId: thread.id,
           turnId: 'live-turn',
           text: 'Reply with exactly the single word: pong',
-          permissionMode: 'bypassPermissions',
+          permissionMode: 'full_access',
         },
         (event) => {
           eventTypes.push(event.type)

@@ -9,7 +9,7 @@ import {
   type Query,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk'
-import { newId } from '@jetty/shared/wire'
+import { newId, type PermissionMode } from '@jetty/shared/wire'
 
 import type { Agent, TurnInput } from './agent'
 import type { Store } from './store'
@@ -24,6 +24,20 @@ export {
 } from './claude-translate'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
+
+type SdkPermissionMode = NonNullable<Options['permissionMode']>
+
+/** Map jetty wire PermissionMode → Claude Agent SDK permissionMode. */
+const toSdkPermissionMode = (mode: PermissionMode | undefined): SdkPermissionMode => {
+  switch (mode ?? 'auto') {
+    case 'full_access':
+      return 'bypassPermissions'
+    case 'plan':
+      return 'plan'
+    case 'auto':
+      return 'auto'
+  }
+}
 
 type PendingApproval = {
   resolve: (result: PermissionResult) => void
@@ -237,9 +251,7 @@ export function createClaudeAgent(store: Store): Agent {
       })
     }
 
-    const permissionMode = (input.permissionMode ?? 'auto') as NonNullable<
-      Options['permissionMode']
-    >
+    const permissionMode = toSdkPermissionMode(input.permissionMode)
     const options: Options = {
       cwd: projectPath,
       systemPrompt: { type: 'preset', preset: 'claude_code' },

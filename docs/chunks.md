@@ -16,8 +16,8 @@ stays and tracks status.
       thread view with streaming timeline, composer. Default shadcn styling.
 - [ ] **5. approvals + permission modes** — approval cards wired to `approval.respond`,
       permission mode picker per thread. Three surfaced modes: auto (default),
-      full access (`bypassPermissions`), plan. The wire enum keeps all six SDK
-      modes for pass-through fidelity; the UI is opinionated.
+      full access, plan. PermissionMode on the wire is jetty vocabulary
+      (auto | full_access | plan); each adapter maps it to its provider's modes.
 - [ ] **6. image paste** — clipboard/drop → client-side downscale → data URL over ws →
       attachments dir → base64 content block to Claude. Verify real Anthropic image
       limits here.
