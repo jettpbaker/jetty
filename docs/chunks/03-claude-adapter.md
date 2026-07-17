@@ -15,7 +15,7 @@ doesn't lose the conversation.
    When the queue is drained and the last result message arrives, close the query —
    the process exits. Rapid-fire chat pays the ~1s spawn once per burst; quiet
    threads hold zero processes; restarts can only ever lose the in-flight burst
-   (the resume cursor is a column, written every time init reveals it).
+   (the resume pointer is a column, written every time init reveals it).
 
    What we deliberately don't build from t3's model: processes that survive
    _between_ bursts, and the liveness/reaping/restart-reconciliation machinery
@@ -34,7 +34,7 @@ doesn't lose the conversation.
    EchoAgent implements steer naively so the behavior stays cheaply testable.
 
    **Idle TTL:** after a result, when the queue is empty, the query stays open for
-   `JETTY_SESSION_TTL_MS` (default 5 minutes; 0 = close at result). A `turn.start`
+   `JETTY_SESSION_TTL_MS` (default 10 minutes; 0 = close at result). A `turn.start`
    inside the window cancels the timer and runs as a fresh turn in the warm
    process — conversational replies skip the spawn cost. Timer fires → close. A
    warm process dying early is harmless: the stream-death handler (needed anyway)
@@ -42,14 +42,14 @@ doesn't lose the conversation.
 
    **Failure handling** (no watchdogs, reconcile lazily):
    - stream throws / ends without result → `turn.failed(<error>)`, clean up map
-     entry, thread back to idle; next turn resumes from the cursor.
+     entry, thread back to idle; next turn resumes from the pointer.
    - startup reconciliation: at boot, any thread whose projected state isn't idle
      gets `turn.failed('server restarted')` appended — clears spinners frozen by
      a hard server death.
    - SIGINT/SIGTERM: interrupt active queries so in-flight turns end with real
      `turn.failed('server shutdown')` events, then exit. Minimal version only.
 
-2. **Resume cursor on the thread row.** New nullable column
+2. **Resume pointer on the thread row.** New nullable column
    `threads.agent_session_id`, written when the SDK's init message reveals the
    session id. Restart the server, send a turn, Claude remembers the conversation.
    (Named provider-neutrally on purpose.)

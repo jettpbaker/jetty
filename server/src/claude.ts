@@ -23,7 +23,7 @@ export {
   type SdkLikeMessage,
 } from './claude-translate'
 
-const DEFAULT_TTL_MS = 5 * 60 * 1000
+const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 type PendingApproval = {
   resolve: (result: PermissionResult) => void

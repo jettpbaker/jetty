@@ -10,17 +10,39 @@ web client local, one forwarded port), but using it daily surfaced enough things
 change that forking didn't make sense. jetty is the version that does exactly what I
 need and nothing else.
 
-## shape
+## architecture
 
 One Bun process on the workspace serves everything on one port: the built SPA, a
-small HTTP API, and a WebSocket. The browser talks typed messages over the socket,
-and every update carries a monotonic sequence so reconnects catch up from where they
-left off instead of re-fetching the world.
+small HTTP API, and a WebSocket. The browser talks typed messages over the socket —
+request/response for actions, subscription pushes for updates — with every contract
+defined once as zod schemas in `shared/` that both sides import.
 
-Claude Code is the only agent for now, wired through `@anthropic-ai/claude-agent-sdk`.
-The server never stores or ships SDK types though — everything gets normalized into
-jetty's own event vocabulary at the adapter boundary, so adding other agents later
-is one new adapter, not a migration.
+State comes in two kinds. Chrome state (projects and the thread list) is plain rows
+with CRUD and change pushes. Timelines are an append-only event log per thread, one
+monotonic `seq` per event: thread state is `reduce(events)`, and the same reducer
+runs on both sides — the client applies live pushes, the server maintains a
+projection for fast cold loads, and neither can drift from the other. Reconnects
+just replay events after the last `seq` the client saw.
+
+Agents sit behind a small seam: the orchestrator owns turn lifecycle and the single
+append-then-broadcast path; an agent only emits normalized events and knows nothing
+about sockets, sqlite, or sequence numbers. An echo agent implements the seam for
+free UI development and tests.
+
+The real agent is Claude Code, and the key division of labor: the CLI is a complete,
+self-sufficient agent that owns its own conversation — context, compaction, tools,
+transcripts under `~/.claude/projects/`. jetty feeds user input in, answers
+permission prompts, watches the message stream, and translates what it sees into
+jetty events. Our sqlite is a rendering ledger for humans, never fed back to Claude;
+each thread keeps one resume pointer (`agent_session_id`) naming the transcript
+Claude reloads.
+
+Claude runs process-per-burst: a turn spawns `query()` in streaming-input mode,
+messages sent while it works steer the active turn, and after the last result the
+process idles for 10 minutes (`JETTY_SESSION_TTL_MS`) before exiting. Quiet threads
+hold zero processes; a fresh burst resumes from the pointer (~0.7s spawn). Failure
+handling is lazy everywhere: a dying stream is its own detection, every store is
+append-as-you-go, and stale state is reconciled at the next boot instead of watched.
 
 Stack: Bun + bun:sqlite, TypeScript, zod contracts in `shared/`, React 19 + Vite +
 TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.

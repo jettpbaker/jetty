@@ -15,7 +15,9 @@ stays and tracks status.
 - [ ] **4. web app** — Vite React SPA: project/thread sidebar over `chrome.subscribe`,
       thread view with streaming timeline, composer. Default shadcn styling.
 - [ ] **5. approvals + permission modes** — approval cards wired to `approval.respond`,
-      permission mode picker per thread (default: auto).
+      permission mode picker per thread. Three surfaced modes: auto (default),
+      full access (`bypassPermissions`), plan. The wire enum keeps all six SDK
+      modes for pass-through fidelity; the UI is opinionated.
 - [ ] **6. image paste** — clipboard/drop → client-side downscale → data URL over ws →
       attachments dir → base64 content block to Claude. Verify real Anthropic image
       limits here.
@@ -29,6 +31,9 @@ Later, maybe:
   heuristic since threads share the checkout.
 - per-turn checkpoints, more agents via ACP, terminal stream, a desktop shell (PWA
   first).
+- rewind: the SDK's `resumeSessionAt` resumes a session up to a specific message,
+  and `rewindFiles` restores checkpointed files — together they'd give "go back to
+  this point in the thread" (t3 tracks the same cursor for this).
 - richer PermissionMode UX — revisit what modes we actually expose and how.
 - walk Jett through the subscription model (chrome vs per-thread, why not one global
   sub) properly — at latest as part of the chunk 4 design review.
