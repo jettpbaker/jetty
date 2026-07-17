@@ -37,10 +37,11 @@ jetty events. Our sqlite is a rendering ledger for humans, never fed back to Cla
 each thread keeps one resume pointer (`agent_session_id`) naming the transcript
 Claude reloads.
 
-Claude runs process-per-burst: a turn spawns `query()` in streaming-input mode,
-messages sent while it works steer the active turn, and after the last result the
-process idles for 10 minutes (`JETTY_SESSION_TTL_MS`) before exiting. Quiet threads
-hold zero processes; a fresh burst resumes from the pointer (~0.7s spawn). Failure
+Claude processes are spawned on demand and kept warm: a turn spawns `query()` in
+streaming-input mode, messages sent while it works steer the active turn, and after
+the last result the process stays warm for 10 minutes (`JETTY_SESSION_TTL_MS`)
+before exiting. Quiet threads hold zero processes; the next warm session resumes
+from the pointer (~0.7s spawn). Failure
 handling is lazy everywhere: a dying stream is its own detection, every store is
 append-as-you-go, and stale state is reconciled at the next boot instead of watched.
 

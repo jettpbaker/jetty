@@ -49,7 +49,7 @@ type TurnWaiter = {
   resolve: () => void
 }
 
-type BurstSession = {
+type WarmSession = {
   threadId: string
   query: Query
   pushMessage: (text: string) => void
@@ -107,17 +107,17 @@ function createQueue() {
 }
 
 export function createClaudeAgent(store: Store): Agent {
-  const sessions = new Map<string, BurstSession>()
+  const sessions = new Map<string, WarmSession>()
   const ttlMs = Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
 
-  function clearIdle(session: BurstSession) {
+  function clearIdle(session: WarmSession) {
     if (session.idleTimer) {
       clearTimeout(session.idleTimer)
       session.idleTimer = null
     }
   }
 
-  function settleTurn(session: BurstSession) {
+  function settleTurn(session: WarmSession) {
     session.awaitingResult = false
     const waiter = session.turnWaiter
     if (waiter) {
@@ -126,7 +126,7 @@ export function createClaudeAgent(store: Store): Agent {
     }
   }
 
-  function denyPendingApprovals(session: BurstSession) {
+  function denyPendingApprovals(session: WarmSession) {
     for (const [itemId, pending] of session.pendingApprovals) {
       try {
         session.emit({
@@ -142,7 +142,7 @@ export function createClaudeAgent(store: Store): Agent {
     session.pendingApprovals.clear()
   }
 
-  function closeBurst(threadId: string, reason?: string) {
+  function closeSession(threadId: string, reason?: string) {
     const session = sessions.get(threadId)
     if (!session || session.closed) return
     session.closed = true
@@ -168,18 +168,18 @@ export function createClaudeAgent(store: Store): Agent {
     }
   }
 
-  function armIdle(session: BurstSession) {
+  function armIdle(session: WarmSession) {
     clearIdle(session)
     if (ttlMs === 0) {
-      closeBurst(session.threadId)
+      closeSession(session.threadId)
       return
     }
     session.idleTimer = setTimeout(() => {
-      closeBurst(session.threadId)
+      closeSession(session.threadId)
     }, ttlMs)
   }
 
-  async function runLoop(session: BurstSession) {
+  async function runLoop(session: WarmSession) {
     try {
       for await (const msg of session.query) {
         if (session.closed) break
@@ -208,23 +208,23 @@ export function createClaudeAgent(store: Store): Agent {
       }
 
       if (!session.closed) {
-        closeBurst(session.threadId, session.failReason ?? 'stream ended')
+        closeSession(session.threadId, session.failReason ?? 'stream ended')
       }
     } catch (err) {
       if (session.closed) return
       const message = err instanceof Error ? err.message : String(err)
-      closeBurst(session.threadId, session.failReason ?? message)
+      closeSession(session.threadId, session.failReason ?? message)
     }
   }
 
-  function spawnBurst(
+  function spawnSession(
     input: TurnInput,
     emit: (event: ThreadEvent) => void,
     projectPath: string
-  ): BurstSession {
+  ): WarmSession {
     const queue = createQueue()
     const sessionId = store.getThreadSessionId(input.threadId) ?? undefined
-    const sessionRef: { current: BurstSession | null } = { current: null }
+    const sessionRef: { current: WarmSession | null } = { current: null }
 
     const canUseTool: NonNullable<Options['canUseTool']> = async (toolName, toolInput, options) => {
       const session = sessionRef.current
@@ -266,7 +266,7 @@ export function createClaudeAgent(store: Store): Agent {
 
     const q = query({ prompt: queue.iterable, options })
 
-    const session: BurstSession = {
+    const session: WarmSession = {
       threadId: input.threadId,
       query: q,
       pushMessage: queue.push,
@@ -288,7 +288,7 @@ export function createClaudeAgent(store: Store): Agent {
   }
 
   function beginTurn(
-    session: BurstSession,
+    session: WarmSession,
     input: TurnInput,
     emit: (event: ThreadEvent) => void
   ): Promise<void> {
@@ -318,7 +318,7 @@ export function createClaudeAgent(store: Store): Agent {
         return beginTurn(existing, input, emit)
       }
 
-      const session = spawnBurst(input, emit, project.path)
+      const session = spawnSession(input, emit, project.path)
       return beginTurn(session, input, emit)
     },
 
@@ -343,7 +343,7 @@ export function createClaudeAgent(store: Store): Agent {
           !session.closed &&
           session.activeTurnId === interruptedTurnId
         ) {
-          closeBurst(threadId, session.failReason ?? reason)
+          closeSession(threadId, session.failReason ?? reason)
         }
       }, 2000)
     },
