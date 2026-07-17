@@ -23,12 +23,31 @@ doesn't lose the conversation.
    mode supports neither `interrupt()` nor image attachments (chunk 6).
    Docs: code.claude.com/docs/en/agent-sdk/{sessions,streaming-vs-single-mode}.
 
-   Consequences elsewhere: the orchestrator no longer rejects `turn.start` while a
-   turn is active — it emits the user item immediately and hands the message to
-   the agent, which enqueues it. Each queued message gets its own `turnId`; the
-   agent correlates result messages to turns in order. The `turn_active` error is
-   retired. EchoAgent queues naively (runs turns back-to-back) so the behavior is
-   covered by the cheap test suite.
+   **Steer semantics:** a message sent while a turn runs joins the *active* turn
+   (same `turnId`, pushed into the live queue; Claude absorbs it at its next step
+   boundary — identical to typing into a running Claude Code terminal). No new
+   turn boundary, one result at the end. The orchestrator emits the user item
+   immediately under the active turnId. The `turn_active` error is retired from
+   the ErrorCode enum; the chunk 2 test that asserts it becomes a steer test.
+   The `Agent` type grows `steer(threadId, text): boolean` — false means no live
+   session (lost race), and the orchestrator falls back to a fresh `startTurn`.
+   EchoAgent implements steer naively so the behavior stays cheaply testable.
+
+   **Idle TTL:** after a result, when the queue is empty, the query stays open for
+   `JETTY_SESSION_TTL_MS` (default 5 minutes; 0 = close at result). A `turn.start`
+   inside the window cancels the timer and runs as a fresh turn in the warm
+   process — conversational replies skip the spawn cost. Timer fires → close. A
+   warm process dying early is harmless: the stream-death handler (needed anyway)
+   cleans up, and the next turn takes the normal spawn-with-resume path.
+
+   **Failure handling** (no watchdogs, reconcile lazily):
+   - stream throws / ends without result → `turn.failed(<error>)`, clean up map
+     entry, thread back to idle; next turn resumes from the cursor.
+   - startup reconciliation: at boot, any thread whose projected state isn't idle
+     gets `turn.failed('server restarted')` appended — clears spinners frozen by
+     a hard server death.
+   - SIGINT/SIGTERM: interrupt active queries so in-flight turns end with real
+     `turn.failed('server shutdown')` events, then exit. Minimal version only.
 
 2. **Resume cursor on the thread row.** New nullable column
    `threads.agent_session_id`, written when the SDK's init message reveals the
