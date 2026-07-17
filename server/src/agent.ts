@@ -36,7 +36,7 @@ type EchoSession = {
   turnId: string
 }
 
-export function createEchoAgent(): Agent {
+export function createEchoAdapter(): Agent {
   const sessions = new Map<string, EchoSession>()
 
   async function emitChunks(

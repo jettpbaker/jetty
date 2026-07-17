@@ -106,7 +106,7 @@ function createQueue() {
   }
 }
 
-export function createClaudeAgent(store: Store): Agent {
+export function createClaudeAdapter(store: Store): Agent {
   const sessions = new Map<string, WarmSession>()
   const ttlMs = Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
 

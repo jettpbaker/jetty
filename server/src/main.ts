@@ -1,8 +1,8 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { createEchoAgent, type Agent } from './agent'
-import { createClaudeAgent } from './claude'
+import { createEchoAdapter, type Agent } from './agent'
+import { createClaudeAdapter } from './claude'
 import { openDb } from './db'
 import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
@@ -18,7 +18,7 @@ export type ServerOptions = {
 }
 
 function selectAgent(kind: 'echo' | 'claude', store: Store): Agent {
-  return kind === 'echo' ? createEchoAgent() : createClaudeAgent(store)
+  return kind === 'echo' ? createEchoAdapter() : createClaudeAdapter(store)
 }
 
 function reconcileOnStartup(store: Store) {
