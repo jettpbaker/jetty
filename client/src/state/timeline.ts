@@ -20,10 +20,21 @@ export function createTimelineStore(socket: Socket): TimelineStore {
   let openThreadId: string | null = null
   const listeners = new Set<() => void>()
 
+  // Coalesce notifications to one per frame: catch-up bursts arrive as one ws
+  // message per event, and per-event React renders is what made replay freeze.
+  const schedule: (cb: () => void) => void =
+    typeof requestAnimationFrame === 'function' ? (cb) => requestAnimationFrame(cb) : queueMicrotask
+  let emitScheduled = false
+
   function emit() {
-    for (const listener of listeners) {
-      listener()
-    }
+    if (emitScheduled) return
+    emitScheduled = true
+    schedule(() => {
+      emitScheduled = false
+      for (const listener of listeners) {
+        listener()
+      }
+    })
   }
 
   function setThread(threadId: string, next: ThreadState) {
@@ -35,6 +46,23 @@ export function createTimelineStore(socket: Socket): TimelineStore {
 
   function subscribeThread(threadId: string) {
     const state = cache.get(threadId) ?? emptyThread
+    if (state.lastSeq === 0) {
+      // Never-seen thread: take the server's projection snapshot instead of
+      // replaying the whole event log event-by-event.
+      void socket
+        .request('thread.subscribe', { threadId })
+        .then((result) => {
+          if (!result.snapshot) return
+          const current = cache.get(threadId) ?? emptyThread
+          if (result.snapshot.lastSeq > current.lastSeq) {
+            setThread(threadId, result.snapshot)
+          }
+        })
+        .catch(() => {
+          // reconnect will retry
+        })
+      return
+    }
     void socket.request('thread.subscribe', { threadId, afterSeq: state.lastSeq }).catch(() => {
       // reconnect will retry
     })

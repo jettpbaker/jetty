@@ -21,10 +21,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { historyBackWithFallback } from '@/lib/history-back'
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { MoreHorizontalIcon, PlusIcon, SettingsIcon } from 'lucide-react'
+import { Link, useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
+import { ArrowLeftIcon, MoreHorizontalIcon, PlusIcon, SettingsIcon } from 'lucide-react'
 import { useCallback, useSyncExternalStore } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
@@ -46,6 +47,8 @@ function statusDotClass(status: SessionStatus): string {
 export function AppSidebar() {
   const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
   const navigate = useNavigate()
+  const router = useRouter()
+  const onSettings = useLocation({ select: (location) => location.pathname === '/settings' })
   const { threadId: activeThreadId } = useParams({ strict: false })
 
   const openThread = useCallback(
@@ -134,12 +137,19 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link to='/settings'>
-                <SettingsIcon />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
+            {onSettings ? (
+              <SidebarMenuButton {...pressHandlers(() => historyBackWithFallback(router))}>
+                <ArrowLeftIcon />
+                <span>Back</span>
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton asChild>
+                <Link to='/settings'>
+                  <SettingsIcon />
+                  <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
