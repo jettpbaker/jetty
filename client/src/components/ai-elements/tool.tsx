@@ -7,13 +7,13 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 import {
+  CaretDownIcon,
   CheckCircleIcon,
-  ChevronDownIcon,
   CircleIcon,
   ClockIcon,
   WrenchIcon,
   XCircleIcon,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { isValidElement } from 'react'
 
 import { CodeBlock } from './code-block'
@@ -70,7 +70,7 @@ export const ToolHeader = ({ className, title, type, state, ...props }: ToolHead
       <span className='font-medium text-sm'>{title ?? type.split('-').slice(1).join('-')}</span>
       {getStatusBadge(state)}
     </div>
-    <ChevronDownIcon className='size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180' />
+    <CaretDownIcon className='size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180' />
   </CollapsibleTrigger>
 )
 

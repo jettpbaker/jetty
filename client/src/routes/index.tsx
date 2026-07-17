@@ -1,3 +1,4 @@
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -11,9 +12,11 @@ function HomePage() {
       <header className='flex h-12 shrink-0 items-center border-b px-2'>
         <SidebarTrigger />
       </header>
-      <div className='flex flex-1 items-center justify-center'>
-        <p className='text-muted-foreground text-sm'>Pick a thread to get started.</p>
-      </div>
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Pick a thread to get started</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     </div>
   )
 }

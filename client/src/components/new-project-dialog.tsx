@@ -9,8 +9,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { type FormEvent, useState } from 'react'
 
 export function NewProjectDialog() {
@@ -46,26 +46,26 @@ export function NewProjectDialog() {
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>Point jetty at a project directory.</DialogDescription>
           </DialogHeader>
-          <div className='grid gap-4 py-4'>
-            <div className='grid gap-2'>
-              <Label htmlFor='project-path'>Path</Label>
+          <FieldGroup className='py-4'>
+            <Field>
+              <FieldLabel htmlFor='project-path'>Path</FieldLabel>
               <Input
                 id='project-path'
                 value={path}
                 onChange={(event) => setPath(event.target.value)}
                 placeholder='/Users/me/code/project'
               />
-            </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='project-title'>Title (optional)</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor='project-title'>Title (optional)</FieldLabel>
               <Input
                 id='project-title'
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder='My project'
               />
-            </div>
-          </div>
+            </Field>
+          </FieldGroup>
           <DialogFooter>
             <Button type='submit' disabled={!path.trim()}>
               Create

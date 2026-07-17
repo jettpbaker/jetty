@@ -34,15 +34,15 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import {
-  CornerDownLeftIcon,
   ImageIcon,
-  Loader2Icon,
-  MicIcon,
+  KeyReturnIcon,
+  MicrophoneIcon,
   PaperclipIcon,
   PlusIcon,
+  SpinnerIcon,
   SquareIcon,
   XIcon,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { nanoid } from 'nanoid'
 import {
   type ChangeEvent,
@@ -950,10 +950,10 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
-  let Icon = <CornerDownLeftIcon className='size-4' />
+  let Icon = <KeyReturnIcon className='size-4' />
 
   if (status === 'submitted') {
-    Icon = <Loader2Icon className='size-4 animate-spin' />
+    Icon = <SpinnerIcon className='size-4 animate-spin' />
   } else if (status === 'streaming') {
     Icon = <SquareIcon className='size-4' />
   } else if (status === 'error') {
@@ -1119,7 +1119,7 @@ export const PromptInputSpeechButton = ({
       onClick={toggleListening}
       {...props}
     >
-      <MicIcon className='size-4' />
+      <MicrophoneIcon className='size-4' />
     </PromptInputButton>
   )
 }

@@ -1,12 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { ArrowDownIcon } from '@phosphor-icons/react'
 import {
   MessageScroller as MessageScrollerPrimitive,
   useMessageScroller,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 } from '@shadcn/react/message-scroller'
-import { ArrowDownIcon } from 'lucide-react'
 import * as React from 'react'
 
 function MessageScrollerProvider(

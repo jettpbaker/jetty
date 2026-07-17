@@ -14,8 +14,8 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
+import { SidebarIcon } from '@phosphor-icons/react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { PanelLeftIcon } from 'lucide-react'
 import * as React from 'react'
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
@@ -257,7 +257,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       }}
       {...props}
     >
-      <PanelLeftIcon className='cn-rtl-flip' />
+      <SidebarIcon className='cn-rtl-flip' />
       <span className='sr-only'>Toggle Sidebar</span>
     </Button>
   )

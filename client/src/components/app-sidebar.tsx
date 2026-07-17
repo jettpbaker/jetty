@@ -24,8 +24,8 @@ import {
 import { historyBackWithFallback } from '@/lib/history-back'
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
+import { ArrowLeftIcon, DotsThreeIcon, GearIcon, PlusIcon } from '@phosphor-icons/react'
 import { Link, useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
-import { ArrowLeftIcon, MoreHorizontalIcon, PlusIcon, SettingsIcon } from 'lucide-react'
 import { useCallback, useSyncExternalStore } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
@@ -114,7 +114,7 @@ export function AppSidebar() {
                         <DropdownMenuTrigger
                           render={
                             <SidebarMenuAction showOnHover>
-                              <MoreHorizontalIcon />
+                              <DotsThreeIcon />
                               <span className='sr-only'>Thread actions</span>
                             </SidebarMenuAction>
                           }
@@ -148,7 +148,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 render={
                   <Link to='/settings'>
-                    <SettingsIcon />
+                    <GearIcon />
                     <span>Settings</span>
                   </Link>
                 }

@@ -1,11 +1,13 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
-import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
+import { Response } from '@/components/response'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Message, MessageContent } from '@/components/ui/message'
 import { memo } from 'react'
 
 type ToolState = 'input-available' | 'output-available' | 'output-error'
@@ -25,15 +27,23 @@ function ItemBody({ item }: { item: ThreadItem }) {
   switch (item.kind) {
     case 'user_message':
       return (
-        <Message from='user'>
-          <MessageContent>{item.text}</MessageContent>
+        <Message align='end'>
+          <MessageContent>
+            <Bubble variant='secondary' align='end'>
+              <BubbleContent>{item.text}</BubbleContent>
+            </Bubble>
+          </MessageContent>
         </Message>
       )
     case 'assistant_message':
       return (
-        <Message from='assistant'>
+        <Message align='start'>
           <MessageContent>
-            <MessageResponse>{item.text}</MessageResponse>
+            <Bubble variant='ghost' align='start'>
+              <BubbleContent>
+                <Response>{item.text}</Response>
+              </BubbleContent>
+            </Bubble>
           </MessageContent>
         </Message>
       )
@@ -76,7 +86,7 @@ function ItemBody({ item }: { item: ThreadItem }) {
     case 'plan':
       return (
         <div className='rounded-md border p-4'>
-          <MessageResponse>{item.text}</MessageResponse>
+          <Response>{item.text}</Response>
         </div>
       )
     case 'error':

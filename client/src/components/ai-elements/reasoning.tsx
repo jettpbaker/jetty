@@ -2,12 +2,12 @@
 
 import type { ComponentProps, ReactNode } from 'react'
 
+import { Response } from '@/components/response'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useControllableState } from '@/lib/use-controllable-state'
 import { cn } from '@/lib/utils'
-import { BrainIcon, ChevronDownIcon } from 'lucide-react'
+import { BrainIcon, CaretDownIcon } from '@phosphor-icons/react'
 import { createContext, memo, useContext, useEffect, useState } from 'react'
-import { Streamdown } from 'streamdown'
 
 import { Shimmer } from './shimmer'
 
@@ -142,7 +142,7 @@ export const ReasoningTrigger = memo(
           <>
             <BrainIcon className='size-4' />
             {getThinkingMessage(isStreaming, duration)}
-            <ChevronDownIcon
+            <CaretDownIcon
               className={cn('size-4 transition-transform', isOpen ? 'rotate-180' : 'rotate-0')}
             />
           </>
@@ -165,7 +165,7 @@ export const ReasoningContent = memo(({ className, children, ...props }: Reasoni
     )}
     {...props}
   >
-    <Streamdown>{children}</Streamdown>
+    <Response>{children}</Response>
   </CollapsibleContent>
 ))
 

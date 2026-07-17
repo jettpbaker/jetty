@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { CheckIcon, CopyIcon } from 'lucide-react'
+import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import {
   type ComponentProps,
   createContext,

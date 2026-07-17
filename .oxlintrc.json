@@ -5,16 +5,36 @@
     "correctness": "error"
   },
   "rules": {
-    "unicorn/no-array-for-each": "error"
+    "unicorn/no-array-for-each": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "lucide-react",
+            "message": "Icons are Phosphor (@phosphor-icons/react), never lucide. See AGENTS.md (icons)."
+          }
+        ]
+      }
+    ]
   },
   "env": {
     "browser": true,
     "node": true,
     "es2026": true
   },
-  "ignorePatterns": [
-    "dist/**",
-    "client/src/components/ui/**",
-    "client/src/components/ai-elements/**"
+  "ignorePatterns": ["dist/**"],
+  "overrides": [
+    {
+      "files": ["client/src/components/ui/**", "client/src/components/ai-elements/**"],
+      "rules": {
+        "no-unused-vars": "off",
+        "jsx-a11y/label-has-associated-control": "off",
+        "jsx-a11y/prefer-tag-over-role": "off",
+        "jsx-a11y/click-events-have-key-events": "off",
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        "jsx-a11y/heading-has-content": "off"
+      }
+    }
   ]
 }
