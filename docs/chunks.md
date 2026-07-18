@@ -20,7 +20,7 @@ stays and tracks status.
       mints), composer clears only
       on confirmed send. Design decisions in the opencode recon + decision notes
       below.
-- [ ] **6. local persistence** — thread-state and chrome caches persisted to
+- [x] **6. local persistence** — thread-state and chrome caches persisted to
       IndexedDB, hydrated on boot before the socket connects; `afterSeq` catch-up
       heals whatever is behind. Persisted state can only be stale, never wrong;
       zod-validate on read, discard what doesn't parse. Instant reloads, Linear-style.
@@ -44,6 +44,11 @@ daily-driving mileage before deciding:
 - archive undo toast (sonner is installed; see the undo gap note below).
 - tabs vs sidebar decision + subproject tags (notes below).
 - icon tuning: Phosphor weights/strokes, per AGENTS.md.
+- boot flash: index.html has no background until styles.css loads, so the
+  pre-React window flashes browser-default (black in dark mode). Fix is inline
+  critical CSS on `html` matching the app background (light oklch(1 0 0), dark
+  oklch(0.145 0 0) via prefers-color-scheme) — duplicated from styles.css by
+  necessity, comment linking the two.
 
 Later, maybe:
 
