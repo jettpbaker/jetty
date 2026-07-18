@@ -61,8 +61,12 @@ export function AppSidebar() {
   }
 
   async function archiveThread(threadId: string) {
+    console.log('trying to archive a thread...')
     await socket.request('thread.archive', { threadId })
-    if (threadId === activeThreadId) void navigate({ to: '/' })
+    if (threadId === activeThreadId) {
+      console.log('True!')
+      void navigate({ to: '/' })
+    }
   }
 
   return (
@@ -111,7 +115,7 @@ export function AppSidebar() {
                           }
                         />
                         <DropdownMenuContent side='right' align='start'>
-                          <DropdownMenuItem onSelect={() => void archiveThread(thread.id)}>
+                          <DropdownMenuItem onClick={() => void archiveThread(thread.id)}>
                             Archive
                           </DropdownMenuItem>
                         </DropdownMenuContent>
