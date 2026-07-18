@@ -83,3 +83,16 @@ Later, maybe:
   sidebar exists), and last-N warm subscriptions already are a tab model. Needs a
   Cmd+K palette for non-open threads (cmdk already vendored). Decide at the design
   pass alongside subproject tags — after daily-driving the sidebar.
+  - opencode recon (2026-07, grok over their repo — packages/app is the desktop
+    surface): tabs and "composer-first new session" are ONE mechanism. `Tab =
+    SessionTab | DraftTab`; a draft is the sessionless composer reified (uuid +
+    `/new-session?draftId=` route). First submit: `session.create` →
+    promoteDraft in place + navigate (atomic) → optimistic user message into the
+    local store → promptAsync; on failure remove optimistic + restore composer
+    from snapshot. Draft composer text persists per-draft, deleted on promote.
+    Server never creates implicitly (message-to-missing-session = 404) — the
+    pattern is pure client choreography, so jetty needs zero wire changes:
+    thread.create → turn.start → promote. Their home is a session list, not the
+    composer — "new anything" opens a draft. Router owns "what you're looking
+    at"; the tab store owns the open set; deep links auto-open tabs. Their V1
+    titler ≈ ours (hidden tool-denied agent, first prompt step, skip-if-renamed).
