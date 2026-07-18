@@ -137,7 +137,7 @@ describe('server skeleton', () => {
 
     const { thread } = await c.request<{ thread: { id: string; projectId: string } }>(
       'thread.create',
-      { projectId: project.id }
+      { id: newId(), projectId: project.id }
     )
     expect(thread.projectId).toBe(project.id)
 
@@ -231,6 +231,7 @@ describe('server skeleton', () => {
       path: '/tmp/gap',
     })
     const { thread } = await c1.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
       projectId: project.id,
     })
     await c1.request('thread.subscribe', { threadId: thread.id })
@@ -277,6 +278,7 @@ describe('server skeleton', () => {
       path: '/tmp/fan',
     })
     const { thread } = await a.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
       projectId: project.id,
     })
 
@@ -364,6 +366,7 @@ describe('server skeleton', () => {
       path: '/tmp/busy',
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
       projectId: project.id,
     })
     await c.request('thread.subscribe', { threadId: thread.id })
@@ -425,6 +428,7 @@ describe('server skeleton', () => {
       path: '/tmp/title-gen',
     })
     const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+      id: newId(),
       projectId: project.id,
     })
     expect(thread.title).toBe('New thread')
@@ -461,6 +465,7 @@ describe('server skeleton', () => {
       path: '/tmp/title-skip',
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
       projectId: project.id,
     })
     store.setThreadTitle(thread.id, 'Existing title')
@@ -495,6 +500,7 @@ describe('server skeleton', () => {
       path: '/tmp/title-null',
     })
     const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+      id: newId(),
       projectId: project.id,
     })
     expect(thread.title).toBe('New thread')
@@ -529,7 +535,7 @@ describe('server skeleton', () => {
     const db = openDb(home)
     const store = createStore(db)
     const project = store.createProject('/tmp/reconcile', 'Reconcile')
-    const thread = store.createThread(project.id)
+    const thread = store.createThread(project.id, newId())
     store.appendEvent(thread.id, { type: 'turn.started', turnId: 'orphan-turn' })
     expect(store.getThreadState(thread.id).status).toBe('running')
     db.close()
@@ -570,5 +576,152 @@ describe('server skeleton', () => {
 
     c.close()
     c2.close()
+  })
+
+  test('thread.create is idempotent for same id and projectId', async () => {
+    const { port, store } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/idempotent',
+    })
+    const id = newId()
+
+    const first = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+      id,
+      projectId: project.id,
+    })
+    expect(first.thread.id).toBe(id)
+    expect(first.thread.title).toBe('New thread')
+
+    store.setThreadTitle(id, 'Renamed after create')
+
+    const second = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+      id,
+      projectId: project.id,
+    })
+    expect(second.thread.id).toBe(id)
+    expect(second.thread.title).toBe('Renamed after create')
+
+    const matches = store.listThreads().filter((t) => t.id === id)
+    expect(matches).toHaveLength(1)
+
+    c.close()
+  })
+
+  test('thread.create rejects same id under a different project', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    const { project: projectA } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/proj-a',
+    })
+    const { project: projectB } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/proj-b',
+    })
+    const id = newId()
+
+    await c.request('thread.create', { id, projectId: projectA.id })
+
+    const reqId = newId()
+    const resP = new Promise<ResponseMessage>((resolve) => {
+      const onMsg = (ev: MessageEvent) => {
+        const msg = JSON.parse(String(ev.data)) as ServerMessage
+        if ('ok' in msg && msg.id === reqId) {
+          c.ws.removeEventListener('message', onMsg)
+          resolve(msg)
+        }
+      }
+      c.ws.addEventListener('message', onMsg)
+    })
+    c.ws.send(
+      JSON.stringify({
+        id: reqId,
+        method: 'thread.create',
+        params: { id, projectId: projectB.id },
+      })
+    )
+    const res = await resP
+    expect(res.ok).toBe(false)
+    expect(res.error?.code).toBe('invalid_params')
+
+    c.close()
+  })
+
+  test('thread.create without id is invalid_params', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/missing-id',
+    })
+
+    const reqId = newId()
+    const resP = new Promise<ResponseMessage>((resolve) => {
+      const onMsg = (ev: MessageEvent) => {
+        const msg = JSON.parse(String(ev.data)) as ServerMessage
+        if ('ok' in msg && msg.id === reqId) {
+          c.ws.removeEventListener('message', onMsg)
+          resolve(msg)
+        }
+      }
+      c.ws.addEventListener('message', onMsg)
+    })
+    c.ws.send(
+      JSON.stringify({
+        id: reqId,
+        method: 'thread.create',
+        params: { projectId: project.id },
+      })
+    )
+    const res = await resP
+    expect(res.ok).toBe(false)
+    expect(res.error?.code).toBe('invalid_params')
+
+    c.close()
+  })
+
+  test('client-minted thread id works with turn.start', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/client-id',
+    })
+    const id = newId()
+
+    const { thread } = await c.request<{ thread: { id: string; projectId: string } }>(
+      'thread.create',
+      { id, projectId: project.id }
+    )
+    expect(thread.id).toBe(id)
+    expect(thread.projectId).toBe(project.id)
+
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+      threadId: thread.id,
+      text: 'client-minted',
+    })
+    expect(turnId).toBeTruthy()
+
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+
+    const events = threadEvents(c, thread.id).map((m) => m.event)
+    const types = events.map((e) => e.type)
+    expect(types).toContain('turn.started')
+    expect(types).toContain('turn.completed')
+
+    const userStart = events.find(
+      (e) => e.type === 'item.started' && e.item.kind === 'user_message'
+    )
+    expect(userStart).toMatchObject({
+      type: 'item.started',
+      item: { kind: 'user_message', text: 'client-minted', turnId },
+    })
+
+    c.close()
   })
 })

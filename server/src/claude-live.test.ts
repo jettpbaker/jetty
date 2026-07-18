@@ -1,3 +1,4 @@
+import { newId } from '@jetty/shared/wire'
 import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -21,7 +22,7 @@ describe.skipIf(!live)('claude live', () => {
       const db = openDb(home)
       const store = createStore(db)
       const project = store.createProject(projectPath, 'live')
-      const thread = store.createThread(project.id)
+      const thread = store.createThread(project.id, newId())
       const agent = createClaudeAdapter(store)
 
       const t0 = performance.now()

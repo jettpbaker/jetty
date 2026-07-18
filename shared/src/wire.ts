@@ -62,7 +62,7 @@ export const methods = {
     result: z.object({ project: Project }),
   },
   'thread.create': {
-    params: z.object({ projectId: z.string() }),
+    params: z.object({ id: z.string().min(1), projectId: z.string() }),
     result: z.object({ thread: ThreadMeta }),
   },
   'thread.archive': {

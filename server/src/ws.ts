@@ -59,7 +59,7 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
       }
       case 'thread.create': {
         const p = parsed.data as ParamsOf<'thread.create'>
-        const thread = store.createThread(p.projectId)
+        const thread = store.createThread(p.projectId, p.id)
         hub.pushChrome({ type: 'thread.upserted', thread })
         return { thread }
       }

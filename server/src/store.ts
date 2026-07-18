@@ -144,13 +144,23 @@ export function createStore(db: Database) {
       return row ? rowToProject(row) : null
     },
 
-    createThread(projectId: string): ThreadMeta {
+    createThread(projectId: string, id: string): ThreadMeta {
       if (!selectProject.get(projectId)) {
         throw new StoreError('not_found', `Project ${projectId} not found`)
       }
+      const existing = selectThread.get(id) as ThreadRow | null
+      if (existing) {
+        if (existing.project_id !== projectId) {
+          throw new StoreError(
+            'invalid_params',
+            `Thread ${id} already belongs to a different project`
+          )
+        }
+        return rowToThread(existing)
+      }
       const now = Date.now()
       const thread: ThreadMeta = {
-        id: newId(),
+        id,
         projectId,
         title: DEFAULT_THREAD_TITLE,
         status: 'idle',
