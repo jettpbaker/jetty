@@ -24,7 +24,7 @@ stays and tracks status.
       IndexedDB, hydrated on boot before the socket connects; `afterSeq` catch-up
       heals whatever is behind. Persisted state can only be stale, never wrong;
       zod-validate on read, discard what doesn't parse. Instant reloads, Linear-style.
-- [ ] **7. minimal approvals** — allow/deny buttons on the existing approval card,
+- [x] **7. minimal approvals** — allow/deny buttons on the existing approval card,
       wired to `approval.respond`. Nothing else: no mode picker, no attribution,
       no card styling — just unblock threads that hit a permission prompt. The
       full approvals UX moves to the design pass (below).
