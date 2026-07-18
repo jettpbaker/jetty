@@ -11,24 +11,32 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
+import { toast } from 'sonner'
 
 export function NewProjectDialog() {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [path, setPath] = useState('')
   const [title, setTitle] = useState('')
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedPath = path.trim()
     if (!trimmedPath) return
-    void socket.request('project.create', {
-      path: trimmedPath,
-      title: title.trim() || undefined,
-    })
-    setPath('')
-    setTitle('')
-    setOpen(false)
+    try {
+      const { project } = await socket.request('project.create', {
+        path: trimmedPath,
+        title: title.trim() || undefined,
+      })
+      setPath('')
+      setTitle('')
+      setOpen(false)
+      void navigate({ to: '/new/$projectId', params: { projectId: project.id } })
+    } catch {
+      toast.error('Couldn’t create the project.')
+    }
   }
 
   return (

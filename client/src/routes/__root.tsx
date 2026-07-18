@@ -1,5 +1,6 @@
 import { AppSidebar } from '@/components/app-sidebar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 
@@ -15,6 +16,7 @@ function RootLayout() {
         <SidebarInset className='h-svh overflow-hidden'>
           <Outlet />
         </SidebarInset>
+        <Toaster />
       </SidebarProvider>
     </TooltipProvider>
   )

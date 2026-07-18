@@ -1,4 +1,5 @@
 import { emptyThread } from '@jetty/shared/reducer'
+import { newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -103,7 +104,7 @@ describe('client socket + stores', () => {
     expect(withProject.projects[0]?.title).toBe('Chrome')
     expect(chrome.getSnapshot()).toBe(withProject)
 
-    const { thread } = await socket.request('thread.create', { projectId: project.id })
+    const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
     const withThread = await waitFor(
       () => chrome.getSnapshot(),
       (s) => s.threads.some((t) => t.id === thread.id)
@@ -118,7 +119,7 @@ describe('client socket + stores', () => {
     const timeline = createTimelineStore(socket)
 
     const { project } = await socket.request('project.create', { path: '/tmp/timeline' })
-    const { thread } = await socket.request('thread.create', { projectId: project.id })
+    const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
 
     // never visited → emptyThread constant (instant, zero network)
     const uncached = timeline.getSnapshot(thread.id)
@@ -144,7 +145,10 @@ describe('client socket + stores', () => {
     // force cold path via LRU eviction (not closeThread — that only clears open marker)
     const fillers: string[] = []
     for (let i = 0; i < MAX_WARM_SUBSCRIPTIONS; i++) {
-      const { thread: filler } = await socket.request('thread.create', { projectId: project.id })
+      const { thread: filler } = await socket.request('thread.create', {
+        id: newId(),
+        projectId: project.id,
+      })
       fillers.push(filler.id)
       timeline.openThread(filler.id)
     }
@@ -214,8 +218,14 @@ describe('client socket + stores', () => {
     const timeline = createTimelineStore(socket)
 
     const { project } = await socket.request('project.create', { path: '/tmp/warm-bg' })
-    const { thread: threadA } = await socket.request('thread.create', { projectId: project.id })
-    const { thread: threadB } = await socket.request('thread.create', { projectId: project.id })
+    const { thread: threadA } = await socket.request('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    const { thread: threadB } = await socket.request('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
 
     timeline.openThread(threadA.id)
     await socket.request('turn.start', { threadId: threadA.id, text: 'seed-a' })
@@ -252,7 +262,10 @@ describe('client socket + stores', () => {
     const timeline = createTimelineStore(socket)
 
     const { project } = await socket.request('project.create', { path: '/tmp/lru' })
-    const { thread: lru } = await socket.request('thread.create', { projectId: project.id })
+    const { thread: lru } = await socket.request('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
 
     timeline.openThread(lru.id)
     await socket.request('turn.start', { threadId: lru.id, text: 'lru-seed' })
@@ -264,7 +277,10 @@ describe('client socket + stores', () => {
 
     // visit N more threads → lru is least-recent and unsubscribed (cache kept)
     for (let i = 0; i < MAX_WARM_SUBSCRIPTIONS; i++) {
-      const { thread: filler } = await socket.request('thread.create', { projectId: project.id })
+      const { thread: filler } = await socket.request('thread.create', {
+        id: newId(),
+        projectId: project.id,
+      })
       timeline.openThread(filler.id)
     }
 
@@ -309,8 +325,14 @@ describe('client socket + stores', () => {
     const timeline = createTimelineStore(socket)
 
     const { project } = await socket.request('project.create', { path: '/tmp/reconnect-held' })
-    const { thread: threadA } = await socket.request('thread.create', { projectId: project.id })
-    const { thread: threadB } = await socket.request('thread.create', { projectId: project.id })
+    const { thread: threadA } = await socket.request('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    const { thread: threadB } = await socket.request('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
 
     timeline.openThread(threadA.id)
     await socket.request('turn.start', { threadId: threadA.id, text: 'a0' })
@@ -367,7 +389,7 @@ describe('client socket + stores', () => {
     const timeline = createTimelineStore(socket)
 
     const { project } = await socket.request('project.create', { path: '/tmp/reduce' })
-    const { thread } = await socket.request('thread.create', { projectId: project.id })
+    const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
     timeline.openThread(thread.id)
 
     const { turnId } = await socket.request('turn.start', {

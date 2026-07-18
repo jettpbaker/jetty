@@ -55,9 +55,8 @@ export function AppSidebar() {
     void navigate({ to: '/thread/$threadId', params: { threadId } })
   }
 
-  async function createThread(projectId: string) {
-    const { thread } = await socket.request('thread.create', { projectId })
-    void navigate({ to: '/thread/$threadId', params: { threadId: thread.id } })
+  function newThread(projectId: string) {
+    void navigate({ to: '/new/$projectId', params: { projectId } })
   }
 
   async function archiveThread(threadId: string) {
@@ -82,7 +81,7 @@ export function AppSidebar() {
               <SidebarGroupLabel>{project.title}</SidebarGroupLabel>
               <SidebarGroupAction
                 title='New thread'
-                {...pressHandlers(() => void createThread(project.id))}
+                {...pressHandlers(() => newThread(project.id))}
               >
                 <PlusIcon />
                 <span className='sr-only'>New thread</span>
