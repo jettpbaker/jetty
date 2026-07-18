@@ -72,9 +72,30 @@ function ItemBody({ item, threadId }: { item: ThreadItem; threadId: string }) {
       return (
         <Message align='end'>
           <MessageContent>
-            <Bubble variant='secondary' align='end'>
-              <BubbleContent>{item.text}</BubbleContent>
-            </Bubble>
+            {item.attachments.length > 0 && (
+              <div className='flex flex-wrap justify-end gap-2'>
+                {item.attachments.map((attachment) => (
+                  <a
+                    key={attachment.id}
+                    href={`/attachments/${attachment.id}`}
+                    target='_blank'
+                    rel='noreferrer'
+                  >
+                    <img
+                      src={`/attachments/${attachment.id}`}
+                      alt={attachment.name}
+                      loading='lazy'
+                      className='max-h-32 rounded-md border'
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
+            {item.text && (
+              <Bubble variant='secondary' align='end'>
+                <BubbleContent>{item.text}</BubbleContent>
+              </Bubble>
+            )}
           </MessageContent>
         </Message>
       )

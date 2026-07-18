@@ -123,6 +123,10 @@ const useOptionalProviderAttachments = () => useContext(ProviderAttachmentsConte
 
 export type PromptInputProviderProps = PropsWithChildren<{
   initialInput?: string
+  // Gate incoming files before they enter the attachments state. Receives the
+  // dropped/pasted/picked files plus the current attachment count and returns
+  // the subset to keep (may be async for probes like image decoding).
+  validateFiles?: (incoming: File[], currentCount: number) => File[] | Promise<File[]>
 }>
 
 /**
@@ -131,6 +135,7 @@ export type PromptInputProviderProps = PropsWithChildren<{
  */
 export function PromptInputProvider({
   initialInput: initialTextInput = '',
+  validateFiles,
   children,
 }: PromptInputProviderProps) {
   // ----- textInput state
@@ -142,24 +147,38 @@ export function PromptInputProvider({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const openRef = useRef<() => void>(() => {})
 
-  const add = useCallback((files: File[] | FileList) => {
-    const incoming = Array.from(files)
-    if (incoming.length === 0) {
-      return
-    }
+  // Keep a ref to attachments for cleanup on unmount and for reading the current
+  // count inside the async add (avoids stale closure).
+  const attachmentsRef = useRef(attachmentFiles)
+  attachmentsRef.current = attachmentFiles
 
-    setAttachmentFiles((prev) =>
-      prev.concat(
-        incoming.map((file) => ({
-          id: nanoid(),
-          type: 'file' as const,
-          url: URL.createObjectURL(file),
-          mediaType: file.type,
-          filename: file.name,
-        }))
+  const add = useCallback(
+    async (files: File[] | FileList) => {
+      const incoming = Array.from(files)
+      if (incoming.length === 0) {
+        return
+      }
+      const accepted = validateFiles
+        ? await validateFiles(incoming, attachmentsRef.current.length)
+        : incoming
+      if (accepted.length === 0) {
+        return
+      }
+
+      setAttachmentFiles((prev) =>
+        prev.concat(
+          accepted.map((file) => ({
+            id: nanoid(),
+            type: 'file' as const,
+            url: URL.createObjectURL(file),
+            mediaType: file.type,
+            filename: file.name,
+          }))
+        )
       )
-    )
-  }, [])
+    },
+    [validateFiles]
+  )
 
   const remove = useCallback((id: string) => {
     setAttachmentFiles((prev) => {
@@ -181,10 +200,6 @@ export function PromptInputProvider({
       return []
     })
   }, [])
-
-  // Keep a ref to attachments for cleanup on unmount (avoids stale closure)
-  const attachmentsRef = useRef(attachmentFiles)
-  attachmentsRef.current = attachmentFiles
 
   // Cleanup blob URLs on unmount to prevent memory leaks
   useEffect(() => {
