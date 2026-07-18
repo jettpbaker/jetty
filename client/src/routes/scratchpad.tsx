@@ -313,16 +313,18 @@ function CombinedMark() {
           const dx = p.x - pointer.x
           const dy = p.y - pointer.y
           const d = Math.hypot(dx, dy)
-          if (d < REPULSE_RADIUS && d > 0.01) {
-            const force = ((REPULSE_RADIUS - d) / REPULSE_RADIUS) * 3
+          if (d < REPULSE_RADIUS * 2 && d > 0.01) {
+            // Gaussian falloff: no hard rim — influence melts to zero smoothly.
+            const sigma = REPULSE_RADIUS * 0.55
+            const force = 1.3 * Math.exp(-(d * d) / (2 * sigma * sigma))
             p.vx += (dx / d) * force
             p.vy += (dy / d) * force
           }
         }
-        p.vx += (p.hx - p.x) * 0.06
-        p.vy += (p.hy - p.y) * 0.06
-        p.vx *= 0.82
-        p.vy *= 0.82
+        p.vx += (p.hx - p.x) * 0.05
+        p.vy += (p.hy - p.y) * 0.05
+        p.vx *= 0.68
+        p.vy *= 0.68
         p.x += p.vx
         p.y += p.vy
         if (Math.abs(p.x - p.hx) > 0.1 || Math.abs(p.y - p.hy) > 0.1) moving = true
@@ -408,6 +410,151 @@ function CombinedMark() {
   )
 }
 
+// Vercel-hero technique: the glow is a blurred copy of the text itself (light
+// leaking from behind), tinted by a slowly rotating conic hue sweep, dusted
+// with shimmering grain, with the crisp glyphs occluding the center.
+function BacklitMark() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rawCtx = canvas.getContext('2d')
+    if (!rawCtx) return
+    const ctx: CanvasRenderingContext2D = rawCtx
+
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const dpr = Math.min(devicePixelRatio || 1, 2)
+    canvas.width = CANVAS_W * dpr
+    canvas.height = CANVAS_H * dpr
+    ctx.scale(dpr, dpr)
+
+    const bg = getComputedStyle(document.body).backgroundColor
+    let raf = 0
+    let theta = 0
+    let light: HTMLCanvasElement | null = null
+    let occluder: HTMLCanvasElement | null = null
+    let grain: HTMLCanvasElement | null = null
+
+    function makeLayer(): [HTMLCanvasElement, CanvasRenderingContext2D] {
+      const layer = document.createElement('canvas')
+      layer.width = CANVAS_W
+      layer.height = CANVAS_H
+      const lctx = layer.getContext('2d')
+      if (!lctx) throw new Error('2d context unavailable')
+      return [layer, lctx]
+    }
+
+    function drawText(target: CanvasRenderingContext2D, fill: string) {
+      target.font = "500 150px 'Geist Pixel Square'"
+      target.textBaseline = 'middle'
+      if ('letterSpacing' in target) {
+        ;(target as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0.15em'
+      }
+      const width = target.measureText('Jetty').width
+      const x0 = (CANVAS_W - width) / 2
+      target.fillStyle = fill
+      target.strokeStyle = fill
+      target.lineWidth = 4
+      target.strokeText('Jetty', x0, CANVAS_H / 2)
+      target.fillText('Jetty', x0, CANVAS_H / 2)
+    }
+
+    function build() {
+      const [textLayer, tctx] = makeLayer()
+      drawText(tctx, '#fff')
+
+      // Light field: stacked blurs of the glyphs so glow hugs the letterforms.
+      const [lightLayer, lightCtx] = makeLayer()
+      for (const [blur, alpha] of [
+        [8, 0.9],
+        [24, 0.7],
+        [56, 0.5],
+      ] as const) {
+        lightCtx.filter = `blur(${blur}px)`
+        lightCtx.globalAlpha = alpha
+        lightCtx.drawImage(textLayer, 0, 0)
+      }
+      light = lightLayer
+
+      const [occluderLayer, octx] = makeLayer()
+      drawText(octx, bg)
+      occluder = occluderLayer
+
+      const [grainLayer, gctx] = makeLayer()
+      const noise = gctx.createImageData(CANVAS_W, CANVAS_H)
+      for (let i = 0; i < noise.data.length; i += 4) {
+        const v = Math.random() * 255
+        noise.data[i] = v
+        noise.data[i + 1] = v
+        noise.data[i + 2] = v
+        noise.data[i + 3] = 46
+      }
+      gctx.putImageData(noise, 0, 0)
+      grain = grainLayer
+    }
+
+    function frame() {
+      if (!light || !occluder || !grain) return
+      const [tinted, tintCtx] = makeLayer()
+      tintCtx.drawImage(light, 0, 0)
+      tintCtx.globalCompositeOperation = 'source-in'
+      const hue = tintCtx.createConicGradient(theta, CANVAS_W / 2, CANVAS_H / 2)
+      const stops = 7
+      for (let i = 0; i <= stops; i++) {
+        hue.addColorStop(i / stops, `oklch(0.75 0.19 ${(i / stops) * 360})`)
+      }
+      tintCtx.fillStyle = hue
+      tintCtx.fillRect(0, 0, CANVAS_W, CANVAS_H)
+      tintCtx.globalCompositeOperation = 'source-atop'
+      tintCtx.drawImage(
+        grain,
+        Math.floor(Math.random() * 24) - 12,
+        Math.floor(Math.random() * 24) - 12
+      )
+
+      ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
+      ctx.drawImage(tinted, 0, 0)
+      ctx.drawImage(occluder, 0, 0)
+    }
+
+    function loop() {
+      theta += 0.004
+      frame()
+      raf = requestAnimationFrame(loop)
+    }
+
+    void document.fonts.load("500 150px 'Geist Pixel Square'").then(() => {
+      build()
+      frame()
+      if (!reduced) {
+        // Ambient animation: only run while visible and the tab is foreground.
+        const observer = new IntersectionObserver(([entry]) => {
+          const visible = (entry?.isIntersecting ?? false) && !document.hidden
+          if (visible && raf === 0) raf = requestAnimationFrame(loop)
+          if (!visible && raf !== 0) {
+            cancelAnimationFrame(raf)
+            raf = 0
+          }
+        })
+        observer.observe(canvas)
+      }
+    })
+
+    return () => {
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-label='Jetty'
+      style={{ width: CANVAS_W, height: CANVAS_H, maxWidth: '100%' }}
+    />
+  )
+}
+
 function Experiment({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section className='flex flex-col items-center gap-6'>
@@ -436,6 +583,9 @@ function ScratchpadPage() {
         </Experiment>
         <Experiment label='4 · repulsion + reflection'>
           <CombinedMark />
+        </Experiment>
+        <Experiment label='5 · backlit rainbow (vercel-style)'>
+          <BacklitMark />
         </Experiment>
         <div className='w-full max-w-2xl'>
           <PromptInput onSubmit={() => {}}>
