@@ -101,6 +101,10 @@ Later, maybe:
   behaviour: cwd stays the project root, tags are pure UI.
 - walk Jett through the subscription model (chrome vs per-thread, why not one global
   sub) properly — at latest as part of the chunk 4 design review.
+- fallback image compression: chunk 8 refuses images over the API caps (>10 MB,
+  >8000 px) with a toast — rare for screenshots, mostly hit by dragged photos.
+  If the toast annoys in practice, add compress-only-when-over-cap (downscale
+  for the px cap; lossy re-encode for the byte cap, mind screenshot text).
 - sound effects on actions (button clicks, sends, completions) — recent micro-trend,
   interested but not yet. Reference: https://cuelume-site.pages.dev/
 - tabs instead of sidebar: browser-style tab bar, one tab per open session — real
