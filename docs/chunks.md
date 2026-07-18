@@ -20,20 +20,30 @@ stays and tracks status.
       mints), composer clears only
       on confirmed send. Design decisions in the opencode recon + decision notes
       below.
-- [ ] **6. approvals + permission modes** — approval cards wired to `approval.respond`,
-      permission mode picker per thread. Three surfaced modes: auto (default),
-      full access, plan. PermissionMode on the wire is jetty vocabulary
-      (auto | full_access | plan); each adapter maps it to its provider's modes.
-      Also on the plate: archive undo toast, agent attribution on approval cards.
-- [ ] **7. local persistence** — thread-state and chrome caches persisted to
+- [ ] **6. local persistence** — thread-state and chrome caches persisted to
       IndexedDB, hydrated on boot before the socket connects; `afterSeq` catch-up
       heals whatever is behind. Persisted state can only be stale, never wrong;
       zod-validate on read, discard what doesn't parse. Instant reloads, Linear-style.
+- [ ] **7. minimal approvals** — allow/deny buttons on the existing approval card,
+      wired to `approval.respond`. Nothing else: no mode picker, no attribution,
+      no card styling — just unblock threads that hit a permission prompt. The
+      full approvals UX moves to the design pass (below).
 - [ ] **8. image paste** — clipboard/drop → client-side downscale → data URL over ws →
       attachments dir → base64 content block to Claude. Verify real Anthropic image
       limits here.
 - [ ] **9. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
       fallback) rendered with `@pierre/diffs`.
+
+Design pass (the big one at the end) — collected UI/UX work that wants real
+daily-driving mileage before deciding:
+
+- permission modes: per-thread picker, surfaced set auto | full_access | plan as
+  jetty vocabulary on the wire, each adapter maps to its provider's modes.
+- approval card design + agent attribution (which agent is asking — hook inputs
+  carry `agent_id`/`agent_type`).
+- archive undo toast (sonner is installed; see the undo gap note below).
+- tabs vs sidebar decision + subproject tags (notes below).
+- icon tuning: Phosphor weights/strokes, per AGENTS.md.
 
 Later, maybe:
 
