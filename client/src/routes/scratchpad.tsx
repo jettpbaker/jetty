@@ -4,12 +4,12 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
 } from '@/components/ai-elements/prompt-input'
-import { createFileRoute } from '@tanstack/react-router'
 import pixelCircle from '@/fonts/GeistPixel-Circle.woff2'
 import pixelGrid from '@/fonts/GeistPixel-Grid.woff2'
 import pixelLine from '@/fonts/GeistPixel-Line.woff2'
 import pixelSquare from '@/fonts/GeistPixel-Square.woff2'
 import pixelTriangle from '@/fonts/GeistPixel-Triangle.woff2'
+import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/scratchpad')({
   component: ScratchpadPage,
@@ -33,7 +33,13 @@ function ScratchpadPage() {
   return (
     <div className='flex h-full flex-col items-center justify-center gap-8 p-8'>
       <style>{fontFaces}</style>
-      <h1 className='text-6xl' style={{ fontFamily: "'Geist Pixel Square'" }}>
+      <h1
+        className='text-9xl tracking-[0.15em]'
+        style={{
+          fontFamily: "'Geist Pixel Square'",
+          WebkitTextStroke: '2px currentColor',
+        }}
+      >
         Jetty
       </h1>
       <div className='w-full max-w-2xl'>
