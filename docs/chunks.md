@@ -14,7 +14,7 @@ stays and tracks status.
       resume across restarts, interrupt, `canUseTool` surfaced as approval items.
 - [x] **4. web app** — Vite React SPA: project/thread sidebar over `chrome.subscribe`,
       thread view with streaming timeline, composer. Default shadcn styling.
-- [ ] **5. draft-first creation** — threads are born on first send, not on click:
+- [x] **5. draft-first creation** — threads are born on first send, not on click:
       draft route per project (composer only), client-minted thread ids
       (`thread.create` takes a required id; server adopts idempotently, never
       mints), composer clears only
