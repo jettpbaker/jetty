@@ -5,11 +5,11 @@ import {
   PromptInputTextarea,
 } from '@/components/ai-elements/prompt-input'
 import { createFileRoute } from '@tanstack/react-router'
-import pixelCircle from 'geist/dist/fonts/geist-pixel/GeistPixel-Circle.woff2'
-import pixelGrid from 'geist/dist/fonts/geist-pixel/GeistPixel-Grid.woff2'
-import pixelLine from 'geist/dist/fonts/geist-pixel/GeistPixel-Line.woff2'
-import pixelSquare from 'geist/dist/fonts/geist-pixel/GeistPixel-Square.woff2'
-import pixelTriangle from 'geist/dist/fonts/geist-pixel/GeistPixel-Triangle.woff2'
+import pixelCircle from '@/fonts/GeistPixel-Circle.woff2'
+import pixelGrid from '@/fonts/GeistPixel-Grid.woff2'
+import pixelLine from '@/fonts/GeistPixel-Line.woff2'
+import pixelSquare from '@/fonts/GeistPixel-Square.woff2'
+import pixelTriangle from '@/fonts/GeistPixel-Triangle.woff2'
 
 export const Route = createFileRoute('/scratchpad')({
   component: ScratchpadPage,
