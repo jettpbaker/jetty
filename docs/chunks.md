@@ -14,18 +14,24 @@ stays and tracks status.
       resume across restarts, interrupt, `canUseTool` surfaced as approval items.
 - [x] **4. web app** — Vite React SPA: project/thread sidebar over `chrome.subscribe`,
       thread view with streaming timeline, composer. Default shadcn styling.
-- [ ] **5. approvals + permission modes** — approval cards wired to `approval.respond`,
+- [ ] **5. draft-first creation** — threads are born on first send, not on click:
+      draft route per project (composer only), client-minted thread ids
+      (`thread.create` adopts an optional id, idempotently), composer clears only
+      on confirmed send. Design decisions in the opencode recon + decision notes
+      below.
+- [ ] **6. approvals + permission modes** — approval cards wired to `approval.respond`,
       permission mode picker per thread. Three surfaced modes: auto (default),
       full access, plan. PermissionMode on the wire is jetty vocabulary
       (auto | full_access | plan); each adapter maps it to its provider's modes.
-- [ ] **6. local persistence** — thread-state and chrome caches persisted to
+      Also on the plate: archive undo toast, agent attribution on approval cards.
+- [ ] **7. local persistence** — thread-state and chrome caches persisted to
       IndexedDB, hydrated on boot before the socket connects; `afterSeq` catch-up
       heals whatever is behind. Persisted state can only be stale, never wrong;
       zod-validate on read, discard what doesn't parse. Instant reloads, Linear-style.
-- [ ] **7. image paste** — clipboard/drop → client-side downscale → data URL over ws →
+- [ ] **8. image paste** — clipboard/drop → client-side downscale → data URL over ws →
       attachments dir → base64 content block to Claude. Verify real Anthropic image
       limits here.
-- [ ] **8. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
+- [ ] **9. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
       fallback) rendered with `@pierre/diffs`.
 
 Later, maybe:
