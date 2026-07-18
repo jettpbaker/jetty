@@ -15,7 +15,7 @@ export function Timeline({ threadId, items }: { threadId: string; items: ThreadI
   // Keyed by threadId so the provider remounts per thread, re-running
   // defaultScrollPosition="end" to land at the bottom of the new thread.
   return (
-    <MessageScrollerProvider key={threadId} autoScroll defaultScrollPosition='end'>
+    <MessageScrollerProvider key={threadId} autoScroll defaultScrollPosition='last-anchor'>
       <MessageScroller className='min-h-0 flex-1'>
         <MessageScrollerViewport>
           <MessageScrollerContent>
