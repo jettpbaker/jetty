@@ -26,10 +26,13 @@ state at all.
 
 ## wire + server changes (small)
 
-- `thread.create` params gain optional `id`. Server adopts it: if a thread with
-  that id exists and the projectId matches, return it unchanged (idempotent,
-  retry-safe); mismatched projectId → `invalid_params`. No id → mint as today.
-- `store.createThread(projectId, id?)` accordingly. Everything else — events,
+- `thread.create` params gain a **required** `id` — the client owns id minting,
+  full stop; the server never mints thread ids again. Server adopts it: if a
+  thread with that id exists and the projectId matches, return it unchanged
+  (idempotent, retry-safe); mismatched projectId → `invalid_params`.
+- `store.createThread(projectId, id)` accordingly — no conditional mint path.
+  Server tests and fixtures mint their own ids via the shared `newId()`.
+  Everything else — events,
   turn.start, titler — is untouched; the titler fires exactly as before since
   the thread is created with the default title an instant before its first turn.
 

@@ -16,7 +16,8 @@ stays and tracks status.
       thread view with streaming timeline, composer. Default shadcn styling.
 - [ ] **5. draft-first creation** — threads are born on first send, not on click:
       draft route per project (composer only), client-minted thread ids
-      (`thread.create` adopts an optional id, idempotently), composer clears only
+      (`thread.create` takes a required id; server adopts idempotently, never
+      mints), composer clears only
       on confirmed send. Design decisions in the opencode recon + decision notes
       below.
 - [ ] **6. approvals + permission modes** — approval cards wired to `approval.respond`,
