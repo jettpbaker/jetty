@@ -78,7 +78,9 @@ export function AppSidebar() {
           )
           return (
             <SidebarGroup key={project.id}>
-              <SidebarGroupLabel>{project.title}</SidebarGroupLabel>
+              <SidebarGroupLabel className='font-mono text-[10px] uppercase tracking-widest'>
+                {project.title}
+              </SidebarGroupLabel>
               <SidebarGroupAction
                 title='New thread'
                 {...pressHandlers(() => newThread(project.id))}
