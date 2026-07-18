@@ -429,17 +429,24 @@ function BacklitMark() {
     canvas.height = CANVAS_H * dpr
     ctx.scale(dpr, dpr)
 
+    const W = 880
+    const H = 480
+    canvas.width = W * dpr
+    canvas.height = H * dpr
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
     const bg = getComputedStyle(document.body).backgroundColor
     let raf = 0
     let theta = 0
-    let light: HTMLCanvasElement | null = null
+    let hot: HTMLCanvasElement | null = null
+    let bloom: HTMLCanvasElement | null = null
     let occluder: HTMLCanvasElement | null = null
     let grain: HTMLCanvasElement | null = null
 
     function makeLayer(): [HTMLCanvasElement, CanvasRenderingContext2D] {
       const layer = document.createElement('canvas')
-      layer.width = CANVAS_W
-      layer.height = CANVAS_H
+      layer.width = W
+      layer.height = H
       const lctx = layer.getContext('2d')
       if (!lctx) throw new Error('2d context unavailable')
       return [layer, lctx]
@@ -452,69 +459,85 @@ function BacklitMark() {
         ;(target as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0.15em'
       }
       const width = target.measureText('Jetty').width
-      const x0 = (CANVAS_W - width) / 2
+      const x0 = (W - width) / 2
       target.fillStyle = fill
       target.strokeStyle = fill
       target.lineWidth = 4
-      target.strokeText('Jetty', x0, CANVAS_H / 2)
-      target.fillText('Jetty', x0, CANVAS_H / 2)
+      target.strokeText('Jetty', x0, H / 2)
+      target.fillText('Jetty', x0, H / 2)
     }
 
     function build() {
       const [textLayer, tctx] = makeLayer()
       drawText(tctx, '#fff')
 
-      // Light field: stacked blurs of the glyphs so glow hugs the letterforms.
-      const [lightLayer, lightCtx] = makeLayer()
-      for (const [blur, alpha] of [
-        [8, 0.9],
-        [24, 0.7],
-        [56, 0.5],
+      // Hot core: tight blurs stacked additively so the rim clips toward white.
+      const [hotLayer, hotCtx] = makeLayer()
+      hotCtx.globalCompositeOperation = 'lighter'
+      for (const [blur, alpha, times] of [
+        [6, 0.9, 2],
+        [18, 0.8, 2],
       ] as const) {
-        lightCtx.filter = `blur(${blur}px)`
-        lightCtx.globalAlpha = alpha
-        lightCtx.drawImage(textLayer, 0, 0)
+        hotCtx.filter = `blur(${blur}px)`
+        hotCtx.globalAlpha = alpha
+        for (let i = 0; i < times; i++) hotCtx.drawImage(textLayer, 0, 0)
       }
-      light = lightLayer
+      hot = hotLayer
+
+      // Far bloom: wide additive blurs; this is the layer that takes the hue.
+      const [bloomLayer, bloomCtx] = makeLayer()
+      bloomCtx.globalCompositeOperation = 'lighter'
+      for (const [blur, alpha, times] of [
+        [48, 0.85, 2],
+        [120, 0.7, 3],
+      ] as const) {
+        bloomCtx.filter = `blur(${blur}px)`
+        bloomCtx.globalAlpha = alpha
+        for (let i = 0; i < times; i++) bloomCtx.drawImage(textLayer, 0, 0)
+      }
+      bloom = bloomLayer
 
       const [occluderLayer, octx] = makeLayer()
       drawText(octx, bg)
       occluder = occluderLayer
 
       const [grainLayer, gctx] = makeLayer()
-      const noise = gctx.createImageData(CANVAS_W, CANVAS_H)
+      const noise = gctx.createImageData(W, H)
       for (let i = 0; i < noise.data.length; i += 4) {
         const v = Math.random() * 255
         noise.data[i] = v
         noise.data[i + 1] = v
         noise.data[i + 2] = v
-        noise.data[i + 3] = 46
+        noise.data[i + 3] = 72
       }
       gctx.putImageData(noise, 0, 0)
       grain = grainLayer
     }
 
     function frame() {
-      if (!light || !occluder || !grain) return
-      const [tinted, tintCtx] = makeLayer()
-      tintCtx.drawImage(light, 0, 0)
-      tintCtx.globalCompositeOperation = 'source-in'
-      const hue = tintCtx.createConicGradient(theta, CANVAS_W / 2, CANVAS_H / 2)
-      const stops = 7
+      if (!hot || !bloom || !occluder || !grain) return
+      const [composed, compCtx] = makeLayer()
+      compCtx.drawImage(bloom, 0, 0)
+      compCtx.globalCompositeOperation = 'source-in'
+      const hue = compCtx.createConicGradient(theta, W / 2, H / 2)
+      const stops = 6
       for (let i = 0; i <= stops; i++) {
-        hue.addColorStop(i / stops, `oklch(0.75 0.19 ${(i / stops) * 360})`)
+        hue.addColorStop(i / stops, `oklch(0.72 0.26 ${(i / stops) * 360})`)
       }
-      tintCtx.fillStyle = hue
-      tintCtx.fillRect(0, 0, CANVAS_W, CANVAS_H)
-      tintCtx.globalCompositeOperation = 'source-atop'
-      tintCtx.drawImage(
+      compCtx.fillStyle = hue
+      compCtx.fillRect(0, 0, W, H)
+      // White-hot rim added on top of the tinted bloom — light saturates to white.
+      compCtx.globalCompositeOperation = 'lighter'
+      compCtx.drawImage(hot, 0, 0)
+      compCtx.globalCompositeOperation = 'source-atop'
+      compCtx.drawImage(
         grain,
         Math.floor(Math.random() * 24) - 12,
         Math.floor(Math.random() * 24) - 12
       )
 
-      ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
-      ctx.drawImage(tinted, 0, 0)
+      ctx.clearRect(0, 0, W, H)
+      ctx.drawImage(composed, 0, 0)
       ctx.drawImage(occluder, 0, 0)
     }
 
@@ -550,7 +573,7 @@ function BacklitMark() {
     <canvas
       ref={canvasRef}
       aria-label='Jetty'
-      style={{ width: CANVAS_W, height: CANVAS_H, maxWidth: '100%' }}
+      style={{ width: 880, height: 480, maxWidth: '100%' }}
     />
   )
 }
