@@ -1,10 +1,56 @@
+import {
+  PromptInput,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+} from '@/components/ai-elements/prompt-input'
 import { createFileRoute } from '@tanstack/react-router'
+import pixelCircle from 'geist/dist/fonts/geist-pixel/GeistPixel-Circle.woff2'
+import pixelGrid from 'geist/dist/fonts/geist-pixel/GeistPixel-Grid.woff2'
+import pixelLine from 'geist/dist/fonts/geist-pixel/GeistPixel-Line.woff2'
+import pixelSquare from 'geist/dist/fonts/geist-pixel/GeistPixel-Square.woff2'
+import pixelTriangle from 'geist/dist/fonts/geist-pixel/GeistPixel-Triangle.woff2'
 
 export const Route = createFileRoute('/scratchpad')({
   component: ScratchpadPage,
 })
 
+const PIXEL_VARIANTS = [
+  ['Geist Pixel Square', pixelSquare],
+  ['Geist Pixel Grid', pixelGrid],
+  ['Geist Pixel Triangle', pixelTriangle],
+  ['Geist Pixel Line', pixelLine],
+  ['Geist Pixel Circle', pixelCircle],
+] as const
+
+const fontFaces = PIXEL_VARIANTS.map(
+  ([family, url]) =>
+    `@font-face { font-family: '${family}'; src: url('${url}') format('woff2'); font-weight: 500; }`
+).join('\n')
+
 // Design-pass playground: throwaway experiments only, nothing routes here.
 function ScratchpadPage() {
-  return <div className='h-full' />
+  return (
+    <div className='flex h-full flex-col items-center justify-center gap-8 p-8'>
+      <style>{fontFaces}</style>
+      <h1 className='text-6xl' style={{ fontFamily: "'Geist Pixel Square'" }}>
+        Jetty
+      </h1>
+      <div className='w-full max-w-2xl'>
+        <PromptInput onSubmit={() => {}}>
+          <PromptInputTextarea placeholder='Message the agent…' />
+          <PromptInputFooter>
+            <PromptInputSubmit className='ml-auto' status='ready' />
+          </PromptInputFooter>
+        </PromptInput>
+      </div>
+      <div className='flex flex-wrap justify-center gap-6 text-muted-foreground'>
+        {PIXEL_VARIANTS.map(([family]) => (
+          <span key={family} className='text-xl' style={{ fontFamily: `'${family}'` }}>
+            {family.replace('Geist Pixel ', '')}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
 }
