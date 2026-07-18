@@ -48,17 +48,12 @@ state at all.
   create-project success navigates to the new project's draft.
 - Empty threads can no longer be created from the UI.
 
-## open taste questions for Jett
+## decisions (Jett, 2026-07)
 
-- **Home (`/`)**: keep the "pick a thread" empty state, or become the draft for
-  the most-recently-active project (your original "home IS a composer")? The
-  latter needs a fallback chain (last active → first project → empty state with
-  a New Project CTA).
-- **Failure surface**: the skill mandates toasts via `sonner` — install it now
-  for the create/send failure (and it becomes the archive-undo vehicle in chunk
-  6's plate), or keep a minimal inline error under the composer for this chunk?
-- **Composer-clear timing** as described (clear on confirm) ok, or do you want
-  the optimistic timeline item now despite the reconciliation cost?
+- **Home (`/`)**: keep the "pick a thread" empty state for now.
+- **Failure surface**: `sonner` toast — install it this chunk (it becomes the
+  archive-undo vehicle in chunk 6).
+- **Composer-clear timing**: clear on confirm, no optimistic timeline item.
 
 ## build order
 
