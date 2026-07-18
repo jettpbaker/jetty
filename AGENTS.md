@@ -6,6 +6,8 @@ actually understands the codebase. That means:
 - work happens in chunks: short design note first, then the build, then a walkthrough
   of the files worth reading. Don't start the next chunk until Jett has caught up on
   the last one.
+- in walkthroughs Jett drives the questions — no quizzes; answer what's asked and go
+  deep on whatever they flag as shaky.
 - taste decisions — tech choices, UX, naming, API shapes — get checked with Jett
   first, every time. When in doubt, ask.
 - UI rides default shadcn styles until a dedicated design pass at the end. Don't
