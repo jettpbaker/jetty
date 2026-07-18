@@ -5,6 +5,7 @@ import { join, normalize, resolve, sep } from 'node:path'
 import type { Titler } from './titler'
 
 import { createEchoAdapter, type Agent } from './agent'
+import { createAttachments } from './attachments'
 import { createClaudeAdapter } from './claude'
 import { createClaudeTitler } from './claude-titler'
 import { openDb } from './db'
@@ -18,16 +19,18 @@ export type ServerOptions = {
   port?: number
   hostname?: string
   /** Override agent selection (defaults to JETTY_AGENT env, then 'claude'). */
-  agent?: 'echo' | 'claude'
+  agent?: 'echo' | 'claude' | Agent
   /** Override titler (defaults to real titler for claude, null for echo). */
   titler?: Titler | null
 }
 
-function selectAgent(kind: 'echo' | 'claude', store: Store): Agent {
+function selectAgent(kind: 'echo' | 'claude' | Agent, store: Store): Agent {
+  if (typeof kind !== 'string') return kind
   return kind === 'echo' ? createEchoAdapter() : createClaudeAdapter(store)
 }
 
-function selectTitler(kind: 'echo' | 'claude'): Titler | null {
+function selectTitler(kind: 'echo' | 'claude' | Agent): Titler | null {
+  if (typeof kind !== 'string') return null
   return kind === 'claude' ? createClaudeTitler() : null
 }
 
@@ -69,16 +72,18 @@ export function startServer(opts: ServerOptions = {}) {
   const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
   const port = opts.port ?? Number(process.env.PORT ?? 8787)
   const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
-  const agentKind = opts.agent ?? (process.env.JETTY_AGENT === 'echo' ? 'echo' : 'claude')
+  const agentKind =
+    opts.agent ?? (process.env.JETTY_AGENT === 'echo' ? ('echo' as const) : ('claude' as const))
 
   const db = openDb(home)
   const store = createStore(db)
   reconcileOnStartup(store)
 
+  const attachments = createAttachments(home)
   const agent = selectAgent(agentKind, store)
   const hub = createHub()
   const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
-  const orch = createOrchestrator(store, agent, hub, titler)
+  const orch = createOrchestrator(store, agent, hub, titler, attachments)
   const ws = createWs(store, orch, hub)
 
   const server = Bun.serve<ConnData>({
@@ -92,6 +97,22 @@ export function startServer(opts: ServerOptions = {}) {
         }
         return new Response('WebSocket upgrade failed', { status: 400 })
       }
+
+      if (req.method === 'GET' && url.pathname.startsWith('/attachments/')) {
+        const id = url.pathname.slice('/attachments/'.length)
+        // single path segment only — reject nested paths / empty / encoded traversal
+        if (!id || id.includes('/') || id.includes('\\') || id.includes('..')) {
+          return new Response('Not found', { status: 404 })
+        }
+        const resolved = attachments.resolve(id)
+        if (!resolved) return new Response('Not found', { status: 404 })
+        const file = Bun.file(resolved.path)
+        if (!(await file.exists())) return new Response('Not found', { status: 404 })
+        return new Response(file, {
+          headers: { 'Content-Type': resolved.mimeType },
+        })
+      }
+
       return serveStatic(url.pathname)
     },
     websocket: ws.handlers,

@@ -11,7 +11,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { newId, type PermissionMode } from '@jetty/shared/wire'
 
-import type { Agent, TurnInput } from './agent'
+import type { Agent, AgentImage, TurnInput } from './agent'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
@@ -54,7 +54,7 @@ type TurnWaiter = {
 type WarmSession = {
   threadId: string
   query: Query
-  pushMessage: (text: string) => void
+  pushMessage: (text: string, images?: AgentImage[]) => void
   endQueue: () => void
   activeTurnId: string
   pendingApprovals: Map<string, PendingApproval>
@@ -79,11 +79,25 @@ function createQueue() {
   }
 
   return {
-    push(text: string) {
+    push(text: string, images?: AgentImage[]) {
       if (done) return
+      const content =
+        images && images.length > 0
+          ? [
+              ...images.map((img) => ({
+                type: 'image' as const,
+                source: {
+                  type: 'base64' as const,
+                  media_type: img.mimeType,
+                  data: img.base64data,
+                },
+              })),
+              { type: 'text' as const, text },
+            ]
+          : text
       pending.push({
         type: 'user',
-        message: { role: 'user', content: text },
+        message: { role: 'user', content },
         parent_tool_use_id: null,
       })
       notify()
@@ -304,7 +318,7 @@ export function createClaudeAdapter(store: Store): Agent {
     return new Promise<void>((resolve) => {
       session.turnWaiter = { turnId: input.turnId, resolve }
       emit({ type: 'turn.started', turnId: input.turnId })
-      session.pushMessage(input.text)
+      session.pushMessage(input.text, input.images)
     })
   }
 
@@ -324,11 +338,11 @@ export function createClaudeAdapter(store: Store): Agent {
       return beginTurn(session, input, emit)
     },
 
-    steer(threadId: string, text: string): boolean {
+    steer(threadId: string, text: string, images?: AgentImage[]): boolean {
       const session = sessions.get(threadId)
       if (!session || session.closed) return false
       clearIdle(session)
-      session.pushMessage(text)
+      session.pushMessage(text, images)
       return true
     },
 

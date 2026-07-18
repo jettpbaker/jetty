@@ -1,17 +1,25 @@
 import type { PushMessage, ResponseMessage, ServerMessage } from '@jetty/shared/wire'
 
-import { newId } from '@jetty/shared/wire'
+import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 // Integration suite runs against the echo agent — no network, no tokens.
 process.env.JETTY_AGENT = 'echo'
 
+import type { Agent, AgentImage, TurnInput } from './agent'
+
 import { openDb } from './db'
 import { startServer } from './main'
 import { createStore } from './store'
+
+/** 1×1 PNG — tiny valid fixture for attachment tests. */
+const TINY_PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const TINY_PNG_BYTES = Buffer.from(TINY_PNG_B64, 'base64')
+const TINY_PNG_DATA_URL = `data:image/png;base64,${TINY_PNG_B64}`
 
 type Running = ReturnType<typeof startServer>
 
@@ -721,6 +729,231 @@ describe('server skeleton', () => {
       type: 'item.started',
       item: { kind: 'user_message', text: 'client-minted', turnId },
     })
+
+    c.close()
+  })
+})
+
+describe('image attachments', () => {
+  test('turn.start with attachments writes files and user-item metadata', async () => {
+    const { port, home } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/attach-write',
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+      threadId: thread.id,
+      text: 'see this',
+      attachments: [{ name: 'shot.png', mimeType: 'image/png', dataUrl: TINY_PNG_DATA_URL }],
+    })
+
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+
+    const events = threadEvents(c, thread.id).map((m) => m.event)
+    const userStart = events.find(
+      (e) => e.type === 'item.started' && e.item.kind === 'user_message'
+    )
+    expect(userStart).toBeTruthy()
+    if (!userStart || userStart.type !== 'item.started') throw new Error('expected item.started')
+    expect(userStart.item).toMatchObject({
+      kind: 'user_message',
+      text: 'see this',
+      turnId,
+    })
+    if (userStart.item.kind !== 'user_message') throw new Error('expected user_message')
+    expect(userStart.item.attachments).toHaveLength(1)
+    const att = userStart.item.attachments[0]!
+    expect(att.name).toBe('shot.png')
+    expect(att.mimeType).toBe('image/png')
+    expect(att.sizeBytes).toBe(TINY_PNG_BYTES.byteLength)
+    expect(att.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+
+    const filePath = join(home, 'attachments', `${att.id}.png`)
+    expect(existsSync(filePath)).toBe(true)
+    expect(Buffer.from(readFileSync(filePath)).equals(TINY_PNG_BYTES)).toBe(true)
+
+    c.close()
+  })
+
+  test('oversized image is invalid_params, no file, no turn', async () => {
+    const { port, home } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/attach-big',
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    const big = Buffer.alloc(MAX_IMAGE_BYTES + 1, 1)
+    const dataUrl = `data:image/png;base64,${big.toString('base64')}`
+
+    const reqId = newId()
+    const resP = new Promise<ResponseMessage>((resolve) => {
+      const onMsg = (ev: MessageEvent) => {
+        const msg = JSON.parse(String(ev.data)) as ServerMessage
+        if ('ok' in msg && msg.id === reqId) {
+          c.ws.removeEventListener('message', onMsg)
+          resolve(msg)
+        }
+      }
+      c.ws.addEventListener('message', onMsg)
+    })
+    c.ws.send(
+      JSON.stringify({
+        id: reqId,
+        method: 'turn.start',
+        params: {
+          threadId: thread.id,
+          text: 'too big',
+          attachments: [{ name: 'huge.png', mimeType: 'image/png', dataUrl }],
+        },
+      })
+    )
+    const res = await resP
+    expect(res.ok).toBe(false)
+    expect(res.error?.code).toBe('invalid_params')
+
+    const attachDir = join(home, 'attachments')
+    if (existsSync(attachDir)) {
+      expect(readdirSync(attachDir)).toEqual([])
+    }
+
+    // no turn events should have been appended
+    const events = threadEvents(c, thread.id)
+    expect(events).toHaveLength(0)
+
+    c.close()
+  })
+
+  test('agent receives image blocks on startTurn', async () => {
+    const received: TurnInput[] = []
+    const fake: Agent = {
+      async startTurn(input, emit) {
+        received.push(input)
+        emit({ type: 'turn.started', turnId: input.turnId })
+        const item = {
+          id: newId(),
+          turnId: input.turnId,
+          createdAt: Date.now(),
+          kind: 'assistant_message' as const,
+          text: 'ok',
+        }
+        emit({ type: 'item.started', item })
+        emit({ type: 'item.completed', itemId: item.id })
+        emit({
+          type: 'turn.completed',
+          turnId: input.turnId,
+          usage: { inputTokens: 0, outputTokens: 0 },
+          costUsd: 0,
+        })
+      },
+      interrupt() {},
+      steer() {
+        return false
+      },
+      respondToApproval() {
+        return false
+      },
+    }
+
+    const { port } = boot({ agent: fake })
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/attach-agent',
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    await c.request('turn.start', {
+      threadId: thread.id,
+      text: 'look',
+      attachments: [{ name: 'a.png', mimeType: 'image/png', dataUrl: TINY_PNG_DATA_URL }],
+    })
+
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+
+    expect(received).toHaveLength(1)
+    const images = received[0]!.images as AgentImage[] | undefined
+    expect(images).toHaveLength(1)
+    expect(images![0]).toEqual({ mimeType: 'image/png', base64data: TINY_PNG_B64 })
+    expect(received[0]!.text).toBe('look')
+
+    c.close()
+  })
+
+  test('GET /attachments/<id> serves bytes; unknown and traversal 404', async () => {
+    const { port, home } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: '/tmp/attach-http',
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    await c.request('turn.start', {
+      threadId: thread.id,
+      text: 'img',
+      attachments: [{ name: 'dot.png', mimeType: 'image/png', dataUrl: TINY_PNG_DATA_URL }],
+    })
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+
+    const events = threadEvents(c, thread.id).map((m) => m.event)
+    const userStart = events.find(
+      (e) => e.type === 'item.started' && e.item.kind === 'user_message'
+    )
+    if (!userStart || userStart.type !== 'item.started' || userStart.item.kind !== 'user_message') {
+      throw new Error('expected user_message')
+    }
+    const id = userStart.item.attachments[0]!.id
+
+    const ok = await fetch(`http://127.0.0.1:${port}/attachments/${id}`)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('Content-Type')).toBe('image/png')
+    const body = Buffer.from(await ok.arrayBuffer())
+    expect(body.equals(TINY_PNG_BYTES)).toBe(true)
+
+    const missing = await fetch(`http://127.0.0.1:${port}/attachments/${newId()}`)
+    expect(missing.status).toBe(404)
+
+    // fetch() normalizes bare `..` segments; use nested / encoded forms that stay under /attachments/
+    const nested = await fetch(`http://127.0.0.1:${port}/attachments/foo/bar`)
+    expect(nested.status).toBe(404)
+
+    const encoded = await fetch(
+      `http://127.0.0.1:${port}/attachments/${encodeURIComponent('../etc/passwd')}`
+    )
+    expect(encoded.status).toBe(404)
+
+    const dots = await fetch(`http://127.0.0.1:${port}/attachments/not-a-uuid`)
+    expect(dots.status).toBe(404)
+
+    // confirm the real file still lives only under home/attachments
+    expect(existsSync(join(home, 'attachments', `${id}.png`))).toBe(true)
 
     c.close()
   })

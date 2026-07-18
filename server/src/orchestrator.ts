@@ -1,21 +1,25 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import type { PermissionMode } from '@jetty/shared/wire'
+import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
+import type { PermissionMode, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
-import type { Agent } from './agent'
+import type { Agent, AgentImage } from './agent'
+import type { Attachments } from './attachments'
 import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 import type { Titler } from './titler'
 
 import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 
+const EMPTY_ATTACHMENTS: { meta: Attachment[]; images: AgentImage[] } = { meta: [], images: [] }
+
 export type Orchestrator = ReturnType<typeof createOrchestrator>
 
 export type StartTurnInput = {
   threadId: string
   text: string
+  attachments?: UploadAttachment[]
   model?: string
   permissionMode?: PermissionMode
 }
@@ -24,7 +28,8 @@ export function createOrchestrator(
   store: Store,
   agent: Agent,
   hub: Hub,
-  titler: Titler | null = null
+  titler: Titler | null = null,
+  attachments: Attachments | null = null
 ) {
   /** In-flight agent turns (may lead store.activeTurnId briefly before turn.started). */
   const liveTurns = new Map<string, string>()
@@ -81,19 +86,22 @@ export function createOrchestrator(
       const thread = store.getThread(input.threadId)
       if (!thread) throw new StoreError('not_found', `Thread ${input.threadId} not found`)
 
+      // Persist before any item/turn is recorded so a bad upload leaves nothing behind.
+      const saved = attachments ? attachments.persist(input.attachments) : EMPTY_ATTACHMENTS
+
       if (thread.title === DEFAULT_THREAD_TITLE) {
         maybeTitle(input.threadId, input.text)
       }
 
       const existingTurnId = activeTurnId(input.threadId)
-      if (existingTurnId && agent.steer(input.threadId, input.text)) {
+      if (existingTurnId && agent.steer(input.threadId, input.text, saved.images)) {
         const userItem: ThreadItem = {
           id: newId(),
           turnId: existingTurnId,
           createdAt: Date.now(),
           kind: 'user_message',
           text: input.text,
-          attachments: [],
+          attachments: saved.meta,
         }
         append(input.threadId, { type: 'item.started', item: userItem })
         append(input.threadId, { type: 'item.completed', itemId: userItem.id })
@@ -111,7 +119,7 @@ export function createOrchestrator(
           createdAt: Date.now(),
           kind: 'user_message',
           text: input.text,
-          attachments: [],
+          attachments: saved.meta,
         }
         append(input.threadId, { type: 'item.started', item: userItem })
         append(input.threadId, { type: 'item.completed', itemId: userItem.id })
@@ -122,6 +130,7 @@ export function createOrchestrator(
               threadId: input.threadId,
               turnId,
               text: input.text,
+              images: saved.images,
               model: input.model,
               permissionMode: input.permissionMode,
             },

@@ -99,6 +99,7 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
         return orch.startTurn({
           threadId: p.threadId,
           text: p.text,
+          attachments: p.attachments,
           model: p.model,
           permissionMode: p.permissionMode,
         })

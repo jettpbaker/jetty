@@ -1,13 +1,20 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import type { PermissionMode } from '@jetty/shared/wire'
+import type { PermissionMode, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
+
+/** Image payload for the agent seam — no SDK types. */
+export type AgentImage = {
+  mimeType: UploadAttachment['mimeType']
+  base64data: string
+}
 
 export type TurnInput = {
   threadId: string
   turnId: string
   text: string
+  images?: AgentImage[]
   model?: string
   permissionMode?: PermissionMode
 }
@@ -16,7 +23,7 @@ export type Agent = {
   startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void>
   /** Optional reason becomes the turn.failed error (default 'interrupted'). */
   interrupt(threadId: string, reason?: string): void
-  steer(threadId: string, text: string): boolean
+  steer(threadId: string, text: string, images?: AgentImage[]): boolean
   respondToApproval(
     threadId: string,
     itemId: string,
@@ -58,7 +65,7 @@ export function createEchoAdapter(): Agent {
       sessions.get(threadId)?.ac.abort()
     },
 
-    steer(threadId: string, text: string): boolean {
+    steer(threadId: string, text: string, _images?: AgentImage[]): boolean {
       const session = sessions.get(threadId)
       if (!session) return false
       if (session.assistantId) {
