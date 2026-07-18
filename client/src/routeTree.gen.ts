@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ScratchpadRouteImport } from './routes/scratchpad'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadThreadIdRouteImport } from './routes/thread.$threadId'
 import { Route as NewProjectIdRouteImport } from './routes/new.$projectId'
@@ -17,6 +18,11 @@ import { Route as NewProjectIdRouteImport } from './routes/new.$projectId'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScratchpadRoute = ScratchpadRouteImport.update({
+  id: '/scratchpad',
+  path: '/scratchpad',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,12 +43,14 @@ const NewProjectIdRoute = NewProjectIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/scratchpad': typeof ScratchpadRoute
   '/settings': typeof SettingsRoute
   '/new/$projectId': typeof NewProjectIdRoute
   '/thread/$threadId': typeof ThreadThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/scratchpad': typeof ScratchpadRoute
   '/settings': typeof SettingsRoute
   '/new/$projectId': typeof NewProjectIdRoute
   '/thread/$threadId': typeof ThreadThreadIdRoute
@@ -50,20 +58,30 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/scratchpad': typeof ScratchpadRoute
   '/settings': typeof SettingsRoute
   '/new/$projectId': typeof NewProjectIdRoute
   '/thread/$threadId': typeof ThreadThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/new/$projectId' | '/thread/$threadId'
+  fullPaths:
+    '/' | '/scratchpad' | '/settings' | '/new/$projectId' | '/thread/$threadId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/new/$projectId' | '/thread/$threadId'
-  id: '__root__' | '/' | '/settings' | '/new/$projectId' | '/thread/$threadId'
+  to:
+    '/' | '/scratchpad' | '/settings' | '/new/$projectId' | '/thread/$threadId'
+  id:
+    | '__root__'
+    | '/'
+    | '/scratchpad'
+    | '/settings'
+    | '/new/$projectId'
+    | '/thread/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ScratchpadRoute: typeof ScratchpadRoute
   SettingsRoute: typeof SettingsRoute
   NewProjectIdRoute: typeof NewProjectIdRoute
   ThreadThreadIdRoute: typeof ThreadThreadIdRoute
@@ -76,6 +94,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scratchpad': {
+      id: '/scratchpad'
+      path: '/scratchpad'
+      fullPath: '/scratchpad'
+      preLoaderRoute: typeof ScratchpadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -104,6 +129,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ScratchpadRoute: ScratchpadRoute,
   SettingsRoute: SettingsRoute,
   NewProjectIdRoute: NewProjectIdRoute,
   ThreadThreadIdRoute: ThreadThreadIdRoute,
