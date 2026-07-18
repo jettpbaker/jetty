@@ -77,3 +77,9 @@ Later, maybe:
   sub) properly — at latest as part of the chunk 4 design review.
 - sound effects on actions (button clicks, sends, completions) — recent micro-trend,
   interested but not yet. Reference: https://cuelume-site.pages.dev/
+- tabs instead of sidebar: browser-style tab bar, one tab per open session — real
+  usage is 2-5 concurrent sessions, so sidebar vertical space may be wasted. Cheap
+  to swap later (nav is one component deep; stores/routes/wire don't know the
+  sidebar exists), and last-N warm subscriptions already are a tab model. Needs a
+  Cmd+K palette for non-open threads (cmdk already vendored). Decide at the design
+  pass alongside subproject tags — after daily-driving the sidebar.
