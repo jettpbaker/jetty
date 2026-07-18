@@ -12,9 +12,14 @@ const emptyChrome: ChromeState = { projects: [], threads: [] }
 export type ChromeStore = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => ChromeState
+  /** Seed from disk only if no server push has landed yet. */
+  hydrate: (state: ChromeState) => void
 }
 
-export function createChromeStore(socket: Socket): ChromeStore {
+export function createChromeStore(
+  socket: Socket,
+  persist?: (state: ChromeState) => void
+): ChromeStore {
   let state: ChromeState = emptyChrome
   const listeners = new Set<() => void>()
 
@@ -27,6 +32,7 @@ export function createChromeStore(socket: Socket): ChromeStore {
   function setState(next: ChromeState) {
     if (next === state) return
     state = next
+    persist?.(state)
     emit()
   }
 
@@ -72,6 +78,13 @@ export function createChromeStore(socket: Socket): ChromeStore {
     },
     getSnapshot() {
       return state
+    },
+    hydrate(next) {
+      // Reference equality with the initial empty constant: any setState (incl.
+      // server snapshot) replaces it, so disk never clobbers fresher chrome.
+      if (state !== emptyChrome) return
+      state = next
+      emit()
     },
   }
 }

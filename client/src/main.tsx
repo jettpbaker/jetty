@@ -2,8 +2,10 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { chromeStore, timelineStore } from './app-state'
 import { syncTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
+import { hydrate } from './state/persist'
 import './styles.css'
 
 syncTheme()
@@ -19,6 +21,10 @@ declare module '@tanstack/react-router' {
 
 const root = document.getElementById('root')
 if (!root) throw new Error('missing #root')
+
+// IDB hydrate before first paint (ms-scale). Socket already connecting via
+// app-state import; store guards make any race with server pushes safe.
+await hydrate(chromeStore, timelineStore)
 
 createRoot(root).render(
   <StrictMode>

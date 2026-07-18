@@ -7,7 +7,7 @@ whatever is stale. Linear-style. No server changes at all.
 
 ## the invariant that makes this safe
 
-Persisted state can only be *stale*, never *wrong* — because both stores
+Persisted state can only be _stale_, never _wrong_ — because both stores
 already self-heal:
 
 - **chrome**: on connect the server pushes a full `snapshot` that wholesale
@@ -16,7 +16,7 @@ already self-heal:
 - **timeline**: every `ThreadState` carries `lastSeq`. A hydrated thread makes
   `openThread` take the warm path — `thread.subscribe { afterSeq }` — and the
   server replays only what's missing. The existing `snapshot.lastSeq >
-  current.lastSeq` guard already rejects stale data racing fresh data.
+current.lastSeq` guard already rejects stale data racing fresh data.
 
 So hydration needs no coordination with the socket; guards we already have make
 any ordering correct.
@@ -29,12 +29,12 @@ any ordering correct.
   each). IDB stores structured clones — no JSON stringify/parse.
 - **read path**: `hydrate()` loads everything, parses with the schemas that
   already exist in `shared/` (`Project`/`ThreadMeta` from wire, `ThreadState`
-  from the reducer), and *discards anything that doesn't parse* — a zod
+  from the reducer), and _discards anything that doesn't parse_ — a zod
   mismatch after a schema change just means that entry reloads cold. Validation
   is the versioning; no version numbers.
 - **boot order**: `main.tsx` awaits `hydrate()` before `createRoot(...)`. IDB
   reads are single-digit milliseconds — blocking first paint on them is what
-  buys the zero-flash reload (perf rule: this is *removing* network from the
+  buys the zero-flash reload (perf rule: this is _removing_ network from the
   critical path, not adding local work to it). Socket connects in parallel as
   today; guards make the race safe.
 - **write path**: stores stay ignorant of IDB. Store factories take an optional

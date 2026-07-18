@@ -11,9 +11,14 @@ export type TimelineStore = {
   openThread: (threadId: string) => ThreadState
   closeThread: (threadId: string) => void
   getOpenThreadId: () => string | null
+  /** Apply disk state only when strictly fresher than the cache. */
+  hydrateThread: (threadId: string, state: ThreadState) => void
 }
 
-export function createTimelineStore(socket: Socket): TimelineStore {
+export function createTimelineStore(
+  socket: Socket,
+  persist?: (threadId: string, state: ThreadState) => void
+): TimelineStore {
   const cache = new Map<string, ThreadState>()
   /** Insertion-order LRU of held (subscribed) threads: oldest first, newest last. */
   const held = new Map<string, true>()
@@ -41,6 +46,7 @@ export function createTimelineStore(socket: Socket): TimelineStore {
     const prev = cache.get(threadId)
     if (prev === next) return
     cache.set(threadId, next)
+    persist?.(threadId, next)
     emit()
   }
 
@@ -127,6 +133,15 @@ export function createTimelineStore(socket: Socket): TimelineStore {
     },
     getOpenThreadId() {
       return openThreadId
+    },
+    hydrateThread(threadId, next) {
+      const current = cache.get(threadId) ?? emptyThread
+      // Same guard as cold-subscribe snapshot apply — disk can only fill gaps,
+      // never regress lastSeq.
+      if (next.lastSeq > current.lastSeq) {
+        cache.set(threadId, next)
+        emit()
+      }
     },
   }
 }
