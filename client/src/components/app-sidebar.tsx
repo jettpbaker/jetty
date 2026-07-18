@@ -26,7 +26,7 @@ import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
 import { ArrowLeftIcon, DotsThreeIcon, GearIcon, PlusIcon } from '@phosphor-icons/react'
 import { Link, useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
-import { useCallback, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
 
@@ -51,28 +51,19 @@ export function AppSidebar() {
   const onSettings = useLocation({ select: (location) => location.pathname === '/settings' })
   const { threadId: activeThreadId } = useParams({ strict: false })
 
-  const openThread = useCallback(
-    (threadId: string) => {
-      void navigate({ to: '/thread/$threadId', params: { threadId } })
-    },
-    [navigate]
-  )
+  function openThread(threadId: string) {
+    void navigate({ to: '/thread/$threadId', params: { threadId } })
+  }
 
-  const createThread = useCallback(
-    async (projectId: string) => {
-      const { thread } = await socket.request('thread.create', { projectId })
-      void navigate({ to: '/thread/$threadId', params: { threadId: thread.id } })
-    },
-    [navigate]
-  )
+  async function createThread(projectId: string) {
+    const { thread } = await socket.request('thread.create', { projectId })
+    void navigate({ to: '/thread/$threadId', params: { threadId: thread.id } })
+  }
 
-  const archiveThread = useCallback(
-    async (threadId: string) => {
-      await socket.request('thread.archive', { threadId })
-      if (threadId === activeThreadId) void navigate({ to: '/' })
-    },
-    [navigate, activeThreadId]
-  )
+  async function archiveThread(threadId: string) {
+    await socket.request('thread.archive', { threadId })
+    if (threadId === activeThreadId) void navigate({ to: '/' })
+  }
 
   return (
     <Sidebar>
