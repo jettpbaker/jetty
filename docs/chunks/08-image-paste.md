@@ -25,13 +25,12 @@ What's missing is everything between those types.
   textarea (clipboard files → the same `add()`), surface the attachments strip
   + the existing attach button in our `Composer`, and cap at 8 with a toast
   past the limit.
-- `lib/image.ts`: downscale before send. If long edge ≤ 2576 px and < 10 MB,
-  pass bytes through untouched (no re-encode — lossy passes hurt screenshot
-  text legibility, per docs). Else `createImageBitmap` → canvas at 2576 long
-  edge → re-encode (png/gif → image/png; jpeg/webp → original type, q≈0.9).
-  2576 keeps full high-res-tier fidelity; standard-tier models downscale
-  further server-side and cost nothing extra.
-- Send path: files → downscale → `UploadAttachment[]` → `turn.start` params.
+- NO client-side downscale (decision: Jett, 2026-07 — daily models are
+  Fable/Opus, high-res tier; Anthropic's server-side resize handles tier
+  fitting, and re-encoding risks screenshot text legibility). Bytes pass
+  through untouched. The only client checks are the hard API caps: > 10 MB
+  or > 8000 px on a side → toast, attachment refused.
+- Send path: files → cap check → `UploadAttachment[]` → `turn.start` params.
   Applies to both the draft first-turn path (`sendFirstTurn`) and the
   in-thread composer; steering with images works too (same params).
 - Timeline: user bubble renders attachment thumbnails via
@@ -56,19 +55,16 @@ What's missing is everything between those types.
   with `invalid_params` (belt-and-braces — the client downscale should make
   this unreachable).
 
-## open taste questions for Jett
+## decisions (Jett, 2026-07)
 
-- **Downscale target 2576** (high-res native, ~3× token cost on those models,
-  best fidelity) — good? The frugal alternative is 1568 (standard tier) since
-  the default model is haiku today.
-- **Thumbnails over HTTP** from the server's attachments dir (recommended) vs
-  embedding data URLs in items (survives offline, but bloats event log + IDB
-  forever)?
+- No client downscale — send full-fidelity images; hard API caps only.
+- Thumbnails over HTTP from the server's attachments dir.
 
 ## build order
 
-1. **server** (grok): wire→orchestrator threading, attachment persistence,
-   content-block queue, static route, tests (turn.start with attachments
-   writes files + metadata; oversized rejected; content blocks reach the fake
-   agent).
-2. **ui** (opus): paste handler, downscale util, composer strip, thumbnails.
+Parallel (disjoint files):
+1. **server** (grok): turn.start→orchestrator threading, attachment
+   persistence, content-block queue, static route, shared `MAX_IMAGE_BYTES`
+   constant, tests (turn.start with attachments writes files + metadata;
+   oversized rejected; content blocks reach the fake agent).
+2. **ui** (opus): paste handler, cap checks, composer strip, thumbnails.
