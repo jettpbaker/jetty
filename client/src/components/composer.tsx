@@ -149,7 +149,7 @@ export function DraftComposer({
     if (!text && attachments.length === 0) return
     glow.burst()
     const threadId = newId()
-    void navigate({ to: '/thread/$threadId', params: { threadId }, viewTransition: true })
+    void navigate({ to: '/thread/$threadId', params: { threadId } })
     void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})
   }
 
