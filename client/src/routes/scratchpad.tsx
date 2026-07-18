@@ -230,6 +230,184 @@ function BeaconMark() {
   )
 }
 
+// Two canvases, one particle array: the reflection mirrors every displaced
+// block, so cursor scatter and ripple compose for free.
+function CombinedMark() {
+  const mainRef = useRef<HTMLCanvasElement>(null)
+  const reflRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const main = mainRef.current
+    const refl = reflRef.current
+    if (!main || !refl) return
+    const rawMain = main.getContext('2d')
+    const rawRefl = refl.getContext('2d')
+    if (!rawMain || !rawRefl) return
+    const cv: HTMLCanvasElement = main
+    const reflEl: HTMLCanvasElement = refl
+    const mctx: CanvasRenderingContext2D = rawMain
+    const rctx: CanvasRenderingContext2D = rawRefl
+
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const dpr = Math.min(devicePixelRatio || 1, 2)
+    for (const c of [main, refl]) {
+      c.width = CANVAS_W * dpr
+      c.height = CANVAS_H * dpr
+    }
+    mctx.scale(dpr, dpr)
+    rctx.scale(dpr, dpr)
+    const color = getComputedStyle(main).color
+
+    let particles: Particle[] = []
+    let raf = 0
+    let pointer: { x: number; y: number } | null = null
+
+    function build() {
+      const off = document.createElement('canvas')
+      off.width = CANVAS_W
+      off.height = CANVAS_H
+      const octx = off.getContext('2d')
+      if (!octx) return
+      octx.font = "500 150px 'Geist Pixel Square'"
+      octx.textBaseline = 'middle'
+      if ('letterSpacing' in octx) {
+        ;(octx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0.15em'
+      }
+      const width = octx.measureText('Jetty').width
+      const x0 = (CANVAS_W - width) / 2
+      octx.lineWidth = 4
+      octx.strokeText('Jetty', x0, CANVAS_H / 2)
+      octx.fillText('Jetty', x0, CANVAS_H / 2)
+
+      const data = octx.getImageData(0, 0, CANVAS_W, CANVAS_H).data
+      particles = []
+      let maxY = 0
+      for (let y = 0; y < CANVAS_H; y += BLOCK) {
+        for (let x = 0; x < CANVAS_W; x += BLOCK) {
+          const alpha = data[(y * CANVAS_W + x) * 4 + 3] ?? 0
+          if (alpha > 128) {
+            particles.push({ hx: x, hy: y, x, y, vx: 0, vy: 0 })
+            if (y > maxY) maxY = y
+          }
+        }
+      }
+      // Snug the reflection up so mirrored glyphs sit just under the originals.
+      reflEl.style.marginTop = `${-2 * (CANVAS_H - maxY - BLOCK) + 6}px`
+    }
+
+    function draw() {
+      mctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
+      mctx.fillStyle = color
+      rctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
+      rctx.fillStyle = color
+      for (const p of particles) {
+        mctx.fillRect(p.x, p.y, BLOCK - 1, BLOCK - 1)
+        rctx.fillRect(p.x, CANVAS_H - p.y - BLOCK, BLOCK - 1, BLOCK - 1)
+      }
+    }
+
+    function step(): boolean {
+      let moving = false
+      for (const p of particles) {
+        if (pointer) {
+          const dx = p.x - pointer.x
+          const dy = p.y - pointer.y
+          const d = Math.hypot(dx, dy)
+          if (d < REPULSE_RADIUS && d > 0.01) {
+            const force = ((REPULSE_RADIUS - d) / REPULSE_RADIUS) * 3
+            p.vx += (dx / d) * force
+            p.vy += (dy / d) * force
+          }
+        }
+        p.vx += (p.hx - p.x) * 0.06
+        p.vy += (p.hy - p.y) * 0.06
+        p.vx *= 0.82
+        p.vy *= 0.82
+        p.x += p.vx
+        p.y += p.vy
+        if (Math.abs(p.x - p.hx) > 0.1 || Math.abs(p.y - p.hy) > 0.1) moving = true
+      }
+      return moving || pointer !== null
+    }
+
+    function loop() {
+      const active = step()
+      draw()
+      raf = active ? requestAnimationFrame(loop) : 0
+    }
+
+    function wake() {
+      if (raf === 0) raf = requestAnimationFrame(loop)
+    }
+
+    function onMove(event: PointerEvent) {
+      const rect = cv.getBoundingClientRect()
+      pointer = {
+        x: ((event.clientX - rect.left) / rect.width) * CANVAS_W,
+        y: ((event.clientY - rect.top) / rect.height) * CANVAS_H,
+      }
+      wake()
+    }
+
+    function onLeave() {
+      pointer = null
+      wake()
+    }
+
+    void document.fonts.load("500 150px 'Geist Pixel Square'").then(() => {
+      build()
+      draw()
+      if (!reduced) {
+        main.addEventListener('pointermove', onMove)
+        main.addEventListener('pointerleave', onLeave)
+      }
+    })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      main.removeEventListener('pointermove', onMove)
+      main.removeEventListener('pointerleave', onLeave)
+    }
+  }, [])
+
+  return (
+    <div className='flex flex-col items-center'>
+      <canvas
+        ref={mainRef}
+        aria-label='Jetty'
+        style={{ width: CANVAS_W, height: CANVAS_H, maxWidth: '100%' }}
+      />
+      <canvas
+        ref={reflRef}
+        aria-hidden
+        style={{
+          width: CANVAS_W,
+          height: CANVAS_H,
+          maxWidth: '100%',
+          opacity: 0.3,
+          pointerEvents: 'none',
+          filter: 'url(#jetty-ripple-combined)',
+          maskImage: 'linear-gradient(to bottom, black 25%, transparent 70%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 25%, transparent 70%)',
+        }}
+      />
+      <svg width={0} height={0} aria-hidden>
+        <filter id='jetty-ripple-combined'>
+          <feTurbulence type='turbulence' baseFrequency='0.015 0.07' numOctaves='2' seed='4'>
+            <animate
+              attributeName='baseFrequency'
+              dur='10s'
+              values='0.015 0.07;0.02 0.1;0.015 0.07'
+              repeatCount='indefinite'
+            />
+          </feTurbulence>
+          <feDisplacementMap in='SourceGraphic' scale='16' />
+        </filter>
+      </svg>
+    </div>
+  )
+}
+
 function Experiment({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section className='flex flex-col items-center gap-6'>
@@ -255,6 +433,9 @@ function ScratchpadPage() {
         </Experiment>
         <Experiment label='3 · beacon glow'>
           <BeaconMark />
+        </Experiment>
+        <Experiment label='4 · repulsion + reflection'>
+          <CombinedMark />
         </Experiment>
         <div className='w-full max-w-2xl'>
           <PromptInput onSubmit={() => {}}>
