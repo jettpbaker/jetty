@@ -24,8 +24,8 @@ plan and status checklist — keep it current as chunks land.
   is wrong — fix the code.
 - Use `type`, not `interface`.
 - Use `for...of`, not `.forEach()`.
-- Factory functions over classes. Classes only for `Error` subclasses, or when a
-  library demands one.
+- Factory functions over classes. Classes only for `Error` subclasses, when a
+  library demands one, or for stateful render engines (e.g. `GlowEngine`).
 - `function` declarations for named top-level functions; arrows only for inline
   callbacks and single-expression helpers.
 - Chunk design notes live in `docs/chunks/` only while a chunk is in flight. Once
