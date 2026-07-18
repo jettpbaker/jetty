@@ -39,6 +39,10 @@ Later, maybe:
   and `rewindFiles` restores checkpointed files — together they'd give "go back to
   this point in the thread" (t3 tracks the same cursor for this).
 - richer PermissionMode UX — revisit what modes we actually expose and how.
+- archive undo: archiving has no undo and no unarchive UI — the thread just leaves
+  the sidebar (the `archived` flag is stored, nothing exposes it). Violates the
+  prefer-undo-over-confirm rule in AGENTS.md; wants a toast-with-undo or an
+  archived section. Chunk 5 plate or design pass.
 - subagents + workflows rendering — SDK research done (2026-07, verified against
   code.claude.com/docs/en/agent-sdk/subagents, /typescript, /hooks, /workflows):
   - correlation: subagent spawns are `tool_use` blocks named `Agent` (still `Task`
@@ -85,7 +89,7 @@ Later, maybe:
   pass alongside subproject tags — after daily-driving the sidebar.
   - opencode recon (2026-07, grok over their repo — packages/app is the desktop
     surface): tabs and "composer-first new session" are ONE mechanism. `Tab =
-    SessionTab | DraftTab`; a draft is the sessionless composer reified (uuid +
+SessionTab | DraftTab`; a draft is the sessionless composer reified (uuid +
     `/new-session?draftId=` route). First submit: `session.create` →
     promoteDraft in place + navigate (atomic) → optimistic user message into the
     local store → promptAsync; on failure remove optimistic + restore composer

@@ -61,10 +61,8 @@ export function AppSidebar() {
   }
 
   async function archiveThread(threadId: string) {
-    console.log('trying to archive a thread...')
     await socket.request('thread.archive', { threadId })
     if (threadId === activeThreadId) {
-      console.log('True!')
       void navigate({ to: '/' })
     }
   }
