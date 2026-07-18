@@ -24,9 +24,7 @@ async function withinDimensions(file: File): Promise<boolean> {
   }
 }
 
-// Enforces the hard API caps client-side (count, bytes, pixels, type), toasting
-// each refusal. Fed to PromptInputProvider's validateFiles so every add path —
-// paste, drop, file dialog — passes through it.
+// Every add path (paste, drop, file dialog) funnels through validateFiles.
 export async function acceptImages(incoming: File[], currentCount: number): Promise<File[]> {
   const accepted: File[] = []
   let overflowed = false

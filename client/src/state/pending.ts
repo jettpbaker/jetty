@@ -44,13 +44,7 @@ function createPendingSends() {
 
 export const pendingSends = createPendingSends()
 
-/**
- * Drives the draft→thread transition, running behind the immediate navigation:
- * create the thread, subscribe now that it exists, then start the first turn.
- * The pending entry keeps the submitted text visible in the thread composer
- * until turn.start confirms — our anti-vanish stand-in for an optimistic item.
- * Rejects on failure so a retry through the composer keeps the text.
- */
+/** Must set the pending entry synchronously — the thread route mounts before create resolves. */
 export async function sendFirstTurn({
   threadId,
   projectId,

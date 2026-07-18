@@ -12,8 +12,7 @@ import {
 import { TimelineItem } from './timeline-item'
 
 export function Timeline({ threadId, items }: { threadId: string; items: ThreadItem[] }) {
-  // Keyed by threadId so the provider remounts per thread, re-running
-  // defaultScrollPosition="end" to land at the bottom of the new thread.
+  // Keyed so the provider remounts per thread and re-runs defaultScrollPosition.
   return (
     <MessageScrollerProvider key={threadId} autoScroll defaultScrollPosition='last-anchor'>
       <MessageScroller className='min-h-0 flex-1'>

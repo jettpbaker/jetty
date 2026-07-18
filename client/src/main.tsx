@@ -22,8 +22,7 @@ declare module '@tanstack/react-router' {
 const root = document.getElementById('root')
 if (!root) throw new Error('missing #root')
 
-// IDB hydrate before first paint (ms-scale). Socket already connecting via
-// app-state import; store guards make any race with server pushes safe.
+// Blocks first paint (ms-scale); store guards make races with the socket safe.
 await hydrate(chromeStore, timelineStore)
 
 createRoot(root).render(

@@ -60,8 +60,7 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
     void socket.request('turn.start', { threadId, text, attachments })
   }
 
-  // The submit control sends while idle; while a turn runs it stops instead of
-  // starting another (Enter still starts — the server steers the active turn).
+  // While a turn runs the button interrupts; Enter still submits (server steers).
   function handleSubmitClick(event: MouseEvent<HTMLButtonElement>) {
     if (!busy) return
     event.preventDefault()
@@ -86,11 +85,8 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
   )
 }
 
-// Holds the submitted first-turn text visible until the server confirms the
-// thread. While sending it's read-only; on failure it reopens for edit + retry.
-// Attachments ride along on the pending entry (shown as thumbnails below, since
-// the strip can't rehydrate File objects); retry resends them plus anything
-// newly attached.
+// Pending attachments render as plain thumbnails: the strip can't rehydrate
+// File objects from data URLs.
 function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: PendingSend }) {
   const sending = pending.phase === 'sending'
 
@@ -143,8 +139,6 @@ export function DraftComposer({ projectId }: { projectId: string }) {
     if (!text && attachments.length === 0) return
     const threadId = newId()
     void navigate({ to: '/thread/$threadId', params: { threadId } })
-    // Fire-and-forget: sets the pending entry synchronously (before the thread
-    // route mounts) and chases the navigation with create → subscribe → start.
     void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})
   }
 
