@@ -146,10 +146,15 @@
     filter: blur(12px);
   }
 }
-::view-transition-old(root) {
+/* only the content pane dissolves; the sidebar (root) swaps untouched */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(content) {
   animation: vt-blur-out 240ms ease both;
 }
-::view-transition-new(root) {
+::view-transition-new(content) {
   animation: vt-blur-in 240ms ease both;
 }
 

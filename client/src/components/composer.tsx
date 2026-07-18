@@ -142,7 +142,7 @@ export function DraftComposer({
   const glowTargetRef = useRef<HTMLDivElement>(null)
   const fallbackContainerRef = useRef<HTMLElement | null>(null)
   const glow = useGlow(glowTargetRef, glowContainerRef ?? fallbackContainerRef, {
-    rim: { enabled: false },
+    rim: { strength: 0.4 },
   })
 
   function handleSubmit(message: PromptInputMessage) {
