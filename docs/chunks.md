@@ -96,3 +96,9 @@ Later, maybe:
     composer — "new anything" opens a draft. Router owns "what you're looking
     at"; the tab store owns the open set; deep links auto-open tabs. Their V1
     titler ≈ ours (hidden tool-denied agent, first prompt step, skip-if-renamed).
+  - decision (Jett, 2026-07): jetty's draft-first creation uses CLIENT-MINTED
+    thread ids (shared newId(); server adopts idempotently — error on projectId
+    mismatch, retry-safe otherwise). Kills the draft→session promote state
+    entirely: navigate to the real /thread/:id on first submit, requests chase
+    the UI. Sequence create before turn.start on the wire; visible error + route
+    home if create fails, composer text restored from snapshot.
