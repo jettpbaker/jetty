@@ -12,7 +12,7 @@ stays and tracks status.
       agent proving turn → events → push end to end before Claude enters the picture.
 - [x] **3. claude adapter** — claude-agent-sdk sessions mapped to normalized events;
       resume across restarts, interrupt, `canUseTool` surfaced as approval items.
-- [ ] **4. web app** — Vite React SPA: project/thread sidebar over `chrome.subscribe`,
+- [x] **4. web app** — Vite React SPA: project/thread sidebar over `chrome.subscribe`,
       thread view with streaming timeline, composer. Default shadcn styling.
 - [ ] **5. approvals + permission modes** — approval cards wired to `approval.respond`,
       permission mode picker per thread. Three surfaced modes: auto (default),
