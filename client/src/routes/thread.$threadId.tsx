@@ -29,7 +29,7 @@ function ThreadPage() {
         <SidebarTrigger />
       </header>
       <Timeline threadId={threadId} items={state.items} />
-      <div className='mx-auto w-full max-w-3xl shrink-0 p-4 [view-transition-name:composer]'>
+      <div className='mx-auto w-full max-w-3xl shrink-0 p-4'>
         <Composer threadId={threadId} status={state.status} />
       </div>
     </div>

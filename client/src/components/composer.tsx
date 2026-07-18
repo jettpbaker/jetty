@@ -141,7 +141,9 @@ export function DraftComposer({
   const navigate = useNavigate()
   const glowTargetRef = useRef<HTMLDivElement>(null)
   const fallbackContainerRef = useRef<HTMLElement | null>(null)
-  const glow = useGlow(glowTargetRef, glowContainerRef ?? fallbackContainerRef)
+  const glow = useGlow(glowTargetRef, glowContainerRef ?? fallbackContainerRef, {
+    rim: { enabled: false },
+  })
 
   function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim()
@@ -149,14 +151,14 @@ export function DraftComposer({
     if (!text && attachments.length === 0) return
     glow.burst()
     const threadId = newId()
-    void navigate({ to: '/thread/$threadId', params: { threadId } })
+    void navigate({ to: '/thread/$threadId', params: { threadId }, viewTransition: true })
     void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})
   }
 
   return (
     <div
       ref={glowTargetRef}
-      className='rounded-lg [view-transition-name:composer] [&_[data-slot=input-group]]:border-transparent! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
+      className='rounded-lg [&_[data-slot=input-group]]:border-transparent! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
     >
       <PromptInputProvider initialInput={loadDraft(projectId)} validateFiles={acceptImages}>
         <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>

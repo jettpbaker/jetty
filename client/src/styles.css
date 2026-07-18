@@ -133,10 +133,24 @@
   }
 }
 
-/* draft -> thread morph (view transitions; instant swap when unsupported) */
-::view-transition-group(composer) {
-  animation-duration: 300ms;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+/* draft -> thread: whole-frame blur dissolve (instant swap when unsupported) */
+@keyframes vt-blur-out {
+  to {
+    opacity: 0;
+    filter: blur(12px);
+  }
+}
+@keyframes vt-blur-in {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+  }
+}
+::view-transition-old(root) {
+  animation: vt-blur-out 240ms ease both;
+}
+::view-transition-new(root) {
+  animation: vt-blur-in 240ms ease both;
 }
 
 @media (prefers-reduced-motion: reduce) {
