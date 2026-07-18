@@ -26,7 +26,7 @@ export function Timeline({ threadId, items }: { threadId: string; items: ThreadI
                 scrollAnchor={item.kind === 'user_message'}
               >
                 <div className='mx-auto w-full max-w-3xl px-4 py-2'>
-                  <TimelineItem item={item} />
+                  <TimelineItem item={item} threadId={threadId} />
                 </div>
               </MessageScrollerItem>
             ))}
