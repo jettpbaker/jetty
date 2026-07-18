@@ -56,8 +56,10 @@ function RepulsionMark() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const rawCtx = canvas.getContext('2d')
+    if (!rawCtx) return
+    const cv: HTMLCanvasElement = canvas
+    const ctx: CanvasRenderingContext2D = rawCtx
 
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
     const dpr = Math.min(devicePixelRatio || 1, 2)
@@ -141,7 +143,7 @@ function RepulsionMark() {
     }
 
     function onMove(event: PointerEvent) {
-      const rect = canvas.getBoundingClientRect()
+      const rect = cv.getBoundingClientRect()
       pointer = {
         x: ((event.clientX - rect.left) / rect.width) * CANVAS_W,
         y: ((event.clientY - rect.top) / rect.height) * CANVAS_H,
@@ -173,7 +175,6 @@ function RepulsionMark() {
   return (
     <canvas
       ref={canvasRef}
-      role='img'
       aria-label='Jetty'
       style={{ width: CANVAS_W, height: CANVAS_H, maxWidth: '100%' }}
     />
