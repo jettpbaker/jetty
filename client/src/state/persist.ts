@@ -24,7 +24,7 @@ const TabsSchema = z.array(z.string())
 const DraftsSchema = z.array(
   z.object({
     id: z.string(),
-    projectId: z.string(),
+    projectId: z.string().nullable(),
   })
 )
 

@@ -2,7 +2,7 @@ import type { SessionStatus } from '@jetty/shared/events'
 import type { ChatStatus } from 'ai'
 import type { MouseEvent, ReactNode } from 'react'
 
-import { draftsStore, socket } from '@/app-state'
+import { chromeStore, draftsStore, socket } from '@/app-state'
 import {
   PromptInput,
   PromptInputButton,
@@ -14,23 +14,27 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentFan } from '@/components/attachment-fan'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { acceptImages, toUploadAttachments } from '@/lib/attachments'
-import { loadDraft, removeDraft, saveDraft } from '@/lib/draft'
+import { loadDraft, removeDraft, saveDraft, saveLastProjectId } from '@/lib/draft'
 import { APPROVAL_MODES, composerPrefs, MODELS } from '@/state/composer-prefs'
+import type { Draft } from '@/state/drafts'
 import { type PendingSend, pendingSends, sendFirstTurn } from '@/state/pending'
 import { MAX_IMAGES_PER_TURN } from '@jetty/shared/wire'
 import { PlusIcon } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
 import { useSyncExternalStore } from 'react'
+import { toast } from 'sonner'
 
 function chatStatus(status: SessionStatus): ChatStatus {
   return status === 'running' || status === 'starting' ? 'streaming' : 'ready'
@@ -71,6 +75,7 @@ export function ComposerFooter({
             <PromptInputButton
               size='sm'
               disabled={disabled}
+              data-cuelume-hover='chime'
               className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
             >
               {prefs.approval.label}
@@ -93,6 +98,7 @@ export function ComposerFooter({
               <PromptInputButton
                 size='sm'
                 disabled={disabled}
+                data-cuelume-hover='chime'
                 className='group/model gap-1.5 text-foreground hover:bg-transparent!'
               >
                 {prefs.model.label}
@@ -165,7 +171,7 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
         <AttachmentFan />
         <div className={`${composerShell} relative z-10`}>
           <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-            <PromptInputTextarea placeholder='Message the agent…' />
+            <PromptInputTextarea placeholder='Do anything' />
             <PromptInputFooter>
               <ComposerFooter status={chatStatus(status)} onSubmitClick={handleSubmitClick} />
             </PromptInputFooter>
@@ -209,7 +215,7 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
                 ))}
               </div>
             )}
-            <PromptInputTextarea placeholder='Message the agent…' disabled={sending} />
+            <PromptInputTextarea placeholder='Do anything' disabled={sending} />
             <PromptInputFooter>
               <ComposerFooter status={sending ? 'submitted' : 'ready'} disabled={sending} />
             </PromptInputFooter>
@@ -220,13 +226,22 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
   )
 }
 
-export function DraftComposer({ draftId, projectId }: { draftId: string; projectId: string }) {
+export function DraftComposer({ draft }: { draft: Draft }) {
   const navigate = useNavigate()
+  const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
+  const draftId = draft.id
+  // a stale last-picked id (deleted project) falls back to unpicked
+  const project = chrome.projects.find((row) => row.id === draft.projectId)
 
   function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim()
     const attachments = toUploadAttachments(message.files)
     if (!text && attachments.length === 0) return
+    if (!project) {
+      toast.error('Pick a project first')
+      return
+    }
+    saveLastProjectId(project.id)
     const threadId = draftId
     // remove the draft only after navigation commits — the draft page's
     // missing-draft redirect would otherwise race this navigate and win
@@ -234,7 +249,7 @@ export function DraftComposer({ draftId, projectId }: { draftId: string; project
       draftsStore.remove(draftId)
       removeDraft(draftId)
     })
-    void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})
+    void sendFirstTurn({ threadId, projectId: project.id, text, attachments }).catch(() => {})
   }
 
   return (
@@ -244,7 +259,7 @@ export function DraftComposer({ draftId, projectId }: { draftId: string; project
         <div className={`${composerShell} relative z-10`}>
           <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
             <PromptInputTextarea
-              placeholder='Message the agent…'
+              placeholder='Do anything'
               onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
             />
             <PromptInputFooter>
@@ -253,6 +268,37 @@ export function DraftComposer({ draftId, projectId }: { draftId: string; project
           </PromptInput>
         </div>
       </PromptInputProvider>
+      <div className='mt-2 flex'>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='sm'
+                className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
+              >
+                {project?.title ?? 'Pick a project'}
+              </Button>
+            }
+          />
+          <DropdownMenuContent align='start'>
+            {chrome.projects.map((row) => (
+              <DropdownMenuItem
+                key={row.id}
+                onClick={() => {
+                  draftsStore.setProject(draftId, row.id)
+                  saveLastProjectId(row.id)
+                }}
+              >
+                {row.title}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            {/* dialog comes later */}
+            <DropdownMenuItem>Add a project</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }

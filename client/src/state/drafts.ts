@@ -2,13 +2,15 @@ import { newId } from '@jetty/shared/wire'
 
 export type Draft = {
   id: string
-  projectId: string
+  /** null until the user picks a project — sending is blocked meanwhile */
+  projectId: string | null
 }
 
 export type DraftsStore = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => readonly Draft[]
-  create: (projectId: string) => Draft
+  create: (projectId: string | null) => Draft
+  setProject: (id: string, projectId: string) => void
   remove: (id: string) => void
   /** Seed from disk only if no mutation has landed yet. */
   hydrate: (list: readonly Draft[]) => void
@@ -47,6 +49,9 @@ export function createDraftsStore(persist?: (list: readonly Draft[]) => void): D
       const draft: Draft = { id: newId(), projectId }
       setState([...state, draft])
       return draft
+    },
+    setProject(id, projectId) {
+      setState(state.map((draft) => (draft.id === id ? { ...draft, projectId } : draft)))
     },
     remove(id) {
       const next = state.filter((draft) => draft.id !== id)

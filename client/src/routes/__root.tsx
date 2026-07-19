@@ -19,7 +19,7 @@ function RootLayout() {
   return (
     <IconContext.Provider value={iconDefaults}>
       <TooltipProvider>
-        <div className='flex h-svh flex-col'>
+        <div className='flex h-svh flex-col px-4'>
           <TabBar />
           <main className='min-h-0 flex-1 overflow-hidden'>
             <Outlet />

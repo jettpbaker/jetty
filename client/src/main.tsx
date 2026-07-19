@@ -2,6 +2,8 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { bind as bindCuelume } from 'cuelume'
+
 import { chromeStore, draftsStore, tabsStore, timelineStore } from './app-state'
 import { syncTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
@@ -9,6 +11,8 @@ import { hydrate } from './state/persist'
 import './styles.css'
 
 syncTheme()
+// delegated listeners: every data-cuelume-* attribute app-wide, present or future
+bindCuelume()
 
 const router = createRouter({ routeTree })
 

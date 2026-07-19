@@ -169,7 +169,7 @@ function BenchComposer({
     <div className={composerShell}>
       <PromptInputProvider initialInput={initialInput} validateFiles={acceptImages}>
         <PromptInput accept='image/*' multiple onSubmit={() => {}}>
-          <PromptInputTextarea placeholder='Message the agent…' disabled={disabled} />
+          <PromptInputTextarea placeholder='Do anything' disabled={disabled} />
           <PromptInputFooter>
             <ComposerFooter status={status} disabled={disabled} />
           </PromptInputFooter>
@@ -245,7 +245,7 @@ function LiveComposer() {
         <PivotHandle pivot={fan.pivot} onChange={(pivot) => setFan({ ...fan, pivot })} />
         <div className={`${composerShell} relative z-10`}>
           <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-            <PromptInputTextarea placeholder='Message the agent…' />
+            <PromptInputTextarea placeholder='Do anything' />
             <PromptInputFooter>
               <ComposerFooter
                 status={streaming ? 'streaming' : 'ready'}

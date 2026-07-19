@@ -28,3 +28,22 @@ export function removeDraft(id: string) {
 export function clearDraft(id: string) {
   removeDraft(id)
 }
+
+// New drafts default to the last project the user actually picked.
+const LAST_PROJECT_KEY = 'jetty:last-project'
+
+export function loadLastProjectId(): string | null {
+  try {
+    return localStorage.getItem(LAST_PROJECT_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function saveLastProjectId(projectId: string) {
+  try {
+    localStorage.setItem(LAST_PROJECT_KEY, projectId)
+  } catch {
+    // storage unavailable
+  }
+}

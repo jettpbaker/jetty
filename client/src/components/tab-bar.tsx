@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { removeDraft } from '@/lib/draft'
+import { loadLastProjectId, removeDraft } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
@@ -19,9 +19,9 @@ import type { Draft } from '@/state/drafts'
 import {
   BellRingingIcon,
   ExclamationMarkIcon,
-  GearIcon,
   MoonIcon,
   PlusIcon,
+  SidebarSimpleIcon,
   SpinnerIcon,
   XIcon,
 } from '@phosphor-icons/react'
@@ -87,11 +87,6 @@ export function TabBar() {
     if (draft) openEntries.push({ kind: 'draft', id, draft })
   }
 
-  const activeThread = activeThreadId ? threadById.get(activeThreadId) : undefined
-  const activeDraft = activeDraftId ? draftById.get(activeDraftId) : undefined
-  const newThreadProjectId =
-    activeThread?.projectId ?? activeDraft?.projectId ?? chrome.projects[0]?.id
-
   const strip = useStripDrag({
     count: openEntries.length,
     step: DRAG_STEP,
@@ -111,8 +106,9 @@ export function TabBar() {
     void navigate({ to: '/new/$draftId', params: { draftId } })
   }
 
-  function newThread(projectId: string) {
-    const draft = draftsStore.create(projectId)
+  function newThread() {
+    // last-picked project if any; the draft page's picker takes it from here
+    const draft = draftsStore.create(loadLastProjectId())
     tabsStore.open(draft.id)
     void navigate({ to: '/new/$draftId', params: { draftId: draft.id } })
   }
@@ -168,7 +164,7 @@ export function TabBar() {
   }
 
   return (
-    <div className='flex h-14 shrink-0 items-center gap-2 border-b px-3'>
+    <div className='flex h-12 shrink-0 items-center gap-2'>
       <Link to='/' aria-label='Jetty home' className='mr-1 shrink-0'>
         <RansomWordmarkStatic />
       </Link>
@@ -269,10 +265,7 @@ export function TabBar() {
           size='icon'
           className='size-8 shrink-0'
           aria-label='New thread'
-          disabled={newThreadProjectId === undefined}
-          {...(newThreadProjectId
-            ? pressHandlers(() => newThread(newThreadProjectId))
-            : {})}
+          {...pressHandlers(newThread)}
         >
           <PlusIcon />
         </Button>
@@ -280,17 +273,10 @@ export function TabBar() {
 
       <div className='min-w-0 flex-1' />
 
-      <IconTip label='Settings'>
-        <Button
-          variant='ghost'
-          size='icon'
-          nativeButton={false}
-          render={
-            <Link to='/settings' aria-label='Settings'>
-              <GearIcon />
-            </Link>
-          }
-        />
+      <IconTip label='Sidebar'>
+        <Button variant='ghost' size='icon' aria-label='Toggle sidebar'>
+          <SidebarSimpleIcon />
+        </Button>
       </IconTip>
     </div>
   )

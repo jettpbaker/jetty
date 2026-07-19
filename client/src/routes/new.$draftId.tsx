@@ -22,7 +22,7 @@ function NewThreadPage() {
       <div className='flex flex-1 items-start justify-center p-4 pt-[24vh]'>
         <div className='w-full max-w-3xl'>
           <RansomWordmark key={`mark-${draftId}`} className='mb-10' />
-          <DraftComposer key={draftId} draftId={draftId} projectId={draft.projectId} />
+          <DraftComposer key={draftId} draft={draft} />
         </div>
       </div>
     </div>
