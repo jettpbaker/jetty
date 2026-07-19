@@ -91,22 +91,24 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* Dark: near-black canvas, barely-lifted surfaces, hairline white-alpha
-   borders doing the separation. */
+/* Dark: the chrome scale. Three cool-tinted grays (each channel stepping
+   +1 toward blue): #121314 canvas, #191A1B raised surfaces (composer,
+   cards, menus), #2B2C2D interactive/active surfaces (active tab, hovers).
+   Hairline white-alpha borders do the separation. */
 .dark {
   --background: #121314;
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.17 0 0);
+  --card: #191a1b;
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.17 0 0);
+  --popover: #191a1b;
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.17 0 0);
-  --secondary: oklch(0.23 0 0);
+  --secondary: #2b2c2d;
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.23 0 0);
+  --muted: #2b2c2d;
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.23 0 0);
+  --accent: #2b2c2d;
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
