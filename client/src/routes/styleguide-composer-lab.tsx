@@ -97,13 +97,13 @@ type FanConfig = {
 }
 
 const DEFAULT_FAN: FanConfig = {
-  pivot: { x: -14, y: 22 },
-  center: 25,
-  step: 20,
-  maxSpread: 110,
-  cardW: 64,
-  cardH: 80,
-  lift: 14,
+  pivot: { x: -32, y: 37 },
+  center: 13,
+  step: 29,
+  maxSpread: 84,
+  cardW: 70,
+  cardH: 95,
+  lift: 18,
 }
 
 const FAN_SLIDERS: Array<{
