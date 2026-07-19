@@ -17,7 +17,7 @@ import type { Store } from './store'
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
-/** Temporary cheap-testing default until a per-thread model picker exists. */
+/** Fallback when a turn omits model — the composer normally always sends one. */
 const DEFAULT_MODEL = 'haiku'
 
 type SdkPermissionMode = NonNullable<Options['permissionMode']>
@@ -49,6 +49,8 @@ type WarmSession = {
   query: Query
   pushMessage: (text: string, images?: AgentImage[]) => void
   endQueue: () => void
+  /** resolved model/effort/permission fingerprint the session was spawned with */
+  spawnKey: string
   activeTurnId: string
   pendingApprovals: Map<string, PendingApproval>
   idleTimer: ReturnType<typeof setTimeout> | null
@@ -58,6 +60,12 @@ type WarmSession = {
   awaitingResult: boolean
   failReason: string | null
   turnWaiter: TurnWaiter | null
+}
+
+/** Resolved options a session runs under; a mismatch means recycle. */
+function turnOptionsKey(input: TurnInput): string {
+  const model = input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL
+  return `${model}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
 }
 
 function createQueue() {
@@ -281,6 +289,7 @@ export function createClaudeAdapter(store: Store): Agent {
       query: q,
       pushMessage: queue.push,
       endQueue: queue.end,
+      spawnKey: turnOptionsKey(input),
       activeTurnId: input.turnId,
       pendingApprovals: new Map(),
       idleTimer: null,
@@ -325,7 +334,13 @@ export function createClaudeAdapter(store: Store): Agent {
 
       const existing = sessions.get(input.threadId)
       if (existing && !existing.closed) {
-        return beginTurn(existing, input, emit)
+        // mid-turn the options can't change anyway; otherwise a picker change
+        // recycles the session — the fresh one resumes the stored CC
+        // sessionId, so conversation context survives
+        if (existing.awaitingResult || existing.spawnKey === turnOptionsKey(input)) {
+          return beginTurn(existing, input, emit)
+        }
+        closeSession(input.threadId)
       }
 
       const session = spawnSession(input, emit, project.path)
