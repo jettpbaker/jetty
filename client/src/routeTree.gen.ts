@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StyleguideRouteImport } from './routes/styleguide'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScratchpadRouteImport } from './routes/scratchpad'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadThreadIdRouteImport } from './routes/thread.$threadId'
 import { Route as NewProjectIdRouteImport } from './routes/new.$projectId'
 
+const StyleguideRoute = StyleguideRouteImport.update({
+  id: '/styleguide',
+  path: '/styleguide',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/scratchpad': typeof ScratchpadRoute
   '/settings': typeof SettingsRoute
+  '/styleguide': typeof StyleguideRoute
   '/new/$projectId': typeof NewProjectIdRoute
   '/thread/$threadId': typeof ThreadThreadIdRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/scratchpad': typeof ScratchpadRoute
   '/settings': typeof SettingsRoute
+  '/styleguide': typeof StyleguideRoute
   '/new/$projectId': typeof NewProjectIdRoute
   '/thread/$threadId': typeof ThreadThreadIdRoute
 }
@@ -60,21 +68,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/scratchpad': typeof ScratchpadRoute
   '/settings': typeof SettingsRoute
+  '/styleguide': typeof StyleguideRoute
   '/new/$projectId': typeof NewProjectIdRoute
   '/thread/$threadId': typeof ThreadThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/scratchpad' | '/settings' | '/new/$projectId' | '/thread/$threadId'
+    | '/'
+    | '/scratchpad'
+    | '/settings'
+    | '/styleguide'
+    | '/new/$projectId'
+    | '/thread/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/scratchpad' | '/settings' | '/new/$projectId' | '/thread/$threadId'
+    | '/'
+    | '/scratchpad'
+    | '/settings'
+    | '/styleguide'
+    | '/new/$projectId'
+    | '/thread/$threadId'
   id:
     | '__root__'
     | '/'
     | '/scratchpad'
     | '/settings'
+    | '/styleguide'
     | '/new/$projectId'
     | '/thread/$threadId'
   fileRoutesById: FileRoutesById
@@ -83,12 +103,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ScratchpadRoute: typeof ScratchpadRoute
   SettingsRoute: typeof SettingsRoute
+  StyleguideRoute: typeof StyleguideRoute
   NewProjectIdRoute: typeof NewProjectIdRoute
   ThreadThreadIdRoute: typeof ThreadThreadIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/styleguide': {
+      id: '/styleguide'
+      path: '/styleguide'
+      fullPath: '/styleguide'
+      preLoaderRoute: typeof StyleguideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -131,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ScratchpadRoute: ScratchpadRoute,
   SettingsRoute: SettingsRoute,
+  StyleguideRoute: StyleguideRoute,
   NewProjectIdRoute: NewProjectIdRoute,
   ThreadThreadIdRoute: ThreadThreadIdRoute,
 }
