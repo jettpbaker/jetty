@@ -110,7 +110,7 @@ export function TabBar() {
         Jetty
       </Link>
 
-      <div className='flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {openTabs.map((thread) => {
           const active = thread.id === activeThreadId
           const project = chrome.projects.find((p) => p.id === thread.projectId)
@@ -180,6 +180,8 @@ export function TabBar() {
           <PlusIcon />
         </Button>
       </IconTip>
+
+      <div className='min-w-0 flex-1' />
 
       <div className='flex shrink-0 items-center gap-1'>
         <DropdownMenu>
