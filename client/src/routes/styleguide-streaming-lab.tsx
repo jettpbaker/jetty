@@ -5,7 +5,7 @@ import { pressHandlers } from '@/lib/press-handlers'
 import { ArrowCounterClockwiseIcon, CopyIcon, PauseIcon, PlayIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
-import 'streamdown/styles.css'
+// styles (+ blurIn override) come in via markdownDefaults' response.tsx import
 
 // Streamdown 2.5's built-in per-word entrance animation over a fake stream
 // paced like a real model. Lab only — not wired to the real timeline.

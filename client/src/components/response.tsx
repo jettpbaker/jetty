@@ -21,6 +21,7 @@ import { createCodePlugin } from '@streamdown/code'
 import { memo } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+import './streamdown-overrides.css'
 
 const dark2026 = dark2026Json as ThemeRegistrationAny
 
