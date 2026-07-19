@@ -422,6 +422,7 @@ function randomOf<T>(list: T[]): T {
 const DRAG_STEP = 189
 const DRAG_THRESHOLD = 5
 const SETTLE_MS = 160
+const CLOSE_MS = 160
 
 function MockTabBar() {
   const nextId = useRef(3)
@@ -432,6 +433,8 @@ function MockTabBar() {
   ])
   const [activeId, setActiveId] = useState(0)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  const [closingIds, setClosingIds] = useState<ReadonlySet<number>>(new Set())
+  const closeTimers = useRef(new Map<number, number>())
 
   // Drag state lives in a ref (pointermove reads it without stale closures)
   // and mirrors to state for rendering the sibling shifts.
@@ -449,6 +452,7 @@ function MockTabBar() {
   useEffect(
     () => () => {
       if (settleTimer.current) window.clearTimeout(settleTimer.current)
+      for (const timer of closeTimers.current.values()) window.clearTimeout(timer)
     },
     []
   )
@@ -513,20 +517,34 @@ function MockTabBar() {
     setActiveId(tab.id)
   }
 
+  // Browser-style close: activation moves immediately, the cell collapses
+  // to zero width (neighbors slide as a layout consequence), then the tab
+  // actually unmounts.
   function closeTab(id: number) {
-    const index = tabs.findIndex((tab) => tab.id === id)
-    const remaining = tabs.filter((tab) => tab.id !== id)
-    setTabs(remaining)
+    if (closingIds.has(id)) return
+    const live = tabs.filter((tab) => !closingIds.has(tab.id))
+    const index = live.findIndex((tab) => tab.id === id)
+    const remaining = live.filter((tab) => tab.id !== id)
     if (id === activeId && remaining.length > 0) {
-      const neighbor = remaining[Math.min(index, remaining.length - 1)]!
-      setActiveId(neighbor.id)
+      setActiveId(remaining[Math.min(index, remaining.length - 1)]!.id)
     }
+    setClosingIds((current) => new Set(current).add(id))
+    const timer = window.setTimeout(() => {
+      closeTimers.current.delete(id)
+      setTabs((current) => current.filter((tab) => tab.id !== id))
+      setClosingIds((current) => {
+        const next = new Set(current)
+        next.delete(id)
+        return next
+      })
+    }, CLOSE_MS)
+    closeTimers.current.set(id, timer)
   }
 
   return (
     <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
       <RansomWordmarkStatic />
-      <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {tabs.map((tab, index) => {
           const active = tab.id === activeId
           const prev = tabs[index - 1]
@@ -534,6 +552,8 @@ function MockTabBar() {
             id !== undefined && (id === activeId || id === hoveredId)
           const separatorHidden = touchesFocus(prev?.id) || touchesFocus(tab.id)
           const dragging = drag?.id === tab.id
+          const closing = closingIds.has(tab.id)
+          const cellWidth = index > 0 ? DRAG_STEP : 176
           // displaced siblings slide one slot toward the dragged pill's origin
           let shift = 0
           if (drag && !dragging) {
@@ -541,15 +561,26 @@ function MockTabBar() {
             if (drag.from > drag.to && index >= drag.to && index < drag.from) shift = DRAG_STEP
           }
           return (
-            <Fragment key={tab.id}>
+            <div
+              key={tab.id}
+              className='flex shrink-0 items-center overflow-hidden'
+              style={{
+                width: closing ? 0 : cellWidth,
+                opacity: closing ? 0 : 1,
+                pointerEvents: closing ? 'none' : undefined,
+                transition: `width ${CLOSE_MS}ms ease, opacity ${CLOSE_MS}ms ease`,
+              }}
+            >
               {index > 0 && (
-                <Separator
-                  orientation='vertical'
-                  className={cn(
-                    'h-4! shrink-0 self-center! transition-opacity duration-150',
-                    (separatorHidden || drag !== null) && 'opacity-0'
-                  )}
-                />
+                <div className='flex w-[13px] shrink-0 items-center justify-center'>
+                  <Separator
+                    orientation='vertical'
+                    className={cn(
+                      'h-4! shrink-0 self-center! transition-opacity duration-150',
+                      (separatorHidden || drag !== null) && 'opacity-0'
+                    )}
+                  />
+                </div>
               )}
             <div
               ref={dragging ? dragEl : undefined}
@@ -598,7 +629,7 @@ function MockTabBar() {
                 <XIcon className='size-3.5' />
               </button>
             </div>
-            </Fragment>
+            </div>
           )
         })}
       </div>
