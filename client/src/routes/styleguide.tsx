@@ -1,6 +1,7 @@
 import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
   CircleDashedIcon,
@@ -450,11 +451,12 @@ function MockTabBar() {
     <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
       <RansomWordmarkStatic />
       <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const active = tab.id === activeId
           return (
+            <Fragment key={tab.id}>
+              {index > 0 && <Separator orientation='vertical' className='h-4! shrink-0' />}
             <div
-              key={tab.id}
               className={cn(
                 'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                 active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
@@ -485,6 +487,7 @@ function MockTabBar() {
                 <XIcon className='size-3.5' />
               </button>
             </div>
+            </Fragment>
           )
         })}
       </div>
