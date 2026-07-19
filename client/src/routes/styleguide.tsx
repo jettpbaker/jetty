@@ -1,22 +1,3 @@
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  type DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import { restrictToHorizontalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
-import {
-  type AnimateLayoutChanges,
-  arrayMove,
-  defaultAnimateLayoutChanges,
-  horizontalListSortingStrategy,
-  SortableContext,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
@@ -33,6 +14,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { pressHandlers } from '@/lib/press-handlers'
+import { useStripDrag } from '@/lib/use-strip-drag'
 import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, type ReactNode, useRef, useState } from 'react'
 
@@ -441,6 +423,9 @@ function randomOf<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)]!
 }
 
+// One slot in the strip: separator zone (13) + pill (176).
+const DRAG_STEP = 189
+
 function MockTabBar() {
   const nextId = useRef(3)
   const [tabs, setTabs] = useState<MockTab[]>([
@@ -450,29 +435,19 @@ function MockTabBar() {
   ])
   const [activeId, setActiveId] = useState(0)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
-  const [draggingId, setDraggingId] = useState<number | null>(null)
 
-  // 5px of travel before a press becomes a drag — below that it's a select
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-  )
-
-  function onDragStart(event: DragStartEvent) {
-    setDraggingId(event.active.id as number)
-  }
-
-  function onDragEnd(event: DragEndEvent) {
-    setDraggingId(null)
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    setTabs((current) =>
-      arrayMove(
-        current,
-        current.findIndex((tab) => tab.id === active.id),
-        current.findIndex((tab) => tab.id === over.id)
-      )
-    )
-  }
+  const strip = useStripDrag({
+    count: tabs.length,
+    step: DRAG_STEP,
+    onReorder(from, to) {
+      setTabs((current) => {
+        const next = [...current]
+        const [moved] = next.splice(from, 1)
+        if (moved) next.splice(to, 0, moved)
+        return next
+      })
+    },
+  })
 
   function createTab() {
     const tab: MockTab = {
@@ -496,41 +471,77 @@ function MockTabBar() {
   return (
     <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
       <RansomWordmarkStatic className='shrink-0' />
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToHorizontalAxis, restrictToParentElement]}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => setDraggingId(null)}
-      >
-        <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-          <SortableContext
-            items={tabs.map((tab) => tab.id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            {tabs.map((tab, index) => {
-              const prev = tabs[index - 1]
-              const touchesFocus = (id: number | undefined) =>
-                id !== undefined && (id === activeId || id === hoveredId)
-              return (
-                <MockPill
-                  key={tab.id}
-                  tab={tab}
-                  showSeparator={index > 0}
-                  separatorHidden={
-                    touchesFocus(prev?.id) || touchesFocus(tab.id) || draggingId !== null
-                  }
-                  active={tab.id === activeId}
-                  onSelect={() => setActiveId(tab.id)}
-                  onClose={() => closeTab(tab.id)}
-                  onHover={setHoveredId}
+      <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        {tabs.map((tab, index) => {
+          const active = tab.id === activeId
+          const prev = tabs[index - 1]
+          const touchesFocus = (id: number | undefined) =>
+            id !== undefined && (id === activeId || id === hoveredId)
+          const dragging = strip.drag?.from === index
+          return (
+            <div key={tab.id} className='flex shrink-0 items-center'>
+              {/* every cell gets the zone so slots stay uniform */}
+              <div className='flex w-[13px] shrink-0 items-center justify-center'>
+                {index > 0 && (
+                  <Separator
+                    orientation='vertical'
+                    className={cn(
+                      'h-4! shrink-0 self-center! transition-opacity duration-150',
+                      (touchesFocus(prev?.id) || touchesFocus(tab.id) || strip.drag !== null) &&
+                        'opacity-0'
+                    )}
+                  />
+                )}
+              </div>
+              <div
+                className={cn(
+                  'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+                  active
+                    ? 'bg-[#2B2C2D] text-foreground'
+                    : 'text-muted-foreground hover:bg-secondary/50',
+                  dragging && 'z-10 bg-[#2B2C2D] text-foreground'
+                )}
+                style={dragging ? undefined : strip.shiftStyle(index)}
+                onPointerEnter={() => setHoveredId(tab.id)}
+                onPointerLeave={() => setHoveredId(null)}
+                {...strip.handleProps(index)}
+              >
+                <button
+                  type='button'
+                  aria-label={tab.title}
+                  className='absolute inset-0 rounded-md'
+                  {...pressHandlers(() => setActiveId(tab.id))}
                 />
-              )
-            })}
-          </SortableContext>
-        </div>
-      </DndContext>
+                <MockGlyph state={tab.state} />
+                <span
+                  className={cn(
+                    'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
+                    active
+                      ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+                      : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+                  )}
+                >
+                  {tab.title}
+                </span>
+                <button
+                  type='button'
+                  aria-label='Close tab'
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    closeTab(tab.id)
+                  }}
+                  className={cn(
+                    'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
+                    active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  )}
+                >
+                  <XIcon className='size-3.5' />
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
       <Button
         variant='ghost'
         size='icon'
@@ -541,102 +552,6 @@ function MockTabBar() {
         <PlusIcon />
       </Button>
       <div className='min-w-0 flex-1' />
-    </div>
-  )
-}
-
-// Without a DragOverlay, dnd-kit skips animating the released item into its
-// slot by default — this opts the drop into the same glide the siblings get.
-const animateDropToo: AnimateLayoutChanges = (args) =>
-  defaultAnimateLayoutChanges({ ...args, wasDragging: true })
-
-function MockPill({
-  tab,
-  showSeparator,
-  separatorHidden,
-  active,
-  onSelect,
-  onClose,
-  onHover,
-}: {
-  tab: MockTab
-  showSeparator: boolean
-  separatorHidden: boolean
-  active: boolean
-  onSelect: () => void
-  onClose: () => void
-  onHover: (id: number | null) => void
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: tab.id,
-    // plain `ease` is the flow: its slow start reads as give, where
-    // decelerating curves launch at max velocity and read as a magnet
-    transition: { duration: 150, easing: 'ease' },
-    animateLayoutChanges: animateDropToo,
-  })
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn('flex shrink-0 items-center', isDragging && 'z-10')}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      {...attributes}
-      {...listeners}
-    >
-      {/* every cell gets the zone — uniform widths keep dnd-kit's rect math
-          honest (uneven cells made it scale the dragged pill) */}
-      <div className='flex w-[13px] shrink-0 items-center justify-center'>
-        {showSeparator && (
-          <Separator
-            orientation='vertical'
-            className={cn(
-              'h-4! shrink-0 self-center! transition-opacity duration-150',
-              separatorHidden && 'opacity-0'
-            )}
-          />
-        )}
-      </div>
-      <div
-        className={cn(
-          'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
-          active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50',
-          isDragging && 'bg-[#2B2C2D] text-foreground'
-        )}
-        onPointerEnter={() => onHover(tab.id)}
-        onPointerLeave={() => onHover(null)}
-      >
-        <button
-          type='button'
-          aria-label={tab.title}
-          className='absolute inset-0 rounded-md'
-          {...pressHandlers(onSelect)}
-        />
-        <MockGlyph state={tab.state} />
-        <span
-          className={cn(
-            'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
-            active
-              ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
-              : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
-          )}
-        >
-          {tab.title}
-        </span>
-        <button
-          type='button'
-          aria-label='Close tab'
-          onClick={(event) => {
-            event.stopPropagation()
-            onClose()
-          }}
-          className={cn(
-            'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
-            active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          )}
-        >
-          <XIcon className='size-3.5' />
-        </button>
-      </div>
     </div>
   )
 }
