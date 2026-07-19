@@ -21,7 +21,7 @@ describe.skipIf(!live)('claude live', () => {
     try {
       const db = openDb(home)
       const store = createStore(db)
-      const project = store.createProject(projectPath, 'live')
+      const project = store.createProject(projectPath)
       const thread = store.createThread(project.id, newId())
       const agent = createClaudeAdapter(store)
 

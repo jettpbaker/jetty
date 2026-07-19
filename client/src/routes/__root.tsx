@@ -1,3 +1,4 @@
+import { CommandPaletteProvider } from '@/components/command-palette'
 import { TabBar } from '@/components/tab-bar'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -19,13 +20,15 @@ function RootLayout() {
   return (
     <IconContext.Provider value={iconDefaults}>
       <TooltipProvider>
-        <div className='flex h-svh flex-col px-8'>
-          <TabBar />
-          <main className='min-h-0 flex-1 overflow-hidden'>
-            <Outlet />
-          </main>
-        </div>
-        <Toaster />
+        <CommandPaletteProvider>
+          <div className='flex h-svh flex-col px-8'>
+            <TabBar />
+            <main className='min-h-0 flex-1 overflow-hidden'>
+              <Outlet />
+            </main>
+          </div>
+          <Toaster />
+        </CommandPaletteProvider>
       </TooltipProvider>
     </IconContext.Provider>
   )

@@ -1,8 +1,15 @@
 import type { SessionStatus } from '@jetty/shared/events'
 
 import { chromeStore, tabsStore } from '@/app-state'
-import { NewProjectDialog } from '@/components/new-project-dialog'
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { useCommandPalette } from '@/components/command-palette'
+import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
@@ -29,6 +36,7 @@ function statusDotClass(status: SessionStatus): string {
 function HomePage() {
   const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
   const navigate = useNavigate()
+  const { openPalette } = useCommandPalette()
 
   function openThread(threadId: string) {
     tabsStore.open(threadId)
@@ -52,7 +60,14 @@ function HomePage() {
             <EmptyDescription>Create a project to start a thread.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <NewProjectDialog />
+            <Button
+              variant='outline'
+              size='sm'
+              className='w-full'
+              {...pressHandlers(() => openPalette('add-project'))}
+            >
+              New project
+            </Button>
           </EmptyContent>
         </Empty>
       </div>
@@ -85,7 +100,14 @@ function HomePage() {
             </ul>
           </section>
         ))}
-        <NewProjectDialog />
+        <Button
+          variant='outline'
+          size='sm'
+          className='w-full'
+          {...pressHandlers(() => openPalette('add-project'))}
+        >
+          New project
+        </Button>
       </div>
     </div>
   )

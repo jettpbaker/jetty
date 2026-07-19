@@ -62,8 +62,17 @@ export const methods = {
     result: z.null(),
   },
   'project.create': {
-    params: z.object({ path: z.string(), title: z.string().optional() }),
+    // title is always derived server-side from the directory basename; the path
+    // must resolve to an existing directory or the server rejects it
+    params: z.object({ path: z.string() }),
     result: z.object({ project: Project }),
+  },
+  'fs.browse': {
+    params: z.object({ partialPath: z.string() }),
+    result: z.object({
+      parentPath: z.string(),
+      entries: z.array(z.object({ name: z.string(), fullPath: z.string() })),
+    }),
   },
   'thread.create': {
     params: z.object({ id: z.string().min(1), projectId: z.string() }),

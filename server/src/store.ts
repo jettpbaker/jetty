@@ -3,7 +3,10 @@ import type { Database } from 'bun:sqlite'
 
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
 import { newId, type ErrorCode, type Project, type ThreadMeta } from '@jetty/shared/wire'
+import { statSync } from 'node:fs'
 import { basename } from 'node:path'
+
+import { normalizePath } from './fs-browse'
 
 /** Placeholder title on new threads — "untitled" until the titler replaces it. */
 export const DEFAULT_THREAD_TITLE = 'New thread'
@@ -42,6 +45,9 @@ export function createStore(db: Database) {
     'SELECT id, path, title, created_at FROM projects ORDER BY created_at'
   )
   const selectProject = db.prepare('SELECT id, path, title, created_at FROM projects WHERE id = ?')
+  const selectProjectByPath = db.prepare(
+    'SELECT id, path, title, created_at FROM projects WHERE path = ?'
+  )
 
   const insertThread = db.prepare(
     `INSERT INTO threads (id, project_id, title, status, archived, updated_at)
@@ -124,11 +130,23 @@ export function createStore(db: Database) {
   }
 
   return {
-    createProject(path: string, title?: string): Project {
+    createProject(path: string): Project {
+      const normalized = normalizePath(path)
+      let isDir = false
+      try {
+        isDir = statSync(normalized).isDirectory()
+      } catch {
+        isDir = false
+      }
+      if (!isDir) {
+        throw new StoreError('invalid_params', `Not an existing directory: ${path}`)
+      }
+      const existing = selectProjectByPath.get(normalized) as ProjectRow | null
+      if (existing) return rowToProject(existing)
       const project: Project = {
         id: newId(),
-        path,
-        title: title ?? (basename(path) || path),
+        path: normalized,
+        title: basename(normalized) || normalized,
         createdAt: Date.now(),
       }
       insertProject.run(project.id, project.path, project.title, project.createdAt)

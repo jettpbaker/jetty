@@ -12,6 +12,7 @@ import type { Hub, ConnData } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
+import { browse } from './fs-browse'
 import { StoreError } from './store'
 
 export type WsServer = {
@@ -53,9 +54,13 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
       }
       case 'project.create': {
         const p = parsed.data as ParamsOf<'project.create'>
-        const project = store.createProject(p.path, p.title)
+        const project = store.createProject(p.path)
         hub.pushChrome({ type: 'project.upserted', project })
         return { project }
+      }
+      case 'fs.browse': {
+        const p = parsed.data as ParamsOf<'fs.browse'>
+        return browse(p.partialPath)
       }
       case 'thread.create': {
         const p = parsed.data as ParamsOf<'thread.create'>

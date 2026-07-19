@@ -2,8 +2,16 @@ import type { PushMessage, ResponseMessage, ServerMessage } from '@jetty/shared/
 
 import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 // Integration suite runs against the echo agent — no network, no tokens.
@@ -12,8 +20,15 @@ process.env.JETTY_AGENT = 'echo'
 import type { Agent, AgentImage, TurnInput } from './agent'
 
 import { openDb } from './db'
+import { browse, expandHome } from './fs-browse'
 import { startServer } from './main'
 import { createStore } from './store'
+
+/** project.create requires an existing directory — ensure one before creating. */
+function dir(path: string): string {
+  mkdirSync(path, { recursive: true })
+  return path
+}
 
 /** 1×1 PNG — tiny valid fixture for attachment tests. */
 const TINY_PNG_B64 =
@@ -139,7 +154,7 @@ describe('server skeleton', () => {
 
     const { project } = await c.request<{ project: { id: string; path: string } }>(
       'project.create',
-      { path: '/tmp/demo', title: 'Demo' }
+      { path: dir('/tmp/demo') }
     )
     expect(project.path).toBe('/tmp/demo')
 
@@ -236,7 +251,7 @@ describe('server skeleton', () => {
     const c1 = await connect(port)
 
     const { project } = await c1.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/gap',
+      path: dir('/tmp/gap'),
     })
     const { thread } = await c1.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -283,7 +298,7 @@ describe('server skeleton', () => {
     const b = await connect(port)
 
     const { project } = await a.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/fan',
+      path: dir('/tmp/fan'),
     })
     const { thread } = await a.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -362,7 +377,7 @@ describe('server skeleton', () => {
 
     // not json — still should not crash the server
     c.ws.send('{{{')
-    await c.request('project.create', { path: '/tmp/still-alive' })
+    await c.request('project.create', { path: dir('/tmp/still-alive') })
 
     c.close()
   })
@@ -371,7 +386,7 @@ describe('server skeleton', () => {
     const { port } = boot()
     const c = await connect(port)
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/busy',
+      path: dir('/tmp/busy'),
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -433,7 +448,7 @@ describe('server skeleton', () => {
     await c.request('chrome.subscribe', {})
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/title-gen',
+      path: dir('/tmp/title-gen'),
     })
     const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
       id: newId(),
@@ -470,7 +485,7 @@ describe('server skeleton', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/title-skip',
+      path: dir('/tmp/title-skip'),
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -505,7 +520,7 @@ describe('server skeleton', () => {
     await c.request('chrome.subscribe', {})
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/title-null',
+      path: dir('/tmp/title-null'),
     })
     const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
       id: newId(),
@@ -542,7 +557,7 @@ describe('server skeleton', () => {
 
     const db = openDb(home)
     const store = createStore(db)
-    const project = store.createProject('/tmp/reconcile', 'Reconcile')
+    const project = store.createProject(dir('/tmp/reconcile'))
     const thread = store.createThread(project.id, newId())
     store.appendEvent(thread.id, { type: 'turn.started', turnId: 'orphan-turn' })
     expect(store.getThreadState(thread.id).status).toBe('running')
@@ -591,7 +606,7 @@ describe('server skeleton', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/idempotent',
+      path: dir('/tmp/idempotent'),
     })
     const id = newId()
 
@@ -622,10 +637,10 @@ describe('server skeleton', () => {
     const c = await connect(port)
 
     const { project: projectA } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/proj-a',
+      path: dir('/tmp/proj-a'),
     })
     const { project: projectB } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/proj-b',
+      path: dir('/tmp/proj-b'),
     })
     const id = newId()
 
@@ -661,7 +676,7 @@ describe('server skeleton', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/missing-id',
+      path: dir('/tmp/missing-id'),
     })
 
     const reqId = newId()
@@ -694,7 +709,7 @@ describe('server skeleton', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/client-id',
+      path: dir('/tmp/client-id'),
     })
     const id = newId()
 
@@ -740,7 +755,7 @@ describe('image attachments', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/attach-write',
+      path: dir('/tmp/attach-write'),
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -789,7 +804,7 @@ describe('image attachments', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/attach-big',
+      path: dir('/tmp/attach-big'),
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -873,7 +888,7 @@ describe('image attachments', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/attach-agent',
+      path: dir('/tmp/attach-agent'),
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -905,7 +920,7 @@ describe('image attachments', () => {
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
-      path: '/tmp/attach-http',
+      path: dir('/tmp/attach-http'),
     })
     const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
       id: newId(),
@@ -954,6 +969,85 @@ describe('image attachments', () => {
 
     // confirm the real file still lives only under home/attachments
     expect(existsSync(join(home, 'attachments', `${id}.png`))).toBe(true)
+
+    c.close()
+  })
+})
+
+describe('fs.browse', () => {
+  let fixture: string
+
+  function names(partialPath: string): string[] {
+    return browse(partialPath).entries.map((entry) => entry.name)
+  }
+
+  function makeFixture(): string {
+    const root = mkdtempSync(join(tmpdir(), 'jetty-browse-'))
+    for (const name of ['apple', 'apricot', 'Banana', '.hidden']) {
+      mkdirSync(join(root, name))
+    }
+    writeFileSync(join(root, 'notdir.txt'), 'x')
+    return root
+  }
+
+  afterEach(() => {
+    if (fixture) rmSync(fixture, { recursive: true, force: true })
+  })
+
+  test('expands a leading ~ to the home directory', () => {
+    expect(expandHome('~')).toBe(homedir())
+    expect(expandHome('~/code/app')).toBe(join(homedir(), 'code/app'))
+    expect(expandHome('/absolute/path')).toBe('/absolute/path')
+  })
+
+  test('lists directories only, hides dotfiles', () => {
+    fixture = makeFixture()
+    const listed = names(`${fixture}/`)
+    expect(listed).toContain('apple')
+    expect(listed).toContain('apricot')
+    expect(listed).toContain('Banana')
+    expect(listed).not.toContain('.hidden')
+    expect(listed).not.toContain('notdir.txt')
+  })
+
+  test('filters by case-insensitive prefix', () => {
+    fixture = makeFixture()
+    expect(names(`${fixture}/ap`).sort()).toEqual(['apple', 'apricot'])
+    expect(names(`${fixture}/AP`).sort()).toEqual(['apple', 'apricot'])
+    expect(names(`${fixture}/ban`)).toEqual(['Banana'])
+  })
+
+  test('reveals dotfiles when the filter segment is dotted', () => {
+    fixture = makeFixture()
+    expect(names(`${fixture}/.h`)).toEqual(['.hidden'])
+  })
+
+  test('returns empty entries for a nonexistent parent', () => {
+    expect(browse('/no/such/directory/anywhere/').entries).toEqual([])
+  })
+})
+
+describe('project.create validation', () => {
+  test('rejects a path that is not an existing directory', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    const missing = join(tmpdir(), `jetty-missing-${newId()}`)
+    await expect(c.request('project.create', { path: missing })).rejects.toThrow('invalid_params')
+
+    c.close()
+  })
+
+  test('is idempotent for a duplicate directory', async () => {
+    const { port, store } = boot()
+    const c = await connect(port)
+
+    const path = dir(join(tmpdir(), `jetty-dup-${newId()}`))
+    const first = await c.request<{ project: { id: string } }>('project.create', { path })
+    const second = await c.request<{ project: { id: string } }>('project.create', { path })
+
+    expect(second.project.id).toBe(first.project.id)
+    expect(store.listProjects().filter((p) => p.path === path)).toHaveLength(1)
 
     c.close()
   })

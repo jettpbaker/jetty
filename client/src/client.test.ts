@@ -1,7 +1,7 @@
 import { emptyThread } from '@jetty/shared/reducer'
 import { newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,6 +14,12 @@ import { createChromeStore } from './state/chrome'
 import { createTimelineStore, MAX_WARM_SUBSCRIPTIONS } from './state/timeline'
 
 type Running = ReturnType<typeof startServer>
+
+/** project.create requires an existing directory — ensure one before creating. */
+function dir(path: string): string {
+  mkdirSync(path, { recursive: true })
+  return path
+}
 
 const servers: Running[] = []
 const homes: string[] = []
@@ -67,11 +73,10 @@ describe('client socket + stores', () => {
     const socket = connectSocket(port)
 
     const { project } = await socket.request('project.create', {
-      path: '/tmp/client-roundtrip',
-      title: 'Roundtrip',
+      path: dir('/tmp/client-roundtrip'),
     })
     expect(project.path).toBe('/tmp/client-roundtrip')
-    expect(project.title).toBe('Roundtrip')
+    expect(project.title).toBe('client-roundtrip')
     expect(project.id).toBeTruthy()
   })
 
@@ -92,8 +97,7 @@ describe('client socket + stores', () => {
     const before = chrome.getSnapshot()
 
     const { project } = await socket.request('project.create', {
-      path: '/tmp/chrome',
-      title: 'Chrome',
+      path: dir('/tmp/chrome'),
     })
 
     const withProject = await waitFor(
@@ -101,7 +105,7 @@ describe('client socket + stores', () => {
       (s) => s.projects.some((p) => p.id === project.id)
     )
     expect(withProject).not.toBe(before)
-    expect(withProject.projects[0]?.title).toBe('Chrome')
+    expect(withProject.projects[0]?.title).toBe('chrome')
     expect(chrome.getSnapshot()).toBe(withProject)
 
     const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
@@ -118,7 +122,7 @@ describe('client socket + stores', () => {
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
-    const { project } = await socket.request('project.create', { path: '/tmp/timeline' })
+    const { project } = await socket.request('project.create', { path: dir('/tmp/timeline') })
     const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
 
     // never visited → emptyThread constant (instant, zero network)
@@ -217,7 +221,7 @@ describe('client socket + stores', () => {
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
-    const { project } = await socket.request('project.create', { path: '/tmp/warm-bg' })
+    const { project } = await socket.request('project.create', { path: dir('/tmp/warm-bg') })
     const { thread: threadA } = await socket.request('thread.create', {
       id: newId(),
       projectId: project.id,
@@ -261,7 +265,7 @@ describe('client socket + stores', () => {
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
-    const { project } = await socket.request('project.create', { path: '/tmp/lru' })
+    const { project } = await socket.request('project.create', { path: dir('/tmp/lru') })
     const { thread: lru } = await socket.request('thread.create', {
       id: newId(),
       projectId: project.id,
@@ -324,7 +328,7 @@ describe('client socket + stores', () => {
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
-    const { project } = await socket.request('project.create', { path: '/tmp/reconnect-held' })
+    const { project } = await socket.request('project.create', { path: dir('/tmp/reconnect-held') })
     const { thread: threadA } = await socket.request('thread.create', {
       id: newId(),
       projectId: project.id,
@@ -388,7 +392,7 @@ describe('client socket + stores', () => {
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
-    const { project } = await socket.request('project.create', { path: '/tmp/reduce' })
+    const { project } = await socket.request('project.create', { path: dir('/tmp/reduce') })
     const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
     timeline.openThread(thread.id)
 
