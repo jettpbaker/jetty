@@ -474,11 +474,14 @@ function MockTabBar() {
       event.currentTarget.setPointerCapture(event.pointerId)
       setDrag({ id: start.id, from: start.index, to: start.index })
     }
-    if (dragEl.current) dragEl.current.style.transform = `translateX(${dx}px)`
-    const to = Math.min(
-      tabs.length - 1,
-      Math.max(0, start.index + Math.round(dx / DRAG_STEP))
+    // cap travel to the strip: the pill can never leave the valid slot range,
+    // so the visual position always agrees with the index math
+    const clamped = Math.min(
+      (tabs.length - 1 - start.index) * DRAG_STEP,
+      Math.max(-start.index * DRAG_STEP, dx)
     )
+    if (dragEl.current) dragEl.current.style.transform = `translateX(${clamped}px)`
+    const to = start.index + Math.round(clamped / DRAG_STEP)
     if (dragRef.current && to !== dragRef.current.to) {
       setDrag({ ...dragRef.current, to })
     }
