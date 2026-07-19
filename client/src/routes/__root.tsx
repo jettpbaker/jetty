@@ -13,7 +13,7 @@ function RootLayout() {
     <TooltipProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className='h-svh overflow-hidden [view-transition-name:content]'>
+        <SidebarInset className='h-svh overflow-hidden'>
           <Outlet />
         </SidebarInset>
         <Toaster />
