@@ -18,16 +18,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressHandlers } from '@/lib/press-handlers'
+import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
-import { GearIcon, ListIcon, PlusIcon, XIcon } from '@phosphor-icons/react'
+import {
+  GearIcon,
+  HandPalmIcon,
+  ListIcon,
+  MoonIcon,
+  PlusIcon,
+  SpinnerIcon,
+  WarningIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, useSyncExternalStore, type ReactElement } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
-import { ProjectBadge } from './project-badge'
 import { RansomWordmarkStatic } from './ransom-wordmark'
+
+// One slot in the strip: separator zone (13) + pill (176).
+const DRAG_STEP = 189
 
 function statusDotClass(status: SessionStatus): string {
   switch (status) {
@@ -40,6 +53,27 @@ function statusDotClass(status: SessionStatus): string {
       return 'bg-destructive'
     case 'idle':
       return 'bg-muted-foreground/40'
+  }
+}
+
+function StatusGlyph({ status }: { status: SessionStatus }) {
+  switch (status) {
+    case 'idle':
+      return (
+        <MoonIcon
+          weight='fill'
+          className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
+        />
+      )
+    case 'running':
+    case 'starting':
+      return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
+    case 'awaiting_approval':
+      // interim glyph; PR-state glyphs land with thread→PR association
+      return <HandPalmIcon className='size-[18px] shrink-0 text-primary' />
+    case 'error':
+      // interim glyph; PR-state glyphs land with thread→PR association
+      return <WarningIcon className='size-[18px] shrink-0 text-destructive' />
   }
 }
 
@@ -58,6 +92,7 @@ export function TabBar() {
   const navigate = useNavigate()
   const { threadId: activeThreadId, projectId: draftProjectId } = useParams({ strict: false })
   const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const threadById = new Map(chrome.threads.map((thread) => [thread.id, thread]))
   const openTabs = tabIds
@@ -67,6 +102,16 @@ export function TabBar() {
   const activeThread = activeThreadId ? threadById.get(activeThreadId) : undefined
   const newThreadProjectId =
     activeThread?.projectId ?? chrome.projects[0]?.id
+
+  const strip = useStripDrag({
+    count: openTabs.length,
+    step: DRAG_STEP,
+    onReorder(from, to) {
+      const fromTab = openTabs[from]
+      const toTab = openTabs[to]
+      if (fromTab && toTab) tabsStore.move(fromTab.id, toTab.id)
+    },
+  })
 
   function openThread(threadId: string) {
     tabsStore.open(threadId)
@@ -100,69 +145,114 @@ export function TabBar() {
     void socket.request('thread.archive', { threadId })
   }
 
+  function touchesFocus(id: string | undefined) {
+    return id !== undefined && (id === activeThreadId || id === hoveredId)
+  }
+
   return (
     <div className='flex h-14 shrink-0 items-center gap-2 border-b px-3'>
       <Link to='/' aria-label='Jetty home' className='mr-1 shrink-0'>
         <RansomWordmarkStatic />
       </Link>
 
-      <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-        {openTabs.map((thread) => {
+      <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        {openTabs.map((thread, index) => {
           const active = thread.id === activeThreadId
-          const project = chrome.projects.find((p) => p.id === thread.projectId)
+          const prev = openTabs[index - 1]
+          const dragging = strip.drag?.from === index
           return (
-            <ContextMenu key={thread.id}>
-              <ContextMenuTrigger
-                className={cn(
-                  'group relative flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
-                  active
-                    ? 'bg-[#2B2C2D] text-foreground'
-                    : 'text-muted-foreground hover:bg-secondary/50'
+            <div key={thread.id} className='flex shrink-0 items-center'>
+              <div className='flex w-[13px] shrink-0 items-center justify-center'>
+                {index > 0 && (
+                  <Separator
+                    orientation='vertical'
+                    className={cn(
+                      'h-4! shrink-0 self-center! transition-opacity duration-150',
+                      (touchesFocus(prev?.id) || touchesFocus(thread.id) || strip.drag !== null) &&
+                        'opacity-0'
+                    )}
+                  />
                 )}
-              >
-                <button
-                  type='button'
-                  aria-label={thread.title || thread.id}
-                  className='absolute inset-0 rounded-md'
-                  {...pressHandlers(() => openThread(thread.id))}
-                />
-                <ProjectBadge title={project?.title ?? '?'} />
-                <span
+              </div>
+              <ContextMenu>
+                <ContextMenuTrigger
                   className={cn(
-                    'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
-                    active ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]' : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+                    'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+                    active
+                      ? 'bg-[#2B2C2D] text-foreground'
+                      : 'text-muted-foreground hover:bg-secondary/50',
+                    dragging && 'z-10 bg-[#2B2C2D] text-foreground'
                   )}
+                  style={dragging ? undefined : strip.shiftStyle(index)}
+                  onPointerEnter={() => setHoveredId(thread.id)}
+                  onPointerLeave={() => setHoveredId(null)}
+                  {...strip.handleProps(index)}
                 >
-                  {thread.title || thread.id}
-                </span>
-                <button
-                  type='button'
-                  aria-label='Close tab'
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    closeTab(thread.id)
-                  }}
-                  className={cn(
-                    'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
-                    active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  )}
-                >
-                  <XIcon className='size-3.5' />
-                </button>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onClick={() => closeTab(thread.id)}>Close</ContextMenuItem>
-                <ContextMenuItem onClick={() => archiveTab(thread.id)}>Archive</ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
+                  <button
+                    type='button'
+                    aria-label={thread.title || thread.id}
+                    className='absolute inset-0 rounded-md'
+                    {...pressHandlers(() => openThread(thread.id))}
+                  />
+                  <StatusGlyph status={thread.status} />
+                  <span
+                    className={cn(
+                      'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
+                      active
+                        ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+                        : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+                    )}
+                  >
+                    {thread.title || thread.id}
+                  </span>
+                  <button
+                    type='button'
+                    aria-label='Close tab'
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      closeTab(thread.id)
+                    }}
+                    className={cn(
+                      'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
+                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    )}
+                  >
+                    <XIcon className='size-3.5' />
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onClick={() => closeTab(thread.id)}>Close</ContextMenuItem>
+                  <ContextMenuItem onClick={() => archiveTab(thread.id)}>Archive</ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            </div>
           )
         })}
         {draftProjectId !== undefined && (
-          <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
-            <ProjectBadge
-              title={chrome.projects.find((p) => p.id === draftProjectId)?.title ?? '?'}
-            />
-            <span className='min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>New thread</span>
+          <div className='flex shrink-0 items-center'>
+            {openTabs.length > 0 && (
+              <div className='flex w-[13px] shrink-0 items-center justify-center'>
+                <Separator
+                  orientation='vertical'
+                  className={cn(
+                    'h-4! shrink-0 self-center! transition-opacity duration-150',
+                    (touchesFocus(openTabs[openTabs.length - 1]?.id) ||
+                      activeThreadId === undefined ||
+                      strip.drag !== null) &&
+                      'opacity-0'
+                  )}
+                />
+              </div>
+            )}
+            <div className='flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
+              <MoonIcon
+                weight='fill'
+                className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
+              />
+              <span className='min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>
+                New thread
+              </span>
+            </div>
           </div>
         )}
       </div>

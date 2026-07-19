@@ -3,6 +3,8 @@ export type TabsStore = {
   getSnapshot: () => readonly string[]
   open: (threadId: string) => void
   close: (threadId: string) => void
+  /** arrayMove: place `id` at the index currently held by `targetId`. */
+  move: (id: string, targetId: string) => void
   /** Seed from disk only if no mutation has landed yet. */
   hydrate: (ids: readonly string[]) => void
 }
@@ -43,6 +45,15 @@ export function createTabsStore(persist?: (ids: readonly string[]) => void): Tab
     close(threadId) {
       const next = state.filter((id) => id !== threadId)
       if (next.length === state.length) return
+      setState(next)
+    },
+    move(id, targetId) {
+      const i = state.indexOf(id)
+      const j = state.indexOf(targetId)
+      if (i === -1 || j === -1 || i === j) return
+      const next = [...state]
+      next.splice(i, 1)
+      next.splice(j, 0, id)
       setState(next)
     },
     hydrate(ids) {
