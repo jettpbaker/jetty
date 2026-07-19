@@ -145,3 +145,16 @@
     animation: item-enter 150ms ease-out;
   }
 }
+
+/* soft entrance for a thread arrived at from a draft send */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes page-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+  .page-arrive {
+    animation: page-arrive 180ms ease-out;
+  }
+}
