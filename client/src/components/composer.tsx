@@ -2,7 +2,7 @@ import type { SessionStatus } from '@jetty/shared/events'
 import type { ChatStatus } from 'ai'
 import type { MouseEvent } from 'react'
 
-import { socket } from '@/app-state'
+import { draftsStore, socket } from '@/app-state'
 import {
   PromptInput,
   PromptInputAttachment,
@@ -16,9 +16,9 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { acceptImages, toUploadAttachments } from '@/lib/attachments'
-import { loadDraft, saveDraft } from '@/lib/draft'
+import { loadDraft, removeDraft, saveDraft } from '@/lib/draft'
 import { type PendingSend, pendingSends, sendFirstTurn } from '@/state/pending'
-import { MAX_IMAGES_PER_TURN, newId } from '@jetty/shared/wire'
+import { MAX_IMAGES_PER_TURN } from '@jetty/shared/wire'
 import { PaperclipIcon } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
 import { useSyncExternalStore } from 'react'
@@ -139,26 +139,31 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
   )
 }
 
-export function DraftComposer({ projectId }: { projectId: string }) {
+export function DraftComposer({ draftId, projectId }: { draftId: string; projectId: string }) {
   const navigate = useNavigate()
 
   function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim()
     const attachments = toUploadAttachments(message.files)
     if (!text && attachments.length === 0) return
-    const threadId = newId()
-    void navigate({ to: '/thread/$threadId', params: { threadId } })
+    const threadId = draftId
+    // remove the draft only after navigation commits — the draft page's
+    // missing-draft redirect would otherwise race this navigate and win
+    void navigate({ to: '/thread/$threadId', params: { threadId } }).then(() => {
+      draftsStore.remove(draftId)
+      removeDraft(draftId)
+    })
     void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})
   }
 
   return (
     <div className={composerShell}>
-      <PromptInputProvider initialInput={loadDraft(projectId)} validateFiles={acceptImages}>
+      <PromptInputProvider initialInput={loadDraft(draftId)} validateFiles={acceptImages}>
         <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
           <Attachments />
           <PromptInputTextarea
             placeholder='Message the agent…'
-            onChange={(event) => saveDraft(projectId, event.currentTarget.value)}
+            onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
           />
           <PromptInputFooter>
             <AttachButton />

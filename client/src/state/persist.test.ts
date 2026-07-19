@@ -7,14 +7,17 @@ import { entries } from 'idb-keyval'
 import type { Socket } from '../socket'
 
 import { createChromeStore, type ChromeState } from './chrome'
+import { createDraftsStore } from './drafts'
 import {
   applyHydration,
   collectHydration,
   flushPendingWrites,
   parseChromeValue,
+  parseDraftsValue,
   parseTabsValue,
   parseThreadValue,
   persistChrome,
+  persistDrafts,
   persistTabs,
   persistThread,
 } from './persist'
@@ -108,16 +111,28 @@ describe('persist parse/discard', () => {
     expect(parseTabsValue(['thr_1', 3])).toBeNull()
   })
 
+  test('parseDraftsValue accepts a draft array and rejects garbage', () => {
+    const good = [{ id: 'dr_1', projectId: 'proj_1' }]
+    expect(parseDraftsValue(good)).toEqual(good)
+    expect(parseDraftsValue([])).toEqual([])
+    expect(parseDraftsValue(null)).toBeNull()
+    expect(parseDraftsValue([{ id: 'dr_1' }])).toBeNull()
+    expect(parseDraftsValue([{ id: 1, projectId: 'proj_1' }])).toBeNull()
+  })
+
   test('collectHydration discards corrupt keys and keeps valid ones', () => {
     const chrome = sampleChrome()
     const thread = sampleThread()
+    const drafts = [{ id: 'dr_1', projectId: 'proj_1' }]
     const {
       chrome: outChrome,
       tabs,
+      drafts: outDrafts,
       threads,
     } = collectHydration([
       ['chrome', chrome],
       ['tabs', ['thr_1']],
+      ['drafts', drafts],
       ['thread:thr_1', thread],
       ['thread:thr_bad', { nope: true }],
       ['other', chrome],
@@ -126,6 +141,7 @@ describe('persist parse/discard', () => {
 
     expect(outChrome).toEqual(chrome)
     expect(tabs).toEqual(['thr_1'])
+    expect(outDrafts).toEqual(drafts)
     expect(threads.size).toBe(1)
     expect(threads.get('thr_1')).toEqual(thread)
   })
@@ -133,6 +149,11 @@ describe('persist parse/discard', () => {
   test('collectHydration drops a corrupt tabs entry', () => {
     const { tabs } = collectHydration([['tabs', ['thr_1', 42]]])
     expect(tabs).toBeNull()
+  })
+
+  test('collectHydration drops a corrupt drafts entry', () => {
+    const { drafts } = collectHydration([['drafts', [{ id: 'dr_1' }]]])
+    expect(drafts).toBeNull()
   })
 
   test('collectHydration drops a corrupt chrome entry', () => {
@@ -145,27 +166,34 @@ describe('persist parse/discard', () => {
 })
 
 describe('persist round-trip via IndexedDB', () => {
-  test('persist then hydrate restores chrome, tabs, and thread state', async () => {
+  test('persist then hydrate restores chrome, tabs, drafts, and thread state', async () => {
     const chrome = sampleChrome()
     const thread = sampleThread(5)
+    const drafts = [
+      { id: 'dr_1', projectId: 'proj_1' },
+      { id: 'dr_2', projectId: 'proj_1' },
+    ]
 
     persistChrome(chrome)
-    persistTabs(['thr_1', 'thr_2'])
+    persistTabs(['thr_1', 'thr_2', 'dr_1'])
+    persistDrafts(drafts)
     persistThread('thr_1', thread)
     await flushPendingWrites()
 
     const pairs = await entries()
-    expect(pairs.length).toBe(3)
+    expect(pairs.length).toBe(4)
 
     const socket = mockSocket()
     const chromeStore = createChromeStore(socket)
     const tabsStore = createTabsStore()
+    const draftsStore = createDraftsStore()
     const timelineStore = createTimelineStore(socket)
 
-    applyHydration(pairs, chromeStore, tabsStore, timelineStore)
+    applyHydration(pairs, chromeStore, tabsStore, timelineStore, draftsStore)
 
     expect(chromeStore.getSnapshot()).toEqual(chrome)
-    expect(tabsStore.getSnapshot()).toEqual(['thr_1', 'thr_2'])
+    expect(tabsStore.getSnapshot()).toEqual(['thr_1', 'thr_2', 'dr_1'])
+    expect(draftsStore.getSnapshot()).toEqual(drafts)
     expect(timelineStore.getSnapshot('thr_1')).toEqual(thread)
   })
 
@@ -173,6 +201,7 @@ describe('persist round-trip via IndexedDB', () => {
     const { set } = await import('idb-keyval')
     await set('chrome', { projects: 'broken' })
     await set('tabs', ['thr_1', 99])
+    await set('drafts', [{ id: 'dr_1' }])
     await set('thread:thr_1', { lastSeq: 'nope' })
     await set('thread:thr_2', sampleThread(2))
 
@@ -180,12 +209,14 @@ describe('persist round-trip via IndexedDB', () => {
     const socket = mockSocket()
     const chromeStore = createChromeStore(socket)
     const tabsStore = createTabsStore()
+    const draftsStore = createDraftsStore()
     const timelineStore = createTimelineStore(socket)
 
-    applyHydration(pairs, chromeStore, tabsStore, timelineStore)
+    applyHydration(pairs, chromeStore, tabsStore, timelineStore, draftsStore)
 
     expect(chromeStore.getSnapshot()).toEqual({ projects: [], threads: [] })
     expect(tabsStore.getSnapshot()).toEqual([])
+    expect(draftsStore.getSnapshot()).toEqual([])
     expect(timelineStore.getSnapshot('thr_1')).toBe(emptyThread)
     expect(timelineStore.getSnapshot('thr_2').lastSeq).toBe(2)
   })
@@ -232,6 +263,21 @@ describe('store hydrate seams', () => {
     const store = createTabsStore()
     store.hydrate(['thr_1', 'thr_2'])
     expect(store.getSnapshot()).toEqual(['thr_1', 'thr_2'])
+  })
+
+  test('drafts.hydrate is a no-op after a mutation landed', () => {
+    const store = createDraftsStore()
+    store.create('proj_1')
+    store.hydrate([{ id: 'dr_9', projectId: 'proj_9' }])
+    expect(store.getSnapshot()).toHaveLength(1)
+    expect(store.getSnapshot()[0]?.projectId).toBe('proj_1')
+  })
+
+  test('drafts.hydrate seeds an untouched store', () => {
+    const store = createDraftsStore()
+    const list = [{ id: 'dr_1', projectId: 'proj_1' }]
+    store.hydrate(list)
+    expect(store.getSnapshot()).toEqual(list)
   })
 
   test('timeline.hydrateThread rejects stale lastSeq', () => {

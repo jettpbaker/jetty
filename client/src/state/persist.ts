@@ -4,11 +4,13 @@ import { entries, set } from 'idb-keyval'
 import { z } from 'zod'
 
 import type { ChromeState, ChromeStore } from './chrome'
+import type { Draft, DraftsStore } from './drafts'
 import type { TabsStore } from './tabs'
 import type { TimelineStore } from './timeline'
 
 const CHROME_KEY = 'chrome'
 const TABS_KEY = 'tabs'
+const DRAFTS_KEY = 'drafts'
 const THREAD_PREFIX = 'thread:'
 const DEBOUNCE_MS = 300
 
@@ -18,6 +20,13 @@ const ChromeStateSchema = z.object({
 })
 
 const TabsSchema = z.array(z.string())
+
+const DraftsSchema = z.array(
+  z.object({
+    id: z.string(),
+    projectId: z.string(),
+  })
+)
 
 const pending = new Map<string, unknown>()
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -32,6 +41,11 @@ export function parseTabsValue(value: unknown): string[] | null {
   return result.success ? result.data : null
 }
 
+export function parseDraftsValue(value: unknown): Draft[] | null {
+  const result = DraftsSchema.safeParse(value)
+  return result.success ? result.data : null
+}
+
 export function parseThreadValue(value: unknown): ThreadState | null {
   const result = ThreadState.safeParse(value)
   return result.success ? result.data : null
@@ -41,10 +55,12 @@ export function parseThreadValue(value: unknown): ThreadState | null {
 export function collectHydration(pairs: ReadonlyArray<readonly [IDBValidKey, unknown]>): {
   chrome: ChromeState | null
   tabs: string[] | null
+  drafts: Draft[] | null
   threads: Map<string, ThreadState>
 } {
   let chrome: ChromeState | null = null
   let tabs: string[] | null = null
+  let drafts: Draft[] | null = null
   const threads = new Map<string, ThreadState>()
 
   for (const [key, value] of pairs) {
@@ -57,6 +73,10 @@ export function collectHydration(pairs: ReadonlyArray<readonly [IDBValidKey, unk
       tabs = parseTabsValue(value)
       continue
     }
+    if (key === DRAFTS_KEY) {
+      drafts = parseDraftsValue(value)
+      continue
+    }
     if (!key.startsWith(THREAD_PREFIX)) continue
     const threadId = key.slice(THREAD_PREFIX.length)
     if (!threadId) continue
@@ -64,18 +84,25 @@ export function collectHydration(pairs: ReadonlyArray<readonly [IDBValidKey, unk
     if (thread) threads.set(threadId, thread)
   }
 
-  return { chrome, tabs, threads }
+  return { chrome, tabs, drafts, threads }
 }
 
 export function applyHydration(
   pairs: ReadonlyArray<readonly [IDBValidKey, unknown]>,
   chrome: Pick<ChromeStore, 'hydrate'>,
   tabs: Pick<TabsStore, 'hydrate'>,
-  timeline: Pick<TimelineStore, 'hydrateThread'>
+  timeline: Pick<TimelineStore, 'hydrateThread'>,
+  drafts: Pick<DraftsStore, 'hydrate'>
 ): void {
-  const { chrome: chromeState, tabs: tabIds, threads } = collectHydration(pairs)
+  const {
+    chrome: chromeState,
+    tabs: tabIds,
+    drafts: draftList,
+    threads,
+  } = collectHydration(pairs)
   if (chromeState) chrome.hydrate(chromeState)
   if (tabIds) tabs.hydrate(tabIds)
+  if (draftList) drafts.hydrate(draftList)
   for (const [threadId, state] of threads) {
     timeline.hydrateThread(threadId, state)
   }
@@ -84,7 +111,8 @@ export function applyHydration(
 export async function hydrate(
   chrome: ChromeStore,
   tabs: TabsStore,
-  timeline: TimelineStore
+  timeline: TimelineStore,
+  drafts: DraftsStore
 ): Promise<void> {
   let pairs: [IDBValidKey, unknown][]
   try {
@@ -93,7 +121,7 @@ export async function hydrate(
     // Corrupt / unavailable IDB → cold boot.
     return
   }
-  applyHydration(pairs, chrome, tabs, timeline)
+  applyHydration(pairs, chrome, tabs, timeline, drafts)
 }
 
 function scheduleWrite(key: string, value: unknown): void {
@@ -120,6 +148,10 @@ export function persistChrome(state: ChromeState): void {
 
 export function persistTabs(ids: readonly string[]): void {
   scheduleWrite(TABS_KEY, ids)
+}
+
+export function persistDrafts(list: readonly Draft[]): void {
+  scheduleWrite(DRAFTS_KEY, list)
 }
 
 export function persistThread(threadId: string, state: ThreadState): void {

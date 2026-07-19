@@ -1,4 +1,4 @@
-import { socket } from '@/app-state'
+import { draftsStore, socket, tabsStore } from '@/app-state'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -49,7 +49,9 @@ export function NewProjectDialog({
       setPath('')
       setTitle('')
       setOpen(false)
-      void navigate({ to: '/new/$projectId', params: { projectId: project.id } })
+      const draft = draftsStore.create(project.id)
+      tabsStore.open(draft.id)
+      void navigate({ to: '/new/$draftId', params: { draftId: draft.id } })
     } catch {
       toast.error('Couldn’t create the project.')
     }

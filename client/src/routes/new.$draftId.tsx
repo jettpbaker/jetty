@@ -1,13 +1,19 @@
+import { draftsStore } from '@/app-state'
 import { DraftComposer } from '@/components/composer'
 import { RansomWordmark } from '@/components/ransom-wordmark'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
+import { useSyncExternalStore } from 'react'
 
-export const Route = createFileRoute('/new/$projectId')({
+export const Route = createFileRoute('/new/$draftId')({
   component: NewThreadPage,
 })
 
 function NewThreadPage() {
-  const { projectId } = Route.useParams()
+  const { draftId } = Route.useParams()
+  const drafts = useSyncExternalStore(draftsStore.subscribe, draftsStore.getSnapshot)
+  const draft = drafts.find((row) => row.id === draftId)
+
+  if (!draft) return <Navigate to='/' />
 
   return (
     <div className='flex h-full flex-col'>
@@ -16,7 +22,7 @@ function NewThreadPage() {
       <div className='flex flex-1 items-start justify-center p-4 pt-[24vh]'>
         <div className='w-full max-w-3xl'>
           <RansomWordmark className='mb-10' />
-          <DraftComposer key={projectId} projectId={projectId} />
+          <DraftComposer key={draftId} draftId={draftId} projectId={draft.projectId} />
         </div>
       </div>
     </div>

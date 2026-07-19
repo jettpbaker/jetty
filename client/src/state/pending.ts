@@ -62,7 +62,7 @@ export async function sendFirstTurn({
     timelineStore.openThread(threadId)
     await socket.request('turn.start', { threadId, text, attachments })
     pendingSends.clear(threadId)
-    clearDraft(projectId)
+    clearDraft(threadId)
   } catch (error) {
     pendingSends.set(threadId, { text, projectId, attachments, phase: 'failed' })
     toast.error('Couldn’t start the thread. Press send to retry.')
