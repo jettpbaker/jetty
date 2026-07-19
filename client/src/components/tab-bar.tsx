@@ -24,13 +24,13 @@ import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
 import {
+  BellRingingIcon,
+  ExclamationMarkIcon,
   GearIcon,
-  HandPalmIcon,
   ListIcon,
   MoonIcon,
   PlusIcon,
   SpinnerIcon,
-  WarningIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
@@ -69,11 +69,9 @@ function StatusGlyph({ status }: { status: SessionStatus }) {
     case 'starting':
       return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
     case 'awaiting_approval':
-      // interim glyph; PR-state glyphs land with thread→PR association
-      return <HandPalmIcon className='size-[18px] shrink-0 text-primary' />
+      return <BellRingingIcon className='size-[18px] shrink-0 text-amber-400' />
     case 'error':
-      // interim glyph; PR-state glyphs land with thread→PR association
-      return <WarningIcon className='size-[18px] shrink-0 text-destructive' />
+      return <ExclamationMarkIcon className='size-[18px] shrink-0 text-destructive' />
   }
 }
 
