@@ -35,7 +35,7 @@ import {
 import { cn } from '@/lib/utils'
 import {
   ImageIcon,
-  KeyReturnIcon,
+  ArrowUpIcon,
   MicrophoneIcon,
   PaperclipIcon,
   PlusIcon,
@@ -965,7 +965,7 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
-  let Icon = <KeyReturnIcon className='size-4' />
+  let Icon = <ArrowUpIcon className='size-4' />
 
   if (status === 'submitted') {
     Icon = <SpinnerIcon className='size-4 animate-spin' />
