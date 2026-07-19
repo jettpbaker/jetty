@@ -127,7 +127,12 @@ export function TabBar() {
                   {...pressHandlers(() => openThread(thread.id))}
                 />
                 <ProjectBadge title={project?.title ?? '?'} />
-                <span className='pointer-events-none relative min-w-0 flex-1 text-left overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>
+                <span
+                  className={cn(
+                    'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
+                    active ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]' : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+                  )}
+                >
                   {thread.title || thread.id}
                 </span>
                 <button
@@ -138,7 +143,7 @@ export function TabBar() {
                     closeTab(thread.id)
                   }}
                   className={cn(
-                    'relative z-10 -mr-1 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
+                    'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
                     active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   )}
                 >
