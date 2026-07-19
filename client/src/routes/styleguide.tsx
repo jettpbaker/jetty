@@ -1,3 +1,15 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { restrictToHorizontalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
+import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
@@ -15,7 +27,7 @@ import {
 } from '@phosphor-icons/react'
 import { pressHandlers } from '@/lib/press-handlers'
 import { createFileRoute } from '@tanstack/react-router'
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useRef, useState } from 'react'
 
 export const Route = createFileRoute('/styleguide')({
   component: StyleguidePage,
@@ -422,11 +434,6 @@ function randomOf<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)]!
 }
 
-// One slot in the strip: pill (176) + gap (6) + separator (1) + gap (6).
-const DRAG_STEP = 189
-const DRAG_THRESHOLD = 5
-const SETTLE_MS = 160
-
 function MockTabBar() {
   const nextId = useRef(3)
   const [tabs, setTabs] = useState<MockTab[]>([
@@ -436,96 +443,28 @@ function MockTabBar() {
   ])
   const [activeId, setActiveId] = useState(0)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  const [draggingId, setDraggingId] = useState<number | null>(null)
 
-  // Drag state lives in a ref (pointermove reads it without stale closures)
-  // and mirrors to state for rendering the sibling shifts.
-  const dragRef = useRef<{ id: number; from: number; to: number } | null>(null)
-  const [drag, setDragState] = useState<{ id: number; from: number; to: number } | null>(null)
-  const dragStart = useRef<{ x: number; id: number; index: number } | null>(null)
-  const dragEl = useRef<HTMLDivElement | null>(null)
-  const settleTimer = useRef<number | null>(null)
-
-  function setDrag(next: { id: number; from: number; to: number } | null) {
-    dragRef.current = next
-    setDragState(next)
-  }
-
-  // The release can land anywhere — outside the strip, mid-flick, over other
-  // elements. Window-level listeners during a drag guarantee we hear it.
-  const releaseRef = useRef<() => void>(() => {})
-  releaseRef.current = onPillPointerUp
-  const dragActive = drag !== null
-  useEffect(() => {
-    if (!dragActive) return
-    function release() {
-      releaseRef.current()
-    }
-    window.addEventListener('pointerup', release)
-    window.addEventListener('pointercancel', release)
-    return () => {
-      window.removeEventListener('pointerup', release)
-      window.removeEventListener('pointercancel', release)
-    }
-  }, [dragActive])
-
-  useEffect(
-    () => () => {
-      if (settleTimer.current) window.clearTimeout(settleTimer.current)
-    },
-    []
+  // 5px of travel before a press becomes a drag — below that it's a select
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
 
-  function onPillPointerDown(event: React.PointerEvent, id: number, index: number) {
-    if (event.button !== 0 || settleTimer.current) return
-    dragStart.current = { x: event.clientX, id, index }
+  function onDragStart(event: DragStartEvent) {
+    setDraggingId(event.active.id as number)
   }
 
-  function onPillPointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    const start = dragStart.current
-    if (!start) return
-    const dx = event.clientX - start.x
-    if (!dragRef.current) {
-      if (Math.abs(dx) < DRAG_THRESHOLD) return
-      event.currentTarget.setPointerCapture(event.pointerId)
-      setDrag({ id: start.id, from: start.index, to: start.index })
-    }
-    // cap travel to the strip: the pill can never leave the valid slot range,
-    // so the visual position always agrees with the index math
-    const clamped = Math.min(
-      (tabs.length - 1 - start.index) * DRAG_STEP,
-      Math.max(-start.index * DRAG_STEP, dx)
+  function onDragEnd(event: DragEndEvent) {
+    setDraggingId(null)
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setTabs((current) =>
+      arrayMove(
+        current,
+        current.findIndex((tab) => tab.id === active.id),
+        current.findIndex((tab) => tab.id === over.id)
+      )
     )
-    if (dragEl.current) dragEl.current.style.transform = `translateX(${clamped}px)`
-    const to = start.index + Math.round(clamped / DRAG_STEP)
-    if (dragRef.current && to !== dragRef.current.to) {
-      setDrag({ ...dragRef.current, to })
-    }
-  }
-
-  function onPillPointerUp() {
-    dragStart.current = null
-    const active = dragRef.current
-    if (!active) return
-    // settle: glide the dragged pill to its slot, then commit the reorder
-    const el = dragEl.current
-    if (el) {
-      el.style.transition = `transform ${SETTLE_MS}ms ease`
-      el.style.transform = `translateX(${(active.to - active.from) * DRAG_STEP}px)`
-    }
-    settleTimer.current = window.setTimeout(() => {
-      settleTimer.current = null
-      setTabs((current) => {
-        const next = [...current]
-        const [moved] = next.splice(active.from, 1)
-        if (moved) next.splice(active.to, 0, moved)
-        return next
-      })
-      setDrag(null)
-      if (el) {
-        el.style.transition = ''
-        el.style.transform = ''
-      }
-    }, SETTLE_MS)
   }
 
   function createTab() {
@@ -550,89 +489,41 @@ function MockTabBar() {
   return (
     <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
       <RansomWordmarkStatic className='shrink-0' />
-      <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-        {tabs.map((tab, index) => {
-          const active = tab.id === activeId
-          const prev = tabs[index - 1]
-          const touchesFocus = (id: number | undefined) =>
-            id !== undefined && (id === activeId || id === hoveredId)
-          const separatorHidden = touchesFocus(prev?.id) || touchesFocus(tab.id)
-          const dragging = drag?.id === tab.id
-          // displaced siblings slide one slot toward the dragged pill's origin
-          let shift = 0
-          if (drag && !dragging) {
-            if (drag.from < drag.to && index > drag.from && index <= drag.to) shift = -DRAG_STEP
-            if (drag.from > drag.to && index >= drag.to && index < drag.from) shift = DRAG_STEP
-          }
-          return (
-            <div key={tab.id} className='flex shrink-0 items-center'>
-              {index > 0 && (
-                <div className='flex w-[13px] shrink-0 items-center justify-center'>
-                  <Separator
-                    orientation='vertical'
-                    className={cn(
-                      'h-4! shrink-0 self-center! transition-opacity duration-150',
-                      (separatorHidden || drag !== null) && 'opacity-0'
-                    )}
-                  />
-                </div>
-              )}
-            <div
-              ref={dragging ? dragEl : undefined}
-              className={cn(
-                'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
-                active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50',
-                dragging && 'z-10 bg-[#2B2C2D] text-foreground'
-              )}
-              style={
-                dragging
-                  ? undefined
-                  : {
-                      transform: shift ? `translateX(${shift}px)` : undefined,
-                      transition: drag ? 'transform 150ms ease' : undefined,
-                    }
-              }
-              onPointerEnter={() => setHoveredId(tab.id)}
-              onPointerLeave={() => setHoveredId(null)}
-              onPointerDown={(event) => onPillPointerDown(event, tab.id, index)}
-              onPointerMove={onPillPointerMove}
-              onPointerUp={onPillPointerUp}
-              onPointerCancel={onPillPointerUp}
-            >
-              <button
-                type='button'
-                aria-label={tab.title}
-                className='absolute inset-0 rounded-md'
-                {...pressHandlers(() => setActiveId(tab.id))}
-              />
-              <MockGlyph state={tab.state} />
-              <span
-                className={cn(
-                  'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
-                  active ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]' : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
-                )}
-              >
-                {tab.title}
-              </span>
-              <button
-                type='button'
-                aria-label='Close tab'
-                onClick={(event) => {
-                  event.stopPropagation()
-                  closeTab(tab.id)
-                }}
-                className={cn(
-                  'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
-                  active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                )}
-              >
-                <XIcon className='size-3.5' />
-              </button>
-            </div>
-            </div>
-          )
-        })}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToHorizontalAxis, restrictToParentElement]}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setDraggingId(null)}
+      >
+        <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+          <SortableContext
+            items={tabs.map((tab) => tab.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {tabs.map((tab, index) => {
+              const prev = tabs[index - 1]
+              const touchesFocus = (id: number | undefined) =>
+                id !== undefined && (id === activeId || id === hoveredId)
+              return (
+                <MockPill
+                  key={tab.id}
+                  tab={tab}
+                  showSeparator={index > 0}
+                  separatorHidden={
+                    touchesFocus(prev?.id) || touchesFocus(tab.id) || draggingId !== null
+                  }
+                  active={tab.id === activeId}
+                  onSelect={() => setActiveId(tab.id)}
+                  onClose={() => closeTab(tab.id)}
+                  onHover={setHoveredId}
+                />
+              )
+            })}
+          </SortableContext>
+        </div>
+      </DndContext>
       <Button
         variant='ghost'
         size='icon'
@@ -643,6 +534,92 @@ function MockTabBar() {
         <PlusIcon />
       </Button>
       <div className='min-w-0 flex-1' />
+    </div>
+  )
+}
+
+function MockPill({
+  tab,
+  showSeparator,
+  separatorHidden,
+  active,
+  onSelect,
+  onClose,
+  onHover,
+}: {
+  tab: MockTab
+  showSeparator: boolean
+  separatorHidden: boolean
+  active: boolean
+  onSelect: () => void
+  onClose: () => void
+  onHover: (id: number | null) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: tab.id,
+    transition: { duration: 160, easing: 'ease' },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn('flex shrink-0 items-center', isDragging && 'z-10')}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+    >
+      {showSeparator && (
+        <div className='flex w-[13px] shrink-0 items-center justify-center'>
+          <Separator
+            orientation='vertical'
+            className={cn(
+              'h-4! shrink-0 self-center! transition-opacity duration-150',
+              separatorHidden && 'opacity-0'
+            )}
+          />
+        </div>
+      )}
+      <div
+        className={cn(
+          'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+          active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50',
+          isDragging && 'bg-[#2B2C2D] text-foreground'
+        )}
+        onPointerEnter={() => onHover(tab.id)}
+        onPointerLeave={() => onHover(null)}
+      >
+        <button
+          type='button'
+          aria-label={tab.title}
+          className='absolute inset-0 rounded-md'
+          {...pressHandlers(onSelect)}
+        />
+        <MockGlyph state={tab.state} />
+        <span
+          className={cn(
+            'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
+            active
+              ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+              : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+          )}
+        >
+          {tab.title}
+        </span>
+        <button
+          type='button'
+          aria-label='Close tab'
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          className={cn(
+            'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
+            active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}
+        >
+          <XIcon className='size-3.5' />
+        </button>
+      </div>
     </div>
   )
 }
