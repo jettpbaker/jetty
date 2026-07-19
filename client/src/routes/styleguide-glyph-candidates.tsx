@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import {
   BellRingingIcon,
+  ExclamationMarkIcon,
   ChatCircleDotsIcon,
   HandPalmIcon,
   type Icon,
@@ -32,6 +33,7 @@ const AWAITING: Array<{ caption: string; node: ReactNode }> = [
 ]
 
 const ERROR: Array<{ caption: string; node: ReactNode }> = [
+  { caption: 'exclamation mark', node: glyph(ExclamationMarkIcon, 'text-destructive') },
   { caption: 'warning (current interim)', node: glyph(WarningIcon, 'text-destructive') },
   { caption: 'warning circle', node: glyph(WarningCircleIcon, 'text-destructive') },
   { caption: 'warning octagon', node: glyph(WarningOctagonIcon, 'text-destructive') },
