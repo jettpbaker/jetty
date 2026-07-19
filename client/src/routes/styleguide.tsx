@@ -12,8 +12,9 @@ import {
   SpinnerIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { pressHandlers } from '@/lib/press-handlers'
 import { createFileRoute } from '@tanstack/react-router'
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ReactNode, useRef, useState } from 'react'
 
 export const Route = createFileRoute('/styleguide')({
   component: StyleguidePage,
@@ -370,6 +371,137 @@ function JettSleepingLab() {
   )
 }
 
+// Fully interactive mock of the tab bar wearing the jett treatment: create,
+// select, close — all local state; each new tab rolls a random glyph state.
+type MockState = 'sleeping' | 'running' | 'draft' | 'open' | 'merged'
+type MockTab = { id: number; title: string; state: MockState }
+
+const MOCK_STATES: MockState[] = ['sleeping', 'running', 'draft', 'open', 'merged']
+const MOCK_TITLES = [
+  'Vue perf exploration',
+  'fix ci',
+  'investigate flaky websocket reconnect',
+  'migrate settings to zod',
+  'tab bar polish',
+  'approval card design',
+  'boot flash fix',
+  'diff viewer spike',
+]
+
+function MockGlyph({ state }: { state: MockState }) {
+  switch (state) {
+    case 'sleeping':
+      return (
+        <MoonIcon
+          weight='fill'
+          className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
+        />
+      )
+    case 'running':
+      return (
+        <SpinnerIcon
+          weight='bold'
+          className='size-[18px] shrink-0 animate-spin text-muted-foreground'
+        />
+      )
+    case 'draft':
+      return <GitPullRequestIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground' />
+    case 'open':
+      return <GitPullRequestIcon weight='bold' className='size-[18px] shrink-0 text-green-500' />
+    case 'merged':
+      return <GitMergeIcon weight='bold' className='size-[18px] shrink-0 text-purple-400' />
+  }
+}
+
+function randomOf<T>(list: T[]): T {
+  return list[Math.floor(Math.random() * list.length)]!
+}
+
+function MockTabBar() {
+  const nextId = useRef(3)
+  const [tabs, setTabs] = useState<MockTab[]>([
+    { id: 0, title: 'Vue perf exploration', state: 'sleeping' },
+    { id: 1, title: 'fix ci', state: 'running' },
+    { id: 2, title: 'approval card design', state: 'open' },
+  ])
+  const [activeId, setActiveId] = useState(0)
+
+  function createTab() {
+    const tab: MockTab = {
+      id: nextId.current++,
+      title: randomOf(MOCK_TITLES),
+      state: randomOf(MOCK_STATES),
+    }
+    setTabs((current) => [...current, tab])
+    setActiveId(tab.id)
+  }
+
+  function closeTab(id: number) {
+    const index = tabs.findIndex((tab) => tab.id === id)
+    const remaining = tabs.filter((tab) => tab.id !== id)
+    setTabs(remaining)
+    if (id === activeId && remaining.length > 0) {
+      const neighbor = remaining[Math.min(index, remaining.length - 1)]!
+      setActiveId(neighbor.id)
+    }
+  }
+
+  return (
+    <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
+      <RansomWordmarkStatic />
+      <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        {tabs.map((tab) => {
+          const active = tab.id === activeId
+          return (
+            <div
+              key={tab.id}
+              className={cn(
+                'group relative flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+                active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
+              )}
+            >
+              <button
+                type='button'
+                aria-label={tab.title}
+                className='absolute inset-0 rounded-md'
+                {...pressHandlers(() => setActiveId(tab.id))}
+              />
+              <MockGlyph state={tab.state} />
+              <span className='pointer-events-none relative min-w-0 flex-1 truncate text-left'>
+                {tab.title}
+              </span>
+              <button
+                type='button'
+                aria-label='Close tab'
+                onClick={(event) => {
+                  event.stopPropagation()
+                  closeTab(tab.id)
+                }}
+                className={cn(
+                  'relative z-10 -mr-1 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
+                  active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                )}
+              >
+                <XIcon className='size-3.5' />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      <Button
+        variant='ghost'
+        size='icon'
+        className='size-8 shrink-0'
+        aria-label='New tab'
+        {...pressHandlers(createTab)}
+      >
+        <PlusIcon />
+      </Button>
+      <div className='min-w-0 flex-1' />
+    </div>
+  )
+}
+
 function StyleguidePage() {
   return (
     <div className='h-full overflow-y-auto'>
@@ -383,6 +515,10 @@ function StyleguidePage() {
               <>
                 <JettIconLab />
                 <JettSleepingLab />
+                <section className='flex flex-col gap-4'>
+                  <TreatmentLabel name='jett · interactive mock bar' />
+                  <MockTabBar />
+                </section>
               </>
             )}
           </Fragment>
