@@ -15,7 +15,7 @@ import {
 } from '@phosphor-icons/react'
 import { pressHandlers } from '@/lib/press-handlers'
 import { createFileRoute } from '@tanstack/react-router'
-import { Fragment, type ReactNode, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 
 export const Route = createFileRoute('/styleguide')({
   component: StyleguidePage,
@@ -418,6 +418,11 @@ function randomOf<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)]!
 }
 
+// One slot in the strip: pill (176) + gap (6) + separator (1) + gap (6).
+const DRAG_STEP = 189
+const DRAG_THRESHOLD = 5
+const SETTLE_MS = 160
+
 function MockTabBar() {
   const nextId = useRef(3)
   const [tabs, setTabs] = useState<MockTab[]>([
@@ -427,6 +432,76 @@ function MockTabBar() {
   ])
   const [activeId, setActiveId] = useState(0)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+
+  // Drag state lives in a ref (pointermove reads it without stale closures)
+  // and mirrors to state for rendering the sibling shifts.
+  const dragRef = useRef<{ id: number; from: number; to: number } | null>(null)
+  const [drag, setDragState] = useState<{ id: number; from: number; to: number } | null>(null)
+  const dragStart = useRef<{ x: number; id: number; index: number } | null>(null)
+  const dragEl = useRef<HTMLDivElement | null>(null)
+  const settleTimer = useRef<number | null>(null)
+
+  function setDrag(next: { id: number; from: number; to: number } | null) {
+    dragRef.current = next
+    setDragState(next)
+  }
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current) window.clearTimeout(settleTimer.current)
+    },
+    []
+  )
+
+  function onPillPointerDown(event: React.PointerEvent, id: number, index: number) {
+    if (event.button !== 0 || settleTimer.current) return
+    dragStart.current = { x: event.clientX, id, index }
+  }
+
+  function onPillPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const start = dragStart.current
+    if (!start) return
+    const dx = event.clientX - start.x
+    if (!dragRef.current) {
+      if (Math.abs(dx) < DRAG_THRESHOLD) return
+      event.currentTarget.setPointerCapture(event.pointerId)
+      setDrag({ id: start.id, from: start.index, to: start.index })
+    }
+    if (dragEl.current) dragEl.current.style.transform = `translateX(${dx}px)`
+    const to = Math.min(
+      tabs.length - 1,
+      Math.max(0, start.index + Math.round(dx / DRAG_STEP))
+    )
+    if (dragRef.current && to !== dragRef.current.to) {
+      setDrag({ ...dragRef.current, to })
+    }
+  }
+
+  function onPillPointerUp() {
+    dragStart.current = null
+    const active = dragRef.current
+    if (!active) return
+    // settle: glide the dragged pill to its slot, then commit the reorder
+    const el = dragEl.current
+    if (el) {
+      el.style.transition = `transform ${SETTLE_MS}ms ease`
+      el.style.transform = `translateX(${(active.to - active.from) * DRAG_STEP}px)`
+    }
+    settleTimer.current = window.setTimeout(() => {
+      settleTimer.current = null
+      setTabs((current) => {
+        const next = [...current]
+        const [moved] = next.splice(active.from, 1)
+        if (moved) next.splice(active.to, 0, moved)
+        return next
+      })
+      setDrag(null)
+      if (el) {
+        el.style.transition = ''
+        el.style.transform = ''
+      }
+    }, SETTLE_MS)
+  }
 
   function createTab() {
     const tab: MockTab = {
@@ -458,6 +533,13 @@ function MockTabBar() {
           const touchesFocus = (id: number | undefined) =>
             id !== undefined && (id === activeId || id === hoveredId)
           const separatorHidden = touchesFocus(prev?.id) || touchesFocus(tab.id)
+          const dragging = drag?.id === tab.id
+          // displaced siblings slide one slot toward the dragged pill's origin
+          let shift = 0
+          if (drag && !dragging) {
+            if (drag.from < drag.to && index > drag.from && index <= drag.to) shift = -DRAG_STEP
+            if (drag.from > drag.to && index >= drag.to && index < drag.from) shift = DRAG_STEP
+          }
           return (
             <Fragment key={tab.id}>
               {index > 0 && (
@@ -465,17 +547,31 @@ function MockTabBar() {
                   orientation='vertical'
                   className={cn(
                     'h-4! shrink-0 self-center! transition-opacity duration-150',
-                    separatorHidden && 'opacity-0'
+                    (separatorHidden || drag !== null) && 'opacity-0'
                   )}
                 />
               )}
             <div
+              ref={dragging ? dragEl : undefined}
               className={cn(
                 'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
-                active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
+                active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50',
+                dragging && 'z-10 bg-[#2B2C2D] text-foreground'
               )}
+              style={
+                dragging
+                  ? undefined
+                  : {
+                      transform: shift ? `translateX(${shift}px)` : undefined,
+                      transition: drag ? 'transform 150ms ease' : undefined,
+                    }
+              }
               onPointerEnter={() => setHoveredId(tab.id)}
               onPointerLeave={() => setHoveredId(null)}
+              onPointerDown={(event) => onPillPointerDown(event, tab.id, index)}
+              onPointerMove={onPillPointerMove}
+              onPointerUp={onPillPointerUp}
+              onPointerCancel={onPillPointerUp}
             >
               <button
                 type='button'
