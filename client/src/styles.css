@@ -134,16 +134,34 @@
 }
 
 /* draft -> thread: whole-frame blur dissolve (instant swap when unsupported) */
+/* blur leads, opacity trails — otherwise the fade perceptually swallows the
+   defocus and it reads as a plain crossfade */
 @keyframes vt-blur-out {
-  to {
+  0% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  45% {
+    opacity: 0.65;
+    filter: blur(14px);
+  }
+  100% {
     opacity: 0;
-    filter: blur(12px);
+    filter: blur(28px);
   }
 }
 @keyframes vt-blur-in {
-  from {
+  0% {
     opacity: 0;
-    filter: blur(12px);
+    filter: blur(28px);
+  }
+  55% {
+    opacity: 0.9;
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
   }
 }
 /* only the content pane dissolves; the sidebar (root) swaps untouched */
@@ -151,11 +169,13 @@
 ::view-transition-new(root) {
   animation: none;
 }
+/* focus pull: old frame exits fast (ease-in), new frame decelerates into
+   sharpness (strong ease-out) over roughly twice the exit's duration */
 ::view-transition-old(content) {
-  animation: vt-blur-out 240ms ease both;
+  animation: vt-blur-out 250ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 ::view-transition-new(content) {
-  animation: vt-blur-in 240ms ease both;
+  animation: vt-blur-in 500ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

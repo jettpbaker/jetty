@@ -103,7 +103,7 @@ export const DEFAULT_GLOW_CONFIG: GlowConfig = {
   kernel: {
     gain: 22,
     falloffPower: 1.35,
-    absorptionPx: 260,
+    absorptionPx: 330,
     emitterRadiusPx: 6,
   },
   rim: {
@@ -119,7 +119,7 @@ export const DEFAULT_GLOW_CONFIG: GlowConfig = {
   },
   bloom: {
     enabled: true,
-    weight: 0.1,
+    weight: 0.06,
   },
   quality: 'balanced',
   maxFps: 60,

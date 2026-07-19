@@ -237,8 +237,9 @@ void main() {
   // dither, gated by luminance so pure darkness stays untouched (the canvas
   // is additive — unconditional dither would sprinkle the whole page)
   float lum = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
-  float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-  finalColor += (noise - 0.5) / 255.0 * min(1.0, lum * 40.0);
+  float n1 = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  float n2 = fract(52.9829189 * fract(dot(gl_FragCoord.xy + 17.13, vec2(0.00583715, 0.06711056))));
+  finalColor += (n1 + n2 - 1.0) / 255.0 * min(1.0, lum * 40.0);
 
   // premultiplied compositing: alpha = max channel keeps the premultiplied
   // constraint valid (rgb <= a) while staying near-additive over a dark page.
@@ -759,7 +760,7 @@ export class GlowEngine {
     const blur = programs.blur
     gl.useProgram(blur)
     gl.uniform1i(this.loc(blur, 'u_tex'), 0)
-    for (const i of [1, 3, 5]) {
+    for (const i of [1, 3, 4]) {
       const level = this.chain[i]!
       const ping = this.pings[i]!
       gl.uniform2f(this.loc(blur, 'u_resDst'), level.w, level.h)
@@ -776,9 +777,9 @@ export class GlowEngine {
     gl.useProgram(combine)
     gl.uniform1i(this.loc(combine, 'u_texA'), 0)
     gl.uniform1i(this.loc(combine, 'u_texB'), 1)
-    gl.uniform1f(this.loc(combine, 'u_w'), 0.8)
-    let acc = this.chain[5]!
-    for (let i = 4; i >= 1; i--) {
+    gl.uniform1f(this.loc(combine, 'u_w'), 0.7)
+    let acc = this.chain[4]!
+    for (let i = 3; i >= 1; i--) {
       const level = this.chain[i]!
       const ping = this.pings[i]!
       gl.uniform2f(this.loc(combine, 'u_resDst'), level.w, level.h)

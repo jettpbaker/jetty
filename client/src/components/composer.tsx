@@ -28,6 +28,11 @@ function chatStatus(status: SessionStatus): ChatStatus {
   return status === 'running' || status === 'starting' ? 'streaming' : 'ready'
 }
 
+// One composer shell everywhere: the draft's flush-black slab. Draft defines
+// its edge with light; thread composers are the same object, lights off.
+const composerShell =
+  'rounded-lg [&_[data-slot=input-group]]:border-transparent! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
+
 function AttachButton() {
   const attachments = usePromptInputAttachments()
   return (
@@ -69,20 +74,22 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
   }
 
   return (
-    <PromptInputProvider validateFiles={acceptImages}>
-      <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-        <Attachments />
-        <PromptInputTextarea placeholder='Message the agent…' />
-        <PromptInputFooter>
-          <AttachButton />
-          <PromptInputSubmit
-            className='ml-auto'
-            status={chatStatus(status)}
-            onClick={handleSubmitClick}
-          />
-        </PromptInputFooter>
-      </PromptInput>
-    </PromptInputProvider>
+    <div className={composerShell}>
+      <PromptInputProvider validateFiles={acceptImages}>
+        <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
+          <Attachments />
+          <PromptInputTextarea placeholder='Message the agent…' />
+          <PromptInputFooter>
+            <AttachButton />
+            <PromptInputSubmit
+              className='ml-auto'
+              status={chatStatus(status)}
+              onClick={handleSubmitClick}
+            />
+          </PromptInputFooter>
+        </PromptInput>
+      </PromptInputProvider>
+    </div>
   )
 }
 
@@ -102,32 +109,34 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
   }
 
   return (
-    <PromptInputProvider initialInput={pending.text} validateFiles={acceptImages}>
-      <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-        {pending.attachments.length > 0 && (
-          <div className='flex flex-wrap gap-2 p-2'>
-            {pending.attachments.map((attachment) => (
-              <img
-                key={attachment.dataUrl.slice(-24) + attachment.name}
-                src={attachment.dataUrl}
-                alt={attachment.name}
-                className='max-h-16 rounded-md border'
-              />
-            ))}
-          </div>
-        )}
-        <Attachments />
-        <PromptInputTextarea placeholder='Message the agent…' disabled={sending} />
-        <PromptInputFooter>
-          <AttachButton />
-          <PromptInputSubmit
-            className='ml-auto'
-            status={sending ? 'submitted' : 'ready'}
-            disabled={sending}
-          />
-        </PromptInputFooter>
-      </PromptInput>
-    </PromptInputProvider>
+    <div className={composerShell}>
+      <PromptInputProvider initialInput={pending.text} validateFiles={acceptImages}>
+        <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
+          {pending.attachments.length > 0 && (
+            <div className='flex flex-wrap gap-2 p-2'>
+              {pending.attachments.map((attachment) => (
+                <img
+                  key={attachment.dataUrl.slice(-24) + attachment.name}
+                  src={attachment.dataUrl}
+                  alt={attachment.name}
+                  className='max-h-16 rounded-md border'
+                />
+              ))}
+            </div>
+          )}
+          <Attachments />
+          <PromptInputTextarea placeholder='Message the agent…' disabled={sending} />
+          <PromptInputFooter>
+            <AttachButton />
+            <PromptInputSubmit
+              className='ml-auto'
+              status={sending ? 'submitted' : 'ready'}
+              disabled={sending}
+            />
+          </PromptInputFooter>
+        </PromptInput>
+      </PromptInputProvider>
+    </div>
   )
 }
 
@@ -156,10 +165,7 @@ export function DraftComposer({
   }
 
   return (
-    <div
-      ref={glowTargetRef}
-      className='rounded-lg [&_[data-slot=input-group]]:border-transparent! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
-    >
+    <div ref={glowTargetRef} className={composerShell}>
       <PromptInputProvider initialInput={loadDraft(projectId)} validateFiles={acceptImages}>
         <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
           <Attachments />
