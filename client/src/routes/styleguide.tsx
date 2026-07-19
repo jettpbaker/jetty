@@ -336,6 +336,10 @@ const SLEEPING_CANDIDATES: Array<{ caption: string; prefix: ReactNode }> = [
     prefix: <MoonIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
   },
   {
+    caption: 'moon · fill',
+    prefix: <MoonIcon weight='fill' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+  },
+  {
     caption: 'branch (worktree, no PR)',
     prefix: <GitBranchIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
   },
