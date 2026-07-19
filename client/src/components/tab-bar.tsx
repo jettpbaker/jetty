@@ -57,12 +57,14 @@ export function TabBar() {
   const { threadId: activeThreadId, projectId: draftProjectId } = useParams({ strict: false })
   const [newProjectOpen, setNewProjectOpen] = useState(false)
 
-  const soleProject = chrome.projects.length === 1 ? chrome.projects[0] : undefined
   const threadById = new Map(chrome.threads.map((thread) => [thread.id, thread]))
   const openTabs = tabIds
     .map((id) => threadById.get(id))
     .filter((thread): thread is ThreadMeta => thread !== undefined && !thread.archived)
   const openIds = openTabs.map((thread) => thread.id)
+  const activeThread = activeThreadId ? threadById.get(activeThreadId) : undefined
+  const newThreadProjectId =
+    activeThread?.projectId ?? chrome.projects[0]?.id
 
   function openThread(threadId: string) {
     tabsStore.open(threadId)
@@ -162,42 +164,23 @@ export function TabBar() {
             <span className='max-w-40 truncate'>New thread</span>
           </div>
         )}
+        <IconTip label='New thread'>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='size-8 shrink-0'
+            aria-label='New thread'
+            disabled={newThreadProjectId === undefined}
+            {...(newThreadProjectId
+              ? pressHandlers(() => newThread(newThreadProjectId))
+              : {})}
+          >
+            <PlusIcon />
+          </Button>
+        </IconTip>
       </div>
 
       <div className='flex shrink-0 items-center gap-1'>
-        {chrome.projects.length <= 1 ? (
-          <IconTip label='New thread'>
-            <Button
-              variant='ghost'
-              size='icon'
-              aria-label='New thread'
-              disabled={soleProject === undefined}
-              {...(soleProject ? pressHandlers(() => newThread(soleProject.id)) : {})}
-            >
-              <PlusIcon />
-            </Button>
-          </IconTip>
-        ) : (
-          <DropdownMenu>
-            <IconTip label='New thread'>
-              <DropdownMenuTrigger
-                render={
-                  <Button variant='ghost' size='icon' aria-label='New thread'>
-                    <PlusIcon />
-                  </Button>
-                }
-              />
-            </IconTip>
-            <DropdownMenuContent align='end'>
-              {chrome.projects.map((project) => (
-                <DropdownMenuItem key={project.id} onClick={() => newThread(project.id)}>
-                  {project.title}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
         <DropdownMenu>
           <IconTip label='All threads'>
             <DropdownMenuTrigger
