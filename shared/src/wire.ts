@@ -13,6 +13,10 @@ export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 export const PermissionMode = z.enum(['auto', 'full_access', 'plan'])
 export type PermissionMode = z.infer<typeof PermissionMode>
 
+/** Claude Code reasoning-effort levels (xhigh/max are model-dependent). */
+export const EffortLevel = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
+export type EffortLevel = z.infer<typeof EffortLevel>
+
 export const Project = z.object({
   id: z.string(),
   path: z.string(),
@@ -89,6 +93,7 @@ export const methods = {
       text: z.string(),
       attachments: z.array(UploadAttachment).max(MAX_IMAGES_PER_TURN).optional(),
       model: z.string().optional(),
+      effort: EffortLevel.optional(),
       permissionMode: PermissionMode.optional(),
     }),
     result: z.object({ turnId: z.string() }),

@@ -273,6 +273,7 @@ export function createClaudeAdapter(store: Store): Agent {
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       settingSources: ['user', 'project', 'local'],
       model: input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL,
+      effort: input.effort,
       permissionMode,
       allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
       includePartialMessages: true,

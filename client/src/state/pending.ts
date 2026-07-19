@@ -2,6 +2,7 @@ import type { UploadAttachment } from '@jetty/shared/wire'
 
 import { socket, timelineStore } from '@/app-state'
 import { clearDraft } from '@/lib/draft'
+import { composerPrefs } from '@/state/composer-prefs'
 import { toast } from 'sonner'
 
 /** A first turn in flight: the thread doesn't exist on the server yet. */
@@ -60,7 +61,15 @@ export async function sendFirstTurn({
   try {
     await socket.request('thread.create', { id: threadId, projectId })
     timelineStore.openThread(threadId)
-    await socket.request('turn.start', { threadId, text, attachments })
+    const prefs = composerPrefs.getSnapshot()
+    await socket.request('turn.start', {
+      threadId,
+      text,
+      attachments,
+      model: prefs.model.id,
+      effort: prefs.effort.id,
+      permissionMode: prefs.approval.id,
+    })
     pendingSends.clear(threadId)
     clearDraft(threadId)
   } catch (error) {

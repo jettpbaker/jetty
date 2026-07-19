@@ -101,6 +101,7 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
           text: p.text,
           attachments: p.attachments,
           model: p.model,
+          effort: p.effort,
           permissionMode: p.permissionMode,
         })
       }

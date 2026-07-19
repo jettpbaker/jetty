@@ -1,6 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import type { PermissionMode, UploadAttachment } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
@@ -16,6 +16,7 @@ export type TurnInput = {
   text: string
   images?: AgentImage[]
   model?: string
+  effort?: EffortLevel
   permissionMode?: PermissionMode
 }
 

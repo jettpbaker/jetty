@@ -1,6 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
-import type { PermissionMode, UploadAttachment } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
@@ -21,6 +21,7 @@ export type StartTurnInput = {
   text: string
   attachments?: UploadAttachment[]
   model?: string
+  effort?: EffortLevel
   permissionMode?: PermissionMode
 }
 
@@ -132,6 +133,7 @@ export function createOrchestrator(
               text: input.text,
               images: saved.images,
               model: input.model,
+              effort: input.effort,
               permissionMode: input.permissionMode,
             },
             emitFor(input.threadId)
