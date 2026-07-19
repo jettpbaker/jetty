@@ -4,7 +4,17 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
+/* Streamdown + plugins — Tailwind must see their utility classes */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
+
 @custom-variant dark (&:is(.dark *));
+
+/* The one type-scale knob: everything (text and spacing) is rem-based, so
+   this zooms the whole UI proportionally. Default is 16px. */
+html {
+  font-size: 17px;
+}
 
 @font-face {
   font-family: 'Geist Pixel Square';
@@ -45,6 +55,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
+  --color-code-glow: var(--code-glow);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -89,6 +102,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Inline code chip: warm ember on warm near-black, same in both themes.
+     --code-glow is the brightened ember for luminous accents (shimmer bands). */
+  --code: #1b130f;
+  --code-foreground: #e38d65;
+  --code-glow: #f2a67e;
 }
 
 /* Dark: the chrome scale. Three cool-tinted grays (each channel stepping

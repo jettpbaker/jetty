@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils'
 import { BrainIcon, CaretDownIcon } from '@phosphor-icons/react'
 import { createContext, memo, useContext, useEffect, useState } from 'react'
 
-import { Shimmer } from './shimmer'
 
 type ReasoningContextValue = {
   isStreaming: boolean
@@ -113,7 +112,7 @@ export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger> & 
 
 const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>
+    return <p className='shimmer shimmer-duration-1000'>Thinking...</p>
   }
   if (duration === undefined) {
     return <p>Thought for a few seconds</p>

@@ -16,7 +16,7 @@ import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, useRef, useState } from 'react'
-import { AgentUiLab } from './styleguide-agent-lab'
+import { ChatLab } from './styleguide-chat-lab'
 import { ComposerLab } from './styleguide-composer-lab'
 import { StreamingLab } from './styleguide-streaming-lab'
 
@@ -300,11 +300,11 @@ function MockTabBar() {
   )
 }
 
-type StyleguideTab = 'tabs' | 'agent' | 'streaming' | 'composer'
+type StyleguideTab = 'tabs' | 'chat' | 'streaming' | 'composer'
 
 const STYLEGUIDE_TABS: Array<{ id: StyleguideTab; label: string }> = [
   { id: 'tabs', label: 'Tab lab' },
-  { id: 'agent', label: 'Agent UI lab' },
+  { id: 'chat', label: 'Chat lab' },
   { id: 'streaming', label: 'Streaming' },
   { id: 'composer', label: 'Composer lab' },
 ]
@@ -363,7 +363,7 @@ function TabLab() {
 }
 
 function StyleguidePage() {
-  const [tab, setTab] = useState<StyleguideTab>('streaming')
+  const [tab, setTab] = useState<StyleguideTab>('chat')
 
   return (
     <div className='flex h-full flex-col overflow-hidden'>
@@ -371,8 +371,8 @@ function StyleguidePage() {
       <div className='min-h-0 flex-1 overflow-y-auto' role='tabpanel'>
         {tab === 'tabs' ? (
           <TabLab />
-        ) : tab === 'agent' ? (
-          <AgentUiLab />
+        ) : tab === 'chat' ? (
+          <ChatLab />
         ) : tab === 'streaming' ? (
           <StreamingLab />
         ) : (
