@@ -7,14 +7,12 @@ export type EffortOption = { id: EffortLevel; label: string }
 export type ModelOption = { id: string; label: string; efforts: EffortOption[] }
 export type ApprovalOption = { id: PermissionMode; label: string }
 
-const LOW_TO_HIGH: EffortOption[] = [
+// effort is an Opus 4.6+/Sonnet 4.6+ capability; Haiku ignores it entirely
+// (verified: CLAUDE_EFFORT is unset on Haiku turns)
+const LOW_TO_MAX: EffortOption[] = [
   { id: 'low', label: 'Low' },
   { id: 'medium', label: 'Medium' },
   { id: 'high', label: 'High' },
-]
-// xhigh/max exist only on Opus 4.6+/Sonnet 4.6+ tiers
-const LOW_TO_MAX: EffortOption[] = [
-  ...LOW_TO_HIGH,
   { id: 'xhigh', label: 'XHigh' },
   { id: 'max', label: 'Max' },
 ]
@@ -22,7 +20,7 @@ const LOW_TO_MAX: EffortOption[] = [
 export const MODELS: ModelOption[] = [
   { id: 'claude-opus-4-8', label: 'Opus 4.8', efforts: LOW_TO_MAX },
   { id: 'claude-sonnet-5', label: 'Sonnet 5', efforts: LOW_TO_MAX },
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', efforts: LOW_TO_HIGH },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', efforts: [] },
 ]
 
 export const APPROVAL_MODES: ApprovalOption[] = [
@@ -33,7 +31,8 @@ export const APPROVAL_MODES: ApprovalOption[] = [
 
 export type ComposerPrefs = {
   model: ModelOption
-  effort: EffortOption
+  /** null for models without effort support */
+  effort: EffortOption | null
   approval: ApprovalOption
 }
 
@@ -41,7 +40,7 @@ function createComposerPrefs() {
   // Haiku keeps dev turns cheap until a model is deliberately chosen.
   let prefs: ComposerPrefs = {
     model: MODELS[2] ?? MODELS[0]!,
-    effort: LOW_TO_HIGH[1]!,
+    effort: null,
     approval: APPROVAL_MODES[0]!,
   }
   const listeners = new Set<() => void>()

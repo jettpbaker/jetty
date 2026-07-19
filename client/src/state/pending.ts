@@ -67,7 +67,7 @@ export async function sendFirstTurn({
       text,
       attachments,
       model: prefs.model.id,
-      effort: prefs.effort.id,
+      effort: prefs.effort?.id,
       permissionMode: prefs.approval.id,
     })
     pendingSends.clear(threadId)

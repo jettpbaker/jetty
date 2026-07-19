@@ -114,28 +114,40 @@ export function ComposerFooter({
                 className='group/model gap-1.5 text-foreground hover:bg-transparent!'
               >
                 {prefs.model.label}
-                <span className='text-muted-foreground transition-colors group-hover/model:text-foreground'>
-                  {prefs.effort.label}
-                </span>
+                {prefs.effort && (
+                  <span className='text-muted-foreground transition-colors group-hover/model:text-foreground'>
+                    {prefs.effort.label}
+                  </span>
+                )}
               </PromptInputButton>
             }
           />
           <DropdownMenuContent align='end'>
-            {MODELS.map((model) => (
-              <DropdownMenuSub key={model.id}>
-                <DropdownMenuSubTrigger>{model.label}</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {model.efforts.map((effort) => (
-                    <DropdownMenuItem
-                      key={effort.id}
-                      onClick={() => composerPrefs.set({ model, effort })}
-                    >
-                      {effort.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            ))}
+            {MODELS.map((model) =>
+              model.efforts.length === 0 ? (
+                // no effort support → direct select
+                <DropdownMenuItem
+                  key={model.id}
+                  onClick={() => composerPrefs.set({ model, effort: null })}
+                >
+                  {model.label}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuSub key={model.id}>
+                  <DropdownMenuSubTrigger>{model.label}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {model.efforts.map((effort) => (
+                      <DropdownMenuItem
+                        key={effort.id}
+                        onClick={() => composerPrefs.set({ model, effort })}
+                      >
+                        {effort.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         <PromptInputSubmit status={status} disabled={disabled} onClick={onSubmitClick} />
@@ -149,7 +161,7 @@ export function turnPrefs() {
   const prefs = composerPrefs.getSnapshot()
   return {
     model: prefs.model.id,
-    effort: prefs.effort.id,
+    effort: prefs.effort?.id,
     permissionMode: prefs.approval.id,
   }
 }
