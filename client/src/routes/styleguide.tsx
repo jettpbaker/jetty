@@ -8,7 +8,14 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { restrictToHorizontalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
-import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
+import {
+  type AnimateLayoutChanges,
+  arrayMove,
+  defaultAnimateLayoutChanges,
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
@@ -538,6 +545,11 @@ function MockTabBar() {
   )
 }
 
+// Without a DragOverlay, dnd-kit skips animating the released item into its
+// slot by default — this opts the drop into the same glide the siblings get.
+const animateDropToo: AnimateLayoutChanges = (args) =>
+  defaultAnimateLayoutChanges({ ...args, wasDragging: true })
+
 function MockPill({
   tab,
   showSeparator,
@@ -557,7 +569,8 @@ function MockPill({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
-    transition: { duration: 160, easing: 'ease' },
+    transition: { duration: 200, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+    animateLayoutChanges: animateDropToo,
   })
 
   return (
