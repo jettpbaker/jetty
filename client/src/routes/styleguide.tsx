@@ -569,7 +569,9 @@ function MockPill({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
-    transition: { duration: 280, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
+    // plain `ease` is the flow: its slow start reads as give, where
+    // decelerating curves launch at max velocity and read as a magnet
+    transition: { duration: 150, easing: 'ease' },
     animateLayoutChanges: animateDropToo,
   })
 
@@ -581,8 +583,10 @@ function MockPill({
       {...attributes}
       {...listeners}
     >
-      {showSeparator && (
-        <div className='flex w-[13px] shrink-0 items-center justify-center'>
+      {/* every cell gets the zone — uniform widths keep dnd-kit's rect math
+          honest (uneven cells made it scale the dragged pill) */}
+      <div className='flex w-[13px] shrink-0 items-center justify-center'>
+        {showSeparator && (
           <Separator
             orientation='vertical'
             className={cn(
@@ -590,8 +594,8 @@ function MockPill({
               separatorHidden && 'opacity-0'
             )}
           />
-        </div>
-      )}
+        )}
+      </div>
       <div
         className={cn(
           'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
