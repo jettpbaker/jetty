@@ -169,7 +169,7 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
   }, [hostRef])
 }
 
-export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number; className?: string }) {
+export function RansomWordmark({ lineH = 96, className = '' }: { lineH?: number; className?: string }) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
   const [revealed, setRevealed] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -202,7 +202,7 @@ export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number;
     <div
       ref={hostRef}
       className={`flex cursor-pointer select-none items-center justify-center ${className}`}
-      style={{ gap: `${lineH * 0.06}px` }}
+      style={{ gap: `${lineH * 0.14}px` }}
       {...pressHandlers(reroll)}
     >
       <span className='sr-only'>Jetty</span>
