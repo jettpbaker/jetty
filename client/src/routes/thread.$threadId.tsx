@@ -1,7 +1,6 @@
-import { timelineStore } from '@/app-state'
+import { tabsStore, timelineStore } from '@/app-state'
 import { Composer } from '@/components/composer'
 import { Timeline } from '@/components/timeline'
-import { SidebarTrigger } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { pendingSends } from '@/state/pending'
 import { createFileRoute } from '@tanstack/react-router'
@@ -23,6 +22,7 @@ function ThreadPage() {
   }
 
   useEffect(() => {
+    tabsStore.open(threadId)
     timelineStore.openThread(threadId)
     return () => {
       timelineStore.closeThread(threadId)
@@ -35,9 +35,6 @@ function ThreadPage() {
 
   return (
     <div className={cn('flex h-full flex-col', arriveRef.current.arrive && 'page-arrive')}>
-      <header className='flex h-12 shrink-0 items-center border-b px-2'>
-        <SidebarTrigger />
-      </header>
       <Timeline threadId={threadId} items={state.items} />
       <div className='mx-auto w-full max-w-3xl shrink-0 p-4'>
         <Composer threadId={threadId} status={state.status} />

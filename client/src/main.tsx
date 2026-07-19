@@ -2,7 +2,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { chromeStore, timelineStore } from './app-state'
+import { chromeStore, tabsStore, timelineStore } from './app-state'
 import { syncTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
 import { hydrate } from './state/persist'
@@ -23,7 +23,7 @@ const root = document.getElementById('root')
 if (!root) throw new Error('missing #root')
 
 // Blocks first paint (ms-scale); store guards make races with the socket safe.
-await hydrate(chromeStore, timelineStore)
+await hydrate(chromeStore, tabsStore, timelineStore)
 
 createRoot(root).render(
   <StrictMode>

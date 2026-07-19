@@ -12,10 +12,13 @@ import {
   collectHydration,
   flushPendingWrites,
   parseChromeValue,
+  parseTabsValue,
   parseThreadValue,
   persistChrome,
+  persistTabs,
   persistThread,
 } from './persist'
+import { createTabsStore } from './tabs'
 import { createTimelineStore } from './timeline'
 
 import 'fake-indexeddb/auto'
@@ -98,11 +101,23 @@ describe('persist parse/discard', () => {
     expect(parseThreadValue({ ...good, status: 'not-a-status' })).toBeNull()
   })
 
+  test('parseTabsValue accepts a string array and rejects garbage', () => {
+    expect(parseTabsValue(['thr_1', 'thr_2'])).toEqual(['thr_1', 'thr_2'])
+    expect(parseTabsValue([])).toEqual([])
+    expect(parseTabsValue(null)).toBeNull()
+    expect(parseTabsValue(['thr_1', 3])).toBeNull()
+  })
+
   test('collectHydration discards corrupt keys and keeps valid ones', () => {
     const chrome = sampleChrome()
     const thread = sampleThread()
-    const { chrome: outChrome, threads } = collectHydration([
+    const {
+      chrome: outChrome,
+      tabs,
+      threads,
+    } = collectHydration([
       ['chrome', chrome],
+      ['tabs', ['thr_1']],
       ['thread:thr_1', thread],
       ['thread:thr_bad', { nope: true }],
       ['other', chrome],
@@ -110,8 +125,14 @@ describe('persist parse/discard', () => {
     ])
 
     expect(outChrome).toEqual(chrome)
+    expect(tabs).toEqual(['thr_1'])
     expect(threads.size).toBe(1)
     expect(threads.get('thr_1')).toEqual(thread)
+  })
+
+  test('collectHydration drops a corrupt tabs entry', () => {
+    const { tabs } = collectHydration([['tabs', ['thr_1', 42]]])
+    expect(tabs).toBeNull()
   })
 
   test('collectHydration drops a corrupt chrome entry', () => {
@@ -124,41 +145,47 @@ describe('persist parse/discard', () => {
 })
 
 describe('persist round-trip via IndexedDB', () => {
-  test('persist then hydrate restores chrome and thread state', async () => {
+  test('persist then hydrate restores chrome, tabs, and thread state', async () => {
     const chrome = sampleChrome()
     const thread = sampleThread(5)
 
     persistChrome(chrome)
+    persistTabs(['thr_1', 'thr_2'])
     persistThread('thr_1', thread)
     await flushPendingWrites()
 
     const pairs = await entries()
-    expect(pairs.length).toBe(2)
+    expect(pairs.length).toBe(3)
 
     const socket = mockSocket()
     const chromeStore = createChromeStore(socket)
+    const tabsStore = createTabsStore()
     const timelineStore = createTimelineStore(socket)
 
-    applyHydration(pairs, chromeStore, timelineStore)
+    applyHydration(pairs, chromeStore, tabsStore, timelineStore)
 
     expect(chromeStore.getSnapshot()).toEqual(chrome)
+    expect(tabsStore.getSnapshot()).toEqual(['thr_1', 'thr_2'])
     expect(timelineStore.getSnapshot('thr_1')).toEqual(thread)
   })
 
   test('garbage IDB values are discarded; boot proceeds with empty stores', async () => {
     const { set } = await import('idb-keyval')
     await set('chrome', { projects: 'broken' })
+    await set('tabs', ['thr_1', 99])
     await set('thread:thr_1', { lastSeq: 'nope' })
     await set('thread:thr_2', sampleThread(2))
 
     const pairs = await entries()
     const socket = mockSocket()
     const chromeStore = createChromeStore(socket)
+    const tabsStore = createTabsStore()
     const timelineStore = createTimelineStore(socket)
 
-    applyHydration(pairs, chromeStore, timelineStore)
+    applyHydration(pairs, chromeStore, tabsStore, timelineStore)
 
     expect(chromeStore.getSnapshot()).toEqual({ projects: [], threads: [] })
+    expect(tabsStore.getSnapshot()).toEqual([])
     expect(timelineStore.getSnapshot('thr_1')).toBe(emptyThread)
     expect(timelineStore.getSnapshot('thr_2').lastSeq).toBe(2)
   })
@@ -192,6 +219,19 @@ describe('store hydrate seams', () => {
     const fromServer = store.getSnapshot()
     store.hydrate({ projects: [], threads: [] })
     expect(store.getSnapshot()).toBe(fromServer)
+  })
+
+  test('tabs.hydrate is a no-op after a mutation landed', () => {
+    const store = createTabsStore()
+    store.open('thr_1')
+    store.hydrate(['thr_9'])
+    expect(store.getSnapshot()).toEqual(['thr_1'])
+  })
+
+  test('tabs.hydrate seeds an untouched store', () => {
+    const store = createTabsStore()
+    store.hydrate(['thr_1', 'thr_2'])
+    expect(store.getSnapshot()).toEqual(['thr_1', 'thr_2'])
   })
 
   test('timeline.hydrateThread rejects stale lastSeq', () => {

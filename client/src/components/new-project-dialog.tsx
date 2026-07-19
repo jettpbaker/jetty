@@ -15,11 +15,27 @@ import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { toast } from 'sonner'
 
-export function NewProjectDialog() {
+type NewProjectDialogProps = {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  showTrigger?: boolean
+}
+
+export function NewProjectDialog({
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: NewProjectDialogProps = {}) {
   const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
   const [path, setPath] = useState('')
   const [title, setTitle] = useState('')
+
+  function setOpen(next: boolean) {
+    setOpenState(next)
+    onOpenChange?.(next)
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -41,13 +57,15 @@ export function NewProjectDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant='outline' size='sm' className='w-full'>
-            New project
-          </Button>
-        }
-      />
+      {showTrigger && (
+        <DialogTrigger
+          render={
+            <Button variant='outline' size='sm' className='w-full'>
+              New project
+            </Button>
+          }
+        />
+      )}
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>

@@ -1,5 +1,7 @@
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Button } from '@/components/ui/button'
 import { historyBackWithFallback } from '@/lib/history-back'
+import { pressHandlers } from '@/lib/press-handlers'
+import { ArrowLeftIcon } from '@phosphor-icons/react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect } from 'react'
 
@@ -24,10 +26,16 @@ function SettingsPage() {
   }, [router])
   return (
     <div className='flex h-full flex-col'>
-      <header className='flex h-12 shrink-0 items-center gap-1 border-b px-2'>
-        <SidebarTrigger />
-      </header>
       <div className='p-6'>
+        <Button
+          variant='ghost'
+          size='icon'
+          aria-label='Back'
+          className='-ml-2 mb-2'
+          {...pressHandlers(() => historyBackWithFallback(router))}
+        >
+          <ArrowLeftIcon />
+        </Button>
         <h1 className='font-semibold text-2xl'>Settings</h1>
       </div>
     </div>
