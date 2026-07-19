@@ -230,6 +230,7 @@ export function TabBar() {
           <Button
             variant='ghost'
             size='icon'
+            nativeButton={false}
             render={
               <Link to='/settings' aria-label='Settings'>
                 <GearIcon />
