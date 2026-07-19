@@ -569,7 +569,7 @@ function MockPill({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
-    transition: { duration: 200, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+    transition: { duration: 280, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
     animateLayoutChanges: animateDropToo,
   })
 
