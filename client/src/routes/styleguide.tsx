@@ -96,13 +96,13 @@ function LabPillPrefix({
     case 'jett':
       switch (status) {
         case 'idle':
-          return <GitPullRequestIcon className='size-4 shrink-0 text-muted-foreground' />
+          return <GitPullRequestIcon weight='bold' className='size-4 shrink-0 text-muted-foreground' />
         case 'running':
-          return <SpinnerIcon className='size-4 shrink-0 animate-spin text-muted-foreground' />
+          return <SpinnerIcon weight='bold' className='size-4 shrink-0 animate-spin text-muted-foreground' />
         case 'awaiting_approval':
-          return <GitPullRequestIcon className='size-4 shrink-0 text-green-500' />
+          return <GitPullRequestIcon weight='bold' className='size-4 shrink-0 text-green-500' />
         case 'error':
-          return <GitMergeIcon className='size-4 shrink-0 text-purple-400' />
+          return <GitMergeIcon weight='bold' className='size-4 shrink-0 text-purple-400' />
       }
     case 'letter':
       return <ProjectBadge title={title} />
