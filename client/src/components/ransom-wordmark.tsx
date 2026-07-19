@@ -176,8 +176,15 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
 type Phase = 'hidden' | 'shown'
 
 // Static mini wordmark for chrome (tab bar): same composition and jitter as
-// the draft-page wordmark, none of the motion — it's seen constantly.
+// the draft-page wordmark, none of the motion — it's seen constantly. Uses
+// dedicated pre-shrunk sprites: browser-downscaling the 220px scans ~11x
+// turns them to mush on low-DPR displays.
 const STATIC_SCRAPS = composeWord()
+
+const miniUrls = import.meta.glob('../assets/ransom-mini/*.webp', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>
 
 export function RansomWordmarkStatic({
   lineH = 20,
@@ -197,7 +204,7 @@ export function RansomWordmarkStatic({
         return (
           <img
             key={i}
-            src={spriteUrl(scrap.file)}
+            src={miniUrls[`../assets/ransom-mini/${scrap.file}.webp`] ?? spriteUrl(scrap.file)}
             alt=''
             draggable={false}
             className='w-auto shrink-0'
