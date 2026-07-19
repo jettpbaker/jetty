@@ -26,6 +26,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, useSyncExternalStore, type ReactElement } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
+import { ProjectBadge } from './project-badge'
 
 function statusDotClass(status: SessionStatus): string {
   switch (status) {
@@ -113,7 +114,6 @@ export function TabBar() {
         {openTabs.map((thread) => {
           const active = thread.id === activeThreadId
           const project = chrome.projects.find((p) => p.id === thread.projectId)
-          const projectLetter = project?.title[0]?.toUpperCase() ?? '?'
           return (
             <ContextMenu key={thread.id}>
               <ContextMenuTrigger
@@ -130,9 +130,7 @@ export function TabBar() {
                   className='absolute inset-0 rounded-md'
                   {...pressHandlers(() => openThread(thread.id))}
                 />
-                <span className='pointer-events-none relative font-mono text-[11px] uppercase text-muted-foreground'>
-                  {projectLetter}
-                </span>
+                <ProjectBadge title={project?.title ?? '?'} />
                 <span className='pointer-events-none relative max-w-40 truncate'>
                   {thread.title || thread.id}
                 </span>
@@ -160,10 +158,9 @@ export function TabBar() {
         })}
         {draftProjectId !== undefined && (
           <div className='flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-secondary px-2.5 text-sm text-foreground'>
-            <span className='font-mono text-[11px] uppercase text-muted-foreground'>
-              {chrome.projects.find((p) => p.id === draftProjectId)?.title[0]?.toUpperCase() ??
-                '?'}
-            </span>
+            <ProjectBadge
+              title={chrome.projects.find((p) => p.id === draftProjectId)?.title ?? '?'}
+            />
             <span className='max-w-40 truncate'>New thread</span>
           </div>
         )}
