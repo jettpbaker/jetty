@@ -543,7 +543,7 @@ function MockTabBar() {
 
   return (
     <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
-      <RansomWordmarkStatic />
+      <RansomWordmarkStatic className='shrink-0' />
       <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {tabs.map((tab, index) => {
           const active = tab.id === activeId
