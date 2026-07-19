@@ -161,6 +161,7 @@ export function DraftComposer({
     const attachments = toUploadAttachments(message.files)
     if (!text && attachments.length === 0) return
     glow.burst()
+    glow.dissipate()
     const threadId = newId()
     void navigate({ to: '/thread/$threadId', params: { threadId } })
     void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})

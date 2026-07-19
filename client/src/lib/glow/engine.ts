@@ -278,6 +278,9 @@ export class GlowEngine {
   private rect = { cx: 0, cy: 0, hw: 0, hh: 0, r: 0 }
   private rectDirty = true
   private reducedMotion = false
+  private dissipation: { t0: number; duration: number } | null = null
+  private dissipateTimer: ReturnType<typeof setTimeout> | null = null
+  private frozenWidth: number | null = null
   private focusEase = 0
   private burstState: { t0: number; origin: number } | null = null
   private lastT = 0
@@ -353,6 +356,10 @@ export class GlowEngine {
   detach(): void {
     this.running = false
     if (this.raf) cancelAnimationFrame(this.raf)
+    if (this.dissipateTimer) clearTimeout(this.dissipateTimer)
+    this.dissipateTimer = null
+    this.dissipation = null
+    this.frozenWidth = null
     this.resizeObserver?.disconnect()
     this.intersectionObserver?.disconnect()
     for (const fn of this.cleanups) fn()
@@ -382,6 +389,29 @@ export class GlowEngine {
 
   destroy(): void {
     this.detach()
+  }
+
+  get isDissipating(): boolean {
+    return this.dissipation !== null
+  }
+
+  /** Outlive the owning route: reparent the canvas to <body> at its current
+   *  viewport rect, freeze DOM-derived geometry, decay all light to zero,
+   *  then self-destroy. Call before the container unmounts. */
+  dissipate(durationMs = 650): void {
+    if (!this.canvas || !this.gl || !this.container || this.reducedMotion) {
+      this.destroy()
+      return
+    }
+    const box = this.container.getBoundingClientRect()
+    this.frozenWidth = box.width || 1
+    this.canvas.style.cssText = `position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;z-index:50;pointer-events:none`
+    document.body.appendChild(this.canvas)
+    this.resizeObserver?.disconnect()
+    this.intersectionObserver?.disconnect()
+    this.rectDirty = false
+    this.dissipation = { t0: this.lastT, duration: durationMs / 1000 }
+    this.dissipateTimer = setTimeout(() => this.destroy(), durationMs + 100)
   }
 
   /** Update any knobs at runtime. `ledCount` triggers a shader rebuild. */
@@ -645,8 +675,12 @@ export class GlowEngine {
       st.center = (((st.center + st.vel * dt) % n) + n) % n
     }
 
-    const focused = this.target ? this.target.contains(document.activeElement) : false
-    this.focusEase += ((focused ? 1 : 0) - this.focusEase) * (1 - Math.exp(-dt / 0.25))
+    // Freeze focus color during dissipation — the target is unmounting and
+    // would read as unfocused, snapping the light back to white mid-fade.
+    if (!this.dissipation) {
+      const focused = this.target ? this.target.contains(document.activeElement) : false
+      this.focusEase += ((focused ? 1 : 0) - this.focusEase) * (1 - Math.exp(-dt / 0.25))
+    }
 
     const ringDist = (a: number, b: number) => {
       const d = Math.abs(a - b) % n
@@ -710,7 +744,7 @@ export class GlowEngine {
     }
     this.computeLedColors()
 
-    const containerWidth = this.container!.getBoundingClientRect().width || 1
+    const containerWidth = this.frozenWidth ?? (this.container!.getBoundingClientRect().width || 1)
     const dprScale = this.canvas.width / containerWidth
     const spacing = (2 * (this.rect.hw * 2 + this.rect.hh * 2)) / cfg.ledCount
     const coreHalf = Math.max(0, spacing / 2 - 0.5)
@@ -793,7 +827,10 @@ export class GlowEngine {
     const composite = programs.composite
     gl.useProgram(composite)
     gl.uniform2f(this.loc(composite, 'u_res'), this.canvas.width, this.canvas.height)
-    gl.uniform1f(this.loc(composite, 'u_exposure'), cfg.exposure)
+    const fade = this.dissipation
+      ? Math.max(0, 1 - (tMs / 1000 - this.dissipation.t0) / this.dissipation.duration) ** 1.5
+      : 1
+    gl.uniform1f(this.loc(composite, 'u_exposure'), cfg.exposure * fade)
     gl.uniform1f(this.loc(composite, 'u_grainOn'), cfg.grain.enabled ? 1 : 0)
     gl.uniform1f(this.loc(composite, 'u_grainDepth'), cfg.grain.depth)
     gl.uniform1f(this.loc(composite, 'u_grainScale'), cfg.grain.scalePx)
