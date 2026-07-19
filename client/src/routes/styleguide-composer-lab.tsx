@@ -15,7 +15,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { composerShell } from '@/components/composer'
 import { acceptImages } from '@/lib/attachments'
-import { PaperclipIcon } from '@phosphor-icons/react'
+import { PaperclipIcon, XIcon } from '@phosphor-icons/react'
 import { useRef, useState } from 'react'
 
 // Bench for the composer: every state it can be in, side by side, plus a live
@@ -45,6 +45,49 @@ function Attachments() {
     <PromptInputAttachments>
       {(attachment) => <PromptInputAttachment data={attachment} />}
     </PromptInputAttachments>
+  )
+}
+
+// Image thumbs tucked under the composer top-right edge: peek ~24px, stack left.
+// Must sit inside PromptInputProvider. Newest is nearest the corner and on top
+// of other thumbs; the whole stack stays under the opaque composer shell (z-0).
+function TuckedAttachments() {
+  const { files, remove } = usePromptInputAttachments()
+  const images = files.filter((f) => f.mediaType?.startsWith('image/') && f.url)
+  if (images.length === 0) return null
+
+  // Newest last in files → reverse so index 0 is corner / highest among thumbs.
+  const stack = [...images].reverse()
+
+  return (
+    <div aria-label='Attached images' className='pointer-events-none absolute top-0 right-0 z-0'>
+      {stack.map((file, i) => (
+        <div
+          key={file.id}
+          className='group pointer-events-auto absolute transition-transform duration-150 ease-out hover:-translate-y-2'
+          style={{
+            right: i * 28,
+            top: -24,
+            zIndex: stack.length - i,
+          }}
+        >
+          <img
+            alt={file.filename || 'attachment'}
+            src={file.url}
+            className='h-12 w-16 rounded-md border border-border object-cover shadow-sm'
+            draggable={false}
+          />
+          <button
+            type='button'
+            aria-label={`Remove ${file.filename || 'attachment'}`}
+            onClick={() => remove(file.id)}
+            className='absolute top-0.5 right-0.5 flex size-4 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100'
+          >
+            <XIcon className='size-2.5' />
+          </button>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -132,20 +175,22 @@ function LiveComposer() {
   }
 
   return (
-    <div className={composerShell}>
+    <div className='relative'>
       <PromptInputProvider validateFiles={acceptImages}>
-        <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-          <Attachments />
-          <PromptInputTextarea placeholder='Message the agent…' />
-          <PromptInputFooter>
-            <AttachButton />
-            <PromptInputSubmit
-              className='ml-auto'
-              status={streaming ? 'streaming' : 'ready'}
-              onClick={handleSubmitClick}
-            />
-          </PromptInputFooter>
-        </PromptInput>
+        <TuckedAttachments />
+        <div className={`${composerShell} relative z-10`}>
+          <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
+            <PromptInputTextarea placeholder='Message the agent…' />
+            <PromptInputFooter>
+              <AttachButton />
+              <PromptInputSubmit
+                className='ml-auto'
+                status={streaming ? 'streaming' : 'ready'}
+                onClick={handleSubmitClick}
+              />
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
       </PromptInputProvider>
     </div>
   )
