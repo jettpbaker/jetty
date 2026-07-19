@@ -102,6 +102,8 @@ const STAGGER_MS = 30
 const REPULSE_RADIUS = 150 // px of cursor influence around each scrap
 const REPULSE_PUSH = 22 // max px a scrap gives way
 const EASE_K = 0.14 // per-frame exponential approach toward the target
+const LEAN_DEG_PER_PX = 0.25 // paper tips over as it slides
+const LIFT_MAX = 0.035 // scale gain at full displacement — lifting off the page
 
 // Inverse of the inspo's magnetism: each scrap eases AWAY from the pointer by
 // its own proximity (a per-letter field, not a flat container tilt). The
@@ -143,7 +145,11 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
         s.x += (tx - s.x) * EASE_K
         s.y += (ty - s.y) * EASE_K
         if (Math.abs(tx - s.x) > 0.05 || Math.abs(ty - s.y) > 0.05) settled = false
-        el.style.transform = `translate(${s.x.toFixed(2)}px, ${s.y.toFixed(2)}px)`
+        // lean and lift derive from the eased displacement, so they ride the
+        // same spring and settle back to identity with it
+        const lean = s.x * LEAN_DEG_PER_PX
+        const lift = 1 + Math.min(Math.hypot(s.x, s.y) / REPULSE_PUSH, 1) * LIFT_MAX
+        el.style.transform = `translate(${s.x.toFixed(2)}px, ${s.y.toFixed(2)}px) rotate(${lean.toFixed(2)}deg) scale(${lift.toFixed(3)})`
       }
       if (!settled) raf = requestAnimationFrame(tick)
     }
