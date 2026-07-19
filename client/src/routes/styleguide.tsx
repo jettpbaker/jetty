@@ -184,7 +184,7 @@ function LabPill({
           active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         )}
       >
-        <XIcon className='size-3.5' />
+        <XIcon weight='bold' className='size-3.5' />
       </button>
     </div>
   )
@@ -608,7 +608,7 @@ function MockTabBar() {
                   active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 )}
               >
-                <XIcon className='size-3.5' />
+                <XIcon weight='bold' className='size-3.5' />
               </button>
             </div>
             </div>
