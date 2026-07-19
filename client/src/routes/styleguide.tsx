@@ -150,7 +150,7 @@ function LabPill({
   return (
     <div
       className={cn(
-        'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+        'group relative flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
         active
           ? 'bg-[#2B2C2D] text-foreground'
           : 'text-muted-foreground hover:bg-secondary/50'
@@ -295,7 +295,7 @@ function JettIconLab() {
             {JETT_GLYPH_KINDS.map((kind) => (
               <div
                 key={kind}
-                className='flex h-8 w-44 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'
+                className='flex h-9 w-44 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'
               >
                 <JettGlyph kind={kind} weight={variant.weight} cls={variant.cls} />
                 <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
