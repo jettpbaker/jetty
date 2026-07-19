@@ -6,39 +6,7 @@ import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 
 // down by hand. Click re-rolls every letter; scraps ease away from a nearby
 // cursor. Inspired by rauno.me's open-sourced "Ransom note" vault piece.
 
-type Variant = { file: string; w: number; h: number }
-
-const RANSOM: Record<string, Variant[]> = {
-  J: [
-    { file: 'J_03', w: 177, h: 220 },
-    { file: 'J_06', w: 163, h: 220 },
-    { file: 'J_09', w: 162, h: 220 },
-    { file: 'J_13', w: 187, h: 220 },
-    { file: 'J_17', w: 83, h: 220 },
-  ],
-  E: [
-    { file: 'E_05', w: 181, h: 220 },
-    { file: 'E_12', w: 147, h: 220 },
-    { file: 'E_21', w: 220, h: 220 },
-    { file: 'E_27', w: 190, h: 220 },
-    { file: 'E_30', w: 139, h: 220 },
-  ],
-  T: [
-    { file: 'T_04', w: 127, h: 220 },
-    { file: 'T_05', w: 133, h: 220 },
-    { file: 'T_07', w: 262, h: 220 },
-    { file: 'T_13', w: 201, h: 220 },
-    { file: 'T_16', w: 201, h: 220 },
-    { file: 'T_23', w: 167, h: 220 },
-  ],
-  Y: [
-    { file: 'Y_02', w: 129, h: 220 },
-    { file: 'Y_03', w: 190, h: 220 },
-    { file: 'Y_08', w: 225, h: 220 },
-    { file: 'Y_13', w: 174, h: 220 },
-    { file: 'Y_17', w: 249, h: 220 },
-  ],
-}
+import { RANSOM } from './ransom-manifest'
 
 const spriteUrls = import.meta.glob('../assets/ransom/*.webp', {
   eager: true,
@@ -93,6 +61,20 @@ function composeWord(): Scrap[] {
     gap: rnd() * 0.05,
     depth: 0.6 + rndDepth() * 0.4,
   }))
+}
+
+// Every letter changes to a different cutout (twin Ts must never match).
+function rollNext(current: Scrap[]): Scrap[] {
+  const next: Scrap[] = []
+  for (const scrap of current) {
+    const taken = new Set(next.filter((s) => s.letter === scrap.letter).map((s) => s.file))
+    const options = (RANSOM[scrap.letter] ?? []).filter(
+      (v) => v.file !== scrap.file && !taken.has(v.file)
+    )
+    const pick = options[Math.floor(Math.random() * options.length)]
+    next.push(pick ? { ...scrap, file: pick.file } : scrap)
+  }
+  return next
 }
 
 const ENTER_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
@@ -191,20 +173,19 @@ export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number
     return () => cancelAnimationFrame(raf)
   }, [phase])
 
-  // Re-roll every letter to a different cutout (twin Ts must never match).
+  // The next composition is decided (and its images warmed) one roll AHEAD,
+  // so a click swaps to already-cached cutouts — never a blank scrap.
+  const [upcoming, setUpcoming] = useState<Scrap[]>(() => rollNext(composeWord()))
+
+  useEffect(() => {
+    for (const scrap of upcoming) {
+      new Image().src = spriteUrl(scrap.file)
+    }
+  }, [upcoming])
+
   function reroll() {
-    setScraps((current) => {
-      const next: Scrap[] = []
-      for (const scrap of current) {
-        const taken = new Set(next.filter((s) => s.letter === scrap.letter).map((s) => s.file))
-        const options = (RANSOM[scrap.letter] ?? []).filter(
-          (v) => v.file !== scrap.file && !taken.has(v.file)
-        )
-        const pick = options[Math.floor(Math.random() * options.length)]
-        next.push(pick ? { ...scrap, file: pick.file, swapped: true } : scrap)
-      }
-      return next
-    })
+    setScraps(upcoming.map((scrap) => ({ ...scrap, swapped: true })))
+    setUpcoming(rollNext(upcoming))
   }
 
   return (
