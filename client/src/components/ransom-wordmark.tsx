@@ -2,9 +2,10 @@ import { pressHandlers } from '@/lib/press-handlers'
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
 
 // Ransom-note wordmark: real torn-magazine cutout letters (Resource Boy pack,
-// royalty-free), one scrap per letter with seeded jitter so it reads as taped
-// down by hand. Click re-rolls every letter; scraps ease away from a nearby
-// cursor. Inspired by rauno.me's open-sourced "Ransom note" vault piece.
+// royalty-free), one scrap per letter with jitter so it reads as taped down by
+// hand. Draft page rolls a fresh composition per mount; click re-rolls every
+// letter; scraps ease away from a nearby cursor. Inspired by rauno.me's
+// open-sourced "Ransom note" vault piece.
 
 import { RANSOM } from './ransom-manifest'
 
@@ -17,7 +18,7 @@ function spriteUrl(file: string): string {
   return spriteUrls[`../assets/ransom/${file}.webp`] ?? ''
 }
 
-// mulberry32 — deterministic jitter so the wordmark is stable across visits
+// mulberry32 — seeded PRNG for jitter (fixed seed in chrome, random per draft mount)
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0
   return () => {
@@ -40,7 +41,8 @@ type Scrap = {
   swapped?: boolean
 }
 
-// Default composition mirrors the reference collage; jitter is seeded on top.
+// Default composition mirrors the reference collage — used by the static
+// chrome wordmark (which only has mini sprites for these five cutouts).
 const WORD: Array<{ letter: string; file: string }> = [
   { letter: 'J', file: 'J_03' },
   { letter: 'E', file: 'E_05' },
@@ -49,22 +51,51 @@ const WORD: Array<{ letter: string; file: string }> = [
   { letter: 'Y', file: 'Y_03' },
 ]
 
-// Warm the default composition at boot so even a cold-cache first visit to
-// the draft page renders every scrap instantly.
+const LETTERS = WORD.map((w) => w.letter)
+
+// Warm the default composition at boot so the tab-bar mini mark is instant,
+// and the draft page has a head start if it rolls into these cutouts.
 for (const { file } of WORD) new Image().src = spriteUrl(file)
 
+function jitterFrom(rnd: () => number, rndDepth: () => number) {
+  return {
+    rot: (rnd() * 2 - 1) * 7,
+    dy: (rnd() * 2 - 1) * 0.06,
+    scale: 1 + (rnd() * 2 - 1) * 0.1,
+    gap: rnd() * 0.05,
+    depth: 0.6 + rndDepth() * 0.4,
+  }
+}
+
+// Deterministic composition for chrome — stable across visits.
 function composeWord(): Scrap[] {
   const rnd = mulberry32(0x4a455454) // 'JETT'
   const rndDepth = mulberry32(0x59) // separate stream so adding depth kept the layout
   return WORD.map(({ letter, file }) => ({
     letter,
     file,
-    rot: (rnd() * 2 - 1) * 7,
-    dy: (rnd() * 2 - 1) * 0.06,
-    scale: 1 + (rnd() * 2 - 1) * 0.1,
-    gap: rnd() * 0.05,
-    depth: 0.6 + rndDepth() * 0.4,
+    ...jitterFrom(rnd, rndDepth),
   }))
+}
+
+// Fresh cutouts + jitter per draft-page mount. Twin letters (the two Ts)
+// never share a scrap.
+function composeWordRandom(): Scrap[] {
+  const seed = (Math.random() * 0xffffffff) >>> 0
+  const rnd = mulberry32(seed)
+  const rndDepth = mulberry32(seed ^ 0x59)
+  const next: Scrap[] = []
+  for (const letter of LETTERS) {
+    const taken = new Set(next.filter((s) => s.letter === letter).map((s) => s.file))
+    const options = (RANSOM[letter] ?? []).filter((v) => !taken.has(v.file))
+    const pick = options[Math.floor(rnd() * options.length)]
+    next.push({
+      letter,
+      file: pick?.file ?? WORD.find((w) => w.letter === letter)!.file,
+      ...jitterFrom(rnd, rndDepth),
+    })
+  }
+  return next
 }
 
 // Every letter changes to a different cutout (twin Ts must never match).
@@ -220,8 +251,17 @@ export function RansomWordmarkStatic({
 }
 
 export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number; className?: string }) {
-  const [scraps, setScraps] = useState<Scrap[]>(composeWord)
-  const [slots] = useState(() => shuffledSlots(WORD.length))
+  // One random session per mount: current scraps + the pre-rolled next click.
+  const [session, setSession] = useState(() => {
+    const scraps = composeWordRandom()
+    const upcoming = rollNext(scraps)
+    // Kick off loads before first paint so the entrance doesn't flash blanks.
+    for (const scrap of scraps) new Image().src = spriteUrl(scrap.file)
+    for (const scrap of upcoming) new Image().src = spriteUrl(scrap.file)
+    return { scraps, upcoming }
+  })
+  const { scraps, upcoming } = session
+  const [slots] = useState(() => shuffledSlots(LETTERS.length))
   const [phase, setPhase] = useState<Phase>(() =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'shown' : 'hidden'
   )
@@ -234,19 +274,16 @@ export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number
     return () => cancelAnimationFrame(raf)
   }, [phase])
 
-  // The next composition is decided (and its images warmed) one roll AHEAD,
-  // so a click swaps to already-cached cutouts — never a blank scrap.
-  const [upcoming, setUpcoming] = useState<Scrap[]>(() => rollNext(composeWord()))
-
+  // Keep the roll-ahead images warm after each click.
   useEffect(() => {
-    for (const scrap of upcoming) {
-      new Image().src = spriteUrl(scrap.file)
-    }
+    for (const scrap of upcoming) new Image().src = spriteUrl(scrap.file)
   }, [upcoming])
 
   function reroll() {
-    setScraps(upcoming.map((scrap) => ({ ...scrap, swapped: true })))
-    setUpcoming(rollNext(upcoming))
+    setSession({
+      scraps: upcoming.map((scrap) => ({ ...scrap, swapped: true })),
+      upcoming: rollNext(upcoming),
+    })
   }
 
   return (

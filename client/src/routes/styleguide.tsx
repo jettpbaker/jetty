@@ -1,11 +1,10 @@
-import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
-  CircleDashedIcon,
-  GitBranchIcon,
+  BellRingingIcon,
+  ExclamationMarkIcon,
   GitMergeIcon,
   GitPullRequestIcon,
   MoonIcon,
@@ -16,163 +15,70 @@ import {
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { createFileRoute } from '@tanstack/react-router'
-import { Fragment, type ReactNode, useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
+import { AgentUiLab } from './styleguide-agent-lab'
+import { StreamingLab } from './styleguide-streaming-lab'
 
 export const Route = createFileRoute('/styleguide')({
   component: StyleguidePage,
 })
 
-type LabStatus = 'idle' | 'running' | 'awaiting_approval' | 'error'
-type Treatment =
-  | 'jett'
-  | 'letter'
-  | 'dot'
-  | 'letter-dot'
-  | 'letter-attention'
-  | 'bare'
-  | 'capsule'
-  | 'letter-capsule'
+// The decided tab design: canonical states, their glyphs, and the pill.
+// Exploration racks lived here during the design pass; git has them.
 
-const STATUSES: LabStatus[] = ['idle', 'running', 'awaiting_approval', 'error']
-const TREATMENTS: Treatment[] = [
-  'jett',
-  'letter',
-  'dot',
-  'letter-dot',
-  'letter-attention',
-  'bare',
-  'capsule',
-  'letter-capsule',
-]
+type TabState =
+  | 'sleeping'
+  | 'running'
+  | 'awaiting_approval'
+  | 'error'
+  | 'draft'
+  | 'open'
+  | 'merged'
+
+const CURRENT_STATES: TabState[] = ['sleeping', 'running', 'awaiting_approval', 'error']
+// need thread→PR association before the bar can show these
+const PR_STATES: TabState[] = ['draft', 'open', 'merged']
 const SAMPLE_TITLE = 'Vue perf exploration'
 
-function statusDotClass(status: LabStatus): string {
-  switch (status) {
+function StateGlyph({ state }: { state: TabState }) {
+  switch (state) {
+    case 'sleeping':
+      return (
+        <MoonIcon
+          weight='fill'
+          className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
+        />
+      )
     case 'running':
-      return 'animate-pulse bg-primary'
+      return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
     case 'awaiting_approval':
-      return 'bg-primary'
+      return <BellRingingIcon className='size-[18px] shrink-0 text-amber-400' />
     case 'error':
-      return 'bg-destructive'
-    case 'idle':
-      return 'bg-muted-foreground/40'
+      return <ExclamationMarkIcon className='size-[18px] shrink-0 text-destructive' />
+    case 'draft':
+      return <GitPullRequestIcon className='size-[18px] shrink-0 text-muted-foreground' />
+    case 'open':
+      return <GitPullRequestIcon className='size-[18px] shrink-0 text-green-500' />
+    case 'merged':
+      return <GitMergeIcon className='size-[18px] shrink-0 text-purple-400' />
   }
 }
 
-function StatusDot({ status }: { status: LabStatus }) {
-  return <span className={cn('size-2 shrink-0 rounded-full', statusDotClass(status))} />
-}
-
-function StatusCapsule({ status }: { status: LabStatus }) {
-  if (status === 'idle') return null
-
-  if (status === 'running') {
-    return (
-      <span className='flex h-4 items-center gap-1 rounded-full bg-primary/15 px-1.5'>
-        <span className='size-1.5 animate-pulse rounded-full bg-primary' />
-        <span className='font-mono text-[10px] text-primary'>run</span>
-      </span>
-    )
-  }
-
-  if (status === 'awaiting_approval') {
-    return (
-      <span className='flex h-4 items-center gap-1 rounded-full bg-primary px-1.5 text-primary-foreground'>
-        <span className='size-1.5 rounded-full bg-primary-foreground' />
-        <span className='font-mono text-[10px]'>wait</span>
-      </span>
-    )
-  }
-
-  return (
-    <span className='flex h-4 items-center gap-1 rounded-full bg-destructive/15 px-1.5 text-destructive'>
-      <span className='size-1.5 rounded-full bg-destructive' />
-      <span className='font-mono text-[10px]'>err</span>
-    </span>
-  )
-}
-
-function LabPillPrefix({
-  treatment,
-  status,
-  title,
-}: {
-  treatment: Treatment
-  status: LabStatus
-  title: string
-}): ReactNode {
-  switch (treatment) {
-    // Jett's WIP treatment: GitHub-PR-style glyphs, no letter. The status
-    // columns are just a display rack: idle→draft PR, running→spinner,
-    // awaiting_approval→open PR, error→merged PR.
-    case 'jett':
-      switch (status) {
-        case 'idle':
-          return <GitPullRequestIcon className='size-[18px] shrink-0 text-muted-foreground' />
-        case 'running':
-          return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
-        case 'awaiting_approval':
-          return <GitPullRequestIcon className='size-[18px] shrink-0 text-green-500' />
-        case 'error':
-          return <GitMergeIcon className='size-[18px] shrink-0 text-purple-400' />
-      }
-    case 'letter':
-      return <ProjectBadge title={title} />
-    case 'dot':
-      return <StatusDot status={status} />
-    case 'letter-dot':
-      return (
-        <>
-          <ProjectBadge title={title} />
-          <StatusDot status={status} />
-        </>
-      )
-    case 'letter-attention':
-      return (
-        <>
-          <ProjectBadge title={title} />
-          {status !== 'idle' ? <StatusDot status={status} /> : null}
-        </>
-      )
-    case 'bare':
-      return null
-    case 'capsule':
-      return <StatusCapsule status={status} />
-    case 'letter-capsule':
-      return (
-        <>
-          <ProjectBadge title={title} />
-          <StatusCapsule status={status} />
-        </>
-      )
-  }
-}
-
-function LabPill({
-  active,
-  status,
-  treatment,
-  title,
-}: {
-  active: boolean
-  status: LabStatus
-  treatment: Treatment
-  title: string
-}) {
+function TabPill({ state, active, title }: { state: TabState; active: boolean; title: string }) {
   return (
     <div
       className={cn(
-        'group relative flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
-        active
-          ? 'bg-[#2B2C2D] text-foreground'
-          : 'text-muted-foreground hover:bg-secondary/50'
+        'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+        active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
       )}
     >
-      <LabPillPrefix treatment={treatment} status={status} title={title} />
+      <StateGlyph state={state} />
       <span
         className={cn(
           'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
-          active ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]' : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+          active
+            ? '[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
+            : '[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] group-hover:[mask-image:linear-gradient(to_right,black_calc(100%-34px),transparent_calc(100%-14px))]'
         )}
       >
         {title}
@@ -199,193 +105,49 @@ function TreatmentLabel({ name }: { name: string }) {
   )
 }
 
-function TreatmentSection({ treatment }: { treatment: Treatment }) {
+function StateMatrix() {
   return (
     <section className='flex flex-col gap-4'>
-      <TreatmentLabel name={treatment} />
-
+      <TreatmentLabel name='tab states' />
       <div className='flex flex-col gap-3'>
         <div className='grid grid-cols-[auto_repeat(4,minmax(0,1fr))] items-center gap-x-3 gap-y-2'>
           <div />
-          {STATUSES.map((status) => (
-            <div key={status} className='text-xs text-muted-foreground'>
-              {status}
+          {CURRENT_STATES.map((state) => (
+            <div key={state} className='text-xs text-muted-foreground'>
+              {state}
             </div>
           ))}
-
           {(['active', 'inactive'] as const).map((row) => (
             <Fragment key={row}>
               <div className='text-xs text-muted-foreground'>{row}</div>
-              {STATUSES.map((status) => (
-                <div key={status} className='min-w-0'>
-                  <LabPill
-                    active={row === 'active'}
-                    status={status}
-                    treatment={treatment}
-                    title={SAMPLE_TITLE}
-                  />
+              {CURRENT_STATES.map((state) => (
+                <div key={state} className='min-w-0'>
+                  <TabPill state={state} active={row === 'active'} title={SAMPLE_TITLE} />
                 </div>
               ))}
             </Fragment>
           ))}
         </div>
-
         <div className='flex flex-wrap items-center gap-3'>
           <span className='text-xs text-muted-foreground'>edge</span>
-          <LabPill
+          <TabPill
+            state='sleeping'
             active={false}
-            status='idle'
-            treatment={treatment}
             title='investigate flaky websocket reconnect behavior'
           />
-          <LabPill active={true} status='running' treatment={treatment} title='fix ci' />
+          <TabPill state='running' active={true} title='fix ci' />
         </div>
-      </div>
-    </section>
-  )
-}
-
-function BarPreview({ treatment }: { treatment: Treatment }) {
-  const pills = [
-    { active: true, status: 'idle' as const, title: SAMPLE_TITLE },
-    { active: false, status: 'running' as const, title: SAMPLE_TITLE },
-    { active: false, status: 'awaiting_approval' as const, title: SAMPLE_TITLE },
-    { active: false, status: 'error' as const, title: SAMPLE_TITLE },
-  ]
-
-  return (
-    <div className='flex flex-col gap-2'>
-      <TreatmentLabel name={treatment} />
-      <div className='flex h-14 w-full items-center gap-2 border-b px-3'>
-        <RansomWordmarkStatic />
-        <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto'>
-          {pills.map((pill) => (
-            <LabPill
-              key={`${pill.active}-${pill.status}`}
-              active={pill.active}
-              status={pill.status}
-              treatment={treatment}
-              title={pill.title}
-            />
+        <div className='flex flex-wrap items-center gap-3'>
+          <span className='text-xs text-muted-foreground'>future · PR states</span>
+          {PR_STATES.map((state) => (
+            <TabPill key={state} state={state} active={false} title={SAMPLE_TITLE} />
           ))}
         </div>
-        <Button variant='ghost' size='icon' className='size-8 shrink-0' aria-label='New thread'>
-          <PlusIcon />
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-type JettGlyphKind = 'draft' | 'spinner' | 'open' | 'merged'
-type JettWeight = 'bold' | 'duotone' | 'fill'
-
-const JETT_VARIANTS: Array<{ caption: string; weight: JettWeight; cls: string }> = [
-  { caption: 'bold · 16px', weight: 'bold', cls: 'size-4' },
-  { caption: 'bold · 18px', weight: 'bold', cls: 'size-[18px]' },
-  { caption: 'bold · 20px', weight: 'bold', cls: 'size-5' },
-  { caption: 'duotone · 16px', weight: 'duotone', cls: 'size-4' },
-  { caption: 'duotone · 20px', weight: 'duotone', cls: 'size-5' },
-  { caption: 'fill · 16px', weight: 'fill', cls: 'size-4' },
-]
-
-function JettGlyph({ kind, weight, cls }: { kind: JettGlyphKind; weight: JettWeight; cls: string }) {
-  switch (kind) {
-    case 'draft':
-      return <GitPullRequestIcon weight={weight} className={cn(cls, 'shrink-0 text-muted-foreground')} />
-    case 'spinner':
-      return <SpinnerIcon weight={weight} className={cn(cls, 'shrink-0 animate-spin text-muted-foreground')} />
-    case 'open':
-      return <GitPullRequestIcon weight={weight} className={cn(cls, 'shrink-0 text-green-500')} />
-    case 'merged':
-      return <GitMergeIcon weight={weight} className={cn(cls, 'shrink-0 text-purple-400')} />
-  }
-}
-
-const JETT_GLYPH_KINDS: JettGlyphKind[] = ['draft', 'spinner', 'open', 'merged']
-
-function JettIconLab() {
-  return (
-    <section className='flex flex-col gap-4'>
-      <TreatmentLabel name='jett · size & weight variants' />
-      <div className='flex flex-col gap-3'>
-        {JETT_VARIANTS.map((variant) => (
-          <div key={variant.caption} className='flex flex-wrap items-center gap-3'>
-            {JETT_GLYPH_KINDS.map((kind) => (
-              <div
-                key={kind}
-                className='flex h-9 w-44 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'
-              >
-                <JettGlyph kind={kind} weight={variant.weight} cls={variant.cls} />
-                <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
-              </div>
-            ))}
-            <span className='text-xs text-muted-foreground'>{variant.caption}</span>
-          </div>
-        ))}
       </div>
     </section>
   )
 }
 
-// Sleeping-state candidates: no associated PR, agent not working. What does
-// the prefix show when there is nothing to say?
-const SLEEPING_CANDIDATES: Array<{ caption: string; prefix: ReactNode }> = [
-  { caption: 'nothing (space reserved)', prefix: <span className='size-[18px] shrink-0' /> },
-  { caption: 'nothing (collapses)', prefix: null },
-  {
-    caption: 'muted dot',
-    prefix: <span className='size-2 shrink-0 rounded-full bg-muted-foreground/40' />,
-  },
-  {
-    caption: 'dashed circle',
-    prefix: <CircleDashedIcon className='size-[18px] shrink-0 text-muted-foreground/60' />,
-  },
-  {
-    caption: 'moon',
-    prefix: <MoonIcon className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60' />,
-  },
-  {
-    caption: 'moon · fill',
-    prefix: <MoonIcon weight='fill' className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60' />,
-  },
-  {
-    caption: 'branch (worktree, no PR)',
-    prefix: <GitBranchIcon className='size-[18px] shrink-0 text-muted-foreground/60' />,
-  },
-  { caption: 'ransom letter', prefix: <ProjectBadge title='A' /> },
-]
-
-function JettSleepingLab() {
-  return (
-    <section className='flex flex-col gap-4'>
-      <TreatmentLabel name='jett · sleeping state' />
-      <div className='flex flex-col gap-3'>
-        {SLEEPING_CANDIDATES.map((candidate) => (
-          <div key={candidate.caption} className='flex flex-wrap items-center gap-3'>
-            <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
-              {candidate.prefix}
-              <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
-              <XIcon className='size-3.5 text-muted-foreground' />
-            </div>
-            <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground'>
-              {candidate.prefix}
-              <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
-            </div>
-            <span className='text-xs text-muted-foreground'>{candidate.caption}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-// Fully interactive mock of the tab bar wearing the jett treatment: create,
-// select, close — all local state; each new tab rolls a random glyph state.
-type MockState = 'sleeping' | 'running' | 'draft' | 'open' | 'merged'
-type MockTab = { id: number; title: string; state: MockState }
-
-const MOCK_STATES: MockState[] = ['sleeping', 'running', 'draft', 'open', 'merged']
 const MOCK_TITLES = [
   'Vue perf exploration',
   'fix ci',
@@ -397,27 +159,9 @@ const MOCK_TITLES = [
   'diff viewer spike',
 ]
 
-function MockGlyph({ state }: { state: MockState }) {
-  switch (state) {
-    case 'sleeping':
-      return (
-        <MoonIcon
-          weight='fill'
-          className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
-        />
-      )
-    case 'running':
-      return (
-        <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
-      )
-    case 'draft':
-      return <GitPullRequestIcon className='size-[18px] shrink-0 text-muted-foreground' />
-    case 'open':
-      return <GitPullRequestIcon className='size-[18px] shrink-0 text-green-500' />
-    case 'merged':
-      return <GitMergeIcon className='size-[18px] shrink-0 text-purple-400' />
-  }
-}
+type MockTab = { id: number; title: string; state: TabState }
+
+const MOCK_STATES: TabState[] = [...CURRENT_STATES, ...PR_STATES]
 
 function randomOf<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)]!
@@ -480,7 +224,6 @@ function MockTabBar() {
           const dragging = strip.drag?.from === index
           return (
             <div key={tab.id} className='flex shrink-0 items-center'>
-              {/* every cell gets the zone so slots stay uniform */}
               <div className='flex w-[13px] shrink-0 items-center justify-center'>
                 {index > 0 && (
                   <Separator
@@ -512,7 +255,7 @@ function MockTabBar() {
                   className='absolute inset-0 rounded-md'
                   {...pressHandlers(() => setActiveId(tab.id))}
                 />
-                <MockGlyph state={tab.state} />
+                <StateGlyph state={tab.state} />
                 <span
                   className={cn(
                     'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
@@ -556,34 +299,75 @@ function MockTabBar() {
   )
 }
 
-function StyleguidePage() {
+type StyleguideTab = 'tabs' | 'agent' | 'streaming'
+
+const STYLEGUIDE_TABS: Array<{ id: StyleguideTab; label: string }> = [
+  { id: 'tabs', label: 'Tab lab' },
+  { id: 'agent', label: 'Agent UI lab' },
+  { id: 'streaming', label: 'Streaming' },
+]
+
+function StyleguideTabs({
+  active,
+  onChange,
+}: {
+  active: StyleguideTab
+  onChange: (tab: StyleguideTab) => void
+}) {
   return (
-    <div className='h-full overflow-y-auto'>
-      <div className='mx-auto flex max-w-5xl flex-col gap-12 p-8'>
-        <h1 className='text-2xl font-semibold tracking-tight'>Tab lab</h1>
-
-        {TREATMENTS.map((treatment) => (
-          <Fragment key={treatment}>
-            <TreatmentSection treatment={treatment} />
-            {treatment === 'jett' && (
-              <>
-                <JettIconLab />
-                <JettSleepingLab />
-                <section className='flex flex-col gap-4'>
-                  <TreatmentLabel name='jett · interactive mock bar' />
-                  <MockTabBar />
-                </section>
-              </>
+    <div
+      role='tablist'
+      aria-label='Styleguide labs'
+      className='flex shrink-0 items-center gap-1 border-b px-8 pt-4'
+    >
+      {STYLEGUIDE_TABS.map((tab) => {
+        const selected = tab.id === active
+        return (
+          <button
+            key={tab.id}
+            type='button'
+            role='tab'
+            aria-selected={selected}
+            className={cn(
+              'relative px-3 py-2 text-sm transition-colors',
+              selected
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             )}
-          </Fragment>
-        ))}
+            {...pressHandlers(() => onChange(tab.id))}
+          >
+            {tab.label}
+            {selected ? (
+              <span className='absolute inset-x-3 -bottom-px h-px bg-foreground' />
+            ) : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
-        <section className='flex flex-col gap-8'>
-          <h2 className='text-lg font-medium'>Bar preview</h2>
-          {TREATMENTS.map((treatment) => (
-            <BarPreview key={treatment} treatment={treatment} />
-          ))}
-        </section>
+function TabLab() {
+  return (
+    <div className='mx-auto flex max-w-5xl flex-col gap-12 p-8'>
+      <h1 className='text-2xl font-semibold tracking-tight'>Tab lab</h1>
+      <StateMatrix />
+      <section className='flex flex-col gap-4'>
+        <TreatmentLabel name='interactive mock bar' />
+        <MockTabBar />
+      </section>
+    </div>
+  )
+}
+
+function StyleguidePage() {
+  const [tab, setTab] = useState<StyleguideTab>('streaming')
+
+  return (
+    <div className='flex h-full flex-col overflow-hidden'>
+      <StyleguideTabs active={tab} onChange={setTab} />
+      <div className='min-h-0 flex-1 overflow-y-auto' role='tabpanel'>
+        {tab === 'tabs' ? <TabLab /> : tab === 'agent' ? <AgentUiLab /> : <StreamingLab />}
       </div>
     </div>
   )
