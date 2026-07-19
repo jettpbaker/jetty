@@ -28,10 +28,12 @@ function chatStatus(status: SessionStatus): ChatStatus {
   return status === 'running' || status === 'starting' ? 'streaming' : 'ready'
 }
 
-// One composer shell everywhere: flush-black slab, hairline edge. The draft's
-// glow blooms around the same hairline; focus brightens it slightly.
-const composerShell =
-  'rounded-lg [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0! [&_[data-slot=input-group]]:focus-within:border-white/25!'
+// One flush-black slab everywhere; the edge is state-dependent — the draft's
+// glow defines its edge, thread composers get a hairline that wakes on focus.
+const composerBase =
+  'rounded-lg [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
+const composerShell = `${composerBase} [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:focus-within:border-white/25!`
+const draftShell = `${composerBase} [&_[data-slot=input-group]]:border-transparent!`
 
 function AttachButton() {
   const attachments = usePromptInputAttachments()
@@ -165,7 +167,7 @@ export function DraftComposer({
   }
 
   return (
-    <div ref={glowTargetRef} className={composerShell}>
+    <div ref={glowTargetRef} className={draftShell}>
       <PromptInputProvider initialInput={loadDraft(projectId)} validateFiles={acceptImages}>
         <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
           <Attachments />
