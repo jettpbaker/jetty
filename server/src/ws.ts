@@ -14,6 +14,7 @@ import type { Store } from './store'
 
 import { computeThreadDiff } from './diff'
 import { browse } from './fs-browse'
+import { searchFiles } from './fs-search'
 import { StoreError } from './store'
 
 export type WsServer = {
@@ -62,6 +63,13 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
       case 'fs.browse': {
         const p = parsed.data as ParamsOf<'fs.browse'>
         return browse(p.partialPath)
+      }
+      case 'fs.search': {
+        const p = parsed.data as ParamsOf<'fs.search'>
+        const project = store.getProject(p.projectId)
+        if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
+        const files = await searchFiles(project.path, p.query, p.limit)
+        return { files }
       }
       case 'thread.create': {
         const p = parsed.data as ParamsOf<'thread.create'>

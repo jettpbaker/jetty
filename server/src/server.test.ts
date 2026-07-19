@@ -22,6 +22,7 @@ import type { Agent, AgentImage, TurnInput } from './agent'
 import { openDb } from './db'
 import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
+import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
 import { createStore } from './store'
 
@@ -1025,6 +1026,138 @@ describe('fs.browse', () => {
 
   test('returns empty entries for a nonexistent parent', () => {
     expect(browse('/no/such/directory/anywhere/').entries).toEqual([])
+  })
+})
+
+describe('fs.search', () => {
+  test('fuzzyMatch: case-insensitive subsequence', () => {
+    expect(fuzzyMatch('src/components/Button.tsx', 'btn')).not.toBeNull()
+    expect(fuzzyMatch('src/components/Button.tsx', 'BTN')).not.toBeNull()
+    expect(fuzzyMatch('src/components/Button.tsx', 'sbt')).not.toBeNull()
+    expect(fuzzyMatch('src/components/Button.tsx', 'sctx')).not.toBeNull()
+  })
+
+  test('fuzzyMatch: prefers basename hits over directory hits', () => {
+    const base = fuzzyMatch('app/src/utils/string.ts', 'string')!
+    const dir = fuzzyMatch('string/parser.ts', 'string')!
+    expect(base).toBeGreaterThan(dir)
+  })
+
+  test('fuzzyMatch: no match returns null', () => {
+    expect(fuzzyMatch('src/app.ts', 'xyz')).toBeNull()
+    expect(fuzzyMatch('src/app.ts', 'appz')).toBeNull()
+    expect(fuzzyMatch('src/app.ts', '')).toBeNull()
+  })
+
+  test('fuzzyMatch: contiguous runs score higher than scattered', () => {
+    // "app" is contiguous in both, but "ap" contiguous in app.ts vs scattered would be lower
+    const contiguous = fuzzyMatch('src/app.ts', 'app')!
+    const scattered = fuzzyMatch('a/x/p/p.ts', 'app')!
+    expect(contiguous).toBeGreaterThan(scattered)
+  })
+
+  function initGitRepo(files: Record<string, string>): string | null {
+    const repo = dir(join(tmpdir(), `jetty-search-repo-${newId()}`))
+    const run = (args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (run(['init', '-q']) !== 0) return null
+    run(['config', 'user.email', 'test@example.com'])
+    run(['config', 'user.name', 'Test'])
+    run(['config', 'commit.gpgsign', 'false'])
+    for (const [rel, content] of Object.entries(files)) {
+      const full = join(repo, rel)
+      mkdirSync(join(full, '..'), { recursive: true })
+      writeFileSync(full, content)
+    }
+    run(['add', '.'])
+    run(['commit', '-qm', 'init'])
+    return repo
+  }
+
+  test('searchFiles ranks expected paths from a git repo', async () => {
+    const repo = initGitRepo({
+      'src/components/Button.tsx': 'x',
+      'src/utils/string.ts': 'x',
+      'string/parser.ts': 'x',
+      'lib/helpers.ts': 'x',
+      'README.md': 'x',
+    })
+    if (!repo) return // git unavailable
+
+    const byString = await searchFiles(repo, 'string')
+    expect(byString[0]).toBe('src/utils/string.ts')
+    expect(byString).toContain('string/parser.ts')
+    expect(byString).not.toContain('README.md')
+
+    const byBtn = await searchFiles(repo, 'btn')
+    expect(byBtn).toEqual(['src/components/Button.tsx'])
+
+    const byHelp = await searchFiles(repo, 'help')
+    expect(byHelp).toEqual(['lib/helpers.ts'])
+  })
+
+  test('empty query returns []', async () => {
+    const repo = initGitRepo({ 'a.ts': 'x' })
+    if (!repo) return
+    expect(await searchFiles(repo, '')).toEqual([])
+  })
+
+  test('non-git project dir returns [] over the wire', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: dir(join(tmpdir(), `jetty-search-nongit-${newId()}`)),
+    })
+
+    const res = await c.request<{ files: string[] }>('fs.search', {
+      projectId: project.id,
+      query: 'anything',
+    })
+    expect(res.files).toEqual([])
+
+    c.close()
+  })
+
+  test('end-to-end: ranked results over the wire', async () => {
+    const repo = initGitRepo({
+      'src/components/Button.tsx': 'x',
+      'src/utils/string.ts': 'x',
+      'string/parser.ts': 'x',
+      'lib/helpers.ts': 'x',
+    })
+    if (!repo) return
+
+    const { port } = boot()
+    const c = await connect(port)
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: repo,
+    })
+
+    const res = await c.request<{ files: string[] }>('fs.search', {
+      projectId: project.id,
+      query: 'string',
+    })
+    expect(res.files[0]).toBe('src/utils/string.ts')
+    expect(res.files).toContain('string/parser.ts')
+
+    const empty = await c.request<{ files: string[] }>('fs.search', {
+      projectId: project.id,
+      query: '',
+    })
+    expect(empty.files).toEqual([])
+
+    c.close()
+  })
+
+  test('unknown projectId → not_found', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    await expect(
+      c.request('fs.search', { projectId: 'no-such-project', query: 'x' })
+    ).rejects.toThrow('not_found')
+
+    c.close()
   })
 })
 

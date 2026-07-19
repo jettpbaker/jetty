@@ -74,6 +74,15 @@ export const methods = {
       entries: z.array(z.object({ name: z.string(), fullPath: z.string() })),
     }),
   },
+  'fs.search': {
+    // fuzzy filename search over a project's git-tracked files (for @file mentions)
+    params: z.object({
+      projectId: z.string(),
+      query: z.string(),
+      limit: z.number().int().positive().max(100).optional(),
+    }),
+    result: z.object({ files: z.array(z.string()) }),
+  },
   'thread.create': {
     params: z.object({ id: z.string().min(1), projectId: z.string() }),
     result: z.object({ thread: ThreadMeta }),
