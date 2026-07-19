@@ -114,7 +114,7 @@ export function TabBar() {
             <ContextMenu key={thread.id}>
               <ContextMenuTrigger
                 className={cn(
-                  'group relative flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+                  'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                   active
                     ? 'bg-[#2B2C2D] text-foreground'
                     : 'text-muted-foreground hover:bg-secondary/50'
@@ -127,7 +127,7 @@ export function TabBar() {
                   {...pressHandlers(() => openThread(thread.id))}
                 />
                 <ProjectBadge title={project?.title ?? '?'} />
-                <span className='pointer-events-none relative max-w-40 truncate'>
+                <span className='pointer-events-none relative min-w-0 flex-1 truncate text-left'>
                   {thread.title || thread.id}
                 </span>
                 <button
@@ -153,11 +153,11 @@ export function TabBar() {
           )
         })}
         {draftProjectId !== undefined && (
-          <div className='flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
+          <div className='flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
             <ProjectBadge
               title={chrome.projects.find((p) => p.id === draftProjectId)?.title ?? '?'}
             />
-            <span className='max-w-40 truncate'>New thread</span>
+            <span className='min-w-0 flex-1 truncate'>New thread</span>
           </div>
         )}
       </div>

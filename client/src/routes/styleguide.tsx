@@ -134,14 +134,14 @@ function LabPill({
   return (
     <div
       className={cn(
-        'group relative flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
+        'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
         active
           ? 'bg-[#2B2C2D] text-foreground'
           : 'text-muted-foreground hover:bg-secondary/50'
       )}
     >
       <LabPillPrefix treatment={treatment} status={status} title={title} />
-      <span className='pointer-events-none relative max-w-40 truncate'>{title}</span>
+      <span className='pointer-events-none relative min-w-0 flex-1 truncate text-left'>{title}</span>
       <button
         type='button'
         aria-label='Close tab'
