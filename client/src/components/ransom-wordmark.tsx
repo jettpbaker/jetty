@@ -49,6 +49,10 @@ const WORD: Array<{ letter: string; file: string }> = [
   { letter: 'Y', file: 'Y_03' },
 ]
 
+// Warm the default composition at boot so even a cold-cache first visit to
+// the draft page renders every scrap instantly.
+for (const { file } of WORD) new Image().src = spriteUrl(file)
+
 function composeWord(): Scrap[] {
   const rnd = mulberry32(0x4a455454) // 'JETT'
   const rndDepth = mulberry32(0x59) // separate stream so adding depth kept the layout
