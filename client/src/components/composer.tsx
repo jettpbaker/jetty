@@ -28,10 +28,10 @@ function chatStatus(status: SessionStatus): ChatStatus {
   return status === 'running' || status === 'starting' ? 'streaming' : 'ready'
 }
 
-// One composer shell everywhere: the draft's flush-black slab. Draft defines
-// its edge with light; thread composers are the same object, lights off.
+// One composer shell everywhere: flush-black slab, hairline edge. The draft's
+// glow blooms around the same hairline; focus brightens it slightly.
 const composerShell =
-  'rounded-lg [&_[data-slot=input-group]]:border-transparent! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
+  'rounded-lg [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0! [&_[data-slot=input-group]]:focus-within:border-white/25!'
 
 function AttachButton() {
   const attachments = usePromptInputAttachments()
