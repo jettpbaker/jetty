@@ -164,21 +164,22 @@ export function TabBar() {
             <span className='max-w-40 truncate'>New thread</span>
           </div>
         )}
-        <IconTip label='New thread'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='size-8 shrink-0'
-            aria-label='New thread'
-            disabled={newThreadProjectId === undefined}
-            {...(newThreadProjectId
-              ? pressHandlers(() => newThread(newThreadProjectId))
-              : {})}
-          >
-            <PlusIcon />
-          </Button>
-        </IconTip>
       </div>
+
+      <IconTip label='New thread'>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='size-8 shrink-0'
+          aria-label='New thread'
+          disabled={newThreadProjectId === undefined}
+          {...(newThreadProjectId
+            ? pressHandlers(() => newThread(newThreadProjectId))
+            : {})}
+        >
+          <PlusIcon />
+        </Button>
+      </IconTip>
 
       <div className='flex shrink-0 items-center gap-1'>
         <DropdownMenu>
