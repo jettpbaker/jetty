@@ -12,6 +12,7 @@ export const Route = createFileRoute('/styleguide')({
 
 type LabStatus = 'idle' | 'running' | 'awaiting_approval' | 'error'
 type Treatment =
+  | 'jett'
   | 'letter'
   | 'dot'
   | 'letter-dot'
@@ -22,6 +23,7 @@ type Treatment =
 
 const STATUSES: LabStatus[] = ['idle', 'running', 'awaiting_approval', 'error']
 const TREATMENTS: Treatment[] = [
+  'jett',
   'letter',
   'dot',
   'letter-dot',
@@ -88,6 +90,9 @@ function LabPillPrefix({
   title: string
 }): ReactNode {
   switch (treatment) {
+    // Jett's work-in-progress treatment — currently a copy of `letter`
+    case 'jett':
+      return <ProjectBadge title={title} />
     case 'letter':
       return <ProjectBadge title={title} />
     case 'dot':
