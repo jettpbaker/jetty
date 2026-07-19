@@ -4,6 +4,20 @@ jetty is daily-driven at work and fixed at home, with Linear as the queue.
 This doc is the contract for the agents on both ends. No scripts — agents
 compose the API calls themselves.
 
+## identities
+
+Both agents act in Linear as their own OAuth app users, not as Jett:
+
+- **Claude Cook** — home side. **Claude Lookout** — work side.
+- Tokens are minted with the `client_credentials` grant (30-day expiry):
+  POST `https://api.linear.app/oauth/token` with
+  `grant_type=client_credentials&client_id=…&client_secret=…&scope=read,write`.
+  Credentials live in `~/.config/jetty/linear-app.env` (`COOK_*` / `LOOKOUT_*`),
+  the minted token next to it (`linear-cook-token` / `linear-lookout-token`).
+- Send the token as `Authorization: Bearer <token>` on the GraphQL API — and it
+  works on `mcp.linear.app` too, for MCP-capable clients.
+- On a 401, re-mint from the stored credentials and retry. No ceremony.
+
 ## roles
 
 - **work Claude** (MCP disabled): files issues via the Linear GraphQL API
