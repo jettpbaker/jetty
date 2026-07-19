@@ -2,7 +2,7 @@ import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { PlusIcon, XIcon } from '@phosphor-icons/react'
+import { GitMergeIcon, GitPullRequestIcon, PlusIcon, SpinnerIcon, XIcon } from '@phosphor-icons/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, type ReactNode } from 'react'
 
@@ -90,9 +90,20 @@ function LabPillPrefix({
   title: string
 }): ReactNode {
   switch (treatment) {
-    // Jett's work-in-progress treatment — currently a copy of `letter`
+    // Jett's WIP treatment: GitHub-PR-style glyphs, no letter. The status
+    // columns are just a display rack: idle→draft PR, running→spinner,
+    // awaiting_approval→open PR, error→merged PR.
     case 'jett':
-      return <ProjectBadge title={title} />
+      switch (status) {
+        case 'idle':
+          return <GitPullRequestIcon className='size-4 shrink-0 text-muted-foreground' />
+        case 'running':
+          return <SpinnerIcon className='size-4 shrink-0 animate-spin text-muted-foreground' />
+        case 'awaiting_approval':
+          return <GitPullRequestIcon className='size-4 shrink-0 text-green-500' />
+        case 'error':
+          return <GitMergeIcon className='size-4 shrink-0 text-purple-400' />
+      }
     case 'letter':
       return <ProjectBadge title={title} />
     case 'dot':
