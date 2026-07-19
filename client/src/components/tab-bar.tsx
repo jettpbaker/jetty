@@ -9,15 +9,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { removeDraft } from '@/lib/draft'
@@ -29,7 +20,6 @@ import {
   BellRingingIcon,
   ExclamationMarkIcon,
   GearIcon,
-  ListIcon,
   MoonIcon,
   PlusIcon,
   SpinnerIcon,
@@ -38,7 +28,6 @@ import {
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, useSyncExternalStore, type ReactElement } from 'react'
 
-import { NewProjectDialog } from './new-project-dialog'
 import { RansomWordmarkStatic } from './ransom-wordmark'
 
 // One slot in the strip: separator zone (13) + pill (176).
@@ -47,20 +36,6 @@ const DRAG_STEP = 189
 type StripEntry =
   | { kind: 'thread'; id: string; thread: ThreadMeta }
   | { kind: 'draft'; id: string; draft: Draft }
-
-function statusDotClass(status: SessionStatus): string {
-  switch (status) {
-    case 'running':
-    case 'starting':
-      return 'animate-pulse bg-primary'
-    case 'awaiting_approval':
-      return 'bg-primary'
-    case 'error':
-      return 'bg-destructive'
-    case 'idle':
-      return 'bg-muted-foreground/40'
-  }
-}
 
 function StatusGlyph({ status }: { status: SessionStatus }) {
   switch (status) {
@@ -96,7 +71,6 @@ export function TabBar() {
   const drafts = useSyncExternalStore(draftsStore.subscribe, draftsStore.getSnapshot)
   const navigate = useNavigate()
   const { threadId: activeThreadId, draftId: activeDraftId } = useParams({ strict: false })
-  const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const threadById = new Map(chrome.threads.map((thread) => [thread.id, thread]))
@@ -146,7 +120,18 @@ export function TabBar() {
   function neighborOf(id: string): StripEntry | null {
     const index = openEntries.findIndex((entry) => entry.id === id)
     if (index === -1) return null
-    return openEntries[index + 1] ?? openEntries[index - 1] ?? null
+    // Prefer left; else right; else null → home.
+    return openEntries[index - 1] ?? openEntries[index + 1] ?? null
+  }
+
+  function navigateEntry(entry: StripEntry | null) {
+    if (entry?.kind === 'thread') {
+      return navigate({ to: '/thread/$threadId', params: { threadId: entry.id } })
+    }
+    if (entry?.kind === 'draft') {
+      return navigate({ to: '/new/$draftId', params: { draftId: entry.id } })
+    }
+    return navigate({ to: '/' })
   }
 
   function closeTab(id: string) {
@@ -154,18 +139,20 @@ export function TabBar() {
     const wasActive = id === activeThreadId || id === activeDraftId
     const next = wasActive ? neighborOf(id) : null
     tabsStore.close(id)
-    if (entry?.kind === 'draft') {
+
+    // Keep an active draft in the store until navigation commits — the draft
+    // page redirects to / the moment its draft is missing (same as submit).
+    const dropDraft = () => {
+      if (entry?.kind !== 'draft') return
       draftsStore.remove(id)
       removeDraft(id)
     }
-    if (!wasActive) return
-    if (next?.kind === 'thread') {
-      void navigate({ to: '/thread/$threadId', params: { threadId: next.id } })
-    } else if (next?.kind === 'draft') {
-      void navigate({ to: '/new/$draftId', params: { draftId: next.id } })
-    } else {
-      void navigate({ to: '/' })
+
+    if (!wasActive) {
+      dropDraft()
+      return
     }
+    void navigateEntry(next).then(dropDraft)
   }
 
   function archiveTab(threadId: string) {
@@ -216,9 +203,9 @@ export function TabBar() {
                   className={cn(
                     'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                     active
-                      ? 'bg-[#2B2C2D] text-foreground'
+                      ? 'bg-accent text-foreground'
                       : 'text-muted-foreground hover:bg-secondary/50',
-                    dragging && 'z-10 bg-[#2B2C2D] text-foreground'
+                    dragging && 'z-10 bg-accent text-foreground'
                   )}
                   style={dragging ? undefined : strip.shiftStyle(index)}
                   onPointerEnter={() => setHoveredId(entry.id)}
@@ -293,68 +280,18 @@ export function TabBar() {
 
       <div className='min-w-0 flex-1' />
 
-      <div className='flex shrink-0 items-center gap-1'>
-        <DropdownMenu>
-          <IconTip label='All threads'>
-            <DropdownMenuTrigger
-              render={
-                <Button variant='ghost' size='icon' aria-label='All threads'>
-                  <ListIcon />
-                </Button>
-              }
-            />
-          </IconTip>
-          <DropdownMenuContent align='end' className='max-h-96 w-64'>
-            {chrome.projects.map((project) => {
-              const threads = chrome.threads.filter(
-                (thread) => thread.projectId === project.id && !thread.archived
-              )
-              if (threads.length === 0) return null
-              return (
-                <DropdownMenuGroup key={project.id}>
-                  <DropdownMenuLabel className='font-mono text-[10px] uppercase tracking-widest text-muted-foreground'>
-                    {project.title}
-                  </DropdownMenuLabel>
-                  {threads.map((thread) => (
-                    <DropdownMenuItem key={thread.id} onClick={() => openThread(thread.id)}>
-                      <span
-                        className={cn(
-                          'size-2 shrink-0 rounded-full',
-                          statusDotClass(thread.status)
-                        )}
-                      />
-                      <span className='truncate'>{thread.title || thread.id}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-              )
-            })}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setNewProjectOpen(true)}>
-              New project…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <IconTip label='Settings'>
-          <Button
-            variant='ghost'
-            size='icon'
-            nativeButton={false}
-            render={
-              <Link to='/settings' aria-label='Settings'>
-                <GearIcon />
-              </Link>
-            }
-          />
-        </IconTip>
-      </div>
-
-      <NewProjectDialog
-        open={newProjectOpen}
-        onOpenChange={setNewProjectOpen}
-        showTrigger={false}
-      />
+      <IconTip label='Settings'>
+        <Button
+          variant='ghost'
+          size='icon'
+          nativeButton={false}
+          render={
+            <Link to='/settings' aria-label='Settings'>
+              <GearIcon />
+            </Link>
+          }
+        />
+      </IconTip>
     </div>
   )
 }

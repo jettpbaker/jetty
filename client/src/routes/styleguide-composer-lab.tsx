@@ -67,7 +67,7 @@ function FooterCluster({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <PromptInputButton disabled={disabled} className='text-muted-foreground'>
+            <PromptInputButton size='sm' disabled={disabled} className='text-muted-foreground'>
               {model}
             </PromptInputButton>
           }
@@ -118,7 +118,7 @@ function SeedButton() {
   }
 
   return (
-    <PromptInputButton aria-label='Add fake screenshot' onClick={seed}>
+    <PromptInputButton size='sm' aria-label='Add fake screenshot' onClick={seed}>
       seed
     </PromptInputButton>
   )

@@ -17,6 +17,7 @@ import { useStripDrag } from '@/lib/use-strip-drag'
 import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, useRef, useState } from 'react'
 import { AgentUiLab } from './styleguide-agent-lab'
+import { ComposerLab } from './styleguide-composer-lab'
 import { StreamingLab } from './styleguide-streaming-lab'
 
 export const Route = createFileRoute('/styleguide')({
@@ -69,7 +70,7 @@ function TabPill({ state, active, title }: { state: TabState; active: boolean; t
     <div
       className={cn(
         'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
-        active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
+        active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
       )}
     >
       <StateGlyph state={state} />
@@ -240,9 +241,9 @@ function MockTabBar() {
                 className={cn(
                   'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                   active
-                    ? 'bg-[#2B2C2D] text-foreground'
+                    ? 'bg-accent text-foreground'
                     : 'text-muted-foreground hover:bg-secondary/50',
-                  dragging && 'z-10 bg-[#2B2C2D] text-foreground'
+                  dragging && 'z-10 bg-accent text-foreground'
                 )}
                 style={dragging ? undefined : strip.shiftStyle(index)}
                 onPointerEnter={() => setHoveredId(tab.id)}
@@ -299,12 +300,13 @@ function MockTabBar() {
   )
 }
 
-type StyleguideTab = 'tabs' | 'agent' | 'streaming'
+type StyleguideTab = 'tabs' | 'agent' | 'streaming' | 'composer'
 
 const STYLEGUIDE_TABS: Array<{ id: StyleguideTab; label: string }> = [
   { id: 'tabs', label: 'Tab lab' },
   { id: 'agent', label: 'Agent UI lab' },
   { id: 'streaming', label: 'Streaming' },
+  { id: 'composer', label: 'Composer lab' },
 ]
 
 function StyleguideTabs({
@@ -367,7 +369,15 @@ function StyleguidePage() {
     <div className='flex h-full flex-col overflow-hidden'>
       <StyleguideTabs active={tab} onChange={setTab} />
       <div className='min-h-0 flex-1 overflow-y-auto' role='tabpanel'>
-        {tab === 'tabs' ? <TabLab /> : tab === 'agent' ? <AgentUiLab /> : <StreamingLab />}
+        {tab === 'tabs' ? (
+          <TabLab />
+        ) : tab === 'agent' ? (
+          <AgentUiLab />
+        ) : tab === 'streaming' ? (
+          <StreamingLab />
+        ) : (
+          <ComposerLab />
+        )}
       </div>
     </div>
   )
