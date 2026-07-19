@@ -85,6 +85,18 @@ const ENTER_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const ENTER_MS = 460
 const STAGGER_MS = 30
 
+// Fisher-Yates: which stagger slot each letter pops in on, shuffled per mount
+function shuffledSlots(n: number): number[] {
+  const slots = Array.from({ length: n }, (_, i) => i)
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = slots[i]!
+    slots[i] = slots[j]!
+    slots[j] = tmp
+  }
+  return slots
+}
+
 const REPULSE_RADIUS = 150 // px of cursor influence around each scrap
 const REPULSE_PUSH = 22 // max px a scrap gives way
 const EASE_K = 0.14 // per-frame exponential approach toward the target
@@ -165,6 +177,7 @@ type Phase = 'hidden' | 'shown'
 
 export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number; className?: string }) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
+  const [slots] = useState(() => shuffledSlots(WORD.length))
   const [phase, setPhase] = useState<Phase>(() =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'shown' : 'hidden'
   )
@@ -214,13 +227,14 @@ export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number
           transition: 'width 260ms ease-out, height 260ms ease-out',
         }
         // inner layer: rest pose + entrance transition
+        const delay = (slots[i] ?? i) * STAGGER_MS
         const poseStyle: CSSProperties =
           phase === 'shown'
             ? {
                 transform: `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`,
                 opacity: 1,
                 filter: 'blur(0px)',
-                transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms`,
+                transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${delay}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${delay}ms, filter ${ENTER_MS}ms ease ${delay}ms`,
               }
             : {
                 transform: `translateY(${lineH * 0.18}px) rotate(${scrap.rot * 1.25}deg) scale(0.96)`,
