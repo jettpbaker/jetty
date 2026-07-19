@@ -1,10 +1,10 @@
 import { pressHandlers } from '@/lib/press-handlers'
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
 
 // Ransom-note wordmark: real torn-magazine cutout letters (Resource Boy pack,
 // royalty-free), one scrap per letter with seeded jitter so it reads as taped
-// down by hand. Tapping a scrap swaps it for a different cutout of the same
-// letter. Inspired by rauno.me's open-sourced "Ransom note" vault piece.
+// down by hand. Click re-rolls every letter; scraps ease away from a nearby
+// cursor. Inspired by rauno.me's open-sourced "Ransom note" vault piece.
 
 type Variant = { file: string; w: number; h: number }
 
@@ -68,6 +68,7 @@ type Scrap = {
   dy: number
   scale: number
   gap: number
+  depth: number
   swapped?: boolean
 }
 
@@ -82,6 +83,7 @@ const WORD: Array<{ letter: string; file: string }> = [
 
 function composeWord(): Scrap[] {
   const rnd = mulberry32(0x4a455454) // 'JETT'
+  const rndDepth = mulberry32(0x59) // separate stream so adding depth kept the layout
   return WORD.map(({ letter, file }) => ({
     letter,
     file,
@@ -89,6 +91,7 @@ function composeWord(): Scrap[] {
     dy: (rnd() * 2 - 1) * 0.06,
     scale: 1 + (rnd() * 2 - 1) * 0.1,
     gap: rnd() * 0.05,
+    depth: 0.6 + rndDepth() * 0.4,
   }))
 }
 
@@ -96,11 +99,83 @@ const ENTER_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const ENTER_MS = 460
 const STAGGER_MS = 30
 
+const REPULSE_RADIUS = 150 // px of cursor influence around each scrap
+const REPULSE_PUSH = 16 // max px a scrap gives way
+const EASE_K = 0.14 // per-frame exponential approach toward the target
+
+// Inverse of the inspo's magnetism: each scrap eases AWAY from the pointer by
+// its own proximity (a per-letter field, not a flat container tilt). The
+// repulsion layer has no CSS transition — this loop eases every frame, and
+// stops once everything settles; pointer movement kicks it back on.
+function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const maybeHost = hostRef.current
+    if (!maybeHost) return
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const host: HTMLDivElement = maybeHost
+
+    const state = new Map<HTMLElement, { x: number; y: number }>()
+    let pointer: { x: number; y: number } | null = null
+    let raf = 0
+
+    function tick() {
+      raf = 0
+      let settled = true
+      for (const el of host.querySelectorAll<HTMLElement>('[data-scrap]')) {
+        let s = state.get(el)
+        if (!s) state.set(el, (s = { x: 0, y: 0 }))
+        let tx = 0
+        let ty = 0
+        if (pointer) {
+          const rect = el.getBoundingClientRect()
+          // subtract the current offset so the field acts on the resting center
+          const dx = rect.left + rect.width / 2 - s.x - pointer.x
+          const dy = rect.top + rect.height / 2 - s.y - pointer.y
+          const d = Math.hypot(dx, dy)
+          if (d > 0 && d < REPULSE_RADIUS) {
+            const fall = (1 - d / REPULSE_RADIUS) ** 2
+            const depth = Number(el.dataset.depth ?? 1)
+            tx = (dx / d) * REPULSE_PUSH * fall * depth
+            ty = (dy / d) * REPULSE_PUSH * fall * depth
+          }
+        }
+        s.x += (tx - s.x) * EASE_K
+        s.y += (ty - s.y) * EASE_K
+        if (Math.abs(tx - s.x) > 0.05 || Math.abs(ty - s.y) > 0.05) settled = false
+        el.style.transform = `translate(${s.x.toFixed(2)}px, ${s.y.toFixed(2)}px)`
+      }
+      if (!settled) raf = requestAnimationFrame(tick)
+    }
+
+    function kick() {
+      if (!raf) raf = requestAnimationFrame(tick)
+    }
+    function onMove(event: PointerEvent) {
+      pointer = { x: event.clientX, y: event.clientY }
+      kick()
+    }
+    function onLeave() {
+      pointer = null
+      kick()
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    document.documentElement.addEventListener('mouseleave', onLeave)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      document.documentElement.removeEventListener('mouseleave', onLeave)
+      cancelAnimationFrame(raf)
+    }
+  }, [hostRef])
+}
+
 export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number; className?: string }) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
   const [revealed, setRevealed] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
   )
+  const hostRef = useRef<HTMLDivElement>(null)
+  useRepulsion(hostRef)
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setRevealed(true))
@@ -125,6 +200,7 @@ export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number;
 
   return (
     <div
+      ref={hostRef}
       className={`flex cursor-pointer select-none items-center justify-center ${className}`}
       style={{ gap: `${lineH * 0.06}px` }}
       {...pressHandlers(reroll)}
@@ -135,26 +211,40 @@ export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number;
         if (!variant) return null
         const h = lineH * scrap.scale
         const w = (variant.w / variant.h) * h
-        const style: CSSProperties = {
+        // outer layer: layout + JS-eased repulsion (never CSS-transitioned)
+        const scrapStyle: CSSProperties = {
           width: `${w}px`,
           height: `${h}px`,
           marginRight: `${scrap.gap * lineH}px`,
+          willChange: 'transform',
+          transition: 'width 260ms ease-out, height 260ms ease-out',
+        }
+        // inner layer: rest pose + entrance transition
+        const poseStyle: CSSProperties = {
           transform: revealed
             ? `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`
             : `translateY(${lineH * 0.18}px) rotate(${scrap.rot * 1.25}deg) scale(0.96)`,
           opacity: revealed ? 1 : 0,
           filter: revealed ? 'blur(0px)' : 'blur(3px)',
-          transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms, width 260ms ease-out, height 260ms ease-out`,
+          transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms`,
         }
         return (
-          <span key={i} className='relative shrink-0' style={style}>
-            <img
-              key={scrap.file}
-              src={spriteUrl(scrap.file)}
-              alt=''
-              draggable={false}
-              className={`absolute top-1/2 left-1/2 h-full w-auto max-w-none -translate-x-1/2 -translate-y-1/2 ${scrap.swapped ? 'ransom-swap-in' : ''}`}
-            />
+          <span
+            key={i}
+            data-scrap
+            data-depth={scrap.depth.toFixed(2)}
+            className='relative shrink-0'
+            style={scrapStyle}
+          >
+            <span className='absolute inset-0' style={poseStyle}>
+              <img
+                key={scrap.file}
+                src={spriteUrl(scrap.file)}
+                alt=''
+                draggable={false}
+                className={`absolute top-1/2 left-1/2 h-full w-auto max-w-none -translate-x-1/2 -translate-y-1/2 ${scrap.swapped ? 'ransom-swap-in' : ''}`}
+              />
+            </span>
           </span>
         )
       })}
