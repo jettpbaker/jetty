@@ -450,6 +450,24 @@ function MockTabBar() {
     setDragState(next)
   }
 
+  // The release can land anywhere — outside the strip, mid-flick, over other
+  // elements. Window-level listeners during a drag guarantee we hear it.
+  const releaseRef = useRef<() => void>(() => {})
+  releaseRef.current = onPillPointerUp
+  const dragActive = drag !== null
+  useEffect(() => {
+    if (!dragActive) return
+    function release() {
+      releaseRef.current()
+    }
+    window.addEventListener('pointerup', release)
+    window.addEventListener('pointercancel', release)
+    return () => {
+      window.removeEventListener('pointerup', release)
+      window.removeEventListener('pointercancel', release)
+    }
+  }, [dragActive])
+
   useEffect(
     () => () => {
       if (settleTimer.current) window.clearTimeout(settleTimer.current)
@@ -465,12 +483,6 @@ function MockTabBar() {
   function onPillPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const start = dragStart.current
     if (!start) return
-    // a release outside our reach leaves stale drag state; event.buttons is
-    // ground truth — no button held means we missed the pointerup
-    if (event.buttons === 0) {
-      onPillPointerUp()
-      return
-    }
     const dx = event.clientX - start.x
     if (!dragRef.current) {
       if (Math.abs(dx) < DRAG_THRESHOLD) return
