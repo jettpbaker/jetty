@@ -2,7 +2,16 @@ import { ProjectBadge } from '@/components/project-badge'
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { GitMergeIcon, GitPullRequestIcon, PlusIcon, SpinnerIcon, XIcon } from '@phosphor-icons/react'
+import {
+  CircleDashedIcon,
+  GitBranchIcon,
+  GitMergeIcon,
+  GitPullRequestIcon,
+  MoonIcon,
+  PlusIcon,
+  SpinnerIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, type ReactNode } from 'react'
 
@@ -309,6 +318,54 @@ function JettIconLab() {
   )
 }
 
+// Sleeping-state candidates: no associated PR, agent not working. What does
+// the prefix show when there is nothing to say?
+const SLEEPING_CANDIDATES: Array<{ caption: string; prefix: ReactNode }> = [
+  { caption: 'nothing (space reserved)', prefix: <span className='size-[18px] shrink-0' /> },
+  { caption: 'nothing (collapses)', prefix: null },
+  {
+    caption: 'muted dot',
+    prefix: <span className='size-2 shrink-0 rounded-full bg-muted-foreground/40' />,
+  },
+  {
+    caption: 'dashed circle',
+    prefix: <CircleDashedIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+  },
+  {
+    caption: 'moon',
+    prefix: <MoonIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+  },
+  {
+    caption: 'branch (worktree, no PR)',
+    prefix: <GitBranchIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+  },
+  { caption: 'ransom letter', prefix: <ProjectBadge title='A' /> },
+]
+
+function JettSleepingLab() {
+  return (
+    <section className='flex flex-col gap-4'>
+      <TreatmentLabel name='jett · sleeping state' />
+      <div className='flex flex-col gap-3'>
+        {SLEEPING_CANDIDATES.map((candidate) => (
+          <div key={candidate.caption} className='flex flex-wrap items-center gap-3'>
+            <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
+              {candidate.prefix}
+              <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
+              <XIcon className='size-3.5 text-muted-foreground' />
+            </div>
+            <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground'>
+              {candidate.prefix}
+              <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
+            </div>
+            <span className='text-xs text-muted-foreground'>{candidate.caption}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function StyleguidePage() {
   return (
     <div className='h-full overflow-y-auto'>
@@ -318,7 +375,12 @@ function StyleguidePage() {
         {TREATMENTS.map((treatment) => (
           <Fragment key={treatment}>
             <TreatmentSection treatment={treatment} />
-            {treatment === 'jett' && <JettIconLab />}
+            {treatment === 'jett' && (
+              <>
+                <JettIconLab />
+                <JettSleepingLab />
+              </>
+            )}
           </Fragment>
         ))}
 
