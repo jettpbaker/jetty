@@ -87,7 +87,7 @@ export function ComposerFooter({
             <PromptInputButton
               size='sm'
               disabled={disabled}
-              data-cuelume-hover='chime'
+              data-cuelume-hover='tick'
               className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
             >
               {prefs.approval.label}
@@ -110,7 +110,7 @@ export function ComposerFooter({
               <PromptInputButton
                 size='sm'
                 disabled={disabled}
-                data-cuelume-hover='chime'
+                data-cuelume-hover='tick'
                 className='group/model gap-1.5 text-foreground hover:bg-transparent!'
               >
                 {prefs.model.label}
