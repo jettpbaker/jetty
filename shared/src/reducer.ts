@@ -29,18 +29,29 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
       return { ...state, activeTurnId: event.turnId, status: 'running' }
     case 'turn.completed':
     case 'turn.failed':
-      return { ...state, activeTurnId: null, status: 'idle' }
+      return {
+        ...state,
+        activeTurnId: null,
+        status: 'idle',
+        items: state.items.map(settleStreaming),
+      }
     case 'item.started':
       return { ...state, items: [...state.items, event.item] }
     case 'item.delta':
       return updateItem(state, event.itemId, appendDelta(event.delta))
     case 'item.completed':
       return updateItem(state, event.itemId, (item) =>
-        ThreadItem.parse({ ...item, ...event.patch })
+        settleStreaming(ThreadItem.parse({ ...item, ...event.patch }))
       )
     case 'session.status':
       return { ...state, status: event.status }
   }
+}
+
+// turn end also settles: a failed turn must not strand an item mid-stream
+function settleStreaming(item: ThreadItem): ThreadItem {
+  if ('streaming' in item && item.streaming) return { ...item, streaming: false }
+  return item
 }
 
 function appendDelta(delta: string) {

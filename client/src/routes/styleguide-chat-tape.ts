@@ -239,7 +239,14 @@ export function compileTape(): TapeStep[] {
         case 'reasoning': {
           push(350, {
             type: 'item.started',
-            item: { id: itemId, turnId, createdAt: Date.now(), kind: 'reasoning', text: '' },
+            item: {
+              id: itemId,
+              turnId,
+              createdAt: Date.now(),
+              kind: 'reasoning',
+              text: '',
+              streaming: true,
+            },
           })
           streamText(itemId, beat.text, REASONING_TPS)
           push(80, { type: 'item.completed', itemId })
@@ -254,6 +261,7 @@ export function compileTape(): TapeStep[] {
               createdAt: Date.now(),
               kind: 'assistant_message',
               text: '',
+              streaming: true,
             },
           })
           streamText(itemId, beat.text, ASSISTANT_TPS)
@@ -311,8 +319,211 @@ export function compileTape(): TapeStep[] {
 
 // --- spec sheet fixtures ----------------------------------------------------
 
-
 const sheetBase = { turnId: 'sheet', createdAt: 0 }
+
+type ToolCallItem = Extract<ThreadItem, { kind: 'tool_call' }>
+
+function contextCall(
+  id: string,
+  toolName: 'Read' | 'Grep' | 'Glob',
+  input: unknown,
+  status: ToolCallItem['status'],
+  output = '',
+): ToolCallItem {
+  return {
+    id,
+    ...sheetBase,
+    kind: 'tool_call',
+    toolName,
+    input,
+    output,
+    status,
+  }
+}
+
+const READ_OUTPUT = `1\timport type { ThreadItem } from '@jetty/shared/items'
+2\t
+3\texport function ToolRow({ item }: { item: ToolCallItem }) {`
+
+const GREP_OUTPUT = `client/src/components/tool-row.tsx
+  242:export function ToolRow({ item }: { item: ToolCallItem }) {
+client/src/components/context-group.tsx
+  12:export function isContextCall(item: ThreadItem): item is ToolCallItem {`
+
+const GLOB_OUTPUT = `client/src/components/tool-row.tsx
+client/src/components/context-group.tsx
+client/src/components/timeline.tsx`
+
+export type ContextScenario = { label: string; items: ToolCallItem[]; live?: boolean }
+
+export const CONTEXT_SCENARIOS: ContextScenario[] = [
+  {
+    label: 'running · first read',
+    items: [
+      contextCall('ctx-run-1', 'Read', { file_path: 'client/src/components/response.tsx' }, 'running'),
+    ],
+  },
+  {
+    label: 'running · mid group',
+    items: [
+      contextCall(
+        'ctx-mid-1',
+        'Read',
+        { file_path: 'client/src/components/tool-row.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mid-2',
+        'Read',
+        { file_path: 'client/src/components/timeline.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mid-3',
+        'Read',
+        { file_path: 'client/src/components/context-group.tsx' },
+        'running',
+      ),
+    ],
+  },
+  {
+    label: 'holding · between calls',
+    live: true,
+    items: [
+      contextCall(
+        'ctx-hold-1',
+        'Read',
+        { file_path: 'client/src/components/tool-row.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-hold-2',
+        'Read',
+        { file_path: 'client/src/components/timeline.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+    ],
+  },
+  {
+    label: 'running · search',
+    items: [
+      contextCall(
+        'ctx-search-1',
+        'Read',
+        { file_path: 'client/src/lib/press-handlers.ts' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-search-2',
+        'Grep',
+        { pattern: 'pressHandlers', path: 'client/src' },
+        'running',
+      ),
+    ],
+  },
+  {
+    label: 'settled · single read',
+    items: [
+      contextCall(
+        'ctx-single-1',
+        'Read',
+        { file_path: 'client/src/components/response.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+    ],
+  },
+  {
+    label: 'settled · reads',
+    items: [
+      contextCall(
+        'ctx-reads-1',
+        'Read',
+        { file_path: 'client/src/components/tool-row.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-reads-2',
+        'Read',
+        { file_path: 'client/src/components/timeline.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-reads-3',
+        'Read',
+        { file_path: 'client/src/components/context-group.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+    ],
+  },
+  {
+    label: 'settled · mixed',
+    items: [
+      contextCall(
+        'ctx-mixed-1',
+        'Read',
+        { file_path: 'client/src/components/tool-row.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mixed-2',
+        'Read',
+        { file_path: 'client/src/components/timeline.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mixed-3',
+        'Read',
+        { file_path: 'client/src/components/response.tsx' },
+        'succeeded',
+        READ_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mixed-4',
+        'Grep',
+        { pattern: 'groupTimeline', path: 'client/src' },
+        'succeeded',
+        GREP_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mixed-5',
+        'Grep',
+        { pattern: 'CONTEXT_TOOLS', path: 'client/src' },
+        'succeeded',
+        GREP_OUTPUT,
+      ),
+      contextCall(
+        'ctx-mixed-6',
+        'Glob',
+        { pattern: 'client/src/components/*.tsx' },
+        'succeeded',
+        GLOB_OUTPUT,
+      ),
+    ],
+  },
+]
+
+// Fixture for the Approval dock lab section — the live dock renders from a real
+// approval item, so it takes the same shape the wire delivers.
+export const DOCK_APPROVAL: Extract<ThreadItem, { kind: 'approval' }> = {
+  id: 'dock-approval',
+  ...sheetBase,
+  kind: 'approval',
+  title: 'Fetch Gambarino from Fontshare',
+  toolName: 'Bash',
+  input: { command: "curl -s 'https://api.fontshare.com/v2/css?f[]=gambarino@400'" },
+  suggestions: [],
+}
 
 export type SheetEntry = { label: string; item: ThreadItem }
 
@@ -352,7 +563,17 @@ Custom keyframes are supported but prefixed:
         },
       },
       {
-        label: 'reasoning',
+        label: 'reasoning · streaming',
+        item: {
+          id: 'sheet-reasoning-streaming',
+          ...sheetBase,
+          kind: 'reasoning',
+          text: 'Gambarino isn’t on npm — Fontshare only. Pull the woff2 from their CDN, self-host it next to the',
+          streaming: true,
+        },
+      },
+      {
+        label: 'reasoning · settled',
         item: {
           id: 'sheet-reasoning',
           ...sheetBase,
@@ -496,6 +717,20 @@ Found 0 warnings and 0 errors.`,
           input: { command: 'rm -rf node_modules && bun install' },
           suggestions: [],
           decision: 'deny',
+        },
+      },
+      {
+        label: 'denied · with message',
+        item: {
+          id: 'sheet-approval-denied-message',
+          ...sheetBase,
+          kind: 'approval',
+          title: 'Delete node_modules and reinstall',
+          toolName: 'Bash',
+          input: { command: 'rm -rf node_modules && bun install' },
+          suggestions: [],
+          decision: 'deny',
+          deniedReason: 'Just clear the bun cache instead — don’t nuke node_modules.',
         },
       },
     ],

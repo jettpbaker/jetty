@@ -29,6 +29,7 @@ export type Agent = {
     threadId: string,
     itemId: string,
     decision: ApprovalDecision,
+    message?: string,
     updatedPermissions?: unknown[]
   ): boolean
 }

@@ -165,12 +165,13 @@ export function createOrchestrator(
       threadId: string,
       itemId: string,
       decision: ApprovalDecision,
+      message?: string,
       updatedPermissions?: unknown[]
     ) {
       if (!store.getThread(threadId)) {
         throw new StoreError('not_found', `Thread ${threadId} not found`)
       }
-      if (!agent.respondToApproval(threadId, itemId, decision, updatedPermissions)) {
+      if (!agent.respondToApproval(threadId, itemId, decision, message, updatedPermissions)) {
         throw new StoreError('not_found', `No pending approval ${itemId}`)
       }
     },

@@ -107,6 +107,7 @@ export const methods = {
       threadId: z.string(),
       itemId: z.string(),
       decision: ApprovalDecision,
+      message: z.string().optional(),
       updatedPermissions: z.array(z.unknown()).optional(),
     }),
     result: z.null(),

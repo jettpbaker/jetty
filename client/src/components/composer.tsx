@@ -54,7 +54,7 @@ function normalizeMessage(
 
 // One shell everywhere: hairline border that brightens on focus-within.
 const composerBase =
-  'rounded-lg [&_[data-slot=input-group]]:bg-card! [&_[data-slot=input-group]]:ring-0!'
+  'rounded-lg [&_[data-slot=input-group]]:bg-card/70! [&_[data-slot=input-group]]:backdrop-blur-lg'
 export const composerShell = `${composerBase} [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:focus-within:border-white/25!`
 
 // Footer: add-image and approval picker left, model+effort picker and send

@@ -87,7 +87,7 @@ html {
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: var(--code-foreground);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -105,8 +105,8 @@ html {
   /* Inline code chip: warm ember on warm near-black, same in both themes.
      --code-glow is the brightened ember for luminous accents (shimmer bands). */
   --code: #1b130f;
-  --code-foreground: #e38d65;
-  --code-glow: #f2a67e;
+  --code-foreground: #eb8a5d;
+  --code-glow: #f6a57a;
 }
 
 /* Dark: the chrome scale. Three cool-tinted grays (each channel stepping
@@ -131,7 +131,7 @@ html {
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: var(--code-foreground);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -150,6 +150,15 @@ html {
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* selection wears the inline-code chip: warm near-black ground, ember text */
+  ::selection {
+    background: var(--code);
+    color: var(--code-foreground);
+  }
+  /* the ember answers wherever you are: caret, focus ring, selection */
+  body {
+    caret-color: var(--code-foreground);
   }
   body {
     @apply bg-background text-foreground;

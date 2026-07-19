@@ -20,6 +20,7 @@ import {
 import { createCodePlugin } from '@streamdown/code'
 import { memo } from 'react'
 import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 
 const dark2026 = dark2026Json as ThemeRegistrationAny
 
@@ -32,12 +33,13 @@ export type ResponseProps = ComponentProps<typeof Streamdown>
 
 /** Compact single-card fence overrides on streamdown's CodeBlock DOM. */
 const markdownFenceClassName = [
-  // outer: one flat card (kill nested card chrome)
+  // outer: no card at all — fences sit truly inline with the prose
   '[&_[data-streamdown=code-block]]:my-3',
   '[&_[data-streamdown=code-block]]:relative',
   '[&_[data-streamdown=code-block]]:gap-0',
-  '[&_[data-streamdown=code-block]]:rounded-md',
-  '[&_[data-streamdown=code-block]]:bg-card',
+  '[&_[data-streamdown=code-block]]:rounded-none',
+  '[&_[data-streamdown=code-block]]:border-0',
+  '[&_[data-streamdown=code-block]]:!bg-transparent',
   '[&_[data-streamdown=code-block]]:p-0',
   '[&_[data-streamdown=code-block]]:overflow-hidden',
   // language header is a full-width row — drop it (awkward with top-right copy)
@@ -70,8 +72,7 @@ const markdownFenceClassName = [
   '[&_[data-streamdown=code-block-body]]:rounded-none',
   '[&_[data-streamdown=code-block-body]]:border-0',
   '[&_[data-streamdown=code-block-body]]:!bg-transparent',
-  '[&_[data-streamdown=code-block-body]]:px-3',
-  '[&_[data-streamdown=code-block-body]]:py-2.5',
+  '[&_[data-streamdown=code-block-body]]:p-0',
   '[&_[data-streamdown=code-block-body]]:text-[13px]',
   '[&_[data-streamdown=code-block-body]]:leading-normal',
   // with lineNumbers off streamdown leaves line spans classless and inline
@@ -86,7 +87,11 @@ const markdownFenceClassName = [
 export const markdownDefaults = {
   shikiTheme: [dark2026, dark2026],
   controls: { code: { download: false } },
+  // links open directly — no "external link" confirmation modal
+  linkSafety: { enabled: false },
   lineNumbers: false,
+  // word-level blur-in while streaming; inert unless isAnimating is passed true
+  animated: { animation: 'blurIn', duration: 260, easing: 'ease-out', sep: 'word', stagger: 0 },
   plugins: { code: codePlugin },
   className: markdownFenceClassName,
   // streamdown's built-ins are inlined lucide; jetty speaks Phosphor
@@ -113,12 +118,23 @@ export const Response = memo(
         'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
         // inline code only — fenced blocks (pre > code) keep their own treatment
         '[&_:not(pre)>code]:bg-code [&_:not(pre)>code]:text-code-foreground',
+        // app chrome uses default cursors; streamdown's buttons ship cursor-pointer.
+        // links stay pointer — they leave the app, unlike chrome controls. streamdown
+        // renders link-safety links as <button data-streamdown=link>, so target the
+        // attribute, not the tag
+        '[&_button]:cursor-default [&_[data-streamdown=link]]:cursor-pointer',
+        // links carry the signature ember
+        '[&_[data-streamdown=link]]:text-code-foreground [&_[data-streamdown=link]:hover]:text-code-glow',
+        // bullets: plain dash marker instead of the disc
+        "[&_ul]:[list-style-type:'-_']",
+        'motion-reduce:[&_[data-sd-animate]]:animate-none',
         className
       )}
       {...props}
     />
   ),
-  (prevProps, nextProps) => prevProps.children === nextProps.children
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children && prevProps.isAnimating === nextProps.isAnimating
 )
 
 Response.displayName = 'Response'

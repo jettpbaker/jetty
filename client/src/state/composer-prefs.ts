@@ -36,13 +36,47 @@ export type ComposerPrefs = {
   approval: ApprovalOption
 }
 
-function createComposerPrefs() {
+const STORAGE_KEY = 'jetty:composer-prefs'
+
+type StoredPrefs = { model?: string; effort?: string | null; approval?: string }
+
+function restorePrefs(): ComposerPrefs {
   // Haiku keeps dev turns cheap until a model is deliberately chosen.
-  let prefs: ComposerPrefs = {
+  const fallback: ComposerPrefs = {
     model: MODELS[2] ?? MODELS[0]!,
     effort: null,
     approval: APPROVAL_MODES[0]!,
   }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return fallback
+    const stored = JSON.parse(raw) as StoredPrefs
+    const model = MODELS.find((option) => option.id === stored.model) ?? fallback.model
+    return {
+      model,
+      effort: model.efforts.find((option) => option.id === stored.effort) ?? null,
+      approval: APPROVAL_MODES.find((option) => option.id === stored.approval) ?? fallback.approval,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function persistPrefs(prefs: ComposerPrefs): void {
+  const stored: StoredPrefs = {
+    model: prefs.model.id,
+    effort: prefs.effort?.id ?? null,
+    approval: prefs.approval.id,
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+  } catch {
+    // storage unavailable — prefs stay session-local
+  }
+}
+
+function createComposerPrefs() {
+  let prefs = restorePrefs()
   const listeners = new Set<() => void>()
 
   return {
@@ -57,6 +91,7 @@ function createComposerPrefs() {
     },
     set(next: Partial<ComposerPrefs>) {
       prefs = { ...prefs, ...next }
+      persistPrefs(prefs)
       for (const listener of listeners) {
         listener()
       }

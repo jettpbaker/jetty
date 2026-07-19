@@ -15,6 +15,7 @@ import { loadLastProjectId, removeDraft } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import type { Draft } from '@/state/drafts'
 import {
   BellRingingIcon,
@@ -65,6 +66,8 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
   )
 }
 
+const HOTKEY_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
+
 export function TabBar() {
   const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
   const tabIds = useSyncExternalStore(tabsStore.subscribe, tabsStore.getSnapshot)
@@ -96,6 +99,28 @@ export function TabBar() {
       if (fromEntry && toEntry) tabsStore.move(fromEntry.id, toEntry.id)
     },
   })
+
+  // Chrome owns Cmd+num, so tab switching rides Ctrl+num (Ctrl+9 = last tab,
+  // browser-style). Ctrl combos fire even while the composer has focus.
+  useHotkeys([
+    ...HOTKEY_DIGITS.map((digit) => ({
+      hotkey: `Control+${digit}` as const,
+      callback: () => {
+        const entry = digit === 9 ? openEntries.at(-1) : openEntries[digit - 1]
+        if (!entry) return
+        if (entry.kind === 'thread') openThread(entry.id)
+        else openDraft(entry.id)
+      },
+    })),
+    { hotkey: 'Control+T', callback: newThread },
+    {
+      hotkey: 'Control+W',
+      callback: () => {
+        const activeId = activeThreadId ?? activeDraftId
+        if (activeId) closeTab(activeId)
+      },
+    },
+  ])
 
   function openThread(threadId: string) {
     tabsStore.open(threadId)

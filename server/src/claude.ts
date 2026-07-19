@@ -377,6 +377,7 @@ export function createClaudeAdapter(store: Store): Agent {
       threadId: string,
       itemId: string,
       decision: ApprovalDecision,
+      message?: string,
       updatedPermissions?: unknown[]
     ): boolean {
       const session = sessions.get(threadId)
@@ -385,17 +386,23 @@ export function createClaudeAdapter(store: Store): Agent {
       if (!pending) return false
       session.pendingApprovals.delete(itemId)
 
-      session.emit({ type: 'item.completed', itemId, patch: { decision } })
-      session.emit({ type: 'session.status', status: 'running' })
-
       if (decision === 'allow') {
+        session.emit({ type: 'item.completed', itemId, patch: { decision } })
+        session.emit({ type: 'session.status', status: 'running' })
         pending.resolve({
           behavior: 'allow',
           updatedInput: pending.input,
           updatedPermissions: updatedPermissions as PermissionUpdate[] | undefined,
         })
       } else {
-        pending.resolve({ behavior: 'deny', message: 'Denied by user' })
+        const reason = message?.trim() ? message.trim() : undefined
+        session.emit({
+          type: 'item.completed',
+          itemId,
+          patch: { decision, ...(reason ? { deniedReason: reason } : {}) },
+        })
+        session.emit({ type: 'session.status', status: 'running' })
+        pending.resolve({ behavior: 'deny', message: reason ?? 'Denied by user' })
       }
       return true
     },

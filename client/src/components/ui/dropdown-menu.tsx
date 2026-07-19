@@ -36,7 +36,10 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot='dropdown-menu-content'
           className={cn(
-            'cn-menu-target cn-menu-translucent z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-foreground/10 duration-100 ease-out outline-none data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 motion-reduce:animate-none',
+            // shadcn's translucent-menu recipe, tuned to the composer's glass:
+            // lighter blur reads frostier over dark content than the stock 2xl
+            'animate-none! relative bg-popover/70 before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-lg before:backdrop-saturate-150 **:data-[slot$=-item]:focus:bg-foreground/10 **:data-[slot$=-item]:data-highlighted:bg-foreground/10 **:data-[slot$=-separator]:bg-foreground/5 **:data-[slot$=-trigger]:focus:bg-foreground/10 **:data-[slot$=-trigger]:aria-expanded:bg-foreground/10!',
+            'z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg p-1 text-popover-foreground ring-1 ring-foreground/10 duration-100 ease-out outline-none data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 motion-reduce:animate-none',
             className
           )}
           {...props}
@@ -133,7 +136,7 @@ function DropdownMenuSubContent({
     <DropdownMenuContent
       data-slot='dropdown-menu-sub-content'
       className={cn(
-        'cn-menu-target cn-menu-translucent w-auto min-w-[96px] rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-foreground/10 duration-100 ease-out data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none',
+        'w-auto min-w-[96px] rounded-lg p-1 text-popover-foreground ring-1 ring-foreground/10 duration-100 ease-out data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none',
         className
       )}
       align={align}

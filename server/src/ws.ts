@@ -112,7 +112,7 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
       }
       case 'approval.respond': {
         const p = parsed.data as ParamsOf<'approval.respond'>
-        orch.respondApproval(p.threadId, p.itemId, p.decision, p.updatedPermissions)
+        orch.respondApproval(p.threadId, p.itemId, p.decision, p.message, p.updatedPermissions)
         return null
       }
       default: {

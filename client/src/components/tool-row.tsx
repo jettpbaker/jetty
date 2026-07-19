@@ -3,7 +3,6 @@ import { type ReactNode, useState } from 'react'
 
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
-import { CaretRightIcon } from '@phosphor-icons/react'
 
 type ToolCallItem = Extract<ThreadItem, { kind: 'tool_call' }>
 
@@ -115,7 +114,8 @@ const REGISTRY: Record<string, ToolDef> = {
     done: 'Read',
     failed: 'Read failed',
     field: (input) => pathField(input, 'file_path'),
-    body: plainBody,
+    // reads never expand — the path is the whole story
+    body: () => null,
   },
   Edit: {
     running: 'Editing',
@@ -142,16 +142,16 @@ const REGISTRY: Record<string, ToolDef> = {
     body: bashBody,
   },
   Grep: {
-    running: 'Searching',
-    done: 'Searched',
-    failed: 'Search failed',
+    running: 'Grepping',
+    done: 'Grepped',
+    failed: 'Grep failed',
     field: (input) => textField(input, 'pattern', true),
     body: plainBody,
   },
   Glob: {
-    running: 'Searching',
-    done: 'Searched',
-    failed: 'Search failed',
+    running: 'Globbing',
+    done: 'Globbed',
+    failed: 'Glob failed',
     field: (input) => textField(input, 'pattern', true),
     body: plainBody,
   },
@@ -176,6 +176,19 @@ const REGISTRY: Record<string, ToolDef> = {
     field: (input) => textField(input, 'query'),
     body: plainBody,
   },
+  ToolSearch: {
+    running: 'Loading tools',
+    done: 'Loaded tools',
+    failed: 'Tool load failed',
+    field: (input) => {
+      const query = strProp(input, 'query')
+      if (!query) return null
+      // "select:WebSearch,WebFetch" → "WebSearch, WebFetch"; keyword queries as-is
+      const value = query.replace(/^select:/, '').replace(/,/g, ', ')
+      return { kind: 'text', value, mono: true }
+    },
+    body: plainBody,
+  },
   TodoWrite: {
     running: 'Updating todos',
     done: 'Updated todos',
@@ -197,6 +210,10 @@ function resolveDef(toolName: string): ToolDef {
   }
 }
 
+export function toolRunningLabel(toolName: string): string {
+  return resolveDef(toolName).running
+}
+
 function PathField({ path }: { path: string }) {
   const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   if (slash === -1) {
@@ -214,15 +231,19 @@ function PathField({ path }: { path: string }) {
 
 function FieldView({ field }: { field: Exclude<Field, null> }) {
   if (field.kind === 'path') return <PathField path={field.path} />
-  if (field.mono) {
-    // command/pattern fields dress like inline code chips
-    return (
-      <span className='inline-block max-w-full truncate rounded bg-code px-1.5 py-0.5 align-bottom font-mono text-[13px] text-code-foreground'>
-        {field.value}
-      </span>
-    )
-  }
-  return <span className='block truncate text-muted-foreground'>{field.value}</span>
+  return (
+    <span
+      className={cn('block truncate text-muted-foreground', field.mono && 'font-mono')}
+    >
+      {field.value}
+    </span>
+  )
+}
+
+export function ToolCallField({ toolName, input }: { toolName: string; input: unknown }) {
+  const field = resolveDef(toolName).field(input)
+  if (!field) return null
+  return <FieldView field={field} />
 }
 
 function parseErrorHeadline(output: string): string {
@@ -247,11 +268,17 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
   const def = resolveDef(item.toolName)
 
   if (item.status === 'running') {
+    const field = def.field(item.input)
     return (
-      <div className='text-sm'>
-        <span className='shimmer shimmer-duration-1000 shimmer-color-code-glow text-muted-foreground'>
+      <div className='flex w-full min-w-0 items-baseline gap-2 text-sm'>
+        <span className='shrink-0 shimmer shimmer-duration-1000 text-muted-foreground'>
           {def.running}
         </span>
+        {field ? (
+          <span className='min-w-0 flex-1'>
+            <FieldView field={field} />
+          </span>
+        ) : null}
       </div>
     )
   }
@@ -275,7 +302,7 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
       <div>
         <div
           className={cn(
-            'flex w-full min-w-0 items-center gap-2 text-sm',
+            'flex w-full min-w-0 items-baseline gap-2 text-sm',
             hasBody && 'cursor-pointer select-none',
           )}
           {...(hasBody ? pressHandlers(toggle) : {})}
@@ -286,12 +313,6 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
           ) : (
             <span className='min-w-0 flex-1' />
           )}
-          {hasBody ? (
-            <CaretRightIcon
-              className={cn('size-3 shrink-0 text-muted-foreground', open && 'rotate-90')}
-              weight='bold'
-            />
-          ) : null}
         </div>
         {open && hasBody ? <ToolRowBody>{body}</ToolRowBody> : null}
       </div>
@@ -302,7 +323,7 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
     <div>
       <div
         className={cn(
-          'flex w-full min-w-0 items-center gap-2 text-sm',
+          'flex w-full min-w-0 items-baseline gap-2 text-sm',
           hasBody && 'cursor-pointer select-none',
         )}
         {...(hasBody ? pressHandlers(toggle) : {})}
@@ -315,12 +336,6 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
         ) : (
           <span className='min-w-0 flex-1' />
         )}
-        {hasBody ? (
-          <CaretRightIcon
-            className={cn('size-3 shrink-0 text-muted-foreground', open && 'rotate-90')}
-            weight='bold'
-          />
-        ) : null}
       </div>
       {open && hasBody ? <ToolRowBody>{body}</ToolRowBody> : null}
     </div>

@@ -4,9 +4,9 @@ import type { ComponentProps, ReactNode } from 'react'
 
 import { Response } from '@/components/response'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { pickSpinnerVerb } from '@/lib/spinner-verb'
 import { useControllableState } from '@/lib/use-controllable-state'
 import { cn } from '@/lib/utils'
-import { BrainIcon, CaretDownIcon } from '@phosphor-icons/react'
 import { createContext, memo, useContext, useEffect, useState } from 'react'
 
 
@@ -94,7 +94,7 @@ export const Reasoning = memo(
     return (
       <ReasoningContext.Provider value={{ isStreaming, isOpen, setIsOpen, duration }}>
         <Collapsible
-          className={cn('not-prose mb-4', className)}
+          className={cn('not-prose', className)}
           onOpenChange={handleOpenChange}
           open={isOpen}
           {...props}
@@ -107,27 +107,24 @@ export const Reasoning = memo(
 )
 
 export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
-  getThinkingMessage?: (isStreaming: boolean, duration?: number) => ReactNode
+  verb?: string
 }
 
-const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
+function thinkingMessage(verb: string, isStreaming: boolean, duration?: number): ReactNode {
   if (isStreaming || duration === 0) {
-    return <p className='shimmer shimmer-duration-1000'>Thinking...</p>
+    return <p className='shimmer shimmer-duration-1000'>{verb}</p>
   }
   if (duration === undefined) {
-    return <p>Thought for a few seconds</p>
+    return <p>Reasoned</p>
   }
-  return <p>Thought for {duration} seconds</p>
+  return <p>Reasoned for {duration}s</p>
 }
 
 export const ReasoningTrigger = memo(
-  ({
-    className,
-    children,
-    getThinkingMessage = defaultGetThinkingMessage,
-    ...props
-  }: ReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning()
+  ({ className, children, verb: verbProp, ...props }: ReasoningTriggerProps) => {
+    const { isStreaming, duration } = useReasoning()
+    const [pickedVerb] = useState(pickSpinnerVerb)
+    const verb = verbProp ?? pickedVerb
 
     return (
       <CollapsibleTrigger
@@ -137,15 +134,7 @@ export const ReasoningTrigger = memo(
         )}
         {...props}
       >
-        {children ?? (
-          <>
-            <BrainIcon className='size-4' />
-            {getThinkingMessage(isStreaming, duration)}
-            <CaretDownIcon
-              className={cn('size-4 transition-transform', isOpen ? 'rotate-180' : 'rotate-0')}
-            />
-          </>
-        )}
+        {children ?? thinkingMessage(verb, isStreaming, duration)}
       </CollapsibleTrigger>
     )
   }
@@ -155,18 +144,21 @@ export type ReasoningContentProps = ComponentProps<typeof CollapsibleContent> & 
   children: string
 }
 
-export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => (
-  <CollapsibleContent
-    className={cn(
-      'mt-4 text-sm',
-      'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in',
-      className
-    )}
-    {...props}
-  >
-    <Response>{children}</Response>
-  </CollapsibleContent>
-))
+export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => {
+  const { isStreaming } = useReasoning()
+  return (
+    <CollapsibleContent
+      className={cn(
+        'mt-4 text-sm',
+        'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in',
+        className
+      )}
+      {...props}
+    >
+      <Response isAnimating={isStreaming}>{children}</Response>
+    </CollapsibleContent>
+  )
+})
 
 Reasoning.displayName = 'Reasoning'
 ReasoningTrigger.displayName = 'ReasoningTrigger'

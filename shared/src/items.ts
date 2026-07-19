@@ -24,8 +24,18 @@ export const ThreadItem = z.discriminatedUnion('kind', [
     text: z.string(),
     attachments: z.array(Attachment),
   }),
-  z.object({ ...itemBase, kind: z.literal('assistant_message'), text: z.string() }),
-  z.object({ ...itemBase, kind: z.literal('reasoning'), text: z.string() }),
+  z.object({
+    ...itemBase,
+    kind: z.literal('assistant_message'),
+    text: z.string(),
+    streaming: z.boolean().optional(),
+  }),
+  z.object({
+    ...itemBase,
+    kind: z.literal('reasoning'),
+    text: z.string(),
+    streaming: z.boolean().optional(),
+  }),
   z.object({
     ...itemBase,
     kind: z.literal('tool_call'),
@@ -42,8 +52,14 @@ export const ThreadItem = z.discriminatedUnion('kind', [
     input: z.unknown(),
     suggestions: z.array(z.unknown()),
     decision: ApprovalDecision.optional(),
+    deniedReason: z.string().optional(),
   }),
-  z.object({ ...itemBase, kind: z.literal('plan'), text: z.string() }),
+  z.object({
+    ...itemBase,
+    kind: z.literal('plan'),
+    text: z.string(),
+    streaming: z.boolean().optional(),
+  }),
   z.object({ ...itemBase, kind: z.literal('error'), message: z.string() }),
 ])
 export type ThreadItem = z.infer<typeof ThreadItem>

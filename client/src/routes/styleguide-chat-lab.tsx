@@ -1,3 +1,5 @@
+import { ApprovalDock } from '@/components/approval-dock'
+import { ContextGroupRow } from '@/components/context-group'
 import { Timeline } from '@/components/timeline'
 import { TimelineItem } from '@/components/timeline-item'
 import { Button } from '@/components/ui/button'
@@ -7,7 +9,17 @@ import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer
 import { ArrowCounterClockwiseIcon, PauseIcon, PlayIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { compileTape, SHEET_GROUPS, type TapeStep } from './styleguide-chat-tape'
+import {
+  compileTape,
+  CONTEXT_SCENARIOS,
+  DOCK_APPROVAL,
+  SHEET_GROUPS,
+  type TapeStep,
+} from './styleguide-chat-tape'
+
+// The dock's respond goes through the socket in the thread route; the lab wires
+// a noop so the sheet renders without firing a request.
+const noopRespond = () => Promise.resolve()
 
 // The production Timeline replaying a tape of wire events through the real
 // reducer, plus per-component spec sheets. No lab-only chat components — the
@@ -88,7 +100,9 @@ function useTapeReplay(speed: Speed) {
 
 export function ChatLab() {
   const [speed, setSpeed] = useState<Speed>(1)
+  const [contextScenario, setContextScenario] = useState(0)
   const rig = useTapeReplay(speed)
+  const selectedContext = CONTEXT_SCENARIOS[contextScenario] ?? CONTEXT_SCENARIOS[0]!
 
   return (
     <div className='mx-auto flex max-w-3xl flex-col gap-10 p-8'>
@@ -155,7 +169,57 @@ export function ChatLab() {
         </div>
 
         <div className='flex h-[560px] flex-col overflow-hidden rounded-lg border'>
-          <Timeline key={rig.runId} threadId='styleguide-rig' items={rig.state.items} />
+          <Timeline
+            key={rig.runId}
+            threadId='styleguide-rig'
+            items={rig.state.items}
+            status={rig.state.status}
+            activeTurnId={rig.state.activeTurnId}
+          />
+        </div>
+      </section>
+
+      <section className='flex flex-col gap-3'>
+        <h2 className='text-sm font-medium'>Gathered context</h2>
+        <div className='flex flex-wrap items-center gap-2'>
+          {CONTEXT_SCENARIOS.map((scenario, index) => (
+            <button
+              key={scenario.label}
+              type='button'
+              className={cn(
+                'rounded-md px-2 py-1 font-mono text-xs transition-colors',
+                contextScenario === index
+                  ? 'bg-secondary text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              {...pressHandlers(() => setContextScenario(index))}
+            >
+              {scenario.label}
+            </button>
+          ))}
+        </div>
+        <ContextGroupRow items={selectedContext.items} live={selectedContext.live} />
+      </section>
+
+      <section className='flex flex-col gap-4'>
+        <h2 className='text-sm font-medium'>Approval dock</h2>
+        <p className='max-w-2xl text-sm text-muted-foreground'>
+          Replaces the composer while a turn awaits approval. Enter allows, Esc denies; the message
+          affordance reveals a single-line steer that submits as a deny.
+        </p>
+        <div className='flex flex-col gap-6'>
+          <div className='flex flex-col gap-2'>
+            <span className='font-mono text-[10px] tracking-wide text-muted-foreground uppercase'>
+              pending
+            </span>
+            <ApprovalDock item={DOCK_APPROVAL} respond={noopRespond} />
+          </div>
+          <div className='flex flex-col gap-2'>
+            <span className='font-mono text-[10px] tracking-wide text-muted-foreground uppercase'>
+              message input open
+            </span>
+            <ApprovalDock item={DOCK_APPROVAL} respond={noopRespond} defaultMessageOpen />
+          </div>
         </div>
       </section>
 

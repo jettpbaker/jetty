@@ -1,10 +1,21 @@
-import { tabsStore, timelineStore } from '@/app-state'
+import type { ThreadItem } from '@jetty/shared/items'
+
+import { socket, tabsStore, timelineStore } from '@/app-state'
+import { ApprovalDock } from '@/components/approval-dock'
 import { Composer } from '@/components/composer'
 import { Timeline } from '@/components/timeline'
 import { cn } from '@/lib/utils'
 import { pendingSends } from '@/state/pending'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useSyncExternalStore } from 'react'
+
+function pendingApproval(items: ThreadItem[]): Extract<ThreadItem, { kind: 'approval' }> | undefined {
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const item = items[i]!
+    if (item.kind === 'approval' && item.decision === undefined) return item
+  }
+  return undefined
+}
 
 export const Route = createFileRoute('/thread/$threadId')({
   component: ThreadPage,
@@ -33,11 +44,37 @@ function ThreadPage() {
     timelineStore.getSnapshot(threadId)
   )
 
+  const approval = state.status === 'awaiting_approval' ? pendingApproval(state.items) : undefined
+
   return (
-    <div className={cn('flex h-full flex-col', arriveRef.current.arrive && 'page-arrive')}>
-      <Timeline threadId={threadId} items={state.items} />
-      <div className='mx-auto w-full max-w-3xl shrink-0 p-4'>
-        <Composer threadId={threadId} status={state.status} />
+    <div className={cn('relative flex h-full flex-col', arriveRef.current.arrive && 'page-arrive')}>
+      <Timeline
+        threadId={threadId}
+        items={state.items}
+        status={state.status}
+        activeTurnId={state.activeTurnId}
+        overlayInset
+      />
+      {/* floats over the scrolling timeline so the frosted composer has content
+          to blur; pointer-events split keeps the gutter click-through */}
+      <div className='pointer-events-none absolute inset-x-0 bottom-0 z-10'>
+        <div className='pointer-events-auto mx-auto w-full max-w-3xl p-4'>
+          {approval ? (
+            <ApprovalDock
+              item={approval}
+              respond={(decision, message) =>
+                socket.request('approval.respond', {
+                  threadId,
+                  itemId: approval.id,
+                  decision,
+                  message,
+                })
+              }
+            />
+          ) : (
+            <Composer threadId={threadId} status={state.status} />
+          )}
+        </div>
       </div>
     </div>
   )

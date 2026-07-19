@@ -15,6 +15,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@shadcn/react": "^0.2.1",
     "@streamdown/code": "^1.1.1",
+    "@tanstack/react-hotkeys": "^0.10.0",
     "@tanstack/react-router": "^1.141.2",
     "ai": "^7.0.30",
     "class-variance-authority": "^0.7.1",

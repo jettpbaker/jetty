@@ -128,6 +128,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
               createdAt: Date.now(),
               kind: 'assistant_message',
               text: block.text ?? '',
+              streaming: true,
             },
           })
           ctx.sawPartials = true
@@ -149,6 +150,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
               createdAt: Date.now(),
               kind: 'reasoning',
               text: block.thinking ?? '',
+              streaming: true,
             },
           })
           ctx.sawPartials = true
@@ -279,6 +281,7 @@ function ensureStreamItem(
       createdAt: Date.now(),
       kind,
       text: '',
+      streaming: true,
     },
   })
   return id
@@ -325,6 +328,7 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
           createdAt: Date.now(),
           kind: 'assistant_message',
           text: b.text,
+          streaming: true,
         },
       })
       out.push({ type: 'item.completed', itemId: id })
@@ -338,6 +342,7 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
           createdAt: Date.now(),
           kind: 'reasoning',
           text: b.thinking,
+          streaming: true,
         },
       })
       out.push({ type: 'item.completed', itemId: id })

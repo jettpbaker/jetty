@@ -89,6 +89,24 @@ describe('applyEvent', () => {
     expect(state.status).toBe('running')
   })
 
+  test('item.completed settles a streaming item', () => {
+    const state = run([
+      { type: 'item.started', item: { ...assistant('a1'), streaming: true } },
+      { type: 'item.delta', itemId: 'a1', delta: 'hi' },
+      { type: 'item.completed', itemId: 'a1' },
+    ])
+    expect(state.items[0]).toEqual({ ...assistant('a1'), text: 'hi', streaming: false })
+  })
+
+  test('turn end settles items stranded mid-stream', () => {
+    const state = run([
+      { type: 'turn.started', turnId: 't1' },
+      { type: 'item.started', item: { ...assistant('a1'), streaming: true } },
+      { type: 'turn.failed', turnId: 't1', error: 'boom' },
+    ])
+    expect(state.items[0]).toEqual({ ...assistant('a1'), streaming: false })
+  })
+
   test('turn.failed returns to idle', () => {
     const state = run([
       { type: 'turn.started', turnId: 't1' },
