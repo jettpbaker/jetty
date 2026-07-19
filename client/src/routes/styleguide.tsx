@@ -365,7 +365,7 @@ function JettSleepingLab() {
             <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
               {candidate.prefix}
               <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
-              <XIcon className='size-3.5 text-muted-foreground' />
+              <XIcon weight='bold' className='size-3.5 text-muted-foreground' />
             </div>
             <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground'>
               {candidate.prefix}
