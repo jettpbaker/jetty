@@ -426,6 +426,7 @@ function MockTabBar() {
     { id: 2, title: 'approval card design', state: 'open' },
   ])
   const [activeId, setActiveId] = useState(0)
+  const [hoveredId, setHoveredId] = useState<number | null>(null)
 
   function createTab() {
     const tab: MockTab = {
@@ -453,14 +454,28 @@ function MockTabBar() {
       <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {tabs.map((tab, index) => {
           const active = tab.id === activeId
+          const prev = tabs[index - 1]
+          const touchesFocus = (id: number | undefined) =>
+            id !== undefined && (id === activeId || id === hoveredId)
+          const separatorHidden = touchesFocus(prev?.id) || touchesFocus(tab.id)
           return (
             <Fragment key={tab.id}>
-              {index > 0 && <Separator orientation='vertical' className='h-4! shrink-0' />}
+              {index > 0 && (
+                <Separator
+                  orientation='vertical'
+                  className={cn(
+                    'h-4! shrink-0 self-center! transition-opacity duration-150',
+                    separatorHidden && 'opacity-0'
+                  )}
+                />
+              )}
             <div
               className={cn(
                 'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                 active ? 'bg-[#2B2C2D] text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
               )}
+              onPointerEnter={() => setHoveredId(tab.id)}
+              onPointerLeave={() => setHoveredId(null)}
             >
               <button
                 type='button'
