@@ -258,6 +258,57 @@ function BarPreview({ treatment }: { treatment: Treatment }) {
   )
 }
 
+type JettGlyphKind = 'draft' | 'spinner' | 'open' | 'merged'
+type JettWeight = 'bold' | 'duotone' | 'fill'
+
+const JETT_VARIANTS: Array<{ caption: string; weight: JettWeight; cls: string }> = [
+  { caption: 'bold · 16px', weight: 'bold', cls: 'size-4' },
+  { caption: 'bold · 18px', weight: 'bold', cls: 'size-[18px]' },
+  { caption: 'bold · 20px', weight: 'bold', cls: 'size-5' },
+  { caption: 'duotone · 16px', weight: 'duotone', cls: 'size-4' },
+  { caption: 'duotone · 20px', weight: 'duotone', cls: 'size-5' },
+  { caption: 'fill · 16px', weight: 'fill', cls: 'size-4' },
+]
+
+function JettGlyph({ kind, weight, cls }: { kind: JettGlyphKind; weight: JettWeight; cls: string }) {
+  switch (kind) {
+    case 'draft':
+      return <GitPullRequestIcon weight={weight} className={cn(cls, 'shrink-0 text-muted-foreground')} />
+    case 'spinner':
+      return <SpinnerIcon weight={weight} className={cn(cls, 'shrink-0 animate-spin text-muted-foreground')} />
+    case 'open':
+      return <GitPullRequestIcon weight={weight} className={cn(cls, 'shrink-0 text-green-500')} />
+    case 'merged':
+      return <GitMergeIcon weight={weight} className={cn(cls, 'shrink-0 text-purple-400')} />
+  }
+}
+
+const JETT_GLYPH_KINDS: JettGlyphKind[] = ['draft', 'spinner', 'open', 'merged']
+
+function JettIconLab() {
+  return (
+    <section className='flex flex-col gap-4'>
+      <TreatmentLabel name='jett · size & weight variants' />
+      <div className='flex flex-col gap-3'>
+        {JETT_VARIANTS.map((variant) => (
+          <div key={variant.caption} className='flex flex-wrap items-center gap-3'>
+            {JETT_GLYPH_KINDS.map((kind) => (
+              <div
+                key={kind}
+                className='flex h-8 w-44 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'
+              >
+                <JettGlyph kind={kind} weight={variant.weight} cls={variant.cls} />
+                <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
+              </div>
+            ))}
+            <span className='text-xs text-muted-foreground'>{variant.caption}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function StyleguidePage() {
   return (
     <div className='h-full overflow-y-auto'>
@@ -265,7 +316,10 @@ function StyleguidePage() {
         <h1 className='text-2xl font-semibold tracking-tight'>Tab lab</h1>
 
         {TREATMENTS.map((treatment) => (
-          <TreatmentSection key={treatment} treatment={treatment} />
+          <Fragment key={treatment}>
+            <TreatmentSection treatment={treatment} />
+            {treatment === 'jett' && <JettIconLab />}
+          </Fragment>
         ))}
 
         <section className='flex flex-col gap-8'>
