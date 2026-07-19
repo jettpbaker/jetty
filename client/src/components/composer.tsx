@@ -17,23 +17,20 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { acceptImages, toUploadAttachments } from '@/lib/attachments'
 import { loadDraft, saveDraft } from '@/lib/draft'
-import { useGlow } from '@/lib/glow/use-glow'
 import { type PendingSend, pendingSends, sendFirstTurn } from '@/state/pending'
 import { MAX_IMAGES_PER_TURN, newId } from '@jetty/shared/wire'
 import { PaperclipIcon } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
-import { type RefObject, useRef, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 
 function chatStatus(status: SessionStatus): ChatStatus {
   return status === 'running' || status === 'starting' ? 'streaming' : 'ready'
 }
 
-// One flush-black slab everywhere; the edge is state-dependent — the draft's
-// glow defines its edge, thread composers get a hairline that wakes on focus.
+// One shell everywhere: hairline border that brightens on focus-within.
 const composerBase =
-  'rounded-lg [&_[data-slot=input-group]]:bg-black! [&_[data-slot=input-group]]:ring-0!'
+  'rounded-lg [&_[data-slot=input-group]]:bg-[#191A1B]! [&_[data-slot=input-group]]:ring-0!'
 const composerShell = `${composerBase} [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:focus-within:border-white/25!`
-const draftShell = `${composerBase} [&_[data-slot=input-group]]:border-transparent!`
 
 function AttachButton() {
   const attachments = usePromptInputAttachments()
@@ -142,32 +139,20 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
   )
 }
 
-export function DraftComposer({
-  projectId,
-  glowContainerRef,
-}: {
-  projectId: string
-  glowContainerRef?: RefObject<HTMLElement | null>
-}) {
+export function DraftComposer({ projectId }: { projectId: string }) {
   const navigate = useNavigate()
-  const glowTargetRef = useRef<HTMLDivElement>(null)
-  const fallbackContainerRef = useRef<HTMLElement | null>(null)
-  const glow = useGlow(glowTargetRef, glowContainerRef ?? fallbackContainerRef, {
-    rim: { strength: 0.4 },
-  })
 
   function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim()
     const attachments = toUploadAttachments(message.files)
     if (!text && attachments.length === 0) return
-    glow.burst()
     const threadId = newId()
     void navigate({ to: '/thread/$threadId', params: { threadId } })
     void sendFirstTurn({ threadId, projectId, text, attachments }).catch(() => {})
   }
 
   return (
-    <div ref={glowTargetRef} className={draftShell}>
+    <div className={composerShell}>
       <PromptInputProvider initialInput={loadDraft(projectId)} validateFiles={acceptImages}>
         <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
           <Attachments />

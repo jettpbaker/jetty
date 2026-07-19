@@ -91,10 +91,10 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* Vercel-dark: true-black canvas, barely-lifted surfaces, hairline
-   white-alpha borders doing the separation. */
+/* Dark: near-black canvas, barely-lifted surfaces, hairline white-alpha
+   borders doing the separation. */
 .dark {
-  --background: oklch(0 0 0);
+  --background: #121314;
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.17 0 0);
   --card-foreground: oklch(0.985 0 0);
