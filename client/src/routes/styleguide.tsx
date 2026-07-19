@@ -465,6 +465,12 @@ function MockTabBar() {
   function onPillPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const start = dragStart.current
     if (!start) return
+    // a release outside our reach leaves stale drag state; event.buttons is
+    // ground truth — no button held means we missed the pointerup
+    if (event.buttons === 0) {
+      onPillPointerUp()
+      return
+    }
     const dx = event.clientX - start.x
     if (!dragRef.current) {
       if (Math.abs(dx) < DRAG_THRESHOLD) return
