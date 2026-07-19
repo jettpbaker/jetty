@@ -147,7 +147,7 @@ export function TabBar() {
                     active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   )}
                 >
-                  <XIcon weight='bold' className='size-3.5' />
+                  <XIcon className='size-3.5' />
                 </button>
               </ContextMenuTrigger>
               <ContextMenuContent>

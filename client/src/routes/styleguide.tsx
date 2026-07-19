@@ -107,13 +107,13 @@ function LabPillPrefix({
     case 'jett':
       switch (status) {
         case 'idle':
-          return <GitPullRequestIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground' />
+          return <GitPullRequestIcon className='size-[18px] shrink-0 text-muted-foreground' />
         case 'running':
-          return <SpinnerIcon weight='bold' className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
+          return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
         case 'awaiting_approval':
-          return <GitPullRequestIcon weight='bold' className='size-[18px] shrink-0 text-green-500' />
+          return <GitPullRequestIcon className='size-[18px] shrink-0 text-green-500' />
         case 'error':
-          return <GitMergeIcon weight='bold' className='size-[18px] shrink-0 text-purple-400' />
+          return <GitMergeIcon className='size-[18px] shrink-0 text-purple-400' />
       }
     case 'letter':
       return <ProjectBadge title={title} />
@@ -184,7 +184,7 @@ function LabPill({
           active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         )}
       >
-        <XIcon weight='bold' className='size-3.5' />
+        <XIcon className='size-3.5' />
       </button>
     </div>
   )
@@ -338,11 +338,11 @@ const SLEEPING_CANDIDATES: Array<{ caption: string; prefix: ReactNode }> = [
   },
   {
     caption: 'dashed circle',
-    prefix: <CircleDashedIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+    prefix: <CircleDashedIcon className='size-[18px] shrink-0 text-muted-foreground/60' />,
   },
   {
     caption: 'moon',
-    prefix: <MoonIcon weight='bold' className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60' />,
+    prefix: <MoonIcon className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60' />,
   },
   {
     caption: 'moon · fill',
@@ -350,7 +350,7 @@ const SLEEPING_CANDIDATES: Array<{ caption: string; prefix: ReactNode }> = [
   },
   {
     caption: 'branch (worktree, no PR)',
-    prefix: <GitBranchIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+    prefix: <GitBranchIcon className='size-[18px] shrink-0 text-muted-foreground/60' />,
   },
   { caption: 'ransom letter', prefix: <ProjectBadge title='A' /> },
 ]
@@ -365,7 +365,7 @@ function JettSleepingLab() {
             <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
               {candidate.prefix}
               <span className='min-w-0 flex-1 truncate'>Vue perf exploration</span>
-              <XIcon weight='bold' className='size-3.5 text-muted-foreground' />
+              <XIcon className='size-3.5 text-muted-foreground' />
             </div>
             <div className='flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground'>
               {candidate.prefix}
@@ -407,17 +407,14 @@ function MockGlyph({ state }: { state: MockState }) {
       )
     case 'running':
       return (
-        <SpinnerIcon
-          weight='bold'
-          className='size-[18px] shrink-0 animate-spin text-muted-foreground'
-        />
+        <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
       )
     case 'draft':
-      return <GitPullRequestIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground' />
+      return <GitPullRequestIcon className='size-[18px] shrink-0 text-muted-foreground' />
     case 'open':
-      return <GitPullRequestIcon weight='bold' className='size-[18px] shrink-0 text-green-500' />
+      return <GitPullRequestIcon className='size-[18px] shrink-0 text-green-500' />
     case 'merged':
-      return <GitMergeIcon weight='bold' className='size-[18px] shrink-0 text-purple-400' />
+      return <GitMergeIcon className='size-[18px] shrink-0 text-purple-400' />
   }
 }
 
@@ -611,7 +608,7 @@ function MockTabBar() {
                   active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 )}
               >
-                <XIcon weight='bold' className='size-3.5' />
+                <XIcon className='size-3.5' />
               </button>
             </div>
             </div>
