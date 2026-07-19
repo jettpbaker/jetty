@@ -1210,6 +1210,30 @@ describe('thread.diff', () => {
     db.close()
   })
 
+  test('computeThreadDiff includes untracked files and survives an unborn HEAD', async () => {
+    const repo = dir(join(tmpdir(), `jetty-diff-fresh-${newId()}`))
+    const run = (args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (run(['init', '-q']) !== 0) return // git unavailable in this sandbox
+    // no commit at all — HEAD is unborn, every file untracked
+    writeFileSync(join(repo, 'main.ts'), 'console.log("hi")\n')
+    writeFileSync(join(repo, 'bun.lock'), 'lock\n')
+
+    const home = mkdtempSync(join(tmpdir(), 'jetty-diff-'))
+    homes.push(home)
+    const db = openDb(home)
+    const store = createStore(db)
+    const project = store.createProject(repo)
+    const thread = store.createThread(project.id, newId())
+
+    const res = await computeThreadDiff(store, thread.id)
+    expect(res.diff).toContain('diff --git a/main.ts b/main.ts')
+    expect(res.diff).toContain('new file mode')
+    expect(res.diff).toContain('+console.log("hi")')
+    expect(res.truncatedPaths).toEqual(['bun.lock'])
+
+    db.close()
+  })
+
   test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {
     const normal = [
       'diff --git a/src/app.ts b/src/app.ts',

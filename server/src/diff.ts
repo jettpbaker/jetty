@@ -45,14 +45,31 @@ export function truncateDiff(diff: string): ThreadDiff {
   return truncated.length > 0 ? { diff: kept.join(''), truncatedPaths: truncated } : { diff: kept.join('') }
 }
 
-async function gitDiff(cwd: string): Promise<string> {
+async function git(cwd: string, args: string[]): Promise<{ code: number; out: string }> {
   try {
-    const proc = Bun.spawn(['git', 'diff', 'HEAD'], { cwd, stdout: 'pipe', stderr: 'ignore' })
+    const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'ignore' })
     const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-    return code === 0 ? out : ''
+    return { code, out }
   } catch {
-    return ''
+    return { code: -1, out: '' }
   }
+}
+
+/** git's well-known empty tree — the diff base for a repo with no commits yet. */
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+
+async function gitDiff(cwd: string): Promise<string> {
+  const head = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
+  const tracked = await git(cwd, ['diff', head.code === 0 ? 'HEAD' : EMPTY_TREE])
+  if (tracked.code !== 0) return ''
+  const untracked = await git(cwd, ['ls-files', '--others', '--exclude-standard'])
+  const parts = [tracked.out]
+  for (const path of untracked.out.split('\n').filter((line) => line.length > 0)) {
+    // --no-index exits 1 when the file has content — that's the success case
+    const { out } = await git(cwd, ['diff', '--no-index', '--', '/dev/null', path])
+    parts.push(out)
+  }
+  return parts.join('')
 }
 
 export async function computeThreadDiff(store: Store, threadId: string): Promise<ThreadDiff> {

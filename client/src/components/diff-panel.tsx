@@ -10,7 +10,7 @@ import {
   ArrowsOutSimpleIcon,
   XIcon,
 } from '@phosphor-icons/react'
-import { useEffect, useState } from 'react'
+import { Component, useEffect, useState, type ReactNode } from 'react'
 
 import dark2026Json from '@/themes/dark-2026.json'
 
@@ -18,7 +18,11 @@ import dark2026Json from '@/themes/dark-2026.json'
 // @pierre/diffs by name. The lib resolves themes async, so first paint is plain
 // text and highlighting arrives after.
 try {
-  registerCustomTheme('dark-2026', async () => dark2026Json as unknown as ThemeRegistration)
+  // the lib requires the registered key to equal the theme's internal name
+  registerCustomTheme('dark-2026', async () => ({
+    ...(dark2026Json as unknown as ThemeRegistration),
+    name: 'dark-2026',
+  }))
 } catch {
   // already registered (HMR re-import)
 }
@@ -41,6 +45,24 @@ const EDIT_OPTIONS = {
 } as const
 
 export type DiffData = { diff: string; truncatedPaths?: string[] }
+
+// PatchDiff renders exactly one file diff (it throws on more), so a multi-file
+// patch gets split on section boundaries and rendered file by file.
+function splitPatch(diff: string): string[] {
+  return diff.split(/(?=^diff --git )/m).filter((section) => section.trim().length > 0)
+}
+
+// React only exposes render-error recovery through a class component.
+class DiffBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    if (this.state.failed) return <DiffMessage>Couldn&apos;t render this diff.</DiffMessage>
+    return this.props.children
+  }
+}
 
 function baseName(path: string): string {
   const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
@@ -85,7 +107,11 @@ export function DiffView({
 
   return (
     <div className='flex flex-col gap-3 p-3'>
-      {diff.length > 0 ? <PatchDiff patch={data!.diff} options={PATCH_OPTIONS} /> : null}
+      {splitPatch(diff).map((section) => (
+        <DiffBoundary key={section.slice(0, section.indexOf('\n'))}>
+          <PatchDiff patch={section} options={PATCH_OPTIONS} />
+        </DiffBoundary>
+      ))}
       {truncated.length > 0 ? <TruncatedList paths={truncated} /> : null}
     </div>
   )
