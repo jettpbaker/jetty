@@ -44,21 +44,22 @@ export function createHub() {
     set.add(ws)
   }
 
-  function unsubscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
-    ws.data.threads.delete(threadId)
+  function removeThreadSub(ws: ServerWebSocket<ConnData>, threadId: string) {
     const set = threadSubs.get(threadId)
     if (!set) return
     set.delete(ws)
     if (set.size === 0) threadSubs.delete(threadId)
   }
 
+  function unsubscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
+    ws.data.threads.delete(threadId)
+    removeThreadSub(ws, threadId)
+  }
+
   function dropConnection(ws: ServerWebSocket<ConnData>) {
     chromeSubs.delete(ws)
     for (const threadId of ws.data.threads) {
-      const set = threadSubs.get(threadId)
-      if (!set) continue
-      set.delete(ws)
-      if (set.size === 0) threadSubs.delete(threadId)
+      removeThreadSub(ws, threadId)
     }
     ws.data.threads.clear()
   }

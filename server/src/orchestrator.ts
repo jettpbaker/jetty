@@ -4,15 +4,15 @@ import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/share
 
 import { newId } from '@jetty/shared/wire'
 
-import type { Agent, AgentImage } from './agent'
-import type { Attachments } from './attachments'
+import type { Agent } from './agent'
+import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 import type { Titler } from './titler'
 
 import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 
-const EMPTY_ATTACHMENTS: { meta: Attachment[]; images: AgentImage[] } = { meta: [], images: [] }
+const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
 
 export type Orchestrator = ReturnType<typeof createOrchestrator>
 
@@ -61,6 +61,19 @@ export function createOrchestrator(
     }
   }
 
+  function appendUserMessage(threadId: string, turnId: string, text: string, meta: Attachment[]) {
+    const item: ThreadItem = {
+      id: newId(),
+      turnId,
+      createdAt: Date.now(),
+      kind: 'user_message',
+      text,
+      attachments: meta,
+    }
+    append(threadId, { type: 'item.started', item })
+    append(threadId, { type: 'item.completed', itemId: item.id })
+  }
+
   function activeTurnId(threadId: string): string | null {
     return liveTurns.get(threadId) ?? store.getThreadState(threadId).activeTurnId
   }
@@ -96,16 +109,7 @@ export function createOrchestrator(
 
       const existingTurnId = activeTurnId(input.threadId)
       if (existingTurnId && agent.steer(input.threadId, input.text, saved.images)) {
-        const userItem: ThreadItem = {
-          id: newId(),
-          turnId: existingTurnId,
-          createdAt: Date.now(),
-          kind: 'user_message',
-          text: input.text,
-          attachments: saved.meta,
-        }
-        append(input.threadId, { type: 'item.started', item: userItem })
-        append(input.threadId, { type: 'item.completed', itemId: userItem.id })
+        appendUserMessage(input.threadId, existingTurnId, input.text, saved.meta)
         return { turnId: existingTurnId }
       }
       // No active turn, or the warm session vanished mid-race — fresh turn.
@@ -114,16 +118,7 @@ export function createOrchestrator(
       liveTurns.set(input.threadId, turnId)
 
       try {
-        const userItem: ThreadItem = {
-          id: newId(),
-          turnId,
-          createdAt: Date.now(),
-          kind: 'user_message',
-          text: input.text,
-          attachments: saved.meta,
-        }
-        append(input.threadId, { type: 'item.started', item: userItem })
-        append(input.threadId, { type: 'item.completed', itemId: userItem.id })
+        appendUserMessage(input.threadId, turnId, input.text, saved.meta)
 
         void agent
           .startTurn(

@@ -214,14 +214,7 @@ export function TabBar() {
                     className='absolute inset-0 rounded-md'
                     {...pressHandlers(open)}
                   />
-                  {entry.kind === 'thread' ? (
-                    <StatusGlyph status={entry.thread.status} />
-                  ) : (
-                    <MoonIcon
-                      weight='fill'
-                      className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
-                    />
-                  )}
+                  <StatusGlyph status={entry.kind === 'thread' ? entry.thread.status : 'idle'} />
                   <span
                     className={cn(
                       'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',

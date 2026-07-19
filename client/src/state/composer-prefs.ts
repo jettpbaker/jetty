@@ -41,7 +41,7 @@ function createComposerPrefs() {
   // Haiku keeps dev turns cheap until a model is deliberately chosen.
   let prefs: ComposerPrefs = {
     model: MODELS[2] ?? MODELS[0]!,
-    effort: { id: 'medium', label: 'Medium' },
+    effort: LOW_TO_HIGH[1]!,
     approval: APPROVAL_MODES[0]!,
   }
   const listeners = new Set<() => void>()

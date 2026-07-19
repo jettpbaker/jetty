@@ -178,22 +178,22 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       const kind = ctx.blockKinds.get(index)
 
       if (delta.type === 'text_delta' && typeof delta.text === 'string') {
-        const itemId = ensureAssistant(ctx, out)
+        const itemId = ensureStreamItem(ctx, out, 'assistant_message')
         out.push({ type: 'item.delta', itemId, delta: delta.text })
         ctx.sawPartials = true
       } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
-        const itemId = ensureReasoning(ctx, out)
+        const itemId = ensureStreamItem(ctx, out, 'reasoning')
         out.push({ type: 'item.delta', itemId, delta: delta.thinking })
         ctx.sawPartials = true
       } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
         const tool = ctx.toolBlocks.get(index)
         if (tool) tool.json += delta.partial_json
       } else if (kind === 'text' && typeof delta.text === 'string') {
-        const itemId = ensureAssistant(ctx, out)
+        const itemId = ensureStreamItem(ctx, out, 'assistant_message')
         out.push({ type: 'item.delta', itemId, delta: delta.text })
         ctx.sawPartials = true
       } else if (kind === 'thinking' && typeof delta.thinking === 'string') {
-        const itemId = ensureReasoning(ctx, out)
+        const itemId = ensureStreamItem(ctx, out, 'reasoning')
         out.push({ type: 'item.delta', itemId, delta: delta.thinking })
         ctx.sawPartials = true
       }
@@ -260,10 +260,16 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
   }
 }
 
-function ensureAssistant(ctx: TranslateCtx, out: ThreadEvent[]): string {
-  if (ctx.currentAssistantId) return ctx.currentAssistantId
+function ensureStreamItem(
+  ctx: TranslateCtx,
+  out: ThreadEvent[],
+  kind: 'assistant_message' | 'reasoning'
+): string {
+  const field = kind === 'assistant_message' ? 'currentAssistantId' : 'currentReasoningId'
+  const existing = ctx[field]
+  if (existing) return existing
   const id = newId()
-  ctx.currentAssistantId = id
+  ctx[field] = id
   ctx.partialItemIds.add(id)
   out.push({
     type: 'item.started',
@@ -271,25 +277,7 @@ function ensureAssistant(ctx: TranslateCtx, out: ThreadEvent[]): string {
       id,
       turnId: ctx.turnId,
       createdAt: Date.now(),
-      kind: 'assistant_message',
-      text: '',
-    },
-  })
-  return id
-}
-
-function ensureReasoning(ctx: TranslateCtx, out: ThreadEvent[]): string {
-  if (ctx.currentReasoningId) return ctx.currentReasoningId
-  const id = newId()
-  ctx.currentReasoningId = id
-  ctx.partialItemIds.add(id)
-  out.push({
-    type: 'item.started',
-    item: {
-      id,
-      turnId: ctx.turnId,
-      createdAt: Date.now(),
-      kind: 'reasoning',
+      kind,
       text: '',
     },
   })

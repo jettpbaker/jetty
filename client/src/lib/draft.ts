@@ -25,10 +25,6 @@ export function removeDraft(id: string) {
   }
 }
 
-export function clearDraft(id: string) {
-  removeDraft(id)
-}
-
 // New drafts default to the last project the user actually picked.
 const LAST_PROJECT_KEY = 'jetty:last-project'
 

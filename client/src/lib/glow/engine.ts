@@ -15,7 +15,18 @@
  * exposure, AgX tonemap, dither) -> additive canvas.
  */
 
-import { DEFAULT_GLOW_CONFIG, type GlowConfig, type GlowConfigPatch, mergeConfig } from './config'
+import {
+  DEFAULT_GLOW_CONFIG,
+  type GlowConfig,
+  type GlowConfigPatch,
+  type GlowWave,
+  mergeConfig,
+} from './config'
+
+function ringDist(a: number, b: number, n: number): number {
+  const d = Math.abs(a - b) % n
+  return Math.min(d, n - d)
+}
 
 type Target = {
   tex: WebGLTexture
@@ -273,7 +284,7 @@ export class GlowEngine {
   private ledNormal!: Float32Array
   private ledColor!: Float32Array
   private brightness!: Float32Array
-  private waveState: { center: number; vel: number; width: number; strength: number }[] = []
+  private waveState: GlowWave[] = []
 
   private rect = { cx: 0, cy: 0, hw: 0, hh: 0, r: 0 }
   private rectDirty = true
@@ -394,10 +405,6 @@ export class GlowEngine {
       if (this.gl) this.buildPrograms()
       this.rectDirty = true
     }
-  }
-
-  getConfig(): GlowConfig {
-    return this.config
   }
 
   /** The submit pulse: a light front expanding from the bottom edge. */
@@ -598,10 +605,6 @@ export class GlowEngine {
     const perimeter = 2 * (ew + eh)
     const starts = [0, ew, ew + eh, ew + eh + ew]
     const lens = [ew, eh, ew, eh]
-    const ringDist = (a: number, b: number) => {
-      const d = Math.abs(a - b) % n
-      return Math.min(d, n - d)
-    }
     for (let k = 0; k < n; k++) {
       let r = 0
       let g = 0
@@ -613,7 +616,7 @@ export class GlowEngine {
         const lobe = this.config.lobes[e as 0 | 1 | 2 | 3]
         const mid = ((start + len / 2) / perimeter) * n
         const sigma = (len / perimeter) * n * 0.55
-        const d = ringDist(k, mid) / sigma
+        const d = ringDist(k, mid, n) / sigma
         const weight = Math.exp(-d * d * 2.0)
         r += lobe[0] * weight
         g += lobe[1] * weight
@@ -648,18 +651,14 @@ export class GlowEngine {
     const focused = this.target ? this.target.contains(document.activeElement) : false
     this.focusEase += ((focused ? 1 : 0) - this.focusEase) * (1 - Math.exp(-dt / 0.25))
 
-    const ringDist = (a: number, b: number) => {
-      const d = Math.abs(a - b) % n
-      return Math.min(d, n - d)
-    }
     for (let k = 0; k < n; k++) {
       let b = this.config.idleBase
       for (const wv of this.waveState) {
-        const d = ringDist(k, wv.center)
+        const d = ringDist(k, wv.center, n)
         b += wv.strength * Math.exp(-(d * d) / (wv.width * wv.width))
       }
       if (this.burstState) {
-        const fromOrigin = ringDist(k, this.burstState.origin)
+        const fromOrigin = ringDist(k, this.burstState.origin, n)
         const since = tSec - this.burstState.t0 - fromOrigin / 84
         if (since > 0) b += 2.5 * Math.exp(-since * 3.0)
       }

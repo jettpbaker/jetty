@@ -30,14 +30,26 @@ import { loadDraft, removeDraft, saveDraft, saveLastProjectId } from '@/lib/draf
 import { APPROVAL_MODES, composerPrefs, MODELS } from '@/state/composer-prefs'
 import type { Draft } from '@/state/drafts'
 import { type PendingSend, pendingSends, sendFirstTurn } from '@/state/pending'
-import { MAX_IMAGES_PER_TURN } from '@jetty/shared/wire'
+import { MAX_IMAGES_PER_TURN, type UploadAttachment } from '@jetty/shared/wire'
 import { PlusIcon } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
 import { useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
+function isBusy(status: SessionStatus) {
+  return status === 'running' || status === 'starting'
+}
+
 function chatStatus(status: SessionStatus): ChatStatus {
-  return status === 'running' || status === 'starting' ? 'streaming' : 'ready'
+  return isBusy(status) ? 'streaming' : 'ready'
+}
+
+function normalizeMessage(
+  message: PromptInputMessage
+): { text: string; attachments: UploadAttachment[] } | null {
+  const text = message.text.trim()
+  const attachments = toUploadAttachments(message.files)
+  return !text && attachments.length === 0 ? null : { text, attachments }
 }
 
 // One shell everywhere: hairline border that brightens on focus-within.
@@ -142,6 +154,27 @@ export function turnPrefs() {
   }
 }
 
+function ComposerShell({
+  initialInput,
+  onSubmit,
+  children,
+}: {
+  initialInput?: string
+  onSubmit: (message: PromptInputMessage) => void | Promise<void>
+  children: ReactNode
+}) {
+  return (
+    <PromptInputProvider initialInput={initialInput} validateFiles={acceptImages}>
+      <AttachmentFan />
+      <div className={`${composerShell} relative z-10`}>
+        <PromptInput accept='image/*' multiple onSubmit={onSubmit}>
+          {children}
+        </PromptInput>
+      </div>
+    </PromptInputProvider>
+  )
+}
+
 export function Composer({ threadId, status }: { threadId: string; status: SessionStatus }) {
   const pending = useSyncExternalStore(pendingSends.subscribe, () => pendingSends.get(threadId))
   if (pending) return <FirstTurnComposer threadId={threadId} pending={pending} />
@@ -149,13 +182,17 @@ export function Composer({ threadId, status }: { threadId: string; status: Sessi
 }
 
 function ThreadComposer({ threadId, status }: { threadId: string; status: SessionStatus }) {
-  const busy = status === 'running' || status === 'starting'
+  const busy = isBusy(status)
 
   function handleSubmit(message: PromptInputMessage) {
-    const text = message.text.trim()
-    const attachments = toUploadAttachments(message.files)
-    if (!text && attachments.length === 0) return
-    void socket.request('turn.start', { threadId, text, attachments, ...turnPrefs() })
+    const normalized = normalizeMessage(message)
+    if (!normalized) return
+    void socket.request('turn.start', {
+      threadId,
+      text: normalized.text,
+      attachments: normalized.attachments,
+      ...turnPrefs(),
+    })
   }
 
   // While a turn runs the button interrupts; Enter still submits (server steers).
@@ -167,17 +204,12 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
 
   return (
     <div className='relative'>
-      <PromptInputProvider validateFiles={acceptImages}>
-        <AttachmentFan />
-        <div className={`${composerShell} relative z-10`}>
-          <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-            <PromptInputTextarea placeholder='Do anything' />
-            <PromptInputFooter>
-              <ComposerFooter status={chatStatus(status)} onSubmitClick={handleSubmitClick} />
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
-      </PromptInputProvider>
+      <ComposerShell onSubmit={handleSubmit}>
+        <PromptInputTextarea placeholder='Do anything' />
+        <PromptInputFooter>
+          <ComposerFooter status={chatStatus(status)} onSubmitClick={handleSubmitClick} />
+        </PromptInputFooter>
+      </ComposerShell>
     </div>
   )
 }
@@ -199,29 +231,24 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
 
   return (
     <div className='relative'>
-      <PromptInputProvider initialInput={pending.text} validateFiles={acceptImages}>
-        <AttachmentFan />
-        <div className={`${composerShell} relative z-10`}>
-          <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-            {pending.attachments.length > 0 && (
-              <div className='flex flex-wrap gap-2 p-2'>
-                {pending.attachments.map((attachment) => (
-                  <img
-                    key={attachment.dataUrl.slice(-24) + attachment.name}
-                    src={attachment.dataUrl}
-                    alt={attachment.name}
-                    className='max-h-16 rounded-md border'
-                  />
-                ))}
-              </div>
-            )}
-            <PromptInputTextarea placeholder='Do anything' disabled={sending} />
-            <PromptInputFooter>
-              <ComposerFooter status={sending ? 'submitted' : 'ready'} disabled={sending} />
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
-      </PromptInputProvider>
+      <ComposerShell initialInput={pending.text} onSubmit={handleSubmit}>
+        {pending.attachments.length > 0 && (
+          <div className='flex flex-wrap gap-2 p-2'>
+            {pending.attachments.map((attachment) => (
+              <img
+                key={attachment.dataUrl.slice(-24) + attachment.name}
+                src={attachment.dataUrl}
+                alt={attachment.name}
+                className='max-h-16 rounded-md border'
+              />
+            ))}
+          </div>
+        )}
+        <PromptInputTextarea placeholder='Do anything' disabled={sending} />
+        <PromptInputFooter>
+          <ComposerFooter status={sending ? 'submitted' : 'ready'} disabled={sending} />
+        </PromptInputFooter>
+      </ComposerShell>
     </div>
   )
 }
@@ -234,9 +261,8 @@ export function DraftComposer({ draft }: { draft: Draft }) {
   const project = chrome.projects.find((row) => row.id === draft.projectId)
 
   function handleSubmit(message: PromptInputMessage) {
-    const text = message.text.trim()
-    const attachments = toUploadAttachments(message.files)
-    if (!text && attachments.length === 0) return
+    const normalized = normalizeMessage(message)
+    if (!normalized) return
     if (!project) {
       toast.error('Pick a project first')
       return
@@ -249,25 +275,25 @@ export function DraftComposer({ draft }: { draft: Draft }) {
       draftsStore.remove(draftId)
       removeDraft(draftId)
     })
-    void sendFirstTurn({ threadId, projectId: project.id, text, attachments }).catch(() => {})
+    void sendFirstTurn({
+      threadId,
+      projectId: project.id,
+      text: normalized.text,
+      attachments: normalized.attachments,
+    }).catch(() => {})
   }
 
   return (
     <div className='relative'>
-      <PromptInputProvider initialInput={loadDraft(draftId)} validateFiles={acceptImages}>
-        <AttachmentFan />
-        <div className={`${composerShell} relative z-10`}>
-          <PromptInput accept='image/*' multiple onSubmit={handleSubmit}>
-            <PromptInputTextarea
-              placeholder='Do anything'
-              onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
-            />
-            <PromptInputFooter>
-              <ComposerFooter status='ready' />
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
-      </PromptInputProvider>
+      <ComposerShell initialInput={loadDraft(draftId)} onSubmit={handleSubmit}>
+        <PromptInputTextarea
+          placeholder='Do anything'
+          onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
+        />
+        <PromptInputFooter>
+          <ComposerFooter status='ready' />
+        </PromptInputFooter>
+      </ComposerShell>
       <div className='mt-2 flex'>
         <DropdownMenu>
           <DropdownMenuTrigger

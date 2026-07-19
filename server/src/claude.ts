@@ -16,13 +16,6 @@ import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
 
-export {
-  translate,
-  createTranslateCtx,
-  type TranslateCtx,
-  type SdkLikeMessage,
-} from './claude-translate'
-
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 /** Temporary cheap-testing default until a per-thread model picker exists. */
 const DEFAULT_MODEL = 'haiku'

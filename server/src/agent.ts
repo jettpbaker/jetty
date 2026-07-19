@@ -41,7 +41,6 @@ type EchoSession = {
   emit: (event: ThreadEvent) => void
   assistantId: string | null
   pendingSteer: string[]
-  turnId: string
 }
 
 export function createEchoAdapter(): Agent {
@@ -89,7 +88,6 @@ export function createEchoAdapter(): Agent {
         emit,
         assistantId: null,
         pendingSteer: [],
-        turnId: input.turnId,
       }
       sessions.set(input.threadId, session)
       const { signal } = ac

@@ -1,7 +1,7 @@
 import type { UploadAttachment } from '@jetty/shared/wire'
 
 import { socket, timelineStore } from '@/app-state'
-import { clearDraft } from '@/lib/draft'
+import { removeDraft } from '@/lib/draft'
 import { composerPrefs } from '@/state/composer-prefs'
 import { toast } from 'sonner'
 
@@ -71,7 +71,7 @@ export async function sendFirstTurn({
       permissionMode: prefs.approval.id,
     })
     pendingSends.clear(threadId)
-    clearDraft(threadId)
+    removeDraft(threadId)
   } catch (error) {
     pendingSends.set(threadId, { text, projectId, attachments, phase: 'failed' })
     toast.error('Couldn’t start the thread. Press send to retry.')
