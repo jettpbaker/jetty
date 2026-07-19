@@ -1,5 +1,12 @@
 import { pressHandlers } from '@/lib/press-handlers'
-import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type RefObject,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 
 // Ransom-note wordmark: real torn-magazine cutout letters (Resource Boy pack,
 // royalty-free), one scrap per letter with seeded jitter so it reads as taped
@@ -175,18 +182,65 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
   }, [hostRef])
 }
 
-export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number; className?: string }) {
+export type RansomWordmarkHandle = {
+  /** blow the scraps apart, then reassemble via the entrance */
+  scatter: () => void
+}
+
+type Phase = 'hidden' | 'shown' | 'scattered'
+
+const SCATTER_MS = 550
+const SCATTER_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+export function RansomWordmark({
+  lineH = 112,
+  className = '',
+  ref,
+}: {
+  lineH?: number
+  className?: string
+  ref?: RefObject<RansomWordmarkHandle | null>
+}) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
-  const [revealed, setRevealed] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [phase, setPhase] = useState<Phase>(() =>
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'shown' : 'hidden'
   )
+  const [vecs, setVecs] = useState<Array<{ x: number; y: number; r: number }>>([])
+  const scatterTimer = useRef<number | null>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   useRepulsion(hostRef)
 
+  // 'hidden' always resolves to 'shown' a frame later — this both plays the
+  // initial entrance and reassembles the word after a scatter.
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setRevealed(true))
+    if (phase !== 'hidden') return
+    const raf = requestAnimationFrame(() => setPhase('shown'))
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [phase])
+
+  useEffect(
+    () => () => {
+      if (scatterTimer.current) window.clearTimeout(scatterTimer.current)
+    },
+    []
+  )
+
+  useImperativeHandle(ref, () => ({
+    scatter() {
+      if (phase !== 'shown') return
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      const mid = (scraps.length - 1) / 2
+      setVecs(
+        scraps.map((_, i) => ({
+          x: (i - mid) * lineH * (1.1 + Math.random() * 0.5),
+          y: -lineH * (0.35 + Math.random() * 0.6),
+          r: (Math.random() * 2 - 1) * 30,
+        }))
+      )
+      setPhase('scattered')
+      scatterTimer.current = window.setTimeout(() => setPhase('hidden'), SCATTER_MS + 120)
+    },
+  }))
 
   // Re-roll every letter to a different cutout (twin Ts must never match).
   function reroll() {
@@ -225,15 +279,29 @@ export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number
           willChange: 'transform',
           transition: 'width 260ms ease-out, height 260ms ease-out',
         }
-        // inner layer: rest pose + entrance transition
-        const poseStyle: CSSProperties = {
-          transform: revealed
-            ? `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`
-            : `translateY(${lineH * 0.18}px) rotate(${scrap.rot * 1.25}deg) scale(0.96)`,
-          opacity: revealed ? 1 : 0,
-          filter: revealed ? 'blur(0px)' : 'blur(3px)',
-          transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms`,
-        }
+        // inner layer: rest pose, entrance transition, scatter blast
+        const vec = vecs[i] ?? { x: 0, y: 0, r: 0 }
+        const poseStyle: CSSProperties =
+          phase === 'scattered'
+            ? {
+                transform: `translate(${vec.x}px, ${vec.y}px) rotate(${scrap.rot + vec.r}deg) scale(1.05)`,
+                opacity: 0,
+                filter: 'blur(4px)',
+                transition: `transform ${SCATTER_MS}ms ${SCATTER_EASE}, opacity 300ms ease ${SCATTER_MS - 320}ms, filter ${SCATTER_MS}ms ease`,
+              }
+            : phase === 'shown'
+              ? {
+                  transform: `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`,
+                  opacity: 1,
+                  filter: 'blur(0px)',
+                  transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms`,
+                }
+              : {
+                  transform: `translateY(${lineH * 0.18}px) rotate(${scrap.rot * 1.25}deg) scale(0.96)`,
+                  opacity: 0,
+                  filter: 'blur(3px)',
+                  transition: 'none',
+                }
         return (
           <span
             key={i}
