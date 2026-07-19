@@ -9,8 +9,6 @@ import { GlowEngine } from './engine'
 export type GlowHandle = {
   /** fire the submit pulse */
   burst: () => void
-  /** decay the light to zero across the route change, then self-destroy */
-  dissipate: () => void
   /** update any knobs at runtime */
   set: (patch: GlowConfigPatch) => void
 }
@@ -31,7 +29,6 @@ export function useGlow(
   const engineRef = useRef<GlowEngine | null>(null)
   const handleRef = useRef<GlowHandle>({
     burst: () => engineRef.current?.burst(),
-    dissipate: () => engineRef.current?.dissipate(),
     set: (patch) => engineRef.current?.set(patch),
   })
   const configRef = useRef(config)
@@ -46,8 +43,7 @@ export function useGlow(
     engine.attach(target, container)
     return () => {
       engineRef.current = null
-      // A dissipating engine has reparented its canvas and owns its teardown.
-      if (!engine.isDissipating) engine.destroy()
+      engine.destroy()
     }
   }, [targetRef, containerRef])
 
