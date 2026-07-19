@@ -107,26 +107,27 @@ export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number;
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // Swap to a different cutout of the same letter, avoiding whatever the other
-  // occurrences of that letter currently show (twin Ts must never match).
-  function swap(index: number) {
+  // Re-roll every letter to a different cutout (twin Ts must never match).
+  function reroll() {
     setScraps((current) => {
-      const scrap = current[index]
-      if (!scrap) return current
-      const inUse = new Set(current.filter((s) => s.letter === scrap.letter).map((s) => s.file))
-      const options = (RANSOM[scrap.letter] ?? []).filter((v) => !inUse.has(v.file))
-      const pick = options[Math.floor(Math.random() * options.length)]
-      if (!pick) return current
-      const next = [...current]
-      next[index] = { ...scrap, file: pick.file, swapped: true }
+      const next: Scrap[] = []
+      for (const scrap of current) {
+        const taken = new Set(next.filter((s) => s.letter === scrap.letter).map((s) => s.file))
+        const options = (RANSOM[scrap.letter] ?? []).filter(
+          (v) => v.file !== scrap.file && !taken.has(v.file)
+        )
+        const pick = options[Math.floor(Math.random() * options.length)]
+        next.push(pick ? { ...scrap, file: pick.file, swapped: true } : scrap)
+      }
       return next
     })
   }
 
   return (
     <div
-      className={`flex select-none items-center justify-center ${className}`}
+      className={`flex cursor-pointer select-none items-center justify-center ${className}`}
       style={{ gap: `${lineH * 0.06}px` }}
+      {...pressHandlers(reroll)}
     >
       <span className='sr-only'>Jetty</span>
       {scraps.map((scrap, i) => {
@@ -146,12 +147,7 @@ export function RansomWordmark({ lineH = 72, className = '' }: { lineH?: number;
           transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms, width 260ms ease-out, height 260ms ease-out`,
         }
         return (
-          <span
-            key={i}
-            className='relative shrink-0 cursor-pointer'
-            style={style}
-            {...pressHandlers(() => swap(i))}
-          >
+          <span key={i} className='relative shrink-0' style={style}>
             <img
               key={scrap.file}
               src={spriteUrl(scrap.file)}
