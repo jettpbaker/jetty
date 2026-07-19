@@ -12,25 +12,20 @@ export const Route = createFileRoute('/new/$projectId')({
   component: NewThreadPage,
 })
 
-// how long the scatter plays before the fake thread arrives, and how long the
-// fake thread holds before resetting to the draft
-const DEMO_SWAP_MS = 620
+// how long the fake thread holds before resetting to the draft
 const DEMO_HOLD_MS = 1600
 
 function NewThreadPage() {
   const { projectId } = Route.useParams()
   const wordmarkRef = useRef<RansomWordmarkHandle>(null)
-  // temporary demo state machine: idle → scattering → thread → idle. Previews
-  // the full submit hand-off (scatter → arrival fade → message entrance)
-  // without touching routing, stores, or the server.
-  const [demo, setDemo] = useState<'idle' | 'scattering' | 'thread'>('idle')
+  // temporary demo: previews the submit hand-off — the swap to the thread is
+  // INSTANT while the scatter plays over it from a body-level overlay, exactly
+  // as the real submit will behave. No routing, stores, or server involved.
+  const [demo, setDemo] = useState<'idle' | 'thread'>('idle')
 
   useEffect(() => {
-    if (demo === 'idle') return
-    const timer = window.setTimeout(
-      () => setDemo(demo === 'scattering' ? 'thread' : 'idle'),
-      demo === 'scattering' ? DEMO_SWAP_MS : DEMO_HOLD_MS
-    )
+    if (demo !== 'thread') return
+    const timer = window.setTimeout(() => setDemo('idle'), DEMO_HOLD_MS)
     return () => window.clearTimeout(timer)
   }, [demo])
 
@@ -44,9 +39,8 @@ function NewThreadPage() {
         aria-label='Play submit animation'
         className='absolute top-3 right-3'
         {...pressHandlers(() => {
-          if (demo !== 'idle') return
           wordmarkRef.current?.scatter()
-          setDemo('scattering')
+          setDemo('thread')
         })}
       >
         <PlayIcon />

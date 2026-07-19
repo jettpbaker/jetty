@@ -183,14 +183,54 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
 }
 
 export type RansomWordmarkHandle = {
-  /** blow the scraps apart, then reassemble via the entrance */
+  /** blow the scraps apart over whatever renders next */
   scatter: () => void
 }
 
-type Phase = 'hidden' | 'shown' | 'scattered'
+type Phase = 'hidden' | 'shown'
 
 const SCATTER_MS = 550
 const SCATTER_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+// The blast must outlive the component: the caller swaps the page in the same
+// tick, so the scraps are cloned into a fixed body-level layer and animated
+// with vanilla DOM — they fly over the arriving content while React unmounts
+// the wordmark underneath.
+function scatterFromDom(host: HTMLElement, lineH: number) {
+  const scraps = Array.from(host.querySelectorAll<HTMLElement>('[data-scrap]'))
+  if (scraps.length === 0) return
+  const layer = document.createElement('div')
+  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:50'
+  const mid = (scraps.length - 1) / 2
+  const clones: Array<{ node: HTMLElement; x: number; y: number; r: number }> = []
+  for (const [i, el] of scraps.entries()) {
+    const rect = el.getBoundingClientRect()
+    const node = el.cloneNode(true) as HTMLElement
+    node.style.position = 'fixed'
+    node.style.left = `${rect.left}px`
+    node.style.top = `${rect.top}px`
+    node.style.margin = '0'
+    node.style.transform = 'none'
+    node.style.transition = `transform ${SCATTER_MS}ms ${SCATTER_EASE}, opacity 300ms ease ${SCATTER_MS - 320}ms, filter ${SCATTER_MS}ms ease`
+    node.style.willChange = 'transform, opacity, filter'
+    layer.appendChild(node)
+    clones.push({
+      node,
+      x: (i - mid) * lineH * (1.1 + Math.random() * 0.5),
+      y: -lineH * (0.35 + Math.random() * 0.6),
+      r: (Math.random() * 2 - 1) * 30,
+    })
+  }
+  document.body.appendChild(layer)
+  // commit the resting styles before setting targets, or nothing transitions
+  void layer.offsetWidth
+  for (const clone of clones) {
+    clone.node.style.transform = `translate(${clone.x}px, ${clone.y}px) rotate(${clone.r}deg) scale(1.05)`
+    clone.node.style.opacity = '0'
+    clone.node.style.filter = 'blur(4px)'
+  }
+  window.setTimeout(() => layer.remove(), SCATTER_MS + 250)
+}
 
 export function RansomWordmark({
   lineH = 112,
@@ -205,40 +245,21 @@ export function RansomWordmark({
   const [phase, setPhase] = useState<Phase>(() =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'shown' : 'hidden'
   )
-  const [vecs, setVecs] = useState<Array<{ x: number; y: number; r: number }>>([])
-  const scatterTimer = useRef<number | null>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   useRepulsion(hostRef)
 
-  // 'hidden' always resolves to 'shown' a frame later — this both plays the
-  // initial entrance and reassembles the word after a scatter.
   useEffect(() => {
     if (phase !== 'hidden') return
     const raf = requestAnimationFrame(() => setPhase('shown'))
     return () => cancelAnimationFrame(raf)
   }, [phase])
 
-  useEffect(
-    () => () => {
-      if (scatterTimer.current) window.clearTimeout(scatterTimer.current)
-    },
-    []
-  )
-
   useImperativeHandle(ref, () => ({
     scatter() {
       if (phase !== 'shown') return
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      const mid = (scraps.length - 1) / 2
-      setVecs(
-        scraps.map((_, i) => ({
-          x: (i - mid) * lineH * (1.1 + Math.random() * 0.5),
-          y: -lineH * (0.35 + Math.random() * 0.6),
-          r: (Math.random() * 2 - 1) * 30,
-        }))
-      )
-      setPhase('scattered')
-      scatterTimer.current = window.setTimeout(() => setPhase('hidden'), SCATTER_MS + 120)
+      const host = hostRef.current
+      if (host) scatterFromDom(host, lineH)
     },
   }))
 
@@ -279,29 +300,21 @@ export function RansomWordmark({
           willChange: 'transform',
           transition: 'width 260ms ease-out, height 260ms ease-out',
         }
-        // inner layer: rest pose, entrance transition, scatter blast
-        const vec = vecs[i] ?? { x: 0, y: 0, r: 0 }
+        // inner layer: rest pose + entrance transition
         const poseStyle: CSSProperties =
-          phase === 'scattered'
+          phase === 'shown'
             ? {
-                transform: `translate(${vec.x}px, ${vec.y}px) rotate(${scrap.rot + vec.r}deg) scale(1.05)`,
-                opacity: 0,
-                filter: 'blur(4px)',
-                transition: `transform ${SCATTER_MS}ms ${SCATTER_EASE}, opacity 300ms ease ${SCATTER_MS - 320}ms, filter ${SCATTER_MS}ms ease`,
+                transform: `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`,
+                opacity: 1,
+                filter: 'blur(0px)',
+                transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms`,
               }
-            : phase === 'shown'
-              ? {
-                  transform: `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`,
-                  opacity: 1,
-                  filter: 'blur(0px)',
-                  transition: `transform ${ENTER_MS}ms ${ENTER_EASE} ${i * STAGGER_MS}ms, opacity ${Math.round(ENTER_MS * 0.7)}ms ease ${i * STAGGER_MS}ms, filter ${ENTER_MS}ms ease ${i * STAGGER_MS}ms`,
-                }
-              : {
-                  transform: `translateY(${lineH * 0.18}px) rotate(${scrap.rot * 1.25}deg) scale(0.96)`,
-                  opacity: 0,
-                  filter: 'blur(3px)',
-                  transition: 'none',
-                }
+            : {
+                transform: `translateY(${lineH * 0.18}px) rotate(${scrap.rot * 1.25}deg) scale(0.96)`,
+                opacity: 0,
+                filter: 'blur(3px)',
+                transition: 'none',
+              }
         return (
           <span
             key={i}
