@@ -127,7 +127,7 @@ export function TabBar() {
                   {...pressHandlers(() => openThread(thread.id))}
                 />
                 <ProjectBadge title={project?.title ?? '?'} />
-                <span className='pointer-events-none relative min-w-0 flex-1 truncate text-left'>
+                <span className='pointer-events-none relative min-w-0 flex-1 text-left overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>
                   {thread.title || thread.id}
                 </span>
                 <button
@@ -157,7 +157,7 @@ export function TabBar() {
             <ProjectBadge
               title={chrome.projects.find((p) => p.id === draftProjectId)?.title ?? '?'}
             />
-            <span className='min-w-0 flex-1 truncate'>New thread</span>
+            <span className='min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>New thread</span>
           </div>
         )}
       </div>

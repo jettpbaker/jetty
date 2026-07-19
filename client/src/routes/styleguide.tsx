@@ -168,7 +168,7 @@ function LabPill({
       )}
     >
       <LabPillPrefix treatment={treatment} status={status} title={title} />
-      <span className='pointer-events-none relative min-w-0 flex-1 truncate text-left'>{title}</span>
+      <span className='pointer-events-none relative min-w-0 flex-1 text-left overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>{title}</span>
       <button
         type='button'
         aria-label='Close tab'
@@ -581,7 +581,7 @@ function MockTabBar() {
                 {...pressHandlers(() => setActiveId(tab.id))}
               />
               <MockGlyph state={tab.state} />
-              <span className='pointer-events-none relative min-w-0 flex-1 truncate text-left'>
+              <span className='pointer-events-none relative min-w-0 flex-1 text-left overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]'>
                 {tab.title}
               </span>
               <button
