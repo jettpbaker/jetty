@@ -112,14 +112,16 @@ export function TabBar() {
       <div className='flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {openTabs.map((thread) => {
           const active = thread.id === activeThreadId
+          const project = chrome.projects.find((p) => p.id === thread.projectId)
+          const projectLetter = project?.title[0]?.toUpperCase() ?? '?'
           return (
             <ContextMenu key={thread.id}>
               <ContextMenuTrigger
                 className={cn(
-                  'group relative flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm',
+                  'group relative flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                   active
-                    ? 'border-border bg-secondary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:bg-secondary/50'
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:bg-secondary/50'
                 )}
               >
                 <button
@@ -128,12 +130,9 @@ export function TabBar() {
                   className='absolute inset-0 rounded-md'
                   {...pressHandlers(() => openThread(thread.id))}
                 />
-                <span
-                  className={cn(
-                    'pointer-events-none relative size-2 shrink-0 rounded-full',
-                    statusDotClass(thread.status)
-                  )}
-                />
+                <span className='pointer-events-none relative font-mono text-[11px] uppercase text-muted-foreground'>
+                  {projectLetter}
+                </span>
                 <span className='pointer-events-none relative max-w-40 truncate'>
                   {thread.title || thread.id}
                 </span>
@@ -160,7 +159,11 @@ export function TabBar() {
           )
         })}
         {draftProjectId !== undefined && (
-          <div className='flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 text-sm text-foreground'>
+          <div className='flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-secondary px-2.5 text-sm text-foreground'>
+            <span className='font-mono text-[11px] uppercase text-muted-foreground'>
+              {chrome.projects.find((p) => p.id === draftProjectId)?.title[0]?.toUpperCase() ??
+                '?'}
+            </span>
             <span className='max-w-40 truncate'>New thread</span>
           </div>
         )}
