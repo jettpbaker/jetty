@@ -15,8 +15,8 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { composerShell } from '@/components/composer'
 import { acceptImages } from '@/lib/attachments'
-import { PaperclipIcon, XIcon } from '@phosphor-icons/react'
-import { useRef, useState } from 'react'
+import { PaperclipIcon } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 // Bench for the composer: every state it can be in, side by side, plus a live
@@ -217,53 +217,236 @@ function TuckedAttachments({ config }: { config: FanConfig }) {
   return (
     <div aria-label='Attached images' className='pointer-events-none absolute top-0 right-0 z-0'>
       {stack.map((file, i) => (
-        // Stationary hover zone: carries the rotation (constant per card);
-        // only the inner card moves on hover.
-        <div
+        <FanCard
           key={file.id}
-          className='group pointer-events-auto absolute [transform:rotate(var(--angle))] transition-transform duration-150 ease-out'
-          style={
-            {
-              // card base-center sits on the pivot (card at the zone's bottom)
-              right: -(config.pivot.x + config.cardW / 2),
-              top: config.pivot.y - zoneH,
-              width: config.cardW,
-              height: zoneH,
-              '--angle': `${config.center + spread / 2 - i * step}deg`,
-              transformOrigin: '50% 100%',
-              zIndex: stack.length - i,
-            } as CSSProperties
-          }
-          onPointerEnter={(event) => {
-            // no two lifts identical — a card pushed out of a hand never
-            // travels the exact same distance twice
-            event.currentTarget.style.setProperty(
-              '--lift',
-              `${-(config.lift + Math.random() * 6)}px`
-            )
-          }}
-        >
-          <div
-            className='absolute inset-x-0 bottom-0 transition-transform duration-150 ease-out group-hover:[transform:translateY(var(--lift,-16px))]'
-            style={{ height: config.cardH }}
-          >
-            <img
-              alt={file.filename || 'attachment'}
-              src={file.url}
-              className='size-full max-w-none rounded-md bg-secondary object-cover shadow-[0_4px_18px_3px_rgba(0,0,0,0.45)]'
-              draggable={false}
-            />
-            <button
-              type='button'
-              aria-label={`Remove ${file.filename || 'attachment'}`}
-              onClick={() => remove(file.id)}
-              className='absolute top-1 right-1 flex size-4 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100'
-            >
-              <XIcon className='size-2.5' />
-            </button>
-          </div>
-        </div>
+          file={file}
+          config={config}
+          zoneH={zoneH}
+          angle={config.center + spread / 2 - i * step}
+          zIndex={stack.length - i}
+          onRemove={() => remove(file.id)}
+        />
       ))}
+    </div>
+  )
+}
+
+// dragging a card farther than this from where it was picked up removes it
+const TOSS_DISTANCE = 90
+
+// Stationary hover zone carrying the card's rotation; only the inner card
+// moves on hover. Dragging follows the cursor in screen space (translate
+// outside the rotate); release either tosses the card out of the hand or
+// glides it back.
+function FanCard({
+  file,
+  config,
+  zoneH,
+  angle,
+  zIndex,
+  onRemove,
+}: {
+  file: { id: string; url?: string; filename?: string }
+  config: FanConfig
+  zoneH: number
+  angle: number
+  zIndex: number
+  onRemove: () => void
+}) {
+  const drag = useRef<{
+    x: number
+    y: number
+    active: boolean
+    lastX: number
+    lastY: number
+    lastT: number
+    vx: number
+    vy: number
+  } | null>(null)
+  const fling = useRef<number | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const glintRef = useRef<HTMLDivElement>(null)
+  useEffect(
+    () => () => {
+      if (fling.current) cancelAnimationFrame(fling.current)
+    },
+    []
+  )
+
+  function settleBack(node: HTMLElement) {
+    node.style.transition = ''
+    node.style.zIndex = ''
+    node.style.opacity = ''
+    node.style.setProperty('--dx', '0px')
+    node.style.setProperty('--dy', '0px')
+    node.style.removeProperty('--scale')
+  }
+
+  // Ballistic exit: the card keeps its release velocity, gravity bends it
+  // into an arc, it spins with the throw, shrinks and snuffs out — and a
+  // star glint twinkles at the vanish point before the attachment is
+  // actually removed.
+  function toss(node: HTMLElement, dx: number, dy: number, vx: number, vy: number) {
+    const G = 0.004 // px/ms²
+    const FLING_MS = 420
+    const GLINT_DELAY = 320
+    const GLINT_MS = 280
+    // cap launch speed so hard flicks stay mostly on screen
+    const speed = Math.hypot(vx, vy)
+    if (speed > 2) {
+      vx *= 2 / speed
+      vy *= 2 / speed
+    }
+    const spin = Math.max(-0.3, Math.min(0.3, vx * 0.15)) // deg/ms
+    const card = cardRef.current
+    const glint = glintRef.current
+    node.style.pointerEvents = 'none'
+    // rAF drives the card's scale/opacity directly; its 150ms transition
+    // would smear every frame update
+    if (card) card.style.transition = 'none'
+    let x = dx
+    let y = dy
+    const startT = performance.now()
+    let last = startT
+    function frame(now: number) {
+      const elapsed = now - startT
+      if (elapsed >= GLINT_DELAY + GLINT_MS) {
+        fling.current = null
+        onRemove()
+        return
+      }
+      const t = Math.min(1, elapsed / FLING_MS)
+      if (t < 1) {
+        const dt = Math.min(32, now - last)
+        vy += G * dt
+        x += vx * dt
+        y += vy * dt
+        node.style.setProperty('--dx', `${x}px`)
+        node.style.setProperty('--dy', `${y}px`)
+        node.style.setProperty('--angle', `${angle + spin * elapsed}deg`)
+        if (card) {
+          // stay solid through most of the arc, then shrink and snuff fast —
+          // a linear whole-flight fade reads as a ghost, not a destruction
+          const shrink = Math.max(0, (t - 0.4) / 0.6)
+          card.style.scale = `${1 - 0.55 * shrink}`
+          card.style.opacity = t < 0.55 ? '1' : `${1 - (t - 0.55) / 0.45}`
+        }
+      } else if (card) {
+        card.style.opacity = '0'
+      }
+      last = now
+      const tg = (elapsed - GLINT_DELAY) / GLINT_MS
+      if (glint && tg >= 0) {
+        const k = Math.sin(Math.PI * Math.min(1, tg))
+        glint.style.opacity = `${k}`
+        glint.style.transform = `scale(${0.4 + k}) rotate(${tg * 60}deg)`
+      }
+      fling.current = requestAnimationFrame(frame)
+    }
+    fling.current = requestAnimationFrame(frame)
+  }
+
+  return (
+    <div
+      className='group pointer-events-auto absolute cursor-grab select-none active:cursor-grabbing [transform:translate(var(--dx,0px),var(--dy,0px))_rotate(var(--angle))] transition-transform duration-150 ease-out'
+      style={
+        {
+          // card base-center sits on the pivot (card at the zone's bottom)
+          right: -(config.pivot.x + config.cardW / 2),
+          top: config.pivot.y - zoneH,
+          width: config.cardW,
+          height: zoneH,
+          '--angle': `${angle}deg`,
+          transformOrigin: '50% 100%',
+          zIndex,
+        } as CSSProperties
+      }
+      onPointerEnter={(event) => {
+        // no two lifts identical — a card pushed out of a hand never travels
+        // the exact same distance twice
+        event.currentTarget.style.setProperty('--lift', `${-(config.lift + Math.random() * 6)}px`)
+      }}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        // a drag sweeping across the page must not start a text selection
+        event.preventDefault()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        drag.current = {
+          x: event.clientX,
+          y: event.clientY,
+          active: false,
+          lastX: event.clientX,
+          lastY: event.clientY,
+          lastT: event.timeStamp,
+          vx: 0,
+          vy: 0,
+        }
+      }}
+      onPointerMove={(event) => {
+        const from = drag.current
+        if (!from) return
+        const dx = event.clientX - from.x
+        const dy = event.clientY - from.y
+        const node = event.currentTarget
+        if (!from.active) {
+          if (Math.hypot(dx, dy) < 4) return
+          from.active = true
+          node.style.transition = 'none'
+          node.style.zIndex = '40'
+        }
+        // smoothed release velocity for the toss ballistics
+        const dt = Math.max(1, event.timeStamp - from.lastT)
+        from.vx = from.vx * 0.7 + ((event.clientX - from.lastX) / dt) * 0.3
+        from.vy = from.vy * 0.7 + ((event.clientY - from.lastY) / dt) * 0.3
+        from.lastX = event.clientX
+        from.lastY = event.clientY
+        from.lastT = event.timeStamp
+        node.style.setProperty('--dx', `${dx}px`)
+        node.style.setProperty('--dy', `${dy}px`)
+        // swell past the toss threshold: release here removes the card
+        node.style.setProperty('--scale', Math.hypot(dx, dy) > TOSS_DISTANCE ? '1.07' : '1')
+      }}
+      onPointerUp={(event) => {
+        const from = drag.current
+        drag.current = null
+        if (!from?.active) return
+        const dx = event.clientX - from.x
+        const dy = event.clientY - from.y
+        if (Math.hypot(dx, dy) > TOSS_DISTANCE) {
+          toss(event.currentTarget, dx, dy, from.vx, from.vy)
+        } else {
+          settleBack(event.currentTarget)
+        }
+      }}
+      onPointerCancel={(event) => {
+        if (drag.current?.active) settleBack(event.currentTarget)
+        drag.current = null
+      }}
+    >
+      <div
+        ref={cardRef}
+        className='absolute inset-x-0 bottom-0 overflow-hidden rounded-md shadow-[0_4px_18px_3px_rgba(0,0,0,0.45)] [scale:var(--scale,1)] transition-[transform,scale] duration-150 ease-out group-hover:[transform:translateY(var(--lift,-16px))]'
+        style={{ height: config.cardH }}
+      >
+        <img
+          alt={file.filename || 'attachment'}
+          src={file.url}
+          className='pointer-events-none size-full max-w-none bg-secondary object-cover'
+          draggable={false}
+        />
+      </div>
+      {/* 4-point star glint at the card's center, driven by the toss loop */}
+      <div
+        ref={glintRef}
+        className='pointer-events-none absolute left-1/2 opacity-0'
+        style={{ top: zoneH - config.cardH / 2 }}
+      >
+        <div className='absolute h-px w-20 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-transparent via-white to-transparent' />
+        <div className='absolute h-20 w-px -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-white to-transparent' />
+        <div className='absolute h-px w-10 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-gradient-to-r from-transparent via-white/70 to-transparent' />
+        <div className='absolute h-px w-10 -translate-x-1/2 -translate-y-1/2 -rotate-45 bg-gradient-to-r from-transparent via-white/70 to-transparent' />
+        <div className='absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white blur-[2px]' />
+      </div>
     </div>
   )
 }
