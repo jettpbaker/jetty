@@ -39,9 +39,10 @@ function RackLabel({ name }: { name: string }) {
 }
 
 const MODELS = ['Opus 4.8', 'Sonnet 5', 'Haiku 4.5']
+const APPROVAL_MODES = ['Auto', 'Full access', 'Plan']
 
-// The composer footer: add-image and model picker on the left, send on the
-// right. Extra lab controls slot in via children, after the picker.
+// The composer footer: add-image and approval picker on the left, model
+// picker and send on the right. Extra lab controls slot in via children.
 function FooterCluster({
   status,
   disabled,
@@ -55,6 +56,7 @@ function FooterCluster({
 }) {
   const attachments = usePromptInputAttachments()
   const [model, setModel] = useState('Sonnet 5')
+  const [approval, setApproval] = useState('Auto')
   return (
     <div className='flex w-full items-center gap-1'>
       <PromptInputButton
@@ -67,26 +69,50 @@ function FooterCluster({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <PromptInputButton size='sm' disabled={disabled} className='text-muted-foreground'>
-              {model}
+            <PromptInputButton
+              size='sm'
+              disabled={disabled}
+              className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
+            >
+              {approval}
             </PromptInputButton>
           }
         />
-        <DropdownMenuContent align='end'>
-          {MODELS.map((name) => (
-            <DropdownMenuItem key={name} onClick={() => setModel(name)}>
+        <DropdownMenuContent align='start'>
+          {APPROVAL_MODES.map((name) => (
+            <DropdownMenuItem key={name} onClick={() => setApproval(name)}>
               {name}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
       {children}
-      <PromptInputSubmit
-        className='ml-auto'
-        status={status}
-        disabled={disabled}
-        onClick={onSubmitClick}
-      />
+      <div className='ml-auto flex items-center gap-1'>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <PromptInputButton
+                size='sm'
+                disabled={disabled}
+                className='group/model gap-1.5 text-foreground hover:bg-transparent!'
+              >
+                {model}
+                <span className='text-muted-foreground transition-colors group-hover/model:text-foreground'>
+                  Medium
+                </span>
+              </PromptInputButton>
+            }
+          />
+          <DropdownMenuContent align='end'>
+            {MODELS.map((name) => (
+              <DropdownMenuItem key={name} onClick={() => setModel(name)}>
+                {name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <PromptInputSubmit status={status} disabled={disabled} onClick={onSubmitClick} />
+      </div>
     </div>
   )
 }
