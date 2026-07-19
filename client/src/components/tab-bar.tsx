@@ -100,7 +100,7 @@ export function TabBar() {
   }
 
   return (
-    <div className='flex h-12 shrink-0 items-center gap-2 border-b px-3'>
+    <div className='flex h-16 shrink-0 items-center gap-2 border-b px-3'>
       <Link
         to='/'
         aria-label='Jetty home'
@@ -120,7 +120,7 @@ export function TabBar() {
                 className={cn(
                   'group relative flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                   active
-                    ? 'bg-secondary text-foreground'
+                    ? 'bg-[#2B2C2D] text-foreground'
                     : 'text-muted-foreground hover:bg-secondary/50'
                 )}
               >
@@ -157,7 +157,7 @@ export function TabBar() {
           )
         })}
         {draftProjectId !== undefined && (
-          <div className='flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-secondary px-2.5 text-sm text-foreground'>
+          <div className='flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[#2B2C2D] px-2.5 text-sm text-foreground'>
             <ProjectBadge
               title={chrome.projects.find((p) => p.id === draftProjectId)?.title ?? '?'}
             />
