@@ -30,7 +30,7 @@ function chatStatus(status: SessionStatus): ChatStatus {
 // One shell everywhere: hairline border that brightens on focus-within.
 const composerBase =
   'rounded-lg [&_[data-slot=input-group]]:bg-[#191A1B]! [&_[data-slot=input-group]]:ring-0!'
-export const composerShell = `${composerBase} [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:focus-within:border-white/25!`
+const composerShell = `${composerBase} [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:focus-within:border-white/25!`
 
 function AttachButton() {
   const attachments = usePromptInputAttachments()

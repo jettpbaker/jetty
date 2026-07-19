@@ -1,12 +1,5 @@
 import { pressHandlers } from '@/lib/press-handlers'
-import {
-  type CSSProperties,
-  type RefObject,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from 'react'
+import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
 
 // Ransom-note wordmark: real torn-magazine cutout letters (Resource Boy pack,
 // royalty-free), one scrap per letter with seeded jitter so it reads as taped
@@ -182,65 +175,9 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
   }, [hostRef])
 }
 
-export type RansomWordmarkHandle = {
-  /** blow the scraps apart over whatever renders next */
-  scatter: () => void
-}
-
 type Phase = 'hidden' | 'shown'
 
-const SCATTER_MS = 550
-const SCATTER_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
-
-// The blast must outlive the component: the caller swaps the page in the same
-// tick, so the scraps are cloned into a fixed body-level layer and animated
-// with vanilla DOM — they fly over the arriving content while React unmounts
-// the wordmark underneath.
-function scatterFromDom(host: HTMLElement, lineH: number) {
-  const scraps = Array.from(host.querySelectorAll<HTMLElement>('[data-scrap]'))
-  if (scraps.length === 0) return
-  const layer = document.createElement('div')
-  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:50'
-  const mid = (scraps.length - 1) / 2
-  const clones: Array<{ node: HTMLElement; x: number; y: number; r: number }> = []
-  for (const [i, el] of scraps.entries()) {
-    const rect = el.getBoundingClientRect()
-    const node = el.cloneNode(true) as HTMLElement
-    node.style.position = 'fixed'
-    node.style.left = `${rect.left}px`
-    node.style.top = `${rect.top}px`
-    node.style.margin = '0'
-    node.style.transform = 'none'
-    node.style.transition = `transform ${SCATTER_MS}ms ${SCATTER_EASE}, opacity 300ms ease ${SCATTER_MS - 320}ms, filter ${SCATTER_MS}ms ease`
-    node.style.willChange = 'transform, opacity, filter'
-    layer.appendChild(node)
-    clones.push({
-      node,
-      x: (i - mid) * lineH * (1.1 + Math.random() * 0.5),
-      y: -lineH * (0.35 + Math.random() * 0.6),
-      r: (Math.random() * 2 - 1) * 30,
-    })
-  }
-  document.body.appendChild(layer)
-  // commit the resting styles before setting targets, or nothing transitions
-  void layer.offsetWidth
-  for (const clone of clones) {
-    clone.node.style.transform = `translate(${clone.x}px, ${clone.y}px) rotate(${clone.r}deg) scale(1.05)`
-    clone.node.style.opacity = '0'
-    clone.node.style.filter = 'blur(4px)'
-  }
-  window.setTimeout(() => layer.remove(), SCATTER_MS + 250)
-}
-
-export function RansomWordmark({
-  lineH = 112,
-  className = '',
-  ref,
-}: {
-  lineH?: number
-  className?: string
-  ref?: RefObject<RansomWordmarkHandle | null>
-}) {
+export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number; className?: string }) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
   const [phase, setPhase] = useState<Phase>(() =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'shown' : 'hidden'
@@ -253,15 +190,6 @@ export function RansomWordmark({
     const raf = requestAnimationFrame(() => setPhase('shown'))
     return () => cancelAnimationFrame(raf)
   }, [phase])
-
-  useImperativeHandle(ref, () => ({
-    scatter() {
-      if (phase !== 'shown') return
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      const host = hostRef.current
-      if (host) scatterFromDom(host, lineH)
-    },
-  }))
 
   // Re-roll every letter to a different cutout (twin Ts must never match).
   function reroll() {
