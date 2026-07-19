@@ -292,7 +292,9 @@ export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number
     <div
       ref={hostRef}
       className={`flex cursor-pointer select-none items-center justify-center ${className}`}
-      style={{ gap: `${lineH * 0.18}px` }}
+      // pinned to the tallest possible scrap (scale ≤ 1.1) so per-composition
+      // jitter and image loading never shift the layout below
+      style={{ gap: `${lineH * 0.18}px`, height: `${lineH * 1.1}px` }}
       {...pressHandlers(reroll)}
     >
       <span className='sr-only'>Jetty</span>
