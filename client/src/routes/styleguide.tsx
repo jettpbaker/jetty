@@ -333,11 +333,11 @@ const SLEEPING_CANDIDATES: Array<{ caption: string; prefix: ReactNode }> = [
   },
   {
     caption: 'moon',
-    prefix: <MoonIcon weight='bold' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+    prefix: <MoonIcon weight='bold' className='size-[18px] shrink-0 translate-y-[0.5px] text-muted-foreground/60' />,
   },
   {
     caption: 'moon · fill',
-    prefix: <MoonIcon weight='fill' className='size-[18px] shrink-0 text-muted-foreground/60' />,
+    prefix: <MoonIcon weight='fill' className='size-[18px] shrink-0 translate-y-[0.5px] text-muted-foreground/60' />,
   },
   {
     caption: 'branch (worktree, no PR)',
