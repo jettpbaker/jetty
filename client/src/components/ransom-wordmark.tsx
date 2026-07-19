@@ -100,7 +100,7 @@ const ENTER_MS = 460
 const STAGGER_MS = 30
 
 const REPULSE_RADIUS = 150 // px of cursor influence around each scrap
-const REPULSE_PUSH = 16 // max px a scrap gives way
+const REPULSE_PUSH = 22 // max px a scrap gives way
 const EASE_K = 0.14 // per-frame exponential approach toward the target
 
 // Inverse of the inspo's magnetism: each scrap eases AWAY from the pointer by
@@ -169,7 +169,7 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
   }, [hostRef])
 }
 
-export function RansomWordmark({ lineH = 96, className = '' }: { lineH?: number; className?: string }) {
+export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number; className?: string }) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
   const [revealed, setRevealed] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -202,7 +202,7 @@ export function RansomWordmark({ lineH = 96, className = '' }: { lineH?: number;
     <div
       ref={hostRef}
       className={`flex cursor-pointer select-none items-center justify-center ${className}`}
-      style={{ gap: `${lineH * 0.14}px` }}
+      style={{ gap: `${lineH * 0.18}px` }}
       {...pressHandlers(reroll)}
     >
       <span className='sr-only'>Jetty</span>
