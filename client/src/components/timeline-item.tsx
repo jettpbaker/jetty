@@ -51,6 +51,17 @@ function AssistantMessage({ item }: { item: Extract<ThreadItem, { kind: 'assista
   )
 }
 
+function ReasoningMessage({ item }: { item: Extract<ThreadItem, { kind: 'reasoning' }> }) {
+  const text = usePacedText(item.text, item.streaming ?? false)
+  const animating = (item.streaming ?? false) || text.length < item.text.length
+  return (
+    <Reasoning defaultOpen={false} isStreaming={item.streaming ?? false}>
+      <ReasoningTrigger verb={turnSpinnerVerb(item.turnId)} />
+      <ReasoningContent isAnimating={animating}>{text}</ReasoningContent>
+    </Reasoning>
+  )
+}
+
 function ItemBody({ item }: { item: ThreadItem }) {
   switch (item.kind) {
     case 'user_message':
@@ -58,12 +69,7 @@ function ItemBody({ item }: { item: ThreadItem }) {
     case 'assistant_message':
       return <AssistantMessage item={item} />
     case 'reasoning':
-      return (
-        <Reasoning defaultOpen={false} isStreaming={item.streaming ?? false}>
-          <ReasoningTrigger verb={turnSpinnerVerb(item.turnId)} />
-          <ReasoningContent>{item.text}</ReasoningContent>
-        </Reasoning>
-      )
+      return <ReasoningMessage item={item} />
     case 'tool_call':
       return <ToolRow item={item} />
     case 'approval':

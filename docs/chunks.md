@@ -31,6 +31,13 @@ stays and tracks status.
 - [x] **8. image paste** — clipboard/drop → client-side downscale → data URL over ws →
       attachments dir → base64 content block to Claude. Verify real Anthropic image
       limits here.
+- [x] **stream polish** — paced word-by-word reveal + blur-in on streaming text;
+      explicit `streaming` flag on the wire so the UI doesn't guess from turn status.
+- [x] **approval dock** — when `awaiting_approval`, dock replaces the composer;
+      timeline keeps a slim tool-row-language record (pending/resolved). Always-allow
+      and agent attribution still open (design pass).
+- [x] **command palette** — Cmd+K for threads/projects; T3-style add-project browse
+      (folder picker → create).
 - [ ] **9. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
       fallback) rendered with `@pierre/diffs`.
 
@@ -39,10 +46,11 @@ daily-driving mileage before deciding:
 
 - permission modes: per-thread picker, surfaced set auto | full_access | plan as
   jetty vocabulary on the wire, each adapter maps to its provider's modes.
-- approval card design + agent attribution (which agent is asking — hook inputs
-  carry `agent_id`/`agent_type`).
+- agent attribution on approvals (which agent is asking — hook inputs carry
+  `agent_id`/`agent_type`); always-allow rule persistence (dock landed without it).
 - archive undo toast (sonner is installed; see the undo gap note below).
-- tabs vs sidebar decision + subproject tags (notes below).
+- subproject tags (notes below). Tab bar + Cmd+K palette are both in; tabs won
+  the tabs-vs-sidebar decision.
 - icon tuning: Phosphor weights/strokes, per AGENTS.md.
 - boot flash: index.html has no background until styles.css loads, so the
   pre-React window flashes browser-default (black in dark mode). Fix is inline
@@ -110,9 +118,9 @@ Later, maybe:
 - tabs instead of sidebar: browser-style tab bar, one tab per open session — real
   usage is 2-5 concurrent sessions, so sidebar vertical space may be wasted. Cheap
   to swap later (nav is one component deep; stores/routes/wire don't know the
-  sidebar exists), and last-N warm subscriptions already are a tab model. Needs a
-  Cmd+K palette for non-open threads (cmdk already vendored). Decide at the design
-  pass alongside subproject tags — after daily-driving the sidebar.
+  sidebar exists), and last-N warm subscriptions already are a tab model. DONE:
+  the tab bar shipped as the nav (Ctrl+digit/T/W keybinds) and the Cmd+K palette
+  covers non-open threads; subproject tags remain for the design pass.
   - opencode recon (2026-07, grok over their repo — packages/app is the desktop
     surface): tabs and "composer-first new session" are ONE mechanism. `Tab =
 SessionTab | DraftTab`; a draft is the sessionless composer reified (uuid +

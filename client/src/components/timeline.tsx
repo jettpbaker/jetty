@@ -64,7 +64,7 @@ export function Timeline({
                   <MessageScrollerItem key={firstId} messageId={firstId}>
                     <div
                       className={cn(
-                        'mx-auto w-full max-w-3xl px-4 py-2',
+                        'mx-auto w-full max-w-3xl px-4 py-2 [content-visibility:auto] [contain-intrinsic-size:auto_2.5rem]',
                         !initialIds.has(firstId) && 'item-enter',
                       )}
                     >
@@ -75,12 +75,15 @@ export function Timeline({
               }
 
               const { item } = entry
+              const isWork = WORK_KINDS.has(item.kind)
               return (
                 <MessageScrollerItem key={item.id} messageId={item.id}>
                   <div
                     className={cn(
-                      'mx-auto w-full max-w-3xl px-4',
-                      WORK_KINDS.has(item.kind) ? 'py-2' : 'py-3',
+                      'mx-auto w-full max-w-3xl px-4 [content-visibility:auto]',
+                      isWork
+                        ? 'py-2 [contain-intrinsic-size:auto_2.5rem]'
+                        : 'py-3 [contain-intrinsic-size:auto_10rem]',
                       !initialIds.has(item.id) && 'item-enter',
                     )}
                   >

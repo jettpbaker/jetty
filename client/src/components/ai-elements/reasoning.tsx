@@ -142,23 +142,26 @@ export const ReasoningTrigger = memo(
 
 export type ReasoningContentProps = ComponentProps<typeof CollapsibleContent> & {
   children: string
+  isAnimating?: boolean
 }
 
-export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => {
-  const { isStreaming } = useReasoning()
-  return (
-    <CollapsibleContent
-      className={cn(
-        'mt-4 text-sm',
-        'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in',
-        className
-      )}
-      {...props}
-    >
-      <Response isAnimating={isStreaming}>{children}</Response>
-    </CollapsibleContent>
-  )
-})
+export const ReasoningContent = memo(
+  ({ className, children, isAnimating, ...props }: ReasoningContentProps) => {
+    const { isStreaming } = useReasoning()
+    return (
+      <CollapsibleContent
+        className={cn(
+          'mt-4 text-sm',
+          'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in',
+          className
+        )}
+        {...props}
+      >
+        <Response isAnimating={isAnimating ?? isStreaming}>{children}</Response>
+      </CollapsibleContent>
+    )
+  }
+)
 
 Reasoning.displayName = 'Reasoning'
 ReasoningTrigger.displayName = 'ReasoningTrigger'
