@@ -12,6 +12,7 @@ import type { Hub, ConnData } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
+import { computeThreadDiff } from './diff'
 import { browse } from './fs-browse'
 import { StoreError } from './store'
 
@@ -73,6 +74,10 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
         const thread = store.archiveThread(p.threadId)
         hub.pushChrome({ type: 'thread.upserted', thread })
         return null
+      }
+      case 'thread.diff': {
+        const p = parsed.data as ParamsOf<'thread.diff'>
+        return computeThreadDiff(store, p.threadId)
       }
       case 'thread.subscribe': {
         const p = parsed.data as ParamsOf<'thread.subscribe'>

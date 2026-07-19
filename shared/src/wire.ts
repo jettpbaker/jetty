@@ -82,6 +82,15 @@ export const methods = {
     params: z.object({ threadId: z.string() }),
     result: z.null(),
   },
+  'thread.diff': {
+    params: z.object({ threadId: z.string() }),
+    // unified `git diff HEAD` patch text, pulled on demand. truncatedPaths lists
+    // files whose hunks were stripped server-side (lockfiles, pathological sizes).
+    result: z.object({
+      diff: z.string(),
+      truncatedPaths: z.array(z.string()).optional(),
+    }),
+  },
   'thread.subscribe': {
     params: z.object({
       threadId: z.string(),

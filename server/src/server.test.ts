@@ -20,6 +20,7 @@ process.env.JETTY_AGENT = 'echo'
 import type { Agent, AgentImage, TurnInput } from './agent'
 
 import { openDb } from './db'
+import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { startServer } from './main'
 import { createStore } from './store'
@@ -1024,6 +1025,87 @@ describe('fs.browse', () => {
 
   test('returns empty entries for a nonexistent parent', () => {
     expect(browse('/no/such/directory/anywhere/').entries).toEqual([])
+  })
+})
+
+describe('thread.diff', () => {
+  test('non-git project directory responds with an empty diff', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: dir(join(tmpdir(), `jetty-diff-nongit-${newId()}`)),
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+
+    const res = await c.request<{ diff: string; truncatedPaths?: string[] }>('thread.diff', {
+      threadId: thread.id,
+    })
+    expect(res.diff).toBe('')
+    expect(res.truncatedPaths).toBeUndefined()
+
+    c.close()
+  })
+
+  test('computeThreadDiff surfaces uncommitted changes as a unified patch', async () => {
+    const repo = dir(join(tmpdir(), `jetty-diff-repo-${newId()}`))
+    const run = (args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (run(['init', '-q']) !== 0) return // git unavailable in this sandbox
+    run(['config', 'user.email', 'test@example.com'])
+    run(['config', 'user.name', 'Test'])
+    run(['config', 'commit.gpgsign', 'false']) // don't block on a signing agent
+    writeFileSync(join(repo, 'hello.txt'), 'one\ntwo\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'init'])
+    writeFileSync(join(repo, 'hello.txt'), 'one\nthree\n')
+
+    const home = mkdtempSync(join(tmpdir(), 'jetty-diff-'))
+    homes.push(home)
+    const db = openDb(home)
+    const store = createStore(db)
+    const project = store.createProject(repo)
+    const thread = store.createThread(project.id, newId())
+
+    const res = await computeThreadDiff(store, thread.id)
+    expect(res.diff).toContain('diff --git a/hello.txt b/hello.txt')
+    expect(res.diff).toContain('+three')
+    expect(res.diff).toContain('-two')
+
+    db.close()
+  })
+
+  test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {
+    const normal = [
+      'diff --git a/src/app.ts b/src/app.ts',
+      'index 111..222 100644',
+      '--- a/src/app.ts',
+      '+++ b/src/app.ts',
+      '@@ -1 +1 @@',
+      '-const a = 1',
+      '+const a = 2',
+      '',
+    ].join('\n')
+    const lock = [
+      'diff --git a/bun.lock b/bun.lock',
+      'index 333..444 100644',
+      '--- a/bun.lock',
+      '+++ b/bun.lock',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+      '',
+    ].join('\n')
+
+    const result = truncateDiff(normal + lock)
+    expect(result.diff).toContain('src/app.ts')
+    expect(result.diff).not.toContain('bun.lock\nindex') // body dropped
+    expect(result.truncatedPaths).toEqual(['bun.lock'])
+
+    expect(truncateDiff('').diff).toBe('')
+    expect(truncateDiff('   ').truncatedPaths).toBeUndefined()
   })
 })
 

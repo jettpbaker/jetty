@@ -18,6 +18,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, useRef, useState } from 'react'
 import { ChatLab } from './styleguide-chat-lab'
 import { ComposerLab } from './styleguide-composer-lab'
+import { DiffsLab } from './styleguide-diffs-lab'
 import { StreamingLab } from './styleguide-streaming-lab'
 
 export const Route = createFileRoute('/styleguide')({
@@ -300,13 +301,14 @@ function MockTabBar() {
   )
 }
 
-type StyleguideTab = 'tabs' | 'chat' | 'streaming' | 'composer'
+type StyleguideTab = 'tabs' | 'chat' | 'streaming' | 'composer' | 'diffs'
 
 const STYLEGUIDE_TABS: Array<{ id: StyleguideTab; label: string }> = [
   { id: 'tabs', label: 'Tab lab' },
   { id: 'chat', label: 'Chat lab' },
   { id: 'streaming', label: 'Streaming' },
   { id: 'composer', label: 'Composer lab' },
+  { id: 'diffs', label: 'Diffs' },
 ]
 
 function StyleguideTabs({
@@ -375,8 +377,10 @@ function StyleguidePage() {
           <ChatLab />
         ) : tab === 'streaming' ? (
           <StreamingLab />
-        ) : (
+        ) : tab === 'composer' ? (
           <ComposerLab />
+        ) : (
+          <DiffsLab />
         )}
       </div>
     </div>

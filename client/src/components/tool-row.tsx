@@ -1,6 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 import { type ReactNode, useState } from 'react'
 
+import { EditDiff } from '@/components/diff-panel'
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +18,8 @@ type ToolDef = {
   failed: string
   field: (input: unknown) => Field
   body: (input: unknown, output: string) => string | null
+  /** Rich body rendered in place of the text body when a call succeeds. */
+  diffBody?: (input: unknown) => ReactNode | null
 }
 
 const FALLBACK_FIELD_KEYS = [
@@ -41,6 +44,13 @@ function strProp(input: unknown, key: string): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? value : null
+}
+
+/** Like strProp but keeps empty strings — an Edit deletion has an empty side. */
+function rawStr(input: unknown, key: string): string | null {
+  const rec = asRecord(input)
+  const value = rec?.[key]
+  return typeof value === 'string' ? value : null
 }
 
 function firstLine(value: string): string {
@@ -122,7 +132,16 @@ const REGISTRY: Record<string, ToolDef> = {
     done: 'Edited',
     failed: 'Edit failed',
     field: (input) => pathField(input, 'file_path'),
-    body: plainBody,
+    // path is shown in the row; the body is the old→new diff
+    body: () => null,
+    diffBody: (input) => {
+      const filePath = rawStr(input, 'file_path')
+      const oldString = rawStr(input, 'old_string')
+      const newString = rawStr(input, 'new_string')
+      if (filePath === null || oldString === null || newString === null) return null
+      if (oldString === newString) return null
+      return <EditDiff filePath={filePath} oldString={oldString} newString={newString} />
+    },
   },
   Write: {
     running: 'Writing',
@@ -263,6 +282,10 @@ function ToolRowBody({ children }: { children: ReactNode }) {
   )
 }
 
+function ToolRowDiffBody({ children }: { children: ReactNode }) {
+  return <div className='mt-1 max-h-80 overflow-auto rounded-md border'>{children}</div>
+}
+
 export function ToolRow({ item }: { item: ToolCallItem }) {
   const [open, setOpen] = useState(false)
   const def = resolveDef(item.toolName)
@@ -284,13 +307,16 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
   }
 
   const field = def.field(item.input)
+  const diffNode = item.status === 'succeeded' ? (def.diffBody?.(item.input) ?? null) : null
   const body =
     item.status === 'failed'
       ? item.output.trim().length > 0
         ? item.output
         : null
-      : def.body(item.input, item.output)
-  const hasBody = body !== null && body.trim().length > 0
+      : diffNode
+        ? null
+        : def.body(item.input, item.output)
+  const hasBody = diffNode !== null || (body !== null && body.trim().length > 0)
 
   function toggle() {
     setOpen((value) => !value)
@@ -319,6 +345,12 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
     )
   }
 
+  const openBody = diffNode ? (
+    <ToolRowDiffBody>{diffNode}</ToolRowDiffBody>
+  ) : (
+    <ToolRowBody>{body}</ToolRowBody>
+  )
+
   return (
     <div>
       <div
@@ -337,7 +369,7 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
           <span className='min-w-0 flex-1' />
         )}
       </div>
-      {open && hasBody ? <ToolRowBody>{body}</ToolRowBody> : null}
+      {open && hasBody ? openBody : null}
     </div>
   )
 }
