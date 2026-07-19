@@ -301,6 +301,7 @@ export function DraftComposer({ draft }: { draft: Draft }) {
               <Button
                 variant='ghost'
                 size='sm'
+                data-cuelume-hover='tick'
                 className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
               >
                 {project?.title ?? 'Pick a project'}
