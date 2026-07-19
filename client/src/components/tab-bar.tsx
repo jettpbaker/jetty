@@ -27,6 +27,7 @@ import { useState, useSyncExternalStore, type ReactElement } from 'react'
 
 import { NewProjectDialog } from './new-project-dialog'
 import { ProjectBadge } from './project-badge'
+import { RansomWordmarkStatic } from './ransom-wordmark'
 
 function statusDotClass(status: SessionStatus): string {
   switch (status) {
@@ -101,13 +102,8 @@ export function TabBar() {
 
   return (
     <div className='flex h-14 shrink-0 items-center gap-2 border-b px-3'>
-      <Link
-        to='/'
-        aria-label='Jetty home'
-        className='shrink-0 text-base text-foreground'
-        style={{ fontFamily: "'Geist Pixel Square'" }}
-      >
-        Jetty
+      <Link to='/' aria-label='Jetty home' className='mr-1 shrink-0'>
+        <RansomWordmarkStatic />
       </Link>
 
       <div className='flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>

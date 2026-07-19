@@ -175,6 +175,43 @@ function useRepulsion(hostRef: RefObject<HTMLDivElement | null>) {
 
 type Phase = 'hidden' | 'shown'
 
+// Static mini wordmark for chrome (tab bar): same composition and jitter as
+// the draft-page wordmark, none of the motion — it's seen constantly.
+const STATIC_SCRAPS = composeWord()
+
+export function RansomWordmarkStatic({
+  lineH = 20,
+  className = '',
+}: {
+  lineH?: number
+  className?: string
+}) {
+  return (
+    <div
+      className={`flex select-none items-center ${className}`}
+      style={{ gap: `${lineH * 0.12}px` }}
+    >
+      {STATIC_SCRAPS.map((scrap, i) => {
+        const variant = RANSOM[scrap.letter]?.find((v) => v.file === scrap.file)
+        if (!variant) return null
+        return (
+          <img
+            key={i}
+            src={spriteUrl(scrap.file)}
+            alt=''
+            draggable={false}
+            className='w-auto shrink-0'
+            style={{
+              height: `${lineH * scrap.scale}px`,
+              transform: `translateY(${scrap.dy * lineH}px) rotate(${scrap.rot}deg)`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 export function RansomWordmark({ lineH = 112, className = '' }: { lineH?: number; className?: string }) {
   const [scraps, setScraps] = useState<Scrap[]>(composeWord)
   const [slots] = useState(() => shuffledSlots(WORD.length))
