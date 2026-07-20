@@ -68,6 +68,21 @@ async function serveStatic(pathname: string): Promise<Response> {
   return new Response(Bun.file(indexPath))
 }
 
+const extraOrigins = new Set(
+  (process.env.JETTY_ALLOWED_ORIGINS ?? '').split(',').filter((origin) => origin.length > 0)
+)
+
+function originAllowed(req: Request): boolean {
+  const origin = req.headers.get('origin')
+  if (!origin) return true
+  try {
+    const host = new URL(origin).hostname
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || extraOrigins.has(origin)
+  } catch {
+    return false
+  }
+}
+
 export function startServer(opts: ServerOptions = {}) {
   const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
   const port = opts.port ?? Number(process.env.PORT ?? 8787)
@@ -92,6 +107,13 @@ export function startServer(opts: ServerOptions = {}) {
     async fetch(req, server) {
       const url = new URL(req.url)
       if (url.pathname === '/ws') {
+        // WebSockets bypass CORS: without this gate any webpage could open
+        // ws://localhost:8787 and drive the agent. Browser clients must come
+        // from a loopback origin (or JETTY_ALLOWED_ORIGINS); native clients
+        // send no Origin and are as trusted as anything else on this machine.
+        if (!originAllowed(req)) {
+          return new Response('Forbidden origin', { status: 403 })
+        }
         if (server.upgrade(req, { data: { chrome: false, threads: new Set() } })) {
           return undefined
         }

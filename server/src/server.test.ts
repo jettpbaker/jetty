@@ -1266,6 +1266,27 @@ describe('thread.diff', () => {
   })
 })
 
+describe('ws origin gate', () => {
+  test('browser origins must be loopback; native clients pass', async () => {
+    const { port } = boot()
+    const upgrade = (origin?: string) =>
+      fetch(`http://127.0.0.1:${port}/ws`, {
+        headers: {
+          ...(origin ? { Origin: origin } : {}),
+          Upgrade: 'websocket',
+          Connection: 'Upgrade',
+          'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+          'Sec-WebSocket-Version': '13',
+        },
+      })
+
+    expect((await upgrade('https://evil.example')).status).toBe(403)
+    expect((await upgrade('http://localhost:5173')).status).not.toBe(403)
+    expect((await upgrade('http://127.0.0.1:8787')).status).not.toBe(403)
+    expect((await upgrade()).status).not.toBe(403)
+  })
+})
+
 describe('project.create validation', () => {
   test('rejects a path that is not an existing directory', async () => {
     const { port } = boot()
