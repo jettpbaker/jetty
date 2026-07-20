@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit -p shared && tsc --noEmit -p server && tsc --noEmit -p client",
     "test": "bun test",
     "dev:server": "bun run --watch server/src/main.ts",
-    "dev:client": "bun run --filter @jetty/client dev"
+    "dev:client": "bun run --filter @jetty/client dev",
+    "build": "bun run --filter @jetty/client build",
+    "start": "bun run server/src/main.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

@@ -59,6 +59,22 @@ should be protected from future changes. File those too.
 - Verify live (drive the UI, attach evidence when the fix is visual), then
   Done with a comment: commit hash + what to expect after pulling.
 
+## work machine setup (from a fresh clone)
+
+For the agent standing jetty up on the work machine. Note: AGENTS.md /
+CLAUDE.md in this repo govern home-side *development* — your contract as a
+work-side agent is this document only.
+
+1. Clone read-only (deploy key or read-scoped token — the write credential
+   deliberately does not exist on this machine) and `bun install`.
+2. `bun run build` then `bun run start` — jetty is one process at
+   `http://localhost:8787` (override with PORT). No dev servers needed.
+3. Data lives in `~/.jetty/jetty.db`, never in the repo. Back it up before
+   every pull: `cp ~/.jetty/jetty.db ~/.jetty/backups/jetty-$(git -C <repo> rev-parse --short HEAD).db`
+4. Linear: `LOOKOUT_CLIENT_ID`/`LOOKOUT_CLIENT_SECRET` in
+   `~/.config/jetty/linear-app.env`; mint your token per the identities
+   section, then file a test issue as Claude Lookout to prove the pipe.
+
 ## updating work jetty
 
 - `git pull --ff-only` when idle — never mid-turn; threads persist in
