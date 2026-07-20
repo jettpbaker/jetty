@@ -117,7 +117,9 @@ function HomePage() {
       <div className='flex h-full flex-col items-center justify-center gap-9 pb-16'>
         <RansomWordmark lineH={92} />
         <div className='flex flex-col items-center gap-3'>
-          <button type='button' className={emberAction} {...pressHandlers(() => openPalette('add-project'))}>
+          {/* palette openers activate on click, not press: opening a dialog on
+              pointer-down lets the same gesture's release dismiss it */}
+          <button type='button' className={emberAction} onClick={() => openPalette('add-project')}>
             <FolderPlusIcon className='size-4' />
             New project
           </button>
@@ -161,7 +163,7 @@ function HomePage() {
               <button
                 type='button'
                 className='flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/50 transition-colors hover:text-muted-foreground'
-                {...pressHandlers(() => openPalette())}
+                onClick={() => openPalette()}
               >
                 <MagnifyingGlassIcon className='size-3' />
                 search
@@ -197,7 +199,7 @@ function HomePage() {
               </li>
             ))}
             <li>
-              <button type='button' className={row} {...pressHandlers(() => openPalette('add-project'))}>
+              <button type='button' className={row} onClick={() => openPalette('add-project')}>
                 <FolderPlusIcon className='size-4 shrink-0 text-muted-foreground/50' />
                 <span className='text-sm text-muted-foreground'>New project</span>
               </button>

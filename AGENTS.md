@@ -51,6 +51,9 @@ plan and status checklist — keep it current as chunks land.
 - It's NOT safe for: anything inside a scrollable/draggable surface (down might be a
   scroll), drag-and-drop handles, text selection, long-press targets, double-click
   targets, and destructive or hard-to-reverse actions.
+- Also NOT safe for controls that open a modal/overlay (dialogs, the command
+  palette): opening on pointer-down lets the same gesture's release land outside
+  the new surface and trigger its outside-dismiss (JET-3). Those activate on click.
 - Keyboard activation stays standard (Enter/Space per platform norms) — pointer-down
   is a pointer optimization, never an accessibility regression.
 - The companion rule: prefer easy undo over confirm dialogs. Act fast, make it
