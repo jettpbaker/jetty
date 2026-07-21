@@ -39,34 +39,69 @@ export type ComposerPrefs = {
 const STORAGE_KEY = 'jetty:composer-prefs'
 
 type StoredPrefs = { model?: string; effort?: string | null; approval?: string }
+type StoredState = {
+  default?: StoredPrefs
+  byThread?: Record<string, StoredPrefs>
+}
 
-function restorePrefs(): ComposerPrefs {
+function fallbackPrefs(): ComposerPrefs {
   // Haiku keeps dev turns cheap until a model is deliberately chosen.
-  const fallback: ComposerPrefs = {
+  return {
     model: MODELS[2] ?? MODELS[0]!,
     effort: null,
     approval: APPROVAL_MODES[0]!,
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return fallback
-    const stored = JSON.parse(raw) as StoredPrefs
-    const model = MODELS.find((option) => option.id === stored.model) ?? fallback.model
-    return {
-      model,
-      effort: model.efforts.find((option) => option.id === stored.effort) ?? null,
-      approval: APPROVAL_MODES.find((option) => option.id === stored.approval) ?? fallback.approval,
-    }
-  } catch {
-    return fallback
+}
+
+function hydratePrefs(stored: StoredPrefs | undefined, base: ComposerPrefs): ComposerPrefs {
+  if (!stored) return base
+  const model = MODELS.find((option) => option.id === stored.model) ?? base.model
+  return {
+    model,
+    effort: model.efforts.find((option) => option.id === stored.effort) ?? null,
+    approval: APPROVAL_MODES.find((option) => option.id === stored.approval) ?? base.approval,
   }
 }
 
-function persistPrefs(prefs: ComposerPrefs): void {
-  const stored: StoredPrefs = {
+function serializePrefs(prefs: ComposerPrefs): StoredPrefs {
+  return {
     model: prefs.model.id,
     effort: prefs.effort?.id ?? null,
     approval: prefs.approval.id,
+  }
+}
+
+function restoreState(): { defaults: ComposerPrefs; byThread: Map<string, ComposerPrefs> } {
+  const defaultsBase = fallbackPrefs()
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return { defaults: defaultsBase, byThread: new Map() }
+    const parsed = JSON.parse(raw) as StoredState & StoredPrefs
+    // legacy shape was a bare StoredPrefs; treat it as the global default
+    const defaultStored =
+      parsed.default ??
+      (typeof parsed.model === 'string' || parsed.effort !== undefined || parsed.approval
+        ? parsed
+        : undefined)
+    const defaults = hydratePrefs(defaultStored, defaultsBase)
+    const byThread = new Map<string, ComposerPrefs>()
+    if (parsed.byThread) {
+      for (const [threadId, stored] of Object.entries(parsed.byThread)) {
+        byThread.set(threadId, hydratePrefs(stored, defaults))
+      }
+    }
+    return { defaults, byThread }
+  } catch {
+    return { defaults: defaultsBase, byThread: new Map() }
+  }
+}
+
+function persistState(defaults: ComposerPrefs, byThread: Map<string, ComposerPrefs>): void {
+  const stored: StoredState = {
+    default: serializePrefs(defaults),
+    byThread: Object.fromEntries(
+      [...byThread.entries()].map(([id, prefs]) => [id, serializePrefs(prefs)])
+    ),
   }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
@@ -76,8 +111,16 @@ function persistPrefs(prefs: ComposerPrefs): void {
 }
 
 function createComposerPrefs() {
-  let prefs = restorePrefs()
+  const restored = restoreState()
+  let defaults = restored.defaults
+  const byThread = restored.byThread
   const listeners = new Set<() => void>()
+
+  function emit() {
+    for (const listener of listeners) {
+      listener()
+    }
+  }
 
   return {
     subscribe(listener: () => void) {
@@ -86,15 +129,42 @@ function createComposerPrefs() {
         listeners.delete(listener)
       }
     },
+    /** Global default — used by new drafts and threads with no override. */
     getSnapshot() {
-      return prefs
+      return defaults
     },
-    set(next: Partial<ComposerPrefs>) {
-      prefs = { ...prefs, ...next }
-      persistPrefs(prefs)
-      for (const listener of listeners) {
-        listener()
-      }
+    /**
+     * Prefs for a draft/thread id. Missing entries fall back to the global
+     * default until ensure() pins a copy (first composer open for that scope).
+     */
+    getFor(scopeId: string | undefined) {
+      if (scopeId === undefined) return defaults
+      return byThread.get(scopeId) ?? defaults
+    },
+    /**
+     * On first open of a draft/thread composer, pin the current default so a
+     * later default swap in another scope cannot rewrite this one. Spec: never
+     * retroactively change an existing thread; until then it still "is" the default.
+     */
+    ensure(scopeId: string) {
+      if (byThread.has(scopeId)) return
+      byThread.set(scopeId, { ...defaults })
+      persistState(defaults, byThread)
+    },
+    /**
+     * Apply a partial update. With a scopeId (draft or thread), writes that
+     * scope's override and sets the global default to the resulting selection
+     * (future new threads/drafts inherit it; other scoped entries are untouched).
+     * Without a scopeId, only the global default changes.
+     */
+    set(next: Partial<ComposerPrefs>, scopeId?: string) {
+      const prior = scopeId !== undefined ? (byThread.get(scopeId) ?? defaults) : defaults
+      const merged = { ...prior, ...next }
+      // separate objects so a later default-only write can't alias a thread entry
+      defaults = { ...merged }
+      if (scopeId !== undefined) byThread.set(scopeId, { ...merged })
+      persistState(defaults, byThread)
+      emit()
     },
   }
 }

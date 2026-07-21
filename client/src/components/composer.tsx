@@ -33,7 +33,7 @@ import { type PendingSend, pendingSends, sendFirstTurn } from '@/state/pending'
 import { MAX_IMAGES_PER_TURN, type UploadAttachment } from '@jetty/shared/wire'
 import { PlusIcon } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
 function isBusy(status: SessionStatus) {
@@ -79,19 +79,26 @@ export function insertComposerChar(textarea: HTMLTextAreaElement, char: string) 
 
 // Footer: add-image and approval picker left, model+effort picker and send
 // right. Extra controls (styleguide seed button) slot in via children.
+// scopeId is the draft or thread id — prefs are per-scope with a global default.
 export function ComposerFooter({
   status,
   disabled,
   onSubmitClick,
+  scopeId,
   children,
 }: {
   status: ChatStatus
   disabled?: boolean
   onSubmitClick?: (event: MouseEvent<HTMLButtonElement>) => void
+  /** draft or thread id; omit only for non-thread surfaces (styleguide) */
+  scopeId?: string
   children?: ReactNode
 }) {
   const attachments = usePromptInputAttachments()
-  const prefs = useSyncExternalStore(composerPrefs.subscribe, composerPrefs.getSnapshot)
+  useEffect(() => {
+    if (scopeId !== undefined) composerPrefs.ensure(scopeId)
+  }, [scopeId])
+  const prefs = useSyncExternalStore(composerPrefs.subscribe, () => composerPrefs.getFor(scopeId))
   return (
     <div className='flex w-full items-center gap-1'>
       <PromptInputButton
@@ -116,7 +123,10 @@ export function ComposerFooter({
         />
         <DropdownMenuContent align='start'>
           {APPROVAL_MODES.map((approval) => (
-            <DropdownMenuItem key={approval.id} onClick={() => composerPrefs.set({ approval })}>
+            <DropdownMenuItem
+              key={approval.id}
+              onClick={() => composerPrefs.set({ approval }, scopeId)}
+            >
               {approval.label}
             </DropdownMenuItem>
           ))}
@@ -148,7 +158,7 @@ export function ComposerFooter({
                 // no effort support → direct select
                 <DropdownMenuItem
                   key={model.id}
-                  onClick={() => composerPrefs.set({ model, effort: null })}
+                  onClick={() => composerPrefs.set({ model, effort: null }, scopeId)}
                 >
                   {model.label}
                 </DropdownMenuItem>
@@ -159,7 +169,7 @@ export function ComposerFooter({
                     {model.efforts.map((effort) => (
                       <DropdownMenuItem
                         key={effort.id}
-                        onClick={() => composerPrefs.set({ model, effort })}
+                        onClick={() => composerPrefs.set({ model, effort }, scopeId)}
                       >
                         {effort.label}
                       </DropdownMenuItem>
@@ -176,9 +186,9 @@ export function ComposerFooter({
   )
 }
 
-/** The model/effort/permission params for a turn.start, from current prefs. */
-export function turnPrefs() {
-  const prefs = composerPrefs.getSnapshot()
+/** The model/effort/permission params for a turn.start, from this scope's prefs. */
+export function turnPrefs(scopeId?: string) {
+  const prefs = composerPrefs.getFor(scopeId)
   return {
     model: prefs.model.id,
     effort: prefs.effort?.id,
@@ -223,7 +233,7 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
       threadId,
       text: normalized.text,
       attachments: normalized.attachments,
-      ...turnPrefs(),
+      ...turnPrefs(threadId),
     })
   }
 
@@ -239,7 +249,11 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
       <ComposerShell onSubmit={handleSubmit}>
         <PromptInputTextarea placeholder='Do anything' />
         <PromptInputFooter>
-          <ComposerFooter status={chatStatus(status)} onSubmitClick={handleSubmitClick} />
+          <ComposerFooter
+            scopeId={threadId}
+            status={chatStatus(status)}
+            onSubmitClick={handleSubmitClick}
+          />
         </PromptInputFooter>
       </ComposerShell>
     </div>
@@ -278,7 +292,11 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
         )}
         <PromptInputTextarea placeholder='Do anything' disabled={sending} />
         <PromptInputFooter>
-          <ComposerFooter status={sending ? 'submitted' : 'ready'} disabled={sending} />
+          <ComposerFooter
+            scopeId={threadId}
+            status={sending ? 'submitted' : 'ready'}
+            disabled={sending}
+          />
         </PromptInputFooter>
       </ComposerShell>
     </div>
@@ -323,7 +341,7 @@ export function DraftComposer({ draft }: { draft: Draft }) {
           onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
         />
         <PromptInputFooter>
-          <ComposerFooter status='ready' />
+          <ComposerFooter scopeId={draftId} status='ready' />
         </PromptInputFooter>
       </ComposerShell>
       <div className='mt-2 flex'>

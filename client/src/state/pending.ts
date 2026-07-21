@@ -61,7 +61,7 @@ export async function sendFirstTurn({
   try {
     await socket.request('thread.create', { id: threadId, projectId })
     timelineStore.openThread(threadId)
-    const prefs = composerPrefs.getSnapshot()
+    const prefs = composerPrefs.getFor(threadId)
     await socket.request('turn.start', {
       threadId,
       text,
