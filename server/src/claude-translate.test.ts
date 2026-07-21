@@ -157,6 +157,35 @@ describe('translate()', () => {
     expect(stop).toEqual([{ type: 'item.completed', itemId }])
   })
 
+  test('thinking_delta estimated_tokens → tokens on the delta event', () => {
+    const ctx = createTranslateCtx('t1')
+    const start = translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'thinking', thinking: '' },
+        },
+      },
+      ctx
+    )
+    const itemId = startedItemId(start)
+
+    const delta = translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'thinking_delta', thinking: '', estimated_tokens: 50 },
+        },
+      },
+      ctx
+    )
+    expect(delta).toEqual([{ type: 'item.delta', itemId, delta: '', tokens: 50 }])
+  })
+
   test('tool_use → tool_call started with input once complete', () => {
     const ctx = createTranslateCtx('t1')
     translate(

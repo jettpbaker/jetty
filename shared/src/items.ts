@@ -35,6 +35,8 @@ export const ThreadItem = z.discriminatedUnion('kind', [
     kind: z.literal('reasoning'),
     text: z.string(),
     streaming: z.boolean().optional(),
+    /** total estimated thinking tokens so far — the only signal models with omitted thinking text give us */
+    tokens: z.number().int().nonnegative().optional(),
   }),
   z.object({
     ...itemBase,

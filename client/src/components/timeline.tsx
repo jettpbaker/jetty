@@ -65,7 +65,7 @@ export function Timeline({
                     <div
                       className={cn(
                         'mx-auto w-full max-w-3xl px-4 py-2 [content-visibility:auto] [contain-intrinsic-size:auto_2.5rem]',
-                        !initialIds.has(firstId) && 'item-enter',
+                        !initialIds.has(firstId) && 'item-enter'
                       )}
                     >
                       <ContextGroupRow items={entry.items} live={live} />
@@ -84,7 +84,9 @@ export function Timeline({
                       isWork
                         ? 'py-2 [contain-intrinsic-size:auto_2.5rem]'
                         : 'py-3 [contain-intrinsic-size:auto_10rem]',
-                      !initialIds.has(item.id) && 'item-enter',
+                      // reasoning rows morph in from the optimistic pending row
+                      // (same verb), so an enter lift would replay visibly
+                      !initialIds.has(item.id) && item.kind !== 'reasoning' && 'item-enter'
                     )}
                   >
                     <TimelineItem item={item} threadId={threadId} />
@@ -94,8 +96,8 @@ export function Timeline({
             })}
             {turnPending ? (
               <MessageScrollerItem key='turn-pending' messageId='turn-pending'>
-                <div className='item-enter mx-auto w-full max-w-3xl px-4 py-2'>
-                  <span className='shimmer shimmer-duration-1000 text-sm text-muted-foreground'>
+                <div className='item-enter mx-auto w-full max-w-3xl px-4 py-2 text-muted-foreground text-sm'>
+                  <span className='shimmer shimmer-duration-1000'>
                     {turnSpinnerVerb(activeTurnId ?? threadId)}
                   </span>
                 </div>

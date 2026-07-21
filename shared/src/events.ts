@@ -21,7 +21,13 @@ export const ThreadEvent = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('turn.failed'), turnId: z.string(), error: z.string() }),
   z.object({ type: z.literal('item.started'), item: ThreadItem }),
-  z.object({ type: z.literal('item.delta'), itemId: z.string(), delta: z.string() }),
+  z.object({
+    type: z.literal('item.delta'),
+    itemId: z.string(),
+    delta: z.string(),
+    /** estimated thinking tokens in this delta (an increment, not a running total) */
+    tokens: z.number().int().nonnegative().optional(),
+  }),
   z.object({
     type: z.literal('item.completed'),
     itemId: z.string(),

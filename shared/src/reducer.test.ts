@@ -36,6 +36,23 @@ describe('applyEvent', () => {
     expect(state.lastSeq).toBe(5)
   })
 
+  test('sums reasoning token increments across deltas', () => {
+    const reasoning = {
+      id: 'r1',
+      turnId: 't1',
+      createdAt: 0,
+      kind: 'reasoning',
+      text: '',
+    } satisfies ThreadItem
+    const state = run([
+      { type: 'item.started', item: reasoning },
+      { type: 'item.delta', itemId: 'r1', delta: '', tokens: 50 },
+      { type: 'item.delta', itemId: 'r1', delta: '' },
+      { type: 'item.delta', itemId: 'r1', delta: '', tokens: 200 },
+    ])
+    expect(state.items).toEqual([{ ...reasoning, tokens: 250 }])
+  })
+
   test('ignores events at or below lastSeq', () => {
     const state = run([
       { type: 'item.started', item: assistant('a1') },

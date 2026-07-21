@@ -69,8 +69,13 @@ type StreamEvent = {
     type: string
     text?: string
     thinking?: string
+    estimated_tokens?: number
     partial_json?: string
   }
+}
+
+function thinkingTokens(delta: { estimated_tokens?: number }): { tokens?: number } {
+  return typeof delta.estimated_tokens === 'number' ? { tokens: delta.estimated_tokens } : {}
 }
 
 export function translate(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
@@ -185,7 +190,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         ctx.sawPartials = true
       } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
         const itemId = ensureStreamItem(ctx, out, 'reasoning')
-        out.push({ type: 'item.delta', itemId, delta: delta.thinking })
+        out.push({ type: 'item.delta', itemId, delta: delta.thinking, ...thinkingTokens(delta) })
         ctx.sawPartials = true
       } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
         const tool = ctx.toolBlocks.get(index)
@@ -196,7 +201,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         ctx.sawPartials = true
       } else if (kind === 'thinking' && typeof delta.thinking === 'string') {
         const itemId = ensureStreamItem(ctx, out, 'reasoning')
-        out.push({ type: 'item.delta', itemId, delta: delta.thinking })
+        out.push({ type: 'item.delta', itemId, delta: delta.thinking, ...thinkingTokens(delta) })
         ctx.sawPartials = true
       }
       return out

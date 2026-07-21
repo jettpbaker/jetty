@@ -38,7 +38,7 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
     case 'item.started':
       return { ...state, items: [...state.items, event.item] }
     case 'item.delta':
-      return updateItem(state, event.itemId, appendDelta(event.delta))
+      return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
     case 'item.completed':
       return updateItem(state, event.itemId, (item) =>
         settleStreaming(ThreadItem.parse({ ...item, ...event.patch }))
@@ -54,11 +54,17 @@ function settleStreaming(item: ThreadItem): ThreadItem {
   return item
 }
 
-function appendDelta(delta: string) {
+function appendDelta(delta: string, tokens?: number) {
   return (item: ThreadItem): ThreadItem => {
     switch (item.kind) {
-      case 'assistant_message':
       case 'reasoning':
+        return {
+          ...item,
+          text: item.text + delta,
+          // estimated_tokens is a per-delta increment, not a running total
+          ...(tokens != null ? { tokens: (item.tokens ?? 0) + tokens } : {}),
+        }
+      case 'assistant_message':
       case 'plan':
         return { ...item, text: item.text + delta }
       case 'tool_call':

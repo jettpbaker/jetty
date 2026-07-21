@@ -9,6 +9,7 @@ import { Message, MessageContent } from '@/components/ui/message'
 import { UserMessage } from '@/components/user-message'
 import { turnSpinnerVerb } from '@/lib/spinner-verb'
 import { usePacedText } from '@/lib/use-paced-text'
+import { useSmoothCount } from '@/lib/use-smooth-count'
 import { cn } from '@/lib/utils'
 import { memo } from 'react'
 
@@ -16,11 +17,17 @@ import { memo } from 'react'
 // where it landed as a slim tool-row-language line.
 function ApprovalRow({ item }: { item: Extract<ThreadItem, { kind: 'approval' }> }) {
   const label =
-    item.decision === 'allow' ? 'Approved' : item.decision === 'deny' ? 'Denied' : 'Awaiting approval'
+    item.decision === 'allow'
+      ? 'Approved'
+      : item.decision === 'deny'
+        ? 'Denied'
+        : 'Awaiting approval'
   return (
     <div>
       <div className='flex w-full min-w-0 items-baseline gap-2 text-sm'>
-        <span className={cn('shrink-0', item.decision ? 'text-foreground' : 'text-muted-foreground')}>
+        <span
+          className={cn('shrink-0', item.decision ? 'text-foreground' : 'text-muted-foreground')}
+        >
           {label}
         </span>
         <span className='min-w-0 flex-1'>
@@ -54,6 +61,30 @@ function AssistantMessage({ item }: { item: Extract<ThreadItem, { kind: 'assista
 function ReasoningMessage({ item }: { item: Extract<ThreadItem, { kind: 'reasoning' }> }) {
   const text = usePacedText(item.text, item.streaming ?? false)
   const animating = (item.streaming ?? false) || text.length < item.text.length
+  const tokens = useSmoothCount(item.tokens ?? 0)
+  // Current models omit thinking text (JET-9): no text means nothing to
+  // disclose, so render a plain status row — live token count while streaming,
+  // bare past tense once settled.
+  if (!item.text) {
+    return (
+      <div className='text-muted-foreground text-sm'>
+        {item.streaming ? (
+          <>
+            <span className='shimmer shimmer-duration-1000'>{turnSpinnerVerb(item.turnId)}</span>
+            {tokens > 0 ? (
+              <span className='animate-in fade-in duration-300 motion-reduce:animate-none'>
+                {' for '}
+                <span className='font-mono text-code-foreground'>{tokens}</span>
+                {' tokens'}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span>Reasoned</span>
+        )}
+      </div>
+    )
+  }
   return (
     <Reasoning defaultOpen={false} isStreaming={item.streaming ?? false}>
       <ReasoningTrigger verb={turnSpinnerVerb(item.turnId)} />
