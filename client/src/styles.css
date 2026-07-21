@@ -107,6 +107,7 @@ html {
   --code: #1b130f;
   --code-foreground: #eb8a5d;
   --code-glow: #f6a57a;
+  --scrollbar: oklch(0.85 0 0);
 }
 
 /* Dark: the chrome scale. Three cool-tinted grays (each channel stepping
@@ -145,6 +146,7 @@ html {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --scrollbar: oklch(0.35 0 0);
 }
 
 @layer base {
@@ -166,6 +168,39 @@ html {
   html {
     @apply font-sans;
   }
+}
+
+/* Scrollbars: themed pill thumb on a transparent track — the UA default reads
+   as pure black on our surfaces. The transparent border + content-box clip
+   floats a ~4px thumb inside the 10px bar; --scrollbar stays out of @theme so
+   subtrees can rebind it for contrast. */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
+}
+
+/* both-edges keeps the scroller's centered column aligned with overlaid
+   same-width siblings (composer, dock) that get no gutter of their own */
+@utility scrollbar-gutter-stable-both {
+  scrollbar-gutter: stable both-edges;
 }
 
 /* new timeline items rise in; cached history renders static */
