@@ -189,7 +189,7 @@ export function TabBar() {
   }
 
   return (
-    <div className='flex h-12 shrink-0 items-center gap-2'>
+    <div className='flex h-12 shrink-0 items-center gap-2 px-4'>
       <Link to='/' aria-label='Jetty home' className='mr-1 shrink-0'>
         <RansomWordmarkStatic />
       </Link>

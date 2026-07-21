@@ -21,7 +21,7 @@ function RootLayout() {
     <IconContext.Provider value={iconDefaults}>
       <TooltipProvider>
         <CommandPaletteProvider>
-          <div className='flex h-svh flex-col px-4'>
+          <div className='flex h-svh flex-col'>
             <TabBar />
             <main className='min-h-0 flex-1 overflow-hidden'>
               <Outlet />
