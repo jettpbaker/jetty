@@ -2,7 +2,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { socket, tabsStore, timelineStore } from '@/app-state'
 import { ApprovalDock } from '@/components/approval-dock'
-import { Composer } from '@/components/composer'
+import { Composer, focusComposerTextarea, insertComposerChar } from '@/components/composer'
 import { DiffPanel } from '@/components/diff-panel'
 import { QuestionDock } from '@/components/question-dock'
 import { Timeline } from '@/components/timeline'
@@ -13,6 +13,13 @@ import { pendingSends } from '@/state/pending'
 import { GitDiffIcon } from '@phosphor-icons/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.closest('input, textarea, select, [contenteditable=""], [contenteditable=true]') !== null
+  )
+}
 
 function pendingApproval(
   items: ThreadItem[]
@@ -56,6 +63,35 @@ function ThreadPage() {
       timelineStore.closeThread(threadId)
     }
   }, [threadId])
+
+  // Type-to-focus: plain printable keys while the thread is open land in the
+  // composer (when present). Approval/question docks replace the composer, so
+  // the query finds nothing and we no-op.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if (event.key.length !== 1) return
+      if (isEditableTarget(event.target)) return
+
+      const textarea = focusComposerTextarea()
+      if (!textarea) return
+
+      const before = textarea.value
+      const start = textarea.selectionStart
+      // If the browser dropped the key (focus didn't capture it), insert it
+      // ourselves. A task boundary — not a microtask — so the check runs after
+      // the default insertion has definitely happened or definitely won't.
+      setTimeout(() => {
+        if (textarea.value !== before) return
+        if (document.activeElement !== textarea) return
+        if (textarea.selectionStart !== start) return
+        insertComposerChar(textarea, event.key)
+      })
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const state = useSyncExternalStore(timelineStore.subscribe, () =>
     timelineStore.getSnapshot(threadId)

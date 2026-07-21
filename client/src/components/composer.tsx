@@ -57,6 +57,26 @@ const composerBase =
   'rounded-lg [&_[data-slot=input-group]]:bg-card/70! [&_[data-slot=input-group]]:backdrop-blur-lg'
 export const composerShell = `${composerBase} [&_[data-slot=input-group]]:border-border! [&_[data-slot=input-group]]:focus-within:border-white/25!`
 
+// PromptInputTextarea always sets name="message". Disabled while a first-turn
+// send is in flight — skip those so we don't steal keys into a dead field.
+export function focusComposerTextarea(): HTMLTextAreaElement | null {
+  const textarea = document.querySelector<HTMLTextAreaElement>(
+    'textarea[name="message"]:not(:disabled)'
+  )
+  if (!textarea) return null
+  textarea.focus()
+  return textarea
+}
+
+// Fallback when focus-during-keydown doesn't deliver the character into a
+// controlled textarea (rare; browsers usually insert after focus on keydown).
+export function insertComposerChar(textarea: HTMLTextAreaElement, char: string) {
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  textarea.setRangeText(char, start, end, 'end')
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 // Footer: add-image and approval picker left, model+effort picker and send
 // right. Extra controls (styleguide seed button) slot in via children.
 export function ComposerFooter({
