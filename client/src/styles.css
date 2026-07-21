@@ -168,6 +168,19 @@ html {
   html {
     @apply font-sans;
   }
+  /* Geist Mono ligatures (=>, !==, ->) hide the real glyphs — show source as-is */
+  code,
+  kbd,
+  samp,
+  pre,
+  .font-mono {
+    font-variant-ligatures: none;
+    font-feature-settings: 'liga' 0, 'calt' 0;
+  }
+  /* @pierre/diffs sets font-feature-settings on :host from this var (shadow DOM) */
+  :root {
+    --diffs-font-features: 'liga' 0, 'calt' 0;
+  }
 }
 
 /* Scrollbars: themed pill thumb on a transparent track — the UA default reads
