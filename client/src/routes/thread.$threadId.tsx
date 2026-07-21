@@ -4,19 +4,32 @@ import { socket, tabsStore, timelineStore } from '@/app-state'
 import { ApprovalDock } from '@/components/approval-dock'
 import { Composer } from '@/components/composer'
 import { DiffPanel } from '@/components/diff-panel'
+import { QuestionDock } from '@/components/question-dock'
 import { Timeline } from '@/components/timeline'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { pressHandlers } from '@/lib/press-handlers'
+import { cn } from '@/lib/utils'
 import { pendingSends } from '@/state/pending'
 import { GitDiffIcon } from '@phosphor-icons/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-function pendingApproval(items: ThreadItem[]): Extract<ThreadItem, { kind: 'approval' }> | undefined {
+function pendingApproval(
+  items: ThreadItem[]
+): Extract<ThreadItem, { kind: 'approval' }> | undefined {
   for (let i = items.length - 1; i >= 0; i -= 1) {
     const item = items[i]!
     if (item.kind === 'approval' && item.decision === undefined) return item
+  }
+  return undefined
+}
+
+function pendingQuestion(
+  items: ThreadItem[]
+): Extract<ThreadItem, { kind: 'question' }> | undefined {
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const item = items[i]!
+    if (item.kind === 'question' && item.answers === undefined && !item.skipped) return item
   }
   return undefined
 }
@@ -50,7 +63,9 @@ function ThreadPage() {
 
   const [diffOpen, setDiffOpen] = useState(false)
 
-  const approval = state.status === 'awaiting_approval' ? pendingApproval(state.items) : undefined
+  const awaiting = state.status === 'awaiting_approval'
+  const approval = awaiting ? pendingApproval(state.items) : undefined
+  const question = awaiting && !approval ? pendingQuestion(state.items) : undefined
 
   return (
     <div className='flex h-full'>
@@ -92,6 +107,14 @@ function ThreadPage() {
                     decision,
                     message,
                   })
+                }
+              />
+            ) : question ? (
+              <QuestionDock
+                key={question.id}
+                item={question}
+                respond={(answers) =>
+                  socket.request('question.respond', { threadId, itemId: question.id, answers })
                 }
               />
             ) : (

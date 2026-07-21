@@ -133,6 +133,11 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
         orch.respondApproval(p.threadId, p.itemId, p.decision, p.message, p.updatedPermissions)
         return null
       }
+      case 'question.respond': {
+        const p = parsed.data as ParamsOf<'question.respond'>
+        orch.respondQuestion(p.threadId, p.itemId, p.answers)
+        return null
+      }
       default: {
         const _exhaustive: never = method
         throw new StoreError('unknown_method', `Unknown method: ${_exhaustive}`)

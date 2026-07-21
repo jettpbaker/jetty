@@ -176,6 +176,15 @@ export function createOrchestrator(
       }
     },
 
+    respondQuestion(threadId: string, itemId: string, answers: Record<string, string>) {
+      if (!store.getThread(threadId)) {
+        throw new StoreError('not_found', `Thread ${threadId} not found`)
+      }
+      if (!agent.respondToQuestion(threadId, itemId, answers)) {
+        throw new StoreError('not_found', `No pending question ${itemId}`)
+      }
+    },
+
     isActive(threadId: string) {
       return liveTurns.has(threadId) || store.getThreadState(threadId).activeTurnId !== null
     },

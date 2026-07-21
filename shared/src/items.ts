@@ -11,6 +11,14 @@ export type Attachment = z.infer<typeof Attachment>
 export const ApprovalDecision = z.enum(['allow', 'deny'])
 export type ApprovalDecision = z.infer<typeof ApprovalDecision>
 
+export const QuestionSpec = z.object({
+  question: z.string(),
+  header: z.string(),
+  multiSelect: z.boolean(),
+  options: z.array(z.object({ label: z.string(), description: z.string() })),
+})
+export type QuestionSpec = z.infer<typeof QuestionSpec>
+
 const itemBase = {
   id: z.string(),
   turnId: z.string(),
@@ -55,6 +63,15 @@ export const ThreadItem = z.discriminatedUnion('kind', [
     suggestions: z.array(z.unknown()),
     decision: ApprovalDecision.optional(),
     deniedReason: z.string().optional(),
+  }),
+  z.object({
+    ...itemBase,
+    kind: z.literal('question'),
+    questions: z.array(QuestionSpec),
+    /** question text → chosen answer (multi-select comma-separated); set once answered */
+    answers: z.record(z.string(), z.string()).optional(),
+    /** true when the turn ended (interrupt/close) before an answer */
+    skipped: z.boolean().optional(),
   }),
   z.object({
     ...itemBase,

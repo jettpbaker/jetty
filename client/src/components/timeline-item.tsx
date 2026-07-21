@@ -93,6 +93,23 @@ function ReasoningMessage({ item }: { item: Extract<ThreadItem, { kind: 'reasoni
   )
 }
 
+// The dock is where questions get answered; the timeline records the Q&A.
+function QuestionRow({ item }: { item: Extract<ThreadItem, { kind: 'question' }> }) {
+  return (
+    <div className='flex flex-col gap-1 text-sm'>
+      {item.questions.map((q) => (
+        <div key={q.question} className='flex min-w-0 items-baseline gap-2'>
+          <span className='shrink-0 text-muted-foreground'>{q.header}</span>
+          <span className='min-w-0'>
+            {item.answers?.[q.question] ||
+              (item.skipped || item.answers ? 'Not answered' : 'Awaiting answer…')}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ItemBody({ item }: { item: ThreadItem }) {
   switch (item.kind) {
     case 'user_message':
@@ -105,6 +122,8 @@ function ItemBody({ item }: { item: ThreadItem }) {
       return <ToolRow item={item} />
     case 'approval':
       return <ApprovalRow item={item} />
+    case 'question':
+      return <QuestionRow item={item} />
     case 'plan':
       return (
         <div className='rounded-md border p-4'>

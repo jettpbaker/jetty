@@ -884,6 +884,9 @@ describe('image attachments', () => {
       respondToApproval() {
         return false
       },
+      respondToQuestion() {
+        return false
+      },
     }
 
     const { port } = boot({ agent: fake })

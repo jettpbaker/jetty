@@ -32,6 +32,7 @@ export type Agent = {
     message?: string,
     updatedPermissions?: unknown[]
   ): boolean
+  respondToQuestion(threadId: string, itemId: string, answers: Record<string, string>): boolean
 }
 
 const CHUNK_MS = 8
@@ -78,6 +79,10 @@ export function createEchoAdapter(): Agent {
     },
 
     respondToApproval(): boolean {
+      return false
+    },
+
+    respondToQuestion(): boolean {
       return false
     },
 

@@ -1,5 +1,4 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 
 import {
   query,
@@ -9,6 +8,7 @@ import {
   type Query,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk'
+import { type ApprovalDecision, QuestionSpec, type ThreadItem } from '@jetty/shared/items'
 import { newId, type PermissionMode } from '@jetty/shared/wire'
 
 import type { Agent, AgentImage, TurnInput } from './agent'
@@ -53,6 +53,7 @@ type WarmSession = {
   spawnKey: string
   activeTurnId: string
   pendingApprovals: Map<string, PendingApproval>
+  pendingQuestions: Map<string, PendingApproval>
   idleTimer: ReturnType<typeof setTimeout> | null
   ctx: TranslateCtx
   emit: (event: ThreadEvent) => void
@@ -157,6 +158,15 @@ export function createClaudeAdapter(store: Store): Agent {
       pending.resolve({ behavior: 'deny', message: 'Denied by user' })
     }
     session.pendingApprovals.clear()
+    for (const [itemId, pending] of session.pendingQuestions) {
+      try {
+        session.emit({ type: 'item.completed', itemId, patch: { skipped: true } })
+      } catch {
+        // emit may fail if store is gone
+      }
+      pending.resolve({ behavior: 'deny', message: 'The user did not answer the questions' })
+    }
+    session.pendingQuestions.clear()
   }
 
   function closeSession(threadId: string, reason?: string) {
@@ -249,6 +259,32 @@ export function createClaudeAdapter(store: Store): Agent {
         return { behavior: 'deny', message: 'Session closed' }
       }
 
+      // AskUserQuestion isn't a permission: the SDK routes it here so the host
+      // can render the question and return the answers via updatedInput.
+      if (toolName === 'AskUserQuestion') {
+        const parsed = QuestionSpec.array().safeParse(
+          (toolInput as { questions?: unknown }).questions
+        )
+        if (!parsed.success) {
+          return { behavior: 'deny', message: 'Malformed questions' }
+        }
+        const itemId = newId()
+        session.emit({
+          type: 'item.started',
+          item: {
+            id: itemId,
+            turnId: session.activeTurnId,
+            createdAt: Date.now(),
+            kind: 'question',
+            questions: parsed.data,
+          },
+        })
+        session.emit({ type: 'session.status', status: 'awaiting_approval' })
+        return new Promise<PermissionResult>((resolve) => {
+          session.pendingQuestions.set(itemId, { resolve, input: toolInput })
+        })
+      }
+
       const itemId = newId()
       const item: ThreadItem = {
         id: itemId,
@@ -292,6 +328,7 @@ export function createClaudeAdapter(store: Store): Agent {
       spawnKey: turnOptionsKey(input),
       activeTurnId: input.turnId,
       pendingApprovals: new Map(),
+      pendingQuestions: new Map(),
       idleTimer: null,
       ctx: createTranslateCtx(input.turnId),
       emit,
@@ -404,6 +441,19 @@ export function createClaudeAdapter(store: Store): Agent {
         session.emit({ type: 'session.status', status: 'running' })
         pending.resolve({ behavior: 'deny', message: reason ?? 'Denied by user' })
       }
+      return true
+    },
+
+    respondToQuestion(threadId: string, itemId: string, answers: Record<string, string>): boolean {
+      const session = sessions.get(threadId)
+      if (!session || session.closed) return false
+      const pending = session.pendingQuestions.get(itemId)
+      if (!pending) return false
+      session.pendingQuestions.delete(itemId)
+
+      session.emit({ type: 'item.completed', itemId, patch: { answers } })
+      session.emit({ type: 'session.status', status: 'running' })
+      pending.resolve({ behavior: 'allow', updatedInput: { ...pending.input, answers } })
       return true
     },
   }

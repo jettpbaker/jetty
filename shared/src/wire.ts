@@ -139,6 +139,14 @@ export const methods = {
     }),
     result: z.null(),
   },
+  'question.respond': {
+    params: z.object({
+      threadId: z.string(),
+      itemId: z.string(),
+      answers: z.record(z.string(), z.string()),
+    }),
+    result: z.null(),
+  },
 } as const
 
 export type MethodName = keyof typeof methods

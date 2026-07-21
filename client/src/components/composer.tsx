@@ -1,3 +1,4 @@
+import type { Draft } from '@/state/drafts'
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ChatStatus } from 'ai'
 import type { MouseEvent, ReactNode } from 'react'
@@ -28,7 +29,6 @@ import {
 import { acceptImages, toUploadAttachments } from '@/lib/attachments'
 import { loadDraft, removeDraft, saveDraft, saveLastProjectId } from '@/lib/draft'
 import { APPROVAL_MODES, composerPrefs, MODELS } from '@/state/composer-prefs'
-import type { Draft } from '@/state/drafts'
 import { type PendingSend, pendingSends, sendFirstTurn } from '@/state/pending'
 import { MAX_IMAGES_PER_TURN, type UploadAttachment } from '@jetty/shared/wire'
 import { PlusIcon } from '@phosphor-icons/react'
