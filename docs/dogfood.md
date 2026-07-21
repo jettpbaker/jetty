@@ -11,7 +11,9 @@ Both agents act in Linear as their own OAuth app users, not as Jett:
 - **Claude Cook** — home side. **Claude Lookout** — work side.
 - Tokens are minted with the `client_credentials` grant (30-day expiry):
   POST `https://api.linear.app/oauth/token` with
-  `grant_type=client_credentials&client_id=…&client_secret=…&scope=read,write`.
+  `grant_type=client_credentials&client_id=…&client_secret=…&scope=read,write,app:assignable,app:mentionable`.
+  (`app:assignable` is what lets the app user be set as issue assignee —
+  without it `issueUpdate` fails with "App user not valid".)
   Credentials live in `~/.config/jetty/linear-app.env` (`COOK_*` / `LOOKOUT_*`),
   the minted token next to it (`linear-cook-token` / `linear-lookout-token`).
 - Send the token as `Authorization: Bearer <token>` on the GraphQL API — and it

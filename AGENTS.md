@@ -16,6 +16,22 @@ actually understands the codebase. That means:
 README.md holds the project description; `docs/chunks.md` is the persistent build
 plan and status checklist — keep it current as chunks land.
 
+## linear (the dogfood queue)
+
+`docs/dogfood.md` is the contract — read it before touching Linear. Home-side
+mechanics in short:
+
+- You act in Linear as **Claude Cook**, the app user — never as Jett. The
+  Linear MCP is authenticated as Jett, so it's for *reading/triage only*;
+  anything that writes (state changes, comments, assignment) goes through the
+  GraphQL API with Cook's token.
+- Token: `~/.config/jetty/linear-cook-token`, sent as `Authorization: Bearer`.
+  On a 401, re-mint per dogfood.md — scope must include
+  `app:assignable,app:mentionable` or Cook can't be set as assignee.
+- Compose the calls yourself (a small bun script beats curl for JSON escaping).
+  Closing an issue means: assign Cook, In Progress when started, Done with a
+  comment carrying the commit hash + what to expect after pulling.
+
 ## code
 
 - Code should be clean, simple, and concise enough to be self-documenting. Comments
