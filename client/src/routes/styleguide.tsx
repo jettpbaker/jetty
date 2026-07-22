@@ -4,18 +4,20 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
   BellRingingIcon,
+  CircleNotchIcon,
   ExclamationMarkIcon,
   GitMergeIcon,
   GitPullRequestIcon,
   MoonIcon,
   PlusIcon,
+  SpinnerGapIcon,
   SpinnerIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { createFileRoute } from '@tanstack/react-router'
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 import { ChatLab } from './styleguide-chat-lab'
 import { ComposerLab } from './styleguide-composer-lab'
 import { DiffsLab } from './styleguide-diffs-lab'
@@ -66,7 +68,17 @@ function StateGlyph({ state }: { state: TabState }) {
   }
 }
 
-function TabPill({ state, active, title }: { state: TabState; active: boolean; title: string }) {
+function TabPill({
+  state,
+  active,
+  title,
+  glyph,
+}: {
+  state: TabState
+  active: boolean
+  title: string
+  glyph?: ReactNode
+}) {
   return (
     <div
       className={cn(
@@ -74,7 +86,7 @@ function TabPill({ state, active, title }: { state: TabState; active: boolean; t
         active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-secondary/50'
       )}
     >
-      <StateGlyph state={state} />
+      {glyph ?? <StateGlyph state={state} />}
       <span
         className={cn(
           'pointer-events-none relative min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left',
@@ -96,6 +108,94 @@ function TabPill({ state, active, title }: { state: TabState; active: boolean; t
         <XIcon className='size-3.5' />
       </button>
     </div>
+  )
+}
+
+// Pixel glyphs from the loader exploration, sized for the tab's 18px slot.
+// Cells step on a hard clock — no tweens, no rotation.
+
+const MORPH_PATTERNS = [
+  [0, 1, 3, 4, 8],
+  [1, 2, 4, 5, 6],
+  [2, 4, 5, 7],
+  [2, 5, 6, 7],
+  [0, 4, 5, 7, 8],
+  [1, 2, 3, 6, 7],
+]
+// ring cells clockwise from top-left; 4 is the hollow center
+const RING_ORDER = [0, 1, 2, 5, 8, 7, 6, 3]
+
+function usePixelTick(stepMs: number): number {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((value) => value + 1), stepMs)
+    return () => clearInterval(id)
+  }, [stepMs])
+  return tick
+}
+
+function PixelGlyph({ kind }: { kind: 'morph' | 'ring' }) {
+  const tick = usePixelTick(kind === 'morph' ? 300 : 150)
+  const cells = []
+  for (let i = 0; i < 9; i++) {
+    let cls = 'bg-transparent'
+    if (kind === 'morph') {
+      if (MORPH_PATTERNS[tick % 6]!.includes(i)) cls = 'bg-code-foreground'
+    } else {
+      const pos = RING_ORDER.indexOf(i)
+      const head = tick % 8
+      if (pos === head) cls = 'bg-code-foreground'
+      else if (pos === (head + 7) % 8) cls = 'bg-code-foreground/40'
+    }
+    cells.push(<span key={i} className={cn('size-1', cls)} />)
+  }
+  return (
+    <span className='grid size-[18px] shrink-0 place-content-center'>
+      <span className='grid grid-cols-3 gap-px'>{cells}</span>
+    </span>
+  )
+}
+
+const RUNNING_GLYPHS: Array<{ label: string; glyph: ReactNode }> = [
+  { label: 'morph', glyph: <PixelGlyph kind='morph' /> },
+  { label: 'ring', glyph: <PixelGlyph kind='ring' /> },
+  {
+    label: 'spinner',
+    glyph: <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-code-foreground' />,
+  },
+  {
+    label: 'spinner gap',
+    glyph: <SpinnerGapIcon className='size-[18px] shrink-0 animate-spin text-code-foreground' />,
+  },
+  {
+    label: 'circle notch',
+    glyph: <CircleNotchIcon className='size-[18px] shrink-0 animate-spin text-code-foreground' />,
+  },
+]
+
+function RunningGlyphRack() {
+  return (
+    <section className='flex flex-col gap-4'>
+      <TreatmentLabel name='running glyph experiments' />
+      <div className='grid grid-cols-[auto_repeat(5,minmax(0,1fr))] items-center gap-x-3 gap-y-2'>
+        <div />
+        {RUNNING_GLYPHS.map(({ label }) => (
+          <div key={label} className='text-xs text-muted-foreground'>
+            {label}
+          </div>
+        ))}
+        {(['active', 'inactive'] as const).map((row) => (
+          <Fragment key={row}>
+            <div className='text-xs text-muted-foreground'>{row}</div>
+            {RUNNING_GLYPHS.map(({ label, glyph }) => (
+              <div key={label} className='min-w-0'>
+                <TabPill state='running' active={row === 'active'} title={SAMPLE_TITLE} glyph={glyph} />
+              </div>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -356,6 +456,7 @@ function TabLab() {
     <div className='mx-auto flex max-w-5xl flex-col gap-12 p-8'>
       <h1 className='text-2xl font-semibold tracking-tight'>Tab lab</h1>
       <StateMatrix />
+      <RunningGlyphRack />
       <section className='flex flex-col gap-4'>
         <TreatmentLabel name='interactive mock bar' />
         <MockTabBar />
