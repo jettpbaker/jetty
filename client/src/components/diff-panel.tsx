@@ -1,18 +1,17 @@
 import { socket } from '@/app-state'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { pressHandlers } from '@/lib/press-handlers'
-import { registerCustomTheme, type ThemeRegistration } from '@pierre/diffs'
-import { MultiFileDiff, PatchDiff } from '@pierre/diffs/react'
+import { cn } from '@/lib/utils'
+import dark2026Json from '@/themes/dark-2026.json'
 import {
   ArrowClockwiseIcon,
   ArrowsInSimpleIcon,
   ArrowsOutSimpleIcon,
-  XIcon,
+  SidebarSimpleIcon,
 } from '@phosphor-icons/react'
+import { registerCustomTheme, type ThemeRegistration } from '@pierre/diffs'
+import { MultiFileDiff, PatchDiff } from '@pierre/diffs/react'
 import { Component, useEffect, useState, type ReactNode } from 'react'
-
-import dark2026Json from '@/themes/dark-2026.json'
 
 // The same "VS Code 2026 Dark" Shiki theme the markdown fences use, handed to
 // @pierre/diffs by name. The lib resolves themes async, so first paint is plain
@@ -162,38 +161,26 @@ export function DiffPanel({ threadId, onClose }: { threadId: string; onClose: ()
     <div
       className={cn(
         'flex flex-col bg-background',
-        fullscreen ? 'fixed inset-0 z-50' : 'h-full w-[480px] shrink-0 border-l'
+        fullscreen ? 'fixed inset-0 z-50' : 'h-full min-w-0'
       )}
     >
-      <div className='flex h-11 shrink-0 items-center gap-1 border-b px-3'>
+      {/* h-12/px-4 mirror the tab bar so the sidebar toggle stays put on open/close */}
+      <div className='flex h-12 shrink-0 items-center gap-1 border-b px-4'>
         <span className='text-sm font-medium'>Diff</span>
         <div className='min-w-0 flex-1' />
-        <Button
-          variant='ghost'
-          size='icon'
-          className='size-7'
-          aria-label='Refresh diff'
-          {...pressHandlers(refresh)}
-        >
+        <Button variant='ghost' size='icon' aria-label='Refresh diff' {...pressHandlers(refresh)}>
           <ArrowClockwiseIcon className={cn(loading && 'animate-spin')} />
         </Button>
         <Button
           variant='ghost'
           size='icon'
-          className='size-7'
           aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
           {...pressHandlers(() => setFullscreen((v) => !v))}
         >
           {fullscreen ? <ArrowsInSimpleIcon /> : <ArrowsOutSimpleIcon />}
         </Button>
-        <Button
-          variant='ghost'
-          size='icon'
-          className='size-7'
-          aria-label='Close diff'
-          {...pressHandlers(onClose)}
-        >
-          <XIcon />
+        <Button variant='ghost' size='icon' aria-label='Close sidebar' {...pressHandlers(onClose)}>
+          <SidebarSimpleIcon />
         </Button>
       </div>
       <div className='min-h-0 flex-1 overflow-auto'>

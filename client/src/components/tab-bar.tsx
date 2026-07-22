@@ -1,3 +1,4 @@
+import type { Draft } from '@/state/drafts'
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadMeta } from '@jetty/shared/wire'
 
@@ -15,8 +16,7 @@ import { loadLastProjectId, removeDraft } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
-import { useHotkeys } from '@tanstack/react-hotkeys'
-import type { Draft } from '@/state/drafts'
+import { diffPanelStore } from '@/state/diff-panel'
 import {
   BellRingingIcon,
   ExclamationMarkIcon,
@@ -27,6 +27,7 @@ import {
   SpinnerIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, useSyncExternalStore, type ReactElement } from 'react'
 
@@ -71,9 +72,11 @@ export function TabBar() {
   const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
   const tabIds = useSyncExternalStore(tabsStore.subscribe, tabsStore.getSnapshot)
   const drafts = useSyncExternalStore(draftsStore.subscribe, draftsStore.getSnapshot)
+  const diffPanel = useSyncExternalStore(diffPanelStore.subscribe, diffPanelStore.getSnapshot)
   const navigate = useNavigate()
   const { threadId: activeThreadId, draftId: activeDraftId } = useParams({ strict: false })
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const onThread = activeThreadId !== undefined
 
   const threadById = new Map(chrome.threads.map((thread) => [thread.id, thread]))
   const draftById = new Map(drafts.map((draft) => [draft.id, draft]))
@@ -181,10 +184,7 @@ export function TabBar() {
   }
 
   function touchesFocus(id: string | undefined) {
-    return (
-      id !== undefined &&
-      (id === activeThreadId || id === activeDraftId || id === hoveredId)
-    )
+    return id !== undefined && (id === activeThreadId || id === activeDraftId || id === hoveredId)
   }
 
   return (
@@ -202,7 +202,8 @@ export function TabBar() {
           const active = entry.id === activeThreadId || entry.id === activeDraftId
           const next = openEntries[index + 1]
           const dragging = strip.drag?.from === index
-          const title = entry.kind === 'thread' ? entry.thread.title || entry.thread.id : 'New thread'
+          const title =
+            entry.kind === 'thread' ? entry.thread.title || entry.thread.id : 'New thread'
           const open = () => {
             if (entry.kind === 'thread') openThread(entry.id)
             else openDraft(entry.id)
@@ -294,11 +295,23 @@ export function TabBar() {
 
       <div className='min-w-0 flex-1' />
 
-      <IconTip label='Sidebar'>
-        <Button variant='ghost' size='icon' aria-label='Toggle sidebar'>
-          <SidebarSimpleIcon />
-        </Button>
-      </IconTip>
+      {/* while the panel is open its own header carries the sidebar toggle */}
+      {!diffPanel.open && (
+        <IconTip label='Sidebar'>
+          <Button
+            variant='ghost'
+            size='icon'
+            aria-label='Open sidebar'
+            disabled={!onThread}
+            {...pressHandlers(() => {
+              if (!onThread) return
+              diffPanelStore.open()
+            })}
+          >
+            <SidebarSimpleIcon />
+          </Button>
+        </IconTip>
+      )}
     </div>
   )
 }
