@@ -43,6 +43,6 @@
     "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4.1.17",
     "typescript": "^7.0.2",
-    "vite": "^7.2.4"
+    "vite": "npm:rolldown-vite@latest"
   }
 }
