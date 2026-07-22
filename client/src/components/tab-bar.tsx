@@ -16,7 +16,6 @@ import { loadLastProjectId, removeDraft } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
-import { diffPanelStore } from '@/state/diff-panel'
 import {
   BellRingingIcon,
   ExclamationMarkIcon,
@@ -68,11 +67,10 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
 
 const HOTKEY_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 
-export function TabBar() {
+export function TabBar({ diffOpen, onOpenDiff }: { diffOpen: boolean; onOpenDiff: () => void }) {
   const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
   const tabIds = useSyncExternalStore(tabsStore.subscribe, tabsStore.getSnapshot)
   const drafts = useSyncExternalStore(draftsStore.subscribe, draftsStore.getSnapshot)
-  const diffPanel = useSyncExternalStore(diffPanelStore.subscribe, diffPanelStore.getSnapshot)
   const navigate = useNavigate()
   const { threadId: activeThreadId, draftId: activeDraftId } = useParams({ strict: false })
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -299,7 +297,7 @@ export function TabBar() {
       <div className='min-w-0 flex-1' />
 
       {/* while the panel is open its own header carries the sidebar toggle */}
-      {!diffPanel.open && (
+      {!diffOpen && (
         <IconTip label='Sidebar'>
           <Button
             variant='ghost'
@@ -308,7 +306,7 @@ export function TabBar() {
             disabled={!onThread}
             {...pressHandlers(() => {
               if (!onThread) return
-              diffPanelStore.open()
+              onOpenDiff()
             })}
           >
             <SidebarSimpleIcon className='-scale-x-100' />

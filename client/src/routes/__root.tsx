@@ -4,10 +4,9 @@ import { TabBar } from '@/components/tab-bar'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { diffPanelStore } from '@/state/diff-panel'
 import { IconContext } from '@phosphor-icons/react'
 import { createRootRoute, Outlet, useParams } from '@tanstack/react-router'
-import { useState, useSyncExternalStore } from 'react'
+import { useState } from 'react'
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -34,7 +33,7 @@ function loadDiffLayout(): Record<string, number> | undefined {
 }
 
 function RootLayout() {
-  const diffPanel = useSyncExternalStore(diffPanelStore.subscribe, diffPanelStore.getSnapshot)
+  const [diffOpen, setDiffOpen] = useState(false)
   const { threadId } = useParams({ strict: false })
   const [defaultLayout] = useState(loadDiffLayout)
 
@@ -64,17 +63,21 @@ function RootLayout() {
             >
               <ResizablePanel id='thread-main' defaultSize='70' minSize='40'>
                 <div className='flex h-full min-h-0 flex-col'>
-                  <TabBar />
+                  <TabBar diffOpen={diffOpen} onOpenDiff={() => setDiffOpen(true)} />
                   <main className='min-h-0 flex-1 overflow-hidden'>
                     <Outlet />
                   </main>
                 </div>
               </ResizablePanel>
-              {diffPanel.open && threadId !== undefined && (
+              {diffOpen && threadId !== undefined && (
                 <>
                   <ResizableHandle />
                   <ResizablePanel id='thread-diff' defaultSize='30' minSize='20' maxSize='60'>
-                    <DiffPanel threadId={threadId} onClose={() => diffPanelStore.close()} />
+                    <DiffPanel
+                      key={threadId}
+                      threadId={threadId}
+                      onClose={() => setDiffOpen(false)}
+                    />
                   </ResizablePanel>
                 </>
               )}

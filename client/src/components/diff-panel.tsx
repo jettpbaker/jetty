@@ -16,14 +16,16 @@ import { Component, useEffect, useState, type ReactNode } from 'react'
 // The same "VS Code 2026 Dark" Shiki theme the markdown fences use, handed to
 // @pierre/diffs by name. The lib resolves themes async, so first paint is plain
 // text and highlighting arrives after.
-try {
+// Registered once per page load: the lib console.errors (not throws) on
+// duplicates, and HMR re-runs this module against its persistent registry, so
+// only a global flag can dedupe.
+if (!(globalThis as Record<string, unknown>).__jettyDiffThemeRegistered) {
+  ;(globalThis as Record<string, unknown>).__jettyDiffThemeRegistered = true
   // the lib requires the registered key to equal the theme's internal name
   registerCustomTheme('dark-2026', async () => ({
     ...(dark2026Json as unknown as ThemeRegistration),
     name: 'dark-2026',
   }))
-} catch {
-  // already registered (HMR re-import)
 }
 
 const THEME = { dark: 'dark-2026', light: 'dark-2026' } as const
@@ -160,10 +162,11 @@ export function DiffPanel({ threadId, onClose }: { threadId: string; onClose: ()
       .finally(() => setLoading(false))
   }
 
+  // mount-only: the panel is keyed by threadId, so a thread switch remounts
   useEffect(() => {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId])
+  }, [])
 
   return (
     <div
