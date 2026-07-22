@@ -218,7 +218,7 @@ export function TabBar({ diffOpen, onOpenDiff }: { diffOpen: boolean; onOpenDiff
                     'group relative flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm',
                     active
                       ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-secondary/50',
+                      : 'text-muted-foreground hover:bg-secondary/50 has-[:focus-visible]:bg-secondary/50',
                     dragging && 'z-10 bg-accent text-foreground'
                   )}
                   style={dragging ? undefined : strip.shiftStyle(index)}
@@ -229,7 +229,7 @@ export function TabBar({ diffOpen, onOpenDiff }: { diffOpen: boolean; onOpenDiff
                   <button
                     type='button'
                     aria-label={title}
-                    className='absolute inset-0 rounded-md'
+                    className='absolute inset-0 rounded-md focus-visible:outline-none'
                     {...pressHandlers(open)}
                   />
                   <StatusGlyph status={entry.kind === 'thread' ? entry.thread.status : 'idle'} />
@@ -251,7 +251,7 @@ export function TabBar({ diffOpen, onOpenDiff }: { diffOpen: boolean; onOpenDiff
                       closeTab(entry.id)
                     }}
                     className={cn(
-                      'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground',
+                      'absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:text-foreground focus-visible:outline-none',
                       active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     )}
                   >
