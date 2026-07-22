@@ -15,7 +15,7 @@ export function UsageMeter({
     <div>
       <div className='flex items-baseline justify-between font-mono text-[11px] text-muted-foreground'>
         <span>{label}</span>
-        <span className='text-code-foreground'>{pct}%</span>
+        <span>{pct}%</span>
       </div>
       <div className='relative mt-1.5 h-5 overflow-hidden bg-muted/50'>
         {/* the code chip smeared into a ramp: its warm ground rising to full
