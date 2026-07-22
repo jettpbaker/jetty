@@ -20,6 +20,7 @@ import type { Draft } from '@/state/drafts'
 import {
   BellRingingIcon,
   ExclamationMarkIcon,
+  HouseIcon,
   MoonIcon,
   PlusIcon,
   SidebarSimpleIcon,
@@ -28,8 +29,6 @@ import {
 } from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, useSyncExternalStore, type ReactElement } from 'react'
-
-import { RansomWordmarkStatic } from './ransom-wordmark'
 
 // One slot in the strip: separator zone (13) + pill (176).
 const DRAG_STEP = 189
@@ -190,8 +189,12 @@ export function TabBar() {
 
   return (
     <div className='flex h-12 shrink-0 items-center gap-2 px-4'>
-      <Link to='/' aria-label='Jetty home' className='mr-1 shrink-0'>
-        <RansomWordmarkStatic />
+      <Link
+        to='/'
+        aria-label='Home'
+        className='flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground'
+      >
+        <HouseIcon weight='fill' className='size-[18px] translate-y-px' />
       </Link>
 
       <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
