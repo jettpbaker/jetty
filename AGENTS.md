@@ -61,6 +61,24 @@ mechanics in short:
   `lucide-react` imports so a missed swap fails the lint gate. Weight/stroke
   tuning waits for the design pass — plain swaps until then.
 
+### icons
+
+- Weight is `bold` via the global IconContext; `weight='fill'` only for solid
+  metaphors (home, stop).
+- Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
+  `size-glyph` (18px) is for tab status glyphs only. No arbitrary `size-[Npx]`.
+- One muted: `text-muted-foreground`. No `/50`, `/60`, or `opacity-*` tints on
+  icons — sole exception: the idle Moon at `/60`, which is semantic (dimmer =
+  asleep).
+- Icon buttons are `Button variant='ghost' size='icon*'` — they idle muted
+  automatically (compound variant) and hover with bg fill + text→foreground.
+  Text buttons that shouldn't fill use `variant='ghost-text'`: text shift only,
+  never a bg. Don't fight ghost with `hover:bg-transparent!`.
+- The tab close button is deliberately its own thing (tiny, no bg hover) — leave
+  it.
+- Status colors are semantic: amber = awaiting approval, destructive = error,
+  green = open PR, purple = merged PR, `code-*` = ember brand.
+
 - Act on pointer-down, not click, wherever it's safe (Carmack's "act on press"):
   fixed-position controls like sidebar items, tabs, buttons, toggles. It reads as
   instantly responsive and dodges the pressed-but-slid-off miss.

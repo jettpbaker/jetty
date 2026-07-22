@@ -412,7 +412,7 @@ export const PromptInputActionAddAttachments = ({
         attachments.openFileDialog()
       }}
     >
-      <ImageIcon className='mr-2 size-4' /> {label}
+      <ImageIcon className='mr-2' /> {label}
     </DropdownMenuItem>
   )
 }
@@ -930,7 +930,7 @@ export const PromptInputActionMenuTrigger = ({
   <DropdownMenuTrigger
     render={
       <PromptInputButton className={className} {...props}>
-        {children ?? <PlusIcon className='size-4' />}
+        {children ?? <PlusIcon />}
       </PromptInputButton>
     }
   />
@@ -965,14 +965,14 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
-  let Icon = <ArrowUpIcon className='size-4' />
+  let Icon = <ArrowUpIcon />
 
   if (status === 'submitted') {
-    Icon = <SpinnerIcon className='size-4 animate-spin' />
+    Icon = <SpinnerIcon className='animate-spin' />
   } else if (status === 'streaming') {
-    Icon = <SquareIcon weight='fill' className='size-4' />
+    Icon = <SquareIcon weight='fill' />
   } else if (status === 'error') {
-    Icon = <XIcon className='size-4' />
+    Icon = <XIcon />
   }
 
   return (
@@ -1134,7 +1134,7 @@ export const PromptInputSpeechButton = ({
       onClick={toggleListening}
       {...props}
     >
-      <MicrophoneIcon className='size-4' />
+      <MicrophoneIcon />
     </PromptInputButton>
   )
 }

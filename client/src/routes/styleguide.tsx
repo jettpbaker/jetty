@@ -44,21 +44,21 @@ function StateGlyph({ state }: { state: TabState }) {
       return (
         <MoonIcon
           weight='fill'
-          className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
+          className='size-glyph shrink-0 translate-y-px text-muted-foreground/60'
         />
       )
     case 'running':
-      return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
+      return <SpinnerIcon className='size-glyph shrink-0 animate-spin text-muted-foreground' />
     case 'awaiting_approval':
-      return <BellRingingIcon className='size-[18px] shrink-0 text-amber-400' />
+      return <BellRingingIcon className='size-glyph shrink-0 text-amber-400' />
     case 'error':
-      return <ExclamationMarkIcon className='size-[18px] shrink-0 text-destructive' />
+      return <ExclamationMarkIcon className='size-glyph shrink-0 text-destructive' />
     case 'draft':
-      return <GitPullRequestIcon className='size-[18px] shrink-0 text-muted-foreground' />
+      return <GitPullRequestIcon className='size-glyph shrink-0 text-muted-foreground' />
     case 'open':
-      return <GitPullRequestIcon className='size-[18px] shrink-0 text-green-500' />
+      return <GitPullRequestIcon className='size-glyph shrink-0 text-green-500' />
     case 'merged':
-      return <GitMergeIcon className='size-[18px] shrink-0 text-purple-400' />
+      return <GitMergeIcon className='size-glyph shrink-0 text-purple-400' />
   }
 }
 
@@ -144,7 +144,7 @@ function PixelGlyph({ kind }: { kind: 'morph' | 'ring' }) {
     cells.push(<span key={i} className={cn('size-1', cls)} />)
   }
   return (
-    <span className='grid size-[18px] shrink-0 place-content-center'>
+    <span className='grid size-glyph shrink-0 place-content-center'>
       <span className='grid grid-cols-3 gap-px'>{cells}</span>
     </span>
   )
@@ -155,15 +155,15 @@ const RUNNING_GLYPHS: Array<{ label: string; glyph: ReactNode }> = [
   { label: 'ring', glyph: <PixelGlyph kind='ring' /> },
   {
     label: 'spinner',
-    glyph: <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-code-foreground' />,
+    glyph: <SpinnerIcon className='size-glyph shrink-0 animate-spin text-code-foreground' />,
   },
   {
     label: 'spinner gap',
-    glyph: <SpinnerGapIcon className='size-[18px] shrink-0 animate-spin text-code-foreground' />,
+    glyph: <SpinnerGapIcon className='size-glyph shrink-0 animate-spin text-code-foreground' />,
   },
   {
     label: 'circle notch',
-    glyph: <CircleNotchIcon className='size-[18px] shrink-0 animate-spin text-code-foreground' />,
+    glyph: <CircleNotchIcon className='size-glyph shrink-0 animate-spin text-code-foreground' />,
   },
 ]
 

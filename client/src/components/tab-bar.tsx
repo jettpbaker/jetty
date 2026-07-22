@@ -44,16 +44,16 @@ function StatusGlyph({ status }: { status: SessionStatus }) {
       return (
         <MoonIcon
           weight='fill'
-          className='size-[18px] shrink-0 translate-y-px text-muted-foreground/60'
+          className='size-glyph shrink-0 translate-y-px text-muted-foreground/60'
         />
       )
     case 'running':
     case 'starting':
-      return <SpinnerIcon className='size-[18px] shrink-0 animate-spin text-muted-foreground' />
+      return <SpinnerIcon className='size-glyph shrink-0 animate-spin text-muted-foreground' />
     case 'awaiting_approval':
-      return <BellRingingIcon className='size-[18px] shrink-0 text-amber-400' />
+      return <BellRingingIcon className='size-glyph shrink-0 text-amber-400' />
     case 'error':
-      return <ExclamationMarkIcon className='size-[18px] shrink-0 text-destructive' />
+      return <ExclamationMarkIcon className='size-glyph shrink-0 text-destructive' />
   }
 }
 
@@ -189,13 +189,16 @@ export function TabBar() {
 
   return (
     <div className='flex h-12 shrink-0 items-center gap-2 px-4'>
-      <Link
-        to='/'
+      <Button
+        variant='ghost'
+        size='icon'
         aria-label='Home'
-        className='flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground'
+        className='cursor-default'
+        nativeButton={false}
+        render={<Link to='/' />}
       >
-        <HouseIcon weight='fill' className='size-[18px] translate-y-px' />
-      </Link>
+        <HouseIcon weight='fill' className='translate-y-px' />
+      </Button>
 
       <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {openEntries.map((entry, index) => {
@@ -308,7 +311,7 @@ export function TabBar() {
               diffPanelStore.open()
             })}
           >
-            <SidebarSimpleIcon />
+            <SidebarSimpleIcon className='-scale-x-100' />
           </Button>
         </IconTip>
       )}

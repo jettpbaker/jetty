@@ -103,10 +103,10 @@ export function ApprovalDock({
       ) : (
         <div className='flex items-center gap-2'>
           <Button
-            variant='ghost'
+            variant='ghost-text'
             size='sm'
             disabled={pending}
-            className='mr-auto text-muted-foreground hover:bg-transparent! hover:text-foreground'
+            className='mr-auto'
             {...pressHandlers(() => setMessageOpen(true))}
           >
             Deny with a message

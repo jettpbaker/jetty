@@ -68,7 +68,7 @@ const markdownFenceClassName = [
   '[&_[data-streamdown=code-block-copy-button]]:justify-center',
   '[&_[data-streamdown=code-block-copy-button]]:rounded-md',
   '[&_[data-streamdown=code-block-copy-button]]:text-muted-foreground',
-  '[&_[data-streamdown=code-block-copy-button]]:hover:bg-muted/60',
+  '[&_[data-streamdown=code-block-copy-button]]:hover:bg-muted',
   '[&_[data-streamdown=code-block-copy-button]]:hover:text-foreground',
   // body: drop second card, compact padding + 13px type
   '[&_[data-streamdown=code-block-body]]:rounded-none',

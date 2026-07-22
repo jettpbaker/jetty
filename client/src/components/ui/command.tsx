@@ -58,7 +58,7 @@ function CommandInput({
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
     <div data-slot='command-input-wrapper' className='flex items-center gap-3 px-4'>
-      <MagnifyingGlassIcon className='size-5 shrink-0 opacity-50' />
+      <MagnifyingGlassIcon className='size-5 shrink-0 text-muted-foreground' />
       <CommandPrimitive.Input
         data-slot='command-input'
         className={cn(

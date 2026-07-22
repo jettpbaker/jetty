@@ -170,7 +170,7 @@ function HomePage() {
               <h2 className={sectionLabel}>Resume</h2>
               <button
                 type='button'
-                className='flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/50 transition-colors hover:text-muted-foreground'
+                className='flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground'
                 onClick={() => openPalette()}
               >
                 <MagnifyingGlassIcon className='size-3' />
@@ -214,7 +214,7 @@ function HomePage() {
             ))}
             <li>
               <button type='button' className={row} onClick={() => openPalette('add-project')}>
-                <FolderPlusIcon className='size-4 shrink-0 text-muted-foreground/50' />
+                <FolderPlusIcon className='size-4 shrink-0 text-muted-foreground' />
                 <span className='text-sm text-muted-foreground'>New project</span>
               </button>
             </li>
@@ -228,12 +228,12 @@ function HomePage() {
 function ProjectRow({ project, onOpen }: { project: Project; onOpen: () => void }) {
   return (
     <button type='button' className={row} {...pressHandlers(onOpen)}>
-      <FolderIcon className='size-4 shrink-0 text-muted-foreground/60' />
+      <FolderIcon className='size-4 shrink-0 text-muted-foreground' />
       <span className='shrink-0 truncate text-sm'>{project.title}</span>
       <span className='min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground/45'>
         {project.path}
       </span>
-      <span className='flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/70'>
+      <span className='flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground/0 transition-colors group-hover:text-muted-foreground'>
         <PlusIcon className='size-3' />
         thread
       </span>

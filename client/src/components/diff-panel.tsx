@@ -28,11 +28,18 @@ try {
 
 const THEME = { dark: 'dark-2026', light: 'dark-2026' } as const
 
+// The lib's `scrollbar-gutter: stable` reserves right-edge space for a vertical
+// scrollbar that can never appear (code blocks clip vertically; the panel
+// scrolls instead), leaving a dead gutter beside non-overflowing files.
+const NO_DEAD_GUTTER = '[data-code] { scrollbar-gutter: auto; }'
+
 const PATCH_OPTIONS = {
   theme: THEME,
   themeType: 'dark',
   diffStyle: 'unified',
   stickyHeader: true,
+  hunkSeparators: 'line-info-basic',
+  unsafeCSS: NO_DEAD_GUTTER,
 } as const
 
 const EDIT_OPTIONS = {
@@ -41,6 +48,7 @@ const EDIT_OPTIONS = {
   diffStyle: 'unified',
   disableFileHeader: true,
   disableLineNumbers: true,
+  unsafeCSS: NO_DEAD_GUTTER,
 } as const
 
 export type DiffData = { diff: string; truncatedPaths?: string[] }
@@ -180,7 +188,7 @@ export function DiffPanel({ threadId, onClose }: { threadId: string; onClose: ()
           {fullscreen ? <ArrowsInSimpleIcon /> : <ArrowsOutSimpleIcon />}
         </Button>
         <Button variant='ghost' size='icon' aria-label='Close sidebar' {...pressHandlers(onClose)}>
-          <SidebarSimpleIcon />
+          <SidebarSimpleIcon className='-scale-x-100' />
         </Button>
       </div>
       <div className='min-h-0 flex-1 overflow-auto'>

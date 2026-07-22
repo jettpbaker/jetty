@@ -67,6 +67,8 @@ html {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* status glyphs render at 18px deliberately — one step up from the size-4 chrome baseline */
+  --spacing-glyph: 1.125rem;
 }
 
 :root {

@@ -106,16 +106,16 @@ export function ComposerFooter({
         disabled={disabled}
         onClick={() => attachments.openFileDialog()}
       >
-        <PlusIcon className='size-4' />
+        <PlusIcon />
       </PromptInputButton>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <PromptInputButton
+              variant='ghost-text'
               size='sm'
               disabled={disabled}
               data-cuelume-hover='tick'
-              className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
             >
               {prefs.approval.label}
             </PromptInputButton>
@@ -138,10 +138,11 @@ export function ComposerFooter({
           <DropdownMenuTrigger
             render={
               <PromptInputButton
+                variant='ghost-text'
                 size='sm'
                 disabled={disabled}
                 data-cuelume-hover='tick'
-                className='group/model gap-1.5 text-foreground hover:bg-transparent!'
+                className='group/model gap-1.5 text-foreground'
               >
                 {prefs.model.label}
                 {prefs.effort && (
@@ -348,12 +349,7 @@ export function DraftComposer({ draft }: { draft: Draft }) {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button
-                variant='ghost'
-                size='sm'
-                data-cuelume-hover='tick'
-                className='text-muted-foreground transition-colors hover:bg-transparent! hover:text-foreground'
-              >
+              <Button variant='ghost-text' size='sm' data-cuelume-hover='tick'>
                 {project?.title ?? 'Pick a project'}
               </Button>
             }
