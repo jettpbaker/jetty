@@ -11,14 +11,18 @@ import {
 import { type ApprovalDecision, QuestionSpec, type ThreadItem } from '@jetty/shared/items'
 import { newId, type PermissionMode } from '@jetty/shared/wire'
 
-import type { Agent, AgentImage, TurnInput } from './agent'
+import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
+import { readUsage } from './usage'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 /** Fallback when a turn omits model — the composer normally always sends one. */
 const DEFAULT_MODEL = 'haiku'
+
+// Overlapping spawn/result usage reads skip instead of stacking duplicate SDK calls.
+let usageInFlight = false
 
 type SdkPermissionMode = NonNullable<Options['permissionMode']>
 
@@ -124,9 +128,21 @@ function createQueue() {
   }
 }
 
-export function createClaudeAdapter(store: Store): Agent {
+export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent {
   const sessions = new Map<string, WarmSession>()
   const ttlMs = Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
+
+  function requestUsage(session: WarmSession) {
+    if (usageInFlight || session.closed || !hooks.onUsage) return
+    usageInFlight = true
+    void readUsage(session.query)
+      .then((usage) => {
+        if (usage) hooks.onUsage?.(usage)
+      })
+      .finally(() => {
+        usageInFlight = false
+      })
+  }
 
   function clearIdle(session: WarmSession) {
     if (session.idleTimer) {
@@ -226,6 +242,8 @@ export function createClaudeAdapter(store: Store): Agent {
         }
 
         if (msg.type === 'result' && !session.closed) {
+          // Read usage while the query is still alive — before armIdle may close it.
+          requestUsage(session)
           if (session.awaitingResult) {
             // result message without translate emitting (shouldn't happen) — still settle
             settleTurn(session)
@@ -340,6 +358,7 @@ export function createClaudeAdapter(store: Store): Agent {
     sessionRef.current = session
     sessions.set(input.threadId, session)
     void runLoop(session)
+    requestUsage(session)
     return session
   }
 

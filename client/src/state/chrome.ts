@@ -1,13 +1,15 @@
-import type { Project, ThreadMeta, ChromePushData } from '@jetty/shared/wire'
+import type { Project, ThreadMeta, ChromePushData, Usage } from '@jetty/shared/wire'
 
 import type { Socket } from '../socket'
 
 export type ChromeState = {
   projects: Project[]
   threads: ThreadMeta[]
+  /** Rate-limit meters; null until the server has reported usage. */
+  usage: Usage | null
 }
 
-const emptyChrome: ChromeState = { projects: [], threads: [] }
+const emptyChrome: ChromeState = { projects: [], threads: [], usage: null }
 
 export type ChromeStore = {
   subscribe: (listener: () => void) => () => void
@@ -39,24 +41,31 @@ export function createChromeStore(
   function applyPush(data: ChromePushData) {
     switch (data.type) {
       case 'snapshot':
-        setState({ projects: data.projects, threads: data.threads })
+        setState({
+          projects: data.projects,
+          threads: data.threads,
+          usage: data.usage ?? null,
+        })
         return
       case 'project.upserted': {
         const projects = upsertById(state.projects, data.project)
-        setState({ projects, threads: state.threads })
+        setState({ projects, threads: state.threads, usage: state.usage })
         return
       }
       case 'thread.upserted': {
         const threads = upsertById(state.threads, data.thread)
-        setState({ projects: state.projects, threads })
+        setState({ projects: state.projects, threads, usage: state.usage })
         return
       }
       case 'thread.removed': {
         const threads = state.threads.filter((t) => t.id !== data.threadId)
         if (threads.length === state.threads.length) return
-        setState({ projects: state.projects, threads })
+        setState({ projects: state.projects, threads, usage: state.usage })
         return
       }
+      case 'usage':
+        setState({ projects: state.projects, threads: state.threads, usage: data.usage })
+        return
     }
   }
 

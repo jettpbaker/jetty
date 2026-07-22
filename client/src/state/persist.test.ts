@@ -52,7 +52,7 @@ function sampleChrome(): ChromeState {
     archived: false,
     updatedAt: 2,
   }
-  return { projects: [project], threads: [thread] }
+  return { projects: [project], threads: [thread], usage: null }
 }
 
 function sampleThread(lastSeq = 3): ThreadState {
@@ -214,7 +214,7 @@ describe('persist round-trip via IndexedDB', () => {
 
     applyHydration(pairs, chromeStore, tabsStore, timelineStore, draftsStore)
 
-    expect(chromeStore.getSnapshot()).toEqual({ projects: [], threads: [] })
+    expect(chromeStore.getSnapshot()).toEqual({ projects: [], threads: [], usage: null })
     expect(tabsStore.getSnapshot()).toEqual([])
     expect(draftsStore.getSnapshot()).toEqual([])
     expect(timelineStore.getSnapshot('thr_1')).toBe(emptyThread)
@@ -248,7 +248,7 @@ describe('store hydrate seams', () => {
     })
 
     const fromServer = store.getSnapshot()
-    store.hydrate({ projects: [], threads: [] })
+    store.hydrate({ projects: [], threads: [], usage: null })
     expect(store.getSnapshot()).toBe(fromServer)
   })
 

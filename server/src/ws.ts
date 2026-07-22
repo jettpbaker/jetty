@@ -6,6 +6,7 @@ import {
   type MethodName,
   type ParamsOf,
   type ResponseMessage,
+  type Usage,
 } from '@jetty/shared/wire'
 
 import type { Hub, ConnData } from './hub'
@@ -25,7 +26,12 @@ export type WsServer = {
   }
 }
 
-export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
+export function createWs(
+  store: Store,
+  orch: Orchestrator,
+  hub: Hub,
+  getUsage: () => Usage | null = () => null
+): WsServer {
   function respond(ws: ServerWebSocket<ConnData>, msg: ResponseMessage) {
     hub.send(ws, msg)
   }
@@ -44,12 +50,14 @@ export function createWs(store: Store, orch: Orchestrator, hub: Hub): WsServer {
     switch (method) {
       case 'chrome.subscribe': {
         hub.subscribeChrome(ws)
+        const usage = getUsage()
         hub.send(ws, {
           sub: 'chrome',
           data: {
             type: 'snapshot',
             projects: store.listProjects(),
             threads: store.listThreads(),
+            ...(usage ? { usage } : {}),
           },
         })
         return null

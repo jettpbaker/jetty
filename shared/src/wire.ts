@@ -182,15 +182,32 @@ export const ResponseMessage = z.object({
 })
 export type ResponseMessage = z.infer<typeof ResponseMessage>
 
+/** Claude Code plan rate-limit window (pct used 0–100, resetsAt epoch ms). */
+export const UsageWindow = z.object({
+  pct: z.number(),
+  resetsAt: z.number(),
+})
+export type UsageWindow = z.infer<typeof UsageWindow>
+
+/** Account rate-limit usage from Claude Code /usage (not per-turn token counts). */
+export const Usage = z.object({
+  fiveHour: UsageWindow,
+  sevenDay: UsageWindow,
+  asOf: z.number(),
+})
+export type Usage = z.infer<typeof Usage>
+
 export const ChromePushData = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('snapshot'),
     projects: z.array(Project),
     threads: z.array(ThreadMeta),
+    usage: Usage.optional(),
   }),
   z.object({ type: z.literal('project.upserted'), project: Project }),
   z.object({ type: z.literal('thread.upserted'), thread: ThreadMeta }),
   z.object({ type: z.literal('thread.removed'), threadId: z.string() }),
+  z.object({ type: z.literal('usage'), usage: Usage }),
 ])
 export type ChromePushData = z.infer<typeof ChromePushData>
 

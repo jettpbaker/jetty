@@ -1,6 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, UploadAttachment, Usage } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 
@@ -18,6 +18,11 @@ export type TurnInput = {
   model?: string
   effort?: EffortLevel
   permissionMode?: PermissionMode
+}
+
+/** Optional hooks wired at agent construction — agents stay socket-free. */
+export type AgentHooks = {
+  onUsage?: (usage: Usage) => void
 }
 
 export type Agent = {
@@ -45,7 +50,7 @@ type EchoSession = {
   pendingSteer: string[]
 }
 
-export function createEchoAdapter(): Agent {
+export function createEchoAdapter(hooks: AgentHooks = {}): Agent {
   const sessions = new Map<string, EchoSession>()
 
   async function emitChunks(
@@ -147,6 +152,13 @@ export function createEchoAdapter(): Agent {
           turnId: input.turnId,
           usage: { inputTokens: input.text.length, outputTokens: input.text.length },
           costUsd: 0,
+        })
+
+        // Plausible fixed numbers so home UI is developable without the real agent.
+        hooks.onUsage?.({
+          fiveHour: { pct: 42, resetsAt: Date.now() + 2 * 60 * 60 * 1000 },
+          sevenDay: { pct: 18, resetsAt: Date.now() + 3 * 24 * 60 * 60 * 1000 },
+          asOf: Date.now(),
         })
       } catch (err) {
         if (!isAbortError(err)) throw err

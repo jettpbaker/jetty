@@ -1,5 +1,5 @@
 import { ThreadState } from '@jetty/shared/reducer'
-import { Project, ThreadMeta } from '@jetty/shared/wire'
+import { Project, ThreadMeta, Usage } from '@jetty/shared/wire'
 import { entries, set } from 'idb-keyval'
 import { z } from 'zod'
 
@@ -17,6 +17,8 @@ const DEBOUNCE_MS = 300
 const ChromeStateSchema = z.object({
   projects: z.array(Project),
   threads: z.array(ThreadMeta),
+  // optional so pre-usage disk blobs still parse; usage is ephemeral anyway
+  usage: Usage.optional().nullable(),
 })
 
 const TabsSchema = z.array(z.string())
@@ -33,7 +35,12 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
 export function parseChromeValue(value: unknown): ChromeState | null {
   const result = ChromeStateSchema.safeParse(value)
-  return result.success ? result.data : null
+  if (!result.success) return null
+  return {
+    projects: result.data.projects,
+    threads: result.data.threads,
+    usage: result.data.usage ?? null,
+  }
 }
 
 export function parseTabsValue(value: unknown): string[] | null {

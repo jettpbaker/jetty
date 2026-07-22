@@ -2,9 +2,11 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
+import type { Usage } from '@jetty/shared/wire'
+
 import type { Titler } from './titler'
 
-import { createEchoAdapter, type Agent } from './agent'
+import { createEchoAdapter, type Agent, type AgentHooks } from './agent'
 import { createAttachments } from './attachments'
 import { createClaudeAdapter } from './claude'
 import { createClaudeTitler } from './claude-titler'
@@ -24,9 +26,9 @@ export type ServerOptions = {
   titler?: Titler | null
 }
 
-function selectAgent(kind: 'echo' | 'claude' | Agent, store: Store): Agent {
+function selectAgent(kind: 'echo' | 'claude' | Agent, store: Store, hooks: AgentHooks): Agent {
   if (typeof kind !== 'string') return kind
-  return kind === 'echo' ? createEchoAdapter() : createClaudeAdapter(store)
+  return kind === 'echo' ? createEchoAdapter(hooks) : createClaudeAdapter(store, hooks)
 }
 
 function selectTitler(kind: 'echo' | 'claude' | Agent): Titler | null {
@@ -97,11 +99,17 @@ export function startServer(opts: ServerOptions = {}) {
   reconcileOnStartup(store)
 
   const attachments = createAttachments(home)
-  const agent = selectAgent(agentKind, store)
   const hub = createHub()
+  let lastUsage: Usage | null = null
+  const agent = selectAgent(agentKind, store, {
+    onUsage(usage) {
+      lastUsage = usage
+      hub.pushChrome({ type: 'usage', usage })
+    },
+  })
   const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
   const orch = createOrchestrator(store, agent, hub, titler, attachments)
-  const ws = createWs(store, orch, hub)
+  const ws = createWs(store, orch, hub, () => lastUsage)
 
   const server = Bun.serve<ConnData>({
     port,
