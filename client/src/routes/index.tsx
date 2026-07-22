@@ -4,6 +4,7 @@ import type { ThreadGitStatus, ThreadMeta } from '@jetty/shared/wire'
 import { chromeStore, draftsStore, tabsStore } from '@/app-state'
 import { useCommandPalette } from '@/components/command-palette'
 import { RansomWordmark } from '@/components/ransom-wordmark'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { StatusGlyph } from '@/components/status-glyph'
 import { UsageMeter } from '@/components/usage-meter'
 import { loadLastProjectId, saveLastProjectId } from '@/lib/draft'
@@ -19,7 +20,7 @@ import {
   PlusIcon,
 } from '@phosphor-icons/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -150,6 +151,7 @@ function HomePage() {
   const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
   const navigate = useNavigate()
   const { openPalette } = useCommandPalette()
+  const [filter, setFilter] = useState('')
 
   function openThread(threadId: string) {
     tabsStore.open(threadId)
@@ -185,32 +187,22 @@ function HomePage() {
   }
 
   const projectById = new Map(chrome.projects.map((p) => [p.id, p]))
-  const buckets = bucketThreads(chrome.threads)
+  const query = filter.trim().toLowerCase()
+  const visible = query
+    ? chrome.threads.filter((thread) =>
+        `${thread.title ?? ''} ${projectById.get(thread.projectId)?.title ?? ''}`
+          .toLowerCase()
+          .includes(query)
+      )
+    : chrome.threads
+  const buckets = bucketThreads(visible)
 
   return (
-    <div className='h-full overflow-y-auto'>
+    <div className='h-full scrollbar-gutter-stable-both overflow-y-auto'>
       <div className='mx-auto w-full max-w-[62rem] px-6 pt-14 pb-20'>
-        <header className='mb-14 flex items-center justify-between gap-4'>
-          <RansomWordmark lineH={50} />
-          <div className='flex items-center gap-3.5'>
-            <button
-              type='button'
-              className='flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground'
-              onClick={() => openPalette()}
-            >
-              <MagnifyingGlassIcon className='size-3' />
-              search
-              <span className={kbd}>⌘K</span>
-            </button>
-            <button
-              type='button'
-              className={emberAction}
-              {...pressHandlers(() => newThread(loadLastProjectId()))}
-            >
-              <PlusIcon className='size-4' />
-              New thread
-            </button>
-          </div>
+        <header className='mb-14 flex items-center'>
+          {/* pl-2: optical alignment with the rail's row text below */}
+          <RansomWordmark lineH={50} className='pl-2' />
         </header>
 
         <div className='grid grid-cols-1 gap-x-14 gap-y-10 md:grid-cols-3'>
@@ -222,6 +214,19 @@ function HomePage() {
             >
               <GearIcon className='size-4 shrink-0' />
               Settings
+            </button>
+            <button
+              type='button'
+              className={sideItem}
+              {...pressHandlers(() => newThread(loadLastProjectId()))}
+            >
+              <PlusIcon className='size-4 shrink-0' />
+              New thread
+            </button>
+            {/* palette opener activates on click, not press (overlay dismiss) */}
+            <button type='button' className={sideItem} onClick={() => openPalette('add-project')}>
+              <FolderPlusIcon className='size-4 shrink-0' />
+              New project
             </button>
             {/* No archived view exists yet: visible but inert until it lands. */}
             <div className='flex w-full cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground'>
@@ -245,17 +250,24 @@ function HomePage() {
               </div>
             )}
 
-            <button
-              type='button'
-              className={cn(row, 'mt-4')}
-              onClick={() => openPalette('add-project')}
-            >
-              <FolderPlusIcon className='size-4 shrink-0 text-muted-foreground' />
-              <span className='text-sm text-muted-foreground'>New project</span>
-            </button>
           </aside>
 
           <main className='order-1 md:order-2 md:col-span-2'>
+            <InputGroup className='mb-6'>
+              <InputGroupAddon>
+                <MagnifyingGlassIcon className='size-4' />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder='Filter threads…'
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </InputGroup>
+            {buckets.length === 0 && (
+              <p className='px-2.5 font-mono text-xs text-muted-foreground/60'>
+                {query ? 'no threads match' : 'no recent threads'}
+              </p>
+            )}
             {buckets.map((bucket) => (
               <section key={bucket.label} className='mb-8'>
                 <h2 className={cn(sectionLabel, 'mb-1.5 px-2.5')}>{bucket.label}</h2>
