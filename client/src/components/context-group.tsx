@@ -1,7 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
-import { useState } from 'react'
 
 import { pressHandlers } from '@/lib/press-handlers'
+import { useState } from 'react'
 
 import { ToolCallField, ToolRow, toolRunningLabel } from './tool-row'
 
@@ -10,11 +10,7 @@ export type ToolCallItem = Extract<ThreadItem, { kind: 'tool_call' }>
 export const CONTEXT_TOOLS: ReadonlySet<string> = new Set(['Read', 'Grep', 'Glob'])
 
 export function isContextCall(item: ThreadItem): item is ToolCallItem {
-  return (
-    item.kind === 'tool_call' &&
-    CONTEXT_TOOLS.has(item.toolName) &&
-    item.status !== 'failed'
-  )
+  return item.kind === 'tool_call' && CONTEXT_TOOLS.has(item.toolName) && item.status !== 'failed'
 }
 
 export type TimelineEntry =
@@ -69,7 +65,13 @@ function contextSummary(items: ToolCallItem[]): string {
   return parts.join(' · ')
 }
 
-export function ContextGroupRow({ items, live = false }: { items: ToolCallItem[]; live?: boolean }) {
+export function ContextGroupRow({
+  items,
+  live = false,
+}: {
+  items: ToolCallItem[]
+  live?: boolean
+}) {
   const [open, setOpen] = useState(false)
 
   // Parallel calls can settle out of order — tick on the newest still-running one.

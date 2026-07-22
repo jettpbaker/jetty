@@ -9,7 +9,6 @@ import { useControllableState } from '@/lib/use-controllable-state'
 import { cn } from '@/lib/utils'
 import { createContext, memo, useContext, useEffect, useState } from 'react'
 
-
 type ReasoningContextValue = {
   isStreaming: boolean
   isOpen: boolean

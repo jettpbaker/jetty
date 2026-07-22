@@ -64,7 +64,7 @@ should be protected from future changes. File those too.
 ## work machine setup (from a fresh clone)
 
 For the agent standing jetty up on the work machine. Note: AGENTS.md /
-CLAUDE.md in this repo govern home-side *development* — your contract as a
+CLAUDE.md in this repo govern home-side _development_ — your contract as a
 work-side agent is this document only.
 
 1. Clone read-only (deploy key or read-scoped token — the write credential

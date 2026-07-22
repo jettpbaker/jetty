@@ -68,7 +68,7 @@ for correctness — they're presentation/UX knobs.
   virtualization hand-rolled. `PatchDiff` parses the unified patch itself, so no
   custom patch parser.
 - **Theme fed by name via `registerCustomTheme('dark-2026', …)`** — the library wants
-  a theme *name*, not a raw Shiki object, so we register the vendored theme once and
+  a theme _name_, not a raw Shiki object, so we register the vendored theme once and
   reference it. Same JSON `response.tsx` uses for markdown fences.
 - **App is dark-only**, so both `theme.dark` and `theme.light` point at `dark-2026`
   and `themeType: 'dark'` is hard-set.

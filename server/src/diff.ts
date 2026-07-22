@@ -42,7 +42,9 @@ export function truncateDiff(diff: string): ThreadDiff {
     }
     kept.push(section)
   }
-  return truncated.length > 0 ? { diff: kept.join(''), truncatedPaths: truncated } : { diff: kept.join('') }
+  return truncated.length > 0
+    ? { diff: kept.join(''), truncatedPaths: truncated }
+    : { diff: kept.join('') }
 }
 
 async function git(cwd: string, args: string[]): Promise<{ code: number; out: string }> {

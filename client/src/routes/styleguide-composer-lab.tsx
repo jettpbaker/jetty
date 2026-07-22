@@ -102,8 +102,8 @@ function FanControls({
       </div>
       <div className='flex items-center justify-between'>
         <span>
-          pivot x={config.pivot.x} y={config.pivot.y} · drag the amber dot · from top-right
-          corner, +x right / +y down
+          pivot x={config.pivot.x} y={config.pivot.y} · drag the amber dot · from top-right corner,
+          +x right / +y down
         </span>
         <button
           type='button'
@@ -121,13 +121,7 @@ function FanControls({
 }
 
 // Lab-only: draggable marker for the fan's pivot; drag it and read the values.
-function PivotHandle({
-  pivot,
-  onChange,
-}: {
-  pivot: FanPivot
-  onChange: (next: FanPivot) => void
-}) {
+function PivotHandle({ pivot, onChange }: { pivot: FanPivot; onChange: (next: FanPivot) => void }) {
   const start = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
   return (
     <div

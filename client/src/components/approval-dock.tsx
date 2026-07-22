@@ -1,11 +1,11 @@
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 
 import { ToolCallField } from '@/components/tool-row'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { pressHandlers } from '@/lib/press-handlers'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
 
@@ -111,7 +111,12 @@ export function ApprovalDock({
           >
             Deny with a message
           </Button>
-          <Button variant='ghost' size='sm' disabled={pending} {...pressHandlers(() => run('deny'))}>
+          <Button
+            variant='ghost'
+            size='sm'
+            disabled={pending}
+            {...pressHandlers(() => run('deny'))}
+          >
             Deny
           </Button>
           <Button ref={allowRef} disabled={pending} {...pressHandlers(() => run('allow'))}>

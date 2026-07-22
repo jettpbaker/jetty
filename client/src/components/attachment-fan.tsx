@@ -51,8 +51,7 @@ export function AttachmentFan({ config = DEFAULT_FAN }: { config?: FanConfig }) 
 
   // Newest last in files → index 0 is the top, most-clockwise card.
   const stack = [...images].reverse()
-  const spread =
-    stack.length > 1 ? Math.min(config.step * (stack.length - 1), config.maxSpread) : 0
+  const spread = stack.length > 1 ? Math.min(config.step * (stack.length - 1), config.maxSpread) : 0
   const step = stack.length > 1 ? spread / (stack.length - 1) : 0
   // hover zone extends past the card by the max lift so a lifted card never
   // escapes the cursor and oscillates

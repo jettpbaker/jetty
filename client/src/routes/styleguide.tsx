@@ -1,6 +1,8 @@
 import { RansomWordmarkStatic } from '@/components/ransom-wordmark'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { pressHandlers } from '@/lib/press-handlers'
+import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
 import {
   BellRingingIcon,
@@ -14,10 +16,9 @@ import {
   SpinnerIcon,
   XIcon,
 } from '@phosphor-icons/react'
-import { pressHandlers } from '@/lib/press-handlers'
-import { useStripDrag } from '@/lib/use-strip-drag'
 import { createFileRoute } from '@tanstack/react-router'
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+
 import { ChatLab } from './styleguide-chat-lab'
 import { ComposerLab } from './styleguide-composer-lab'
 import { DiffsLab } from './styleguide-diffs-lab'
@@ -30,14 +31,7 @@ export const Route = createFileRoute('/styleguide')({
 // The decided tab design: canonical states, their glyphs, and the pill.
 // Exploration racks lived here during the design pass; git has them.
 
-type TabState =
-  | 'sleeping'
-  | 'running'
-  | 'awaiting_approval'
-  | 'error'
-  | 'draft'
-  | 'open'
-  | 'merged'
+type TabState = 'sleeping' | 'running' | 'awaiting_approval' | 'error' | 'draft' | 'open' | 'merged'
 
 const CURRENT_STATES: TabState[] = ['sleeping', 'running', 'awaiting_approval', 'error']
 // need thread→PR association before the bar can show these
@@ -189,7 +183,12 @@ function RunningGlyphRack() {
             <div className='text-xs text-muted-foreground'>{row}</div>
             {RUNNING_GLYPHS.map(({ label, glyph }) => (
               <div key={label} className='min-w-0'>
-                <TabPill state='running' active={row === 'active'} title={SAMPLE_TITLE} glyph={glyph} />
+                <TabPill
+                  state='running'
+                  active={row === 'active'}
+                  title={SAMPLE_TITLE}
+                  glyph={glyph}
+                />
               </div>
             ))}
           </Fragment>
@@ -434,9 +433,7 @@ function StyleguideTabs({
             aria-selected={selected}
             className={cn(
               'relative px-3 py-2 text-sm transition-colors',
-              selected
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
+              selected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
             )}
             {...pressHandlers(() => onChange(tab.id))}
           >

@@ -1,7 +1,7 @@
 import { markdownDefaults } from '@/components/response'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { pressHandlers } from '@/lib/press-handlers'
+import { cn } from '@/lib/utils'
 import { ArrowCounterClockwiseIcon, CopyIcon, PauseIcon, PlayIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
@@ -250,9 +250,7 @@ function AnimControls({
               type='button'
               className={cn(
                 'rounded-md px-1.5 py-0.5 transition-colors',
-                config.easing === easing
-                  ? 'bg-secondary text-foreground'
-                  : 'hover:text-foreground'
+                config.easing === easing ? 'bg-secondary text-foreground' : 'hover:text-foreground'
               )}
               {...pressHandlers(() => onChange({ ...config, easing }))}
             >
@@ -311,9 +309,9 @@ export function StreamingLab() {
       <header className='flex flex-col gap-2'>
         <h1 className='text-2xl font-semibold tracking-tight'>Streaming lab</h1>
         <p className='max-w-2xl text-sm text-muted-foreground'>
-          Streamdown&apos;s built-in per-word entrance animation, fed by a fake stream paced like
-          a real model — jittered token batches with the occasional stall-and-burst. When the
-          stream ends the word spans are dropped entirely.
+          Streamdown&apos;s built-in per-word entrance animation, fed by a fake stream paced like a
+          real model — jittered token batches with the occasional stall-and-burst. When the stream
+          ends the word spans are dropped entirely.
         </p>
       </header>
 

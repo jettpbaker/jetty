@@ -175,7 +175,9 @@ html {
   pre,
   .font-mono {
     font-variant-ligatures: none;
-    font-feature-settings: 'liga' 0, 'calt' 0;
+    font-feature-settings:
+      'liga' 0,
+      'calt' 0;
   }
   /* @pierre/diffs sets font-feature-settings on :host from this var (shadow DOM) */
   :root {

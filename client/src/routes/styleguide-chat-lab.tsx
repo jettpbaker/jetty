@@ -3,8 +3,8 @@ import { ContextGroupRow } from '@/components/context-group'
 import { Timeline } from '@/components/timeline'
 import { TimelineItem } from '@/components/timeline-item'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { pressHandlers } from '@/lib/press-handlers'
+import { cn } from '@/lib/utils'
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
 import { ArrowCounterClockwiseIcon, PauseIcon, PlayIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -109,9 +109,9 @@ export function ChatLab() {
       <header className='flex flex-col gap-2'>
         <h1 className='text-2xl font-semibold tracking-tight'>Chat lab</h1>
         <p className='max-w-2xl text-sm text-muted-foreground'>
-          The production timeline replaying a tape mined from the session that built this
-          styleguide — same reducer, same components as the thread route. Spec sheets below show
-          each item kind in isolation.
+          The production timeline replaying a tape mined from the session that built this styleguide
+          — same reducer, same components as the thread route. Spec sheets below show each item kind
+          in isolation.
         </p>
       </header>
 
@@ -190,7 +190,7 @@ export function ChatLab() {
                 'rounded-md px-2 py-1 font-mono text-xs transition-colors',
                 contextScenario === index
                   ? 'bg-secondary text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
+                  : 'text-muted-foreground hover:text-foreground'
               )}
               {...pressHandlers(() => setContextScenario(index))}
             >

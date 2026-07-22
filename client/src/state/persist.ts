@@ -94,12 +94,7 @@ export function applyHydration(
   timeline: Pick<TimelineStore, 'hydrateThread'>,
   drafts: Pick<DraftsStore, 'hydrate'>
 ): void {
-  const {
-    chrome: chromeState,
-    tabs: tabIds,
-    drafts: draftList,
-    threads,
-  } = collectHydration(pairs)
+  const { chrome: chromeState, tabs: tabIds, drafts: draftList, threads } = collectHydration(pairs)
   if (chromeState) chrome.hydrate(chromeState)
   if (tabIds) tabs.hydrate(tabIds)
   if (draftList) drafts.hydrate(draftList)

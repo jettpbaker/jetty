@@ -304,7 +304,11 @@ export function compileTape(): TapeStep[] {
             },
           })
           push(0, { type: 'session.status', status: 'awaiting_approval' })
-          push(beat.waitMs ?? 1800, { type: 'item.completed', itemId, patch: { decision: beat.decision } })
+          push(beat.waitMs ?? 1800, {
+            type: 'item.completed',
+            itemId,
+            patch: { decision: beat.decision },
+          })
           push(0, { type: 'session.status', status: 'running' })
           break
         }
@@ -328,7 +332,7 @@ function contextCall(
   toolName: 'Read' | 'Grep' | 'Glob',
   input: unknown,
   status: ToolCallItem['status'],
-  output = '',
+  output = ''
 ): ToolCallItem {
   return {
     id,
@@ -360,7 +364,12 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
   {
     label: 'running · first read',
     items: [
-      contextCall('ctx-run-1', 'Read', { file_path: 'client/src/components/response.tsx' }, 'running'),
+      contextCall(
+        'ctx-run-1',
+        'Read',
+        { file_path: 'client/src/components/response.tsx' },
+        'running'
+      ),
     ],
   },
   {
@@ -371,20 +380,20 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
         'Read',
         { file_path: 'client/src/components/tool-row.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-mid-2',
         'Read',
         { file_path: 'client/src/components/timeline.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-mid-3',
         'Read',
         { file_path: 'client/src/components/context-group.tsx' },
-        'running',
+        'running'
       ),
     ],
   },
@@ -397,14 +406,14 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
         'Read',
         { file_path: 'client/src/components/tool-row.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-hold-2',
         'Read',
         { file_path: 'client/src/components/timeline.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
     ],
   },
@@ -416,13 +425,13 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
         'Read',
         { file_path: 'client/src/lib/press-handlers.ts' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-search-2',
         'Grep',
         { pattern: 'pressHandlers', path: 'client/src' },
-        'running',
+        'running'
       ),
     ],
   },
@@ -434,7 +443,7 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
         'Read',
         { file_path: 'client/src/components/response.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
     ],
   },
@@ -446,21 +455,21 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
         'Read',
         { file_path: 'client/src/components/tool-row.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-reads-2',
         'Read',
         { file_path: 'client/src/components/timeline.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-reads-3',
         'Read',
         { file_path: 'client/src/components/context-group.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
     ],
   },
@@ -472,42 +481,42 @@ export const CONTEXT_SCENARIOS: ContextScenario[] = [
         'Read',
         { file_path: 'client/src/components/tool-row.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-mixed-2',
         'Read',
         { file_path: 'client/src/components/timeline.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-mixed-3',
         'Read',
         { file_path: 'client/src/components/response.tsx' },
         'succeeded',
-        READ_OUTPUT,
+        READ_OUTPUT
       ),
       contextCall(
         'ctx-mixed-4',
         'Grep',
         { pattern: 'groupTimeline', path: 'client/src' },
         'succeeded',
-        GREP_OUTPUT,
+        GREP_OUTPUT
       ),
       contextCall(
         'ctx-mixed-5',
         'Grep',
         { pattern: 'CONTEXT_TOOLS', path: 'client/src' },
         'succeeded',
-        GREP_OUTPUT,
+        GREP_OUTPUT
       ),
       contextCall(
         'ctx-mixed-6',
         'Glob',
         { pattern: 'client/src/components/*.tsx' },
         'succeeded',
-        GLOB_OUTPUT,
+        GLOB_OUTPUT
       ),
     ],
   },

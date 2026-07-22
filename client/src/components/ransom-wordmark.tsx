@@ -105,10 +105,7 @@ function rollNext(current: Scrap[], pool?: Record<string, string[]>): Scrap[] {
     const taken = new Set(next.filter((s) => s.letter === scrap.letter).map((s) => s.file))
     const allowed = pool?.[scrap.letter]
     const options = (RANSOM[scrap.letter] ?? []).filter(
-      (v) =>
-        v.file !== scrap.file &&
-        !taken.has(v.file) &&
-        (!allowed || allowed.includes(v.file))
+      (v) => v.file !== scrap.file && !taken.has(v.file) && (!allowed || allowed.includes(v.file))
     )
     if (options.length === 0) {
       // Keep file, re-jitter so a click still feels like a re-tape.

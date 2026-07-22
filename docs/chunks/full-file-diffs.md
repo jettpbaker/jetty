@@ -5,7 +5,7 @@ Design note; build starts once Jett has reviewed. Diagnosis and repro live in
 tokenizes `isPartial` patches hunk-by-hunk, so a `.vue` hunk without the
 `<script>` tag in its context lines never enters the JS grammar and renders
 flat. Full old/new file contents make the diff non-partial, which fixes
-highlighting for every language *and* makes the "N unmodified lines" bars
+highlighting for every language _and_ makes the "N unmodified lines" bars
 expandable (`FileDiff.expandHunk` exists in the lib; it just has nothing to
 expand into today).
 
@@ -16,8 +16,8 @@ expand into today).
 ```ts
 type DiffFile = {
   path: string
-  oldContents: string | null  // null = created
-  newContents: string | null  // null = deleted
+  oldContents: string | null // null = created
+  newContents: string | null // null = deleted
 }
 // result: { files: DiffFile[], truncatedPaths?: string[] }
 ```

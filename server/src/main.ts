@@ -77,7 +77,9 @@ function originAllowed(req: Request): boolean {
   if (!origin) return true
   try {
     const host = new URL(origin).hostname
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || extraOrigins.has(origin)
+    return (
+      host === 'localhost' || host === '127.0.0.1' || host === '::1' || extraOrigins.has(origin)
+    )
   } catch {
     return false
   }

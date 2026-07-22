@@ -31,7 +31,7 @@ real UI:
 - jetty's `thread.diff` sends a unified git patch; `@pierre/diffs` parses it as
   `isPartial` (no full file contents) and tokenizes **each hunk in isolation**.
 - For a `.vue` file the grammar is `vue`, and JS only gets keyword/string
-  scopes *inside* a `<script>` embedding. A hunk whose ±3 context lines don't
+  scopes _inside_ a `<script>` embedding. A hunk whose ±3 context lines don't
   include the `<script>` tag never enters the JS grammar → every line renders
   flat editor-foreground. Hunks that happen to include `<script>` (or template
   markup, whose attribute strings the vue grammar colours directly) highlight
@@ -42,6 +42,7 @@ real UI:
   `UserCard.vue` → fully coloured. Same session, same warm grammar.
 
 **Fix options, ranked** (none applied — awaiting review):
+
 1. **Preferred:** have `thread.diff` also ship full old/new file contents and
    render non-partial (`MultiFileDiff`-style), so the highlighter sees the
    whole SFC. Server reads both sides from git; kills the bug for every
@@ -60,6 +61,7 @@ worth one confirming glance at a real work diff after the fix.
 ## Group C — needs your input before/while building
 
 ### JET-4 · Optimistic send (message + thread view instantly)
+
 Core to jetty's #1 UX value (network never on the click path). On send:
 immediately swap to thread view, render the message pending from local state,
 reconcile on server ack. Touches composer → store → thread view flow, so it's
@@ -67,7 +69,9 @@ a real chunk with a design note first per the repo workflow. No taste
 questions expected, but flagging it as the largest code change in Group C.
 
 ### JET-10 · Diff viewer polish
+
 Four parts, three of them unambiguous:
+
 - open from the **existing sidebar icon** (not the separate diffs icon)
 - overlapping the tab bar is fine
 - open/close **instant**, no animation
@@ -78,15 +82,17 @@ Four parts, three of them unambiguous:
   My lean: (a) free drag + remembered width — least mechanism, feels native.
 
 ### JET-11 · [Spike] Thread archive/deletion behaviour
+
 Pure decision spike — deliverable is a decision + follow-up issues, not code.
 Taste calls for you:
+
 - archive only, delete only, or both?
 - if delete: trash-then-purge or immediate? (additive-only migrations mean
   soft-delete flag either way; hard delete needs a considered path)
 - where do actions live (thread row menu / thread view) and where do archived
   threads go (hidden, filter toggle, separate view)?
-My lean: archive-only for now (soft flag, hidden from list, restorable),
-defer true delete until there's a real need.
+  My lean: archive-only for now (soft flag, hidden from list, restorable),
+  defer true delete until there's a real need.
 
 ## Proposed order
 

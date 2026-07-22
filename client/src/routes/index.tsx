@@ -34,7 +34,8 @@ const kbd =
 const row =
   'group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted'
 
-const sectionLabel = 'font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70'
+const sectionLabel =
+  'font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70'
 
 function relTime(ts: number): string {
   const s = Math.max(0, (Date.now() - ts) / 1000)
@@ -139,7 +140,10 @@ function HomePage() {
 
   const lastActivity = new Map<string, number>()
   for (const thread of chrome.threads) {
-    lastActivity.set(thread.projectId, Math.max(lastActivity.get(thread.projectId) ?? 0, thread.updatedAt))
+    lastActivity.set(
+      thread.projectId,
+      Math.max(lastActivity.get(thread.projectId) ?? 0, thread.updatedAt)
+    )
   }
   const projects = [...chrome.projects].sort(
     (a, b) => (lastActivity.get(b.id) ?? b.createdAt) - (lastActivity.get(a.id) ?? a.createdAt)
@@ -150,7 +154,11 @@ function HomePage() {
       <div className='mx-auto w-full max-w-2xl px-2 pt-14 pb-20'>
         <header className='mb-14 flex items-center justify-between gap-4'>
           <RansomWordmark lineH={50} />
-          <button type='button' className={emberAction} {...pressHandlers(() => newThread(loadLastProjectId()))}>
+          <button
+            type='button'
+            className={emberAction}
+            {...pressHandlers(() => newThread(loadLastProjectId()))}
+          >
             <PlusIcon className='size-4' />
             New thread
           </button>
@@ -173,9 +181,15 @@ function HomePage() {
             <ul className='flex flex-col'>
               {recent.map((thread) => (
                 <li key={thread.id}>
-                  <button type='button' className={row} {...pressHandlers(() => openThread(thread.id))}>
+                  <button
+                    type='button'
+                    className={row}
+                    {...pressHandlers(() => openThread(thread.id))}
+                  >
                     <StatusDot status={thread.status} />
-                    <span className='min-w-0 flex-1 truncate text-sm'>{thread.title || thread.id}</span>
+                    <span className='min-w-0 flex-1 truncate text-sm'>
+                      {thread.title || thread.id}
+                    </span>
                     {thread.git && <GitTag git={thread.git} />}
                     <span className='hidden max-w-[8rem] shrink-0 truncate font-mono text-xs text-muted-foreground/50 sm:inline'>
                       {projectById.get(thread.projectId)?.title}

@@ -10,23 +10,23 @@ verified against the installed SDK (`server/node_modules/@anthropic-ai/claude-ag
 delegate; each subagent runs in a fresh context and only its final message
 returns to the parent as the tool result. Two modes:
 
-- *Foreground*: parent waits; renders as an inline tool row with live spinner,
+- _Foreground_: parent waits; renders as an inline tool row with live spinner,
   description, and climbing token count.
-- *Background* (the default since 2.1.198): parent gets a task id and keeps
+- _Background_ (the default since 2.1.198): parent gets a task id and keeps
   going; results arrive later as a task notification. Claude Code lists these
   **under the prompt box** — a strip of live tasks (status glyph, description,
   age), expandable, `/tasks` to inspect.
 
-**Workflows**: a JS orchestration script runs *outside* the conversation and
+**Workflows**: a JS orchestration script runs _outside_ the conversation and
 fans out up to hundreds of agents (`agent()` / `pipeline()` / `phase()`);
 intermediate results live in script variables, never in context; only the
 final return lands in the conversation. Claude Code gives them the `/workflows`
 view: a progress tree grouped by phase (agent count, token total, elapsed),
 drill-in per agent, plus the same one-line summary in the under-prompt strip.
 
-The distinction that matters for UI: a subagent is *part of the turn's story*
-(it belongs in the timeline), while a workflow/background task is *ambient
-work the session is doing* (it outlives scrolling, and can outlive the turn —
+The distinction that matters for UI: a subagent is _part of the turn's story_
+(it belongs in the timeline), while a workflow/background task is _ambient
+work the session is doing_ (it outlives scrolling, and can outlive the turn —
 it belongs to the session chrome, near the composer).
 
 ## 2. What the SDK actually gives us
@@ -35,16 +35,16 @@ All of this is in the installed types; none of it is consumed by jetty today
 (`claude-translate.ts` drops every `parent_tool_use_id` message and every
 system subtype except `init`).
 
-| Message | Payload | Use |
-|---|---|---|
-| `task_started` | `task_id`, `tool_use_id?`, `description`, `subagent_type?`, `task_type?`, `workflow_name?` (set when `task_type === 'local_workflow'`), `prompt?`, `skip_transcript?` | Create the task item / dock entry |
-| `task_progress` | `task_id`, `usage {total_tokens, tool_uses, duration_ms}`, `last_tool_name?`, `summary?` | The live heartbeat |
-| `task_updated` | `patch {status, description, is_backgrounded, error, end_time…}` | Status transitions, foreground→background |
-| `task_notification` | `status: completed\|failed\|stopped`, `summary`, `usage`, `output_file` | Settle the item; toast/badge |
-| `background_tasks_changed` | full `tasks[]`, **replace semantics** | The "is background work running" level signal — docs explicitly say to swap your set, not pair edges |
-| `tool_progress` | `tool_use_id`, `tool_name`, `parent_tool_use_id`, `task_id?`, elapsed | Per-tool ticks inside a subagent |
-| `forwardSubagentText: true` (option) | assistant/user messages with `parent_tool_use_id` set | Full nested subagent transcript — the SDK invites a nested-timeline UI |
-| `tool_use_result` on user msgs | `AgentToolCompletedOutput` — structured final report + run totals | Render the result without parsing tool_result text |
+| Message                              | Payload                                                                                                                                                               | Use                                                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `task_started`                       | `task_id`, `tool_use_id?`, `description`, `subagent_type?`, `task_type?`, `workflow_name?` (set when `task_type === 'local_workflow'`), `prompt?`, `skip_transcript?` | Create the task item / dock entry                                                                    |
+| `task_progress`                      | `task_id`, `usage {total_tokens, tool_uses, duration_ms}`, `last_tool_name?`, `summary?`                                                                              | The live heartbeat                                                                                   |
+| `task_updated`                       | `patch {status, description, is_backgrounded, error, end_time…}`                                                                                                      | Status transitions, foreground→background                                                            |
+| `task_notification`                  | `status: completed\|failed\|stopped`, `summary`, `usage`, `output_file`                                                                                               | Settle the item; toast/badge                                                                         |
+| `background_tasks_changed`           | full `tasks[]`, **replace semantics**                                                                                                                                 | The "is background work running" level signal — docs explicitly say to swap your set, not pair edges |
+| `tool_progress`                      | `tool_use_id`, `tool_name`, `parent_tool_use_id`, `task_id?`, elapsed                                                                                                 | Per-tool ticks inside a subagent                                                                     |
+| `forwardSubagentText: true` (option) | assistant/user messages with `parent_tool_use_id` set                                                                                                                 | Full nested subagent transcript — the SDK invites a nested-timeline UI                               |
+| `tool_use_result` on user msgs       | `AgentToolCompletedOutput` — structured final report + run totals                                                                                                     | Render the result without parsing tool_result text                                                   |
 
 Notes:
 
@@ -93,7 +93,7 @@ per-thread next to `status`; this drives the composer-adjacent dock. Replace
 semantics per the SDK docs; reset to empty on process (re)start.
 
 **Later (phase 2):** `forwardSubagentText: true` + routing
-`parent_tool_use_id` messages into a *child item list* keyed by the parent
+`parent_tool_use_id` messages into a _child item list_ keyed by the parent
 task item, instead of dropping them — this is the nested-transcript unlock.
 Needs a `parentId` on items and a reducer path that appends to a child
 collection; the translate ctx grows a per-subagent streaming ctx. Meaningful
@@ -117,7 +117,7 @@ Claude Code's under-prompt strip: a slim row of task pills between timeline
 and composer — status dot (pulsing while live), short description, live token
 count. Click a pill → expands to a card (prompt, heartbeat detail, result
 when done). Driven by `session.tasks` + the item stream. This is where
-*background* work lives once the timeline has scrolled on; it's also the
+_background_ work lives once the timeline has scrolled on; it's also the
 natural home for `skip_transcript` ambient tasks and multi-turn workflows.
 
 **C. Workflow card** (timeline). Workflows get a slightly bigger inline

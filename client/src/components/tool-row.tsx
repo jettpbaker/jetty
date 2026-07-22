@@ -1,16 +1,13 @@
 import type { ThreadItem } from '@jetty/shared/items'
-import { type ReactNode, useState } from 'react'
 
 import { EditDiff } from '@/components/diff-panel'
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
+import { type ReactNode, useState } from 'react'
 
 type ToolCallItem = Extract<ThreadItem, { kind: 'tool_call' }>
 
-type Field =
-  | { kind: 'text'; value: string; mono?: boolean }
-  | { kind: 'path'; path: string }
-  | null
+type Field = { kind: 'text'; value: string; mono?: boolean } | { kind: 'path'; path: string } | null
 
 type ToolDef = {
   running: string
@@ -251,9 +248,7 @@ function PathField({ path }: { path: string }) {
 function FieldView({ field }: { field: Exclude<Field, null> }) {
   if (field.kind === 'path') return <PathField path={field.path} />
   return (
-    <span
-      className={cn('block truncate text-muted-foreground', field.mono && 'font-mono')}
-    >
+    <span className={cn('block truncate text-muted-foreground', field.mono && 'font-mono')}>
       {field.value}
     </span>
   )
@@ -329,7 +324,7 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
         <div
           className={cn(
             'flex w-full min-w-0 items-baseline gap-2 text-sm',
-            hasBody && 'cursor-pointer select-none',
+            hasBody && 'cursor-pointer select-none'
           )}
           {...(hasBody ? pressHandlers(toggle) : {})}
         >
@@ -356,7 +351,7 @@ export function ToolRow({ item }: { item: ToolCallItem }) {
       <div
         className={cn(
           'flex w-full min-w-0 items-baseline gap-2 text-sm',
-          hasBody && 'cursor-pointer select-none',
+          hasBody && 'cursor-pointer select-none'
         )}
         {...(hasBody ? pressHandlers(toggle) : {})}
       >

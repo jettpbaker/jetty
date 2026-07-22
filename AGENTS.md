@@ -22,7 +22,7 @@ plan and status checklist — keep it current as chunks land.
 mechanics in short:
 
 - You act in Linear as **Claude Cook**, the app user — never as Jett. The
-  Linear MCP is authenticated as Jett, so it's for *reading/triage only*;
+  Linear MCP is authenticated as Jett, so it's for _reading/triage only_;
   anything that writes (state changes, comments, assignment) goes through the
   GraphQL API with Cook's token.
 - Token: `~/.config/jetty/linear-cook-token`, sent as `Authorization: Bearer`.
