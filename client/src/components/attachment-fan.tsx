@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
 
 import { usePromptInputAttachments } from '@/components/ai-elements/prompt-input'
-import { useEffect, useRef } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useEffect, useRef, useState } from 'react'
 
 // Image attachments as a hand of cards fanned around the composer's
 // top-right corner. Every card's base is planted at a pivot just inside the
@@ -46,8 +47,9 @@ const TOSS_DISTANCE = 90
 
 export function AttachmentFan({ config = DEFAULT_FAN }: { config?: FanConfig }) {
   const { files, remove } = usePromptInputAttachments()
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null)
   const images = files.filter((f) => f.mediaType?.startsWith('image/') && f.url)
-  if (images.length === 0) return null
+  if (images.length === 0 && preview === null) return null
 
   // Newest last in files → index 0 is the top, most-clockwise card.
   const stack = [...images].reverse()
@@ -68,8 +70,24 @@ export function AttachmentFan({ config = DEFAULT_FAN }: { config?: FanConfig }) 
           angle={config.center + spread / 2 - i * step}
           zIndex={stack.length - i}
           onRemove={() => remove(file.id)}
+          onOpen={() =>
+            setPreview({ url: file.url!, name: file.filename || 'attachment' })
+          }
         />
       ))}
+      <Dialog open={preview !== null} onOpenChange={(open) => !open && setPreview(null)}>
+        <DialogContent
+          showCloseButton={false}
+          className='w-auto max-w-[90vw] rounded-none bg-transparent p-0 ring-0 sm:max-w-[90vw]'
+        >
+          <DialogTitle className='sr-only'>{preview?.name}</DialogTitle>
+          <img
+            alt={preview?.name}
+            src={preview?.url}
+            className='max-h-[85vh] max-w-full rounded-lg object-contain'
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -170,6 +188,7 @@ function FanCard({
   angle,
   zIndex,
   onRemove,
+  onOpen,
 }: {
   file: { id: string; url?: string; filename?: string }
   config: FanConfig
@@ -177,6 +196,7 @@ function FanCard({
   angle: number
   zIndex: number
   onRemove: () => void
+  onOpen: () => void
 }) {
   const drag = useRef<{
     x: number
@@ -350,7 +370,13 @@ function FanCard({
       onPointerUp={(event) => {
         const from = drag.current
         drag.current = null
-        if (!from?.active) return
+        if (!from) return
+        // a press that never became a drag is a click: open the preview
+        // (on release, not press — it opens an overlay)
+        if (!from.active) {
+          onOpen()
+          return
+        }
         const dx = event.clientX - from.x
         const dy = event.clientY - from.y
         if (Math.hypot(dx, dy) > TOSS_DISTANCE) {
