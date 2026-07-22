@@ -200,7 +200,7 @@ export function TabBar() {
       <div className='flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {openEntries.map((entry, index) => {
           const active = entry.id === activeThreadId || entry.id === activeDraftId
-          const prev = openEntries[index - 1]
+          const next = openEntries[index + 1]
           const dragging = strip.drag?.from === index
           const title = entry.kind === 'thread' ? entry.thread.title || entry.thread.id : 'New thread'
           const open = () => {
@@ -210,18 +210,6 @@ export function TabBar() {
 
           return (
             <div key={entry.id} className='flex shrink-0 items-center'>
-              <div className='flex w-[13px] shrink-0 items-center justify-center'>
-                {index > 0 && (
-                  <Separator
-                    orientation='vertical'
-                    className={cn(
-                      'h-4! shrink-0 self-center! transition-opacity duration-150',
-                      (touchesFocus(prev?.id) || touchesFocus(entry.id) || strip.drag !== null) &&
-                        'opacity-0'
-                    )}
-                  />
-                )}
-              </div>
               <ContextMenu>
                 <ContextMenuTrigger
                   className={cn(
@@ -275,6 +263,18 @@ export function TabBar() {
                   )}
                 </ContextMenuContent>
               </ContextMenu>
+              <div className='flex w-[13px] shrink-0 items-center justify-center'>
+                {next && (
+                  <Separator
+                    orientation='vertical'
+                    className={cn(
+                      'h-4! shrink-0 self-center! transition-opacity duration-150',
+                      (touchesFocus(entry.id) || touchesFocus(next.id) || strip.drag !== null) &&
+                        'opacity-0'
+                    )}
+                  />
+                )}
+              </div>
             </div>
           )
         })}
