@@ -15,6 +15,7 @@ import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
+import { slog } from './log'
 import { readUsage } from './usage'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
@@ -188,6 +189,7 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
   function closeSession(threadId: string, reason?: string) {
     const session = sessions.get(threadId)
     if (!session || session.closed) return
+    slog('claude', `close session thread=${threadId} reason=${reason ?? 'idle ttl'}`)
     session.closed = true
     clearIdle(session)
     denyPendingApprovals(session)
@@ -226,6 +228,10 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
     try {
       for await (const msg of session.query) {
         if (session.closed) break
+        slog(
+          'claude',
+          `msg thread=${session.threadId} type=${msg.type}${'subtype' in msg ? ` subtype=${String(msg.subtype)}` : ''}`
+        )
 
         const events = translate(msg as Parameters<typeof translate>[0], session.ctx)
 
@@ -394,12 +400,18 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
         // recycles the session — the fresh one resumes the stored CC
         // sessionId, so conversation context survives
         if (existing.awaitingResult || existing.spawnKey === turnOptionsKey(input)) {
+          slog('claude', `reuse warm session thread=${input.threadId} turn=${input.turnId}`)
           return beginTurn(existing, input, emit)
         }
+        slog('claude', `recycle session thread=${input.threadId} (options changed)`)
         closeSession(input.threadId)
       }
 
       const session = spawnSession(input, emit, project.path)
+      slog(
+        'claude',
+        `spawn thread=${input.threadId} turn=${input.turnId} model=${input.model ?? '-'} cwd=${project.path} resume=${store.getThreadSessionId(input.threadId) ?? 'fresh'}`
+      )
       return beginTurn(session, input, emit)
     },
 

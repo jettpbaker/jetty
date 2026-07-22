@@ -10,6 +10,7 @@ import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 import type { Titler } from './titler'
 
+import { slog } from './log'
 import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
@@ -109,12 +110,14 @@ export function createOrchestrator(
 
       const existingTurnId = activeTurnId(input.threadId)
       if (existingTurnId && agent.steer(input.threadId, input.text, saved.images)) {
+        slog('orch', `steer thread=${input.threadId} turn=${existingTurnId}`)
         appendUserMessage(input.threadId, existingTurnId, input.text, saved.meta)
         return { turnId: existingTurnId }
       }
       // No active turn, or the warm session vanished mid-race — fresh turn.
 
       const turnId = newId()
+      slog('orch', `fresh turn thread=${input.threadId} turn=${turnId}`)
       liveTurns.set(input.threadId, turnId)
 
       try {
@@ -135,6 +138,7 @@ export function createOrchestrator(
           )
           .catch((err: unknown) => {
             const message = err instanceof Error ? err.message : String(err)
+            slog('orch', `startTurn failed thread=${input.threadId} turn=${turnId}: ${message}`)
             try {
               append(input.threadId, { type: 'turn.failed', turnId, error: message })
             } catch {

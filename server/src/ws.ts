@@ -10,6 +10,8 @@ import {
 } from '@jetty/shared/wire'
 
 import type { Hub, ConnData } from './hub'
+
+import { slog } from './log'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
@@ -122,6 +124,7 @@ export function createWs(
       }
       case 'turn.start': {
         const p = parsed.data as ParamsOf<'turn.start'>
+        slog('ws', `turn.start thread=${p.threadId} chars=${p.text.length} model=${p.model ?? '-'}`)
         return orch.startTurn({
           threadId: p.threadId,
           text: p.text,
