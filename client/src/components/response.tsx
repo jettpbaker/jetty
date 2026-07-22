@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react'
 import type { StreamdownProps, ThemeRegistrationAny } from 'streamdown'
 
+import { createCodePlugin } from '@/components/code-plugin'
 import { cn } from '@/lib/utils'
 // Zed "VS Code 2026 Dark" (~/.config/zed/themes/vscode-2026.json), ported to
 // TextMate scopes for Shiki. Not the microsoft/vscode theme-defaults JSON.
@@ -17,10 +18,10 @@ import {
   MagnifyingGlassPlusIcon,
   XIcon,
 } from '@phosphor-icons/react'
-import { createCodePlugin } from '@streamdown/code'
 import { memo } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+
 import './streamdown-overrides.css'
 
 const dark2026 = dark2026Json as ThemeRegistrationAny
@@ -28,7 +29,7 @@ const dark2026 = dark2026Json as ThemeRegistrationAny
 // streamdown prefers plugins.code.getThemes() over the shikiTheme prop — so the
 // theme has to be baked into the plugin. shikiTheme is kept in sync for anything
 // that still reads it off context.
-const codePlugin = createCodePlugin({ themes: [dark2026, dark2026] })
+const codePlugin = createCodePlugin([dark2026, dark2026])
 
 export type ResponseProps = ComponentProps<typeof Streamdown>
 

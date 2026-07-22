@@ -6,9 +6,15 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
+    alias: [
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      // bare `shiki` only — subpaths like shiki/core stay on the real package.
+      // Keeps @pierre/diffs (and anything else) on our trimmed language set.
+      {
+        find: /^shiki$/,
+        replacement: fileURLToPath(new URL('./src/lib/shiki-shim.ts', import.meta.url)),
+      },
+    ],
   },
   plugins: [
     tanstackRouter({
