@@ -1,9 +1,7 @@
-// Build-time stand-in for the bare `shiki` module (see the vite alias). The
-// real package's bundledLanguages drags every grammar into the build as lazy
-// chunks (~10MB); @pierre/diffs imports it and offers no way to trim. This shim
-// serves the same API limited to the languages in shiki-langs.ts. Named imports
-// missing here fail the build loudly — extend the re-export list if a dep needs
-// more. `shiki/core` and `shiki/engine/*` subpaths are untouched by the alias.
+// Aliased over bare `shiki` (see vite.config) so @pierre/diffs shares the
+// trimmed language set from shiki-langs.ts. Every named import a consumer uses
+// must be re-exported here or the build fails. `shiki/core` and
+// `shiki/engine/*` subpaths bypass the alias and hit the real package.
 import { createBundledHighlighter, createSingletonShorthands } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
@@ -13,10 +11,30 @@ export { createCssVariablesTheme, getTokenStyleObject, stringifyTokenStyle } fro
 export { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 export { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 
-export const bundledLanguages = {
+const loaders: Record<string, (typeof languages)[keyof typeof languages]> = {
   ...languages,
   ...Object.fromEntries(Object.entries(aliases).map(([alias, lang]) => [alias, languages[lang]])),
 }
+
+const plainTextLoader = (name: string) => () =>
+  Promise.resolve({ default: [{ name, scopeName: `source.${name}`, patterns: [] }] })
+
+// pierre derives languages from file extensions and its resolveLanguage throws
+// on keys missing here (an unhandled rejection per diff render). Report every
+// key present and serve an empty grammar, so out-of-set files tokenize as
+// plain text instead of throwing.
+export const bundledLanguages = new Proxy(loaders, {
+  has: () => true,
+  getOwnPropertyDescriptor: (target, key) =>
+    Object.getOwnPropertyDescriptor(target, key) ?? {
+      value: undefined,
+      writable: true,
+      enumerable: false,
+      configurable: true,
+    },
+  get: (target, key) =>
+    target[key as string] ?? (typeof key === 'string' ? plainTextLoader(key) : undefined),
+})
 
 export const bundledThemes = {}
 

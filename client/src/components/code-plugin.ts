@@ -7,8 +7,6 @@ import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
 type HighlightResult = NonNullable<ReturnType<CodeHighlighterPlugin['highlight']>>
 
-// Replaces @streamdown/code, which bundles every Shiki grammar. Languages come
-// from the shared shiki-langs list; anything else falls back to plain text.
 // Themes must be registration objects — a core highlighter can't resolve
 // bundled-theme name strings, and jetty only uses its own baked-in theme.
 export function createCodePlugin(
@@ -36,7 +34,7 @@ export function createCodePlugin(
     getThemes: () => themes,
     highlight({ code, language }, callback) {
       const lang = resolveLanguage(language)
-      const key = `${lang}:${code.length}:${code.slice(0, 100)}:${code.slice(-100)}`
+      const key = `${lang}:${code}`
       const cached = results.get(key)
       if (cached) return cached
 
@@ -53,6 +51,8 @@ export function createCodePlugin(
           await highlighter.loadLanguage(languages[lang])
         }
         const result = highlighter.codeToTokens(code, { lang, themes: themeNames })
+        // streaming re-highlights on every chunk, one dead entry each — keep it bounded
+        if (results.size >= 512) results.clear()
         results.set(key, result)
         const callbacks = pending.get(key)
         pending.delete(key)
