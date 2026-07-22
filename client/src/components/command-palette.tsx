@@ -11,6 +11,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import {
   ArrowBendUpLeftIcon,
   ChatCircleIcon,
@@ -170,7 +171,7 @@ function Palette({ open, onOpenChange, mode, setMode, query, setQuery }: Palette
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      className='bg-popover/70 before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-lg before:backdrop-saturate-150'
+      className='sm:max-w-2xl bg-popover/45 before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-lg before:backdrop-saturate-150'
     >
       <Command shouldFilter={mode === 'root'} className='relative bg-transparent'>
         <CommandInput
@@ -183,7 +184,7 @@ function Palette({ open, onOpenChange, mode, setMode, query, setQuery }: Palette
               : 'Search projects and threads...'
           }
         />
-        <CommandList>
+        <CommandList className='max-h-96'>
           {mode === 'root' ? (
             <RootItems
               chrome={chrome}
@@ -203,8 +204,22 @@ function Palette({ open, onOpenChange, mode, setMode, query, setQuery }: Palette
             />
           )}
         </CommandList>
-        <div className='px-3 py-2 text-xs text-muted-foreground'>
-          ↑↓ navigate · ↵ select · esc close
+        <div className='flex items-center justify-between border-t border-border px-4 py-2 text-xs text-muted-foreground'>
+          <span className='flex items-center gap-1.5'>
+            <KbdGroup>
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd>
+            </KbdGroup>
+            navigate
+          </span>
+          <span className='flex items-center gap-3'>
+            <span className='flex items-center gap-1.5'>
+              select <Kbd>↵</Kbd>
+            </span>
+            <span className='flex items-center gap-1.5'>
+              close <Kbd>esc</Kbd>
+            </span>
+          </span>
         </div>
       </Command>
     </CommandDialog>
@@ -250,7 +265,9 @@ function RootItems({
             >
               <FolderIcon />
               <span className='min-w-0 truncate'>{project.title}</span>
-              <span className='min-w-0 truncate text-xs text-muted-foreground'>{project.path}</span>
+              <span className='ml-auto min-w-0 truncate pl-4 text-xs text-muted-foreground'>
+                {project.path}
+              </span>
             </CommandItem>
           ))}
         </CommandGroup>
@@ -268,7 +285,7 @@ function RootItems({
                 <ChatCircleIcon />
                 <span className='min-w-0 truncate'>{thread.title || thread.id}</span>
                 {project && (
-                  <span className='min-w-0 truncate text-xs text-muted-foreground'>
+                  <span className='ml-auto min-w-0 truncate pl-4 text-xs text-muted-foreground'>
                     {project.title}
                   </span>
                 )}
@@ -331,7 +348,7 @@ function BrowseItems({
             >
               <FolderIcon />
               <span className='min-w-0 truncate'>{entry.name}</span>
-              <span className='min-w-0 truncate text-xs text-muted-foreground'>
+              <span className='ml-auto min-w-0 truncate pl-4 text-xs text-muted-foreground'>
                 {entry.fullPath}
               </span>
             </CommandItem>
