@@ -1,15 +1,18 @@
 import type { SessionStatus } from '@jetty/shared/events'
-import type { Project, ThreadGitStatus } from '@jetty/shared/wire'
+import type { ThreadGitStatus, ThreadMeta } from '@jetty/shared/wire'
 
 import { chromeStore, draftsStore, tabsStore } from '@/app-state'
 import { useCommandPalette } from '@/components/command-palette'
 import { RansomWordmark } from '@/components/ransom-wordmark'
+import { StatusGlyph } from '@/components/status-glyph'
+import { UsageMeter } from '@/components/usage-meter'
 import { loadLastProjectId, saveLastProjectId } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
 import { cn } from '@/lib/utils'
 import {
-  FolderIcon,
+  ArchiveIcon,
   FolderPlusIcon,
+  GearIcon,
   GitBranchIcon,
   GitPullRequestIcon,
   MagnifyingGlassIcon,
@@ -22,8 +25,6 @@ export const Route = createFileRoute('/')({
   component: HomePage,
 })
 
-const RECENT_LIMIT = 12
-
 // One deliberate ember moment per page: the primary action wears the code chip.
 const emberAction =
   'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-code px-3 text-sm font-medium text-code-foreground transition-colors outline-none hover:bg-[color-mix(in_oklch,var(--code),var(--code-foreground)_16%)] focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px'
@@ -32,7 +33,10 @@ const kbd =
   'rounded border border-border bg-muted px-1 py-px font-mono text-[10px] leading-none text-muted-foreground'
 
 const row =
-  'group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted'
+  'group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-muted'
+
+const sideItem =
+  'group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 
 const sectionLabel =
   'font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70'
@@ -51,17 +55,25 @@ function relTime(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function StatusDot({ status }: { status: SessionStatus }) {
-  // awaiting_approval is the launchpad's attention beat — an amber pip with a
-  // soft ring so a blocked agent draws the eye without shouting.
-  const cls: Record<SessionStatus, string> = {
-    starting: 'bg-muted-foreground animate-pulse',
-    running: 'bg-muted-foreground animate-pulse',
-    awaiting_approval: 'bg-amber-400 ring-3 ring-amber-400/20',
-    error: 'bg-destructive',
-    idle: 'bg-muted-foreground/35',
-  }
-  return <span className={cn('size-1.5 shrink-0 rounded-full', cls[status])} />
+/** Local time for a usage window reset — today → `6:00pm`; else `Mon 1am`. */
+function formatResetsAt(resetsAt: number): string {
+  const d = new Date(resetsAt)
+  const now = new Date()
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+
+  const hours24 = d.getHours()
+  const minutes = d.getMinutes()
+  const meridiem = hours24 >= 12 ? 'pm' : 'am'
+  const hours12 = hours24 % 12 || 12
+  if (sameDay) return `${hours12}:${String(minutes).padStart(2, '0')}${meridiem}`
+  // weekday form drops :00 — `Mon 1am`, not `Mon 1:00am`
+  const time =
+    minutes === 0 ? `${hours12}${meridiem}` : `${hours12}:${String(minutes).padStart(2, '0')}${meridiem}`
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' })
+  return `${weekday} ${time}`
 }
 
 // The interesting slice of git state, quietly: an open PR beats a feature
@@ -92,6 +104,46 @@ function GitTag({ git }: { git: ThreadGitStatus }) {
     )
   }
   return null
+}
+
+const DAY_MS = 86_400_000
+
+// Awaiting-approval leads today's bucket, then running/starting, then the rest —
+// the ranking only matters within "Today"; older buckets sort purely by recency.
+function statusRank(status: SessionStatus): number {
+  if (status === 'awaiting_approval') return 0
+  if (status === 'running' || status === 'starting') return 1
+  return 2
+}
+
+type Bucket = { label: string; threads: ThreadMeta[] }
+
+function bucketThreads(threads: ThreadMeta[]): Bucket[] {
+  const startToday = new Date().setHours(0, 0, 0, 0)
+  const sevenAgo = startToday - 7 * DAY_MS
+  const thirtyAgo = startToday - 30 * DAY_MS
+
+  const today: ThreadMeta[] = []
+  const week: ThreadMeta[] = []
+  const month: ThreadMeta[] = []
+  for (const thread of threads) {
+    if (thread.archived) continue
+    const t = thread.updatedAt
+    if (t >= startToday) today.push(thread)
+    else if (t >= sevenAgo) week.push(thread)
+    else if (t >= thirtyAgo) month.push(thread)
+    // older than 30 days drops off the launchpad entirely
+  }
+
+  today.sort((a, b) => statusRank(a.status) - statusRank(b.status) || b.updatedAt - a.updatedAt)
+  week.sort((a, b) => b.updatedAt - a.updatedAt)
+  month.sort((a, b) => b.updatedAt - a.updatedAt)
+
+  return [
+    { label: 'Today', threads: today },
+    { label: 'Last 7 days', threads: week },
+    { label: 'Last 30 days', threads: month },
+  ].filter((bucket) => bucket.threads.length > 0)
 }
 
 function HomePage() {
@@ -133,110 +185,108 @@ function HomePage() {
   }
 
   const projectById = new Map(chrome.projects.map((p) => [p.id, p]))
-  const recent = chrome.threads
-    .filter((thread) => !thread.archived)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, RECENT_LIMIT)
-
-  const lastActivity = new Map<string, number>()
-  for (const thread of chrome.threads) {
-    lastActivity.set(
-      thread.projectId,
-      Math.max(lastActivity.get(thread.projectId) ?? 0, thread.updatedAt)
-    )
-  }
-  const projects = [...chrome.projects].sort(
-    (a, b) => (lastActivity.get(b.id) ?? b.createdAt) - (lastActivity.get(a.id) ?? a.createdAt)
-  )
+  const buckets = bucketThreads(chrome.threads)
 
   return (
     <div className='h-full overflow-y-auto'>
-      <div className='mx-auto w-full max-w-2xl px-2 pt-14 pb-20'>
+      <div className='mx-auto w-full max-w-[62rem] px-6 pt-14 pb-20'>
         <header className='mb-14 flex items-center justify-between gap-4'>
           <RansomWordmark lineH={50} />
-          <button
-            type='button'
-            className={emberAction}
-            {...pressHandlers(() => newThread(loadLastProjectId()))}
-          >
-            <PlusIcon className='size-4' />
-            New thread
-          </button>
+          <div className='flex items-center gap-3.5'>
+            <button
+              type='button'
+              className='flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground'
+              onClick={() => openPalette()}
+            >
+              <MagnifyingGlassIcon className='size-3' />
+              search
+              <span className={kbd}>⌘K</span>
+            </button>
+            <button
+              type='button'
+              className={emberAction}
+              {...pressHandlers(() => newThread(loadLastProjectId()))}
+            >
+              <PlusIcon className='size-4' />
+              New thread
+            </button>
+          </div>
         </header>
 
-        {recent.length > 0 && (
-          <section className='mb-11'>
-            <div className='mb-1.5 flex items-center justify-between px-2.5'>
-              <h2 className={sectionLabel}>Resume</h2>
-              <button
-                type='button'
-                className='flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground'
-                onClick={() => openPalette()}
-              >
-                <MagnifyingGlassIcon className='size-3' />
-                search
-                <span className={kbd}>⌘K</span>
-              </button>
+        <div className='grid grid-cols-1 gap-x-14 gap-y-10 md:grid-cols-3'>
+          <aside className='order-2 flex flex-col md:order-1 md:col-span-1'>
+            <button
+              type='button'
+              className={sideItem}
+              {...pressHandlers(() => void navigate({ to: '/settings' }))}
+            >
+              <GearIcon className='size-4 shrink-0' />
+              Settings
+            </button>
+            {/* No archived view exists yet: visible but inert until it lands. */}
+            <div className='flex w-full cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground'>
+              <ArchiveIcon className='size-4 shrink-0' />
+              Archived threads
             </div>
-            <ul className='flex flex-col'>
-              {recent.map((thread) => (
-                <li key={thread.id}>
-                  <button
-                    type='button'
-                    className={row}
-                    {...pressHandlers(() => openThread(thread.id))}
-                  >
-                    <StatusDot status={thread.status} />
-                    <span className='min-w-0 flex-1 truncate text-sm'>
-                      {thread.title || thread.id}
-                    </span>
-                    {thread.git && <GitTag git={thread.git} />}
-                    <span className='hidden max-w-[8rem] shrink-0 truncate font-mono text-xs text-muted-foreground/50 sm:inline'>
-                      {projectById.get(thread.projectId)?.title}
-                    </span>
-                    <span className='w-8 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground/60'>
-                      {relTime(thread.updatedAt)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
 
-        <section>
-          <h2 className={cn(sectionLabel, 'mb-1.5 px-2.5')}>Projects</h2>
-          <ul className='flex flex-col'>
-            {projects.map((project) => (
-              <li key={project.id}>
-                <ProjectRow project={project} onOpen={() => newThread(project.id)} />
-              </li>
+            {chrome.usage && (
+              <div className='mt-4 flex flex-col gap-3.5 px-2.5'>
+                <UsageMeter
+                  label='5h window'
+                  pct={Math.round(chrome.usage.fiveHour.pct)}
+                  resets={formatResetsAt(chrome.usage.fiveHour.resetsAt)}
+                />
+                <UsageMeter
+                  label='Weekly limit'
+                  pct={Math.round(chrome.usage.sevenDay.pct)}
+                  dim
+                  resets={formatResetsAt(chrome.usage.sevenDay.resetsAt)}
+                />
+              </div>
+            )}
+
+            <button
+              type='button'
+              className={cn(row, 'mt-4')}
+              onClick={() => openPalette('add-project')}
+            >
+              <FolderPlusIcon className='size-4 shrink-0 text-muted-foreground' />
+              <span className='text-sm text-muted-foreground'>New project</span>
+            </button>
+          </aside>
+
+          <main className='order-1 md:order-2 md:col-span-2'>
+            {buckets.map((bucket) => (
+              <section key={bucket.label} className='mb-8'>
+                <h2 className={cn(sectionLabel, 'mb-1.5 px-2.5')}>{bucket.label}</h2>
+                <ul className='flex flex-col'>
+                  {bucket.threads.map((thread) => (
+                    <li key={thread.id}>
+                      <button
+                        type='button'
+                        className={row}
+                        {...pressHandlers(() => openThread(thread.id))}
+                      >
+                        <StatusGlyph status={thread.status} />
+                        <span className='min-w-0 flex-1 truncate text-sm'>
+                          {thread.title || thread.id}
+                        </span>
+                        {thread.git && <GitTag git={thread.git} />}
+                        <span className='hidden max-w-[8rem] shrink-0 truncate font-mono text-xs text-muted-foreground/50 sm:inline'>
+                          {projectById.get(thread.projectId)?.title}
+                        </span>
+                        <span className='w-8 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground/60'>
+                          {relTime(thread.updatedAt)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-            <li>
-              <button type='button' className={row} onClick={() => openPalette('add-project')}>
-                <FolderPlusIcon className='size-4 shrink-0 text-muted-foreground' />
-                <span className='text-sm text-muted-foreground'>New project</span>
-              </button>
-            </li>
-          </ul>
-        </section>
+          </main>
+        </div>
       </div>
     </div>
-  )
-}
-
-function ProjectRow({ project, onOpen }: { project: Project; onOpen: () => void }) {
-  return (
-    <button type='button' className={row} {...pressHandlers(onOpen)}>
-      <FolderIcon className='size-4 shrink-0 text-muted-foreground' />
-      <span className='shrink-0 truncate text-sm'>{project.title}</span>
-      <span className='min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground/45'>
-        {project.path}
-      </span>
-      <span className='flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground/0 transition-colors group-hover:text-muted-foreground'>
-        <PlusIcon className='size-3' />
-        thread
-      </span>
-    </button>
   )
 }

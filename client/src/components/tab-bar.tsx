@@ -1,5 +1,4 @@
 import type { Draft } from '@/state/drafts'
-import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadMeta } from '@jetty/shared/wire'
 
 import { chromeStore, draftsStore, socket, tabsStore } from '@/app-state'
@@ -10,22 +9,14 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { StatusGlyph } from '@/components/status-glyph'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { loadLastProjectId, removeDraft } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
 import { useStripDrag } from '@/lib/use-strip-drag'
 import { cn } from '@/lib/utils'
-import {
-  BellRingingIcon,
-  ExclamationMarkIcon,
-  HouseIcon,
-  MoonIcon,
-  PlusIcon,
-  SidebarSimpleIcon,
-  SpinnerIcon,
-  XIcon,
-} from '@phosphor-icons/react'
+import { HouseIcon, PlusIcon, SidebarSimpleIcon, XIcon } from '@phosphor-icons/react'
 import { useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState, useSyncExternalStore, type ReactElement } from 'react'
@@ -36,25 +27,6 @@ const DRAG_STEP = 189
 type StripEntry =
   | { kind: 'thread'; id: string; thread: ThreadMeta }
   | { kind: 'draft'; id: string; draft: Draft }
-
-function StatusGlyph({ status }: { status: SessionStatus }) {
-  switch (status) {
-    case 'idle':
-      return (
-        <MoonIcon
-          weight='fill'
-          className='size-glyph shrink-0 translate-y-px text-muted-foreground/60'
-        />
-      )
-    case 'running':
-    case 'starting':
-      return <SpinnerIcon className='size-glyph shrink-0 animate-spin text-muted-foreground' />
-    case 'awaiting_approval':
-      return <BellRingingIcon className='size-glyph shrink-0 text-amber-400' />
-    case 'error':
-      return <ExclamationMarkIcon className='size-glyph shrink-0 text-destructive' />
-  }
-}
 
 function IconTip({ label, children }: { label: string; children: ReactElement }) {
   return (
