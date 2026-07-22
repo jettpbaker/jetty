@@ -105,7 +105,7 @@ export function DiffView({
     return <DiffMessage>No uncommitted changes.</DiffMessage>
 
   return (
-    <div className='flex flex-col gap-3 p-3'>
+    <div className='flex flex-col gap-3'>
       {splitPatch(diff).map((section) => (
         <DiffBoundary key={section.slice(0, section.indexOf('\n'))}>
           <PatchDiff patch={section} options={PATCH_OPTIONS} />
