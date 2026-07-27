@@ -1,11 +1,6 @@
 import type { SessionStatus } from '@jetty/shared/events'
 
-import {
-  BellRingingIcon,
-  ExclamationMarkIcon,
-  MoonIcon,
-  SpinnerIcon,
-} from '@phosphor-icons/react'
+import { BellRingingIcon, ExclamationMarkIcon, MoonIcon, SpinnerIcon } from '@phosphor-icons/react'
 
 export function StatusGlyph({ status }: { status: SessionStatus }) {
   switch (status) {

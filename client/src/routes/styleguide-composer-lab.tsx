@@ -1,3 +1,4 @@
+import type { ContextUsage } from '@jetty/shared/events'
 import type { ChatStatus } from 'ai'
 import type { MouseEvent } from 'react'
 
@@ -17,6 +18,7 @@ import {
   type FanPivot,
 } from '@/components/attachment-fan'
 import { ComposerFooter, composerShell } from '@/components/composer'
+import { ContextMeterView } from '@/components/context-meter'
 import { acceptImages } from '@/lib/attachments'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -154,10 +156,12 @@ function BenchComposer({
   status,
   initialInput,
   disabled,
+  context,
 }: {
   status: ChatStatus
   initialInput?: string
   disabled?: boolean
+  context?: ContextUsage
 }) {
   return (
     <div className={composerShell}>
@@ -165,12 +169,37 @@ function BenchComposer({
         <PromptInput accept='image/*' multiple onSubmit={() => {}}>
           <PromptInputTextarea placeholder='Do anything' disabled={disabled} />
           <PromptInputFooter>
-            <ComposerFooter status={status} disabled={disabled} />
+            <ComposerFooter
+              status={status}
+              disabled={disabled}
+              trailing={context && <ContextMeterView usage={context} />}
+            />
           </PromptInputFooter>
         </PromptInput>
       </PromptInputProvider>
     </div>
   )
+}
+
+// Mock fills for the context meter: quiet, half-full, and past the crowded
+// threshold where it turns destructive.
+function mockContext(pct: number): ContextUsage {
+  const maxTokens = 200_000
+  const usedTokens = Math.round((pct / 100) * maxTokens)
+  const fixed = [
+    { label: 'System prompt', tokens: 3_248 },
+    { label: 'System tools', tokens: 11_760 },
+    { label: 'Memory files', tokens: 2_412 },
+    { label: 'MCP tools', tokens: 6_090 },
+  ]
+  const spent = fixed.reduce((sum, slice) => sum + slice.tokens, 0)
+  return {
+    usedTokens,
+    maxTokens,
+    compactAt: 180_000,
+    slices: [...fixed, { label: 'Messages', tokens: Math.max(0, usedTokens - spent) }],
+    asOf: Date.now(),
+  }
 }
 
 const BENCH_STATES: Array<{
@@ -179,6 +208,7 @@ const BENCH_STATES: Array<{
   status: ChatStatus
   initialInput?: string
   disabled?: boolean
+  context?: ContextUsage
 }> = [
   { label: 'ready · empty', note: 'draft page and idle threads', status: 'ready' },
   {
@@ -205,6 +235,24 @@ const BENCH_STATES: Array<{
     note: 'thread.create rejected — press send to retry',
     status: 'error',
     initialInput: 'Profile the timeline render.',
+  },
+  {
+    label: 'context · fresh',
+    note: 'a few turns in — click the ring for the breakdown',
+    status: 'ready',
+    context: mockContext(12),
+  },
+  {
+    label: 'context · half',
+    note: 'messages now dominate the window',
+    status: 'ready',
+    context: mockContext(58),
+  },
+  {
+    label: 'context · crowded',
+    note: 'past 90% — the ring goes destructive, compaction is close',
+    status: 'ready',
+    context: mockContext(94),
   },
 ]
 
@@ -271,6 +319,7 @@ export function ComposerLab() {
               status={bench.status}
               initialInput={bench.initialInput}
               disabled={bench.disabled}
+              context={bench.context}
             />
           </div>
         ))}

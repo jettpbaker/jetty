@@ -40,6 +40,10 @@ stays and tracks status.
       (folder picker → create).
 - [ ] **9. diff viewer** — unified patches (SDK `getWorkspaceDiff`, plain `git diff`
       fallback) rendered with `@pierre/diffs`.
+- [ ] **context meter** — ring under the composer fed by the SDK's
+      `getContextUsage()` control request, polled from the warm session and
+      folded into `ThreadState` as `context`. Popover carries the category
+      breakdown; the echo agent mocks a ramp so it's demoable without Claude.
 
 Design pass (the big one at the end) — collected UI/UX work that wants real
 daily-driving mileage before deciding:

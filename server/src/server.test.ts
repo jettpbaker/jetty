@@ -221,6 +221,16 @@ describe('server skeleton', () => {
       usage: { inputTokens: 5, outputTokens: 5 },
     })
 
+    const contextEvents = events.filter((e) => e.type === 'context.updated')
+    expect(contextEvents.length).toBeGreaterThanOrEqual(1)
+    const lastContext = contextEvents.at(-1)!
+    expect(lastContext.type).toBe('context.updated')
+    if (lastContext.type === 'context.updated') {
+      const sliceSum = lastContext.usage.slices.reduce((sum, s) => sum + s.tokens, 0)
+      expect(sliceSum).toBe(lastContext.usage.usedTokens)
+      expect(lastContext.usage.maxTokens).toBe(200_000)
+    }
+
     // seqs are contiguous from 1
     const seqs = threadEvents(c, thread.id).map((m) => m.seq)
     expect(seqs).toEqual(seqs.map((_, i) => i + 1))
@@ -232,6 +242,11 @@ describe('server skeleton', () => {
         items: Array<{ kind: string; text?: string; output?: string; status?: string }>
         status: string
         lastSeq: number
+        context: {
+          usedTokens: number
+          maxTokens: number
+          slices: Array<{ label: string; tokens: number }>
+        } | null
       }
       seq: number
     }>('thread.subscribe', { threadId: thread.id })
@@ -243,6 +258,10 @@ describe('server skeleton', () => {
     const tool = again.snapshot.items.find((i) => i.kind === 'tool_call')
     expect(tool?.status).toBe('succeeded')
     expect(tool?.output).toBe('echo: hello')
+    expect(again.snapshot.context).not.toBeNull()
+    expect(again.snapshot.context!.slices.reduce((s, x) => s + x.tokens, 0)).toBe(
+      again.snapshot.context!.usedTokens
+    )
 
     c.close()
     c2.close()

@@ -15,6 +15,7 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentFan } from '@/components/attachment-fan'
+import { ContextMeter } from '@/components/context-meter'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -78,13 +79,15 @@ export function insertComposerChar(textarea: HTMLTextAreaElement, char: string) 
 }
 
 // Footer: add-image and approval picker left, model+effort picker and send
-// right. Extra controls (styleguide seed button) slot in via children.
+// right. Extra controls (styleguide seed button) slot in via children; the
+// context meter rides the right cluster via trailing.
 // scopeId is the draft or thread id — prefs are per-scope with a global default.
 export function ComposerFooter({
   status,
   disabled,
   onSubmitClick,
   scopeId,
+  trailing,
   children,
 }: {
   status: ChatStatus
@@ -92,6 +95,7 @@ export function ComposerFooter({
   onSubmitClick?: (event: MouseEvent<HTMLButtonElement>) => void
   /** draft or thread id; omit only for non-thread surfaces (styleguide) */
   scopeId?: string
+  trailing?: ReactNode
   children?: ReactNode
 }) {
   const attachments = usePromptInputAttachments()
@@ -134,6 +138,7 @@ export function ComposerFooter({
       </DropdownMenu>
       {children}
       <div className='ml-auto flex items-center gap-1'>
+        {trailing}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -254,6 +259,7 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
             scopeId={threadId}
             status={chatStatus(status)}
             onSubmitClick={handleSubmitClick}
+            trailing={<ContextMeter threadId={threadId} />}
           />
         </PromptInputFooter>
       </ComposerShell>

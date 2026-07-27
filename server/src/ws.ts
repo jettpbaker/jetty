@@ -10,14 +10,13 @@ import {
 } from '@jetty/shared/wire'
 
 import type { Hub, ConnData } from './hub'
-
-import { slog } from './log'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
 import { computeThreadDiff } from './diff'
 import { browse } from './fs-browse'
 import { searchFiles } from './fs-search'
+import { slog } from './log'
 import { StoreError } from './store'
 
 export type WsServer = {

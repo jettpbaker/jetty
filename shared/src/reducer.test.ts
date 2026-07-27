@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import type { ThreadEvent } from './events'
 import type { ThreadItem } from './items'
 
-import { applyEvent, emptyThread, type ThreadState } from './reducer'
+import { applyEvent, emptyThread, ThreadState } from './reducer'
 
 function run(events: ThreadEvent[], from: ThreadState = emptyThread): ThreadState {
   return events.reduce(
@@ -137,5 +137,41 @@ describe('applyEvent', () => {
     const state = run([{ type: 'item.delta', itemId: 'ghost', delta: 'hi' }])
     expect(state.items).toEqual([])
     expect(state.lastSeq).toBe(1)
+  })
+
+  test('context.updated lands in state.context and later replaces it', () => {
+    const first = {
+      usedTokens: 12_000,
+      maxTokens: 200_000,
+      compactAt: 180_000,
+      slices: [{ label: 'Messages', tokens: 12_000 }],
+      asOf: 1,
+    }
+    const second = {
+      usedTokens: 48_000,
+      maxTokens: 200_000,
+      slices: [
+        { label: 'System prompt', tokens: 3_000 },
+        { label: 'Messages', tokens: 45_000 },
+      ],
+      model: 'sonnet',
+      asOf: 2,
+    }
+    const mid = run([{ type: 'context.updated', usage: first }])
+    expect(mid.context).toEqual(first)
+    const state = run([{ type: 'context.updated', usage: second }], mid)
+    expect(state.context).toEqual(second)
+  })
+
+  test('ThreadState blobs without context still safeParse with context null', () => {
+    const legacy = {
+      items: [],
+      status: 'idle',
+      activeTurnId: null,
+      lastSeq: 0,
+    }
+    const parsed = ThreadState.safeParse(legacy)
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.context).toBeNull()
   })
 })
