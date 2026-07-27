@@ -93,3 +93,25 @@ mechanics in short:
 - The companion rule: prefer easy undo over confirm dialogs. Act fast, make it
   reversible — don't use a modal as a safety net for an action that could just be
   undoable.
+
+## Cursor Cloud specific instructions
+
+- Runtime is **Bun** (installed at `~/.bun/bin`, on `PATH` via `~/.bashrc`). The
+  startup update script runs `bun install`; all commands below assume `bun` is on
+  `PATH`. Standard scripts live in root `package.json` — read it rather than
+  memorizing flags.
+- **Run without any Claude/API auth**: set `JETTY_AGENT=echo`. The built-in echo
+  agent needs zero external deps and is what `bun test` uses. The real `claude`
+  agent needs the Claude Code CLI's own auth (`~/.claude`); the code does not read
+  `ANTHROPIC_API_KEY` directly, so real-agent turns fail here unless that auth is
+  present. Default to `echo` for local testing.
+- Dev mode is two processes: `bun run dev:server` (API + WS on `8787`) and
+  `bun run dev:client` (Vite on `5173`, which proxies `/ws` + `/attachments` to
+  `8787`). Prefix the server with `JETTY_AGENT=echo` for an auth-free stack.
+- Vite binds to **`localhost` (IPv6 `::1`) only**, not `0.0.0.0` — health-check it
+  via `http://localhost:5173`, not `http://127.0.0.1:5173` (the latter returns no
+  connection).
+- SQLite is embedded (`bun:sqlite`, file under `~/.jetty`) — there is no database
+  service to start.
+- `bun test` forces the echo agent; the one live-Claude test is skipped unless
+  `JETTY_LIVE_TEST=1` (spends tokens — leave it skipped).
