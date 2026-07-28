@@ -3,7 +3,6 @@ import type { ContextUsage } from '@jetty/shared/events'
 
 /** Only place the SDK getContextUsage method name may appear. */
 export async function readContextUsage(query: Query): Promise<ContextUsage | null> {
-  if (typeof query.getContextUsage !== 'function') return null
   try {
     const response = await query.getContextUsage()
     const maxTokens = Number(response.maxTokens)
