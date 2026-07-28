@@ -116,10 +116,11 @@ export function createTimelineStore(
       return cache.get(threadId) ?? emptyThread
     },
     openThread(threadId) {
-      if (!cache.has(threadId)) {
-        cache.set(threadId, emptyThread)
+      let state = cache.get(threadId)
+      if (!state) {
+        state = emptyThread
+        cache.set(threadId, state)
       }
-      const state = cache.get(threadId) ?? emptyThread
       openThreadId = threadId
       touchHeld(threadId)
       subscribeThread(threadId)

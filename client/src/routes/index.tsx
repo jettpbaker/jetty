@@ -190,7 +190,7 @@ function HomePage() {
   const query = filter.trim().toLowerCase()
   const visible = query
     ? chrome.threads.filter((thread) =>
-        `${thread.title ?? ''} ${projectById.get(thread.projectId)?.title ?? ''}`
+        `${thread.title} ${projectById.get(thread.projectId)?.title ?? ''}`
           .toLowerCase()
           .includes(query)
       )
