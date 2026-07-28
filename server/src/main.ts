@@ -1,8 +1,8 @@
+import type { Usage } from '@jetty/shared/wire'
+
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
-
-import type { Usage } from '@jetty/shared/wire'
 
 import type { Titler } from './titler'
 
