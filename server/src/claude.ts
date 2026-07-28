@@ -15,14 +15,13 @@ import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
-import { readContextUsage } from './context-usage'
+import { type ContextPoller, createContextPoller, readContextUsage } from './context-usage'
 import { slog } from './log'
 import { readUsage } from './usage'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 /** Fallback when a turn omits model — the composer normally always sends one. */
 const DEFAULT_MODEL = 'haiku'
-const CONTEXT_POLL_MS = 2500
 
 // Overlapping spawn/result usage reads skip instead of stacking duplicate SDK calls.
 let usageInFlight = false
@@ -51,11 +50,6 @@ type TurnWaiter = {
   resolve: () => void
 }
 
-type LastContextEmitted = {
-  usedTokens: number
-  maxTokens: number
-}
-
 type WarmSession = {
   threadId: string
   query: Query
@@ -73,9 +67,7 @@ type WarmSession = {
   awaitingResult: boolean
   failReason: string | null
   turnWaiter: TurnWaiter | null
-  lastContextPollAt: number
-  contextPollInFlight: boolean
-  lastContextEmitted: LastContextEmitted | null
+  contextPoller: ContextPoller
 }
 
 /** Resolved options a session runs under; a mismatch means recycle. */
@@ -155,47 +147,6 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       })
   }
 
-  function shouldEmitContext(
-    session: WarmSession,
-    usage: { usedTokens: number; maxTokens: number },
-    force: boolean
-  ): boolean {
-    const last = session.lastContextEmitted
-    if (!last) return true
-    if (usage.maxTokens !== last.maxTokens) return true
-    const delta = Math.abs(usage.usedTokens - last.usedTokens)
-    if (delta === 0) return false
-    if (force) return true
-    const threshold = Math.max(1000, usage.maxTokens * 0.005)
-    return delta >= threshold
-  }
-
-  function requestContextUsage(session: WarmSession, force = false) {
-    if (session.closed || session.contextPollInFlight) return
-    const now = Date.now()
-    if (!force && now - session.lastContextPollAt < CONTEXT_POLL_MS) return
-    session.contextPollInFlight = true
-    session.lastContextPollAt = now
-    void readContextUsage(session.query)
-      .then((usage) => {
-        if (!usage || session.closed) return
-        if (!shouldEmitContext(session, usage, force)) return
-        session.lastContextEmitted = {
-          usedTokens: usage.usedTokens,
-          maxTokens: usage.maxTokens,
-        }
-        try {
-          session.emit({ type: 'context.updated', usage })
-        } catch {
-          // emit may fail if store is gone
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        session.contextPollInFlight = false
-      })
-  }
-
   function clearIdle(session: WarmSession) {
     if (session.idleTimer) {
       clearTimeout(session.idleTimer)
@@ -242,6 +193,7 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
     if (!session || session.closed) return
     slog('claude', `close session thread=${threadId} reason=${reason ?? 'idle ttl'}`)
     session.closed = true
+    session.contextPoller.stop()
     clearIdle(session)
     denyPendingApprovals(session)
     session.endQueue()
@@ -301,14 +253,14 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
         if (msg.type === 'result' && !session.closed) {
           // Read usage while the query is still alive — before armIdle may close it.
           requestUsage(session)
-          requestContextUsage(session, true)
+          session.contextPoller.poll(true)
           if (session.awaitingResult) {
             // result message without translate emitting (shouldn't happen) — still settle
             settleTurn(session)
           }
           armIdle(session)
         } else if (!session.closed) {
-          requestContextUsage(session)
+          session.contextPoller.poll()
         }
       }
 
@@ -414,15 +366,16 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       awaitingResult: true,
       failReason: null,
       turnWaiter: null,
-      lastContextPollAt: 0,
-      contextPollInFlight: false,
-      lastContextEmitted: null,
+      contextPoller: createContextPoller({
+        read: () => readContextUsage(q),
+        emit: (usage) => emit({ type: 'context.updated', usage }),
+      }),
     }
     sessionRef.current = session
     sessions.set(input.threadId, session)
     void runLoop(session)
     requestUsage(session)
-    requestContextUsage(session)
+    session.contextPoller.poll()
     return session
   }
 
