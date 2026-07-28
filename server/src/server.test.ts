@@ -702,6 +702,7 @@ describe('server skeleton', () => {
     const res = await resP
     expect(res.ok).toBe(false)
     expect(res.error?.code).toBe('invalid_params')
+    expect(res.error?.message).toMatch(/expected string/)
 
     c.close()
   })
@@ -851,6 +852,58 @@ describe('image attachments', () => {
     // no turn events should have been appended
     const events = threadEvents(c, thread.id)
     expect(events).toHaveLength(0)
+
+    c.close()
+  })
+
+  test('base64 that passes the charset but decodes to nothing is invalid_params', async () => {
+    const { port, home } = boot()
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: dir('/tmp/attach-junk'),
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    const reqId = newId()
+    const resP = new Promise<ResponseMessage>((resolve) => {
+      const onMsg = (ev: MessageEvent) => {
+        const msg = JSON.parse(String(ev.data)) as ServerMessage
+        if ('ok' in msg && msg.id === reqId) {
+          c.ws.removeEventListener('message', onMsg)
+          resolve(msg)
+        }
+      }
+      c.ws.addEventListener('message', onMsg)
+    })
+    c.ws.send(
+      JSON.stringify({
+        id: reqId,
+        method: 'turn.start',
+        params: {
+          threadId: thread.id,
+          text: 'junk',
+          // a lone base64 char: legal charset, decodes to zero bytes
+          attachments: [
+            { name: 'junk.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,a' },
+          ],
+        },
+      })
+    )
+    const res = await resP
+    expect(res.ok).toBe(false)
+    expect(res.error?.code).toBe('invalid_params')
+    expect(res.error?.message).toContain('empty')
+
+    const attachDir = join(home, 'attachments')
+    if (existsSync(attachDir)) {
+      expect(readdirSync(attachDir)).toEqual([])
+    }
+    expect(threadEvents(c, thread.id)).toHaveLength(0)
 
     c.close()
   })

@@ -46,7 +46,7 @@ export function createWs(
     const schema = methods[method]
     const parsed = schema.params.safeParse(params)
     if (!parsed.success) {
-      throw new StoreError('invalid_params', parsed.error.issues[0]?.message ?? 'Invalid params')
+      throw new StoreError('invalid_params', parsed.error.issues[0]!.message)
     }
 
     switch (method) {
