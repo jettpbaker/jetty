@@ -70,6 +70,7 @@ function sampleThread(lastSeq = 3): ThreadState {
     status: 'idle',
     activeTurnId: null,
     lastSeq,
+    context: null,
   }
 }
 

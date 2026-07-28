@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { SessionStatus, ThreadEvent, type SequencedEvent } from './events'
+import { ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
 import { ThreadItem } from './items'
 
 export const ThreadState = z.object({
@@ -8,6 +8,8 @@ export const ThreadState = z.object({
   status: SessionStatus,
   activeTurnId: z.string().nullable(),
   lastSeq: z.number().int().nonnegative(),
+  // default so blobs persisted before this field still safeParse
+  context: ContextUsage.nullable().default(null),
 })
 export type ThreadState = z.infer<typeof ThreadState>
 
@@ -16,6 +18,7 @@ export const emptyThread: ThreadState = {
   status: 'idle',
   activeTurnId: null,
   lastSeq: 0,
+  context: null,
 }
 
 export function applyEvent(state: ThreadState, { seq, event }: SequencedEvent): ThreadState {
@@ -45,6 +48,8 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
       )
     case 'session.status':
       return { ...state, status: event.status }
+    case 'context.updated':
+      return { ...state, context: event.usage }
   }
 }
 

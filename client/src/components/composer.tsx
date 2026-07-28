@@ -1,5 +1,5 @@
 import type { Draft } from '@/state/drafts'
-import type { SessionStatus } from '@jetty/shared/events'
+import type { ContextUsage, SessionStatus } from '@jetty/shared/events'
 import type { ChatStatus } from 'ai'
 import type { MouseEvent, ReactNode } from 'react'
 
@@ -15,6 +15,7 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentFan } from '@/components/attachment-fan'
+import { ContextMeter } from '@/components/context-meter'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -218,13 +219,36 @@ function ComposerShell({
   )
 }
 
-export function Composer({ threadId, status }: { threadId: string; status: SessionStatus }) {
-  const pending = useSyncExternalStore(pendingSends.subscribe, () => pendingSends.get(threadId))
-  if (pending) return <FirstTurnComposer threadId={threadId} pending={pending} />
-  return <ThreadComposer threadId={threadId} status={status} />
+// The strip under the composer. Height is reserved even when empty so the
+// meter's first appearance doesn't shove the composer up mid-turn.
+function ComposerUnderRow({ children }: { children?: ReactNode }) {
+  return <div className='mt-2 flex min-h-7 items-center justify-end'>{children}</div>
 }
 
-function ThreadComposer({ threadId, status }: { threadId: string; status: SessionStatus }) {
+export function Composer({
+  threadId,
+  status,
+  contextUsage,
+}: {
+  threadId: string
+  status: SessionStatus
+  /** null until the agent reports a window — a cold thread has none */
+  contextUsage: ContextUsage | null
+}) {
+  const pending = useSyncExternalStore(pendingSends.subscribe, () => pendingSends.get(threadId))
+  if (pending) return <FirstTurnComposer threadId={threadId} pending={pending} />
+  return <ThreadComposer threadId={threadId} status={status} contextUsage={contextUsage} />
+}
+
+function ThreadComposer({
+  threadId,
+  status,
+  contextUsage,
+}: {
+  threadId: string
+  status: SessionStatus
+  contextUsage: ContextUsage | null
+}) {
   const busy = isBusy(status)
 
   function handleSubmit(message: PromptInputMessage) {
@@ -257,6 +281,7 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
           />
         </PromptInputFooter>
       </ComposerShell>
+      <ComposerUnderRow>{contextUsage && <ContextMeter usage={contextUsage} />}</ComposerUnderRow>
     </div>
   )
 }
@@ -300,6 +325,9 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
           />
         </PromptInputFooter>
       </ComposerShell>
+      {/* the thread composer takes over after the first send — same reserve
+          keeps the swap from moving the box */}
+      <ComposerUnderRow />
     </div>
   )
 }

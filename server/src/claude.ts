@@ -15,6 +15,7 @@ import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
+import { type ContextPoller, createContextPoller, readContextUsage } from './context-usage'
 import { slog } from './log'
 import { readUsage } from './usage'
 
@@ -66,6 +67,7 @@ type WarmSession = {
   awaitingResult: boolean
   failReason: string | null
   turnWaiter: TurnWaiter | null
+  contextPoller: ContextPoller
 }
 
 /** Resolved options a session runs under; a mismatch means recycle. */
@@ -191,6 +193,7 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
     if (!session || session.closed) return
     slog('claude', `close session thread=${threadId} reason=${reason ?? 'idle ttl'}`)
     session.closed = true
+    session.contextPoller.stop()
     clearIdle(session)
     denyPendingApprovals(session)
     session.endQueue()
@@ -250,11 +253,14 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
         if (msg.type === 'result' && !session.closed) {
           // Read usage while the query is still alive — before armIdle may close it.
           requestUsage(session)
+          session.contextPoller.poll(true)
           if (session.awaitingResult) {
             // result message without translate emitting (shouldn't happen) — still settle
             settleTurn(session)
           }
           armIdle(session)
+        } else if (!session.closed) {
+          session.contextPoller.poll()
         }
       }
 
@@ -360,11 +366,16 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       awaitingResult: true,
       failReason: null,
       turnWaiter: null,
+      contextPoller: createContextPoller({
+        read: () => readContextUsage(q),
+        emit: (usage) => emit({ type: 'context.updated', usage }),
+      }),
     }
     sessionRef.current = session
     sessions.set(input.threadId, session)
     void runLoop(session)
     requestUsage(session)
+    session.contextPoller.poll()
     return session
   }
 

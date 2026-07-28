@@ -11,6 +11,23 @@ export const Usage = z.object({
 })
 export type Usage = z.infer<typeof Usage>
 
+export const ContextSlice = z.object({
+  label: z.string(),
+  tokens: z.number().int().nonnegative(),
+})
+export type ContextSlice = z.infer<typeof ContextSlice>
+
+export const ContextUsage = z.object({
+  usedTokens: z.number().int().nonnegative(),
+  maxTokens: z.number().int().positive(),
+  /** tokens at which auto-compaction fires; absent when auto-compact is off */
+  compactAt: z.number().int().positive().optional(),
+  slices: z.array(ContextSlice),
+  model: z.string().optional(),
+  asOf: z.number().int(),
+})
+export type ContextUsage = z.infer<typeof ContextUsage>
+
 export const ThreadEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('turn.started'), turnId: z.string() }),
   z.object({
@@ -34,6 +51,7 @@ export const ThreadEvent = z.discriminatedUnion('type', [
     patch: z.record(z.string(), z.unknown()).optional(),
   }),
   z.object({ type: z.literal('session.status'), status: SessionStatus }),
+  z.object({ type: z.literal('context.updated'), usage: ContextUsage }),
 ])
 export type ThreadEvent = z.infer<typeof ThreadEvent>
 
