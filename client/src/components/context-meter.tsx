@@ -1,4 +1,4 @@
-import type { ContextUsage } from '@jetty/shared/events'
+import type { ContextSlice, ContextUsage } from '@jetty/shared/events'
 
 import { timelineStore } from '@/app-state'
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
@@ -57,26 +57,16 @@ function ContextRing({ pct }: { pct: number }) {
   )
 }
 
-function SliceBar({ usage }: { usage: ContextUsage }) {
-  return (
-    <div className='flex h-1.5 gap-px overflow-hidden rounded-full bg-muted'>
-      {usage.slices.map((slice, index) => (
-        <div
-          key={slice.label}
-          className='h-full min-w-px'
-          style={{
-            width: `${(slice.tokens / usage.maxTokens) * 100}%`,
-            background: sliceColor(index, usage.slices.length),
-          }}
-        />
-      ))}
-    </div>
-  )
+/** An agent that reports a total but no categories still gets a bar. */
+function slicesOf(usage: ContextUsage): ContextSlice[] {
+  if (usage.slices.length > 0) return usage.slices
+  return [{ label: 'Used', tokens: usage.usedTokens }]
 }
 
 export function ContextMeterView({ usage }: { usage: ContextUsage }) {
   const pct = percentOf(usage)
   const crowded = pct >= CROWDED_PCT
+  const slices = slicesOf(usage)
   return (
     <Popover>
       <PopoverTrigger
@@ -104,15 +94,26 @@ export function ContextMeterView({ usage }: { usage: ContextUsage }) {
               {formatTokens(usage.usedTokens)} / {formatTokens(usage.maxTokens)}
             </span>
           </div>
-          <SliceBar usage={usage} />
+          <div className='flex h-1.5 gap-px overflow-hidden rounded-full bg-muted'>
+            {slices.map((slice, index) => (
+              <div
+                key={slice.label}
+                className='h-full min-w-px'
+                style={{
+                  width: `${(slice.tokens / usage.maxTokens) * 100}%`,
+                  background: sliceColor(index, slices.length),
+                }}
+              />
+            ))}
+          </div>
         </div>
         <div className='flex flex-col gap-1.5'>
-          {usage.slices.map((slice, index) => (
+          {slices.map((slice, index) => (
             <div key={slice.label} className='flex items-center justify-between gap-3 text-xs'>
               <span className='flex min-w-0 items-center gap-2 text-muted-foreground'>
                 <span
-                  className='size-2 shrink-0 rounded-[3px]'
-                  style={{ background: sliceColor(index, usage.slices.length) }}
+                  className='size-2 shrink-0 rounded-xs'
+                  style={{ background: sliceColor(index, slices.length) }}
                 />
                 <span className='truncate'>{slice.label}</span>
               </span>
