@@ -4,8 +4,8 @@ import type { ThreadGitStatus, ThreadMeta } from '@jetty/shared/wire'
 import { chromeStore, draftsStore, tabsStore } from '@/app-state'
 import { useCommandPalette } from '@/components/command-palette'
 import { RansomWordmark } from '@/components/ransom-wordmark'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { StatusGlyph } from '@/components/status-glyph'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { UsageMeter } from '@/components/usage-meter'
 import { loadLastProjectId, saveLastProjectId } from '@/lib/draft'
 import { pressHandlers } from '@/lib/press-handlers'
@@ -33,8 +33,7 @@ const emberAction =
 const kbd =
   'rounded border border-border bg-muted px-1 py-px font-mono text-[10px] leading-none text-muted-foreground'
 
-const row =
-  'group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-muted'
+const row = 'group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-muted'
 
 const sideItem =
   'group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
@@ -72,7 +71,9 @@ function formatResetsAt(resetsAt: number): string {
   if (sameDay) return `${hours12}:${String(minutes).padStart(2, '0')}${meridiem}`
   // weekday form drops :00 — `Mon 1am`, not `Mon 1:00am`
   const time =
-    minutes === 0 ? `${hours12}${meridiem}` : `${hours12}:${String(minutes).padStart(2, '0')}${meridiem}`
+    minutes === 0
+      ? `${hours12}${meridiem}`
+      : `${hours12}:${String(minutes).padStart(2, '0')}${meridiem}`
   const weekday = d.toLocaleDateString('en-US', { weekday: 'short' })
   return `${weekday} ${time}`
 }
@@ -249,7 +250,6 @@ function HomePage() {
                 />
               </div>
             )}
-
           </aside>
 
           <main className='order-1 md:order-2 md:col-span-2'>

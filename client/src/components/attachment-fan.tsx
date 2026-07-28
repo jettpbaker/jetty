@@ -70,9 +70,7 @@ export function AttachmentFan({ config = DEFAULT_FAN }: { config?: FanConfig }) 
           angle={config.center + spread / 2 - i * step}
           zIndex={stack.length - i}
           onRemove={() => remove(file.id)}
-          onOpen={() =>
-            setPreview({ url: file.url!, name: file.filename || 'attachment' })
-          }
+          onOpen={() => setPreview({ url: file.url!, name: file.filename || 'attachment' })}
         />
       ))}
       <Dialog open={preview !== null} onOpenChange={(open) => !open && setPreview(null)}>

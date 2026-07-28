@@ -2,6 +2,7 @@ import type { Draft } from '@/state/drafts'
 import type { ThreadMeta } from '@jetty/shared/wire'
 
 import { chromeStore, draftsStore, socket, tabsStore } from '@/app-state'
+import { StatusGlyph } from '@/components/status-glyph'
 import { Button } from '@/components/ui/button'
 import {
   ContextMenu,
@@ -9,7 +10,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { StatusGlyph } from '@/components/status-glyph'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { loadLastProjectId, removeDraft } from '@/lib/draft'
