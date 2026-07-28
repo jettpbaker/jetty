@@ -19,7 +19,7 @@ const LOW_TO_MAX: EffortOption[] = [
 
 export const MODELS: ModelOption[] = [
   { id: 'claude-fable-5', label: 'Fable 5', efforts: LOW_TO_MAX },
-  { id: 'claude-opus-4-8', label: 'Opus 4.8', efforts: LOW_TO_MAX },
+  { id: 'claude-opus-5', label: 'Opus 5', efforts: LOW_TO_MAX },
   { id: 'claude-sonnet-5', label: 'Sonnet 5', efforts: LOW_TO_MAX },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', efforts: [] },
 ]
