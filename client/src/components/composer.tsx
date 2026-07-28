@@ -1,5 +1,5 @@
 import type { Draft } from '@/state/drafts'
-import type { SessionStatus } from '@jetty/shared/events'
+import type { ContextUsage, SessionStatus } from '@jetty/shared/events'
 import type { ChatStatus } from 'ai'
 import type { MouseEvent, ReactNode } from 'react'
 
@@ -225,13 +225,30 @@ function ComposerUnderRow({ children }: { children?: ReactNode }) {
   return <div className='mt-2 flex min-h-7 items-center justify-end'>{children}</div>
 }
 
-export function Composer({ threadId, status }: { threadId: string; status: SessionStatus }) {
+export function Composer({
+  threadId,
+  status,
+  contextUsage,
+}: {
+  threadId: string
+  status: SessionStatus
+  /** null until the agent reports a window — a cold thread has none */
+  contextUsage: ContextUsage | null
+}) {
   const pending = useSyncExternalStore(pendingSends.subscribe, () => pendingSends.get(threadId))
   if (pending) return <FirstTurnComposer threadId={threadId} pending={pending} />
-  return <ThreadComposer threadId={threadId} status={status} />
+  return <ThreadComposer threadId={threadId} status={status} contextUsage={contextUsage} />
 }
 
-function ThreadComposer({ threadId, status }: { threadId: string; status: SessionStatus }) {
+function ThreadComposer({
+  threadId,
+  status,
+  contextUsage,
+}: {
+  threadId: string
+  status: SessionStatus
+  contextUsage: ContextUsage | null
+}) {
   const busy = isBusy(status)
 
   function handleSubmit(message: PromptInputMessage) {
@@ -264,9 +281,7 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
           />
         </PromptInputFooter>
       </ComposerShell>
-      <ComposerUnderRow>
-        <ContextMeter threadId={threadId} />
-      </ComposerUnderRow>
+      <ComposerUnderRow>{contextUsage && <ContextMeter usage={contextUsage} />}</ComposerUnderRow>
     </div>
   )
 }

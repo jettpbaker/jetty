@@ -18,7 +18,7 @@ import {
   type FanPivot,
 } from '@/components/attachment-fan'
 import { ComposerFooter, composerShell } from '@/components/composer'
-import { ContextMeterView } from '@/components/context-meter'
+import { ContextMeter } from '@/components/context-meter'
 import { acceptImages } from '@/lib/attachments'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -176,7 +176,7 @@ function BenchComposer({
         </PromptInputProvider>
       </div>
       <div className='mt-2 flex min-h-7 items-center justify-end'>
-        {context && <ContextMeterView usage={context} />}
+        {context && <ContextMeter usage={context} />}
       </div>
     </div>
   )

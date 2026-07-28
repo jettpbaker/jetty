@@ -136,7 +136,7 @@ function ThreadPage() {
               }
             />
           ) : (
-            <Composer threadId={threadId} status={state.status} />
+            <Composer threadId={threadId} status={state.status} contextUsage={state.context} />
           )}
         </div>
       </div>

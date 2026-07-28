@@ -1,10 +1,8 @@
 import type { ContextSlice, ContextUsage } from '@jetty/shared/events'
 
-import { timelineStore } from '@/app-state'
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { useSyncExternalStore } from 'react'
 
 const RING_RADIUS = 9
 const RING_STROKE = 3.5
@@ -69,7 +67,7 @@ function slicesOf(usage: ContextUsage): ContextSlice[] {
   return [{ label: 'Used', tokens: usage.usedTokens }]
 }
 
-export function ContextMeterView({ usage }: { usage: ContextUsage }) {
+export function ContextMeter({ usage }: { usage: ContextUsage }) {
   const pct = percentOf(usage)
   const crowded = pct >= CROWDED_PCT
   const slices = slicesOf(usage)
@@ -137,14 +135,4 @@ export function ContextMeterView({ usage }: { usage: ContextUsage }) {
       </PopoverContent>
     </Popover>
   )
-}
-
-/** Nothing to show until the agent has reported a window — a cold thread has none. */
-export function ContextMeter({ threadId }: { threadId: string }) {
-  const usage = useSyncExternalStore(
-    timelineStore.subscribe,
-    () => timelineStore.getSnapshot(threadId).context
-  )
-  if (!usage) return null
-  return <ContextMeterView usage={usage} />
 }
