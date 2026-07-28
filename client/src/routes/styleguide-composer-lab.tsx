@@ -164,19 +164,20 @@ function BenchComposer({
   context?: ContextUsage
 }) {
   return (
-    <div className={composerShell}>
-      <PromptInputProvider initialInput={initialInput} validateFiles={acceptImages}>
-        <PromptInput accept='image/*' multiple onSubmit={() => {}}>
-          <PromptInputTextarea placeholder='Do anything' disabled={disabled} />
-          <PromptInputFooter>
-            <ComposerFooter
-              status={status}
-              disabled={disabled}
-              trailing={context && <ContextMeterView usage={context} />}
-            />
-          </PromptInputFooter>
-        </PromptInput>
-      </PromptInputProvider>
+    <div>
+      <div className={composerShell}>
+        <PromptInputProvider initialInput={initialInput} validateFiles={acceptImages}>
+          <PromptInput accept='image/*' multiple onSubmit={() => {}}>
+            <PromptInputTextarea placeholder='Do anything' disabled={disabled} />
+            <PromptInputFooter>
+              <ComposerFooter status={status} disabled={disabled} />
+            </PromptInputFooter>
+          </PromptInput>
+        </PromptInputProvider>
+      </div>
+      <div className='mt-2 flex min-h-7 items-center justify-end'>
+        {context && <ContextMeterView usage={context} />}
+      </div>
     </div>
   )
 }

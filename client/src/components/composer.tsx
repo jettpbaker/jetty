@@ -79,15 +79,13 @@ export function insertComposerChar(textarea: HTMLTextAreaElement, char: string) 
 }
 
 // Footer: add-image and approval picker left, model+effort picker and send
-// right. Extra controls (styleguide seed button) slot in via children; the
-// context meter rides the right cluster via trailing.
+// right. Extra controls (styleguide seed button) slot in via children.
 // scopeId is the draft or thread id — prefs are per-scope with a global default.
 export function ComposerFooter({
   status,
   disabled,
   onSubmitClick,
   scopeId,
-  trailing,
   children,
 }: {
   status: ChatStatus
@@ -95,7 +93,6 @@ export function ComposerFooter({
   onSubmitClick?: (event: MouseEvent<HTMLButtonElement>) => void
   /** draft or thread id; omit only for non-thread surfaces (styleguide) */
   scopeId?: string
-  trailing?: ReactNode
   children?: ReactNode
 }) {
   const attachments = usePromptInputAttachments()
@@ -138,7 +135,6 @@ export function ComposerFooter({
       </DropdownMenu>
       {children}
       <div className='ml-auto flex items-center gap-1'>
-        {trailing}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -223,6 +219,12 @@ function ComposerShell({
   )
 }
 
+// The strip under the composer. Height is reserved even when empty so the
+// meter's first appearance doesn't shove the composer up mid-turn.
+function ComposerUnderRow({ children }: { children?: ReactNode }) {
+  return <div className='mt-2 flex min-h-7 items-center justify-end'>{children}</div>
+}
+
 export function Composer({ threadId, status }: { threadId: string; status: SessionStatus }) {
   const pending = useSyncExternalStore(pendingSends.subscribe, () => pendingSends.get(threadId))
   if (pending) return <FirstTurnComposer threadId={threadId} pending={pending} />
@@ -259,10 +261,12 @@ function ThreadComposer({ threadId, status }: { threadId: string; status: Sessio
             scopeId={threadId}
             status={chatStatus(status)}
             onSubmitClick={handleSubmitClick}
-            trailing={<ContextMeter threadId={threadId} />}
           />
         </PromptInputFooter>
       </ComposerShell>
+      <ComposerUnderRow>
+        <ContextMeter threadId={threadId} />
+      </ComposerUnderRow>
     </div>
   )
 }
@@ -306,6 +310,9 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
           />
         </PromptInputFooter>
       </ComposerShell>
+      {/* the thread composer takes over after the first send — same reserve
+          keeps the swap from moving the box */}
+      <ComposerUnderRow />
     </div>
   )
 }
