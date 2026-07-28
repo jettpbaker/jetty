@@ -55,7 +55,7 @@ export function Timeline({
     <MessageScrollerProvider key={threadId} autoScroll defaultScrollPosition='end'>
       <MessageScroller className='min-h-0 flex-1'>
         <MessageScrollerViewport>
-          <MessageScrollerContent className={cn('gap-0', overlayInset && 'pb-44')}>
+          <MessageScrollerContent className={cn('gap-0', overlayInset && 'pb-52')}>
             {entries.map((entry, index) => {
               if (entry.kind === 'context-group') {
                 const firstId = entry.items[0]!.id
@@ -106,7 +106,7 @@ export function Timeline({
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton
-          className={overlayInset ? 'data-[direction=end]:bottom-44' : undefined}
+          className={overlayInset ? 'data-[direction=end]:bottom-52' : undefined}
         />
       </MessageScroller>
     </MessageScrollerProvider>
