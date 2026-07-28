@@ -113,14 +113,8 @@ function decodeDataUrl(upload: UploadAttachment): { bytes: Buffer; base64data: s
     throw new StoreError('invalid_params', 'dataUrl base64 payload is invalid')
   }
 
-  let bytes: Buffer
-  try {
-    bytes = Buffer.from(base64data, 'base64')
-  } catch {
-    throw new StoreError('invalid_params', 'dataUrl base64 payload is invalid')
-  }
-
-  // Buffer.from is lenient; reject empty / clearly non-decodable payloads.
+  // Buffer.from is lenient — it returns empty rather than throwing on junk.
+  const bytes = Buffer.from(base64data, 'base64')
   if (bytes.byteLength === 0) {
     throw new StoreError('invalid_params', 'dataUrl base64 payload is empty')
   }
