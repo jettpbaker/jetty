@@ -100,7 +100,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}): Agent {
       const to = Math.round((echoSeedPct() / 100) * ECHO_MAX_TOKENS)
       contextByThread.set(threadId, to)
       const from = Math.min(to, Math.max(ECHO_FIXED_SUM, Math.round(to * 0.55)))
-      return { from: Math.min(from, to), to }
+      return { from, to }
     }
     // 6–9% of the window; step keyed off current fill so it's deterministic per thread
     const step = Math.floor(prev / 10_000) % 4

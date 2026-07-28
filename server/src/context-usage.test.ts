@@ -7,7 +7,7 @@ import { createContextPoller, readContextUsage } from './context-usage'
 
 type FakeResponse = Awaited<ReturnType<Query['getContextUsage']>>
 
-function fakeQuery(impl: Query['getContextUsage'] | undefined): Query {
+function fakeQuery(impl: Query['getContextUsage']): Query {
   return { getContextUsage: impl } as unknown as Query
 }
 
@@ -102,11 +102,6 @@ describe('readContextUsage', () => {
         throw new Error('Query closed before response received')
       })
     )
-    expect(usage).toBeNull()
-  })
-
-  test('returns null when the method is missing', async () => {
-    const usage = await readContextUsage(fakeQuery(undefined))
     expect(usage).toBeNull()
   })
 

@@ -5,33 +5,28 @@ import type { ContextUsage } from '@jetty/shared/events'
 export async function readContextUsage(query: Query): Promise<ContextUsage | null> {
   try {
     const response = await query.getContextUsage()
-    const maxTokens = Number(response.maxTokens)
-    const totalTokens = Number(response.totalTokens)
-    if (!Number.isFinite(maxTokens) || maxTokens <= 0) return null
-    if (!Number.isFinite(totalTokens) || totalTokens <= 0) return null
+    // Zero is a miss, not a 0%-full ring: maxTokens is the divisor for every percentage
+    // downstream, and a session reports no used tokens until it has called the API once.
+    if (response.maxTokens <= 0 || response.totalTokens <= 0) return null
 
-    const max = Math.round(maxTokens)
-    const usedTokens = Math.min(Math.round(totalTokens), max)
+    const max = Math.round(response.maxTokens)
+    const usedTokens = Math.min(Math.round(response.totalTokens), max)
 
     const slices: ContextUsage['slices'] = []
-    for (const cat of response.categories ?? []) {
-      const tokens = Math.round(Number(cat.tokens))
-      if (!Number.isFinite(tokens) || tokens <= 0) continue
-      if (typeof cat.name === 'string' && cat.name.toLowerCase() === 'free space') continue
-      slices.push({ label: String(cat.name), tokens })
+    for (const cat of response.categories) {
+      const tokens = Math.round(cat.tokens)
+      if (tokens <= 0) continue
+      if (cat.name.toLowerCase() === 'free space') continue
+      slices.push({ label: cat.name, tokens })
     }
 
     const threshold = response.autoCompactThreshold
     const compactAt =
-      response.isAutoCompactEnabled &&
-      threshold != null &&
-      Number.isFinite(threshold) &&
-      threshold > 0
+      response.isAutoCompactEnabled && threshold != null && threshold > 0
         ? Math.round(threshold)
         : undefined
 
-    const model =
-      typeof response.model === 'string' && response.model.length > 0 ? response.model : undefined
+    const model = response.model.length > 0 ? response.model : undefined
 
     return {
       usedTokens,
