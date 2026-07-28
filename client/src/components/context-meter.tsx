@@ -26,7 +26,7 @@ function percentOf(usage: ContextUsage): number {
 /** Ember and grey alternate: neighbouring slices have to stay apart at chip size. */
 const SLICE_TINTS = [
   'color-mix(in oklab, var(--code-foreground) 78%, var(--code))',
-  'var(--muted-foreground)',
+  'color-mix(in oklab, var(--muted-foreground) 88%, var(--popover))',
   'var(--code-foreground)',
   'color-mix(in oklab, var(--muted-foreground) 62%, var(--popover))',
   'var(--code-glow)',
