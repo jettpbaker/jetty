@@ -23,11 +23,17 @@ function percentOf(usage: ContextUsage): number {
   return Math.min(100, Math.round((usage.usedTokens / usage.maxTokens) * 100))
 }
 
-// The UsageMeter ramp, stepped per slice: warm ground for the fixed cost of
-// being alive, full ember for the messages that actually grow.
-function sliceColor(index: number, count: number): string {
-  const t = count > 1 ? index / (count - 1) : 1
-  return `color-mix(in oklab, var(--code-foreground) ${Math.round(55 + t * 45)}%, var(--code))`
+/** Ember and grey alternate: neighbouring slices have to stay apart at chip size. */
+const SLICE_TINTS = [
+  'color-mix(in oklab, var(--code-foreground) 78%, var(--code))',
+  'var(--muted-foreground)',
+  'var(--code-foreground)',
+  'color-mix(in oklab, var(--muted-foreground) 62%, var(--popover))',
+  'var(--code-glow)',
+]
+
+function sliceTint(index: number): string {
+  return SLICE_TINTS[index % SLICE_TINTS.length]!
 }
 
 function ContextRing({ pct }: { pct: number }) {
@@ -101,7 +107,7 @@ export function ContextMeterView({ usage }: { usage: ContextUsage }) {
                 className='h-full min-w-px'
                 style={{
                   width: `${(slice.tokens / usage.maxTokens) * 100}%`,
-                  background: sliceColor(index, slices.length),
+                  background: sliceTint(index),
                 }}
               />
             ))}
@@ -113,7 +119,7 @@ export function ContextMeterView({ usage }: { usage: ContextUsage }) {
               <span className='flex min-w-0 items-center gap-2 text-muted-foreground'>
                 <span
                   className='size-2 shrink-0 rounded-xs'
-                  style={{ background: sliceColor(index, slices.length) }}
+                  style={{ background: sliceTint(index) }}
                 />
                 <span className='truncate'>{slice.label}</span>
               </span>
