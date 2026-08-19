@@ -222,7 +222,7 @@ function ComposerShell({
 // The strip under the composer. Height is reserved even when empty so the
 // meter's first appearance doesn't shove the composer up mid-turn.
 function ComposerUnderRow({ children }: { children?: ReactNode }) {
-  return <div className='mt-2 flex min-h-7 items-center justify-end'>{children}</div>
+  return <div className='mt-1 flex min-h-5 items-center justify-end'>{children}</div>
 }
 
 export function Composer({

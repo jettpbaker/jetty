@@ -3,7 +3,7 @@ import type { ContextUsage } from '@jetty/shared/events'
 
 import { describe, expect, test } from 'bun:test'
 
-import { createContextPoller, readContextUsage } from './context-usage'
+import { createContextPoller, readContextUsage, resolveContextWindow } from './context-usage'
 
 type FakeResponse = Awaited<ReturnType<Query['getContextUsage']>>
 
@@ -71,17 +71,80 @@ describe('readContextUsage', () => {
     expect(usage!.slices).toEqual([{ label: 'Messages', tokens: 100 }])
   })
 
-  test('clamps totalTokens above maxTokens', async () => {
+  test('usedTokens is the content sum, not a stale API total', async () => {
     const usage = await readContextUsage(
       fakeQuery(async () =>
         baseResponse({
-          totalTokens: 250_000,
-          maxTokens: 200_000,
-          categories: [{ name: 'Messages', tokens: 250_000, color: '#fff' }],
+          totalTokens: 180_000,
+          categories: [
+            { name: 'System prompt', tokens: 3_000, color: '#fff' },
+            { name: 'Messages', tokens: 12_000, color: '#eee' },
+            { name: 'Autocompact buffer', tokens: 33_000, color: '#ddd' },
+            { name: 'Free space', tokens: 152_000, color: '#ccc' },
+          ],
         })
       )
     )
-    expect(usage!.usedTokens).toBe(200_000)
+    expect(usage!.usedTokens).toBe(15_000)
+    expect(usage!.slices).toEqual([
+      { label: 'System prompt', tokens: 3_000 },
+      { label: 'Messages', tokens: 12_000 },
+    ])
+  })
+
+  test('drops deferred categories from the used total', async () => {
+    const usage = await readContextUsage(
+      fakeQuery(async () =>
+        baseResponse({
+          totalTokens: 50_000,
+          categories: [
+            { name: 'System tools', tokens: 8_000, color: '#fff' },
+            { name: 'MCP tools (deferred)', tokens: 40_000, color: '#eee', isDeferred: true },
+          ],
+        })
+      )
+    )
+    expect(usage!.usedTokens).toBe(8_000)
+    expect(usage!.slices).toEqual([{ label: 'System tools', tokens: 8_000 }])
+  })
+
+  test('prefers rawMaxTokens when the CLI splits the window', async () => {
+    const usage = await readContextUsage(
+      fakeQuery(async () =>
+        baseResponse({
+          maxTokens: 200_000,
+          rawMaxTokens: 1_000_000,
+          model: 'claude-sonnet-4-5',
+        })
+      )
+    )
+    expect(usage!.maxTokens).toBe(1_000_000)
+  })
+
+  test('lifts a 200k report to 1M for native-1M models', async () => {
+    const usage = await readContextUsage(
+      fakeQuery(async () =>
+        baseResponse({
+          maxTokens: 200_000,
+          rawMaxTokens: 200_000,
+          autoCompactThreshold: 167_000,
+          model: 'claude-sonnet-5',
+        })
+      )
+    )
+    expect(usage!.maxTokens).toBe(1_000_000)
+    expect(usage!.compactAt).toBe(835_000)
+  })
+
+  test('leaves Haiku and Sonnet 4.5 at 200k', async () => {
+    const haiku = await readContextUsage(
+      fakeQuery(async () => baseResponse({ model: 'claude-haiku-4-5-20251001' }))
+    )
+    expect(haiku!.maxTokens).toBe(200_000)
+    const sonnet45 = await readContextUsage(
+      fakeQuery(async () => baseResponse({ model: 'claude-sonnet-4-5' }))
+    )
+    expect(sonnet45!.maxTokens).toBe(200_000)
   })
 
   test('omits compactAt when auto-compact is off', async () => {
@@ -105,13 +168,48 @@ describe('readContextUsage', () => {
     expect(usage).toBeNull()
   })
 
-  test('returns null when totalTokens <= 0', async () => {
+  test('returns null when there is no content and totalTokens <= 0', async () => {
     expect(
-      await readContextUsage(fakeQuery(async () => baseResponse({ totalTokens: 0 })))
+      await readContextUsage(
+        fakeQuery(async () =>
+          baseResponse({
+            totalTokens: 0,
+            categories: [{ name: 'Free space', tokens: 200_000, color: '#fff' }],
+          })
+        )
+      )
     ).toBeNull()
     expect(
-      await readContextUsage(fakeQuery(async () => baseResponse({ totalTokens: -10 })))
+      await readContextUsage(
+        fakeQuery(async () => baseResponse({ totalTokens: -10, categories: [] }))
+      )
     ).toBeNull()
+  })
+})
+
+describe('resolveContextWindow', () => {
+  test('lifts known native-1M ids and [1m] suffixes', () => {
+    expect(resolveContextWindow(200_000, 'claude-fable-5')).toBe(1_000_000)
+    expect(resolveContextWindow(200_000, 'claude-opus-5')).toBe(1_000_000)
+    expect(resolveContextWindow(200_000, 'claude-opus-4-8')).toBe(1_000_000)
+    expect(resolveContextWindow(200_000, 'claude-sonnet-4-5[1m]')).toBe(1_000_000)
+  })
+
+  test('does not lift lookalike or 200k-native ids', () => {
+    expect(resolveContextWindow(200_000, 'claude-sonnet-4-5')).toBe(200_000)
+    expect(resolveContextWindow(200_000, 'claude-opus-4-5')).toBe(200_000)
+    expect(resolveContextWindow(200_000, 'claude-haiku-4-5-20251001')).toBe(200_000)
+  })
+
+  test('honors CLAUDE_CODE_DISABLE_1M_CONTEXT', () => {
+    const prev = process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT
+    process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = '1'
+    try {
+      expect(resolveContextWindow(200_000, 'claude-sonnet-5')).toBe(200_000)
+    } finally {
+      if (prev === undefined) delete process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT
+      else process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = prev
+    }
   })
 })
 
@@ -209,6 +307,17 @@ describe('createContextPoller', () => {
     h.poller.poll(true)
     await h.settle(1, usageAt(20_000, 1_000_000))
     expect(h.emitted).toEqual([usageAt(20_000, 200_000), usageAt(20_000, 1_000_000)])
+  })
+
+  test('a changed compact threshold emits even when the total is unmoved', async () => {
+    const h = pollerHarness()
+    const first = { ...usageAt(20_000), compactAt: 180_000 }
+    const second = { ...usageAt(20_000), compactAt: 835_000 }
+    h.poller.poll()
+    await h.settle(0, first)
+    h.poller.poll(true)
+    await h.settle(1, second)
+    expect(h.emitted).toEqual([first, second])
   })
 
   test('stop suppresses a read that resolves after the session closed', async () => {

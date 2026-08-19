@@ -71,9 +71,12 @@ type WarmSession = {
 }
 
 /** Resolved options a session runs under; a mismatch means recycle. */
+function resolvedModel(input: TurnInput): string {
+  return input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL
+}
+
 function turnOptionsKey(input: TurnInput): string {
-  const model = input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL
-  return `${model}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
+  return `${resolvedModel(input)}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
 }
 
 function createQueue() {
@@ -259,6 +262,15 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
             settleTurn(session)
           }
           armIdle(session)
+        } else if (
+          msg.type === 'system' &&
+          'subtype' in msg &&
+          msg.subtype === 'compact_boundary' &&
+          !session.closed
+        ) {
+          // Last-request API totals stay pre-compact until the next call;
+          // force a read so the ring can drop on the category recount.
+          session.contextPoller.poll(true)
         } else if (!session.closed) {
           session.contextPoller.poll()
         }
@@ -339,7 +351,7 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       cwd: projectPath,
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       settingSources: ['user', 'project', 'local'],
-      model: input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL,
+      model: resolvedModel(input),
       effort: input.effort,
       permissionMode,
       allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
@@ -421,7 +433,7 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       const session = spawnSession(input, emit, project.path)
       slog(
         'claude',
-        `spawn thread=${input.threadId} turn=${input.turnId} model=${input.model ?? '-'} cwd=${project.path} resume=${store.getThreadSessionId(input.threadId) ?? 'fresh'}`
+        `spawn thread=${input.threadId} turn=${input.turnId} model=${resolvedModel(input)} cwd=${project.path} resume=${store.getThreadSessionId(input.threadId) ?? 'fresh'}`
       )
       return beginTurn(session, input, emit)
     },

@@ -4,8 +4,8 @@ import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-const RING_RADIUS = 9
-const RING_STROKE = 3.5
+const RING_RADIUS = 9.5
+const RING_STROKE = 3
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 /** past this the window is the problem, not a detail */
 const CROWDED_PCT = 90
@@ -17,8 +17,12 @@ function formatTokens(tokens: number): string {
   return String(tokens)
 }
 
+function fillCap(usage: ContextUsage): number {
+  return usage.compactAt ?? usage.maxTokens
+}
+
 function percentOf(usage: ContextUsage): number {
-  return Math.min(100, Math.round((usage.usedTokens / usage.maxTokens) * 100))
+  return Math.min(100, Math.round((usage.usedTokens / fillCap(usage)) * 100))
 }
 
 /** Ember and grey alternate: neighbouring slices have to stay apart at chip size. */
@@ -36,18 +40,18 @@ function sliceTint(index: number): string {
 
 function ContextRing({ pct }: { pct: number }) {
   return (
-    <svg viewBox='0 0 24 24' aria-hidden='true'>
+    <svg viewBox='0 0 22 22' aria-hidden='true'>
       <circle
-        cx={12}
-        cy={12}
+        cx={11}
+        cy={11}
         r={RING_RADIUS}
         fill='none'
         strokeWidth={RING_STROKE}
         className='stroke-border'
       />
       <circle
-        cx={12}
-        cy={12}
+        cx={11}
+        cy={11}
         r={RING_RADIUS}
         fill='none'
         stroke='currentColor'
@@ -77,11 +81,11 @@ export function ContextMeter({ usage }: { usage: ContextUsage }) {
         render={
           <PromptInputButton
             variant='ghost-text'
-            size='sm'
+            size='xs'
             aria-label={`Context window ${pct}% full`}
             data-cuelume-hover='tick'
             className={cn(
-              'gap-1.5 font-mono',
+              'h-auto min-h-0 gap-1 px-1.5 py-0 font-mono',
               crowded && 'text-destructive hover:text-destructive'
             )}
           >
@@ -98,17 +102,26 @@ export function ContextMeter({ usage }: { usage: ContextUsage }) {
               {formatTokens(usage.usedTokens)} / {formatTokens(usage.maxTokens)}
             </span>
           </div>
-          <div className='flex h-1.5 gap-px overflow-hidden rounded-full bg-muted'>
-            {slices.map((slice, index) => (
+          <div className='relative flex h-1.5 overflow-hidden rounded-full bg-muted'>
+            <div className='flex h-full min-w-0 flex-1 gap-px'>
+              {slices.map((slice, index) => (
+                <div
+                  key={slice.label}
+                  className='h-full min-w-px'
+                  style={{
+                    width: `${(slice.tokens / usage.maxTokens) * 100}%`,
+                    background: sliceTint(index),
+                  }}
+                />
+              ))}
+            </div>
+            {usage.compactAt !== undefined && usage.compactAt < usage.maxTokens && (
               <div
-                key={slice.label}
-                className='h-full min-w-px'
-                style={{
-                  width: `${(slice.tokens / usage.maxTokens) * 100}%`,
-                  background: sliceTint(index),
-                }}
+                aria-hidden='true'
+                className='absolute inset-y-0 w-px bg-foreground'
+                style={{ left: `${(usage.compactAt / usage.maxTokens) * 100}%` }}
               />
-            ))}
+            )}
           </div>
         </div>
         <div className='flex flex-col gap-1.5'>
