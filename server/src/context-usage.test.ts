@@ -3,12 +3,7 @@ import type { ContextUsage } from '@jetty/shared/events'
 
 import { describe, expect, test } from 'bun:test'
 
-import {
-  createContextPoller,
-  readContextUsage,
-  resolveContextWindow,
-  sdkModelId,
-} from './context-usage'
+import { createContextPoller, readContextUsage, resolveContextWindow } from './context-usage'
 
 type FakeResponse = Awaited<ReturnType<Query['getContextUsage']>>
 
@@ -211,19 +206,10 @@ describe('resolveContextWindow', () => {
     process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = '1'
     try {
       expect(resolveContextWindow(200_000, 'claude-sonnet-5')).toBe(200_000)
-      expect(sdkModelId('claude-opus-5')).toBe('claude-opus-5')
     } finally {
       if (prev === undefined) delete process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT
       else process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = prev
     }
-  })
-})
-
-describe('sdkModelId', () => {
-  test('tags opus-5 with [1m] so the CLI sees a 1M window', () => {
-    expect(sdkModelId('claude-opus-5')).toBe('claude-opus-5[1m]')
-    expect(sdkModelId('claude-sonnet-5')).toBe('claude-sonnet-5')
-    expect(sdkModelId('claude-opus-5[1m]')).toBe('claude-opus-5[1m]')
   })
 })
 

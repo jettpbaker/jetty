@@ -5,9 +5,8 @@ const DEFAULT_WINDOW = 200_000
 const NATIVE_1M_WINDOW = 1_000_000
 
 /**
- * Models Claude Code treats as native 1M. The bundled CLI still reports the
- * 200k default for some of these (opus-5 isn't in the 2.1.212 table; others
- * fall through getModelCapability to the same default).
+ * Models Claude Code treats as native 1M. Safety net when the CLI still
+ * reports the 200k default (catalog miss or getModelCapability fallthrough).
  * `sonnet-5` must not match `sonnet-4-5`.
  */
 const NATIVE_1M =
@@ -34,17 +33,6 @@ export function resolveContextWindow(reported: number, model?: string): number {
   if (raw > DEFAULT_WINDOW) return raw
   if (model && NATIVE_1M.test(model)) return NATIVE_1M_WINDOW
   return raw
-}
-
-/**
- * Opus 5 isn't in the 2.1.212 model table, so the CLI budgets 200k unless the
- * `[1m]` suffix trips has1mContext. Native-1M ids already in the table are
- * left alone — Sonnet 5 has no [1m] variant.
- */
-export function sdkModelId(model: string): string {
-  if (is1mDisabled() || has1mSuffix(model)) return model
-  if (/(?:^|[^a-z0-9])(?:claude-)?opus-5(?:$|[^0-9])/i.test(model)) return `${model}[1m]`
-  return model
 }
 
 function isSkippedCategory(name: string, deferred?: boolean): boolean {

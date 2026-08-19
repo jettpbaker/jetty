@@ -15,12 +15,7 @@ import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
-import {
-  type ContextPoller,
-  createContextPoller,
-  readContextUsage,
-  sdkModelId,
-} from './context-usage'
+import { type ContextPoller, createContextPoller, readContextUsage } from './context-usage'
 import { slog } from './log'
 import { readUsage } from './usage'
 
@@ -77,7 +72,7 @@ type WarmSession = {
 
 /** Resolved options a session runs under; a mismatch means recycle. */
 function resolvedModel(input: TurnInput): string {
-  return sdkModelId(input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL)
+  return input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL
 }
 
 function turnOptionsKey(input: TurnInput): string {
