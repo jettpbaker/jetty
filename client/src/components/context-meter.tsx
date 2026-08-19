@@ -17,8 +17,12 @@ function formatTokens(tokens: number): string {
   return String(tokens)
 }
 
+function fillCap(usage: ContextUsage): number {
+  return usage.compactAt ?? usage.maxTokens
+}
+
 function percentOf(usage: ContextUsage): number {
-  return Math.min(100, Math.round((usage.usedTokens / usage.maxTokens) * 100))
+  return Math.min(100, Math.round((usage.usedTokens / fillCap(usage)) * 100))
 }
 
 /** Ember and grey alternate: neighbouring slices have to stay apart at chip size. */
@@ -98,17 +102,26 @@ export function ContextMeter({ usage }: { usage: ContextUsage }) {
               {formatTokens(usage.usedTokens)} / {formatTokens(usage.maxTokens)}
             </span>
           </div>
-          <div className='flex h-1.5 gap-px overflow-hidden rounded-full bg-muted'>
-            {slices.map((slice, index) => (
+          <div className='relative flex h-1.5 overflow-hidden rounded-full bg-muted'>
+            <div className='flex h-full min-w-0 flex-1 gap-px'>
+              {slices.map((slice, index) => (
+                <div
+                  key={slice.label}
+                  className='h-full min-w-px'
+                  style={{
+                    width: `${(slice.tokens / usage.maxTokens) * 100}%`,
+                    background: sliceTint(index),
+                  }}
+                />
+              ))}
+            </div>
+            {usage.compactAt !== undefined && usage.compactAt < usage.maxTokens && (
               <div
-                key={slice.label}
-                className='h-full min-w-px'
-                style={{
-                  width: `${(slice.tokens / usage.maxTokens) * 100}%`,
-                  background: sliceTint(index),
-                }}
+                aria-hidden='true'
+                className='absolute inset-y-0 w-px bg-foreground'
+                style={{ left: `${(usage.compactAt / usage.maxTokens) * 100}%` }}
               />
-            ))}
+            )}
           </div>
         </div>
         <div className='flex flex-col gap-1.5'>
