@@ -175,7 +175,7 @@ function BenchComposer({
           </PromptInput>
         </PromptInputProvider>
       </div>
-      <div className='mt-2 flex min-h-7 items-center justify-end'>
+      <div className='mt-1 flex min-h-5 items-center justify-end'>
         {context && <ContextMeter usage={context} />}
       </div>
     </div>
@@ -184,8 +184,7 @@ function BenchComposer({
 
 // Mock fills for the context meter: quiet, half-full, and past the crowded
 // threshold where it turns destructive.
-function mockContext(pct: number): ContextUsage {
-  const maxTokens = 200_000
+function mockContext(pct: number, maxTokens = 200_000): ContextUsage {
   const usedTokens = Math.round((pct / 100) * maxTokens)
   const fixed = [
     { label: 'System prompt', tokens: 3_248 },
@@ -197,7 +196,7 @@ function mockContext(pct: number): ContextUsage {
   return {
     usedTokens,
     maxTokens,
-    compactAt: 180_000,
+    compactAt: Math.round(maxTokens * 0.9),
     slices: [...fixed, { label: 'Messages', tokens: Math.max(0, usedTokens - spent) }],
     asOf: Date.now(),
   }
@@ -254,6 +253,12 @@ const BENCH_STATES: Array<{
     note: 'past 90% — the ring goes destructive, compaction is close',
     status: 'ready',
     context: mockContext(94),
+  },
+  {
+    label: 'context · 1M',
+    note: 'native 1M window — compact tick near the end of the bar',
+    status: 'ready',
+    context: mockContext(18, 1_000_000),
   },
 ]
 

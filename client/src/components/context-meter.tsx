@@ -4,8 +4,8 @@ import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-const RING_RADIUS = 9
-const RING_STROKE = 3.5
+const RING_RADIUS = 9.5
+const RING_STROKE = 3
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 /** past this the window is the problem, not a detail */
 const CROWDED_PCT = 90
@@ -40,18 +40,18 @@ function sliceTint(index: number): string {
 
 function ContextRing({ pct }: { pct: number }) {
   return (
-    <svg viewBox='0 0 24 24' aria-hidden='true'>
+    <svg viewBox='0 0 22 22' aria-hidden='true'>
       <circle
-        cx={12}
-        cy={12}
+        cx={11}
+        cy={11}
         r={RING_RADIUS}
         fill='none'
         strokeWidth={RING_STROKE}
         className='stroke-border'
       />
       <circle
-        cx={12}
-        cy={12}
+        cx={11}
+        cy={11}
         r={RING_RADIUS}
         fill='none'
         stroke='currentColor'
@@ -81,11 +81,11 @@ export function ContextMeter({ usage }: { usage: ContextUsage }) {
         render={
           <PromptInputButton
             variant='ghost-text'
-            size='sm'
+            size='xs'
             aria-label={`Context window ${pct}% full`}
             data-cuelume-hover='tick'
             className={cn(
-              'gap-1.5 font-mono',
+              'h-auto min-h-0 gap-1 px-1.5 py-0 font-mono',
               crowded && 'text-destructive hover:text-destructive'
             )}
           >
