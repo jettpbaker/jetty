@@ -1236,6 +1236,50 @@ describe('fs.search', () => {
   })
 })
 
+describe('skills.list', () => {
+  function writeProjectSkill(projectPath: string, name: string, description: string) {
+    const dir = join(projectPath, '.claude', 'skills', name)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'SKILL.md'), `---\ndescription: ${description}\n---\n`)
+  }
+
+  test('returns project skills over the wire', async () => {
+    const repo = dir(join(tmpdir(), `jetty-skills-wire-${newId()}`))
+    writeProjectSkill(repo, 'review', 'Look at the diff')
+    writeProjectSkill(repo, 'hidden', 'nope')
+    writeFileSync(
+      join(repo, '.claude', 'skills', 'hidden', 'SKILL.md'),
+      '---\ndescription: nope\nuser-invocable: false\n---\n'
+    )
+
+    const { port } = boot()
+    const c = await connect(port)
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: repo,
+    })
+
+    const res = await c.request<{ skills: Array<{ name: string; description: string }> }>(
+      'skills.list',
+      { projectId: project.id }
+    )
+    expect(
+      res.skills.some((s) => s.name === 'review' && s.description === 'Look at the diff')
+    ).toBe(true)
+    expect(res.skills.some((s) => s.name === 'hidden')).toBe(false)
+
+    c.close()
+  })
+
+  test('unknown projectId → not_found', async () => {
+    const { port } = boot()
+    const c = await connect(port)
+    await expect(c.request('skills.list', { projectId: 'no-such-project' })).rejects.toThrow(
+      'not_found'
+    )
+    c.close()
+  })
+})
+
 describe('thread.diff', () => {
   test('non-git project directory responds with an empty diff', async () => {
     const { port } = boot()

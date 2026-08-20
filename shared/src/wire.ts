@@ -56,6 +56,13 @@ export const UploadAttachment = z.object({
 })
 export type UploadAttachment = z.infer<typeof UploadAttachment>
 
+/** A user-invocable Claude Code skill or slash command. */
+export const Skill = z.object({
+  name: z.string(),
+  description: z.string(),
+})
+export type Skill = z.infer<typeof Skill>
+
 export const methods = {
   'chrome.subscribe': {
     params: z.object({}),
@@ -82,6 +89,14 @@ export const methods = {
       limit: z.number().int().positive().max(100).optional(),
     }),
     result: z.object({ files: z.array(z.string()) }),
+  },
+  'skills.list': {
+    // user-invocable Claude Code skills + .claude/commands for a project
+    // (plus personal ~/.claude ones). omit projectId for personal-only.
+    params: z.object({
+      projectId: z.string().optional(),
+    }),
+    result: z.object({ skills: z.array(Skill) }),
   },
   'thread.create': {
     params: z.object({ id: z.string().min(1), projectId: z.string() }),
