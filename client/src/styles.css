@@ -155,10 +155,10 @@ html {
   * {
     @apply border-border outline-ring/50;
   }
-  /* selection wears the inline-code chip: warm near-black ground, ember text */
+  /* selection inverts the code chip: ember ground, canvas-grey text */
   ::selection {
-    background: var(--code);
-    color: var(--code-foreground);
+    background: var(--code-foreground);
+    color: var(--background);
   }
   /* the ember answers wherever you are: caret, focus ring, selection */
   body {
