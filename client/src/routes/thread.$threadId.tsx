@@ -114,7 +114,7 @@ function ThreadPage() {
       {/* floats over the scrolling timeline so the frosted composer has content
           to blur; pointer-events split keeps the gutter click-through */}
       <div className='pointer-events-none absolute inset-x-0 bottom-0 z-10'>
-        <div className='pointer-events-auto mx-auto w-full max-w-3xl p-4'>
+        <div className='pointer-events-auto mx-auto w-full max-w-3xl px-4 pt-4 pb-3'>
           {approval ? (
             <ApprovalDock
               item={approval}
