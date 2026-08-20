@@ -128,10 +128,15 @@ describe('client socket + stores', () => {
 
     const { port } = boot()
     const socket = connectSocket(port)
-    const { project } = await socket.request('project.create', { path: repo })
     const chrome = createChromeStore(socket)
     const skills = createSkillsStore(socket, chrome)
 
+    await waitFor(
+      () => chrome.getSnapshot(),
+      (s) => s.projects.length === 0 && s.threads.length === 0
+    )
+
+    const { project } = await socket.request('project.create', { path: repo })
     await waitFor(
       () => chrome.getSnapshot(),
       (s) => s.projects.some((p) => p.id === project.id)
