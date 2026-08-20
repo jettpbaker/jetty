@@ -17,6 +17,7 @@ import { computeThreadDiff } from './diff'
 import { browse } from './fs-browse'
 import { searchFiles } from './fs-search'
 import { slog } from './log'
+import { listSkills } from './skills'
 import { StoreError } from './store'
 
 export type WsServer = {
@@ -79,6 +80,13 @@ export function createWs(
         if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
         const files = await searchFiles(project.path, p.query, p.limit)
         return { files }
+      }
+      case 'skills.list': {
+        const p = parsed.data as ParamsOf<'skills.list'>
+        if (!p.projectId) return { skills: listSkills({}) }
+        const project = store.getProject(p.projectId)
+        if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
+        return { skills: listSkills({ projectPath: project.path }) }
       }
       case 'thread.create': {
         const p = parsed.data as ParamsOf<'thread.create'>

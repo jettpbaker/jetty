@@ -44,6 +44,9 @@ stays and tracks status.
       `getContextUsage()` control request, polled from the warm session and
       folded into `ThreadState` as `context`. Popover carries the category
       breakdown; the echo agent mocks a ramp so it's demoable without Claude.
+- [ ] **composer `/` skills** — type `/` to pick a Claude Code skill (name +
+      truncated description above the caret). `skills.list` + client prefetch
+      so the menu is instant. Design note in `docs/chunks/composer-skills.md`.
 
 Design pass (the big one at the end) — collected UI/UX work that wants real
 daily-driving mileage before deciding:

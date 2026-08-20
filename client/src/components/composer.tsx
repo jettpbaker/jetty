@@ -16,6 +16,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentFan } from '@/components/attachment-fan'
 import { ContextMeter } from '@/components/context-meter'
+import { SkillSlashField } from '@/components/skill-picker'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -253,6 +254,8 @@ function ThreadComposer({
   contextUsage: ContextUsage | null
 }) {
   const busy = isBusy(status)
+  const chrome = useSyncExternalStore(chromeStore.subscribe, chromeStore.getSnapshot)
+  const projectId = chrome.threads.find((row) => row.id === threadId)?.projectId ?? null
 
   function handleSubmit(message: PromptInputMessage) {
     const normalized = normalizeMessage(message)
@@ -275,7 +278,9 @@ function ThreadComposer({
   return (
     <div className='relative'>
       <ComposerShell onSubmit={handleSubmit}>
-        <PromptInputTextarea placeholder='Do anything' />
+        <SkillSlashField projectId={projectId}>
+          <PromptInputTextarea placeholder='Do anything' />
+        </SkillSlashField>
         <PromptInputFooter>
           <ComposerFooter
             scopeId={threadId}
@@ -319,7 +324,9 @@ function FirstTurnComposer({ threadId, pending }: { threadId: string; pending: P
             ))}
           </div>
         )}
-        <PromptInputTextarea placeholder='Do anything' disabled={sending} />
+        <SkillSlashField projectId={pending.projectId}>
+          <PromptInputTextarea placeholder='Do anything' disabled={sending} />
+        </SkillSlashField>
         <PromptInputFooter>
           <ComposerFooter
             scopeId={threadId}
@@ -368,10 +375,12 @@ export function DraftComposer({ draft }: { draft: Draft }) {
   return (
     <div className='relative'>
       <ComposerShell initialInput={loadDraft(draftId)} onSubmit={handleSubmit}>
-        <PromptInputTextarea
-          placeholder='Do anything'
-          onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
-        />
+        <SkillSlashField projectId={draft.projectId}>
+          <PromptInputTextarea
+            placeholder='Do anything'
+            onChange={(event) => saveDraft(draftId, event.currentTarget.value)}
+          />
+        </SkillSlashField>
         <PromptInputFooter>
           <ComposerFooter scopeId={draftId} status='ready' />
         </PromptInputFooter>

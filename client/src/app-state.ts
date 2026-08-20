@@ -2,6 +2,7 @@ import { createSocket } from './socket'
 import { createChromeStore } from './state/chrome'
 import { createDraftsStore } from './state/drafts'
 import { persistChrome, persistDrafts, persistTabs, persistThread } from './state/persist'
+import { createSkillsStore } from './state/skills'
 import { createTabsStore } from './state/tabs'
 import { createTimelineStore } from './state/timeline'
 
@@ -13,3 +14,4 @@ export const chromeStore = createChromeStore(socket, persistChrome)
 export const tabsStore = createTabsStore(persistTabs)
 export const draftsStore = createDraftsStore(persistDrafts)
 export const timelineStore = createTimelineStore(socket, persistThread)
+export const skillsStore = createSkillsStore(socket, chromeStore)

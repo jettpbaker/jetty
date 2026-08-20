@@ -1,7 +1,7 @@
 import { emptyThread } from '@jetty/shared/reducer'
 import { newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -11,6 +11,7 @@ process.env.JETTY_AGENT = 'echo'
 import { startServer } from '../../server/src/main'
 import { createSocket } from './socket'
 import { createChromeStore } from './state/chrome'
+import { createSkillsStore } from './state/skills'
 import { createTimelineStore, MAX_WARM_SUBSCRIPTIONS } from './state/timeline'
 
 type Running = ReturnType<typeof startServer>
@@ -115,6 +116,36 @@ describe('client socket + stores', () => {
     )
     expect(withThread.threads[0]?.projectId).toBe(project.id)
     expect(chrome.getSnapshot()).toBe(withThread)
+  })
+
+  test('skills store prefetches on chrome snapshot', async () => {
+    const repo = dir(join(tmpdir(), `jetty-client-skills-${newId()}`))
+    mkdirSync(join(repo, '.claude', 'skills', 'review'), { recursive: true })
+    writeFileSync(
+      join(repo, '.claude', 'skills', 'review', 'SKILL.md'),
+      '---\ndescription: Look at the diff\n---\n'
+    )
+
+    const { port } = boot()
+    const socket = connectSocket(port)
+    const chrome = createChromeStore(socket)
+    const skills = createSkillsStore(socket, chrome)
+
+    await waitFor(
+      () => chrome.getSnapshot(),
+      (s) => s.projects.length === 0 && s.threads.length === 0
+    )
+
+    const { project } = await socket.request('project.create', { path: repo })
+    await waitFor(
+      () => chrome.getSnapshot(),
+      (s) => s.projects.some((p) => p.id === project.id)
+    )
+    const listed = await waitFor(
+      () => skills.getFor(project.id),
+      (rows) => rows.some((s) => s.name === 'review')
+    )
+    expect(listed.find((s) => s.name === 'review')?.description).toBe('Look at the diff')
   })
 
   test('openThread instant cache + afterSeq catch-up after reconnect', async () => {
