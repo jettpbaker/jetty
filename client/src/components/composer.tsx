@@ -221,8 +221,12 @@ function ComposerShell({
 
 // The strip under the composer. Height is reserved even when empty so the
 // meter's first appearance doesn't shove the composer up mid-turn.
+// `mt-4` matches the thread overlay's `p-4` so the ring sits equally
+// between the composer and the viewport bottom.
+export const composerUnderRow = 'mt-4 flex min-h-5 items-center justify-end'
+
 function ComposerUnderRow({ children }: { children?: ReactNode }) {
-  return <div className='mt-1 flex min-h-5 items-center justify-end'>{children}</div>
+  return <div className={composerUnderRow}>{children}</div>
 }
 
 export function Composer({

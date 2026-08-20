@@ -17,7 +17,7 @@ import {
   type FanConfig,
   type FanPivot,
 } from '@/components/attachment-fan'
-import { ComposerFooter, composerShell } from '@/components/composer'
+import { ComposerFooter, composerShell, composerUnderRow } from '@/components/composer'
 import { ContextMeter } from '@/components/context-meter'
 import { acceptImages } from '@/lib/attachments'
 import { useRef, useState } from 'react'
@@ -175,9 +175,7 @@ function BenchComposer({
           </PromptInput>
         </PromptInputProvider>
       </div>
-      <div className='mt-1 flex min-h-5 items-center justify-end'>
-        {context && <ContextMeter usage={context} />}
-      </div>
+      <div className={composerUnderRow}>{context && <ContextMeter usage={context} />}</div>
     </div>
   )
 }
