@@ -21,17 +21,11 @@ export function slashQueryAt(text: string, caret: number): SlashQuery | null {
 export function filterSkills(skills: Skill[], query: string): Skill[] {
   if (query.length === 0) return skills
   const q = query.toLowerCase()
-  const prefix: Skill[] = []
-  const rest: Skill[] = []
+  const matches: Skill[] = []
   for (const skill of skills) {
-    const name = skill.name.toLowerCase()
-    if (name.startsWith(q)) {
-      prefix.push(skill)
-      continue
-    }
-    if (name.includes(q) || skill.description.toLowerCase().includes(q)) rest.push(skill)
+    if (skill.name.toLowerCase().startsWith(q)) matches.push(skill)
   }
-  return [...prefix, ...rest]
+  return matches
 }
 
 export function insertSkill(text: string, slash: SlashQuery, caret: number, name: string): string {

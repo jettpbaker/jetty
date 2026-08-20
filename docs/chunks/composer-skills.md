@@ -25,5 +25,6 @@ the keystroke.
 ## Composer
 
 A `/` token (start of input or after whitespace) opens the menu. Further
-typing filters. Arrows move, Enter/Tab insert, Escape dismisses. Enter
-still sends when the menu is closed.
+typing keeps only names that start with the query. The list scrolls; arrows
+move the highlight and reveal rows below the fold. Enter/Tab insert,
+Escape dismisses. Enter still sends when the menu is closed.

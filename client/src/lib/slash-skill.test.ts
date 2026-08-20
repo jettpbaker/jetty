@@ -37,13 +37,17 @@ describe('filterSkills', () => {
     ])
   })
 
-  test('prefix matches rank first', () => {
+  test('keeps only names that start with the query', () => {
     expect(filterSkills(skills, 're').map((s) => s.name)).toEqual(['review'])
     expect(filterSkills(skills, 'imp').map((s) => s.name)).toEqual(['improve-animations'])
+    expect(filterSkills(skills, 'c').map((s) => s.name)).toEqual([])
   })
 
-  test('falls back to description', () => {
-    expect(filterSkills(skills, 'motion').map((s) => s.name)).toEqual(['improve-animations'])
+  test('drops substring and description hits', () => {
+    const extra = [...skills, { name: 'code-review', description: 'Look at the diff' }]
+    expect(filterSkills(extra, 'c').map((s) => s.name)).toEqual(['code-review'])
+    expect(filterSkills(extra, 're').map((s) => s.name)).toEqual(['review'])
+    expect(filterSkills(skills, 'motion').map((s) => s.name)).toEqual([])
   })
 })
 

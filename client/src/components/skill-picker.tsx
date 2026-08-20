@@ -21,8 +21,6 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
-const MAX_VISIBLE = 8
-
 type FieldProps = {
   ref?: Ref<HTMLTextAreaElement>
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void
@@ -49,7 +47,7 @@ export function SkillSlashField({
 
   const slash = slashQueryAt(textInput.value, caret)
   const slashToken = slash ? slashKey(slash) : null
-  const matches = slash ? filterSkills(skills, slash.query).slice(0, MAX_VISIBLE) : []
+  const matches = slash ? filterSkills(skills, slash.query) : []
   const open = slashToken !== null && matches.length > 0 && dismissed !== slashToken
 
   function fieldTextarea(): HTMLTextAreaElement | null {
@@ -184,7 +182,21 @@ function SkillMenu({
     const height = menu.offsetHeight
     const above = caretRect.top - gap - height
     menu.style.top = `${above >= 8 ? above : caretRect.top + caretRect.height + gap}px`
-  }, [textarea, caret, skills, active])
+  }, [textarea, caret, skills])
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current
+    const item = menu?.querySelector<HTMLElement>('[data-active=true]')
+    if (!menu || !item) return
+    if (item.offsetTop < menu.scrollTop) {
+      menu.scrollTop = item.offsetTop
+      return
+    }
+    const itemBottom = item.offsetTop + item.offsetHeight
+    if (itemBottom > menu.scrollTop + menu.clientHeight) {
+      menu.scrollTop = itemBottom - menu.clientHeight
+    }
+  }, [active, skills])
 
   return createPortal(
     <div
@@ -199,6 +211,7 @@ function SkillMenu({
         <button
           key={skill.name}
           type='button'
+          data-active={index === active || undefined}
           className={cn(
             'flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left outline-hidden',
             index === active && 'bg-foreground/10'
