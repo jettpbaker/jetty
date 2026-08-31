@@ -5,14 +5,14 @@ import { join } from 'node:path'
 export function openDb(home: string): Database {
   mkdirSync(home, { recursive: true })
   const db = new Database(join(home, 'jetty.db'))
-  db.exec('PRAGMA journal_mode = WAL')
-  db.exec('PRAGMA foreign_keys = ON')
+  db.run('PRAGMA journal_mode = WAL')
+  db.run('PRAGMA foreign_keys = ON')
   migrate(db)
   return db
 }
 
 function migrate(db: Database) {
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
       path TEXT NOT NULL,
@@ -46,7 +46,7 @@ function migrate(db: Database) {
   `)
 
   try {
-    db.exec('ALTER TABLE threads ADD COLUMN agent_session_id TEXT')
+    db.run('ALTER TABLE threads ADD COLUMN agent_session_id TEXT')
   } catch {
     // column already exists on upgraded dbs
   }
