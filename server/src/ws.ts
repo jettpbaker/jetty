@@ -8,6 +8,7 @@ import {
   type ResponseMessage,
   type Usage,
 } from '@jetty/shared/wire'
+import { Effect } from 'effect'
 
 import type { Hub, ConnData } from './hub'
 import type { Orchestrator } from './orchestrator'
@@ -132,14 +133,16 @@ export function createWs(
       case 'turn.start': {
         const p = parsed.data as ParamsOf<'turn.start'>
         slog('ws', `turn.start thread=${p.threadId} chars=${p.text.length} model=${p.model ?? '-'}`)
-        return orch.startTurn({
-          threadId: p.threadId,
-          text: p.text,
-          attachments: p.attachments,
-          model: p.model,
-          effort: p.effort,
-          permissionMode: p.permissionMode,
-        })
+        return Effect.runPromise(
+          orch.startTurnEffect({
+            threadId: p.threadId,
+            text: p.text,
+            attachments: p.attachments,
+            model: p.model,
+            effort: p.effort,
+            permissionMode: p.permissionMode,
+          })
+        )
       }
       case 'turn.interrupt': {
         const p = parsed.data as ParamsOf<'turn.interrupt'>

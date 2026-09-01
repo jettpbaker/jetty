@@ -3,6 +3,7 @@ import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/ite
 import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
+import { Effect } from 'effect'
 
 import type { Agent } from './agent'
 import type { Attachments, PersistedAttachments } from './attachments'
@@ -10,7 +11,6 @@ import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 import type { Titler } from './titler'
 
-import { slog } from './log'
 import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
@@ -96,35 +96,59 @@ export function createOrchestrator(
     })()
   }
 
-  return {
-    async startTurn(input: StartTurnInput): Promise<{ turnId: string }> {
-      const thread = store.getThread(input.threadId)
-      if (!thread) throw new StoreError('not_found', `Thread ${input.threadId} not found`)
+  const startTurnEffect = (input: StartTurnInput) =>
+    Effect.gen(function* () {
+      const thread = yield* Effect.try(() => store.getThread(input.threadId))
 
-      // Persist before any item/turn is recorded so a bad upload leaves nothing behind.
-      const saved = attachments ? attachments.persist(input.attachments) : EMPTY_ATTACHMENTS
-
-      if (thread.title === DEFAULT_THREAD_TITLE) {
-        maybeTitle(input.threadId, input.text)
+      if (!thread) {
+        return yield* Effect.fail(new StoreError('not_found', `Thread ${input.threadId} not found`))
       }
 
-      const existingTurnId = activeTurnId(input.threadId)
-      if (existingTurnId && agent.steer(input.threadId, input.text, saved.images)) {
-        slog('orch', `steer thread=${input.threadId} turn=${existingTurnId}`)
-        appendUserMessage(input.threadId, existingTurnId, input.text, saved.meta)
-        return { turnId: existingTurnId }
+      const saved = attachments
+        ? yield* Effect.try({
+            try: () => attachments.persist(input.attachments),
+            catch: (error) => error,
+          })
+        : EMPTY_ATTACHMENTS
+
+      if (thread.title === DEFAULT_THREAD_TITLE) maybeTitle(input.threadId, input.text)
+
+      const existingTurnId = yield* Effect.try(() => activeTurnId(input.threadId))
+      if (existingTurnId) {
+        const steered = yield* Effect.try(() =>
+          agent.steer(input.threadId, input.text, saved.images)
+        )
+
+        if (steered) {
+          yield* Effect.logInfo('steer').pipe(Effect.annotateLogs('turnId', existingTurnId))
+
+          yield* Effect.try({
+            try: () => appendUserMessage(input.threadId, existingTurnId, input.text, saved.meta),
+            catch: (error) => error,
+          })
+          return { turnId: existingTurnId }
+        }
       }
-      // No active turn, or the warm session vanished mid-race — fresh turn.
 
       const turnId = newId()
-      slog('orch', `fresh turn thread=${input.threadId} turn=${turnId}`)
+      yield* Effect.logInfo('fresh turn').pipe(Effect.annotateLogs('turnId', turnId))
+
       liveTurns.set(input.threadId, turnId)
 
-      try {
-        appendUserMessage(input.threadId, turnId, input.text, saved.meta)
+      yield* Effect.try({
+        try: () => appendUserMessage(input.threadId, turnId, input.text, saved.meta),
+        catch: (error) => error,
+      }).pipe(
+        Effect.onError(() =>
+          Effect.sync(() => {
+            liveTurns.delete(input.threadId)
+          })
+        )
+      )
 
-        void agent
-          .startTurn(
+      const agentLifecycle = Effect.tryPromise({
+        try: () =>
+          agent.startTurn(
             {
               threadId: input.threadId,
               turnId,
@@ -135,28 +159,44 @@ export function createOrchestrator(
               permissionMode: input.permissionMode,
             },
             emitFor(input.threadId)
-          )
-          .catch((err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err)
-            slog('orch', `startTurn failed thread=${input.threadId} turn=${turnId}: ${message}`)
-            try {
+          ),
+        catch: (error) => error,
+      }).pipe(
+        Effect.catch((error) =>
+          Effect.gen(function* () {
+            const message = error instanceof Error ? error.message : String(error)
+
+            yield* Effect.logError('startTurn failed').pipe(
+              Effect.annotateLogs({ turnId: turnId, error: message })
+            )
+
+            yield* Effect.try(() =>
               append(input.threadId, { type: 'turn.failed', turnId, error: message })
-            } catch {
-              // thread may have disappeared mid-turn
-            }
+            ).pipe(Effect.ignore)
           })
-          .finally(() => {
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
             if (liveTurns.get(input.threadId) === turnId) {
               liveTurns.delete(input.threadId)
             }
           })
-      } catch (err) {
-        liveTurns.delete(input.threadId)
-        throw err
-      }
+        )
+      )
+
+      yield* agentLifecycle.pipe(Effect.forkDetach({ startImmediately: true }))
 
       return { turnId }
-    },
+    }).pipe(
+      Effect.annotateLogs({
+        area: 'orch',
+        threadId: input.threadId,
+      }),
+      Effect.withLogSpan('startTurn')
+    )
+
+  return {
+    startTurnEffect,
 
     interrupt(threadId: string) {
       if (!store.getThread(threadId)) {

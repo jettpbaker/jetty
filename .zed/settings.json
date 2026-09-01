@@ -1,0 +1,55 @@
+{
+  "auto_install_extensions": {
+    "oxc": true
+  },
+  "lsp": {
+    "oxfmt": {
+      "initialization_options": {
+        "settings": {
+          "fmt.configPath": ".oxfmtrc.json",
+          "run": "onSave"
+        }
+      }
+    }
+  },
+  "languages": {
+    "TypeScript": {
+      "language_servers": [
+        "effect-tsgo",
+        "oxfmt",
+        "!vtsls",
+        "!typescript-language-server"
+      ],
+      "format_on_save": "on",
+      "prettier": {
+        "allowed": false
+      },
+      "formatter": [
+        {
+          "language_server": {
+            "name": "oxfmt"
+          }
+        }
+      ]
+    },
+    "TSX": {
+      "language_servers": [
+        "effect-tsgo",
+        "oxfmt",
+        "!vtsls",
+        "!typescript-language-server"
+      ],
+      "format_on_save": "on",
+      "prettier": {
+        "allowed": false
+      },
+      "formatter": [
+        {
+          "language_server": {
+            "name": "oxfmt"
+          }
+        }
+      ]
+    }
+  }
+}
