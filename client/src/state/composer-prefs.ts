@@ -18,11 +18,16 @@ const LOW_TO_MAX: EffortOption[] = [
 ]
 
 export const MODELS: ModelOption[] = [
-  { id: 'claude-fable-5', label: 'Fable 5', efforts: LOW_TO_MAX },
+  { id: 'claude-fable-5-1', label: 'Fable 5.1', efforts: LOW_TO_MAX },
   { id: 'claude-opus-5', label: 'Opus 5', efforts: LOW_TO_MAX },
   { id: 'claude-sonnet-5', label: 'Sonnet 5', efforts: LOW_TO_MAX },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', efforts: [] },
 ]
+
+/** Stored ids that no longer appear in MODELS. */
+const MODEL_ALIASES: Record<string, string> = {
+  'claude-fable-5': 'claude-fable-5-1',
+}
 
 export const APPROVAL_MODES: ApprovalOption[] = [
   { id: 'auto', label: 'Auto' },
@@ -56,7 +61,8 @@ function fallbackPrefs(): ComposerPrefs {
 
 function hydratePrefs(stored: StoredPrefs | undefined, base: ComposerPrefs): ComposerPrefs {
   if (!stored) return base
-  const model = MODELS.find((option) => option.id === stored.model) ?? base.model
+  const modelId = stored.model ? (MODEL_ALIASES[stored.model] ?? stored.model) : undefined
+  const model = MODELS.find((option) => option.id === modelId) ?? base.model
   return {
     model,
     effort: model.efforts.find((option) => option.id === stored.effort) ?? null,
