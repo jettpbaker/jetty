@@ -190,6 +190,7 @@ describe('readContextUsage', () => {
 describe('resolveContextWindow', () => {
   test('lifts known native-1M ids and [1m] suffixes', () => {
     expect(resolveContextWindow(200_000, 'claude-fable-5')).toBe(1_000_000)
+    expect(resolveContextWindow(200_000, 'claude-fable-5-1')).toBe(1_000_000)
     expect(resolveContextWindow(200_000, 'claude-opus-5')).toBe(1_000_000)
     expect(resolveContextWindow(200_000, 'claude-opus-4-8')).toBe(1_000_000)
     expect(resolveContextWindow(200_000, 'claude-sonnet-4-5[1m]')).toBe(1_000_000)

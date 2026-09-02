@@ -10,7 +10,7 @@ const NATIVE_1M_WINDOW = 1_000_000
  * `sonnet-5` must not match `sonnet-4-5`.
  */
 const NATIVE_1M =
-  /(?:^|[^a-z0-9])(?:claude-)?(?:fable-5|mythos-5|sonnet-5|opus-5|opus-4-[789])(?:$|[^0-9])/i
+  /(?:^|[^a-z0-9])(?:claude-)?(?:fable-5(?:-1)?|mythos-5(?:-1)?|sonnet-5|opus-5|opus-4-[789])(?:$|[^0-9])/i
 
 const SKIP_CATEGORIES = new Set(['free space', 'autocompact buffer', 'compact buffer'])
 
