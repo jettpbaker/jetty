@@ -117,7 +117,6 @@ export function ComposerFooter({
               variant='ghost-text'
               size='sm'
               disabled={disabled}
-              data-cuelume-hover='tick'
             >
               {prefs.approval.label}
             </PromptInputButton>
@@ -143,7 +142,6 @@ export function ComposerFooter({
                 variant='ghost-text'
                 size='sm'
                 disabled={disabled}
-                data-cuelume-hover='tick'
                 className='group/model gap-1.5 text-foreground'
               >
                 {prefs.model.label}
@@ -389,7 +387,7 @@ export function DraftComposer({ draft }: { draft: Draft }) {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant='ghost-text' size='sm' data-cuelume-hover='tick'>
+              <Button variant='ghost-text' size='sm'>
                 {project?.title ?? 'Pick a project'}
               </Button>
             }

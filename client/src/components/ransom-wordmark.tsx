@@ -1,5 +1,4 @@
 import { pressHandlers } from '@/lib/press-handlers'
-import { play } from 'cuelume'
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
 // Ransom-note wordmark: real torn-magazine cutout letters (Resource Boy pack,
 // royalty-free), one scrap per letter with jitter so it reads as taped down by
@@ -255,7 +254,6 @@ export function RansomWordmarkStatic({
   const [scraps, setScraps] = useState(() => composeWordRandom(CHROME_POOL))
 
   function reroll() {
-    play('whisper')
     setScraps((current) => rollNext(current, CHROME_POOL))
   }
 
@@ -324,7 +322,6 @@ export function RansomWordmark({
   }, [upcoming])
 
   function reroll() {
-    play('whisper')
     setSession({
       scraps: upcoming.map((scrap) => ({ ...scrap, swapped: true })),
       upcoming: rollNext(upcoming),
