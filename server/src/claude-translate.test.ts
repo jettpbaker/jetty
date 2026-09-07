@@ -546,4 +546,167 @@ describe('translate()', () => {
       { type: 'item.completed', itemId: readId, patch: { status: 'succeeded' } },
     ])
   })
+
+  test('streaming send_video tool_use is hidden; sibling tools still emit', () => {
+    const ctx = createTranslateCtx('t1')
+    translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'tu_send',
+            name: 'mcp__jetty__send_video',
+            input: {},
+          },
+        },
+      },
+      ctx
+    )
+    translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '{"path":"a.mp4"}' },
+        },
+      },
+      ctx
+    )
+    const hidden = translate(
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 0 },
+      },
+      ctx
+    )
+    expect(hidden).toEqual([])
+    expect(ctx.toolUseToItemId.has('tu_send')).toBe(false)
+    expect(ctx.toolBlocks.size).toBe(0)
+
+    translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 1,
+          content_block: { type: 'tool_use', id: 'tu_bash', name: 'Bash', input: {} },
+        },
+      },
+      ctx
+    )
+    translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'input_json_delta', partial_json: '{"command":"ls"}' },
+        },
+      },
+      ctx
+    )
+    const bash = translate(
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 1 },
+      },
+      ctx
+    )
+    expect(bash).toHaveLength(1)
+    expect(bash[0]).toMatchObject({
+      type: 'item.started',
+      item: { kind: 'tool_call', toolName: 'Bash' },
+    })
+    const bashId = startedItemId(bash)
+
+    const results = translate(
+      {
+        type: 'user',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_send',
+              content: 'Sent video to the chat: a.mp4',
+              is_error: false,
+            },
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_bash',
+              content: 'ok',
+              is_error: false,
+            },
+          ],
+        },
+      },
+      ctx
+    )
+    expect(results).toEqual([
+      { type: 'item.delta', itemId: bashId, delta: 'ok' },
+      { type: 'item.completed', itemId: bashId, patch: { status: 'succeeded' } },
+    ])
+  })
+
+  test('assistant send_video tool_use is hidden; sibling tools still emit', () => {
+    const ctx = createTranslateCtx('t1')
+    const started = translate(
+      {
+        type: 'assistant',
+        message: {
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tu_send',
+              name: 'mcp__jetty__send_video',
+              input: { path: 'a.mp4' },
+            },
+            {
+              type: 'tool_use',
+              id: 'tu_read',
+              name: 'Read',
+              input: { path: 'a.ts' },
+            },
+          ],
+        },
+      },
+      ctx
+    )
+    expect(started).toHaveLength(1)
+    expect(started[0]).toMatchObject({
+      type: 'item.started',
+      item: { kind: 'tool_call', toolName: 'Read' },
+    })
+    expect(ctx.toolUseToItemId.has('tu_send')).toBe(false)
+    expect(ctx.toolUseToItemId.get('tu_read')).toBeTruthy()
+    const readId = startedItemId(started)
+
+    const results = translate(
+      {
+        type: 'user',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_send',
+              content: 'Sent video to the chat: a.mp4',
+            },
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_read',
+              content: 'file contents',
+            },
+          ],
+        },
+      },
+      ctx
+    )
+    expect(results).toEqual([
+      { type: 'item.delta', itemId: readId, delta: 'file contents' },
+      { type: 'item.completed', itemId: readId, patch: { status: 'succeeded' } },
+    ])
+  })
 })

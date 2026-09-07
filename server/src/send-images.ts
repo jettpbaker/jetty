@@ -1,4 +1,3 @@
-import type { ThreadEvent } from '@jetty/shared/events'
 import type { Attachment } from '@jetty/shared/items'
 
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
@@ -7,21 +6,17 @@ import { newId } from '@jetty/shared/wire'
 import { resolve } from 'node:path'
 import { z } from 'zod'
 
-import type { Attachments } from './attachments'
+import type { MediaToolHost } from './media-host'
+
+import { createSendVideoTool } from './send-video'
 
 export const SEND_IMAGES_TOOL = 'mcp__jetty__send_images'
+export type { MediaToolHost }
 
 const SEND_IMAGES_DESCRIPTION =
   "Show the user screenshots or other images in the chat (for example, to verify UI changes). Paths may be absolute or relative to the project root. Up to 4 images render as a gallery. Supported formats: png, jpg, gif, webp. Images are copied into jetty's store, so temporary files may be deleted afterwards."
 
-export type SendImagesHost = {
-  attachments: Attachments
-  projectPath: string
-  turnId: () => string
-  emit: (event: ThreadEvent) => void
-}
-
-export function createSendImagesTool(host: SendImagesHost) {
+export function createSendImagesTool(host: MediaToolHost) {
   return tool(
     'send_images',
     SEND_IMAGES_DESCRIPTION,
@@ -38,7 +33,7 @@ export function createSendImagesTool(host: SendImagesHost) {
       const copied: string[] = []
       try {
         for (const p of args.paths) {
-          const attachment = host.attachments.persistFile(resolve(host.projectPath, p))
+          const attachment = host.attachments.persistFile(resolve(host.projectPath, p), 'image')
           images.push(attachment)
           copied.push(attachment.id)
         }
@@ -78,10 +73,10 @@ export function createSendImagesTool(host: SendImagesHost) {
   )
 }
 
-export function createJettyMcpServer(host: SendImagesHost) {
+export function createJettyMcpServer(host: MediaToolHost) {
   return createSdkMcpServer({
     name: 'jetty',
     version: '1.0.0',
-    tools: [createSendImagesTool(host)],
+    tools: [createSendImagesTool(host), createSendVideoTool(host)],
   })
 }

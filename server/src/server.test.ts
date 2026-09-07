@@ -26,6 +26,7 @@ import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
 import { createSendImagesTool } from './send-images'
+import { createSendVideoTool } from './send-video'
 import { createStore } from './store'
 
 /** project.create requires an existing directory — ensure one before creating. */
@@ -1128,6 +1129,100 @@ describe('image attachments', () => {
     expect(ok.status).toBe(200)
     expect(ok.headers.get('Content-Type')).toBe('image/png')
     expect(Buffer.from(await ok.arrayBuffer()).equals(TINY_PNG_BYTES)).toBe(true)
+
+    cold.close()
+    c.close()
+  })
+
+  test('video item is stored and served with Range support', async () => {
+    const projectDir = dir('/tmp/video-agent')
+    const clip = Buffer.alloc(64, 0xab)
+    writeFileSync(join(projectDir, 'clip.mp4'), clip)
+
+    let jettyHome = ''
+    const fake: Agent = {
+      async startTurn(input, emit) {
+        emit({ type: 'turn.started', turnId: input.turnId })
+        await createSendVideoTool({
+          attachments: createAttachments(jettyHome),
+          projectPath: projectDir,
+          turnId: () => input.turnId,
+          emit,
+        }).handler({ path: 'clip.mp4', caption: 'UI flow' }, {})
+        emit({
+          type: 'turn.completed',
+          turnId: input.turnId,
+          usage: { inputTokens: 0, outputTokens: 0 },
+          costUsd: 0,
+        })
+      },
+      interrupt() {},
+      steer() {
+        return false
+      },
+      respondToApproval() {
+        return false
+      },
+      respondToQuestion() {
+        return false
+      },
+    }
+
+    const { port, home } = boot({ agent: fake })
+    jettyHome = home
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: projectDir,
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    await c.request('turn.start', { threadId: thread.id, text: 'show clip' })
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+
+    const events = threadEvents(c, thread.id).map((m) => m.event)
+    const started = events.find((e) => e.type === 'item.started' && e.item.kind === 'video')
+    if (!started || started.type !== 'item.started' || started.item.kind !== 'video') {
+      throw new Error('expected video')
+    }
+    expect(started.item.caption).toBe('UI flow')
+    expect(started.item.video.name).toBe('clip.mp4')
+    expect(started.item.video.mimeType).toBe('video/mp4')
+    const attachId = started.item.video.id
+
+    const cold = await connect(port)
+    const sub = await cold.request<{
+      snapshot: {
+        items: Array<{ kind: string; caption?: string; video?: { id: string } }>
+      }
+    }>('thread.subscribe', { threadId: thread.id })
+    const video = sub.snapshot.items.find((i) => i.kind === 'video')
+    expect(video).toMatchObject({ kind: 'video', caption: 'UI flow' })
+    expect(video?.video?.id).toBe(attachId)
+
+    const ok = await fetch(`http://127.0.0.1:${port}/attachments/${attachId}`)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('Content-Type')).toBe('video/mp4')
+    expect(ok.headers.get('Accept-Ranges')).toBe('bytes')
+    expect(Buffer.from(await ok.arrayBuffer()).equals(clip)).toBe(true)
+
+    const partial = await fetch(`http://127.0.0.1:${port}/attachments/${attachId}`, {
+      headers: { Range: 'bytes=10-19' },
+    })
+    expect(partial.status).toBe(206)
+    expect(partial.headers.get('Content-Range')).toBe(`bytes 10-19/${clip.byteLength}`)
+    expect(Buffer.from(await partial.arrayBuffer()).equals(clip.subarray(10, 20))).toBe(true)
+
+    const unsat = await fetch(`http://127.0.0.1:${port}/attachments/${attachId}`, {
+      headers: { Range: 'bytes=9999-' },
+    })
+    expect(unsat.status).toBe(416)
 
     cold.close()
     c.close()
