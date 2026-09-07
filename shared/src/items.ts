@@ -84,6 +84,12 @@ export const ThreadItem = z.discriminatedUnion('kind', [
   }),
   z.object({
     ...itemBase,
+    kind: z.literal('video'),
+    video: Attachment,
+    caption: z.string().optional(),
+  }),
+  z.object({
+    ...itemBase,
     kind: z.literal('plan'),
     text: z.string(),
     streaming: z.boolean().optional(),

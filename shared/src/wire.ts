@@ -9,6 +9,7 @@ export const newId = (): string => uuidv7()
 
 export const MAX_IMAGES_PER_TURN = 8
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
 export const PermissionMode = z.enum(['auto', 'full_access', 'plan'])
 export type PermissionMode = z.infer<typeof PermissionMode>
