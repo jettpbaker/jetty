@@ -13,6 +13,7 @@ import { createClaudeTitler } from './claude-titler'
 import { openDb } from './db'
 import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
+import { rangeResponse } from './range'
 import { createStore, type Store } from './store'
 import { createWs } from './ws'
 
@@ -145,9 +146,7 @@ export function startServer(opts: ServerOptions = {}) {
         if (!resolved) return new Response('Not found', { status: 404 })
         const file = Bun.file(resolved.path)
         if (!(await file.exists())) return new Response('Not found', { status: 404 })
-        return new Response(file, {
-          headers: { 'Content-Type': resolved.mimeType },
-        })
+        return rangeResponse(file, resolved.mimeType, req.headers.get('Range'))
       }
 
       return serveStatic(url.pathname)
