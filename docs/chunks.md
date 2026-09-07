@@ -44,10 +44,6 @@ stays and tracks status.
       `getContextUsage()` control request, polled from the warm session and
       folded into `ThreadState` as `context`. Popover carries the category
       breakdown; the echo agent mocks a ramp so it's demoable without Claude.
-- [x] **agent images** — `send_images` in-process MCP tool (1–4 paths + caption)
-      → attachments store → `image_gallery` item rendered as a grid with the
-      shared preview dialog. Tool row hidden; the gallery is the record. Design
-      note in `docs/chunks/agent-images.md` until Jett confirms.
 - [ ] **composer `/` skills** — type `/` to pick a Claude Code skill (name +
       truncated description above the caret). `skills.list` + client prefetch
       so the menu is instant. Design note in `docs/chunks/composer-skills.md`.
