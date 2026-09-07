@@ -118,6 +118,32 @@ describe('client socket + stores', () => {
     expect(chrome.getSnapshot()).toBe(withThread)
   })
 
+  test('echo turn pushes extraUsage onto chrome', async () => {
+    const { port } = boot()
+    const socket = connectSocket(port)
+    const chrome = createChromeStore(socket)
+
+    const { project } = await socket.request('project.create', {
+      path: dir('/tmp/chrome-usage'),
+    })
+    const { thread } = await socket.request('thread.create', { id: newId(), projectId: project.id })
+    await socket.request('thread.subscribe', { threadId: thread.id })
+    await socket.request('turn.start', { threadId: thread.id, text: 'hello usage' })
+
+    const withUsage = await waitFor(
+      () => chrome.getSnapshot(),
+      (s) => s.usage?.extraUsage != null
+    )
+    expect(withUsage.usage?.fiveHour.pct).toBe(42)
+    expect(withUsage.usage?.sevenDay.pct).toBe(18)
+    expect(withUsage.usage?.extraUsage).toEqual({
+      used: 12.4,
+      limit: 50,
+      pct: 24.8,
+      currency: 'USD',
+    })
+  })
+
   test('skills store prefetches on chrome snapshot', async () => {
     const repo = dir(join(tmpdir(), `jetty-client-skills-${newId()}`))
     mkdirSync(join(repo, '.claude', 'skills', 'review'), { recursive: true })
