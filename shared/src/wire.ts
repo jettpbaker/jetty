@@ -205,10 +205,20 @@ export const UsageWindow = z.object({
 })
 export type UsageWindow = z.infer<typeof UsageWindow>
 
+/** Extra usage credits (fallback after the 5h window). Amounts are major currency units. */
+export const ExtraUsage = z.object({
+  used: z.number(),
+  limit: z.number(),
+  pct: z.number(),
+  currency: z.string(),
+})
+export type ExtraUsage = z.infer<typeof ExtraUsage>
+
 /** Account rate-limit usage from Claude Code /usage (not per-turn token counts). */
 export const Usage = z.object({
   fiveHour: UsageWindow,
   sevenDay: UsageWindow,
+  extraUsage: ExtraUsage.optional(),
   asOf: z.number(),
 })
 export type Usage = z.infer<typeof Usage>
