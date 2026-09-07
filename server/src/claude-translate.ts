@@ -3,6 +3,8 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
 
+import { SEND_IMAGES_TOOL } from './send-images'
+
 export type TranslateCtx = {
   turnId: string
   currentAssistantId: string | null
@@ -220,29 +222,31 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       } else if (kind === 'tool_use') {
         const tool = ctx.toolBlocks.get(index)
         if (tool) {
-          let input: unknown = {}
-          if (tool.json) {
-            try {
-              input = JSON.parse(tool.json)
-            } catch {
-              input = tool.json
-            }
-          }
-          const itemId = newId()
-          if (tool.id) ctx.toolUseToItemId.set(tool.id, itemId)
-          ctx.partialItemIds.add(itemId)
-          const item: ThreadItem = {
-            id: itemId,
-            turnId: ctx.turnId,
-            createdAt: Date.now(),
-            kind: 'tool_call',
-            toolName: tool.name,
-            input,
-            output: '',
-            status: 'running',
-          }
-          out.push({ type: 'item.started', item })
           ctx.toolBlocks.delete(index)
+          if (tool.name !== SEND_IMAGES_TOOL) {
+            let input: unknown = {}
+            if (tool.json) {
+              try {
+                input = JSON.parse(tool.json)
+              } catch {
+                input = tool.json
+              }
+            }
+            const itemId = newId()
+            if (tool.id) ctx.toolUseToItemId.set(tool.id, itemId)
+            ctx.partialItemIds.add(itemId)
+            const item: ThreadItem = {
+              id: itemId,
+              turnId: ctx.turnId,
+              createdAt: Date.now(),
+              kind: 'tool_call',
+              toolName: tool.name,
+              input,
+              output: '',
+              status: 'running',
+            }
+            out.push({ type: 'item.started', item })
+          }
         }
       }
 
@@ -351,7 +355,7 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
         },
       })
       out.push({ type: 'item.completed', itemId: id })
-    } else if (b.type === 'tool_use') {
+    } else if (b.type === 'tool_use' && (b.name ?? 'tool') !== SEND_IMAGES_TOOL) {
       const itemId = newId()
       if (b.id) ctx.toolUseToItemId.set(b.id, itemId)
       out.push({

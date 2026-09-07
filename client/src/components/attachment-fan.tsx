@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import { usePromptInputAttachments } from '@/components/ai-elements/prompt-input'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { ImagePreviewDialog, type ImagePreview } from '@/components/image-preview-dialog'
 import { useEffect, useRef, useState } from 'react'
 
 // Image attachments as a hand of cards fanned around the composer's
@@ -47,7 +47,7 @@ const TOSS_DISTANCE = 90
 
 export function AttachmentFan({ config = DEFAULT_FAN }: { config?: FanConfig }) {
   const { files, remove } = usePromptInputAttachments()
-  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null)
+  const [preview, setPreview] = useState<ImagePreview | null>(null)
   const images = files.filter((f) => f.mediaType?.startsWith('image/') && f.url)
   if (images.length === 0 && preview === null) return null
 
@@ -73,19 +73,7 @@ export function AttachmentFan({ config = DEFAULT_FAN }: { config?: FanConfig }) 
           onOpen={() => setPreview({ url: file.url!, name: file.filename || 'attachment' })}
         />
       ))}
-      <Dialog open={preview !== null} onOpenChange={(open) => !open && setPreview(null)}>
-        <DialogContent
-          showCloseButton={false}
-          className='w-auto max-w-[90vw] rounded-none bg-transparent p-0 ring-0 sm:max-w-[90vw]'
-        >
-          <DialogTitle className='sr-only'>{preview?.name}</DialogTitle>
-          <img
-            alt={preview?.name}
-            src={preview?.url}
-            className='max-h-[85vh] max-w-full rounded-lg object-contain'
-          />
-        </DialogContent>
-      </Dialog>
+      <ImagePreviewDialog preview={preview} onClose={() => setPreview(null)} />
     </div>
   )
 }
