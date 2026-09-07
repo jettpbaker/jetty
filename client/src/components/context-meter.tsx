@@ -83,7 +83,6 @@ export function ContextMeter({ usage }: { usage: ContextUsage }) {
             variant='ghost-text'
             size='xs'
             aria-label={`Context window ${pct}% full`}
-            data-cuelume-hover='tick'
             className={cn(
               'h-auto min-h-0 gap-1 px-1.5 py-0 font-mono',
               crowded && 'text-destructive hover:text-destructive'
