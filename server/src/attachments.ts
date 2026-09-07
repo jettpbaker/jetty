@@ -1,6 +1,6 @@
 import type { Attachment } from '@jetty/shared/items'
 
-import { MAX_IMAGE_BYTES, newId, type UploadAttachment } from '@jetty/shared/wire'
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, newId, type UploadAttachment } from '@jetty/shared/wire'
 import { copyFileSync, existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, extname, join, sep } from 'node:path'
 
@@ -15,12 +15,31 @@ const MIME_EXT = {
   'image/webp': 'webp',
 } as const
 
-const EXT_MIME: Record<string, UploadAttachment['mimeType']> = {
+const EXT_MIME: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   gif: 'image/gif',
   webp: 'image/webp',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
 }
+
+const KIND_EXTS = {
+  image: new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']),
+  video: new Set(['mp4', 'webm']),
+} as const
+
+const KIND_ACCEPT = {
+  image: 'png, jpg, jpeg, gif, webp',
+  video: 'mp4, webm',
+} as const
+
+const KIND_MAX = {
+  image: MAX_IMAGE_BYTES,
+  video: MAX_VIDEO_BYTES,
+} as const
+
+export type PersistKind = keyof typeof KIND_EXTS
 
 /** Matches newId()/uuidv7 output — no slashes, dots, or traversal chars. */
 const ATTACHMENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -84,34 +103,33 @@ export function createAttachments(home: string) {
     return { meta, images }
   }
 
-  function persistFile(srcPath: string): Attachment {
+  function persistFile(srcPath: string, kind: PersistKind): Attachment {
     let stat
     try {
       stat = statSync(srcPath)
     } catch {
-      throw new StoreError('invalid_params', `Cannot read image file: ${srcPath}`)
+      throw new StoreError('invalid_params', `Cannot read ${kind} file: ${srcPath}`)
     }
     if (!stat.isFile()) {
       throw new StoreError('invalid_params', `Not a regular file: ${srcPath}`)
     }
 
     const rawExt = extname(srcPath).slice(1).toLowerCase()
+    if (!KIND_EXTS[kind].has(rawExt)) {
+      throw new StoreError(
+        'invalid_params',
+        `Unsupported ${kind} type; accepted types: ${KIND_ACCEPT[kind]}`
+      )
+    }
     const ext = rawExt === 'jpeg' ? 'jpg' : rawExt
-    const mimeType = EXT_MIME[ext]
-    if (!mimeType) {
-      throw new StoreError(
-        'invalid_params',
-        `Unsupported image type; accepted types: png, jpg, jpeg, gif, webp`
-      )
-    }
+    const mimeType = EXT_MIME[ext]!
+    const noun = kind === 'image' ? 'Image' : 'Video'
+    const maxBytes = KIND_MAX[kind]
     if (stat.size === 0) {
-      throw new StoreError('invalid_params', `Image is empty: ${srcPath}`)
+      throw new StoreError('invalid_params', `${noun} is empty: ${srcPath}`)
     }
-    if (stat.size > MAX_IMAGE_BYTES) {
-      throw new StoreError(
-        'invalid_params',
-        `Image exceeds ${MAX_IMAGE_BYTES} bytes (got ${stat.size})`
-      )
+    if (stat.size > maxBytes) {
+      throw new StoreError('invalid_params', `${noun} exceeds ${maxBytes} bytes (got ${stat.size})`)
     }
 
     const id = newId()
@@ -119,7 +137,7 @@ export function createAttachments(home: string) {
     try {
       copyFileSync(srcPath, dest)
     } catch {
-      throw new StoreError('invalid_params', `Cannot read image file: ${srcPath}`)
+      throw new StoreError('invalid_params', `Cannot read ${kind} file: ${srcPath}`)
     }
 
     return {

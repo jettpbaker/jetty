@@ -7,8 +7,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
 
+import type { MediaToolHost } from './media-host'
+
 import { createAttachments } from './attachments'
-import { createSendImagesTool, type SendImagesHost } from './send-images'
+import { createSendImagesTool } from './send-images'
 
 const TINY_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -32,7 +34,7 @@ afterEach(() => {
 function makeHost(
   home: string,
   projectPath: string
-): { host: SendImagesHost; events: ThreadEvent[] } {
+): { host: MediaToolHost; events: ThreadEvent[] } {
   const events: ThreadEvent[] = []
   return {
     events,

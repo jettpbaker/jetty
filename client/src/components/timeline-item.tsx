@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { UserMessage } from '@/components/user-message'
+import { VideoItem } from '@/components/video-item'
 import { turnSpinnerVerb } from '@/lib/spinner-verb'
 import { usePacedText } from '@/lib/use-paced-text'
 import { useSmoothCount } from '@/lib/use-smooth-count'
@@ -127,6 +128,8 @@ function ItemBody({ item }: { item: ThreadItem }) {
       return <QuestionRow item={item} />
     case 'image_gallery':
       return <ImageGallery item={item} />
+    case 'video':
+      return <VideoItem item={item} />
     case 'plan':
       return (
         <div className='rounded-md border p-4'>

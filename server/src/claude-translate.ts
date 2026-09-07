@@ -4,6 +4,9 @@ import type { ThreadItem } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
 
 import { SEND_IMAGES_TOOL } from './send-images'
+import { SEND_VIDEO_TOOL } from './send-video'
+
+const HIDDEN_TOOLS: ReadonlySet<string> = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL])
 
 export type TranslateCtx = {
   turnId: string
@@ -223,7 +226,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         const tool = ctx.toolBlocks.get(index)
         if (tool) {
           ctx.toolBlocks.delete(index)
-          if (tool.name !== SEND_IMAGES_TOOL) {
+          if (!HIDDEN_TOOLS.has(tool.name)) {
             let input: unknown = {}
             if (tool.json) {
               try {
@@ -355,7 +358,7 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
         },
       })
       out.push({ type: 'item.completed', itemId: id })
-    } else if (b.type === 'tool_use' && (b.name ?? 'tool') !== SEND_IMAGES_TOOL) {
+    } else if (b.type === 'tool_use' && !HIDDEN_TOOLS.has(b.name ?? 'tool')) {
       const itemId = newId()
       if (b.id) ctx.toolUseToItemId.set(b.id, itemId)
       out.push({

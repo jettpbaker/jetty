@@ -19,7 +19,10 @@ import { createTranslateCtx, translate, type TranslateCtx } from './claude-trans
 import { type ContextPoller, createContextPoller, readContextUsage } from './context-usage'
 import { slog } from './log'
 import { createJettyMcpServer, SEND_IMAGES_TOOL } from './send-images'
+import { SEND_VIDEO_TOOL } from './send-video'
 import { readUsage } from './usage'
+
+const AUTO_ALLOWED_TOOLS = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL])
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 /** Fallback when a turn omits model — the composer normally always sends one. */
@@ -307,8 +310,8 @@ export function createClaudeAdapter(
         return { behavior: 'deny', message: 'Session closed' }
       }
 
-      // send_images only copies into jetty's own store — never needs approval.
-      if (toolName === SEND_IMAGES_TOOL) {
+      // send_images / send_video only copy into jetty's own store — never need approval.
+      if (AUTO_ALLOWED_TOOLS.has(toolName)) {
         return { behavior: 'allow', updatedInput: toolInput }
       }
 
@@ -379,7 +382,7 @@ export function createClaudeAdapter(
       canUseTool,
       resume: sessionId,
       mcpServers: { jetty },
-      allowedTools: [SEND_IMAGES_TOOL],
+      allowedTools: [SEND_IMAGES_TOOL, SEND_VIDEO_TOOL],
     }
 
     const q = query({ prompt: queue.iterable, options })
