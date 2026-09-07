@@ -5,17 +5,19 @@ export function UsageMeter({
   pct,
   dim,
   resets,
+  value,
 }: {
   label: string
   pct: number
   dim?: boolean
   resets?: string
+  value?: string
 }): ReactElement {
   return (
     <div>
       <div className='flex items-baseline justify-between font-mono text-[11px] text-muted-foreground'>
         <span>{label}</span>
-        <span>{pct}%</span>
+        <span>{value ?? `${pct}%`}</span>
       </div>
       <div className='relative mt-1.5 h-5 overflow-hidden bg-muted/50'>
         {/* the code chip smeared into a ramp: its warm ground rising to full

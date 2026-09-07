@@ -1,5 +1,5 @@
 import type { SessionStatus } from '@jetty/shared/events'
-import type { ThreadGitStatus, ThreadMeta } from '@jetty/shared/wire'
+import type { ExtraUsage, ThreadGitStatus, ThreadMeta } from '@jetty/shared/wire'
 
 import { chromeStore, draftsStore, tabsStore } from '@/app-state'
 import { useCommandPalette } from '@/components/command-palette'
@@ -76,6 +76,18 @@ function formatResetsAt(resetsAt: number): string {
       : `${hours12}:${String(minutes).padStart(2, '0')}${meridiem}`
   const weekday = d.toLocaleDateString('en-US', { weekday: 'short' })
   return `${weekday} ${time}`
+}
+
+function formatCredits(credits: ExtraUsage): string {
+  return `${formatMoney(credits.used, credits.currency)} out of ${formatMoney(credits.limit, credits.currency)}`
+}
+
+function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
+  } catch {
+    return `$${amount.toFixed(2)}`
+  }
 }
 
 // The interesting slice of git state, quietly: an open PR beats a feature
@@ -248,6 +260,14 @@ function HomePage() {
                   dim
                   resets={formatResetsAt(chrome.usage.sevenDay.resetsAt)}
                 />
+                {chrome.usage.extraUsage && (
+                  <UsageMeter
+                    label='Usage credits'
+                    pct={Math.round(chrome.usage.extraUsage.pct)}
+                    dim
+                    value={formatCredits(chrome.usage.extraUsage)}
+                  />
+                )}
               </div>
             )}
           </aside>
