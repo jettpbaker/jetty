@@ -1,6 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
+import { ImageGallery } from '@/components/image-gallery'
 import { Response } from '@/components/response'
 import { ToolCallField, ToolRow } from '@/components/tool-row'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -124,6 +125,8 @@ function ItemBody({ item }: { item: ThreadItem }) {
       return <ApprovalRow item={item} />
     case 'question':
       return <QuestionRow item={item} />
+    case 'image_gallery':
+      return <ImageGallery item={item} />
     case 'plan':
       return (
         <div className='rounded-md border p-4'>
