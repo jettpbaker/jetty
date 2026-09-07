@@ -212,6 +212,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}): Agent {
         hooks.onUsage?.({
           fiveHour: { pct: 42, resetsAt: Date.now() + 2 * 60 * 60 * 1000 },
           sevenDay: { pct: 18, resetsAt: Date.now() + 3 * 24 * 60 * 60 * 1000 },
+          extraUsage: { used: 12.4, limit: 50, pct: 24.8, currency: 'USD' },
           asOf: Date.now(),
         })
       } catch (err) {
