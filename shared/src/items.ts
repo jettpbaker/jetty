@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+/** Images the agent may send in one `send_images` call — a gallery, not a dump. */
+export const MAX_GALLERY_IMAGES = 4
+
 export const Attachment = z.object({
   id: z.string(),
   name: z.string(),
@@ -72,6 +75,12 @@ export const ThreadItem = z.discriminatedUnion('kind', [
     answers: z.record(z.string(), z.string()).optional(),
     /** true when the turn ended (interrupt/close) before an answer */
     skipped: z.boolean().optional(),
+  }),
+  z.object({
+    ...itemBase,
+    kind: z.literal('image_gallery'),
+    images: z.array(Attachment).min(1).max(MAX_GALLERY_IMAGES),
+    caption: z.string().optional(),
   }),
   z.object({
     ...itemBase,
