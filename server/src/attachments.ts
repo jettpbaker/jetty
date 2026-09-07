@@ -1,8 +1,8 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import { MAX_IMAGE_BYTES, newId, type UploadAttachment } from '@jetty/shared/wire'
-import { mkdirSync, unlinkSync, writeFileSync, existsSync } from 'node:fs'
-import { join, sep } from 'node:path'
+import { copyFileSync, existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, extname, join, sep } from 'node:path'
 
 import type { AgentImage } from './agent'
 
@@ -84,6 +84,52 @@ export function createAttachments(home: string) {
     return { meta, images }
   }
 
+  function persistFile(srcPath: string): Attachment {
+    let stat
+    try {
+      stat = statSync(srcPath)
+    } catch {
+      throw new StoreError('invalid_params', `Cannot read image file: ${srcPath}`)
+    }
+    if (!stat.isFile()) {
+      throw new StoreError('invalid_params', `Not a regular file: ${srcPath}`)
+    }
+
+    const rawExt = extname(srcPath).slice(1).toLowerCase()
+    const ext = rawExt === 'jpeg' ? 'jpg' : rawExt
+    const mimeType = EXT_MIME[ext]
+    if (!mimeType) {
+      throw new StoreError(
+        'invalid_params',
+        `Unsupported image type; accepted types: png, jpg, jpeg, gif, webp`
+      )
+    }
+    if (stat.size === 0) {
+      throw new StoreError('invalid_params', `Image is empty: ${srcPath}`)
+    }
+    if (stat.size > MAX_IMAGE_BYTES) {
+      throw new StoreError(
+        'invalid_params',
+        `Image exceeds ${MAX_IMAGE_BYTES} bytes (got ${stat.size})`
+      )
+    }
+
+    const id = newId()
+    const dest = join(dir, `${id}.${ext}`)
+    try {
+      copyFileSync(srcPath, dest)
+    } catch {
+      throw new StoreError('invalid_params', `Cannot read image file: ${srcPath}`)
+    }
+
+    return {
+      id,
+      name: basename(srcPath),
+      mimeType,
+      sizeBytes: stat.size,
+    }
+  }
+
   function resolve(id: string): { path: string; mimeType: string } | null {
     if (!ATTACHMENT_ID_RE.test(id)) return null
 
@@ -96,7 +142,17 @@ export function createAttachments(home: string) {
     return null
   }
 
-  return { dir, persist, resolve }
+  function remove(id: string): void {
+    const found = resolve(id)
+    if (!found) return
+    try {
+      unlinkSync(found.path)
+    } catch {
+      // best-effort cleanup
+    }
+  }
+
+  return { dir, persist, persistFile, resolve, remove }
 }
 
 function decodeDataUrl(upload: UploadAttachment): { bytes: Buffer; base64data: string } {

@@ -12,11 +12,13 @@ import { type ApprovalDecision, QuestionSpec, type ThreadItem } from '@jetty/sha
 import { newId, type PermissionMode } from '@jetty/shared/wire'
 
 import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
+import type { Attachments } from './attachments'
 import type { Store } from './store'
 
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
 import { type ContextPoller, createContextPoller, readContextUsage } from './context-usage'
 import { slog } from './log'
+import { createJettyMcpServer, SEND_IMAGES_TOOL } from './send-images'
 import { readUsage } from './usage'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
@@ -134,7 +136,11 @@ function createQueue() {
   }
 }
 
-export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent {
+export function createClaudeAdapter(
+  store: Store,
+  attachments: Attachments,
+  hooks: AgentHooks = {}
+): Agent {
   const sessions = new Map<string, WarmSession>()
   const ttlMs = Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
 
@@ -301,6 +307,11 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
         return { behavior: 'deny', message: 'Session closed' }
       }
 
+      // send_images only copies into jetty's own store — never needs approval.
+      if (toolName === SEND_IMAGES_TOOL) {
+        return { behavior: 'allow', updatedInput: toolInput }
+      }
+
       // AskUserQuestion isn't a permission: the SDK routes it here so the host
       // can render the question and return the answers via updatedInput.
       if (toolName === 'AskUserQuestion') {
@@ -346,6 +357,15 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       })
     }
 
+    const jetty = createJettyMcpServer({
+      attachments,
+      projectPath,
+      turnId: () => sessionRef.current?.activeTurnId ?? input.turnId,
+      emit: (event) => {
+        sessionRef.current?.emit(event)
+      },
+    })
+
     const permissionMode = toSdkPermissionMode(input.permissionMode)
     const options: Options = {
       cwd: projectPath,
@@ -358,6 +378,8 @@ export function createClaudeAdapter(store: Store, hooks: AgentHooks = {}): Agent
       includePartialMessages: true,
       canUseTool,
       resume: sessionId,
+      mcpServers: { jetty },
+      allowedTools: [SEND_IMAGES_TOOL],
     }
 
     const q = query({ prompt: queue.iterable, options })

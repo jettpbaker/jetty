@@ -13,6 +13,7 @@ const live = process.env.JETTY_LIVE_TEST === '1'
 describe.skipIf(!live)('claude live', () => {
   test('one tiny turn: spawn→init and init→first-delta timings', async () => {
     const { createClaudeAdapter } = await import('./claude')
+    const { createAttachments } = await import('./attachments')
     const { openDb } = await import('./db')
     const { createStore } = await import('./store')
 
@@ -23,7 +24,7 @@ describe.skipIf(!live)('claude live', () => {
       const store = createStore(db)
       const project = store.createProject(projectPath)
       const thread = store.createThread(project.id, newId())
-      const agent = createClaudeAdapter(store)
+      const agent = createClaudeAdapter(store, createAttachments(home))
 
       const t0 = performance.now()
       let initAt: number | null = null

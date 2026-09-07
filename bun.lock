@@ -62,6 +62,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "latest",
         "@jetty/shared": "workspace:*",
+        "zod": "^4.4.3",
       },
     },
     "shared": {

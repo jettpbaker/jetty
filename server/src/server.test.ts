@@ -19,11 +19,13 @@ process.env.JETTY_AGENT = 'echo'
 
 import type { Agent, AgentImage, TurnInput } from './agent'
 
+import { createAttachments } from './attachments'
 import { openDb } from './db'
 import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
+import { createSendImagesTool } from './send-images'
 import { createStore } from './store'
 
 /** project.create requires an existing directory — ensure one before creating. */
@@ -1047,6 +1049,87 @@ describe('image attachments', () => {
     // confirm the real file still lives only under home/attachments
     expect(existsSync(join(home, 'attachments', `${id}.png`))).toBe(true)
 
+    c.close()
+  })
+
+  test('image_gallery item is stored and served', async () => {
+    const projectDir = dir('/tmp/gallery-agent')
+    writeFileSync(join(projectDir, 'shot.png'), TINY_PNG_BYTES)
+
+    let jettyHome = ''
+    const fake: Agent = {
+      async startTurn(input, emit) {
+        emit({ type: 'turn.started', turnId: input.turnId })
+        await createSendImagesTool({
+          attachments: createAttachments(jettyHome),
+          projectPath: projectDir,
+          turnId: () => input.turnId,
+          emit,
+        }).handler({ paths: ['shot.png'], caption: 'UI check' }, {})
+        emit({
+          type: 'turn.completed',
+          turnId: input.turnId,
+          usage: { inputTokens: 0, outputTokens: 0 },
+          costUsd: 0,
+        })
+      },
+      interrupt() {},
+      steer() {
+        return false
+      },
+      respondToApproval() {
+        return false
+      },
+      respondToQuestion() {
+        return false
+      },
+    }
+
+    const { port, home } = boot({ agent: fake })
+    jettyHome = home
+    const c = await connect(port)
+
+    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+      path: projectDir,
+    })
+    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.subscribe', { threadId: thread.id })
+
+    await c.request('turn.start', { threadId: thread.id, text: 'show shots' })
+    await c.waitFor(
+      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+    )
+
+    const events = threadEvents(c, thread.id).map((m) => m.event)
+    const started = events.find((e) => e.type === 'item.started' && e.item.kind === 'image_gallery')
+    if (!started || started.type !== 'item.started' || started.item.kind !== 'image_gallery') {
+      throw new Error('expected image_gallery')
+    }
+    expect(started.item.caption).toBe('UI check')
+    expect(started.item.images).toHaveLength(1)
+    expect(started.item.images[0]!.name).toBe('shot.png')
+    expect(started.item.images[0]!.mimeType).toBe('image/png')
+    const attachId = started.item.images[0]!.id
+
+    const cold = await connect(port)
+    const sub = await cold.request<{
+      snapshot: {
+        items: Array<{ kind: string; caption?: string; images?: Array<{ id: string }> }>
+      }
+    }>('thread.subscribe', { threadId: thread.id })
+    const gallery = sub.snapshot.items.find((i) => i.kind === 'image_gallery')
+    expect(gallery).toMatchObject({ kind: 'image_gallery', caption: 'UI check' })
+    expect(gallery?.images?.[0]?.id).toBe(attachId)
+
+    const ok = await fetch(`http://127.0.0.1:${port}/attachments/${attachId}`)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('Content-Type')).toBe('image/png')
+    expect(Buffer.from(await ok.arrayBuffer()).equals(TINY_PNG_BYTES)).toBe(true)
+
+    cold.close()
     c.close()
   })
 })
