@@ -47,7 +47,3 @@ append-as-you-go, and stale state is reconciled at the next boot instead of watc
 
 Stack: Bun + bun:sqlite, TypeScript, zod contracts in `shared/`, React 19 + Vite +
 TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.
-
-## progress
-
-The chunk-by-chunk plan and current status live in [docs/chunks.md](docs/chunks.md).

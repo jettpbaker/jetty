@@ -1,36 +1,9 @@
 # working in this repo
 
-jetty gets built mostly by agents, deliberately paced so Jett (the human here)
-actually understands the codebase. That means:
-
-- work happens in chunks: short design note first, then the build, then a walkthrough
-  of the files worth reading. Don't start the next chunk until Jett has caught up on
-  the last one.
-- in walkthroughs Jett drives the questions — no quizzes; answer what's asked and go
-  deep on whatever they flag as shaky.
 - taste decisions — tech choices, UX, naming, API shapes — get checked with Jett
   first, every time. When in doubt, ask.
 - UI rides default shadcn styles until a dedicated design pass at the end. Don't
   hand-tweak styles before then.
-
-README.md holds the project description; `docs/chunks.md` is the persistent build
-plan and status checklist — keep it current as chunks land.
-
-## linear (the dogfood queue)
-
-`docs/dogfood.md` is the contract — read it before touching Linear. Home-side
-mechanics in short:
-
-- You act in Linear as **Claude Cook**, the app user — never as Jett. The
-  Linear MCP is authenticated as Jett, so it's for _reading/triage only_;
-  anything that writes (state changes, comments, assignment) goes through the
-  GraphQL API with Cook's token.
-- Token: `~/.config/jetty/linear-cook-token`, sent as `Authorization: Bearer`.
-  On a 401, re-mint per dogfood.md — scope must include
-  `app:assignable,app:mentionable` or Cook can't be set as assignee.
-- Compose the calls yourself (a small bun script beats curl for JSON escaping).
-  Closing an issue means: assign Cook, In Progress when started, Done with a
-  comment carrying the commit hash + what to expect after pulling.
 
 ## code
 
@@ -44,8 +17,6 @@ mechanics in short:
   library demands one, or for stateful render engines (e.g. `GlowEngine`).
 - `function` declarations for named top-level functions; arrows only for inline
   callbacks and single-expression helpers.
-- Chunk design notes live in `docs/chunks/` only while a chunk is in flight. Once
-  it's built and Jett has confirmed it, delete the note. The code is the docs.
 
 ## ui feel
 
@@ -54,7 +25,7 @@ mechanics in short:
   must be instant — cached state first, catch-up patches after.
 - Components come from a strict ladder: use a shadcn/ui or AI Elements component
   if one fits; else compose one from shadcn primitives; truly custom only when
-  both fail, and say so in the PR/walkthrough.
+  both fail, and say so in the PR.
 - Icons are Phosphor (`@phosphor-icons/react`), never lucide. Registry components
   arrive speaking lucide — swapping their icon imports to Phosphor equivalents is
   part of adding them (lucide's `Chevron*` is Phosphor's `Caret*`). oxlint bans
@@ -94,7 +65,7 @@ mechanics in short:
   reversible — don't use a modal as a safety net for an action that could just be
   undoable.
 
-## Cursor Cloud specific instructions
+## Cloud Agent specific instructions
 
 - Runtime is **Bun** (installed at `~/.bun/bin`, on `PATH` via `~/.bashrc`). The
   startup update script runs `bun install`; all commands below assume `bun` is on
