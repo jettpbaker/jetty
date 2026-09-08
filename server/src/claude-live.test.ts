@@ -17,16 +17,15 @@ describe.skipIf(!live)('claude live', () => {
   test('one tiny turn: spawn→init and init→first-delta timings', async () => {
     const { claudeLayer } = await import('./claude')
     const { createAttachments } = await import('./attachments')
-    const { openDb } = await import('./db')
-    const { createStore } = await import('./store')
+    const { openTestStore } = await import('./store-fixture')
 
     const home = mkdtempSync(join(tmpdir(), 'jetty-live-'))
     const projectPath = process.cwd()
     try {
-      const db = openDb(home)
-      const store = createStore(db)
-      const project = store.createProject(projectPath)
-      const thread = store.createThread(project.id, newId())
+      const db = await openTestStore(home)
+      const { store } = db
+      const project = await Effect.runPromise(store.createProject(projectPath))
+      const thread = await Effect.runPromise(store.createThread(project.id, newId()))
       const runtime = ManagedRuntime.make(claudeLayer(store, createAttachments(home)))
       const agent = await runtime.runPromise(AgentService)
 
@@ -61,7 +60,10 @@ describe.skipIf(!live)('claude live', () => {
 
       // Session id is written when system/init is translated.
       const deadline = Date.now() + 120_000
-      while (!store.getThreadSessionId(thread.id) && Date.now() < deadline) {
+      while (
+        !(await Effect.runPromise(store.getThreadSessionId(thread.id))) &&
+        Date.now() < deadline
+      ) {
         await Bun.sleep(10)
       }
       initAt = performance.now()
@@ -78,21 +80,21 @@ describe.skipIf(!live)('claude live', () => {
             spawnToInitMs,
             initToFirstDeltaMs,
             eventTypes,
-            sessionId: store.getThreadSessionId(thread.id),
-            finalStatus: store.getThreadState(thread.id).status,
+            sessionId: await Effect.runPromise(store.getThreadSessionId(thread.id)),
+            finalStatus: (await Effect.runPromise(store.getThreadState(thread.id))).status,
           },
           null,
           2
         )
       )
 
-      expect(store.getThreadSessionId(thread.id)).toBeTruthy()
+      expect(await Effect.runPromise(store.getThreadSessionId(thread.id))).toBeTruthy()
       expect(eventTypes).toContain('turn.started')
       expect(eventTypes.includes('turn.completed') || eventTypes.includes('turn.failed')).toBe(true)
 
       await runtime.runPromise(agent.interrupt(thread.id))
       await runtime.dispose()
-      db.close()
+      await db.close()
     } finally {
       rmSync(home, { recursive: true, force: true })
     }

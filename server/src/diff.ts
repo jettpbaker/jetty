@@ -1,5 +1,3 @@
-import type { Store } from './store'
-
 export type ThreadDiff = { diff: string; truncatedPaths?: string[] }
 
 const LOCKFILE_NAMES = new Set([
@@ -74,10 +72,6 @@ async function gitDiff(cwd: string): Promise<string> {
   return parts.join('')
 }
 
-export async function computeThreadDiff(store: Store, threadId: string): Promise<ThreadDiff> {
-  const thread = store.getThread(threadId)
-  if (!thread) return { diff: '' }
-  const project = store.getProject(thread.projectId)
-  if (!project) return { diff: '' }
-  return truncateDiff(await gitDiff(project.path))
+export async function computeThreadDiff(projectPath: string): Promise<ThreadDiff> {
+  return truncateDiff(await gitDiff(projectPath))
 }

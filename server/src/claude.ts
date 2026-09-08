@@ -305,16 +305,21 @@ export function createClaudeAdapter(
           Effect.gen(function* () {
             if (!current(session)) return
             if (!session.awaitingResult && message.type !== 'system') return
-            if (message.type === 'result') session.accepting = false
+            if (message.type === 'result') {
+              yield* session.publication.withPermit(
+                Effect.sync(() => {
+                  session.accepting = false
+                })
+              )
+            }
             const events = yield* Effect.try({
               try: () => translate(message as Parameters<typeof translate>[0], session.ctx),
               catch: (error) => new AgentError(String(error)),
             })
             if (session.ctx.sessionId) {
-              yield* Effect.try({
-                try: () => store.setThreadSessionId(session.threadId, session.ctx.sessionId!),
-                catch: (error) => new AgentError(String(error)),
-              })
+              yield* store
+                .setThreadSessionId(session.threadId, session.ctx.sessionId)
+                .pipe(Effect.mapError((error) => new AgentError(error.message)))
               session.ctx.sessionId = null
             }
             for (const event of events) yield* publish(session, event)
@@ -448,6 +453,9 @@ export function createClaudeAdapter(
             ),
         })
         const permissionMode = toSdkPermissionMode(input.permissionMode)
+        const resume = yield* store
+          .getThreadSessionId(input.threadId)
+          .pipe(Effect.mapError((error) => new AgentError(error.message)))
         const q = yield* Effect.acquireRelease(
           Effect.try({
             try: () =>
@@ -471,7 +479,7 @@ export function createClaudeAdapter(
                   allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
                   includePartialMessages: true,
                   canUseTool,
-                  resume: store.getThreadSessionId(input.threadId) ?? undefined,
+                  resume: resume ?? undefined,
                   mcpServers: { jetty },
                   allowedTools: [SEND_IMAGES_TOOL, SEND_VIDEO_TOOL],
                 },
@@ -523,15 +531,19 @@ export function createClaudeAdapter(
     return {
       startTurn(input, emit) {
         return Effect.gen(function* () {
-          const projectPath = yield* Effect.try({
-            try: () => {
-              const thread = store.getThread(input.threadId)
-              const project = thread && store.getProject(thread.projectId)
-              if (!project) throw new AgentError(`Thread ${input.threadId} project not found`)
-              return project.path
-            },
-            catch: (error) => (error instanceof AgentError ? error : new AgentError(String(error))),
-          })
+          const projectPath = yield* Effect.gen(function* () {
+            const thread = yield* store.getThread(input.threadId)
+            const project = thread && (yield* store.getProject(thread.projectId))
+            if (!project)
+              return yield* Effect.fail(
+                new AgentError(`Thread ${input.threadId} project not found`)
+              )
+            return project.path
+          }).pipe(
+            Effect.mapError((error) =>
+              error instanceof AgentError ? error : new AgentError(error.message)
+            )
+          )
           let session = sessions.get(input.threadId)
           if (session) {
             const idle = session.idle
@@ -569,11 +581,17 @@ export function createClaudeAdapter(
           }).pipe(Effect.onError(() => closeSession(started, 'Unable to start turn')))
         })
       },
-      steer(threadId, text, images) {
+      steer(threadId, text, images, beforeAccept = Effect.void) {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
           if (!session || !current(session) || !session.accepting) return false
-          return yield* Queue.offer(session.input, userMessage(text, images))
+          return yield* session.publication.withPermit(
+            Effect.gen(function* () {
+              if (!current(session) || !session.accepting) return false
+              yield* beforeAccept
+              return yield* Queue.offer(session.input, userMessage(text, images))
+            }).pipe(Effect.uninterruptible)
+          )
         })
       },
       interrupt(threadId, reason = 'interrupted') {

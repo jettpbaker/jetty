@@ -1,6 +1,8 @@
 import type { ChromePushData, PushMessage, ResponseMessage } from '@jetty/shared/wire'
 import type { ServerWebSocket } from 'bun'
 
+import { Semaphore } from 'effect'
+
 export type ConnData = {
   chrome: boolean
   threads: Set<string>
@@ -9,6 +11,7 @@ export type ConnData = {
 export type Hub = ReturnType<typeof createHub>
 
 export function createHub() {
+  const chromePublication = Semaphore.makeUnsafe(1)
   const chromeSubs = new Set<ServerWebSocket<ConnData>>()
   const threadSubs = new Map<string, Set<ServerWebSocket<ConnData>>>()
 
@@ -30,11 +33,13 @@ export function createHub() {
   }
 
   function subscribeChrome(ws: ServerWebSocket<ConnData>) {
+    if (ws.readyState !== WebSocket.OPEN) return
     ws.data.chrome = true
     chromeSubs.add(ws)
   }
 
   function subscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
+    if (ws.readyState !== WebSocket.OPEN) return
     ws.data.threads.add(threadId)
     let set = threadSubs.get(threadId)
     if (!set) {
@@ -65,6 +70,7 @@ export function createHub() {
   }
 
   return {
+    withChromePublication: chromePublication.withPermit,
     send,
     pushChrome,
     pushThread,
