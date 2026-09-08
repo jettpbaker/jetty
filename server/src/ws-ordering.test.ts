@@ -2,6 +2,7 @@ import type { ThreadEvent } from '@jetty/shared/events'
 import type { ServerMessage } from '@jetty/shared/wire'
 import type { ServerWebSocket } from 'bun'
 
+import { BunServices } from '@effect/platform-bun'
 import { newId } from '@jetty/shared/wire'
 import { expect, test } from 'bun:test'
 import { Context, Deferred, Effect, Layer, ManagedRuntime } from 'effect'
@@ -11,8 +12,12 @@ import { join } from 'node:path'
 
 import { type Agent, type Emit } from './agent'
 import { databaseLayer } from './db'
+import { GitDiffLive } from './diff'
+import { FileBrowserLive } from './fs-browse'
+import { FileSearchLive } from './fs-search'
 import { createHub, type ConnData } from './hub'
 import { createOrchestrator } from './orchestrator'
+import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { createWs } from './ws'
 
@@ -71,15 +76,25 @@ for (const replay of [false, true]) {
           return { store, base, hub, orch, thread, turnId }
         })
       }
-      const runtime = ManagedRuntime.make(Layer.effect(service, make()))
+      const runtime = ManagedRuntime.make(
+        Layer.mergeAll(
+          Layer.effect(service, make()),
+          FileBrowserLive,
+          FileSearchLive,
+          SkillsLive,
+          GitDiffLive
+        ).pipe(Layer.provide(BunServices.layer))
+      )
       try {
         const fixture = await runtime.runPromise(service)
         const requests: Promise<void>[] = []
-        const ws = createWs(fixture.store, fixture.orch, fixture.hub, (effect) => {
-          const request = runtime.runPromise(effect)
-          requests.push(request)
-          return request
-        })
+        const ws = await runtime.runPromise(
+          createWs(fixture.store, fixture.orch, fixture.hub, (effect) => {
+            const request = runtime.runPromise(effect)
+            requests.push(request)
+            return request
+          })
+        )
         const socket = {
           readyState: WebSocket.OPEN,
           data: { chrome: false, threads: new Set<string>() },

@@ -16,6 +16,7 @@ import {
   Exit,
   Fiber,
   Layer,
+  Path,
   Queue,
   Result,
   Schema,
@@ -125,9 +126,10 @@ export function createClaudeAdapter(
   attachments: Attachments,
   hooks: AgentHooks = {},
   config: ClaudeOptions = {}
-): Effect.Effect<Agent, never, Scope.Scope> {
+): Effect.Effect<Agent, never, Scope.Scope | Path.Path> {
   return Effect.gen(function* () {
     const owner = yield* Effect.scope
+    const path = yield* Path.Path
     const context = yield* Effect.context<never>()
     const run = Effect.runPromiseWith(context)
     const sessions = new Map<string, WarmSession>()
@@ -439,19 +441,24 @@ export function createClaudeAdapter(
             options.signal
           ).catch(() => ({ behavior: 'deny' as const, message: 'Session closed' }))
 
-        const jetty = createJettyMcpServer({
+        const jetty = yield* createJettyMcpServer({
           attachments,
           projectPath,
           turnId: () => session?.activeTurnId ?? input.turnId,
-          emit: (event, turnId) =>
-            callback(
-              Effect.suspend(() =>
-                session && session.accepting && session.activeTurnId === turnId
-                  ? publish(session, event)
-                  : Effect.void
+          emit: (event, turnId, onCommit) =>
+            Effect.suspend(() => {
+              const target = session
+              if (!target) return Effect.fail(new AgentError('Session closed'))
+              return target.publication.withPermit(
+                Effect.gen(function* () {
+                  if (!current(target) || !target.accepting || target.activeTurnId !== turnId) {
+                    return yield* Effect.fail(new AgentError('Turn is no longer active'))
+                  }
+                  yield* target.emit(event, onCommit)
+                })
               )
-            ),
-        })
+            }),
+        }).pipe(Effect.provideService(Path.Path, path), Effect.provideService(Scope.Scope, scope))
         const permissionMode = toSdkPermissionMode(input.permissionMode)
         const resume = yield* store
           .getThreadSessionId(input.threadId)

@@ -1,3 +1,8 @@
+import { Context, Effect, Layer } from 'effect'
+import { ChildProcessSpawner } from 'effect/unstable/process'
+
+import { git } from './git-process'
+
 export type ThreadDiff = { diff: string; truncatedPaths?: string[] }
 
 const LOCKFILE_NAMES = new Set([
@@ -45,33 +50,38 @@ export function truncateDiff(diff: string): ThreadDiff {
     : { diff: kept.join('') }
 }
 
-async function git(cwd: string, args: string[]): Promise<{ code: number; out: string }> {
-  try {
-    const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'ignore' })
-    const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-    return { code, out }
-  } catch {
-    return { code: -1, out: '' }
-  }
-}
-
 /** git's well-known empty tree — the diff base for a repo with no commits yet. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
-async function gitDiff(cwd: string): Promise<string> {
-  const head = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
-  const tracked = await git(cwd, ['diff', head.code === 0 ? 'HEAD' : EMPTY_TREE])
-  if (tracked.code !== 0) return ''
-  const untracked = await git(cwd, ['ls-files', '--others', '--exclude-standard'])
-  const parts = [tracked.out]
-  for (const path of untracked.out.split('\n').filter((line) => line.length > 0)) {
-    // --no-index exits 1 when the file has content — that's the success case
-    const { out } = await git(cwd, ['diff', '--no-index', '--', '/dev/null', path])
-    parts.push(out)
-  }
-  return parts.join('')
+export function computeThreadDiff(cwd: string) {
+  return Effect.gen(function* () {
+    const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
+    const tracked = yield* git(cwd, ['diff', head.code === 0 ? 'HEAD' : EMPTY_TREE])
+    if (tracked.code !== 0) return { diff: '' }
+    const untracked = yield* git(cwd, ['ls-files', '--others', '--exclude-standard'])
+    const parts = [tracked.out]
+    for (const path of untracked.out.split('\n').filter((line) => line.length > 0)) {
+      // --no-index exits 1 when the file has content — that's the success case
+      const { out } = yield* git(cwd, ['diff', '--no-index', '--', '/dev/null', path])
+      parts.push(out)
+    }
+    return truncateDiff(parts.join(''))
+  })
 }
 
-export async function computeThreadDiff(projectPath: string): Promise<ThreadDiff> {
-  return truncateDiff(await gitDiff(projectPath))
-}
+export const GitDiff = Context.Service<{
+  computeThreadDiff: (cwd: string) => Effect.Effect<ThreadDiff>
+}>('jetty/GitDiff')
+
+export const GitDiffLive = Layer.effect(
+  GitDiff,
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    return {
+      computeThreadDiff: (cwd: string) =>
+        computeThreadDiff(cwd).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+        ),
+    }
+  })
+)

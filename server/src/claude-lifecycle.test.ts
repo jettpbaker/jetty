@@ -7,11 +7,12 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ThreadEvent } from '@jetty/shared/events'
 
+import { BunServices } from '@effect/platform-bun'
 import { newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Context, Deferred, Effect, Layer, ManagedRuntime, Queue } from 'effect'
 import { TestClock } from 'effect/testing'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -127,19 +128,22 @@ async function setup(
       const project = yield* store.createProject(home)
       const thread = yield* store.createThread(project.id, newId())
       const notifications = yield* Queue.make<ThreadEvent>()
-      const agent = yield* createClaudeAdapter(store, createAttachments(home), hooks, {
+      const attachments = yield* createAttachments(home)
+      const agent = yield* createClaudeAdapter(store, attachments, hooks, {
         query: fake.factory,
         ttlMs: 1000,
         interruptGraceMs: 100,
         ...options,
       })
-      function emit(event: ThreadEvent) {
+      function emit(event: ThreadEvent, onCommit = Effect.void) {
         return Effect.gen(function* () {
           yield* beforeEmit(event)
           events.push(event)
-          yield* store
-            .appendEvent(thread.id, event)
-            .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          yield* store.appendEvent(thread.id, event).pipe(
+            Effect.andThen(onCommit),
+            Effect.uninterruptible,
+            Effect.mapError((error) => new AgentError(error.message))
+          )
           yield* Queue.offer(notifications, event)
         })
       }
@@ -151,11 +155,14 @@ async function setup(
           }
         })
       }
-      return { agent, store, thread, emit, next }
+      return { agent, attachments, store, thread, emit, next }
     })
   }
   const runtime = ManagedRuntime.make(
-    Layer.effect(service, make()).pipe(Layer.provideMerge(TestClock.layer()))
+    Layer.effect(service, make()).pipe(
+      Layer.provide(BunServices.layer),
+      Layer.provideMerge(TestClock.layer())
+    )
   )
   cleanup.push(async () => {
     await runtime.dispose()
@@ -173,7 +180,7 @@ async function setup(
       )
     )
   }
-  return { ...fixture, ...fake, events, runtime, start }
+  return { ...fixture, ...fake, home, events, runtime, start }
 }
 
 type DecisionKind = 'approval' | 'question'
@@ -501,6 +508,115 @@ describe('scoped Claude sessions', () => {
     await f.runtime.runPromise(nextTurn.await)
     expect(f.events.filter((event) => event.type === 'turn.completed')).toHaveLength(2)
   })
+
+  test.each(['send_images', 'send_video'] as const)(
+    '%s rejects stale publication after waiting behind a result and removes unreferenced media',
+    async (name) => {
+      const f = await setup()
+      const first = await f.start('first')
+      const entered = Deferred.makeUnsafe<void>()
+      const release = Deferred.makeUnsafe<void>()
+      const observed = Deferred.makeUnsafe<void>()
+      const copied = Deferred.makeUnsafe<void>()
+      const steering = f.runtime.runPromise(
+        f.agent.steer(
+          f.thread.id,
+          'steering',
+          undefined,
+          Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
+        )
+      )
+      await f.runtime.runPromise(Deferred.await(entered))
+      try {
+        f.queries[0]!.push({
+          get type() {
+            Deferred.doneUnsafe(observed, Effect.void)
+            return 'result'
+          },
+          subtype: 'success',
+        })
+        await f.runtime.runPromise(Deferred.await(observed))
+        const persistFile = f.attachments.persistFile
+        f.attachments.persistFile = (path, kind) =>
+          persistFile(path, kind).pipe(Effect.tap(() => Deferred.succeed(copied, undefined)))
+        const file = name === 'send_images' ? 'image.png' : 'video.mp4'
+        writeFileSync(join(f.home, file), 'media')
+        const server = f.queries[0]!.options.mcpServers?.jetty
+        if (!server || server.type !== 'sdk') throw new Error('Missing SDK media server')
+        const tools = (
+          server.instance as unknown as {
+            _registeredTools: Record<
+              string,
+              { handler: (args: unknown, extra: unknown) => Promise<{ isError?: boolean }> }
+            >
+          }
+        )._registeredTools
+        let settled = false
+        const pending = tools[name]!.handler(
+          name === 'send_images' ? { paths: [file] } : { path: file },
+          {}
+        ).then((result) => {
+          settled = true
+          return result
+        })
+        await f.runtime.runPromise(Deferred.await(copied))
+        await f.runtime.runPromise(Effect.yieldNow)
+        expect(settled).toBe(false)
+        expect(readdirSync(f.attachments.dir)).toHaveLength(1)
+        await f.runtime.runPromise(Deferred.succeed(release, undefined))
+        expect(await steering).toBe(true)
+        expect((await pending).isError).toBe(true)
+        await f.runtime.runPromise(first.await)
+        expect(f.events.map((event) => event.type)).toEqual(['turn.started', 'turn.completed'])
+        expect(readdirSync(f.attachments.dir)).toEqual([])
+        const state = await f.runtime.runPromise(f.store.getThreadState(f.thread.id))
+        expect(state.status).toBe('idle')
+        expect(state.items).toEqual([])
+      } finally {
+        await f.runtime.runPromise(Deferred.succeed(release, undefined))
+      }
+    }
+  )
+
+  test.each(['send_images', 'send_video'] as const)(
+    '%s transfers committed attachment ownership through the Claude emission adapter',
+    async (name) => {
+      const f = await setup()
+      const turn = await f.start('media')
+      const file = name === 'send_images' ? 'image.png' : 'video.mp4'
+      writeFileSync(join(f.home, file), 'media')
+      const server = f.queries[0]!.options.mcpServers?.jetty
+      if (!server || server.type !== 'sdk') throw new Error('Missing SDK media server')
+      const tools = (
+        server.instance as unknown as {
+          _registeredTools: Record<
+            string,
+            { handler: (args: unknown, extra: unknown) => Promise<{ isError?: boolean }> }
+          >
+        }
+      )._registeredTools
+      expect(
+        (
+          await tools[name]!.handler(
+            name === 'send_images' ? { paths: [file] } : { path: file },
+            {}
+          )
+        ).isError
+      ).toBeFalsy()
+      f.queries[0]!.push({ type: 'result', subtype: 'success' })
+      await f.runtime.runPromise(turn.await)
+      const state = await f.runtime.runPromise(f.store.getThreadState(f.thread.id))
+      const item = state.items.find(
+        (item) => item.kind === 'image_gallery' || item.kind === 'video'
+      )
+      if (!item || (item.kind !== 'image_gallery' && item.kind !== 'video'))
+        throw new Error('Missing durable media item')
+      const attachment = item.kind === 'video' ? item.video : item.images[0]!
+      expect(await f.runtime.runPromise(f.attachments.resolve(attachment.id))).not.toBeNull()
+      expect(readdirSync(f.attachments.dir)).toHaveLength(1)
+      expect(state.status).toBe('idle')
+    }
+  )
 
   test.each([false, true])(
     'a failed Claude start closes its %s warm session once and permits retry despite failing cleanup writes',

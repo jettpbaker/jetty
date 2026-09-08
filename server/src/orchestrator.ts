@@ -67,7 +67,7 @@ export function createOrchestrator(
       }
     }
 
-    function append(threadId: string, event: ThreadEvent) {
+    function append(threadId: string, event: ThreadEvent, onCommit = Effect.void) {
       return Effect.suspend(() =>
         state(threadId).publication.withPermit(
           hub
@@ -76,6 +76,7 @@ export function createOrchestrator(
                 const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
                 if (terminal && state(threadId).turnId !== event.turnId) return
                 const appended = yield* store.appendEvent(threadId, event)
+                yield* onCommit
                 publish(threadId, appended)
                 if (terminal) state(threadId).turnId = null
               })
@@ -85,7 +86,13 @@ export function createOrchestrator(
       )
     }
 
-    function appendUser(threadId: string, turnId: string, text: string, meta: Attachment[]) {
+    function appendUser(
+      threadId: string,
+      turnId: string,
+      text: string,
+      meta: Attachment[],
+      onCommit: Effect.Effect<void>
+    ) {
       return Effect.gen(function* () {
         const item = {
           id: newId(),
@@ -103,6 +110,7 @@ export function createOrchestrator(
                   { type: 'item.started', item },
                   { type: 'item.completed', itemId: item.id },
                 ])
+                yield* onCommit
                 for (const event of appended) publish(threadId, event)
               })
             )
@@ -143,69 +151,99 @@ export function createOrchestrator(
     }
 
     function startTurnEffect(input: StartTurnInput) {
-      return Effect.suspend(() =>
-        state(input.threadId).admission.withPermit(
-          Effect.gen(function* () {
-            const thread = yield* checkThread(input.threadId)
-            const saved = attachments
-              ? yield* Effect.try({
-                  try: () => attachments.persist(input.attachments),
-                  catch: (error) =>
-                    error instanceof StoreError ? error : new StoreError('internal', String(error)),
-                })
-              : EMPTY_ATTACHMENTS
-            if (thread.title === DEFAULT_THREAD_TITLE) yield* maybeTitle(input.threadId, input.text)
-            const live = state(input.threadId)
-            if (live.turnId) {
-              const existing = live.turnId
-              if (
-                yield* agent.steer(
-                  input.threadId,
-                  input.text,
-                  saved.images,
-                  appendUser(input.threadId, existing, input.text, saved.meta).pipe(
-                    Effect.mapError((error) => new AgentError(error.message))
+      return Effect.scoped(
+        Effect.suspend(() =>
+          state(input.threadId).admission.withPermit(
+            Effect.gen(function* () {
+              const thread = yield* checkThread(input.threadId)
+              let committed = false
+              const onCommit = Effect.sync(() => {
+                committed = true
+              })
+              const saved = attachments
+                ? yield* Effect.acquireRelease(
+                    attachments.persist(input.attachments),
+                    (saved) =>
+                      committed
+                        ? Effect.void
+                        : Effect.forEach(
+                            saved.meta,
+                            (attachment) => attachments.remove(attachment.id),
+                            { discard: true }
+                          ),
+                    { interruptible: true }
+                  ).pipe(
+                    Effect.mapError((error) =>
+                      error instanceof StoreError
+                        ? error
+                        : new StoreError('internal', String(error))
+                    )
                   )
+                : EMPTY_ATTACHMENTS
+              if (thread.title === DEFAULT_THREAD_TITLE)
+                yield* maybeTitle(input.threadId, input.text)
+              const live = state(input.threadId)
+              if (live.turnId) {
+                const existing = live.turnId
+                if (
+                  yield* agent.steer(
+                    input.threadId,
+                    input.text,
+                    saved.images,
+                    appendUser(input.threadId, existing, input.text, saved.meta, onCommit).pipe(
+                      Effect.mapError((error) => new AgentError(error.message))
+                    )
+                  )
+                ) {
+                  return { turnId: existing }
+                }
+                return yield* Effect.fail(
+                  new StoreError('internal', 'Active turn is not accepting input')
                 )
-              ) {
-                return { turnId: existing }
               }
-              return yield* Effect.fail(
-                new StoreError('internal', 'Active turn is not accepting input')
-              )
-            }
-            const turnId = newId()
-            live.turnId = turnId
-            const emit = (event: ThreadEvent) =>
-              append(input.threadId, event).pipe(
-                Effect.mapError((error) => new AgentError(error.message))
-              )
-            const turn = yield* appendUser(input.threadId, turnId, input.text, saved.meta).pipe(
-              Effect.andThen(agent.startTurn({ ...input, turnId, images: saved.images }, emit)),
-              Effect.onError(() =>
-                append(input.threadId, {
-                  type: 'turn.failed',
-                  turnId,
-                  error: 'Unable to start turn',
-                }).pipe(
-                  Effect.ignore,
-                  Effect.ensuring(
-                    Effect.sync(() => {
-                      if (live.turnId === turnId) live.turnId = null
-                    })
+              const turnId = newId()
+              live.turnId = turnId
+              const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
+                append(input.threadId, event, onCommit).pipe(
+                  Effect.mapError((error) => new AgentError(error.message))
+                )
+              const turn = yield* appendUser(
+                input.threadId,
+                turnId,
+                input.text,
+                saved.meta,
+                onCommit
+              ).pipe(
+                Effect.andThen(agent.startTurn({ ...input, turnId, images: saved.images }, emit)),
+                Effect.onError(() =>
+                  append(input.threadId, {
+                    type: 'turn.failed',
+                    turnId,
+                    error: 'Unable to start turn',
+                  }).pipe(
+                    Effect.ignore,
+                    Effect.ensuring(
+                      Effect.sync(() => {
+                        if (live.turnId === turnId) live.turnId = null
+                      })
+                    )
                   )
                 )
               )
-            )
-            yield* turn.await.pipe(
-              Effect.catch((error) => emit({ type: 'turn.failed', turnId, error: error.message })),
-              Effect.onInterrupt(() =>
-                emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(Effect.ignore)
-              ),
-              Effect.forkIn(scope, { startImmediately: true })
-            )
-            return { turnId }
-          })
+              yield* turn.await.pipe(
+                Effect.catch((error) =>
+                  emit({ type: 'turn.failed', turnId, error: error.message })
+                ),
+                Effect.onInterrupt(() =>
+                  emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(
+                    Effect.ignore
+                  )
+                ),
+                Effect.forkIn(scope, { startImmediately: true })
+              )
+              return { turnId }
+            })
+          )
         )
       )
     }

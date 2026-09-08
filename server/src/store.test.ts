@@ -1,13 +1,15 @@
+import { BunServices } from '@effect/platform-bun'
 import { applyEvent, emptyThread } from '@jetty/shared/reducer'
 import { newId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import { afterEach, expect, test } from 'bun:test'
-import { Effect } from 'effect'
+import { Deferred, Effect, FileSystem } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { createStore } from './store'
 import { openTestStore } from './store-fixture'
 
 const cleanup: Array<() => Promise<void>> = []
@@ -28,6 +30,40 @@ async function setup() {
   const thread = await runtime.runPromise(store.createThread(project.id, newId()))
   return { ...fixture, home, project, thread, sql }
 }
+
+test('project directory validation uses injected filesystem without holding a SQL transaction', async () => {
+  const { home, runtime, sql } = await setup()
+  const entered = Deferred.makeUnsafe<void>()
+  const release = Deferred.makeUnsafe<void>()
+  const store = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      return yield* createStore().pipe(
+        Effect.provideService(SqlClient.SqlClient, sql),
+        Effect.provideService(FileSystem.FileSystem, {
+          ...fs,
+          stat: (path) =>
+            Deferred.succeed(entered, undefined).pipe(
+              Effect.andThen(Deferred.await(release)),
+              Effect.andThen(fs.stat(path))
+            ),
+        })
+      )
+    }).pipe(Effect.provide(BunServices.layer))
+  )
+  const pending = runtime.runPromise(store.createProject(home))
+  try {
+    await runtime.runPromise(Deferred.await(entered))
+    expect(
+      await runtime.runPromise(
+        sql`SELECT 1 AS value`.pipe(sql.withTransaction, Effect.timeout('1 second'))
+      )
+    ).toEqual([{ value: 1 }])
+  } finally {
+    await runtime.runPromise(Deferred.succeed(release, undefined))
+  }
+  expect((await pending).path).toBe(home)
+})
 
 test('concurrent SQL appends serialize durable sequences and reduced projection order', async () => {
   const { store, runtime, thread } = await setup()

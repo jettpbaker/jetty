@@ -1,6 +1,6 @@
-import { readdirSync, statSync } from 'node:fs'
+import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 import { homedir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 
 export type BrowseEntry = { name: string; fullPath: string }
 export type BrowseResult = { parentPath: string; entries: BrowseEntry[] }
@@ -19,40 +19,49 @@ export function normalizePath(input: string): string {
   return resolve(expandHome(input))
 }
 
-function isDirectory(path: string): boolean {
-  try {
-    return statSync(path).isDirectory()
-  } catch {
-    return false
-  }
-}
-
 // A trailing slash means "list this directory"; otherwise the last segment is a
 // case-insensitive prefix filter against its parent. Directories only, dotfiles
 // hidden unless the filter segment itself is dotted. A missing parent lists empty.
-export function browse(partialPath: string): BrowseResult {
-  const listWhole = partialPath.endsWith('/')
-  const abs = normalizePath(partialPath)
-  const dir = listWhole ? abs : dirname(abs)
-  const filter = listWhole ? '' : basename(abs)
-  const filterLower = filter.toLowerCase()
-  const showDotfiles = filter.startsWith('.')
+export function browse(partialPath: string) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const listWhole = partialPath.endsWith('/')
+    const abs = normalizePath(partialPath)
+    const dir = listWhole ? abs : path.dirname(abs)
+    const filter = listWhole ? '' : path.basename(abs)
+    const filterLower = filter.toLowerCase()
+    const showDotfiles = filter.startsWith('.')
 
-  let names: string[]
-  try {
-    names = readdirSync(dir)
-  } catch {
-    return { parentPath: dir, entries: [] }
-  }
+    const names = yield* fs.readDirectory(dir).pipe(Effect.catch(() => Effect.succeed([])))
 
-  const entries: BrowseEntry[] = []
-  for (const name of names) {
-    if (!showDotfiles && name.startsWith('.')) continue
-    if (filter && !name.toLowerCase().startsWith(filterLower)) continue
-    const fullPath = join(dir, name)
-    if (!isDirectory(fullPath)) continue
-    entries.push({ name, fullPath })
-  }
-  entries.sort((a, b) => a.name.localeCompare(b.name))
-  return { parentPath: dir, entries: entries.slice(0, MAX_ENTRIES) }
+    const entries: BrowseEntry[] = []
+    for (const name of names) {
+      if (!showDotfiles && name.startsWith('.')) continue
+      if (filter && !name.toLowerCase().startsWith(filterLower)) continue
+      const fullPath = path.join(dir, name)
+      const isDirectory = yield* fs.stat(fullPath).pipe(
+        Effect.map((stat) => stat.type === 'Directory'),
+        Effect.catch(() => Effect.succeed(false))
+      )
+      if (!isDirectory) continue
+      entries.push({ name, fullPath })
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name))
+    return { parentPath: dir, entries: entries.slice(0, MAX_ENTRIES) }
+  })
 }
+
+export const FileBrowser = Context.Service<{
+  browse: (partialPath: string) => Effect.Effect<BrowseResult>
+}>('jetty/FileBrowser')
+
+export const FileBrowserLive = Layer.effect(
+  FileBrowser,
+  Effect.gen(function* () {
+    const services = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+    return {
+      browse: (partialPath: string) => browse(partialPath).pipe(Effect.provideContext(services)),
+    }
+  })
+)

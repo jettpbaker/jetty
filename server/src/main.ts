@@ -1,6 +1,6 @@
 import type { Usage } from '@jetty/shared/wire'
 
-import { BunRuntime } from '@effect/platform-bun'
+import { BunRuntime, BunServices } from '@effect/platform-bun'
 import { Context, Effect, Fiber, Layer, ManagedRuntime, Scope } from 'effect'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -9,13 +9,17 @@ import { join, normalize, resolve, sep } from 'node:path'
 import type { Titler } from './titler'
 
 import { AgentService, echoLayer, type Agent } from './agent'
-import { createAttachments } from './attachments'
+import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
 import { createClaudeTitler } from './claude-titler'
 import { databaseLayer } from './db'
+import { GitDiffLive } from './diff'
+import { FileBrowserLive } from './fs-browse'
+import { FileSearchLive } from './fs-search'
 import { createHub, type ConnData } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
+import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { createWs } from './ws'
 
@@ -99,7 +103,16 @@ function createServer(opts: ServerOptions = {}) {
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)
 
-    const attachments = yield* Effect.try(() => createAttachments(home))
+    const io = yield* Layer.build(
+      Layer.mergeAll(
+        AttachmentsLive(home),
+        FileBrowserLive,
+        FileSearchLive,
+        SkillsLive,
+        GitDiffLive
+      )
+    )
+    const attachments = Context.get(io, Attachments)
     const hub = createHub()
     let lastUsage: Usage | null = null
     const hooks = {
@@ -126,7 +139,7 @@ function createServer(opts: ServerOptions = {}) {
     const requestScope = yield* Scope.fork(yield* Effect.scope)
     const context = yield* Effect.context<never>()
     const run = Effect.runPromiseWith(context)
-    const ws = createWs(
+    const ws = yield* createWs(
       store,
       orch,
       hub,
@@ -138,7 +151,7 @@ function createServer(opts: ServerOptions = {}) {
           })
         ),
       () => lastUsage
-    )
+    ).pipe(Effect.provideContext(io))
 
     const server = yield* Effect.acquireRelease(
       Effect.try(() =>
@@ -167,7 +180,9 @@ function createServer(opts: ServerOptions = {}) {
               if (!id || id.includes('/') || id.includes('\\') || id.includes('..')) {
                 return new Response('Not found', { status: 404 })
               }
-              const resolved = attachments.resolve(id)
+              const resolved = await run(
+                attachments.resolve(id).pipe(Effect.catch(() => Effect.succeed(null)))
+              )
               if (!resolved) return new Response('Not found', { status: 404 })
               const file = Bun.file(resolved.path)
               if (!(await file.exists())) return new Response('Not found', { status: 404 })
@@ -205,7 +220,7 @@ export const ServerService =
   Context.Service<Effect.Success<ReturnType<typeof createServer>>>('jetty/Server')
 
 export function serverLayer(opts: ServerOptions = {}) {
-  return Layer.effect(ServerService, createServer(opts))
+  return Layer.effect(ServerService, createServer(opts)).pipe(Layer.provide(BunServices.layer))
 }
 
 export async function startServer(opts: ServerOptions = {}) {
