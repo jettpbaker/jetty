@@ -12,11 +12,11 @@ import { AgentService, echoLayer, type Agent } from './agent'
 import { createAttachments } from './attachments'
 import { claudeLayer } from './claude'
 import { createClaudeTitler } from './claude-titler'
-import { openDb } from './db'
+import { databaseLayer } from './db'
 import { createHub, type ConnData } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
-import { createStore, type Store } from './store'
+import { Store, storeLayer } from './store'
 import { createWs } from './ws'
 
 export type ServerOptions = {
@@ -35,15 +35,17 @@ function selectTitler(kind: 'echo' | 'claude' | Agent): Titler | null {
 }
 
 function reconcileOnStartup(store: Store) {
-  for (const thread of store.listThreads()) {
-    const state = store.getThreadState(thread.id)
-    if (state.status === 'idle') continue
-    store.appendEvent(thread.id, {
-      type: 'turn.failed',
-      turnId: state.activeTurnId ?? 'unknown',
-      error: 'server restarted',
-    })
-  }
+  return Effect.gen(function* () {
+    for (const thread of yield* store.listThreads()) {
+      const state = yield* store.getThreadState(thread.id)
+      if (state.status === 'idle') continue
+      yield* store.appendEvent(thread.id, {
+        type: 'turn.failed',
+        turnId: state.activeTurnId ?? 'unknown',
+        error: 'server restarted',
+      })
+    }
+  })
 }
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
@@ -93,12 +95,9 @@ function createServer(opts: ServerOptions = {}) {
     const agentKind =
       opts.agent ?? (process.env.JETTY_AGENT === 'echo' ? ('echo' as const) : ('claude' as const))
 
-    const db = yield* Effect.acquireRelease(
-      Effect.try(() => openDb(home)),
-      (db) => Effect.sync(() => db.close())
-    )
-    const store = createStore(db)
-    yield* Effect.try(() => reconcileOnStartup(store))
+    const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
+    const store = Context.get(database, Store)
+    yield* reconcileOnStartup(store)
 
     const attachments = yield* Effect.try(() => createAttachments(home))
     const hub = createHub()

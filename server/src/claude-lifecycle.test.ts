@@ -18,8 +18,8 @@ import { join } from 'node:path'
 import { AgentError, type AgentHooks, type Emit } from './agent'
 import { createAttachments } from './attachments'
 import { createClaudeAdapter, type ClaudeOptions, type QueryFactory } from './claude'
-import { openDb } from './db'
-import { createStore } from './store'
+import { databaseLayer } from './db'
+import { Store, storeLayer } from './store'
 
 function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
   const queries: ReturnType<typeof make>[] = []
@@ -122,13 +122,10 @@ async function setup(
   const service = Context.Service<Effect.Success<ReturnType<typeof make>>>('test/Claude')
   function make() {
     return Effect.gen(function* () {
-      const db = yield* Effect.acquireRelease(
-        Effect.sync(() => openDb(home)),
-        (db) => Effect.sync(() => db.close())
-      )
-      const store = createStore(db)
-      const project = store.createProject(home)
-      const thread = store.createThread(project.id, newId())
+      const context = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
+      const store = Context.get(context, Store)
+      const project = yield* store.createProject(home)
+      const thread = yield* store.createThread(project.id, newId())
       const notifications = yield* Queue.make<ThreadEvent>()
       const agent = yield* createClaudeAdapter(store, createAttachments(home), hooks, {
         query: fake.factory,
@@ -140,7 +137,9 @@ async function setup(
         return Effect.gen(function* () {
           yield* beforeEmit(event)
           events.push(event)
-          store.appendEvent(thread.id, event)
+          yield* store
+            .appendEvent(thread.id, event)
+            .pipe(Effect.mapError((error) => new AgentError(error.message)))
           yield* Queue.offer(notifications, event)
         })
       }
@@ -587,6 +586,62 @@ describe('scoped Claude sessions', () => {
     await pending
     await Promise.resolve()
     expect(stale).toEqual([])
+  })
+
+  test('steering waits for durable acceptance and never enqueues failed input', async () => {
+    const f = await setup()
+    await f.start('first')
+    const input = f.queries[0]!.input
+    expect((await input.next()).value.message.content).toBe('hello')
+    await expect(
+      f.runtime.runPromise(
+        f.agent.steer(
+          f.thread.id,
+          'lost',
+          undefined,
+          Effect.fail(new AgentError('persistence failed'))
+        )
+      )
+    ).rejects.toThrow('persistence failed')
+    const entered = Deferred.makeUnsafe<void>()
+    const release = Deferred.makeUnsafe<void>()
+    let consumed = false
+    const next = input.next().then((message) => {
+      consumed = true
+      return message
+    })
+    const accepted = f.runtime.runPromise(
+      f.agent.steer(
+        f.thread.id,
+        'durable',
+        undefined,
+        Effect.gen(function* () {
+          yield* Deferred.succeed(entered, undefined)
+          yield* Deferred.await(release)
+          yield* f.store
+            .appendEvent(f.thread.id, {
+              type: 'item.started',
+              item: {
+                id: 'accepted',
+                kind: 'user_message',
+                text: 'durable',
+                attachments: [],
+                turnId: 'first',
+                createdAt: 1,
+              },
+            })
+            .pipe(Effect.mapError((error) => new AgentError(error.message)))
+        })
+      )
+    )
+    await f.runtime.runPromise(Deferred.await(entered))
+    expect(consumed).toBe(false)
+    await f.runtime.runPromise(Deferred.succeed(release, undefined))
+    expect(await accepted).toBe(true)
+    expect((await next).value.message.content).toBe('durable')
+    expect((await f.runtime.runPromise(f.store.getThreadState(f.thread.id))).items).toMatchObject([
+      { id: 'accepted', text: 'durable' },
+    ])
   })
 
   test('the SDK input queue preserves steering images and settles pending reads on close', async () => {

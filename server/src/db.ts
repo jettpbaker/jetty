@@ -1,58 +1,50 @@
-import { Database } from 'bun:sqlite'
-import { mkdirSync } from 'node:fs'
+import { BunFileSystem } from '@effect/platform-bun'
+import { SqliteClient, SqliteMigrator } from '@effect/sql-sqlite-bun'
+import { Effect, FileSystem, Layer } from 'effect'
+import { SqlClient } from 'effect/unstable/sql'
 import { join } from 'node:path'
 
-export function openDb(home: string): Database {
-  mkdirSync(home, { recursive: true })
-  const db = new Database(join(home, 'jetty.db'))
-  try {
-    db.run('PRAGMA journal_mode = WAL')
-    db.run('PRAGMA foreign_keys = ON')
-    migrate(db)
-    return db
-  } catch (error) {
-    db.close()
-    throw error
-  }
-}
+const migrations = SqliteMigrator.fromRecord({
+  '001_initial': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY, path TEXT NOT NULL, title TEXT NOT NULL, created_at INTEGER NOT NULL
+    )`
+    yield* sql`CREATE TABLE IF NOT EXISTS threads (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+      title TEXT NOT NULL, status TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    )`
+    yield* sql`CREATE TABLE IF NOT EXISTS thread_events (
+      thread_id TEXT NOT NULL, seq INTEGER NOT NULL, ts INTEGER NOT NULL,
+      payload_json TEXT NOT NULL, PRIMARY KEY (thread_id, seq)
+    )`
+    yield* sql`CREATE TABLE IF NOT EXISTS thread_states (
+      thread_id TEXT PRIMARY KEY, state_json TEXT NOT NULL, last_seq INTEGER NOT NULL
+    )`
+  }),
+  '002_agent_session': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const columns = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
+    if (!columns.some((column) => column.name === 'agent_session_id')) {
+      yield* sql`ALTER TABLE threads ADD COLUMN agent_session_id TEXT`
+    }
+  }),
+})
 
-function migrate(db: Database) {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      path TEXT NOT NULL,
-      title TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS threads (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id),
-      title TEXT NOT NULL,
-      status TEXT NOT NULL,
-      archived INTEGER NOT NULL DEFAULT 0,
-      updated_at INTEGER NOT NULL,
-      agent_session_id TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS thread_events (
-      thread_id TEXT NOT NULL,
-      seq INTEGER NOT NULL,
-      ts INTEGER NOT NULL,
-      payload_json TEXT NOT NULL,
-      PRIMARY KEY (thread_id, seq)
-    );
-
-    CREATE TABLE IF NOT EXISTS thread_states (
-      thread_id TEXT PRIMARY KEY,
-      state_json TEXT NOT NULL,
-      last_seq INTEGER NOT NULL
-    );
-  `)
-
-  try {
-    db.run('ALTER TABLE threads ADD COLUMN agent_session_id TEXT')
-  } catch {
-    // column already exists on upgraded dbs
-  }
+export function databaseLayer(home: string) {
+  const client = Layer.unwrap(
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      yield* fs.makeDirectory(home, { recursive: true })
+      return SqliteClient.layer({ filename: join(home, 'jetty.db') })
+    })
+  ).pipe(Layer.provide(BunFileSystem.layer))
+  return Layer.effectDiscard(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`PRAGMA foreign_keys = ON`
+      yield* SqliteMigrator.run({ loader: migrations })
+    })
+  ).pipe(Layer.provideMerge(client))
 }

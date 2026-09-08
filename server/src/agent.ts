@@ -3,7 +3,7 @@ import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type { EffortLevel, PermissionMode, UploadAttachment, Usage } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
-import { Context, Deferred, Effect, Fiber, Layer, Queue } from 'effect'
+import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
 /** Image payload for the agent seam — no SDK types. */
 export type AgentImage = {
@@ -36,7 +36,12 @@ export type Turn = { await: Effect.Effect<void, AgentError> }
 export type Agent = {
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
-  steer(threadId: string, text: string, images?: AgentImage[]): Effect.Effect<boolean, AgentError>
+  steer(
+    threadId: string,
+    text: string,
+    images?: AgentImage[],
+    beforeAccept?: Effect.Effect<void, AgentError>
+  ): Effect.Effect<boolean, AgentError>
   respondToApproval(
     threadId: string,
     itemId: string,
@@ -71,6 +76,7 @@ type EchoSession = {
   input: Queue.Queue<string>
   reason: string
   accepting: boolean
+  publication: Semaphore.Semaphore
 }
 
 export function createEchoAdapter(hooks: AgentHooks = {}) {
@@ -127,16 +133,26 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
           if (!session) return
-          session.reason = reason
-          session.accepting = false
+          yield* session.publication.withPermit(
+            Effect.sync(() => {
+              session.reason = reason
+              session.accepting = false
+            })
+          )
           yield* Fiber.interrupt(session.fiber)
         })
       },
-      steer(threadId, text) {
+      steer(threadId, text, _images?: AgentImage[], beforeAccept = Effect.void) {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
           if (!session || !session.accepting) return false
-          return yield* Queue.offer(session.input, text)
+          return yield* session.publication.withPermit(
+            Effect.gen(function* () {
+              if (!session.accepting) return false
+              yield* beforeAccept
+              return yield* Queue.offer(session.input, text)
+            }).pipe(Effect.uninterruptible)
+          )
         })
       },
       respondToApproval() {
@@ -145,7 +161,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
       respondToQuestion() {
         return Effect.succeed(false)
       },
-      startTurn(input, emit) {
+      startTurn(input, publish) {
         return Effect.gen(function* () {
           if (sessions.has(input.threadId))
             return yield* Effect.fail(new AgentError('Turn already active'))
@@ -155,7 +171,9 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             input: queue,
             reason: 'server shutdown',
             accepting: true,
+            publication: yield* Semaphore.make(1),
           } as EchoSession
+          const emit: Emit = (event) => session.publication.withPermit(publish(event))
           const { from, to } = nextContextTarget(input.threadId)
           const ramp = [
             Math.round(from + (to - from) * 0.25),
@@ -204,11 +222,17 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             yield* emit({ type: 'item.started', item: assistant })
             yield* emitChunks(emit, assistant.id, input.text)
             yield* emit({ type: 'context.updated', usage: echoContextUsage(ramp[2]!) })
-            while (queue.messages.length > 0) {
-              const steered = yield* Queue.take(queue)
+            while (true) {
+              const steered = yield* session.publication.withPermit(
+                Effect.gen(function* () {
+                  if (queue.messages.length > 0) return yield* Queue.take(queue)
+                  session.accepting = false
+                  return null
+                })
+              )
+              if (steered === null) break
               yield* emitChunks(emit, assistant.id, steered)
             }
-            session.accepting = false
             yield* emit({ type: 'item.completed', itemId: assistant.id })
 
             yield* emit({ type: 'context.updated', usage: echoContextUsage(ramp[3]!) })

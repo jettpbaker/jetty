@@ -3,7 +3,7 @@ import type { PushMessage, ResponseMessage, ServerMessage } from '@jetty/shared/
 import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
-import { Effect } from 'effect'
+import { Deferred, Effect } from 'effect'
 import {
   existsSync,
   mkdirSync,
@@ -22,14 +22,13 @@ process.env.JETTY_AGENT = 'echo'
 import type { Agent, AgentImage, TurnInput } from './agent'
 
 import { createAttachments } from './attachments'
-import { openDb } from './db'
 import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
-import { createStore } from './store'
+import { openTestStore } from './store-fixture'
 
 /** project.create requires an existing directory — ensure one before creating. */
 function dir(path: string): string {
@@ -155,10 +154,186 @@ function threadEvents(client: Client, threadId: string) {
 }
 
 describe('server skeleton', () => {
+  for (const admission of ['initial', 'steered'] as const) {
+    test(`failed ${admission} user completion rolls back both admission events before publication`, async () => {
+      const running = await boot()
+      const project = await Effect.runPromise(running.store.createProject(running.home))
+      const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+      const client = await connect(running.port)
+      await client.request('thread.subscribe', { threadId: thread.id })
+      const active =
+        admission === 'steered'
+          ? await client.request<{ turnId: string }>('turn.start', {
+              threadId: thread.id,
+              text: 'first',
+            })
+          : null
+      const db = new Database(join(running.home, 'jetty.db'))
+      const writes = spyOn(running.store, 'appendEvents')
+      try {
+        db.run(`CREATE TRIGGER reject_completion BEFORE INSERT ON thread_events
+          WHEN json_extract(NEW.payload_json, '$.type') = 'item.completed'
+            AND EXISTS (SELECT 1 FROM thread_events
+              WHERE thread_id = NEW.thread_id
+                AND json_extract(payload_json, '$.item.id') = json_extract(NEW.payload_json, '$.itemId')
+                AND json_extract(payload_json, '$.item.text') = 'never accepted')
+          BEGIN SELECT RAISE(ABORT, 'injected second admission write failure'); END`)
+        await expect(
+          client.request('turn.start', { threadId: thread.id, text: 'never accepted' })
+        ).rejects.toThrow('internal')
+        expect(writes).toHaveBeenCalledTimes(1)
+        const attempted = writes.mock.calls[0]![1]
+        const started = attempted[0]
+        if (started.type !== 'item.started') throw new Error('Missing user admission start')
+        const rejectedId = started.item.id
+        expect(attempted[1]).toEqual({ type: 'item.completed', itemId: rejectedId })
+        const events = await Effect.runPromise(running.store.getEventsAfter(thread.id, 0))
+        const snapshot = await Effect.runPromise(running.store.getThreadState(thread.id))
+        expect(snapshot.items.some((item) => item.id === rejectedId)).toBe(false)
+        expect(
+          snapshot.items.filter((item) => item.kind === 'user_message').map((item) => item.text)
+        ).toEqual(active ? ['first'] : [])
+        for (const sequence of [events, threadEvents(client, thread.id)]) {
+          expect(
+            sequence.some(
+              ({ event }) =>
+                (event.type === 'item.started' && event.item.id === rejectedId) ||
+                (event.type === 'item.completed' && event.itemId === rejectedId)
+            )
+          ).toBe(false)
+        }
+        if (!active) expect(events.map(({ event }) => event.type)).toEqual(['turn.failed'])
+        db.run('DROP TRIGGER reject_completion')
+        const retry = await client.request<{ turnId: string }>('turn.start', {
+          threadId: thread.id,
+          text: 'never accepted',
+        })
+        if (active) expect(retry.turnId).toBe(active.turnId)
+        await client.waitFor(
+          (message) => isThreadPush(message) && message.event.type === 'turn.completed'
+        )
+        const completed = await Effect.runPromise(running.store.getThreadState(thread.id))
+        expect(
+          completed.items.filter((item) => item.kind === 'user_message').map((item) => item.text)
+        ).toEqual(active ? ['first', 'never accepted'] : ['never accepted'])
+        expect(
+          completed.items
+            .filter((item) => item.kind === 'assistant_message')
+            .map((item) => item.text)
+        ).toEqual([active ? 'firstnever accepted' : 'never accepted'])
+        const committed = await Effect.runPromise(running.store.getEventsAfter(thread.id, 0))
+        expect(threadEvents(client, thread.id).map(({ seq, event }) => ({ seq, event }))).toEqual(
+          committed.map(({ seq, event }) => ({ seq, event }))
+        )
+        expect(committed.map(({ seq }) => seq)).toEqual(committed.map((_, index) => index + 1))
+      } finally {
+        writes.mockRestore()
+        db.close()
+        client.close()
+      }
+    })
+  }
+
+  test('SQL persistence failure rejects initial and steered input without handing it to the agent', async () => {
+    const running = await boot()
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+    const client = await connect(running.port)
+    await client.request('thread.subscribe', { threadId: thread.id })
+    const db = new Database(join(running.home, 'jetty.db'))
+    try {
+      db.run(`CREATE TRIGGER reject_input BEFORE INSERT ON thread_events
+        WHEN json_extract(NEW.payload_json, '$.item.text') = 'lost'
+        BEGIN SELECT RAISE(ABORT, 'injected input failure'); END`)
+      await expect(
+        client.request('turn.start', { threadId: thread.id, text: 'lost' })
+      ).rejects.toThrow('internal')
+      expect(
+        (await Effect.runPromise(running.store.getThreadState(thread.id))).activeTurnId
+      ).toBeNull()
+      const first = await client.request<{ turnId: string }>('turn.start', {
+        threadId: thread.id,
+        text: 'first',
+      })
+      await expect(
+        client.request('turn.start', { threadId: thread.id, text: 'lost' })
+      ).rejects.toThrow('internal')
+      const second = await client.request<{ turnId: string }>('turn.start', {
+        threadId: thread.id,
+        text: 'second',
+      })
+      expect(second.turnId).toBe(first.turnId)
+      await client.waitFor(
+        (message) => isThreadPush(message) && message.event.type === 'turn.completed'
+      )
+      const state = await Effect.runPromise(running.store.getThreadState(thread.id))
+      expect(
+        state.items.filter((item) => item.kind === 'user_message').map((item) => item.text)
+      ).toEqual(['first', 'second'])
+      expect(
+        state.items.filter((item) => item.kind === 'assistant_message').map((item) => item.text)
+      ).toEqual(['firstsecond'])
+      const events = await Effect.runPromise(running.store.getEventsAfter(thread.id, 0))
+      const secondUser = events.findIndex(
+        ({ event }) =>
+          event.type === 'item.started' &&
+          event.item.kind === 'user_message' &&
+          event.item.text === 'second'
+      )
+      const secondDelta = events.findIndex(
+        ({ event }) => event.type === 'item.delta' && event.delta === 'se'
+      )
+      expect(secondUser).toBeGreaterThan(-1)
+      expect(secondDelta).toBeGreaterThan(secondUser)
+      expect(
+        events.filter(
+          ({ event }) =>
+            (event.type === 'turn.completed' || event.type === 'turn.failed') &&
+            event.turnId === first.turnId
+        )
+      ).toHaveLength(1)
+    } finally {
+      db.close()
+      client.close()
+    }
+  })
+
+  test('shutdown interrupts a suspended subscription before closing its database', async () => {
+    const running = await boot()
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+    const client = await connect(running.port)
+    const entered = Deferred.makeUnsafe<void>()
+    let interrupted = false
+    const read = spyOn(running.store, 'getThreadState').mockImplementation(() =>
+      Deferred.succeed(entered, undefined).pipe(
+        Effect.andThen(Effect.never),
+        Effect.onInterrupt(() =>
+          Effect.sync(() => {
+            interrupted = true
+          })
+        )
+      )
+    )
+    client.ws.send(
+      JSON.stringify({ id: 'pending', method: 'thread.subscribe', params: { threadId: thread.id } })
+    )
+    await Effect.runPromise(Deferred.await(entered))
+    await running.stop()
+    expect(interrupted).toBe(true)
+    expect(client.messages.some((message) => 'id' in message && message.id === 'pending')).toBe(
+      false
+    )
+    read.mockRestore()
+    await expect(Effect.runPromise(running.store.getThreadState(thread.id))).rejects.toMatchObject({
+      code: 'internal',
+    })
+  })
+
   test('simultaneous starts serialize admission and survive both client disconnects', async () => {
     const running = await boot()
-    const project = running.store.createProject(running.home)
-    const thread = running.store.createThread(project.id, newId())
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
     const first = await connect(running.port)
     const second = await connect(running.port)
     const turns = await Promise.all([
@@ -173,7 +348,7 @@ describe('server skeleton', () => {
     await observer.waitFor(
       (message) => isThreadPush(message) && message.event.type === 'turn.completed'
     )
-    const events = running.store.getEventsAfter(thread.id, 0)
+    const events = await Effect.runPromise(running.store.getEventsAfter(thread.id, 0))
     expect(events.filter(({ event }) => event.type === 'turn.started')).toHaveLength(1)
     expect(events.filter(({ event }) => event.type === 'turn.completed')).toHaveLength(1)
     expect(
@@ -182,32 +357,32 @@ describe('server skeleton', () => {
       )
     ).toHaveLength(2)
     expect(events.map(({ seq }) => seq)).toEqual(events.map((_, index) => index + 1))
-    const assistant = running.store
-      .getThreadState(thread.id)
-      .items.find((item) => item.kind === 'assistant_message')
+    const assistant = (await Effect.runPromise(running.store.getThreadState(thread.id))).items.find(
+      (item) => item.kind === 'assistant_message'
+    )
     expect(assistant && 'text' in assistant && assistant.text).toBe('firstsecond')
     observer.close()
   })
 
   test('shutdown joins active turns, writes one terminal before closing SQLite, and is idempotent', async () => {
     const running = await boot()
-    const project = running.store.createProject(running.home)
-    const thread = running.store.createThread(project.id, newId())
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
     const client = await connect(running.port)
     await client.request('turn.start', { threadId: thread.id, text: 'in flight' })
     await Promise.all([running.stop(), running.stop()])
-    expect(() => running.store.getEventsAfter(thread.id, 0)).toThrow()
-    const db = openDb(running.home)
+    await expect(Effect.runPromise(running.store.getEventsAfter(thread.id, 0))).rejects.toThrow()
+    const db = await openTestStore(running.home)
     try {
-      const store = createStore(db)
-      const terminals = store
-        .getEventsAfter(thread.id, 0)
-        .filter(({ event }) => event.type === 'turn.completed' || event.type === 'turn.failed')
+      const { store } = db
+      const terminals = (await Effect.runPromise(store.getEventsAfter(thread.id, 0))).filter(
+        ({ event }) => event.type === 'turn.completed' || event.type === 'turn.failed'
+      )
       expect(terminals).toHaveLength(1)
       expect(terminals[0]!.event).toMatchObject({ type: 'turn.failed', error: 'server shutdown' })
-      expect(store.getThreadState(thread.id).activeTurnId).toBeNull()
+      expect((await Effect.runPromise(store.getThreadState(thread.id))).activeTurnId).toBeNull()
     } finally {
-      db.close()
+      await db.close()
     }
   })
 
@@ -567,7 +742,7 @@ describe('server skeleton', () => {
     )
 
     expect(titlerCalls).toEqual(['please fix login'])
-    expect(store.getThread(thread.id)?.title).toBe('Fix the login bug')
+    expect((await Effect.runPromise(store.getThread(thread.id)))?.title).toBe('Fix the login bug')
 
     c.close()
   })
@@ -591,7 +766,7 @@ describe('server skeleton', () => {
       id: newId(),
       projectId: project.id,
     })
-    store.setThreadTitle(thread.id, 'Existing title')
+    await Effect.runPromise(store.setThreadTitle(thread.id, 'Existing title'))
 
     await c.request('thread.subscribe', { threadId: thread.id })
     await c.request('turn.start', { threadId: thread.id, text: 'hello' })
@@ -602,7 +777,7 @@ describe('server skeleton', () => {
     await Bun.sleep(20)
 
     expect(called).toBe(false)
-    expect(store.getThread(thread.id)?.title).toBe('Existing title')
+    expect((await Effect.runPromise(store.getThread(thread.id)))?.title).toBe('Existing title')
 
     c.close()
   })
@@ -637,7 +812,7 @@ describe('server skeleton', () => {
     await Bun.sleep(20)
 
     expect(called).toBe(true)
-    expect(store.getThread(thread.id)?.title).toBe('New thread')
+    expect((await Effect.runPromise(store.getThread(thread.id)))?.title).toBe('New thread')
 
     // No chrome push that renames the thread away from the placeholder
     const renamed = c.messages.some(
@@ -656,13 +831,15 @@ describe('server skeleton', () => {
     const home = mkdtempSync(join(tmpdir(), 'jetty-reconcile-'))
     homes.push(home)
 
-    const db = openDb(home)
-    const store = createStore(db)
-    const project = store.createProject(dir('/tmp/reconcile'))
-    const thread = store.createThread(project.id, newId())
-    store.appendEvent(thread.id, { type: 'turn.started', turnId: 'orphan-turn' })
-    expect(store.getThreadState(thread.id).status).toBe('running')
-    db.close()
+    const db = await openTestStore(home)
+    const { store } = db
+    const project = await Effect.runPromise(store.createProject(dir('/tmp/reconcile')))
+    const thread = await Effect.runPromise(store.createThread(project.id, newId()))
+    await Effect.runPromise(
+      store.appendEvent(thread.id, { type: 'turn.started', turnId: 'orphan-turn' })
+    )
+    expect((await Effect.runPromise(store.getThreadState(thread.id))).status).toBe('running')
+    await db.close()
 
     const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
     servers.push(running)
@@ -717,8 +894,7 @@ describe('server skeleton', () => {
     })
     expect(first.thread.id).toBe(id)
     expect(first.thread.title).toBe('New thread')
-
-    store.setThreadTitle(id, 'Renamed after create')
+    await Effect.runPromise(store.setThreadTitle(id, 'Renamed after create'))
 
     const second = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
       id,
@@ -727,7 +903,7 @@ describe('server skeleton', () => {
     expect(second.thread.id).toBe(id)
     expect(second.thread.title).toBe('Renamed after create')
 
-    const matches = store.listThreads().filter((t) => t.id === id)
+    const matches = (await Effect.runPromise(store.listThreads())).filter((t) => t.id === id)
     expect(matches).toHaveLength(1)
 
     c.close()
@@ -1593,17 +1769,19 @@ describe('thread.diff', () => {
 
     const home = mkdtempSync(join(tmpdir(), 'jetty-diff-'))
     homes.push(home)
-    const db = openDb(home)
-    const store = createStore(db)
-    const project = store.createProject(repo)
-    const thread = store.createThread(project.id, newId())
+    const db = await openTestStore(home)
+    const { store } = db
+    const project = await Effect.runPromise(store.createProject(repo))
+    const thread = await Effect.runPromise(store.createThread(project.id, newId()))
 
-    const res = await computeThreadDiff(store, thread.id)
+    const res = await computeThreadDiff(
+      (await Effect.runPromise(store.getProject(thread.projectId)))!.path
+    )
     expect(res.diff).toContain('diff --git a/hello.txt b/hello.txt')
     expect(res.diff).toContain('+three')
     expect(res.diff).toContain('-two')
 
-    db.close()
+    await db.close()
   })
 
   test('computeThreadDiff includes untracked files and survives an unborn HEAD', async () => {
@@ -1616,18 +1794,20 @@ describe('thread.diff', () => {
 
     const home = mkdtempSync(join(tmpdir(), 'jetty-diff-'))
     homes.push(home)
-    const db = openDb(home)
-    const store = createStore(db)
-    const project = store.createProject(repo)
-    const thread = store.createThread(project.id, newId())
+    const db = await openTestStore(home)
+    const { store } = db
+    const project = await Effect.runPromise(store.createProject(repo))
+    const thread = await Effect.runPromise(store.createThread(project.id, newId()))
 
-    const res = await computeThreadDiff(store, thread.id)
+    const res = await computeThreadDiff(
+      (await Effect.runPromise(store.getProject(thread.projectId)))!.path
+    )
     expect(res.diff).toContain('diff --git a/main.ts b/main.ts')
     expect(res.diff).toContain('new file mode')
     expect(res.diff).toContain('+console.log("hi")')
     expect(res.truncatedPaths).toEqual(['bun.lock'])
 
-    db.close()
+    await db.close()
   })
 
   test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {
@@ -1703,7 +1883,9 @@ describe('project.create validation', () => {
     const second = await c.request<{ project: { id: string } }>('project.create', { path })
 
     expect(second.project.id).toBe(first.project.id)
-    expect(store.listProjects().filter((p) => p.path === path)).toHaveLength(1)
+    expect(
+      (await Effect.runPromise(store.listProjects())).filter((p) => p.path === path)
+    ).toHaveLength(1)
 
     c.close()
   })

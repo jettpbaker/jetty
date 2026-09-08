@@ -7,7 +7,7 @@ import { Context, Effect, Layer, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
-import type { Store } from './store'
+import type { AppendedEvent, Store } from './store'
 import type { Titler } from './titler'
 
 import { AgentError, AgentService, type Agent } from './agent'
@@ -25,14 +25,6 @@ export type StartTurnInput = {
   model?: string
   effort?: EffortLevel
   permissionMode?: PermissionMode
-}
-
-export function storeEffect<A>(read: () => A) {
-  return Effect.try({
-    try: read,
-    catch: (error) =>
-      error instanceof StoreError ? error : new StoreError('internal', String(error)),
-  })
 }
 
 export function createOrchestrator(
@@ -62,26 +54,33 @@ export function createOrchestrator(
       return value
     }
 
+    function publish(threadId: string, appended: AppendedEvent) {
+      hub.pushThread(threadId, {
+        sub: 'thread',
+        threadId,
+        seq: appended.seq,
+        ts: appended.ts,
+        event: appended.event,
+      })
+      if (appended.state.status !== appended.prevStatus) {
+        hub.pushChrome({ type: 'thread.upserted', thread: appended.thread })
+      }
+    }
+
     function append(threadId: string, event: ThreadEvent) {
       return Effect.suspend(() =>
         state(threadId).publication.withPermit(
-          storeEffect(() => {
-            const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
-            if (terminal && state(threadId).turnId !== event.turnId) return
-            const appended = store.appendEvent(threadId, event)
-            hub.pushThread(threadId, {
-              sub: 'thread',
-              threadId,
-              seq: appended.seq,
-              ts: appended.ts,
-              event: appended.event,
-            })
-            if (appended.state.status !== appended.prevStatus) {
-              const thread = store.getThread(threadId)
-              if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
-            }
-            if (terminal) state(threadId).turnId = null
-          })
+          hub
+            .withChromePublication(
+              Effect.gen(function* () {
+                const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
+                if (terminal && state(threadId).turnId !== event.turnId) return
+                const appended = yield* store.appendEvent(threadId, event)
+                publish(threadId, appended)
+                if (terminal) state(threadId).turnId = null
+              })
+            )
+            .pipe(Effect.uninterruptible)
         )
       )
     }
@@ -96,15 +95,27 @@ export function createOrchestrator(
           text,
           attachments: meta,
         }
-        yield* append(threadId, { type: 'item.started', item })
-        yield* append(threadId, { type: 'item.completed', itemId: item.id })
+        yield* state(threadId).publication.withPermit(
+          hub
+            .withChromePublication(
+              Effect.gen(function* () {
+                const appended = yield* store.appendEvents(threadId, [
+                  { type: 'item.started', item },
+                  { type: 'item.completed', itemId: item.id },
+                ])
+                for (const event of appended) publish(threadId, event)
+              })
+            )
+            .pipe(Effect.uninterruptible)
+        )
       })
     }
 
     function checkThread(threadId: string) {
-      return storeEffect(() => {
-        const thread = store.getThread(threadId)
-        if (!thread) throw new StoreError('not_found', `Thread ${threadId} not found`)
+      return Effect.gen(function* () {
+        const thread = yield* store.getThread(threadId)
+        if (!thread)
+          return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
         return thread
       })
     }
@@ -113,15 +124,17 @@ export function createOrchestrator(
       if (!titler) return Effect.void
       return titler(text).pipe(
         Effect.flatMap((title) =>
-          storeEffect(() => {
-            if (!title) return
-            const current = store.getThread(threadId)
-            if (!current || current.title !== DEFAULT_THREAD_TITLE) return
-            hub.pushChrome({
-              type: 'thread.upserted',
-              thread: store.setThreadTitle(threadId, title),
-            })
-          })
+          hub.withChromePublication(
+            Effect.gen(function* () {
+              if (!title) return
+              const current = yield* store.getThread(threadId)
+              if (!current || current.title !== DEFAULT_THREAD_TITLE) return
+              hub.pushChrome({
+                type: 'thread.upserted',
+                thread: yield* store.setThreadTitle(threadId, title),
+              })
+            }).pipe(Effect.uninterruptible)
+          )
         ),
         Effect.ignore,
         Effect.forkIn(scope),
@@ -135,14 +148,26 @@ export function createOrchestrator(
           Effect.gen(function* () {
             const thread = yield* checkThread(input.threadId)
             const saved = attachments
-              ? yield* storeEffect(() => attachments.persist(input.attachments))
+              ? yield* Effect.try({
+                  try: () => attachments.persist(input.attachments),
+                  catch: (error) =>
+                    error instanceof StoreError ? error : new StoreError('internal', String(error)),
+                })
               : EMPTY_ATTACHMENTS
             if (thread.title === DEFAULT_THREAD_TITLE) yield* maybeTitle(input.threadId, input.text)
             const live = state(input.threadId)
             if (live.turnId) {
               const existing = live.turnId
-              if (yield* agent.steer(input.threadId, input.text, saved.images)) {
-                yield* appendUser(input.threadId, existing, input.text, saved.meta)
+              if (
+                yield* agent.steer(
+                  input.threadId,
+                  input.text,
+                  saved.images,
+                  appendUser(input.threadId, existing, input.text, saved.meta).pipe(
+                    Effect.mapError((error) => new AgentError(error.message))
+                  )
+                )
+              ) {
                 return { turnId: existing }
               }
               return yield* Effect.fail(
@@ -180,12 +205,15 @@ export function createOrchestrator(
               Effect.forkIn(scope, { startImmediately: true })
             )
             return { turnId }
-          }).pipe(Effect.uninterruptible)
+          })
         )
       )
     }
 
     return {
+      withPublication<A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) {
+        return Effect.suspend(() => state(threadId).publication.withPermit(effect))
+      },
       startTurnEffect,
       interrupt(threadId: string) {
         return checkThread(threadId).pipe(Effect.andThen(agent.interrupt(threadId)))
@@ -219,9 +247,12 @@ export function createOrchestrator(
         )
       },
       isActive(threadId: string) {
-        return storeEffect(
-          () => !!state(threadId).turnId || store.getThreadState(threadId).activeTurnId !== null
-        )
+        return Effect.gen(function* () {
+          return (
+            !!state(threadId).turnId ||
+            (yield* store.getThreadState(threadId)).activeTurnId !== null
+          )
+        })
       },
     }
   })
