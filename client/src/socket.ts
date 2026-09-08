@@ -8,6 +8,7 @@ import {
   type ResultOf,
   type WireError,
 } from '@jetty/shared/wire'
+import { Result, Schema } from 'effect'
 
 type ThreadPush = Extract<PushMessage, { sub: 'thread' }>
 
@@ -64,10 +65,10 @@ export function createSocket(url: string): Socket {
       return
     }
 
-    const parsed = ServerMessage.safeParse(json)
-    if (!parsed.success) return
+    const parsed = Schema.decodeUnknownResult(ServerMessage)(json)
+    if (Result.isFailure(parsed)) return
 
-    const msg = parsed.data
+    const msg = parsed.success
 
     if ('ok' in msg) {
       const p = pending.get(msg.id)

@@ -1,63 +1,73 @@
-import { z } from 'zod'
+import { Schema } from 'effect'
 
 import { ThreadItem } from './items'
 
-export const SessionStatus = z.enum(['idle', 'starting', 'running', 'awaiting_approval', 'error'])
-export type SessionStatus = z.infer<typeof SessionStatus>
-
-export const Usage = z.object({
-  inputTokens: z.number().int().nonnegative(),
-  outputTokens: z.number().int().nonnegative(),
-})
-export type Usage = z.infer<typeof Usage>
-
-export const ContextSlice = z.object({
-  label: z.string(),
-  tokens: z.number().int().nonnegative(),
-})
-export type ContextSlice = z.infer<typeof ContextSlice>
-
-export const ContextUsage = z.object({
-  usedTokens: z.number().int().nonnegative(),
-  maxTokens: z.number().int().positive(),
-  /** tokens at which auto-compaction fires; absent when auto-compact is off */
-  compactAt: z.number().int().positive().optional(),
-  slices: z.array(ContextSlice),
-  model: z.string().optional(),
-  asOf: z.number().int(),
-})
-export type ContextUsage = z.infer<typeof ContextUsage>
-
-export const ThreadEvent = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('turn.started'), turnId: z.string() }),
-  z.object({
-    type: z.literal('turn.completed'),
-    turnId: z.string(),
-    usage: Usage.optional(),
-    costUsd: z.number().optional(),
-  }),
-  z.object({ type: z.literal('turn.failed'), turnId: z.string(), error: z.string() }),
-  z.object({ type: z.literal('item.started'), item: ThreadItem }),
-  z.object({
-    type: z.literal('item.delta'),
-    itemId: z.string(),
-    delta: z.string(),
-    /** estimated thinking tokens in this delta (an increment, not a running total) */
-    tokens: z.number().int().nonnegative().optional(),
-  }),
-  z.object({
-    type: z.literal('item.completed'),
-    itemId: z.string(),
-    patch: z.record(z.string(), z.unknown()).optional(),
-  }),
-  z.object({ type: z.literal('session.status'), status: SessionStatus }),
-  z.object({ type: z.literal('context.updated'), usage: ContextUsage }),
+export const SessionStatus = Schema.Literals([
+  'idle',
+  'starting',
+  'running',
+  'awaiting_approval',
+  'error',
 ])
-export type ThreadEvent = z.infer<typeof ThreadEvent>
+export type SessionStatus = Schema.Schema.Type<typeof SessionStatus>
 
-export const SequencedEvent = z.object({
-  seq: z.number().int().positive(),
-  ts: z.number().int(),
+export const Usage = Schema.Struct({
+  inputTokens: Schema.Natural,
+  outputTokens: Schema.Natural,
+})
+export type Usage = Schema.Schema.Type<typeof Usage>
+
+export const ContextSlice = Schema.Struct({
+  label: Schema.String,
+  tokens: Schema.Natural,
+})
+export type ContextSlice = Schema.Schema.Type<typeof ContextSlice>
+
+export const ContextUsage = Schema.Struct({
+  usedTokens: Schema.Natural,
+  maxTokens: Schema.Int.check(Schema.isGreaterThan(0)),
+  /** tokens at which auto-compaction fires; absent when auto-compact is off */
+  compactAt: Schema.optional(Schema.Int.check(Schema.isGreaterThan(0))),
+  slices: Schema.Array(ContextSlice),
+  model: Schema.optional(Schema.String),
+  asOf: Schema.Int,
+})
+export type ContextUsage = Schema.Schema.Type<typeof ContextUsage>
+
+export const ThreadEvent = Schema.Union([
+  Schema.Struct({ type: Schema.Literal('turn.started'), turnId: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('turn.completed'),
+    turnId: Schema.String,
+    usage: Schema.optional(Usage),
+    costUsd: Schema.optional(Schema.Finite),
+  }),
+  Schema.Struct({
+    type: Schema.Literal('turn.failed'),
+    turnId: Schema.String,
+    error: Schema.String,
+  }),
+  Schema.Struct({ type: Schema.Literal('item.started'), item: ThreadItem }),
+  Schema.Struct({
+    type: Schema.Literal('item.delta'),
+    itemId: Schema.String,
+    delta: Schema.String,
+    /** estimated thinking tokens in this delta (an increment, not a running total) */
+    tokens: Schema.optional(Schema.Natural),
+  }),
+  Schema.Struct({
+    type: Schema.Literal('item.completed'),
+    itemId: Schema.String,
+    patch: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  }),
+  Schema.Struct({ type: Schema.Literal('session.status'), status: SessionStatus }),
+  Schema.Struct({ type: Schema.Literal('context.updated'), usage: ContextUsage }),
+])
+export type ThreadEvent = Schema.Schema.Type<typeof ThreadEvent>
+
+export const SequencedEvent = Schema.Struct({
+  seq: Schema.Int.check(Schema.isGreaterThan(0)),
+  ts: Schema.Int,
   event: ThreadEvent,
 })
-export type SequencedEvent = z.infer<typeof SequencedEvent>
+export type SequencedEvent = Schema.Schema.Type<typeof SequencedEvent>

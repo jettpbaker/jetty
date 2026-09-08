@@ -9,7 +9,13 @@ const FADE_PX = 24
  * Full-width bordered card; long messages cap at a fixed height and scroll
  * inside, with edges fading only when content is hidden past them.
  */
-export function UserMessage({ text, attachments }: { text: string; attachments: Attachment[] }) {
+export function UserMessage({
+  text,
+  attachments,
+}: {
+  text: string
+  attachments: readonly Attachment[]
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(scrollRef)
   const maskImage = buildScrollFadeMask({ ...edges, topPx: FADE_PX, bottomPx: FADE_PX })

@@ -10,6 +10,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { type ApprovalDecision, QuestionSpec, type ThreadItem } from '@jetty/shared/items'
 import { newId, type PermissionMode } from '@jetty/shared/wire'
+import { Result, Schema } from 'effect'
 
 import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Attachments } from './attachments'
@@ -318,10 +319,10 @@ export function createClaudeAdapter(
       // AskUserQuestion isn't a permission: the SDK routes it here so the host
       // can render the question and return the answers via updatedInput.
       if (toolName === 'AskUserQuestion') {
-        const parsed = QuestionSpec.array().safeParse(
+        const parsed = Schema.decodeUnknownResult(Schema.Array(QuestionSpec))(
           (toolInput as { questions?: unknown }).questions
         )
-        if (!parsed.success) {
+        if (Result.isFailure(parsed)) {
           return { behavior: 'deny', message: 'Malformed questions' }
         }
         const itemId = newId()
@@ -332,7 +333,7 @@ export function createClaudeAdapter(
             turnId: session.activeTurnId,
             createdAt: Date.now(),
             kind: 'question',
-            questions: parsed.data,
+            questions: parsed.success,
           },
         })
         session.emit({ type: 'session.status', status: 'awaiting_approval' })

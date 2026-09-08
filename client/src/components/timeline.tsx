@@ -28,7 +28,7 @@ export function Timeline({
   overlayInset = false,
 }: {
   threadId: string
-  items: ThreadItem[]
+  items: readonly ThreadItem[]
   status?: SessionStatus
   activeTurnId?: string | null
   /** Clearance for a composer floating over the viewport bottom. */

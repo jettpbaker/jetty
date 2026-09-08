@@ -18,7 +18,7 @@ export function slashQueryAt(text: string, caret: number): SlashQuery | null {
   return { start, query }
 }
 
-export function filterSkills(skills: Skill[], query: string): Skill[] {
+export function filterSkills(skills: readonly Skill[], query: string): readonly Skill[] {
   if (query.length === 0) return skills
   const q = query.toLowerCase()
   const prefix: Skill[] = []

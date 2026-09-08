@@ -5,6 +5,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "latest",
     "@jetty/shared": "workspace:*",
+    "effect": "4.0.0-rc.112",
     "zod": "^4.4.3"
   }
 }

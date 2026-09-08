@@ -724,7 +724,8 @@ describe('server skeleton', () => {
     const res = await resP
     expect(res.ok).toBe(false)
     expect(res.error?.code).toBe('invalid_params')
-    expect(res.error?.message).toMatch(/expected string/)
+    expect(res.error?.message).toMatch(/Missing key/)
+    expect(res.error?.message).toContain('["id"]')
 
     c.close()
   })

@@ -1,5 +1,5 @@
+import { Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
-import { z } from 'zod'
 
 import { SequencedEvent, SessionStatus } from './events'
 import { ApprovalDecision } from './items'
@@ -11,237 +11,256 @@ export const MAX_IMAGES_PER_TURN = 8
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
-export const PermissionMode = z.enum(['auto', 'full_access', 'plan'])
-export type PermissionMode = z.infer<typeof PermissionMode>
+export const PermissionMode = Schema.Literals(['auto', 'full_access', 'plan'])
+export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 
 /** Claude Code reasoning-effort levels (xhigh/max are model-dependent). */
-export const EffortLevel = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
-export type EffortLevel = z.infer<typeof EffortLevel>
+export const EffortLevel = Schema.Literals(['low', 'medium', 'high', 'xhigh', 'max'])
+export type EffortLevel = Schema.Schema.Type<typeof EffortLevel>
 
-export const Project = z.object({
-  id: z.string(),
-  path: z.string(),
-  title: z.string(),
-  createdAt: z.number().int(),
+export const Project = Schema.Struct({
+  id: Schema.String,
+  path: Schema.String,
+  title: Schema.String,
+  createdAt: Schema.Int,
 })
-export type Project = z.infer<typeof Project>
+export type Project = Schema.Schema.Type<typeof Project>
 
-export const ThreadGitStatus = z.object({
-  branch: z.string(),
-  dirty: z.boolean(),
-  pr: z
-    .object({
-      number: z.number().int().positive(),
-      state: z.enum(['draft', 'open', 'merged', 'closed']),
-      url: z.string(),
+export const ThreadGitStatus = Schema.Struct({
+  branch: Schema.String,
+  dirty: Schema.Boolean,
+  pr: Schema.NullOr(
+    Schema.Struct({
+      number: Schema.Int.check(Schema.isGreaterThan(0)),
+      state: Schema.Literals(['draft', 'open', 'merged', 'closed']),
+      url: Schema.String,
     })
-    .nullable(),
+  ),
 })
-export type ThreadGitStatus = z.infer<typeof ThreadGitStatus>
+export type ThreadGitStatus = Schema.Schema.Type<typeof ThreadGitStatus>
 
-export const ThreadMeta = z.object({
-  id: z.string(),
-  projectId: z.string(),
-  title: z.string(),
+export const ThreadMeta = Schema.Struct({
+  id: Schema.String,
+  projectId: Schema.String,
+  title: Schema.String,
   status: SessionStatus,
-  archived: z.boolean(),
-  updatedAt: z.number().int(),
-  git: ThreadGitStatus.optional(),
+  archived: Schema.Boolean,
+  updatedAt: Schema.Int,
+  git: Schema.optional(ThreadGitStatus),
 })
-export type ThreadMeta = z.infer<typeof ThreadMeta>
+export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
 
-export const UploadAttachment = z.object({
-  name: z.string(),
-  mimeType: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
-  dataUrl: z.string(),
+export const UploadAttachment = Schema.Struct({
+  name: Schema.String,
+  mimeType: Schema.Literals(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
+  dataUrl: Schema.String,
 })
-export type UploadAttachment = z.infer<typeof UploadAttachment>
+export type UploadAttachment = Schema.Schema.Type<typeof UploadAttachment>
 
 /** A user-invocable Claude Code skill or slash command. */
-export const Skill = z.object({
-  name: z.string(),
-  description: z.string(),
+export const Skill = Schema.Struct({
+  name: Schema.String,
+  description: Schema.String,
 })
-export type Skill = z.infer<typeof Skill>
+export type Skill = Schema.Schema.Type<typeof Skill>
 
 export const methods = {
   'chrome.subscribe': {
-    params: z.object({}),
-    result: z.null(),
+    params: Schema.Record(Schema.String, Schema.Unknown).pipe(
+      Schema.decodeTo(
+        Schema.Struct({}),
+        SchemaTransformation.transform({
+          decode: () => ({}),
+          encode: () => ({}),
+        })
+      )
+    ),
+    result: Schema.Null,
   },
   'project.create': {
     // title is always derived server-side from the directory basename; the path
     // must resolve to an existing directory or the server rejects it
-    params: z.object({ path: z.string() }),
-    result: z.object({ project: Project }),
+    params: Schema.Struct({ path: Schema.String }),
+    result: Schema.Struct({ project: Project }),
   },
   'fs.browse': {
-    params: z.object({ partialPath: z.string() }),
-    result: z.object({
-      parentPath: z.string(),
-      entries: z.array(z.object({ name: z.string(), fullPath: z.string() })),
+    params: Schema.Struct({ partialPath: Schema.String }),
+    result: Schema.Struct({
+      parentPath: Schema.String,
+      entries: Schema.Array(Schema.Struct({ name: Schema.String, fullPath: Schema.String })),
     }),
   },
   'fs.search': {
     // fuzzy filename search over a project's git-tracked files (for @file mentions)
-    params: z.object({
-      projectId: z.string(),
-      query: z.string(),
-      limit: z.number().int().positive().max(100).optional(),
+    params: Schema.Struct({
+      projectId: Schema.String,
+      query: Schema.String,
+      limit: Schema.optional(
+        Schema.Int.check(Schema.isGreaterThan(0)).check(Schema.isLessThanOrEqualTo(100))
+      ),
     }),
-    result: z.object({ files: z.array(z.string()) }),
+    result: Schema.Struct({ files: Schema.Array(Schema.String) }),
   },
   'skills.list': {
     // user-invocable Claude Code skills + .claude/commands for a project
     // (plus personal ~/.claude ones). omit projectId for personal-only.
-    params: z.object({
-      projectId: z.string().optional(),
+    params: Schema.Struct({
+      projectId: Schema.optional(Schema.String),
     }),
-    result: z.object({ skills: z.array(Skill) }),
+    result: Schema.Struct({ skills: Schema.Array(Skill) }),
   },
   'thread.create': {
-    params: z.object({ id: z.string().min(1), projectId: z.string() }),
-    result: z.object({ thread: ThreadMeta }),
+    params: Schema.Struct({
+      id: Schema.String.check(Schema.isMinLength(1)),
+      projectId: Schema.String,
+    }),
+    result: Schema.Struct({ thread: ThreadMeta }),
   },
   'thread.archive': {
-    params: z.object({ threadId: z.string() }),
-    result: z.null(),
+    params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Null,
   },
   'thread.diff': {
-    params: z.object({ threadId: z.string() }),
+    params: Schema.Struct({ threadId: Schema.String }),
     // unified `git diff HEAD` patch text, pulled on demand. truncatedPaths lists
     // files whose hunks were stripped server-side (lockfiles, pathological sizes).
-    result: z.object({
-      diff: z.string(),
-      truncatedPaths: z.array(z.string()).optional(),
+    result: Schema.Struct({
+      diff: Schema.String,
+      truncatedPaths: Schema.optional(Schema.Array(Schema.String)),
     }),
   },
   'thread.subscribe': {
-    params: z.object({
-      threadId: z.string(),
-      afterSeq: z.number().int().nonnegative().optional(),
+    params: Schema.Struct({
+      threadId: Schema.String,
+      afterSeq: Schema.optional(Schema.Natural),
     }),
-    result: z.object({
-      snapshot: ThreadState.optional(),
-      seq: z.number().int().nonnegative(),
+    result: Schema.Struct({
+      snapshot: Schema.optional(ThreadState),
+      seq: Schema.Natural,
     }),
   },
   'thread.unsubscribe': {
-    params: z.object({ threadId: z.string() }),
-    result: z.null(),
+    params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Null,
   },
   'turn.start': {
-    params: z.object({
-      threadId: z.string(),
-      text: z.string(),
-      attachments: z.array(UploadAttachment).max(MAX_IMAGES_PER_TURN).optional(),
-      model: z.string().optional(),
-      effort: EffortLevel.optional(),
-      permissionMode: PermissionMode.optional(),
+    params: Schema.Struct({
+      threadId: Schema.String,
+      text: Schema.String,
+      attachments: Schema.optional(
+        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+      ),
+      model: Schema.optional(Schema.String),
+      effort: Schema.optional(EffortLevel),
+      permissionMode: Schema.optional(PermissionMode),
     }),
-    result: z.object({ turnId: z.string() }),
+    result: Schema.Struct({ turnId: Schema.String }),
   },
   'turn.interrupt': {
-    params: z.object({ threadId: z.string() }),
-    result: z.null(),
+    params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Null,
   },
   'approval.respond': {
-    params: z.object({
-      threadId: z.string(),
-      itemId: z.string(),
+    params: Schema.Struct({
+      threadId: Schema.String,
+      itemId: Schema.String,
       decision: ApprovalDecision,
-      message: z.string().optional(),
-      updatedPermissions: z.array(z.unknown()).optional(),
+      message: Schema.optional(Schema.String),
+      updatedPermissions: Schema.optional(Schema.Array(Schema.Unknown)),
     }),
-    result: z.null(),
+    result: Schema.Null,
   },
   'question.respond': {
-    params: z.object({
-      threadId: z.string(),
-      itemId: z.string(),
-      answers: z.record(z.string(), z.string()),
+    params: Schema.Struct({
+      threadId: Schema.String,
+      itemId: Schema.String,
+      answers: Schema.Record(Schema.String, Schema.String),
     }),
-    result: z.null(),
+    result: Schema.Null,
   },
 } as const
 
 export type MethodName = keyof typeof methods
-export type ParamsOf<M extends MethodName> = z.infer<(typeof methods)[M]['params']>
-export type ResultOf<M extends MethodName> = z.infer<(typeof methods)[M]['result']>
+export type ParamsOf<M extends MethodName> = Schema.Schema.Type<(typeof methods)[M]['params']>
+export type ResultOf<M extends MethodName> = Schema.Schema.Type<(typeof methods)[M]['result']>
 
 const methodNames = Object.keys(methods) as [MethodName, ...MethodName[]]
 
-export const RequestMessage = z.object({
-  id: z.string(),
-  method: z.enum(methodNames),
-  params: z.unknown(),
+export const RequestMessage = Schema.Struct({
+  id: Schema.String,
+  method: Schema.Literals(methodNames),
+  params: Schema.Unknown,
 })
-export type RequestMessage = z.infer<typeof RequestMessage>
+export type RequestMessage = Schema.Schema.Type<typeof RequestMessage>
 
-export const ErrorCode = z.enum([
+export const ErrorCode = Schema.Literals([
   'invalid_request',
   'invalid_params',
   'unknown_method',
   'not_found',
   'internal',
 ])
-export type ErrorCode = z.infer<typeof ErrorCode>
+export type ErrorCode = Schema.Schema.Type<typeof ErrorCode>
 
-export const WireError = z.object({ code: ErrorCode, message: z.string() })
-export type WireError = z.infer<typeof WireError>
+export const WireError = Schema.Struct({ code: ErrorCode, message: Schema.String })
+export type WireError = Schema.Schema.Type<typeof WireError>
 
-export const ResponseMessage = z.object({
-  id: z.string(),
-  ok: z.boolean(),
-  result: z.unknown().optional(),
-  error: WireError.optional(),
+export const ResponseMessage = Schema.Struct({
+  id: Schema.String,
+  ok: Schema.Boolean,
+  result: Schema.optional(Schema.Unknown),
+  error: Schema.optional(WireError),
 })
-export type ResponseMessage = z.infer<typeof ResponseMessage>
+export type ResponseMessage = Schema.Schema.Type<typeof ResponseMessage>
 
 /** Claude Code plan rate-limit window (pct used 0–100, resetsAt epoch ms). */
-export const UsageWindow = z.object({
-  pct: z.number(),
-  resetsAt: z.number(),
+export const UsageWindow = Schema.Struct({
+  pct: Schema.Finite,
+  resetsAt: Schema.Finite,
 })
-export type UsageWindow = z.infer<typeof UsageWindow>
+export type UsageWindow = Schema.Schema.Type<typeof UsageWindow>
 
 /** Extra usage credits (fallback after the 5h window). Amounts are major currency units. */
-export const ExtraUsage = z.object({
-  used: z.number(),
-  limit: z.number(),
-  pct: z.number(),
-  currency: z.string(),
+export const ExtraUsage = Schema.Struct({
+  used: Schema.Finite,
+  limit: Schema.Finite,
+  pct: Schema.Finite,
+  currency: Schema.String,
 })
-export type ExtraUsage = z.infer<typeof ExtraUsage>
+export type ExtraUsage = Schema.Schema.Type<typeof ExtraUsage>
 
 /** Account rate-limit usage from Claude Code /usage (not per-turn token counts). */
-export const Usage = z.object({
+export const Usage = Schema.Struct({
   fiveHour: UsageWindow,
   sevenDay: UsageWindow,
-  extraUsage: ExtraUsage.optional(),
-  asOf: z.number(),
+  extraUsage: Schema.optional(ExtraUsage),
+  asOf: Schema.Finite,
 })
-export type Usage = z.infer<typeof Usage>
+export type Usage = Schema.Schema.Type<typeof Usage>
 
-export const ChromePushData = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('snapshot'),
-    projects: z.array(Project),
-    threads: z.array(ThreadMeta),
-    usage: Usage.optional(),
+export const ChromePushData = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal('snapshot'),
+    projects: Schema.Array(Project),
+    threads: Schema.Array(ThreadMeta),
+    usage: Schema.optional(Usage),
   }),
-  z.object({ type: z.literal('project.upserted'), project: Project }),
-  z.object({ type: z.literal('thread.upserted'), thread: ThreadMeta }),
-  z.object({ type: z.literal('thread.removed'), threadId: z.string() }),
-  z.object({ type: z.literal('usage'), usage: Usage }),
+  Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
+  Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
+  Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
+  Schema.Struct({ type: Schema.Literal('usage'), usage: Usage }),
 ])
-export type ChromePushData = z.infer<typeof ChromePushData>
+export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>
 
-export const PushMessage = z.discriminatedUnion('sub', [
-  z.object({ sub: z.literal('chrome'), data: ChromePushData }),
-  SequencedEvent.extend({ sub: z.literal('thread'), threadId: z.string() }),
+export const PushMessage = Schema.Union([
+  Schema.Struct({ sub: Schema.Literal('chrome'), data: ChromePushData }),
+  Schema.Struct({
+    ...SequencedEvent.fields,
+    sub: Schema.Literal('thread'),
+    threadId: Schema.String,
+  }),
 ])
-export type PushMessage = z.infer<typeof PushMessage>
+export type PushMessage = Schema.Schema.Type<typeof PushMessage>
 
-export const ServerMessage = z.union([PushMessage, ResponseMessage])
-export type ServerMessage = z.infer<typeof ServerMessage>
+export const ServerMessage = Schema.Union([PushMessage, ResponseMessage])
+export type ServerMessage = Schema.Schema.Type<typeof ServerMessage>

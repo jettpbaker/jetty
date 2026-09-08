@@ -66,7 +66,7 @@ function ContextRing({ pct }: { pct: number }) {
 }
 
 /** An agent that reports a total but no categories still gets a bar. */
-function slicesOf(usage: ContextUsage): ContextSlice[] {
+function slicesOf(usage: ContextUsage): readonly ContextSlice[] {
   if (usage.slices.length > 0) return usage.slices
   return [{ label: 'Used', tokens: usage.usedTokens }]
 }

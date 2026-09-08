@@ -3,8 +3,8 @@ import type { Project, ThreadMeta, ChromePushData, Usage } from '@jetty/shared/w
 import type { Socket } from '../socket'
 
 export type ChromeState = {
-  projects: Project[]
-  threads: ThreadMeta[]
+  projects: readonly Project[]
+  threads: readonly ThreadMeta[]
   /** Rate-limit meters; null until the server has reported usage. */
   usage: Usage | null
 }
@@ -98,7 +98,7 @@ export function createChromeStore(
   }
 }
 
-function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
+function upsertById<T extends { id: string }>(list: readonly T[], item: T): readonly T[] {
   const index = list.findIndex((row) => row.id === item.id)
   if (index === -1) return [...list, item]
   if (list[index] === item) return list

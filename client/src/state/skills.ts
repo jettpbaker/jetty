@@ -5,14 +5,14 @@ import type { ChromeStore } from './chrome'
 
 export type SkillsStore = {
   subscribe: (listener: () => void) => () => void
-  getFor: (projectId: string | null | undefined) => Skill[]
+  getFor: (projectId: string | null | undefined) => readonly Skill[]
 }
 
 const USER_KEY = ''
-const EMPTY: Skill[] = []
+const EMPTY: readonly Skill[] = []
 
 export function createSkillsStore(socket: Socket, chromeStore: ChromeStore): SkillsStore {
-  const cache = new Map<string, Skill[]>()
+  const cache = new Map<string, readonly Skill[]>()
   const inflight = new Set<string>()
   const listeners = new Set<() => void>()
 

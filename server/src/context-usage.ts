@@ -54,7 +54,7 @@ export async function readContextUsage(query: Query): Promise<ContextUsage | nul
     )
     const max = resolveContextWindow(reported, response.model)
 
-    const slices: ContextUsage['slices'] = []
+    const slices: ContextUsage['slices'][number][] = []
     for (const cat of response.categories) {
       const tokens = Math.round(cat.tokens)
       if (tokens <= 0) continue
