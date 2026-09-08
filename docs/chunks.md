@@ -4,6 +4,17 @@ The build plan, in order. This file is persistent — in-flight design notes liv
 `docs/chunks/` and get deleted once a chunk is built and confirmed, but this index
 stays and tracks status.
 
+## jetty-v2 (proposed)
+
+- [ ] **Effect backend port** — version check and staged proposal in
+      [jetty-v2-effect.md](chunks/jetty-v2-effect.md). Awaiting Jett's scope and
+      architecture decisions; no implementation authorized. Pause for a walkthrough
+      after each backend chunk.
+- [ ] **Replacement frontend, features/design, and possible Electron app** —
+      separate design tracks; not specified by the backend port proposal.
+
+## original build
+
 - [x] **1. contracts** — zod schemas in `shared/` for timeline items, thread events,
       the reducer, and the ws method catalog. The shared vocabulary both sides
       import; nothing outside `shared/` gets to invent a shape.
