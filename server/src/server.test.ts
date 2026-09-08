@@ -1,4 +1,4 @@
-import type { PushMessage, ResponseMessage, ServerMessage } from '@jetty/shared/wire'
+import type { FromServerEncoded } from 'effect/unstable/rpc/RpcMessage'
 
 import { BunServices } from '@effect/platform-bun'
 import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
@@ -28,6 +28,14 @@ import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
+import {
+  connect as connectRpc,
+  isChromeUpdate,
+  isThreadEvent,
+  threadEvents,
+  type Client,
+  type ThreadMessage,
+} from './rpc-test-client'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { openTestStore } from './store-fixture'
@@ -48,6 +56,39 @@ type Running = Awaited<ReturnType<typeof startServer>>
 
 const servers: Running[] = []
 const homes: string[] = []
+const clients: Client[] = []
+const rawSockets: WebSocket[] = []
+
+async function connect(port: number) {
+  const client = await connectRpc(port)
+  clients.push(client)
+  return client
+}
+
+async function connectRaw(port: number) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`)
+  rawSockets.push(ws)
+  await new Promise<void>((resolve, reject) => {
+    ws.addEventListener('open', () => resolve(), { once: true })
+    ws.addEventListener('error', () => reject(new Error('WebSocket error')), { once: true })
+  })
+  return ws
+}
+
+function rawRequest(ws: WebSocket, message: unknown): Promise<FromServerEncoded> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.removeEventListener('message', onMessage)
+      reject(new Error('RPC response timed out'))
+    }, 5000)
+    function onMessage(event: MessageEvent) {
+      clearTimeout(timer)
+      resolve(JSON.parse(String(event.data)) as FromServerEncoded)
+    }
+    ws.addEventListener('message', onMessage, { once: true })
+    ws.send(typeof message === 'string' ? message : JSON.stringify(message))
+  })
+}
 
 async function boot(opts: Parameters<typeof startServer>[0] = {}) {
   const home = mkdtempSync(join(tmpdir(), 'jetty-test-'))
@@ -57,103 +98,15 @@ async function boot(opts: Parameters<typeof startServer>[0] = {}) {
   return running
 }
 
-function isChromePush(msg: ServerMessage): msg is Extract<PushMessage, { sub: 'chrome' }> {
-  return 'sub' in msg && msg.sub === 'chrome'
-}
-
 afterEach(async () => {
+  while (rawSockets.length) rawSockets.pop()?.close()
+  while (clients.length) await clients.pop()?.close()
   while (servers.length) await servers.pop()?.stop()
   while (homes.length) {
     const home = homes.pop()
     if (home) rmSync(home, { recursive: true, force: true })
   }
 })
-
-type Client = {
-  ws: WebSocket
-  close: () => void
-  request: <T = unknown>(method: string, params: unknown) => Promise<T>
-  waitFor: (pred: (msg: ServerMessage) => boolean, ms?: number) => Promise<ServerMessage>
-  messages: ServerMessage[]
-}
-
-function connect(port: number): Promise<Client> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`)
-    const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
-    const messages: ServerMessage[] = []
-    const waiters: Array<{
-      pred: (msg: ServerMessage) => boolean
-      resolve: (msg: ServerMessage) => void
-      reject: (e: Error) => void
-      timer: ReturnType<typeof setTimeout>
-    }> = []
-
-    const client: Client = {
-      ws,
-      messages,
-      close: () => ws.close(),
-      request<T>(method: string, params: unknown) {
-        const id = newId()
-        return new Promise<T>((res, rej) => {
-          pending.set(id, {
-            resolve: (v) => res(v as T),
-            reject: rej,
-          })
-          ws.send(JSON.stringify({ id, method, params }))
-        })
-      },
-      waitFor(pred, ms = 5000) {
-        for (const msg of messages) {
-          if (pred(msg)) return Promise.resolve(msg)
-        }
-        return new Promise((res, rej) => {
-          const timer = setTimeout(() => {
-            const i = waiters.findIndex((w) => w.resolve === res)
-            if (i >= 0) waiters.splice(i, 1)
-            rej(new Error('waitFor timed out'))
-          }, ms)
-          waiters.push({ pred, resolve: res, reject: rej, timer })
-        })
-      },
-    }
-
-    ws.addEventListener('open', () => resolve(client))
-    ws.addEventListener('error', () => reject(new Error('websocket error')))
-    ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(String(ev.data)) as ServerMessage
-      messages.push(msg)
-
-      if ('ok' in msg && typeof msg.id === 'string') {
-        const p = pending.get(msg.id)
-        if (p) {
-          pending.delete(msg.id)
-          if (msg.ok) p.resolve(msg.result)
-          else p.reject(new Error(`${msg.error?.code}: ${msg.error?.message}`))
-        }
-      }
-
-      for (let i = waiters.length - 1; i >= 0; i--) {
-        const w = waiters[i]!
-        if (w.pred(msg)) {
-          clearTimeout(w.timer)
-          waiters.splice(i, 1)
-          w.resolve(msg)
-        }
-      }
-    })
-  })
-}
-
-function isThreadPush(msg: ServerMessage): msg is Extract<PushMessage, { sub: 'thread' }> {
-  return 'sub' in msg && msg.sub === 'thread'
-}
-
-function threadEvents(client: Client, threadId: string) {
-  return client.messages.filter(
-    (m): m is Extract<PushMessage, { sub: 'thread' }> => isThreadPush(m) && m.threadId === threadId
-  )
-}
 
 describe('server skeleton', () => {
   for (const admission of ['initial', 'steered'] as const) {
@@ -162,10 +115,10 @@ describe('server skeleton', () => {
       const project = await Effect.runPromise(running.store.createProject(running.home))
       const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
       const client = await connect(running.port)
-      await client.request('thread.subscribe', { threadId: thread.id })
+      await client.subscribeThread({ threadId: thread.id }).ready
       const active =
         admission === 'steered'
-          ? await client.request<{ turnId: string }>('turn.start', {
+          ? await client.request('turn.start', {
               threadId: thread.id,
               text: 'first',
             })
@@ -182,7 +135,7 @@ describe('server skeleton', () => {
           BEGIN SELECT RAISE(ABORT, 'injected second admission write failure'); END`)
         await expect(
           client.request('turn.start', { threadId: thread.id, text: 'never accepted' })
-        ).rejects.toThrow('internal')
+        ).rejects.toMatchObject({ code: 'internal' })
         expect(writes).toHaveBeenCalledTimes(1)
         const attempted = writes.mock.calls[0]![1]
         const started = attempted[0]
@@ -206,13 +159,13 @@ describe('server skeleton', () => {
         }
         if (!active) expect(events.map(({ event }) => event.type)).toEqual(['turn.failed'])
         db.run('DROP TRIGGER reject_completion')
-        const retry = await client.request<{ turnId: string }>('turn.start', {
+        const retry = await client.request('turn.start', {
           threadId: thread.id,
           text: 'never accepted',
         })
         if (active) expect(retry.turnId).toBe(active.turnId)
         await client.waitFor(
-          (message) => isThreadPush(message) && message.event.type === 'turn.completed'
+          (message) => isThreadEvent(message) && message.event.type === 'turn.completed'
         )
         const completed = await Effect.runPromise(running.store.getThreadState(thread.id))
         expect(
@@ -231,7 +184,7 @@ describe('server skeleton', () => {
       } finally {
         writes.mockRestore()
         db.close()
-        client.close()
+        await client.close()
       }
     })
   }
@@ -241,7 +194,7 @@ describe('server skeleton', () => {
     const project = await Effect.runPromise(running.store.createProject(running.home))
     const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
     const client = await connect(running.port)
-    await client.request('thread.subscribe', { threadId: thread.id })
+    await client.subscribeThread({ threadId: thread.id }).ready
     const db = new Database(join(running.home, 'jetty.db'))
     try {
       db.run(`CREATE TRIGGER reject_input BEFORE INSERT ON thread_events
@@ -249,24 +202,24 @@ describe('server skeleton', () => {
         BEGIN SELECT RAISE(ABORT, 'injected input failure'); END`)
       await expect(
         client.request('turn.start', { threadId: thread.id, text: 'lost' })
-      ).rejects.toThrow('internal')
+      ).rejects.toMatchObject({ code: 'internal' })
       expect(
         (await Effect.runPromise(running.store.getThreadState(thread.id))).activeTurnId
       ).toBeNull()
-      const first = await client.request<{ turnId: string }>('turn.start', {
+      const first = await client.request('turn.start', {
         threadId: thread.id,
         text: 'first',
       })
       await expect(
         client.request('turn.start', { threadId: thread.id, text: 'lost' })
-      ).rejects.toThrow('internal')
-      const second = await client.request<{ turnId: string }>('turn.start', {
+      ).rejects.toMatchObject({ code: 'internal' })
+      const second = await client.request('turn.start', {
         threadId: thread.id,
         text: 'second',
       })
       expect(second.turnId).toBe(first.turnId)
       await client.waitFor(
-        (message) => isThreadPush(message) && message.event.type === 'turn.completed'
+        (message) => isThreadEvent(message) && message.event.type === 'turn.completed'
       )
       const state = await Effect.runPromise(running.store.getThreadState(thread.id))
       expect(
@@ -296,7 +249,7 @@ describe('server skeleton', () => {
       ).toHaveLength(1)
     } finally {
       db.close()
-      client.close()
+      await client.close()
     }
   })
 
@@ -317,15 +270,11 @@ describe('server skeleton', () => {
         )
       )
     )
-    client.ws.send(
-      JSON.stringify({ id: 'pending', method: 'thread.subscribe', params: { threadId: thread.id } })
-    )
+    const pending = client.subscribeThread({ threadId: thread.id })
     await Effect.runPromise(Deferred.await(entered))
     await running.stop()
     expect(interrupted).toBe(true)
-    expect(client.messages.some((message) => 'id' in message && message.id === 'pending')).toBe(
-      false
-    )
+    expect(pending.messages).toEqual([])
     read.mockRestore()
     await expect(Effect.runPromise(running.store.getThreadState(thread.id))).rejects.toMatchObject({
       code: 'internal',
@@ -339,16 +288,16 @@ describe('server skeleton', () => {
     const first = await connect(running.port)
     const second = await connect(running.port)
     const turns = await Promise.all([
-      first.request<{ turnId: string }>('turn.start', { threadId: thread.id, text: 'first' }),
-      second.request<{ turnId: string }>('turn.start', { threadId: thread.id, text: 'second' }),
+      first.request('turn.start', { threadId: thread.id, text: 'first' }),
+      second.request('turn.start', { threadId: thread.id, text: 'second' }),
     ])
     expect(turns[0]!.turnId).toBe(turns[1]!.turnId)
-    first.close()
-    second.close()
+    await first.close()
+    await second.close()
     const observer = await connect(running.port)
-    await observer.request('thread.subscribe', { threadId: thread.id, afterSeq: 0 })
+    await observer.subscribeThread({ threadId: thread.id, afterSeq: 0 }).ready
     await observer.waitFor(
-      (message) => isThreadPush(message) && message.event.type === 'turn.completed'
+      (message) => isThreadEvent(message) && message.event.type === 'turn.completed'
     )
     const events = await Effect.runPromise(running.store.getEventsAfter(thread.id, 0))
     expect(events.filter(({ event }) => event.type === 'turn.started')).toHaveLength(1)
@@ -363,7 +312,7 @@ describe('server skeleton', () => {
       (item) => item.kind === 'assistant_message'
     )
     expect(assistant && 'text' in assistant && assistant.text).toBe('firstsecond')
-    observer.close()
+    await observer.close()
   })
 
   test('shutdown joins active turns, writes one terminal before closing SQLite, and is idempotent', async () => {
@@ -408,34 +357,25 @@ describe('server skeleton', () => {
     const { port } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string; path: string } }>(
-      'project.create',
-      { path: dir('/tmp/demo') }
-    )
+    const { project } = await c.request('project.create', { path: dir('/tmp/demo') })
     expect(project.path).toBe('/tmp/demo')
 
-    const { thread } = await c.request<{ thread: { id: string; projectId: string } }>(
-      'thread.create',
-      { id: newId(), projectId: project.id }
-    )
+    const { thread } = await c.request('thread.create', { id: newId(), projectId: project.id })
     expect(thread.projectId).toBe(project.id)
 
-    const sub = await c.request<{ snapshot: { items: unknown[]; lastSeq: number }; seq: number }>(
-      'thread.subscribe',
-      { threadId: thread.id }
-    )
+    const sub = await c.subscribeThread({ threadId: thread.id }).ready
     expect(sub.seq).toBe(0)
     expect(sub.snapshot.lastSeq).toBe(0)
     expect(sub.snapshot.items).toEqual([])
 
-    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+    const { turnId } = await c.request('turn.start', {
       threadId: thread.id,
       text: 'hello',
     })
     expect(turnId).toBeTruthy()
 
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -491,19 +431,7 @@ describe('server skeleton', () => {
 
     // cold snapshot has the full projected state
     const c2 = await connect(port)
-    const again = await c2.request<{
-      snapshot: {
-        items: Array<{ kind: string; text?: string; output?: string; status?: string }>
-        status: string
-        lastSeq: number
-        context: {
-          usedTokens: number
-          maxTokens: number
-          slices: Array<{ label: string; tokens: number }>
-        } | null
-      }
-      seq: number
-    }>('thread.subscribe', { threadId: thread.id })
+    const again = await c2.subscribeThread({ threadId: thread.id }).ready
     expect(again.snapshot.status).toBe('idle')
     expect(seqs.length).toBeGreaterThan(0)
     expect(again.snapshot.lastSeq).toBe(seqs[seqs.length - 1]!)
@@ -517,25 +445,25 @@ describe('server skeleton', () => {
       again.snapshot.context!.usedTokens
     )
 
-    c.close()
-    c2.close()
+    await c.close()
+    await c2.close()
   })
 
   test('reconnect with afterSeq replays the gap', async () => {
     const { port } = await boot()
     const c1 = await connect(port)
 
-    const { project } = await c1.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c1.request('project.create', {
       path: dir('/tmp/gap'),
     })
-    const { thread } = await c1.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c1.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c1.request('thread.subscribe', { threadId: thread.id })
+    await c1.subscribeThread({ threadId: thread.id }).ready
     await c1.request('turn.start', { threadId: thread.id, text: 'gap-test' })
     await c1.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const all = threadEvents(c1, thread.id)
@@ -545,26 +473,25 @@ describe('server skeleton', () => {
 
     const c2 = await connect(port)
     const before = c2.messages.length
-    const result = await c2.request<{ seq: number; snapshot?: unknown }>('thread.subscribe', {
+    const result = await c2.subscribeThread({
       threadId: thread.id,
       afterSeq: mid,
-    })
+    }).ready
     expect(result.seq).toBe(lastSeq)
-    expect(result.snapshot).toBeUndefined()
+    expect(result.type).toBe('ready')
 
-    // replayed pushes land before or around the response; collect from all messages
-    await c2.waitFor((m) => isThreadPush(m) && m.threadId === thread.id && m.seq === lastSeq, 2000)
+    await c2.waitFor((m) => isThreadEvent(m) && m.threadId === thread.id && m.seq === lastSeq, 2000)
 
     const replayed = c2.messages
       .slice(before)
-      .filter((m): m is Extract<PushMessage, { sub: 'thread' }> => isThreadPush(m))
+      .filter((m): m is Extract<ThreadMessage, { type: 'event' }> => isThreadEvent(m))
       .filter((m) => m.threadId === thread.id)
 
     expect(replayed.map((m) => m.seq)).toEqual(all.filter((m) => m.seq > mid).map((m) => m.seq))
     expect(replayed[0]?.event).toEqual(all.find((m) => m.seq === mid + 1)?.event)
 
-    c1.close()
-    c2.close()
+    await c1.close()
+    await c2.close()
   })
 
   test('two clients both receive fan-out', async () => {
@@ -572,25 +499,25 @@ describe('server skeleton', () => {
     const a = await connect(port)
     const b = await connect(port)
 
-    const { project } = await a.request<{ project: { id: string } }>('project.create', {
+    const { project } = await a.request('project.create', {
       path: dir('/tmp/fan'),
     })
-    const { thread } = await a.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await a.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
 
-    await a.request('thread.subscribe', { threadId: thread.id })
-    await b.request('thread.subscribe', { threadId: thread.id })
+    await a.subscribeThread({ threadId: thread.id }).ready
+    await b.subscribeThread({ threadId: thread.id }).ready
 
     await a.request('turn.start', { threadId: thread.id, text: 'fanout' })
 
     await Promise.all([
       a.waitFor(
-        (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+        (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
       ),
       b.waitFor(
-        (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+        (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
       ),
     ])
 
@@ -604,72 +531,72 @@ describe('server skeleton', () => {
     const bSeqs = threadEvents(b, thread.id).map((m) => m.seq)
     expect(aSeqs).toEqual(bSeqs)
 
-    a.close()
-    b.close()
+    await a.close()
+    await b.close()
   })
 
   test('invalid request gets an error response', async () => {
     const { port } = await boot()
-    const c = await connect(port)
+    const ws = await connectRaw(port)
 
-    // unknown method
-    {
-      const id = newId()
-      const resP = new Promise<ResponseMessage>((resolve) => {
-        const onMsg = (ev: MessageEvent) => {
-          const msg = JSON.parse(String(ev.data)) as ServerMessage
-          if ('ok' in msg && msg.id === id) {
-            c.ws.removeEventListener('message', onMsg)
-            resolve(msg)
-          }
-        }
-        c.ws.addEventListener('message', onMsg)
+    const unknown = await rawRequest(ws, {
+      _tag: 'Request',
+      id: 'unknown',
+      tag: 'nope.not.real',
+      payload: {},
+      headers: [],
+    })
+    expect(unknown).toMatchObject({
+      _tag: 'Exit',
+      requestId: 'unknown',
+      exit: { _tag: 'Failure' },
+    })
+    expect(JSON.stringify(unknown)).toContain('Unknown request tag')
+
+    const malformed = await rawRequest(ws, {
+      _tag: 'Request',
+      id: 'malformed',
+      tag: 'project.create',
+      payload: { path: 123 },
+      headers: [],
+    })
+    expect(malformed).toMatchObject({
+      _tag: 'Exit',
+      requestId: 'malformed',
+      exit: { _tag: 'Failure' },
+    })
+    expect(JSON.stringify(malformed)).toContain('path')
+
+    expect(await rawRequest(ws, '{{{')).toMatchObject({ _tag: 'Defect' })
+    expect(
+      await rawRequest(ws, {
+        _tag: 'Request',
+        id: 'still-alive',
+        tag: 'project.create',
+        payload: { path: dir('/tmp/still-alive') },
+        headers: [],
       })
-      c.ws.send(JSON.stringify({ id, method: 'nope.not.real', params: {} }))
-      const res = await resP
-      expect(res.ok).toBe(false)
-      expect(res.error?.code).toBe('invalid_request')
-    }
-
-    // valid method, bad params
-    {
-      const id = newId()
-      const resP = new Promise<ResponseMessage>((resolve) => {
-        const onMsg = (ev: MessageEvent) => {
-          const msg = JSON.parse(String(ev.data)) as ServerMessage
-          if ('ok' in msg && msg.id === id) {
-            c.ws.removeEventListener('message', onMsg)
-            resolve(msg)
-          }
-        }
-        c.ws.addEventListener('message', onMsg)
-      })
-      c.ws.send(JSON.stringify({ id, method: 'project.create', params: { path: 123 } }))
-      const res = await resP
-      expect(res.ok).toBe(false)
-      expect(res.error?.code).toBe('invalid_params')
-    }
-
-    // not json — still should not crash the server
-    c.ws.send('{{{')
-    await c.request('project.create', { path: dir('/tmp/still-alive') })
-
-    c.close()
+    ).toMatchObject({
+      _tag: 'Exit',
+      requestId: 'still-alive',
+      exit: { _tag: 'Success' },
+    })
+    ws.close()
   })
 
   test('steer: second turn.start mid-turn joins active turn', async () => {
     const { port } = await boot()
     const c = await connect(port)
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/busy'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
-    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+    const { turnId } = await c.request('turn.start', {
       threadId: thread.id,
       text: 'first',
     })
@@ -677,7 +604,7 @@ describe('server skeleton', () => {
     // Wait until the agent has actually started the turn so steer has a live session.
     await c.waitFor(
       (m) =>
-        isThreadPush(m) &&
+        isThreadEvent(m) &&
         m.threadId === thread.id &&
         m.event.type === 'turn.started' &&
         m.event.turnId === turnId
@@ -686,14 +613,14 @@ describe('server skeleton', () => {
     const beforeTypes = threadEvents(c, thread.id).map((m) => m.event.type)
     const turnStartedCount = beforeTypes.filter((t) => t === 'turn.started').length
 
-    const steered = await c.request<{ turnId: string }>('turn.start', {
+    const steered = await c.request('turn.start', {
       threadId: thread.id,
       text: 'second',
     })
     expect(steered.turnId).toBe(turnId)
 
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -707,7 +634,7 @@ describe('server skeleton', () => {
     expect(turnStarted).toHaveLength(turnStartedCount)
     expect(turnStartedCount).toBe(1)
 
-    c.close()
+    await c.close()
   })
 
   test('first turn on untitled thread pushes generated title', async () => {
@@ -721,32 +648,32 @@ describe('server skeleton', () => {
         }),
     })
     const c = await connect(port)
-    await c.request('chrome.subscribe', {})
+    await c.subscribeChrome().ready
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/title-gen'),
     })
-    const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
     expect(thread.title).toBe('New thread')
 
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
     await c.request('turn.start', { threadId: thread.id, text: 'please fix login' })
 
     await c.waitFor(
       (m) =>
-        isChromePush(m) &&
-        m.data.type === 'thread.upserted' &&
-        m.data.thread.id === thread.id &&
-        m.data.thread.title === 'Fix the login bug'
+        isChromeUpdate(m) &&
+        m.type === 'thread.upserted' &&
+        m.thread.id === thread.id &&
+        m.thread.title === 'Fix the login bug'
     )
 
     expect(titlerCalls).toEqual(['please fix login'])
     expect((await Effect.runPromise(store.getThread(thread.id)))?.title).toBe('Fix the login bug')
 
-    c.close()
+    await c.close()
   })
 
   test('thread that already has a title never triggers titler', async () => {
@@ -761,19 +688,19 @@ describe('server skeleton', () => {
     })
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/title-skip'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
     await Effect.runPromise(store.setThreadTitle(thread.id, 'Existing title'))
 
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
     await c.request('turn.start', { threadId: thread.id, text: 'hello' })
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
     // titler is sync-resolving but fire-and-forget; give it a tick
     await Bun.sleep(20)
@@ -781,7 +708,7 @@ describe('server skeleton', () => {
     expect(called).toBe(false)
     expect((await Effect.runPromise(store.getThread(thread.id)))?.title).toBe('Existing title')
 
-    c.close()
+    await c.close()
   })
 
   test('titler returning null leaves title unchanged', async () => {
@@ -795,21 +722,21 @@ describe('server skeleton', () => {
         }),
     })
     const c = await connect(port)
-    await c.request('chrome.subscribe', {})
+    await c.subscribeChrome().ready
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/title-null'),
     })
-    const { thread } = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
     expect(thread.title).toBe('New thread')
 
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
     await c.request('turn.start', { threadId: thread.id, text: 'hello' })
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
     await Bun.sleep(20)
 
@@ -819,14 +746,14 @@ describe('server skeleton', () => {
     // No chrome push that renames the thread away from the placeholder
     const renamed = c.messages.some(
       (m) =>
-        isChromePush(m) &&
-        m.data.type === 'thread.upserted' &&
-        m.data.thread.id === thread.id &&
-        m.data.thread.title !== 'New thread'
+        isChromeUpdate(m) &&
+        m.type === 'thread.upserted' &&
+        m.thread.id === thread.id &&
+        m.thread.title !== 'New thread'
     )
     expect(renamed).toBe(false)
 
-    c.close()
+    await c.close()
   })
 
   test('startup reconciliation fails non-idle threads', async () => {
@@ -847,10 +774,7 @@ describe('server skeleton', () => {
     servers.push(running)
 
     const c = await connect(running.port)
-    const sub = await c.request<{
-      snapshot: { status: string; activeTurnId: string | null; lastSeq: number }
-      seq: number
-    }>('thread.subscribe', { threadId: thread.id })
+    const sub = await c.subscribeThread({ threadId: thread.id }).ready
 
     expect(sub.snapshot.status).toBe('idle')
     expect(sub.snapshot.activeTurnId).toBeNull()
@@ -859,16 +783,16 @@ describe('server skeleton', () => {
     // Replay events to confirm turn.failed was appended
     const c2 = await connect(running.port)
     const before = c2.messages.length
-    await c2.request('thread.subscribe', { threadId: thread.id, afterSeq: 0 })
+    await c2.subscribeThread({ threadId: thread.id, afterSeq: 0 }).ready
     await c2.waitFor(
-      (m) => isThreadPush(m) && m.threadId === thread.id && m.event.type === 'turn.failed',
+      (m) => isThreadEvent(m) && m.threadId === thread.id && m.event.type === 'turn.failed',
       2000
     )
     const failed = c2.messages
       .slice(before)
       .filter(
-        (m): m is Extract<PushMessage, { sub: 'thread' }> =>
-          isThreadPush(m) && m.threadId === thread.id
+        (m): m is Extract<ThreadMessage, { type: 'event' }> =>
+          isThreadEvent(m) && m.threadId === thread.id
       )
       .find((m) => m.event.type === 'turn.failed')
     expect(failed?.event).toMatchObject({
@@ -877,20 +801,20 @@ describe('server skeleton', () => {
       error: 'server restarted',
     })
 
-    c.close()
-    c2.close()
+    await c.close()
+    await c2.close()
   })
 
   test('thread.create is idempotent for same id and projectId', async () => {
     const { port, store } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/idempotent'),
     })
     const id = newId()
 
-    const first = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+    const first = await c.request('thread.create', {
       id,
       projectId: project.id,
     })
@@ -898,7 +822,7 @@ describe('server skeleton', () => {
     expect(first.thread.title).toBe('New thread')
     await Effect.runPromise(store.setThreadTitle(id, 'Renamed after create'))
 
-    const second = await c.request<{ thread: { id: string; title: string } }>('thread.create', {
+    const second = await c.request('thread.create', {
       id,
       projectId: project.id,
     })
@@ -908,109 +832,88 @@ describe('server skeleton', () => {
     const matches = (await Effect.runPromise(store.listThreads())).filter((t) => t.id === id)
     expect(matches).toHaveLength(1)
 
-    c.close()
+    await c.close()
   })
 
   test('thread.create rejects same id under a different project', async () => {
     const { port } = await boot()
     const c = await connect(port)
 
-    const { project: projectA } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project: projectA } = await c.request('project.create', {
       path: dir('/tmp/proj-a'),
     })
-    const { project: projectB } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project: projectB } = await c.request('project.create', {
       path: dir('/tmp/proj-b'),
     })
     const id = newId()
 
     await c.request('thread.create', { id, projectId: projectA.id })
 
-    const reqId = newId()
-    const resP = new Promise<ResponseMessage>((resolve) => {
-      const onMsg = (ev: MessageEvent) => {
-        const msg = JSON.parse(String(ev.data)) as ServerMessage
-        if ('ok' in msg && msg.id === reqId) {
-          c.ws.removeEventListener('message', onMsg)
-          resolve(msg)
-        }
-      }
-      c.ws.addEventListener('message', onMsg)
+    await expect(c.request('thread.create', { id, projectId: projectB.id })).rejects.toMatchObject({
+      code: 'invalid_params',
     })
-    c.ws.send(
-      JSON.stringify({
-        id: reqId,
-        method: 'thread.create',
-        params: { id, projectId: projectB.id },
-      })
-    )
-    const res = await resP
-    expect(res.ok).toBe(false)
-    expect(res.error?.code).toBe('invalid_params')
 
-    c.close()
+    await c.close()
   })
 
   test('thread.create without id is invalid_params', async () => {
     const { port } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/missing-id'),
     })
 
-    const reqId = newId()
-    const resP = new Promise<ResponseMessage>((resolve) => {
-      const onMsg = (ev: MessageEvent) => {
-        const msg = JSON.parse(String(ev.data)) as ServerMessage
-        if ('ok' in msg && msg.id === reqId) {
-          c.ws.removeEventListener('message', onMsg)
-          resolve(msg)
-        }
-      }
-      c.ws.addEventListener('message', onMsg)
+    const ws = await connectRaw(port)
+    const response = await rawRequest(ws, {
+      _tag: 'Request',
+      id: 'missing-id',
+      tag: 'thread.create',
+      payload: { projectId: project.id },
+      headers: [],
     })
-    c.ws.send(
-      JSON.stringify({
-        id: reqId,
-        method: 'thread.create',
-        params: { projectId: project.id },
-      })
-    )
-    const res = await resP
-    expect(res.ok).toBe(false)
-    expect(res.error?.code).toBe('invalid_params')
-    expect(res.error?.message).toMatch(/Missing key/)
-    expect(res.error?.message).toContain('["id"]')
+    expect(response).toMatchObject({
+      _tag: 'Exit',
+      requestId: 'missing-id',
+      exit: { _tag: 'Failure' },
+    })
+    if (response._tag !== 'Exit' || response.exit._tag !== 'Failure') {
+      throw new Error('Expected native schema failure')
+    }
+    expect(response.exit.cause).toHaveLength(1)
+    const cause = response.exit.cause[0]!
+    expect(cause._tag).toBe('Die')
+    if (cause._tag !== 'Die') throw new Error('Expected schema defect')
+    expect(cause.defect).toMatch(/Missing key/)
+    expect(cause.defect).toContain('["id"]')
 
-    c.close()
+    ws.close()
+    await c.close()
   })
 
   test('client-minted thread id works with turn.start', async () => {
     const { port } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/client-id'),
     })
     const id = newId()
 
-    const { thread } = await c.request<{ thread: { id: string; projectId: string } }>(
-      'thread.create',
-      { id, projectId: project.id }
-    )
+    const { thread } = await c.request('thread.create', { id, projectId: project.id })
     expect(thread.id).toBe(id)
     expect(thread.projectId).toBe(project.id)
 
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
-    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+    const { turnId } = await c.request('turn.start', {
       threadId: thread.id,
       text: 'client-minted',
     })
     expect(turnId).toBeTruthy()
 
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -1026,7 +929,7 @@ describe('server skeleton', () => {
       item: { kind: 'user_message', text: 'client-minted', turnId },
     })
 
-    c.close()
+    await c.close()
   })
 })
 
@@ -1035,23 +938,23 @@ describe('image attachments', () => {
     const { port, home } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/attach-write'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
-    const { turnId } = await c.request<{ turnId: string }>('turn.start', {
+    const { turnId } = await c.request('turn.start', {
       threadId: thread.id,
       text: 'see this',
       attachments: [{ name: 'shot.png', mimeType: 'image/png', dataUrl: TINY_PNG_DATA_URL }],
     })
 
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -1077,50 +980,32 @@ describe('image attachments', () => {
     expect(existsSync(filePath)).toBe(true)
     expect(Buffer.from(readFileSync(filePath)).equals(TINY_PNG_BYTES)).toBe(true)
 
-    c.close()
+    await c.close()
   })
 
   test('oversized image is invalid_params, no file, no turn', async () => {
     const { port, home } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/attach-big'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
     const big = Buffer.alloc(MAX_IMAGE_BYTES + 1, 1)
     const dataUrl = `data:image/png;base64,${big.toString('base64')}`
 
-    const reqId = newId()
-    const resP = new Promise<ResponseMessage>((resolve) => {
-      const onMsg = (ev: MessageEvent) => {
-        const msg = JSON.parse(String(ev.data)) as ServerMessage
-        if ('ok' in msg && msg.id === reqId) {
-          c.ws.removeEventListener('message', onMsg)
-          resolve(msg)
-        }
-      }
-      c.ws.addEventListener('message', onMsg)
-    })
-    c.ws.send(
-      JSON.stringify({
-        id: reqId,
-        method: 'turn.start',
-        params: {
-          threadId: thread.id,
-          text: 'too big',
-          attachments: [{ name: 'huge.png', mimeType: 'image/png', dataUrl }],
-        },
+    await expect(
+      c.request('turn.start', {
+        threadId: thread.id,
+        text: 'too big',
+        attachments: [{ name: 'huge.png', mimeType: 'image/png', dataUrl }],
       })
-    )
-    const res = await resP
-    expect(res.ok).toBe(false)
-    expect(res.error?.code).toBe('invalid_params')
+    ).rejects.toMatchObject({ code: 'invalid_params' })
 
     const attachDir = join(home, 'attachments')
     if (existsSync(attachDir)) {
@@ -1131,51 +1016,31 @@ describe('image attachments', () => {
     const events = threadEvents(c, thread.id)
     expect(events).toHaveLength(0)
 
-    c.close()
+    await c.close()
   })
 
   test('base64 that passes the charset but decodes to nothing is invalid_params', async () => {
     const { port, home } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/attach-junk'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
-    const reqId = newId()
-    const resP = new Promise<ResponseMessage>((resolve) => {
-      const onMsg = (ev: MessageEvent) => {
-        const msg = JSON.parse(String(ev.data)) as ServerMessage
-        if ('ok' in msg && msg.id === reqId) {
-          c.ws.removeEventListener('message', onMsg)
-          resolve(msg)
-        }
-      }
-      c.ws.addEventListener('message', onMsg)
-    })
-    c.ws.send(
-      JSON.stringify({
-        id: reqId,
-        method: 'turn.start',
-        params: {
-          threadId: thread.id,
-          text: 'junk',
-          // a lone base64 char: legal charset, decodes to zero bytes
-          attachments: [
-            { name: 'junk.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,a' },
-          ],
-        },
+    await expect(
+      c.request('turn.start', {
+        threadId: thread.id,
+        text: 'junk',
+        attachments: [
+          { name: 'junk.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,a' },
+        ],
       })
-    )
-    const res = await resP
-    expect(res.ok).toBe(false)
-    expect(res.error?.code).toBe('invalid_params')
-    expect(res.error?.message).toContain('empty')
+    ).rejects.toMatchObject({ code: 'invalid_params', message: expect.stringContaining('empty') })
 
     const attachDir = join(home, 'attachments')
     if (existsSync(attachDir)) {
@@ -1183,7 +1048,7 @@ describe('image attachments', () => {
     }
     expect(threadEvents(c, thread.id)).toHaveLength(0)
 
-    c.close()
+    await c.close()
   })
 
   test('agent receives image blocks on startTurn', async () => {
@@ -1228,14 +1093,14 @@ describe('image attachments', () => {
     const { port } = await boot({ agent: fake })
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/attach-agent'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
     await c.request('turn.start', {
       threadId: thread.id,
@@ -1244,7 +1109,7 @@ describe('image attachments', () => {
     })
 
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     expect(received).toHaveLength(1)
@@ -1253,21 +1118,21 @@ describe('image attachments', () => {
     expect(images![0]).toEqual({ mimeType: 'image/png', base64data: TINY_PNG_B64 })
     expect(received[0]!.text).toBe('look')
 
-    c.close()
+    await c.close()
   })
 
   test('GET /attachments/<id> serves bytes; unknown and traversal 404', async () => {
     const { port, home } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir('/tmp/attach-http'),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
     await c.request('turn.start', {
       threadId: thread.id,
@@ -1275,7 +1140,7 @@ describe('image attachments', () => {
       attachments: [{ name: 'dot.png', mimeType: 'image/png', dataUrl: TINY_PNG_DATA_URL }],
     })
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -1311,7 +1176,7 @@ describe('image attachments', () => {
     // confirm the real file still lives only under home/attachments
     expect(existsSync(join(home, 'attachments', `${id}.png`))).toBe(true)
 
-    c.close()
+    await c.close()
   })
 
   test('image_gallery item is stored and served', async () => {
@@ -1366,18 +1231,18 @@ describe('image attachments', () => {
     jettyHome = home
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: projectDir,
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
     await c.request('turn.start', { threadId: thread.id, text: 'show shots' })
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -1392,11 +1257,7 @@ describe('image attachments', () => {
     const attachId = started.item.images[0]!.id
 
     const cold = await connect(port)
-    const sub = await cold.request<{
-      snapshot: {
-        items: Array<{ kind: string; caption?: string; images?: Array<{ id: string }> }>
-      }
-    }>('thread.subscribe', { threadId: thread.id })
+    const sub = await cold.subscribeThread({ threadId: thread.id }).ready
     const gallery = sub.snapshot.items.find((i) => i.kind === 'image_gallery')
     expect(gallery).toMatchObject({ kind: 'image_gallery', caption: 'UI check' })
     expect(gallery?.images?.[0]?.id).toBe(attachId)
@@ -1406,8 +1267,8 @@ describe('image attachments', () => {
     expect(ok.headers.get('Content-Type')).toBe('image/png')
     expect(Buffer.from(await ok.arrayBuffer()).equals(TINY_PNG_BYTES)).toBe(true)
 
-    cold.close()
-    c.close()
+    await cold.close()
+    await c.close()
   })
 
   test('video item is stored and served with Range support', async () => {
@@ -1463,18 +1324,18 @@ describe('image attachments', () => {
     jettyHome = home
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: projectDir,
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
-    await c.request('thread.subscribe', { threadId: thread.id })
+    await c.subscribeThread({ threadId: thread.id }).ready
 
     await c.request('turn.start', { threadId: thread.id, text: 'show clip' })
     await c.waitFor(
-      (m) => isThreadPush(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
+      (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.threadId === thread.id
     )
 
     const events = threadEvents(c, thread.id).map((m) => m.event)
@@ -1488,11 +1349,7 @@ describe('image attachments', () => {
     const attachId = started.item.video.id
 
     const cold = await connect(port)
-    const sub = await cold.request<{
-      snapshot: {
-        items: Array<{ kind: string; caption?: string; video?: { id: string } }>
-      }
-    }>('thread.subscribe', { threadId: thread.id })
+    const sub = await cold.subscribeThread({ threadId: thread.id }).ready
     const video = sub.snapshot.items.find((i) => i.kind === 'video')
     expect(video).toMatchObject({ kind: 'video', caption: 'UI flow' })
     expect(video?.video?.id).toBe(attachId)
@@ -1515,8 +1372,8 @@ describe('image attachments', () => {
     })
     expect(unsat.status).toBe(416)
 
-    cold.close()
-    c.close()
+    await cold.close()
+    await c.close()
   })
 })
 
@@ -1665,17 +1522,17 @@ describe('fs.search', () => {
     const { port } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir(join(tmpdir(), `jetty-search-nongit-${newId()}`)),
     })
 
-    const res = await c.request<{ files: string[] }>('fs.search', {
+    const res = await c.request('fs.search', {
       projectId: project.id,
       query: 'anything',
     })
     expect(res.files).toEqual([])
 
-    c.close()
+    await c.close()
   })
 
   test('end-to-end: ranked results over the wire', async () => {
@@ -1689,24 +1546,24 @@ describe('fs.search', () => {
 
     const { port } = await boot()
     const c = await connect(port)
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: repo,
     })
 
-    const res = await c.request<{ files: string[] }>('fs.search', {
+    const res = await c.request('fs.search', {
       projectId: project.id,
       query: 'string',
     })
     expect(res.files[0]).toBe('src/utils/string.ts')
     expect(res.files).toContain('string/parser.ts')
 
-    const empty = await c.request<{ files: string[] }>('fs.search', {
+    const empty = await c.request('fs.search', {
       projectId: project.id,
       query: '',
     })
     expect(empty.files).toEqual([])
 
-    c.close()
+    await c.close()
   })
 
   test('unknown projectId → not_found', async () => {
@@ -1715,9 +1572,9 @@ describe('fs.search', () => {
 
     await expect(
       c.request('fs.search', { projectId: 'no-such-project', query: 'x' })
-    ).rejects.toThrow('not_found')
+    ).rejects.toMatchObject({ code: 'not_found' })
 
-    c.close()
+    await c.close()
   })
 })
 
@@ -1739,29 +1596,26 @@ describe('skills.list', () => {
 
     const { port } = await boot()
     const c = await connect(port)
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: repo,
     })
 
-    const res = await c.request<{ skills: Array<{ name: string; description: string }> }>(
-      'skills.list',
-      { projectId: project.id }
-    )
+    const res = await c.request('skills.list', { projectId: project.id })
     expect(
       res.skills.some((s) => s.name === 'review' && s.description === 'Look at the diff')
     ).toBe(true)
     expect(res.skills.some((s) => s.name === 'hidden')).toBe(false)
 
-    c.close()
+    await c.close()
   })
 
   test('unknown projectId → not_found', async () => {
     const { port } = await boot()
     const c = await connect(port)
-    await expect(c.request('skills.list', { projectId: 'no-such-project' })).rejects.toThrow(
-      'not_found'
-    )
-    c.close()
+    await expect(c.request('skills.list', { projectId: 'no-such-project' })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await c.close()
   })
 })
 
@@ -1770,21 +1624,21 @@ describe('thread.diff', () => {
     const { port } = await boot()
     const c = await connect(port)
 
-    const { project } = await c.request<{ project: { id: string } }>('project.create', {
+    const { project } = await c.request('project.create', {
       path: dir(join(tmpdir(), `jetty-diff-nongit-${newId()}`)),
     })
-    const { thread } = await c.request<{ thread: { id: string } }>('thread.create', {
+    const { thread } = await c.request('thread.create', {
       id: newId(),
       projectId: project.id,
     })
 
-    const res = await c.request<{ diff: string; truncatedPaths?: string[] }>('thread.diff', {
+    const res = await c.request('thread.diff', {
       threadId: thread.id,
     })
     expect(res.diff).toBe('')
     expect(res.truncatedPaths).toBeUndefined()
 
-    c.close()
+    await c.close()
   })
 
   test('computeThreadDiff surfaces uncommitted changes as a unified patch', async () => {
@@ -1905,9 +1759,11 @@ describe('project.create validation', () => {
     const c = await connect(port)
 
     const missing = join(tmpdir(), `jetty-missing-${newId()}`)
-    await expect(c.request('project.create', { path: missing })).rejects.toThrow('invalid_params')
+    await expect(c.request('project.create', { path: missing })).rejects.toMatchObject({
+      code: 'invalid_params',
+    })
 
-    c.close()
+    await c.close()
   })
 
   test('is idempotent for a duplicate directory', async () => {
@@ -1915,14 +1771,14 @@ describe('project.create validation', () => {
     const c = await connect(port)
 
     const path = dir(join(tmpdir(), `jetty-dup-${newId()}`))
-    const first = await c.request<{ project: { id: string } }>('project.create', { path })
-    const second = await c.request<{ project: { id: string } }>('project.create', { path })
+    const first = await c.request('project.create', { path })
+    const second = await c.request('project.create', { path })
 
     expect(second.project.id).toBe(first.project.id)
     expect(
       (await Effect.runPromise(store.listProjects())).filter((p) => p.path === path)
     ).toHaveLength(1)
 
-    c.close()
+    await c.close()
   })
 })

@@ -1,8 +1,10 @@
 import type { Usage } from '@jetty/shared/wire'
 
-import { BunRuntime, BunServices } from '@effect/platform-bun'
-import { Context, Effect, Fiber, Layer, ManagedRuntime, Scope } from 'effect'
-import { existsSync } from 'node:fs'
+import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
+import { JettyRpcs } from '@jetty/shared/rpc'
+import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
+import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
@@ -16,12 +18,12 @@ import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
-import { createHub, type ConnData } from './hub'
+import { createHub } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
-import { createWs } from './ws'
+import { createRpcHandlers } from './ws'
 
 export type ServerOptions = {
   home?: string
@@ -54,37 +56,32 @@ function reconcileOnStartup(store: Store) {
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 
-async function serveStatic(pathname: string): Promise<Response> {
-  const indexPath = join(distDir, 'index.html')
-  if (!existsSync(indexPath)) {
-    return new Response('jetty', { status: 200 })
-  }
-
-  const requested = pathname === '/' ? '/index.html' : pathname
-  const filePath = normalize(join(distDir, requested))
-  if (!filePath.startsWith(distDir + sep)) {
-    return new Response('Not found', { status: 404 })
-  }
-
-  const file = Bun.file(filePath)
-  if (await file.exists()) {
-    return new Response(file)
-  }
-
-  return new Response(Bun.file(indexPath))
+function serveStatic(pathname: string) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const indexPath = join(distDir, 'index.html')
+    if (!(yield* fs.exists(indexPath))) return HttpServerResponse.text('jetty')
+    const requested = pathname === '/' ? '/index.html' : pathname
+    const filePath = normalize(join(distDir, requested))
+    if (!filePath.startsWith(distDir + sep)) {
+      return HttpServerResponse.text('Not found', { status: 404 })
+    }
+    const stat = yield* fs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(null)))
+    const path = stat?.type === 'File' ? filePath : indexPath
+    return yield* HttpServerResponse.file(path)
+  })
 }
 
 const extraOrigins = new Set(
   (process.env.JETTY_ALLOWED_ORIGINS ?? '').split(',').filter((origin) => origin.length > 0)
 )
 
-function originAllowed(req: Request): boolean {
-  const origin = req.headers.get('origin')
+function originAllowed(origin: string | undefined): boolean {
   if (!origin) return true
   try {
     const host = new URL(origin).hostname
     return (
-      host === 'localhost' || host === '127.0.0.1' || host === '::1' || extraOrigins.has(origin)
+      host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || extraOrigins.has(origin)
     )
   } catch {
     return false
@@ -136,82 +133,59 @@ function createServer(opts: ServerOptions = {}) {
     )
     const agent = Context.get(services, AgentService)
     const orch = Context.get(services, OrchestratorService)
-    const requestScope = yield* Scope.fork(yield* Effect.scope)
-    const context = yield* Effect.context<never>()
-    const run = Effect.runPromiseWith(context)
-    const ws = yield* createWs(
-      store,
-      orch,
-      hub,
-      (effect) =>
-        run(
-          Effect.gen(function* () {
-            const fiber = yield* Effect.forkIn(effect, requestScope)
-            return yield* Fiber.join(fiber)
-          })
-        ),
-      () => lastUsage
-    ).pipe(Effect.provideContext(io))
-
-    const server = yield* Effect.acquireRelease(
-      Effect.try(() =>
-        Bun.serve<ConnData>({
-          port,
-          hostname,
-          async fetch(req, server) {
-            const url = new URL(req.url)
-            if (url.pathname === '/ws') {
-              // WebSockets bypass CORS: without this gate any webpage could open
-              // ws://localhost:8787 and drive the agent. Browser clients must come
-              // from a loopback origin (or JETTY_ALLOWED_ORIGINS); native clients
-              // send no Origin and are as trusted as anything else on this machine.
-              if (!originAllowed(req)) {
-                return new Response('Forbidden origin', { status: 403 })
-              }
-              if (server.upgrade(req, { data: { chrome: false, threads: new Set() } })) {
-                return undefined
-              }
-              return new Response('WebSocket upgrade failed', { status: 400 })
-            }
-
-            if (req.method === 'GET' && url.pathname.startsWith('/attachments/')) {
-              const id = url.pathname.slice('/attachments/'.length)
-              // single path segment only — reject nested paths / empty / encoded traversal
-              if (!id || id.includes('/') || id.includes('\\') || id.includes('..')) {
-                return new Response('Not found', { status: 404 })
-              }
-              const resolved = await run(
-                attachments.resolve(id).pipe(Effect.catch(() => Effect.succeed(null)))
-              )
-              if (!resolved) return new Response('Not found', { status: 404 })
-              const file = Bun.file(resolved.path)
-              if (!(await file.exists())) return new Response('Not found', { status: 404 })
-              return rangeResponse(file, resolved.mimeType, req.headers.get('Range'))
-            }
-
-            return serveStatic(url.pathname)
-          },
-          websocket: ws.handlers,
-        })
-      ),
-      (server) =>
-        Effect.sync(() => {
-          ws.stop()
-          server.stop(true)
-        })
+    const admissionScope = yield* Scope.fork(yield* Effect.scope)
+    const handlers = yield* createRpcHandlers(store, orch, hub, () => lastUsage).pipe(
+      Effect.provideService(Scope.Scope, admissionScope),
+      Effect.provideContext(io)
     )
-
-    const boundPort = server.port
-    if (boundPort === undefined)
-      return yield* Effect.fail(new Error('server failed to bind a port'))
+    const transportScope = yield* Scope.fork(yield* Effect.scope)
+    const http = yield* Layer.build(
+      BunHttpServer.layer({ port, hostname, disablePreemptiveShutdown: true })
+    ).pipe(Effect.provideService(Scope.Scope, transportScope))
+    const server = Context.get(http, HttpServer.HttpServer)
+    const websocket = yield* RpcServer.toHttpEffectWebsocket(JettyRpcs).pipe(
+      Effect.provide(JettyRpcs.toLayer(handlers)),
+      Effect.provide(RpcSerialization.layerJson),
+      Effect.provideService(Scope.Scope, transportScope)
+    )
+    const app = Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const url = new URL(request.url, 'http://localhost')
+      if (url.pathname === '/ws') {
+        if (!originAllowed(request.headers.origin)) {
+          return HttpServerResponse.text('Forbidden origin', { status: 403 })
+        }
+        if (request.headers.upgrade?.toLowerCase() !== 'websocket') {
+          return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
+        }
+        return yield* websocket
+      }
+      if (request.method === 'GET' && url.pathname.startsWith('/attachments/')) {
+        const id = url.pathname.slice('/attachments/'.length)
+        const resolved = yield* attachments.resolve(id)
+        if (!resolved) return HttpServerResponse.text('Not found', { status: 404 })
+        return yield* rangeResponse(resolved.path, resolved.mimeType, request.headers.range ?? null)
+      }
+      return yield* serveStatic(url.pathname)
+    }).pipe(
+      Effect.catch(() => Effect.succeed(HttpServerResponse.text('Not found', { status: 404 }))),
+      Effect.interruptible
+    )
+    yield* server
+      .serve(app)
+      .pipe(Effect.provideContext(http), Effect.provideService(Scope.Scope, transportScope))
+    if (server.address._tag !== 'TcpAddress') {
+      return yield* Effect.fail(new Error('server failed to bind a TCP port'))
+    }
 
     return {
       server,
       home,
-      port: boundPort,
-      hostname: server.hostname,
+      port: server.address.port,
+      hostname: server.address.hostname,
       store,
       agent,
+      hub,
     }
   })
 }

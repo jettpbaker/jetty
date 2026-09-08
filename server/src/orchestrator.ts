@@ -56,8 +56,7 @@ export function createOrchestrator(
 
     function publish(threadId: string, appended: AppendedEvent) {
       hub.pushThread(threadId, {
-        sub: 'thread',
-        threadId,
+        type: 'event',
         seq: appended.seq,
         ts: appended.ts,
         event: appended.event,
