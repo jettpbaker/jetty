@@ -1,82 +1,66 @@
-import type { ChromePushData, PushMessage, ResponseMessage } from '@jetty/shared/wire'
-import type { ServerWebSocket } from 'bun'
+import type { ThreadUpdate } from '@jetty/shared/rpc'
+import type { ChromePushData, WireError } from '@jetty/shared/wire'
 
-import { Semaphore } from 'effect'
-
-export type ConnData = {
-  chrome: boolean
-  threads: Set<string>
-}
+import { Effect, Queue, Semaphore } from 'effect'
 
 export type Hub = ReturnType<typeof createHub>
 
 export function createHub() {
   const chromePublication = Semaphore.makeUnsafe(1)
-  const chromeSubs = new Set<ServerWebSocket<ConnData>>()
-  const threadSubs = new Map<string, Set<ServerWebSocket<ConnData>>>()
-
-  function send(ws: ServerWebSocket<ConnData>, msg: ResponseMessage | PushMessage) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(msg))
-    }
-  }
+  const chromeSubs = new Set<Queue.Queue<ChromePushData, WireError>>()
+  const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
 
   function pushChrome(data: ChromePushData) {
-    const msg: PushMessage = { sub: 'chrome', data }
-    for (const ws of chromeSubs) send(ws, msg)
+    for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
   }
 
-  function pushThread(threadId: string, message: Extract<PushMessage, { sub: 'thread' }>) {
+  function pushThread(threadId: string, update: Extract<ThreadUpdate, { type: 'event' }>) {
     const subs = threadSubs.get(threadId)
     if (!subs) return
-    for (const ws of subs) send(ws, message)
+    for (const queue of subs) Queue.offerUnsafe(queue, update)
   }
 
-  function subscribeChrome(ws: ServerWebSocket<ConnData>) {
-    if (ws.readyState !== WebSocket.OPEN) return
-    ws.data.chrome = true
-    chromeSubs.add(ws)
+  function subscribeChrome() {
+    return Effect.acquireRelease(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<ChromePushData, WireError>()
+        chromeSubs.add(queue)
+        return queue
+      }),
+      (queue) =>
+        Effect.sync(() => chromeSubs.delete(queue)).pipe(Effect.andThen(Queue.shutdown(queue)))
+    )
   }
 
-  function subscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
-    if (ws.readyState !== WebSocket.OPEN) return
-    ws.data.threads.add(threadId)
-    let set = threadSubs.get(threadId)
-    if (!set) {
-      set = new Set()
-      threadSubs.set(threadId, set)
-    }
-    set.add(ws)
-  }
-
-  function removeThreadSub(ws: ServerWebSocket<ConnData>, threadId: string) {
-    const set = threadSubs.get(threadId)
-    if (!set) return
-    set.delete(ws)
-    if (set.size === 0) threadSubs.delete(threadId)
-  }
-
-  function unsubscribeThread(ws: ServerWebSocket<ConnData>, threadId: string) {
-    ws.data.threads.delete(threadId)
-    removeThreadSub(ws, threadId)
-  }
-
-  function dropConnection(ws: ServerWebSocket<ConnData>) {
-    chromeSubs.delete(ws)
-    for (const threadId of ws.data.threads) {
-      removeThreadSub(ws, threadId)
-    }
-    ws.data.threads.clear()
+  function subscribeThread(threadId: string) {
+    return Effect.acquireRelease(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<ThreadUpdate, WireError>()
+        let subs = threadSubs.get(threadId)
+        if (!subs) {
+          subs = new Set()
+          threadSubs.set(threadId, subs)
+        }
+        subs.add(queue)
+        return queue
+      }),
+      (queue) =>
+        Effect.sync(() => {
+          const subs = threadSubs.get(threadId)
+          subs?.delete(queue)
+          if (subs?.size === 0) threadSubs.delete(threadId)
+        }).pipe(Effect.andThen(Queue.shutdown(queue)))
+    )
   }
 
   return {
     withChromePublication: chromePublication.withPermit,
-    send,
     pushChrome,
     pushThread,
     subscribeChrome,
     subscribeThread,
-    unsubscribeThread,
-    dropConnection,
+    subscriberCount: Effect.sync(
+      () => chromeSubs.size + [...threadSubs.values()].reduce((total, subs) => total + subs.size, 0)
+    ),
   }
 }

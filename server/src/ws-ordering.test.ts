@@ -1,11 +1,10 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ServerMessage } from '@jetty/shared/wire'
-import type { ServerWebSocket } from 'bun'
+import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { BunServices } from '@effect/platform-bun'
 import { newId } from '@jetty/shared/wire'
 import { expect, test } from 'bun:test'
-import { Context, Deferred, Effect, Layer, ManagedRuntime } from 'effect'
+import { Context, Deferred, Effect, Fiber, Layer, ManagedRuntime, Stream } from 'effect'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -15,11 +14,11 @@ import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
-import { createHub, type ConnData } from './hub'
+import { createHub } from './hub'
 import { createOrchestrator } from './orchestrator'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
-import { createWs } from './ws'
+import { threadSubscription } from './ws'
 
 for (const replay of [false, true]) {
   for (const first of ['read', 'append'] as const) {
@@ -27,7 +26,8 @@ for (const replay of [false, true]) {
       const home = mkdtempSync(join(tmpdir(), 'jetty-ws-order-'))
       const entered = Deferred.makeUnsafe<void>()
       const release = Deferred.makeUnsafe<void>()
-      const messages: ServerMessage[] = []
+      const messages: ThreadUpdate[] = []
+      const received = Deferred.makeUnsafe<void>()
       let readStarted = false
       let publish: Emit = () => Effect.die('Turn not started')
       const service = Context.Service<Effect.Success<ReturnType<typeof make>>>('test/Ordering')
@@ -87,30 +87,25 @@ for (const replay of [false, true]) {
       )
       try {
         const fixture = await runtime.runPromise(service)
-        const requests: Promise<void>[] = []
-        const ws = await runtime.runPromise(
-          createWs(fixture.store, fixture.orch, fixture.hub, (effect) => {
-            const request = runtime.runPromise(effect)
-            requests.push(request)
-            return request
-          })
-        )
-        const socket = {
-          readyState: WebSocket.OPEN,
-          data: { chrome: false, threads: new Set<string>() },
-          send(value: string) {
-            messages.push(JSON.parse(value) as ServerMessage)
-          },
-        } as unknown as ServerWebSocket<ConnData>
+        let subscription: Fiber.Fiber<void, unknown> | undefined
         const event: ThreadEvent = { type: 'turn.started', turnId: fixture.turnId }
         function subscribe() {
-          ws.handlers.message(
-            socket,
-            JSON.stringify({
-              id: 'subscribe',
-              method: 'thread.subscribe',
-              params: { threadId: fixture.thread.id, ...(replay ? { afterSeq: 0 } : {}) },
-            })
+          subscription = runtime.runFork(
+            threadSubscription(fixture.store, fixture.orch, fixture.hub, {
+              threadId: fixture.thread.id,
+              ...(replay ? { afterSeq: 0 } : {}),
+            }).pipe(
+              Stream.runForEach((update) =>
+                Effect.gen(function* () {
+                  messages.push(update)
+                  if (
+                    (first === 'read' && update.type === 'event' && update.seq === 4) ||
+                    (first === 'append' && update.type !== 'event')
+                  )
+                    yield* Deferred.succeed(received, undefined)
+                })
+              )
+            )
           )
         }
         let append: Promise<void>
@@ -137,23 +132,25 @@ for (const replay of [false, true]) {
           expect(messages).toEqual([])
         }
         await runtime.runPromise(Deferred.succeed(release, undefined))
-        await Promise.all([append, second, ...requests])
-        const pushes = messages.filter((message) => 'sub' in message && message.sub === 'thread')
+        await Promise.all([append, second, runtime.runPromise(Deferred.await(received))])
+        const pushes = messages.filter((message) => message.type === 'event')
         expect(pushes.map((message) => message.seq)).toEqual(
           replay ? [1, 2, 3, 4] : first === 'read' ? [3, 4] : []
         )
-        const response = messages.find((message) => 'id' in message && message.id === 'subscribe')
+        const response = messages.find((message) => message.type !== 'event')
         const seq = first === 'read' ? 2 : 4
         expect(response).toMatchObject({
-          id: 'subscribe',
-          ok: true,
-          result: { seq, ...(!replay ? { snapshot: { lastSeq: seq } } : {}) },
+          type: replay ? 'ready' : 'snapshot',
+          seq,
+          ...(!replay ? { snapshot: { lastSeq: seq } } : {}),
         })
-        if (first === 'read') expect(messages.at(-1)).toMatchObject({ sub: 'thread', seq: 4 })
+        if (first === 'read') expect(messages.at(-1)).toMatchObject({ type: 'event', seq: 4 })
         else expect(messages.at(-1)).toBe(response)
         expect(
           await runtime.runPromise(fixture.base.getEventsAfter(fixture.thread.id, 0))
         ).toHaveLength(4)
+        if (subscription) await runtime.runPromise(Fiber.interrupt(subscription))
+        expect(await runtime.runPromise(fixture.hub.subscriberCount)).toBe(0)
       } finally {
         await runtime.runPromise(Deferred.succeed(release, undefined))
         await runtime.dispose()

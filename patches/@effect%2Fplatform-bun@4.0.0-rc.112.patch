@@ -1,0 +1,26 @@
+diff --git a/dist/BunHttpServer.js b/dist/BunHttpServer.js
+index 6aae1c5ac2d1feeff9d76bf2994d4bf60193c8b9..6a76479401927ed2bf135b2d56c1b4c8feed7e40 100644
+--- a/dist/BunHttpServer.js
++++ b/dist/BunHttpServer.js
+@@ -72,7 +72,7 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+     duration: options.gracefulShutdownTimeout ?? Duration.seconds(20),
+     orElse: () => Effect.void
+   });
+-  yield* Scope.addFinalizer(scope, shutdown);
++  yield* Scope.addFinalizer(scope, Effect.promise(() => server.stop(true)));
+   return Server.make({
+     address: {
+       _tag: "TcpAddress",
+diff --git a/src/BunHttpServer.ts b/src/BunHttpServer.ts
+index 4ce02e91b12852ff869f92d0911b7e6caf353c9f..81a1901d88577f3c15dbccd79a5c8cdc22316cc7 100644
+--- a/src/BunHttpServer.ts
++++ b/src/BunHttpServer.ts
+@@ -156,7 +156,7 @@ export const make = Effect.fnUntraced(
+       orElse: () => Effect.void
+     })
+ 
+-    yield* Scope.addFinalizer(scope, shutdown)
++    yield* Scope.addFinalizer(scope, Effect.promise(() => server.stop(true)))
+ 
+     return Server.make({
+       address: { _tag: "TcpAddress", port: server.port!, hostname: server.hostname! },

@@ -1,40 +1,44 @@
+import { Effect, FileSystem } from 'effect'
+import { HttpServerResponse } from 'effect/unstable/http'
+
 type ByteRange = { start: number; end: number }
 
-export function rangeResponse(
-  file: Bun.BunFile,
-  mimeType: string,
-  rangeHeader: string | null
-): Response {
-  const size = file.size
-  const parsed = parseBytesRange(rangeHeader, size)
-  if (parsed === 'full') {
-    return new Response(file, {
+export function rangeResponse(path: string, mimeType: string, rangeHeader: string | null) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const size = Number((yield* fs.stat(path)).size)
+    const parsed = parseBytesRange(rangeHeader, size)
+    if (parsed === 'full') {
+      return yield* HttpServerResponse.file(path, {
+        headers: {
+          'Content-Type': mimeType,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(size),
+        },
+      })
+    }
+    if (parsed === 'unsatisfiable') {
+      return HttpServerResponse.empty({
+        status: 416,
+        headers: {
+          'Content-Type': mimeType,
+          'Accept-Ranges': 'bytes',
+          'Content-Range': `bytes */${size}`,
+        },
+      })
+    }
+    const { start, end } = parsed
+    return yield* HttpServerResponse.file(path, {
+      offset: start,
+      bytesToRead: end - start + 1,
+      status: 206,
       headers: {
         'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',
-        'Content-Length': String(size),
+        'Content-Range': `bytes ${start}-${end}/${size}`,
+        'Content-Length': String(end - start + 1),
       },
     })
-  }
-  if (parsed === 'unsatisfiable') {
-    return new Response(null, {
-      status: 416,
-      headers: {
-        'Content-Type': mimeType,
-        'Accept-Ranges': 'bytes',
-        'Content-Range': `bytes */${size}`,
-      },
-    })
-  }
-  const { start, end } = parsed
-  return new Response(file.slice(start, end + 1), {
-    status: 206,
-    headers: {
-      'Content-Type': mimeType,
-      'Accept-Ranges': 'bytes',
-      'Content-Range': `bytes ${start}-${end}/${size}`,
-      'Content-Length': String(end - start + 1),
-    },
   })
 }
 
