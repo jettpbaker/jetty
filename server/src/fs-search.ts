@@ -1,3 +1,8 @@
+import { Context, Effect, Layer } from 'effect'
+import { ChildProcessSpawner } from 'effect/unstable/process'
+
+import { git } from './git-process'
+
 const DEFAULT_LIMIT = 20
 
 /**
@@ -46,32 +51,37 @@ export function fuzzyMatch(path: string, query: string): number | null {
   return score
 }
 
-async function gitLsFiles(cwd: string): Promise<string[]> {
-  try {
-    const proc = Bun.spawn(['git', 'ls-files'], { cwd, stdout: 'pipe', stderr: 'ignore' })
-    const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-    if (code !== 0) return []
-    return out.split('\n').filter((line) => line.length > 0)
-  } catch {
-    return []
-  }
-}
-
 /** Fuzzy-search git-tracked files under cwd. Empty query / non-git / failure → []. */
-export async function searchFiles(
-  cwd: string,
-  query: string,
-  limit: number = DEFAULT_LIMIT
-): Promise<string[]> {
-  if (query.length === 0) return []
-  const files = await gitLsFiles(cwd)
-  if (files.length === 0) return []
+export function searchFiles(cwd: string, query: string, limit: number = DEFAULT_LIMIT) {
+  return Effect.gen(function* () {
+    if (query.length === 0) return []
+    const { out, code } = yield* git(cwd, ['ls-files'])
+    const files = code === 0 ? out.split('\n').filter((line) => line.length > 0) : []
+    if (files.length === 0) return []
 
-  const scored: { path: string; score: number }[] = []
-  for (const path of files) {
-    const score = fuzzyMatch(path, query)
-    if (score !== null) scored.push({ path, score })
-  }
-  scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
-  return scored.slice(0, limit).map((s) => s.path)
+    const scored: { path: string; score: number }[] = []
+    for (const path of files) {
+      const score = fuzzyMatch(path, query)
+      if (score !== null) scored.push({ path, score })
+    }
+    scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+    return scored.slice(0, limit).map((s) => s.path)
+  })
 }
+
+export const FileSearch = Context.Service<{
+  searchFiles: (cwd: string, query: string, limit?: number) => Effect.Effect<string[]>
+}>('jetty/FileSearch')
+
+export const FileSearchLive = Layer.effect(
+  FileSearch,
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    return {
+      searchFiles: (cwd: string, query: string, limit?: number) =>
+        searchFiles(cwd, query, limit).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+        ),
+    }
+  })
+)

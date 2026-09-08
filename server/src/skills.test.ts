@@ -1,4 +1,6 @@
+import { BunServices } from '@effect/platform-bun'
 import { describe, expect, test } from 'bun:test'
+import { Effect } from 'effect'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -43,7 +45,7 @@ describe('parseSkillFrontmatter', () => {
 })
 
 describe('listSkills', () => {
-  test('merges project + personal, personal wins, hides non-invocable', () => {
+  test('merges project + personal, personal wins, hides non-invocable', async () => {
     const project = mkdtempSync(join(tmpdir(), 'jetty-skills-proj-'))
     const user = mkdtempSync(join(tmpdir(), 'jetty-skills-user-'))
     try {
@@ -57,7 +59,9 @@ describe('listSkills', () => {
       writeSkill(user, 'review', '---\ndescription: Personal review\n---\n')
       writeSkill(user, 'summarize', '---\ndescription: Sum it up\n---\n')
 
-      const skills = listSkills({ projectPath: project, userHome: user })
+      const skills = await Effect.runPromise(
+        listSkills({ projectPath: project, userHome: user }).pipe(Effect.provide(BunServices.layer))
+      )
       expect(skills.map((s) => s.name)).toEqual(['review', 'ship', 'summarize'])
       expect(skills.find((s) => s.name === 'review')?.description).toBe('Personal review')
       expect(skills.find((s) => s.name === 'ship')?.description).toBe('Old command')
@@ -67,23 +71,31 @@ describe('listSkills', () => {
     }
   })
 
-  test('skill wins over a same-named command', () => {
+  test('skill wins over a same-named command', async () => {
     const project = mkdtempSync(join(tmpdir(), 'jetty-skills-clash-'))
     try {
       writeCommand(project, 'deploy', '---\ndescription: Command deploy\n---\n')
       writeSkill(project, 'deploy', '---\ndescription: Skill deploy\n---\n')
-      const skills = listSkills({ projectPath: project, userHome: join(project, 'no-user') })
+      const skills = await Effect.runPromise(
+        listSkills({ projectPath: project, userHome: join(project, 'no-user') }).pipe(
+          Effect.provide(BunServices.layer)
+        )
+      )
       expect(skills).toEqual([{ name: 'deploy', description: 'Skill deploy' }])
     } finally {
       rmSync(project, { recursive: true, force: true })
     }
   })
 
-  test('personal-only when projectPath is omitted', () => {
+  test('personal-only when projectPath is omitted', async () => {
     const user = mkdtempSync(join(tmpdir(), 'jetty-skills-useronly-'))
     try {
       writeSkill(user, 'notes', '---\ndescription: Take notes\n---\n')
-      expect(listSkills({ userHome: user })).toEqual([{ name: 'notes', description: 'Take notes' }])
+      expect(
+        await Effect.runPromise(
+          listSkills({ userHome: user }).pipe(Effect.provide(BunServices.layer))
+        )
+      ).toEqual([{ name: 'notes', description: 'Take notes' }])
     } finally {
       rmSync(user, { recursive: true, force: true })
     }

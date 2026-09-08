@@ -1,10 +1,8 @@
 import { ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import { newId, type ErrorCode, type Project, type ThreadMeta } from '@jetty/shared/wire'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, FileSystem, Layer, Path, Schema } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
-import { statSync } from 'node:fs'
-import { basename } from 'node:path'
 
 import { normalizePath } from './fs-browse'
 
@@ -68,6 +66,8 @@ export const Store = Context.Service<Store>('jetty/Store')
 export function createStore() {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
 
     function getThread(threadId: string) {
       return sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`.pipe(
@@ -144,24 +144,27 @@ export function createStore() {
       createProject(path: string) {
         return Effect.gen(function* () {
           const normalized = normalizePath(path)
-          const isDir = yield* Effect.try(() => statSync(normalized).isDirectory()).pipe(
+          const isDir = yield* fs.stat(normalized).pipe(
+            Effect.map((stat) => stat.type === 'Directory'),
             Effect.catch(() => Effect.succeed(false))
           )
           if (!isDir)
             return yield* Effect.fail(
               new StoreError('invalid_params', `Not an existing directory: ${path}`)
             )
-          const rows = yield* sql<ProjectRow>`SELECT * FROM projects WHERE path = ${normalized}`
-          if (rows[0]) return rowToProject(rows[0])
-          const project: Project = {
-            id: newId(),
-            path: normalized,
-            title: basename(normalized) || normalized,
-            createdAt: Date.now(),
-          }
-          yield* sql`INSERT INTO projects (id, path, title, created_at) VALUES (${project.id}, ${project.path}, ${project.title}, ${project.createdAt})`
-          return project
-        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+          return yield* Effect.gen(function* () {
+            const rows = yield* sql<ProjectRow>`SELECT * FROM projects WHERE path = ${normalized}`
+            if (rows[0]) return rowToProject(rows[0])
+            const project: Project = {
+              id: newId(),
+              path: normalized,
+              title: paths.basename(normalized) || normalized,
+              createdAt: Date.now(),
+            }
+            yield* sql`INSERT INTO projects (id, path, title, created_at) VALUES (${project.id}, ${project.path}, ${project.title}, ${project.createdAt})`
+            return project
+          }).pipe(sql.withTransaction)
+        }).pipe(Effect.mapError(storeError))
       },
       listProjects() {
         return sql<ProjectRow>`SELECT * FROM projects ORDER BY created_at`.pipe(

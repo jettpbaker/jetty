@@ -1,6 +1,7 @@
+import { BunServices } from '@effect/platform-bun'
 import { newId } from '@jetty/shared/wire'
 import { describe, expect, test } from 'bun:test'
-import { Effect, ManagedRuntime } from 'effect'
+import { Effect, Layer, ManagedRuntime } from 'effect'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -26,7 +27,12 @@ describe.skipIf(!live)('claude live', () => {
       const { store } = db
       const project = await Effect.runPromise(store.createProject(projectPath))
       const thread = await Effect.runPromise(store.createThread(project.id, newId()))
-      const runtime = ManagedRuntime.make(claudeLayer(store, createAttachments(home)))
+      const attachments = await Effect.runPromise(
+        createAttachments(home).pipe(Effect.provide(BunServices.layer))
+      )
+      const runtime = ManagedRuntime.make(
+        claudeLayer(store, attachments).pipe(Layer.provide(BunServices.layer))
+      )
       const agent = await runtime.runPromise(AgentService)
 
       const t0 = performance.now()

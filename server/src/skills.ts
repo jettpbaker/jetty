@@ -1,8 +1,7 @@
 import type { Skill } from '@jetty/shared/wire'
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
 
 const SKIP_DIRS = new Set(['synced'])
 
@@ -39,66 +38,82 @@ function unquote(value: string): string {
   return value
 }
 
-function readSkillFile(path: string): Frontmatter | null {
-  try {
-    return parseSkillFrontmatter(readFileSync(path, 'utf8'))
-  } catch {
-    return null
-  }
-}
-
 function addSkill(into: Map<string, Skill>, name: string, filePath: string) {
-  if (!name || name.includes('/') || name.includes('\\')) return
-  const meta = readSkillFile(filePath)
-  if (!meta || !meta.userInvocable) return
-  into.set(name, { name, description: meta.description })
+  return Effect.gen(function* () {
+    if (!name || name.includes('/') || name.includes('\\')) return
+    const fs = yield* FileSystem.FileSystem
+    const meta = yield* fs.readFileString(filePath).pipe(
+      Effect.map(parseSkillFrontmatter),
+      Effect.catch(() => Effect.succeed(null))
+    )
+    if (!meta || !meta.userInvocable) return
+    into.set(name, { name, description: meta.description })
+  })
 }
 
 function loadSkillDirs(into: Map<string, Skill>, skillsDir: string) {
-  if (!existsSync(skillsDir)) return
-  let entries: string[]
-  try {
-    entries = readdirSync(skillsDir)
-  } catch {
-    return
-  }
-  for (const name of entries) {
-    if (SKIP_DIRS.has(name.toLowerCase())) continue
-    const dir = join(skillsDir, name)
-    try {
-      if (!statSync(dir).isDirectory()) continue
-    } catch {
-      continue
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const entries = yield* fs.readDirectory(skillsDir).pipe(Effect.catch(() => Effect.succeed([])))
+    for (const name of entries) {
+      if (SKIP_DIRS.has(name.toLowerCase())) continue
+      const dir = path.join(skillsDir, name)
+      const directory = yield* fs.stat(dir).pipe(
+        Effect.map((stat) => stat.type === 'Directory'),
+        Effect.catch(() => Effect.succeed(false))
+      )
+      if (!directory) continue
+      yield* addSkill(into, name, path.join(dir, 'SKILL.md'))
     }
-    addSkill(into, name, join(dir, 'SKILL.md'))
-  }
+  })
 }
 
 function loadCommandFiles(into: Map<string, Skill>, commandsDir: string) {
-  if (!existsSync(commandsDir)) return
-  let entries: string[]
-  try {
-    entries = readdirSync(commandsDir)
-  } catch {
-    return
-  }
-  for (const file of entries) {
-    if (!file.endsWith('.md')) continue
-    const name = basename(file, '.md')
-    addSkill(into, name, join(commandsDir, file))
-  }
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const entries = yield* fs
+      .readDirectory(commandsDir)
+      .pipe(Effect.catch(() => Effect.succeed([])))
+    for (const file of entries) {
+      if (!file.endsWith('.md')) continue
+      const name = path.basename(file, '.md')
+      yield* addSkill(into, name, path.join(commandsDir, file))
+    }
+  })
 }
 
 function loadClaudeRoot(into: Map<string, Skill>, claudeRoot: string) {
-  // commands first so a same-named skill wins
-  loadCommandFiles(into, join(claudeRoot, 'commands'))
-  loadSkillDirs(into, join(claudeRoot, 'skills'))
+  return Effect.gen(function* () {
+    const path = yield* Path.Path
+    yield* loadCommandFiles(into, path.join(claudeRoot, 'commands'))
+    yield* loadSkillDirs(into, path.join(claudeRoot, 'skills'))
+  })
 }
 
 /** Personal + optional project skills. Personal wins on a name clash. */
-export function listSkills(opts: { projectPath?: string; userHome?: string } = {}): Skill[] {
-  const into = new Map<string, Skill>()
-  if (opts.projectPath) loadClaudeRoot(into, join(opts.projectPath, '.claude'))
-  loadClaudeRoot(into, join(opts.userHome ?? homedir(), '.claude'))
-  return [...into.values()].sort((a, b) => a.name.localeCompare(b.name))
+export function listSkills(opts: { projectPath?: string; userHome?: string } = {}) {
+  return Effect.gen(function* () {
+    const path = yield* Path.Path
+    const into = new Map<string, Skill>()
+    if (opts.projectPath) yield* loadClaudeRoot(into, path.join(opts.projectPath, '.claude'))
+    yield* loadClaudeRoot(into, path.join(opts.userHome ?? homedir(), '.claude'))
+    return [...into.values()].sort((a, b) => a.name.localeCompare(b.name))
+  })
 }
+
+export const Skills = Context.Service<{
+  listSkills: (opts?: { projectPath?: string; userHome?: string }) => Effect.Effect<Skill[]>
+}>('jetty/Skills')
+
+export const SkillsLive = Layer.effect(
+  Skills,
+  Effect.gen(function* () {
+    const services = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+    return {
+      listSkills: (opts?: { projectPath?: string; userHome?: string }) =>
+        listSkills(opts).pipe(Effect.provideContext(services)),
+    }
+  })
+)

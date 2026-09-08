@@ -1,5 +1,6 @@
 import type { PushMessage, ResponseMessage, ServerMessage } from '@jetty/shared/wire'
 
+import { BunServices } from '@effect/platform-bun'
 import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
@@ -21,6 +22,7 @@ process.env.JETTY_AGENT = 'echo'
 
 import type { Agent, AgentImage, TurnInput } from './agent'
 
+import { AgentError } from './agent'
 import { createAttachments } from './attachments'
 import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
@@ -1321,14 +1323,21 @@ describe('image attachments', () => {
       startTurn(input, emit) {
         return Effect.gen(function* () {
           yield* emit({ type: 'turn.started', turnId: input.turnId })
-          const run = Effect.runPromiseWith(yield* Effect.context<never>())
-          yield* Effect.promise(() =>
-            createSendImagesTool({
-              attachments: createAttachments(jettyHome),
-              projectPath: projectDir,
-              turnId: () => input.turnId,
-              emit: (event) => run(emit(event)),
-            }).handler({ paths: ['shot.png'], caption: 'UI check' }, {})
+          yield* Effect.scoped(
+            Effect.gen(function* () {
+              const tool = yield* createSendImagesTool({
+                attachments: yield* createAttachments(jettyHome),
+                projectPath: projectDir,
+                turnId: () => input.turnId,
+                emit: (event, _turnId, onCommit) => emit(event, onCommit),
+              })
+              yield* Effect.promise(() =>
+                tool.handler({ paths: ['shot.png'], caption: 'UI check' }, {})
+              )
+            })
+          ).pipe(
+            Effect.provide(BunServices.layer),
+            Effect.mapError((error) => new AgentError(String(error)))
           )
           yield* emit({
             type: 'turn.completed',
@@ -1411,14 +1420,21 @@ describe('image attachments', () => {
       startTurn(input, emit) {
         return Effect.gen(function* () {
           yield* emit({ type: 'turn.started', turnId: input.turnId })
-          const run = Effect.runPromiseWith(yield* Effect.context<never>())
-          yield* Effect.promise(() =>
-            createSendVideoTool({
-              attachments: createAttachments(jettyHome),
-              projectPath: projectDir,
-              turnId: () => input.turnId,
-              emit: (event) => run(emit(event)),
-            }).handler({ path: 'clip.mp4', caption: 'UI flow' }, {})
+          yield* Effect.scoped(
+            Effect.gen(function* () {
+              const tool = yield* createSendVideoTool({
+                attachments: yield* createAttachments(jettyHome),
+                projectPath: projectDir,
+                turnId: () => input.turnId,
+                emit: (event, _turnId, onCommit) => emit(event, onCommit),
+              })
+              yield* Effect.promise(() =>
+                tool.handler({ path: 'clip.mp4', caption: 'UI flow' }, {})
+              )
+            })
+          ).pipe(
+            Effect.provide(BunServices.layer),
+            Effect.mapError((error) => new AgentError(String(error)))
           )
           yield* emit({
             type: 'turn.completed',
@@ -1507,8 +1523,10 @@ describe('image attachments', () => {
 describe('fs.browse', () => {
   let fixture: string
 
-  function names(partialPath: string): string[] {
-    return browse(partialPath).entries.map((entry) => entry.name)
+  async function names(partialPath: string): Promise<string[]> {
+    return (
+      await Effect.runPromise(browse(partialPath).pipe(Effect.provide(BunServices.layer)))
+    ).entries.map((entry) => entry.name)
   }
 
   function makeFixture(): string {
@@ -1530,9 +1548,9 @@ describe('fs.browse', () => {
     expect(expandHome('/absolute/path')).toBe('/absolute/path')
   })
 
-  test('lists directories only, hides dotfiles', () => {
+  test('lists directories only, hides dotfiles', async () => {
     fixture = makeFixture()
-    const listed = names(`${fixture}/`)
+    const listed = await names(`${fixture}/`)
     expect(listed).toContain('apple')
     expect(listed).toContain('apricot')
     expect(listed).toContain('Banana')
@@ -1540,20 +1558,26 @@ describe('fs.browse', () => {
     expect(listed).not.toContain('notdir.txt')
   })
 
-  test('filters by case-insensitive prefix', () => {
+  test('filters by case-insensitive prefix', async () => {
     fixture = makeFixture()
-    expect(names(`${fixture}/ap`).sort()).toEqual(['apple', 'apricot'])
-    expect(names(`${fixture}/AP`).sort()).toEqual(['apple', 'apricot'])
-    expect(names(`${fixture}/ban`)).toEqual(['Banana'])
+    expect((await names(`${fixture}/ap`)).sort()).toEqual(['apple', 'apricot'])
+    expect((await names(`${fixture}/AP`)).sort()).toEqual(['apple', 'apricot'])
+    expect(await names(`${fixture}/ban`)).toEqual(['Banana'])
   })
 
-  test('reveals dotfiles when the filter segment is dotted', () => {
+  test('reveals dotfiles when the filter segment is dotted', async () => {
     fixture = makeFixture()
-    expect(names(`${fixture}/.h`)).toEqual(['.hidden'])
+    expect(await names(`${fixture}/.h`)).toEqual(['.hidden'])
   })
 
-  test('returns empty entries for a nonexistent parent', () => {
-    expect(browse('/no/such/directory/anywhere/').entries).toEqual([])
+  test('returns empty entries for a nonexistent parent', async () => {
+    expect(
+      (
+        await Effect.runPromise(
+          browse('/no/such/directory/anywhere/').pipe(Effect.provide(BunServices.layer))
+        )
+      ).entries
+    ).toEqual([])
   })
 })
 
@@ -1611,22 +1635,30 @@ describe('fs.search', () => {
     })
     if (!repo) return // git unavailable
 
-    const byString = await searchFiles(repo, 'string')
+    const byString = await Effect.runPromise(
+      searchFiles(repo, 'string').pipe(Effect.provide(BunServices.layer))
+    )
     expect(byString[0]).toBe('src/utils/string.ts')
     expect(byString).toContain('string/parser.ts')
     expect(byString).not.toContain('README.md')
 
-    const byBtn = await searchFiles(repo, 'btn')
+    const byBtn = await Effect.runPromise(
+      searchFiles(repo, 'btn').pipe(Effect.provide(BunServices.layer))
+    )
     expect(byBtn).toEqual(['src/components/Button.tsx'])
 
-    const byHelp = await searchFiles(repo, 'help')
+    const byHelp = await Effect.runPromise(
+      searchFiles(repo, 'help').pipe(Effect.provide(BunServices.layer))
+    )
     expect(byHelp).toEqual(['lib/helpers.ts'])
   })
 
   test('empty query returns []', async () => {
     const repo = initGitRepo({ 'a.ts': 'x' })
     if (!repo) return
-    expect(await searchFiles(repo, '')).toEqual([])
+    expect(
+      await Effect.runPromise(searchFiles(repo, '').pipe(Effect.provide(BunServices.layer)))
+    ).toEqual([])
   })
 
   test('non-git project dir returns [] over the wire', async () => {
@@ -1774,8 +1806,10 @@ describe('thread.diff', () => {
     const project = await Effect.runPromise(store.createProject(repo))
     const thread = await Effect.runPromise(store.createThread(project.id, newId()))
 
-    const res = await computeThreadDiff(
-      (await Effect.runPromise(store.getProject(thread.projectId)))!.path
+    const res = await Effect.runPromise(
+      computeThreadDiff((await Effect.runPromise(store.getProject(thread.projectId)))!.path).pipe(
+        Effect.provide(BunServices.layer)
+      )
     )
     expect(res.diff).toContain('diff --git a/hello.txt b/hello.txt')
     expect(res.diff).toContain('+three')
@@ -1799,8 +1833,10 @@ describe('thread.diff', () => {
     const project = await Effect.runPromise(store.createProject(repo))
     const thread = await Effect.runPromise(store.createThread(project.id, newId()))
 
-    const res = await computeThreadDiff(
-      (await Effect.runPromise(store.getProject(thread.projectId)))!.path
+    const res = await Effect.runPromise(
+      computeThreadDiff((await Effect.runPromise(store.getProject(thread.projectId)))!.path).pipe(
+        Effect.provide(BunServices.layer)
+      )
     )
     expect(res.diff).toContain('diff --git a/main.ts b/main.ts')
     expect(res.diff).toContain('new file mode')

@@ -30,7 +30,10 @@ export class AgentError extends Error {
   readonly _tag = 'AgentError'
 }
 
-export type Emit = (event: ThreadEvent) => Effect.Effect<void, AgentError>
+export type Emit = (
+  event: ThreadEvent,
+  onCommit?: Effect.Effect<void>
+) => Effect.Effect<void, AgentError>
 export type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
@@ -173,7 +176,8 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             accepting: true,
             publication: yield* Semaphore.make(1),
           } as EchoSession
-          const emit: Emit = (event) => session.publication.withPermit(publish(event))
+          const emit: Emit = (event, onCommit) =>
+            session.publication.withPermit(publish(event, onCommit))
           const { from, to } = nextContextTarget(input.threadId)
           const ramp = [
             Math.round(from + (to - from) * 0.25),
