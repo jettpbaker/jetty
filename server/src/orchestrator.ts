@@ -20,7 +20,7 @@ export type Orchestrator = ReturnType<typeof createOrchestrator>
 export type StartTurnInput = {
   threadId: string
   text: string
-  attachments?: UploadAttachment[]
+  attachments?: readonly UploadAttachment[]
   model?: string
   effort?: EffortLevel
   permissionMode?: PermissionMode

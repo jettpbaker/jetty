@@ -55,7 +55,7 @@ export function createAttachments(home: string) {
   const dir = join(home, 'attachments')
   mkdirSync(dir, { recursive: true })
 
-  function persist(uploads: UploadAttachment[] | undefined): PersistedAttachments {
+  function persist(uploads: readonly UploadAttachment[] | undefined): PersistedAttachments {
     if (!uploads || uploads.length === 0) {
       return { meta: [], images: [] }
     }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { Result, Schema } from 'effect'
 
 import type { ThreadEvent } from './events'
 import type { ThreadItem } from './items'
@@ -163,15 +164,15 @@ describe('applyEvent', () => {
     expect(state.context).toEqual(second)
   })
 
-  test('ThreadState blobs without context still safeParse with context null', () => {
+  test('ThreadState blobs without context still decode with context null', () => {
     const legacy = {
       items: [],
       status: 'idle',
       activeTurnId: null,
       lastSeq: 0,
     }
-    const parsed = ThreadState.safeParse(legacy)
-    expect(parsed.success).toBe(true)
-    if (parsed.success) expect(parsed.data.context).toBeNull()
+    const parsed = Schema.decodeUnknownResult(ThreadState)(legacy)
+    expect(Result.isSuccess(parsed)).toBe(true)
+    if (Result.isSuccess(parsed)) expect(parsed.success.context).toBeNull()
   })
 })

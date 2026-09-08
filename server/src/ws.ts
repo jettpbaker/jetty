@@ -8,7 +8,7 @@ import {
   type ResponseMessage,
   type Usage,
 } from '@jetty/shared/wire'
-import { Effect } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 
 import type { Hub, ConnData } from './hub'
 import type { Orchestrator } from './orchestrator'
@@ -45,9 +45,9 @@ export function createWs(
     params: unknown
   ): Promise<unknown> {
     const schema = methods[method]
-    const parsed = schema.params.safeParse(params)
-    if (!parsed.success) {
-      throw new StoreError('invalid_params', parsed.error.issues[0]!.message)
+    const parsed = Schema.decodeUnknownResult(schema.params)(params)
+    if (Result.isFailure(parsed)) {
+      throw new StoreError('invalid_params', parsed.failure.message)
     }
 
     switch (method) {
@@ -66,47 +66,47 @@ export function createWs(
         return null
       }
       case 'project.create': {
-        const p = parsed.data as ParamsOf<'project.create'>
+        const p = parsed.success as ParamsOf<'project.create'>
         const project = store.createProject(p.path)
         hub.pushChrome({ type: 'project.upserted', project })
         return { project }
       }
       case 'fs.browse': {
-        const p = parsed.data as ParamsOf<'fs.browse'>
+        const p = parsed.success as ParamsOf<'fs.browse'>
         return browse(p.partialPath)
       }
       case 'fs.search': {
-        const p = parsed.data as ParamsOf<'fs.search'>
+        const p = parsed.success as ParamsOf<'fs.search'>
         const project = store.getProject(p.projectId)
         if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
         const files = await searchFiles(project.path, p.query, p.limit)
         return { files }
       }
       case 'skills.list': {
-        const p = parsed.data as ParamsOf<'skills.list'>
+        const p = parsed.success as ParamsOf<'skills.list'>
         if (!p.projectId) return { skills: listSkills({}) }
         const project = store.getProject(p.projectId)
         if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
         return { skills: listSkills({ projectPath: project.path }) }
       }
       case 'thread.create': {
-        const p = parsed.data as ParamsOf<'thread.create'>
+        const p = parsed.success as ParamsOf<'thread.create'>
         const thread = store.createThread(p.projectId, p.id)
         hub.pushChrome({ type: 'thread.upserted', thread })
         return { thread }
       }
       case 'thread.archive': {
-        const p = parsed.data as ParamsOf<'thread.archive'>
+        const p = parsed.success as ParamsOf<'thread.archive'>
         const thread = store.archiveThread(p.threadId)
         hub.pushChrome({ type: 'thread.upserted', thread })
         return null
       }
       case 'thread.diff': {
-        const p = parsed.data as ParamsOf<'thread.diff'>
+        const p = parsed.success as ParamsOf<'thread.diff'>
         return computeThreadDiff(store, p.threadId)
       }
       case 'thread.subscribe': {
-        const p = parsed.data as ParamsOf<'thread.subscribe'>
+        const p = parsed.success as ParamsOf<'thread.subscribe'>
         const thread = store.getThread(p.threadId)
         if (!thread) throw new StoreError('not_found', `Thread ${p.threadId} not found`)
         hub.subscribeThread(ws, p.threadId)
@@ -126,12 +126,12 @@ export function createWs(
         return { snapshot: state, seq: state.lastSeq }
       }
       case 'thread.unsubscribe': {
-        const p = parsed.data as ParamsOf<'thread.unsubscribe'>
+        const p = parsed.success as ParamsOf<'thread.unsubscribe'>
         hub.unsubscribeThread(ws, p.threadId)
         return null
       }
       case 'turn.start': {
-        const p = parsed.data as ParamsOf<'turn.start'>
+        const p = parsed.success as ParamsOf<'turn.start'>
         slog('ws', `turn.start thread=${p.threadId} chars=${p.text.length} model=${p.model ?? '-'}`)
         return Effect.runPromise(
           orch.startTurnEffect({
@@ -145,17 +145,23 @@ export function createWs(
         )
       }
       case 'turn.interrupt': {
-        const p = parsed.data as ParamsOf<'turn.interrupt'>
+        const p = parsed.success as ParamsOf<'turn.interrupt'>
         orch.interrupt(p.threadId)
         return null
       }
       case 'approval.respond': {
-        const p = parsed.data as ParamsOf<'approval.respond'>
-        orch.respondApproval(p.threadId, p.itemId, p.decision, p.message, p.updatedPermissions)
+        const p = parsed.success as ParamsOf<'approval.respond'>
+        orch.respondApproval(
+          p.threadId,
+          p.itemId,
+          p.decision,
+          p.message,
+          p.updatedPermissions ? [...p.updatedPermissions] : undefined
+        )
         return null
       }
       case 'question.respond': {
-        const p = parsed.data as ParamsOf<'question.respond'>
+        const p = parsed.success as ParamsOf<'question.respond'>
         orch.respondQuestion(p.threadId, p.itemId, p.answers)
         return null
       }
@@ -187,8 +193,8 @@ export function createWs(
           return
         }
 
-        const req = RequestMessage.safeParse(json)
-        if (!req.success) {
+        const req = Schema.decodeUnknownResult(RequestMessage)(json)
+        if (Result.isFailure(req)) {
           const id =
             typeof json === 'object' &&
             json !== null &&
@@ -204,7 +210,7 @@ export function createWs(
           return
         }
 
-        const { id, method, params } = req.data
+        const { id, method, params } = req.success
         void dispatch(ws, method, params)
           .then((result) => {
             respond(ws, { id, ok: true, result })

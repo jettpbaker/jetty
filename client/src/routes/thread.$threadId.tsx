@@ -18,7 +18,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 function pendingApproval(
-  items: ThreadItem[]
+  items: readonly ThreadItem[]
 ): Extract<ThreadItem, { kind: 'approval' }> | undefined {
   for (let i = items.length - 1; i >= 0; i -= 1) {
     const item = items[i]!
@@ -28,7 +28,7 @@ function pendingApproval(
 }
 
 function pendingQuestion(
-  items: ThreadItem[]
+  items: readonly ThreadItem[]
 ): Extract<ThreadItem, { kind: 'question' }> | undefined {
   for (let i = items.length - 1; i >= 0; i -= 1) {
     const item = items[i]!

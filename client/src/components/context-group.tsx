@@ -17,7 +17,7 @@ export type TimelineEntry =
   | { kind: 'single'; item: ThreadItem }
   | { kind: 'context-group'; items: ToolCallItem[] }
 
-export function groupTimeline(items: ThreadItem[]): TimelineEntry[] {
+export function groupTimeline(items: readonly ThreadItem[]): TimelineEntry[] {
   const entries: TimelineEntry[] = []
   let i = 0
   while (i < items.length) {

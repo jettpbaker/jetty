@@ -132,7 +132,7 @@ function statusRank(status: SessionStatus): number {
 
 type Bucket = { label: string; threads: ThreadMeta[] }
 
-function bucketThreads(threads: ThreadMeta[]): Bucket[] {
+function bucketThreads(threads: readonly ThreadMeta[]): Bucket[] {
   const startToday = new Date().setHours(0, 0, 0, 0)
   const sevenAgo = startToday - 7 * DAY_MS
   const thirtyAgo = startToday - 30 * DAY_MS

@@ -53,7 +53,7 @@ const EDIT_OPTIONS = {
   unsafeCSS: NO_DEAD_GUTTER,
 } as const
 
-export type DiffData = { diff: string; truncatedPaths?: string[] }
+export type DiffData = { diff: string; truncatedPaths?: readonly string[] }
 
 // PatchDiff renders exactly one file diff (it throws on more), so a multi-file
 // patch gets split on section boundaries and rendered file by file.
@@ -82,7 +82,7 @@ function DiffMessage({ children }: { children: React.ReactNode }) {
   return <div className='p-4 text-sm text-muted-foreground'>{children}</div>
 }
 
-function TruncatedList({ paths }: { paths: string[] }) {
+function TruncatedList({ paths }: { paths: readonly string[] }) {
   return (
     <div className='flex flex-col gap-1 rounded-md border bg-card p-2'>
       {paths.map((path) => (

@@ -1,17 +1,16 @@
-import { z } from 'zod'
+import { Effect, Schema } from 'effect'
 
 import { ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
 import { ThreadItem } from './items'
 
-export const ThreadState = z.object({
-  items: z.array(ThreadItem),
+export const ThreadState = Schema.Struct({
+  items: Schema.Array(ThreadItem),
   status: SessionStatus,
-  activeTurnId: z.string().nullable(),
-  lastSeq: z.number().int().nonnegative(),
-  // default so blobs persisted before this field still safeParse
-  context: ContextUsage.nullable().default(null),
+  activeTurnId: Schema.NullOr(Schema.String),
+  lastSeq: Schema.Natural,
+  context: Schema.NullOr(ContextUsage).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
 })
-export type ThreadState = z.infer<typeof ThreadState>
+export type ThreadState = Schema.Schema.Type<typeof ThreadState>
 
 export const emptyThread: ThreadState = {
   items: [],
@@ -44,7 +43,7 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
       return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
     case 'item.completed':
       return updateItem(state, event.itemId, (item) =>
-        settleStreaming(ThreadItem.parse({ ...item, ...event.patch }))
+        settleStreaming(Schema.decodeUnknownSync(ThreadItem)({ ...item, ...event.patch }))
       )
     case 'session.status':
       return { ...state, status: event.status }

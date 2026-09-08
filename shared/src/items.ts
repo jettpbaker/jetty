@@ -1,100 +1,102 @@
-import { z } from 'zod'
+import { Schema } from 'effect'
 
 /** Images the agent may send in one `send_images` call — a gallery, not a dump. */
 export const MAX_GALLERY_IMAGES = 4
 
-export const Attachment = z.object({
-  id: z.string(),
-  name: z.string(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int().nonnegative(),
+export const Attachment = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  mimeType: Schema.String,
+  sizeBytes: Schema.Natural,
 })
-export type Attachment = z.infer<typeof Attachment>
+export type Attachment = Schema.Schema.Type<typeof Attachment>
 
-export const ApprovalDecision = z.enum(['allow', 'deny'])
-export type ApprovalDecision = z.infer<typeof ApprovalDecision>
+export const ApprovalDecision = Schema.Literals(['allow', 'deny'])
+export type ApprovalDecision = Schema.Schema.Type<typeof ApprovalDecision>
 
-export const QuestionSpec = z.object({
-  question: z.string(),
-  header: z.string(),
-  multiSelect: z.boolean(),
-  options: z.array(z.object({ label: z.string(), description: z.string() })),
+export const QuestionSpec = Schema.Struct({
+  question: Schema.String,
+  header: Schema.String,
+  multiSelect: Schema.Boolean,
+  options: Schema.Array(Schema.Struct({ label: Schema.String, description: Schema.String })),
 })
-export type QuestionSpec = z.infer<typeof QuestionSpec>
+export type QuestionSpec = Schema.Schema.Type<typeof QuestionSpec>
 
 const itemBase = {
-  id: z.string(),
-  turnId: z.string(),
-  createdAt: z.number().int(),
+  id: Schema.String,
+  turnId: Schema.String,
+  createdAt: Schema.Int,
 }
 
-export const ThreadItem = z.discriminatedUnion('kind', [
-  z.object({
+export const ThreadItem = Schema.Union([
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('user_message'),
-    text: z.string(),
-    attachments: z.array(Attachment),
+    kind: Schema.Literal('user_message'),
+    text: Schema.String,
+    attachments: Schema.Array(Attachment),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('assistant_message'),
-    text: z.string(),
-    streaming: z.boolean().optional(),
+    kind: Schema.Literal('assistant_message'),
+    text: Schema.String,
+    streaming: Schema.optional(Schema.Boolean),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('reasoning'),
-    text: z.string(),
-    streaming: z.boolean().optional(),
+    kind: Schema.Literal('reasoning'),
+    text: Schema.String,
+    streaming: Schema.optional(Schema.Boolean),
     /** total estimated thinking tokens so far — the only signal models with omitted thinking text give us */
-    tokens: z.number().int().nonnegative().optional(),
+    tokens: Schema.optional(Schema.Natural),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('tool_call'),
-    toolName: z.string(),
-    input: z.unknown(),
-    output: z.string(),
-    status: z.enum(['running', 'succeeded', 'failed']),
+    kind: Schema.Literal('tool_call'),
+    toolName: Schema.String,
+    input: Schema.Unknown,
+    output: Schema.String,
+    status: Schema.Literals(['running', 'succeeded', 'failed']),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('approval'),
-    title: z.string(),
-    toolName: z.string(),
-    input: z.unknown(),
-    suggestions: z.array(z.unknown()),
-    decision: ApprovalDecision.optional(),
-    deniedReason: z.string().optional(),
+    kind: Schema.Literal('approval'),
+    title: Schema.String,
+    toolName: Schema.String,
+    input: Schema.Unknown,
+    suggestions: Schema.Array(Schema.Unknown),
+    decision: Schema.optional(ApprovalDecision),
+    deniedReason: Schema.optional(Schema.String),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('question'),
-    questions: z.array(QuestionSpec),
+    kind: Schema.Literal('question'),
+    questions: Schema.Array(QuestionSpec),
     /** question text → chosen answer (multi-select comma-separated); set once answered */
-    answers: z.record(z.string(), z.string()).optional(),
+    answers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     /** true when the turn ended (interrupt/close) before an answer */
-    skipped: z.boolean().optional(),
+    skipped: Schema.optional(Schema.Boolean),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('image_gallery'),
-    images: z.array(Attachment).min(1).max(MAX_GALLERY_IMAGES),
-    caption: z.string().optional(),
+    kind: Schema.Literal('image_gallery'),
+    images: Schema.Array(Attachment)
+      .check(Schema.isMinLength(1))
+      .check(Schema.isMaxLength(MAX_GALLERY_IMAGES)),
+    caption: Schema.optional(Schema.String),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('video'),
+    kind: Schema.Literal('video'),
     video: Attachment,
-    caption: z.string().optional(),
+    caption: Schema.optional(Schema.String),
   }),
-  z.object({
+  Schema.Struct({
     ...itemBase,
-    kind: z.literal('plan'),
-    text: z.string(),
-    streaming: z.boolean().optional(),
+    kind: Schema.Literal('plan'),
+    text: Schema.String,
+    streaming: Schema.optional(Schema.Boolean),
   }),
-  z.object({ ...itemBase, kind: z.literal('error'), message: z.string() }),
+  Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
 ])
-export type ThreadItem = z.infer<typeof ThreadItem>
+export type ThreadItem = Schema.Schema.Type<typeof ThreadItem>
 export type ItemKind = ThreadItem['kind']

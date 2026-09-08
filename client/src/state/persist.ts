@@ -1,7 +1,7 @@
 import { ThreadState } from '@jetty/shared/reducer'
 import { Project, ThreadMeta, Usage } from '@jetty/shared/wire'
+import { Result, Schema } from 'effect'
 import { entries, set } from 'idb-keyval'
-import { z } from 'zod'
 
 import type { ChromeState, ChromeStore } from './chrome'
 import type { Draft, DraftsStore } from './drafts'
@@ -14,19 +14,19 @@ const DRAFTS_KEY = 'drafts'
 const THREAD_PREFIX = 'thread:'
 const DEBOUNCE_MS = 300
 
-const ChromeStateSchema = z.object({
-  projects: z.array(Project),
-  threads: z.array(ThreadMeta),
+const ChromeStateSchema = Schema.Struct({
+  projects: Schema.Array(Project),
+  threads: Schema.Array(ThreadMeta),
   // optional so pre-usage disk blobs still parse; usage is ephemeral anyway
-  usage: Usage.optional().nullable(),
+  usage: Schema.optional(Schema.NullOr(Usage)),
 })
 
-const TabsSchema = z.array(z.string())
+const TabsSchema = Schema.Array(Schema.String)
 
-const DraftsSchema = z.array(
-  z.object({
-    id: z.string(),
-    projectId: z.string().nullable(),
+const DraftsSchema = Schema.Array(
+  Schema.Struct({
+    id: Schema.String,
+    projectId: Schema.NullOr(Schema.String),
   })
 )
 
@@ -34,40 +34,40 @@ const pending = new Map<string, unknown>()
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
 export function parseChromeValue(value: unknown): ChromeState | null {
-  const result = ChromeStateSchema.safeParse(value)
-  if (!result.success) return null
+  const result = Schema.decodeUnknownResult(ChromeStateSchema)(value)
+  if (Result.isFailure(result)) return null
   return {
-    projects: result.data.projects,
-    threads: result.data.threads,
-    usage: result.data.usage ?? null,
+    projects: result.success.projects,
+    threads: result.success.threads,
+    usage: result.success.usage ?? null,
   }
 }
 
-export function parseTabsValue(value: unknown): string[] | null {
-  const result = TabsSchema.safeParse(value)
-  return result.success ? result.data : null
+export function parseTabsValue(value: unknown): readonly string[] | null {
+  const result = Schema.decodeUnknownResult(TabsSchema)(value)
+  return Result.isSuccess(result) ? result.success : null
 }
 
-export function parseDraftsValue(value: unknown): Draft[] | null {
-  const result = DraftsSchema.safeParse(value)
-  return result.success ? result.data : null
+export function parseDraftsValue(value: unknown): readonly Draft[] | null {
+  const result = Schema.decodeUnknownResult(DraftsSchema)(value)
+  return Result.isSuccess(result) ? result.success : null
 }
 
 export function parseThreadValue(value: unknown): ThreadState | null {
-  const result = ThreadState.safeParse(value)
-  return result.success ? result.data : null
+  const result = Schema.decodeUnknownResult(ThreadState)(value)
+  return Result.isSuccess(result) ? result.success : null
 }
 
 /** Pure entry partition — validation is versioning; garbage is dropped. */
 export function collectHydration(pairs: ReadonlyArray<readonly [IDBValidKey, unknown]>): {
   chrome: ChromeState | null
-  tabs: string[] | null
-  drafts: Draft[] | null
+  tabs: readonly string[] | null
+  drafts: readonly Draft[] | null
   threads: Map<string, ThreadState>
 } {
   let chrome: ChromeState | null = null
-  let tabs: string[] | null = null
-  let drafts: Draft[] | null = null
+  let tabs: readonly string[] | null = null
+  let drafts: readonly Draft[] | null = null
   const threads = new Map<string, ThreadState>()
 
   for (const [key, value] of pairs) {
