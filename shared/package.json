@@ -6,7 +6,8 @@
     "./items": "./src/items.ts",
     "./events": "./src/events.ts",
     "./reducer": "./src/reducer.ts",
-    "./wire": "./src/wire.ts"
+    "./wire": "./src/wire.ts",
+    "./rpc": "./src/rpc.ts"
   },
   "dependencies": {
     "effect": "4.0.0-rc.112",
