@@ -6,5 +6,5 @@ export type MediaToolHost = {
   attachments: Attachments
   projectPath: string
   turnId: () => string
-  emit: (event: ThreadEvent) => void
+  emit: (event: ThreadEvent, turnId: string) => void | Promise<void>
 }

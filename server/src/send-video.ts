@@ -21,6 +21,7 @@ export function createSendVideoTool(host: MediaToolHost) {
       caption: z.string().optional().describe('Optional caption shown with the video'),
     },
     async (args) => {
+      const turnId = host.turnId()
       let video
       try {
         video = host.attachments.persistFile(resolve(host.projectPath, args.path), 'video')
@@ -31,18 +32,21 @@ export function createSendVideoTool(host: MediaToolHost) {
 
       const caption = args.caption?.trim()
       const itemId = newId()
-      host.emit({
-        type: 'item.started',
-        item: {
-          id: itemId,
-          turnId: host.turnId(),
-          createdAt: Date.now(),
-          kind: 'video',
-          video,
-          ...(caption ? { caption } : {}),
+      await host.emit(
+        {
+          type: 'item.started',
+          item: {
+            id: itemId,
+            turnId,
+            createdAt: Date.now(),
+            kind: 'video',
+            video,
+            ...(caption ? { caption } : {}),
+          },
         },
-      })
-      host.emit({ type: 'item.completed', itemId })
+        turnId
+      )
+      await host.emit({ type: 'item.completed', itemId }, turnId)
 
       return {
         content: [{ type: 'text', text: `Sent video to the chat: ${video.name}` }],

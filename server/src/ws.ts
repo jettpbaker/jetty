@@ -18,10 +18,12 @@ import { computeThreadDiff } from './diff'
 import { browse } from './fs-browse'
 import { searchFiles } from './fs-search'
 import { slog } from './log'
+import { storeEffect } from './orchestrator'
 import { listSkills } from './skills'
 import { StoreError } from './store'
 
 export type WsServer = {
+  stop(): void
   handlers: {
     open(ws: ServerWebSocket<ConnData>): void
     message(ws: ServerWebSocket<ConnData>, raw: string | Buffer): void
@@ -33,108 +35,121 @@ export function createWs(
   store: Store,
   orch: Orchestrator,
   hub: Hub,
+  run: (effect: Effect.Effect<void>) => Promise<void>,
   getUsage: () => Usage | null = () => null
 ): WsServer {
   function respond(ws: ServerWebSocket<ConnData>, msg: ResponseMessage) {
     hub.send(ws, msg)
   }
 
-  async function dispatch(
-    ws: ServerWebSocket<ConnData>,
-    method: MethodName,
-    params: unknown
-  ): Promise<unknown> {
-    const schema = methods[method]
-    const parsed = Schema.decodeUnknownResult(schema.params)(params)
-    if (Result.isFailure(parsed)) {
-      throw new StoreError('invalid_params', parsed.failure.message)
-    }
+  function dispatch(ws: ServerWebSocket<ConnData>, method: MethodName, params: unknown) {
+    return Effect.gen(function* () {
+      const schema = methods[method]
+      const parsed = Schema.decodeUnknownResult(schema.params)(params)
+      if (Result.isFailure(parsed)) {
+        return yield* Effect.fail(new StoreError('invalid_params', parsed.failure.message))
+      }
 
-    switch (method) {
-      case 'chrome.subscribe': {
-        hub.subscribeChrome(ws)
-        const usage = getUsage()
-        hub.send(ws, {
-          sub: 'chrome',
-          data: {
-            type: 'snapshot',
-            projects: store.listProjects(),
-            threads: store.listThreads(),
-            ...(usage ? { usage } : {}),
-          },
-        })
-        return null
-      }
-      case 'project.create': {
-        const p = parsed.success as ParamsOf<'project.create'>
-        const project = store.createProject(p.path)
-        hub.pushChrome({ type: 'project.upserted', project })
-        return { project }
-      }
-      case 'fs.browse': {
-        const p = parsed.success as ParamsOf<'fs.browse'>
-        return browse(p.partialPath)
-      }
-      case 'fs.search': {
-        const p = parsed.success as ParamsOf<'fs.search'>
-        const project = store.getProject(p.projectId)
-        if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
-        const files = await searchFiles(project.path, p.query, p.limit)
-        return { files }
-      }
-      case 'skills.list': {
-        const p = parsed.success as ParamsOf<'skills.list'>
-        if (!p.projectId) return { skills: listSkills({}) }
-        const project = store.getProject(p.projectId)
-        if (!project) throw new StoreError('not_found', `Project ${p.projectId} not found`)
-        return { skills: listSkills({ projectPath: project.path }) }
-      }
-      case 'thread.create': {
-        const p = parsed.success as ParamsOf<'thread.create'>
-        const thread = store.createThread(p.projectId, p.id)
-        hub.pushChrome({ type: 'thread.upserted', thread })
-        return { thread }
-      }
-      case 'thread.archive': {
-        const p = parsed.success as ParamsOf<'thread.archive'>
-        const thread = store.archiveThread(p.threadId)
-        hub.pushChrome({ type: 'thread.upserted', thread })
-        return null
-      }
-      case 'thread.diff': {
-        const p = parsed.success as ParamsOf<'thread.diff'>
-        return computeThreadDiff(store, p.threadId)
-      }
-      case 'thread.subscribe': {
-        const p = parsed.success as ParamsOf<'thread.subscribe'>
-        const thread = store.getThread(p.threadId)
-        if (!thread) throw new StoreError('not_found', `Thread ${p.threadId} not found`)
-        hub.subscribeThread(ws, p.threadId)
-        const state = store.getThreadState(p.threadId)
-        if (p.afterSeq !== undefined) {
-          for (const ev of store.getEventsAfter(p.threadId, p.afterSeq)) {
-            hub.send(ws, {
-              sub: 'thread',
-              threadId: p.threadId,
-              seq: ev.seq,
-              ts: ev.ts,
-              event: ev.event,
-            })
-          }
-          return { seq: state.lastSeq }
+      switch (method) {
+        case 'chrome.subscribe': {
+          hub.subscribeChrome(ws)
+          const usage = getUsage()
+          hub.send(ws, {
+            sub: 'chrome',
+            data: {
+              type: 'snapshot',
+              projects: yield* storeEffect(() => store.listProjects()),
+              threads: yield* storeEffect(() => store.listThreads()),
+              ...(usage ? { usage } : {}),
+            },
+          })
+          return null
         }
-        return { snapshot: state, seq: state.lastSeq }
-      }
-      case 'thread.unsubscribe': {
-        const p = parsed.success as ParamsOf<'thread.unsubscribe'>
-        hub.unsubscribeThread(ws, p.threadId)
-        return null
-      }
-      case 'turn.start': {
-        const p = parsed.success as ParamsOf<'turn.start'>
-        slog('ws', `turn.start thread=${p.threadId} chars=${p.text.length} model=${p.model ?? '-'}`)
-        return Effect.runPromise(
-          orch.startTurnEffect({
+        case 'project.create': {
+          const p = parsed.success as ParamsOf<'project.create'>
+          const project = yield* storeEffect(() => store.createProject(p.path))
+          hub.pushChrome({ type: 'project.upserted', project })
+          return { project }
+        }
+        case 'fs.browse': {
+          const p = parsed.success as ParamsOf<'fs.browse'>
+          return yield* storeEffect(() => browse(p.partialPath))
+        }
+        case 'fs.search': {
+          const p = parsed.success as ParamsOf<'fs.search'>
+          const project = yield* storeEffect(() => store.getProject(p.projectId!))
+          if (!project)
+            return yield* Effect.fail(
+              new StoreError('not_found', `Project ${p.projectId} not found`)
+            )
+          const files = yield* Effect.tryPromise(() => searchFiles(project.path, p.query, p.limit))
+          return { files }
+        }
+        case 'skills.list': {
+          const p = parsed.success as ParamsOf<'skills.list'>
+          if (!p.projectId) return yield* storeEffect(() => ({ skills: listSkills({}) }))
+          const project = yield* storeEffect(() => store.getProject(p.projectId!))
+          if (!project)
+            return yield* Effect.fail(
+              new StoreError('not_found', `Project ${p.projectId} not found`)
+            )
+          return yield* storeEffect(() => ({ skills: listSkills({ projectPath: project.path }) }))
+        }
+        case 'thread.create': {
+          const p = parsed.success as ParamsOf<'thread.create'>
+          const thread = yield* storeEffect(() => store.createThread(p.projectId, p.id))
+          hub.pushChrome({ type: 'thread.upserted', thread })
+          return { thread }
+        }
+        case 'thread.archive': {
+          const p = parsed.success as ParamsOf<'thread.archive'>
+          const thread = yield* storeEffect(() => store.archiveThread(p.threadId))
+          hub.pushChrome({ type: 'thread.upserted', thread })
+          return null
+        }
+        case 'thread.diff': {
+          const p = parsed.success as ParamsOf<'thread.diff'>
+          return yield* Effect.tryPromise({
+            try: () => computeThreadDiff(store, p.threadId),
+            catch: (error) =>
+              error instanceof StoreError ? error : new StoreError('internal', String(error)),
+          })
+        }
+        case 'thread.subscribe': {
+          const p = parsed.success as ParamsOf<'thread.subscribe'>
+          const thread = yield* storeEffect(() => store.getThread(p.threadId))
+          if (!thread)
+            return yield* Effect.fail(new StoreError('not_found', `Thread ${p.threadId} not found`))
+          hub.subscribeThread(ws, p.threadId)
+          const state = yield* storeEffect(() => store.getThreadState(p.threadId))
+          if (p.afterSeq !== undefined) {
+            for (const ev of yield* storeEffect(() =>
+              store.getEventsAfter(p.threadId, p.afterSeq!)
+            )) {
+              hub.send(ws, {
+                sub: 'thread',
+                threadId: p.threadId,
+                seq: ev.seq,
+                ts: ev.ts,
+                event: ev.event,
+              })
+            }
+            return { seq: state.lastSeq }
+          }
+          return { snapshot: state, seq: state.lastSeq }
+        }
+        case 'thread.unsubscribe': {
+          const p = parsed.success as ParamsOf<'thread.unsubscribe'>
+          hub.unsubscribeThread(ws, p.threadId)
+          return null
+        }
+        case 'turn.start': {
+          const p = parsed.success as ParamsOf<'turn.start'>
+          slog(
+            'ws',
+            `turn.start thread=${p.threadId} chars=${p.text.length} model=${p.model ?? '-'}`
+          )
+          return yield* orch.startTurnEffect({
             threadId: p.threadId,
             text: p.text,
             attachments: p.attachments,
@@ -142,37 +157,43 @@ export function createWs(
             effort: p.effort,
             permissionMode: p.permissionMode,
           })
-        )
+        }
+        case 'turn.interrupt': {
+          const p = parsed.success as ParamsOf<'turn.interrupt'>
+          yield* orch.interrupt(p.threadId)
+          return null
+        }
+        case 'approval.respond': {
+          const p = parsed.success as ParamsOf<'approval.respond'>
+          yield* orch.respondApproval(
+            p.threadId,
+            p.itemId,
+            p.decision,
+            p.message,
+            p.updatedPermissions ? [...p.updatedPermissions] : undefined
+          )
+          return null
+        }
+        case 'question.respond': {
+          const p = parsed.success as ParamsOf<'question.respond'>
+          yield* orch.respondQuestion(p.threadId, p.itemId, p.answers)
+          return null
+        }
+        default: {
+          const _exhaustive: never = method
+          return yield* Effect.fail(
+            new StoreError('unknown_method', `Unknown method: ${_exhaustive}`)
+          )
+        }
       }
-      case 'turn.interrupt': {
-        const p = parsed.success as ParamsOf<'turn.interrupt'>
-        orch.interrupt(p.threadId)
-        return null
-      }
-      case 'approval.respond': {
-        const p = parsed.success as ParamsOf<'approval.respond'>
-        orch.respondApproval(
-          p.threadId,
-          p.itemId,
-          p.decision,
-          p.message,
-          p.updatedPermissions ? [...p.updatedPermissions] : undefined
-        )
-        return null
-      }
-      case 'question.respond': {
-        const p = parsed.success as ParamsOf<'question.respond'>
-        orch.respondQuestion(p.threadId, p.itemId, p.answers)
-        return null
-      }
-      default: {
-        const _exhaustive: never = method
-        throw new StoreError('unknown_method', `Unknown method: ${_exhaustive}`)
-      }
-    }
+    })
   }
 
+  let accepting = true
   return {
+    stop() {
+      accepting = false
+    },
     handlers: {
       open(ws) {
         ws.data.chrome = false
@@ -180,6 +201,7 @@ export function createWs(
       },
 
       message(ws, raw) {
+        if (!accepting) return
         const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw)
         let json: unknown
         try {
@@ -211,18 +233,22 @@ export function createWs(
         }
 
         const { id, method, params } = req.success
-        void dispatch(ws, method, params)
-          .then((result) => {
-            respond(ws, { id, ok: true, result })
-          })
-          .catch((err: unknown) => {
-            if (err instanceof StoreError) {
-              respond(ws, { id, ok: false, error: { code: err.code, message: err.message } })
-              return
-            }
-            const message = err instanceof Error ? err.message : String(err)
-            respond(ws, { id, ok: false, error: { code: 'internal', message } })
-          })
+        void run(
+          dispatch(ws, method, params).pipe(
+            Effect.match({
+              onSuccess: (result) => respond(ws, { id, ok: true, result }),
+              onFailure: (error) =>
+                respond(ws, {
+                  id,
+                  ok: false,
+                  error: {
+                    code: error instanceof StoreError ? error.code : 'internal',
+                    message: error instanceof Error ? error.message : String(error),
+                  },
+                }),
+            })
+          )
+        ).catch(() => {})
       },
 
       close(ws) {

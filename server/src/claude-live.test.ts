@@ -1,8 +1,11 @@
 import { newId } from '@jetty/shared/wire'
 import { describe, expect, test } from 'bun:test'
+import { Effect, ManagedRuntime } from 'effect'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import { AgentService } from './agent'
 
 /**
  * Live Claude smoke test. Skipped unless JETTY_LIVE_TEST=1.
@@ -12,7 +15,7 @@ const live = process.env.JETTY_LIVE_TEST === '1'
 
 describe.skipIf(!live)('claude live', () => {
   test('one tiny turn: spawn→init and init→first-delta timings', async () => {
-    const { createClaudeAdapter } = await import('./claude')
+    const { claudeLayer } = await import('./claude')
     const { createAttachments } = await import('./attachments')
     const { openDb } = await import('./db')
     const { createStore } = await import('./store')
@@ -24,30 +27,36 @@ describe.skipIf(!live)('claude live', () => {
       const store = createStore(db)
       const project = store.createProject(projectPath)
       const thread = store.createThread(project.id, newId())
-      const agent = createClaudeAdapter(store, createAttachments(home))
+      const runtime = ManagedRuntime.make(claudeLayer(store, createAttachments(home)))
+      const agent = await runtime.runPromise(AgentService)
 
       const t0 = performance.now()
       let initAt: number | null = null
       let firstDeltaAt: number | null = null
       const eventTypes: string[] = []
 
-      const done = agent.startTurn(
-        {
-          threadId: thread.id,
-          turnId: 'live-turn',
-          text: 'Reply with exactly the single word: pong',
-          permissionMode: 'full_access',
-        },
-        (event) => {
-          eventTypes.push(event.type)
-          if (
-            firstDeltaAt === null &&
-            (event.type === 'item.delta' ||
-              (event.type === 'item.started' && event.item.kind === 'assistant_message'))
-          ) {
-            firstDeltaAt = performance.now()
-          }
-        }
+      const done = runtime.runPromise(
+        agent
+          .startTurn(
+            {
+              threadId: thread.id,
+              turnId: 'live-turn',
+              text: 'Reply with exactly the single word: pong',
+              permissionMode: 'full_access',
+            },
+            (event) =>
+              Effect.sync(() => {
+                eventTypes.push(event.type)
+                if (
+                  firstDeltaAt === null &&
+                  (event.type === 'item.delta' ||
+                    (event.type === 'item.started' && event.item.kind === 'assistant_message'))
+                ) {
+                  firstDeltaAt = performance.now()
+                }
+              })
+          )
+          .pipe(Effect.flatMap((turn) => turn.await))
       )
 
       // Session id is written when system/init is translated.
@@ -81,7 +90,8 @@ describe.skipIf(!live)('claude live', () => {
       expect(eventTypes).toContain('turn.started')
       expect(eventTypes.includes('turn.completed') || eventTypes.includes('turn.failed')).toBe(true)
 
-      agent.interrupt(thread.id)
+      await runtime.runPromise(agent.interrupt(thread.id))
+      await runtime.dispose()
       db.close()
     } finally {
       rmSync(home, { recursive: true, force: true })

@@ -14,7 +14,7 @@ import { createChromeStore } from './state/chrome'
 import { createSkillsStore } from './state/skills'
 import { createTimelineStore, MAX_WARM_SUBSCRIPTIONS } from './state/timeline'
 
-type Running = ReturnType<typeof startServer>
+type Running = Awaited<ReturnType<typeof startServer>>
 
 /** project.create requires an existing directory — ensure one before creating. */
 function dir(path: string): string {
@@ -26,10 +26,10 @@ const servers: Running[] = []
 const homes: string[] = []
 const sockets: Array<ReturnType<typeof createSocket>> = []
 
-function boot() {
+async function boot() {
   const home = mkdtempSync(join(tmpdir(), 'jetty-client-'))
   homes.push(home)
-  const running = startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+  const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
   servers.push(running)
   return running
 }
@@ -59,9 +59,9 @@ function waitFor<T>(get: () => T, pred: (value: T) => boolean, ms = 5000): Promi
   })
 }
 
-afterEach(() => {
+afterEach(async () => {
   while (sockets.length) sockets.pop()?.close()
-  while (servers.length) servers.pop()?.stop()
+  while (servers.length) await servers.pop()?.stop()
   while (homes.length) {
     const home = homes.pop()
     if (home) rmSync(home, { recursive: true, force: true })
@@ -70,7 +70,7 @@ afterEach(() => {
 
 describe('client socket + stores', () => {
   test('request/response round-trip', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
 
     const { project } = await socket.request('project.create', {
@@ -82,7 +82,7 @@ describe('client socket + stores', () => {
   })
 
   test('chrome snapshot + upsert push', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const chrome = createChromeStore(socket)
 
@@ -119,7 +119,7 @@ describe('client socket + stores', () => {
   })
 
   test('echo turn pushes extraUsage onto chrome', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const chrome = createChromeStore(socket)
 
@@ -152,7 +152,7 @@ describe('client socket + stores', () => {
       '---\ndescription: Look at the diff\n---\n'
     )
 
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const chrome = createChromeStore(socket)
     const skills = createSkillsStore(socket, chrome)
@@ -175,7 +175,7 @@ describe('client socket + stores', () => {
   })
 
   test('openThread instant cache + afterSeq catch-up after reconnect', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
@@ -274,7 +274,7 @@ describe('client socket + stores', () => {
   })
 
   test('background streaming: held thread advances without re-open', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
@@ -318,7 +318,7 @@ describe('client socket + stores', () => {
   })
 
   test('LRU eviction freezes cache; re-open catch-up heals', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
@@ -381,7 +381,7 @@ describe('client socket + stores', () => {
   })
 
   test('reconnect re-subscribes all held threads', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
@@ -445,7 +445,7 @@ describe('client socket + stores', () => {
   })
 
   test('turn events stream into ThreadState via shared reducer', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
     const timeline = createTimelineStore(socket)
 
@@ -482,7 +482,7 @@ describe('client socket + stores', () => {
   })
 
   test('error responses reject with wire error payload', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const socket = connectSocket(port)
 
     try {

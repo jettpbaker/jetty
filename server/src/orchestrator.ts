@@ -1,21 +1,22 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
+import type { ApprovalDecision, Attachment } from '@jetty/shared/items'
 import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
-import { Effect } from 'effect'
+import { Context, Effect, Layer, Semaphore } from 'effect'
 
-import type { Agent } from './agent'
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
-import type { AppendedEvent, Store } from './store'
+import type { Store } from './store'
 import type { Titler } from './titler'
 
+import { AgentError, AgentService, type Agent } from './agent'
 import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
 
-export type Orchestrator = ReturnType<typeof createOrchestrator>
+export type Orchestrator = Effect.Success<ReturnType<typeof createOrchestrator>>
+export const OrchestratorService = Context.Service<Orchestrator>('jetty/Orchestrator')
 
 export type StartTurnInput = {
   threadId: string
@@ -26,6 +27,14 @@ export type StartTurnInput = {
   permissionMode?: PermissionMode
 }
 
+export function storeEffect<A>(read: () => A) {
+  return Effect.try({
+    try: read,
+    catch: (error) =>
+      error instanceof StoreError ? error : new StoreError('internal', String(error)),
+  })
+}
+
 export function createOrchestrator(
   store: Store,
   agent: Agent,
@@ -33,204 +42,201 @@ export function createOrchestrator(
   titler: Titler | null = null,
   attachments: Attachments | null = null
 ) {
-  /** In-flight agent turns (may lead store.activeTurnId briefly before turn.started). */
-  const liveTurns = new Map<string, string>()
+  return Effect.gen(function* () {
+    const scope = yield* Effect.scope
+    const threads = new Map<
+      string,
+      { admission: Semaphore.Semaphore; publication: Semaphore.Semaphore; turnId: string | null }
+    >()
 
-  function publish(threadId: string, appended: AppendedEvent) {
-    hub.pushThread(threadId, {
-      sub: 'thread',
-      threadId,
-      seq: appended.seq,
-      ts: appended.ts,
-      event: appended.event,
-    })
-    if (appended.state.status !== appended.prevStatus) {
-      const thread = store.getThread(threadId)
-      if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
-    }
-  }
-
-  function append(threadId: string, event: ThreadEvent): AppendedEvent {
-    const appended = store.appendEvent(threadId, event)
-    publish(threadId, appended)
-    return appended
-  }
-
-  function emitFor(threadId: string) {
-    return (event: ThreadEvent) => {
-      append(threadId, event)
-    }
-  }
-
-  function appendUserMessage(threadId: string, turnId: string, text: string, meta: Attachment[]) {
-    const item: ThreadItem = {
-      id: newId(),
-      turnId,
-      createdAt: Date.now(),
-      kind: 'user_message',
-      text,
-      attachments: meta,
-    }
-    append(threadId, { type: 'item.started', item })
-    append(threadId, { type: 'item.completed', itemId: item.id })
-  }
-
-  function activeTurnId(threadId: string): string | null {
-    return liveTurns.get(threadId) ?? store.getThreadState(threadId).activeTurnId
-  }
-
-  /** Fire-and-forget: never on the turn's critical path. */
-  function maybeTitle(threadId: string, text: string) {
-    if (!titler) return
-    void (async () => {
-      try {
-        const title = await titler(text)
-        if (!title) return
-        const current = store.getThread(threadId)
-        if (!current || current.title !== DEFAULT_THREAD_TITLE) return
-        const updated = store.setThreadTitle(threadId, title)
-        hub.pushChrome({ type: 'thread.upserted', thread: updated })
-      } catch {
-        // titling must never break a turn
-      }
-    })()
-  }
-
-  const startTurnEffect = (input: StartTurnInput) =>
-    Effect.gen(function* () {
-      const thread = yield* Effect.try(() => store.getThread(input.threadId))
-
-      if (!thread) {
-        return yield* Effect.fail(new StoreError('not_found', `Thread ${input.threadId} not found`))
-      }
-
-      const saved = attachments
-        ? yield* Effect.try({
-            try: () => attachments.persist(input.attachments),
-            catch: (error) => error,
-          })
-        : EMPTY_ATTACHMENTS
-
-      if (thread.title === DEFAULT_THREAD_TITLE) maybeTitle(input.threadId, input.text)
-
-      const existingTurnId = yield* Effect.try(() => activeTurnId(input.threadId))
-      if (existingTurnId) {
-        const steered = yield* Effect.try(() =>
-          agent.steer(input.threadId, input.text, saved.images)
-        )
-
-        if (steered) {
-          yield* Effect.logInfo('steer').pipe(Effect.annotateLogs('turnId', existingTurnId))
-
-          yield* Effect.try({
-            try: () => appendUserMessage(input.threadId, existingTurnId, input.text, saved.meta),
-            catch: (error) => error,
-          })
-          return { turnId: existingTurnId }
+    function state(threadId: string) {
+      let value = threads.get(threadId)
+      if (!value) {
+        value = {
+          admission: Semaphore.makeUnsafe(1),
+          publication: Semaphore.makeUnsafe(1),
+          turnId: null,
         }
+        threads.set(threadId, value)
       }
+      return value
+    }
 
-      const turnId = newId()
-      yield* Effect.logInfo('fresh turn').pipe(Effect.annotateLogs('turnId', turnId))
-
-      liveTurns.set(input.threadId, turnId)
-
-      yield* Effect.try({
-        try: () => appendUserMessage(input.threadId, turnId, input.text, saved.meta),
-        catch: (error) => error,
-      }).pipe(
-        Effect.onError(() =>
-          Effect.sync(() => {
-            liveTurns.delete(input.threadId)
+    function append(threadId: string, event: ThreadEvent) {
+      return Effect.suspend(() =>
+        state(threadId).publication.withPermit(
+          storeEffect(() => {
+            const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
+            if (terminal && state(threadId).turnId !== event.turnId) return
+            const appended = store.appendEvent(threadId, event)
+            hub.pushThread(threadId, {
+              sub: 'thread',
+              threadId,
+              seq: appended.seq,
+              ts: appended.ts,
+              event: appended.event,
+            })
+            if (appended.state.status !== appended.prevStatus) {
+              const thread = store.getThread(threadId)
+              if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
+            }
+            if (terminal) state(threadId).turnId = null
           })
         )
       )
+    }
 
-      const agentLifecycle = Effect.tryPromise({
-        try: () =>
-          agent.startTurn(
-            {
-              threadId: input.threadId,
-              turnId,
-              text: input.text,
-              images: saved.images,
-              model: input.model,
-              effort: input.effort,
-              permissionMode: input.permissionMode,
-            },
-            emitFor(input.threadId)
-          ),
-        catch: (error) => error,
-      }).pipe(
-        Effect.catch((error) =>
-          Effect.gen(function* () {
-            const message = error instanceof Error ? error.message : String(error)
+    function appendUser(threadId: string, turnId: string, text: string, meta: Attachment[]) {
+      return Effect.gen(function* () {
+        const item = {
+          id: newId(),
+          turnId,
+          createdAt: Date.now(),
+          kind: 'user_message' as const,
+          text,
+          attachments: meta,
+        }
+        yield* append(threadId, { type: 'item.started', item })
+        yield* append(threadId, { type: 'item.completed', itemId: item.id })
+      })
+    }
 
-            yield* Effect.logError('startTurn failed').pipe(
-              Effect.annotateLogs({ turnId: turnId, error: message })
-            )
+    function checkThread(threadId: string) {
+      return storeEffect(() => {
+        const thread = store.getThread(threadId)
+        if (!thread) throw new StoreError('not_found', `Thread ${threadId} not found`)
+        return thread
+      })
+    }
 
-            yield* Effect.try(() =>
-              append(input.threadId, { type: 'turn.failed', turnId, error: message })
-            ).pipe(Effect.ignore)
+    function maybeTitle(threadId: string, text: string) {
+      if (!titler) return Effect.void
+      return titler(text).pipe(
+        Effect.flatMap((title) =>
+          storeEffect(() => {
+            if (!title) return
+            const current = store.getThread(threadId)
+            if (!current || current.title !== DEFAULT_THREAD_TITLE) return
+            hub.pushChrome({
+              type: 'thread.upserted',
+              thread: store.setThreadTitle(threadId, title),
+            })
           })
         ),
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (liveTurns.get(input.threadId) === turnId) {
-              liveTurns.delete(input.threadId)
+        Effect.ignore,
+        Effect.forkIn(scope),
+        Effect.asVoid
+      )
+    }
+
+    function startTurnEffect(input: StartTurnInput) {
+      return Effect.suspend(() =>
+        state(input.threadId).admission.withPermit(
+          Effect.gen(function* () {
+            const thread = yield* checkThread(input.threadId)
+            const saved = attachments
+              ? yield* storeEffect(() => attachments.persist(input.attachments))
+              : EMPTY_ATTACHMENTS
+            if (thread.title === DEFAULT_THREAD_TITLE) yield* maybeTitle(input.threadId, input.text)
+            const live = state(input.threadId)
+            if (live.turnId) {
+              const existing = live.turnId
+              if (yield* agent.steer(input.threadId, input.text, saved.images)) {
+                yield* appendUser(input.threadId, existing, input.text, saved.meta)
+                return { turnId: existing }
+              }
+              return yield* Effect.fail(
+                new StoreError('internal', 'Active turn is not accepting input')
+              )
             }
-          })
+            const turnId = newId()
+            live.turnId = turnId
+            const emit = (event: ThreadEvent) =>
+              append(input.threadId, event).pipe(
+                Effect.mapError((error) => new AgentError(error.message))
+              )
+            const turn = yield* appendUser(input.threadId, turnId, input.text, saved.meta).pipe(
+              Effect.andThen(agent.startTurn({ ...input, turnId, images: saved.images }, emit)),
+              Effect.onError(() =>
+                append(input.threadId, {
+                  type: 'turn.failed',
+                  turnId,
+                  error: 'Unable to start turn',
+                }).pipe(
+                  Effect.ignore,
+                  Effect.ensuring(
+                    Effect.sync(() => {
+                      if (live.turnId === turnId) live.turnId = null
+                    })
+                  )
+                )
+              )
+            )
+            yield* turn.await.pipe(
+              Effect.catch((error) => emit({ type: 'turn.failed', turnId, error: error.message })),
+              Effect.onInterrupt(() =>
+                emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(Effect.ignore)
+              ),
+              Effect.forkIn(scope, { startImmediately: true })
+            )
+            return { turnId }
+          }).pipe(Effect.uninterruptible)
         )
       )
+    }
 
-      yield* agentLifecycle.pipe(Effect.forkDetach({ startImmediately: true }))
+    return {
+      startTurnEffect,
+      interrupt(threadId: string) {
+        return checkThread(threadId).pipe(Effect.andThen(agent.interrupt(threadId)))
+      },
+      respondApproval(
+        threadId: string,
+        itemId: string,
+        decision: ApprovalDecision,
+        message?: string,
+        updatedPermissions?: unknown[]
+      ) {
+        return checkThread(threadId).pipe(
+          Effect.andThen(
+            agent.respondToApproval(threadId, itemId, decision, message, updatedPermissions)
+          ),
+          Effect.flatMap((found) =>
+            found
+              ? Effect.void
+              : Effect.fail(new StoreError('not_found', `No pending approval ${itemId}`))
+          )
+        )
+      },
+      respondQuestion(threadId: string, itemId: string, answers: Record<string, string>) {
+        return checkThread(threadId).pipe(
+          Effect.andThen(agent.respondToQuestion(threadId, itemId, answers)),
+          Effect.flatMap((found) =>
+            found
+              ? Effect.void
+              : Effect.fail(new StoreError('not_found', `No pending question ${itemId}`))
+          )
+        )
+      },
+      isActive(threadId: string) {
+        return storeEffect(
+          () => !!state(threadId).turnId || store.getThreadState(threadId).activeTurnId !== null
+        )
+      },
+    }
+  })
+}
 
-      return { turnId }
-    }).pipe(
-      Effect.annotateLogs({
-        area: 'orch',
-        threadId: input.threadId,
-      }),
-      Effect.withLogSpan('startTurn')
-    )
-
-  return {
-    startTurnEffect,
-
-    interrupt(threadId: string) {
-      if (!store.getThread(threadId)) {
-        throw new StoreError('not_found', `Thread ${threadId} not found`)
-      }
-      agent.interrupt(threadId)
-    },
-
-    respondApproval(
-      threadId: string,
-      itemId: string,
-      decision: ApprovalDecision,
-      message?: string,
-      updatedPermissions?: unknown[]
-    ) {
-      if (!store.getThread(threadId)) {
-        throw new StoreError('not_found', `Thread ${threadId} not found`)
-      }
-      if (!agent.respondToApproval(threadId, itemId, decision, message, updatedPermissions)) {
-        throw new StoreError('not_found', `No pending approval ${itemId}`)
-      }
-    },
-
-    respondQuestion(threadId: string, itemId: string, answers: Record<string, string>) {
-      if (!store.getThread(threadId)) {
-        throw new StoreError('not_found', `Thread ${threadId} not found`)
-      }
-      if (!agent.respondToQuestion(threadId, itemId, answers)) {
-        throw new StoreError('not_found', `No pending question ${itemId}`)
-      }
-    },
-
-    isActive(threadId: string) {
-      return liveTurns.has(threadId) || store.getThreadState(threadId).activeTurnId !== null
-    },
-  }
+export function orchestratorLayer(
+  store: Store,
+  hub: Hub,
+  titler: Titler | null,
+  attachments: Attachments
+) {
+  return Layer.effect(
+    OrchestratorService,
+    Effect.gen(function* () {
+      return yield* createOrchestrator(store, yield* AgentService, hub, titler, attachments)
+    })
+  )
 }

@@ -29,6 +29,7 @@ export function createSendImagesTool(host: MediaToolHost) {
       caption: z.string().optional().describe('Optional caption shown with the gallery'),
     },
     async (args) => {
+      const turnId = host.turnId()
       const images: Attachment[] = []
       const copied: string[] = []
       try {
@@ -47,18 +48,21 @@ export function createSendImagesTool(host: MediaToolHost) {
 
       const caption = args.caption?.trim()
       const itemId = newId()
-      host.emit({
-        type: 'item.started',
-        item: {
-          id: itemId,
-          turnId: host.turnId(),
-          createdAt: Date.now(),
-          kind: 'image_gallery',
-          images,
-          ...(caption ? { caption } : {}),
+      await host.emit(
+        {
+          type: 'item.started',
+          item: {
+            id: itemId,
+            turnId,
+            createdAt: Date.now(),
+            kind: 'image_gallery',
+            images,
+            ...(caption ? { caption } : {}),
+          },
         },
-      })
-      host.emit({ type: 'item.completed', itemId })
+        turnId
+      )
+      await host.emit({ type: 'item.completed', itemId }, turnId)
 
       const names = images.map((img) => img.name).join(', ')
       return {

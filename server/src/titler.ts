@@ -4,4 +4,6 @@
  * implementation (createClaudeTitler today; a codex/ACP titler slots in the
  * same way), selected in main.ts.
  */
-export type Titler = (text: string) => Promise<string | null>
+import type { Effect } from 'effect'
+
+export type Titler = (text: string) => Effect.Effect<string | null>

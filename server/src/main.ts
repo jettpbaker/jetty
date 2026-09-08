@@ -1,18 +1,20 @@
 import type { Usage } from '@jetty/shared/wire'
 
+import { BunRuntime } from '@effect/platform-bun'
+import { Context, Effect, Fiber, Layer, ManagedRuntime, Scope } from 'effect'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
 import type { Titler } from './titler'
 
-import { createEchoAdapter, type Agent, type AgentHooks } from './agent'
-import { createAttachments, type Attachments } from './attachments'
-import { createClaudeAdapter } from './claude'
+import { AgentService, echoLayer, type Agent } from './agent'
+import { createAttachments } from './attachments'
+import { claudeLayer } from './claude'
 import { createClaudeTitler } from './claude-titler'
 import { openDb } from './db'
 import { createHub, type ConnData } from './hub'
-import { createOrchestrator } from './orchestrator'
+import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
 import { createStore, type Store } from './store'
 import { createWs } from './ws'
@@ -25,16 +27,6 @@ export type ServerOptions = {
   agent?: 'echo' | 'claude' | Agent
   /** Override titler (defaults to real titler for claude, null for echo). */
   titler?: Titler | null
-}
-
-function selectAgent(
-  kind: 'echo' | 'claude' | Agent,
-  store: Store,
-  attachments: Attachments,
-  hooks: AgentHooks
-): Agent {
-  if (typeof kind !== 'string') return kind
-  return kind === 'echo' ? createEchoAdapter(hooks) : createClaudeAdapter(store, attachments, hooks)
 }
 
 function selectTitler(kind: 'echo' | 'claude' | Agent): Titler | null {
@@ -93,97 +85,153 @@ function originAllowed(req: Request): boolean {
   }
 }
 
-export function startServer(opts: ServerOptions = {}) {
-  const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
-  const port = opts.port ?? Number(process.env.PORT ?? 8787)
-  const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
-  const agentKind =
-    opts.agent ?? (process.env.JETTY_AGENT === 'echo' ? ('echo' as const) : ('claude' as const))
+function createServer(opts: ServerOptions = {}) {
+  return Effect.gen(function* () {
+    const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
+    const port = opts.port ?? Number(process.env.PORT ?? 8787)
+    const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
+    const agentKind =
+      opts.agent ?? (process.env.JETTY_AGENT === 'echo' ? ('echo' as const) : ('claude' as const))
 
-  const db = openDb(home)
-  const store = createStore(db)
-  reconcileOnStartup(store)
+    const db = yield* Effect.acquireRelease(
+      Effect.try(() => openDb(home)),
+      (db) => Effect.sync(() => db.close())
+    )
+    const store = createStore(db)
+    yield* Effect.try(() => reconcileOnStartup(store))
 
-  const attachments = createAttachments(home)
-  const hub = createHub()
-  let lastUsage: Usage | null = null
-  const agent = selectAgent(agentKind, store, attachments, {
-    onUsage(usage) {
-      lastUsage = usage
-      hub.pushChrome({ type: 'usage', usage })
-    },
+    const attachments = yield* Effect.try(() => createAttachments(home))
+    const hub = createHub()
+    let lastUsage: Usage | null = null
+    const hooks = {
+      onUsage(usage: Usage) {
+        lastUsage = usage
+        hub.pushChrome({ type: 'usage', usage })
+      },
+    }
+    const agentLayer =
+      typeof agentKind !== 'string'
+        ? Layer.succeed(AgentService, agentKind)
+        : agentKind === 'echo'
+          ? echoLayer(hooks)
+          : claudeLayer(store, attachments, hooks)
+    const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
+    const services = yield* Layer.build(
+      Layer.merge(
+        agentLayer,
+        orchestratorLayer(store, hub, titler, attachments).pipe(Layer.provide(agentLayer))
+      )
+    )
+    const agent = Context.get(services, AgentService)
+    const orch = Context.get(services, OrchestratorService)
+    const requestScope = yield* Scope.fork(yield* Effect.scope)
+    const context = yield* Effect.context<never>()
+    const run = Effect.runPromiseWith(context)
+    const ws = createWs(
+      store,
+      orch,
+      hub,
+      (effect) =>
+        run(
+          Effect.gen(function* () {
+            const fiber = yield* Effect.forkIn(effect, requestScope)
+            return yield* Fiber.join(fiber)
+          })
+        ),
+      () => lastUsage
+    )
+
+    const server = yield* Effect.acquireRelease(
+      Effect.try(() =>
+        Bun.serve<ConnData>({
+          port,
+          hostname,
+          async fetch(req, server) {
+            const url = new URL(req.url)
+            if (url.pathname === '/ws') {
+              // WebSockets bypass CORS: without this gate any webpage could open
+              // ws://localhost:8787 and drive the agent. Browser clients must come
+              // from a loopback origin (or JETTY_ALLOWED_ORIGINS); native clients
+              // send no Origin and are as trusted as anything else on this machine.
+              if (!originAllowed(req)) {
+                return new Response('Forbidden origin', { status: 403 })
+              }
+              if (server.upgrade(req, { data: { chrome: false, threads: new Set() } })) {
+                return undefined
+              }
+              return new Response('WebSocket upgrade failed', { status: 400 })
+            }
+
+            if (req.method === 'GET' && url.pathname.startsWith('/attachments/')) {
+              const id = url.pathname.slice('/attachments/'.length)
+              // single path segment only — reject nested paths / empty / encoded traversal
+              if (!id || id.includes('/') || id.includes('\\') || id.includes('..')) {
+                return new Response('Not found', { status: 404 })
+              }
+              const resolved = attachments.resolve(id)
+              if (!resolved) return new Response('Not found', { status: 404 })
+              const file = Bun.file(resolved.path)
+              if (!(await file.exists())) return new Response('Not found', { status: 404 })
+              return rangeResponse(file, resolved.mimeType, req.headers.get('Range'))
+            }
+
+            return serveStatic(url.pathname)
+          },
+          websocket: ws.handlers,
+        })
+      ),
+      (server) =>
+        Effect.sync(() => {
+          ws.stop()
+          server.stop(true)
+        })
+    )
+
+    const boundPort = server.port
+    if (boundPort === undefined)
+      return yield* Effect.fail(new Error('server failed to bind a port'))
+
+    return {
+      server,
+      home,
+      port: boundPort,
+      hostname: server.hostname,
+      store,
+      agent,
+    }
   })
-  const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
-  const orch = createOrchestrator(store, agent, hub, titler, attachments)
-  const ws = createWs(store, orch, hub, () => lastUsage)
+}
 
-  const server = Bun.serve<ConnData>({
-    port,
-    hostname,
-    async fetch(req, server) {
-      const url = new URL(req.url)
-      if (url.pathname === '/ws') {
-        // WebSockets bypass CORS: without this gate any webpage could open
-        // ws://localhost:8787 and drive the agent. Browser clients must come
-        // from a loopback origin (or JETTY_ALLOWED_ORIGINS); native clients
-        // send no Origin and are as trusted as anything else on this machine.
-        if (!originAllowed(req)) {
-          return new Response('Forbidden origin', { status: 403 })
-        }
-        if (server.upgrade(req, { data: { chrome: false, threads: new Set() } })) {
-          return undefined
-        }
-        return new Response('WebSocket upgrade failed', { status: 400 })
-      }
+export const ServerService =
+  Context.Service<Effect.Success<ReturnType<typeof createServer>>>('jetty/Server')
 
-      if (req.method === 'GET' && url.pathname.startsWith('/attachments/')) {
-        const id = url.pathname.slice('/attachments/'.length)
-        // single path segment only — reject nested paths / empty / encoded traversal
-        if (!id || id.includes('/') || id.includes('\\') || id.includes('..')) {
-          return new Response('Not found', { status: 404 })
-        }
-        const resolved = attachments.resolve(id)
-        if (!resolved) return new Response('Not found', { status: 404 })
-        const file = Bun.file(resolved.path)
-        if (!(await file.exists())) return new Response('Not found', { status: 404 })
-        return rangeResponse(file, resolved.mimeType, req.headers.get('Range'))
-      }
+export function serverLayer(opts: ServerOptions = {}) {
+  return Layer.effect(ServerService, createServer(opts))
+}
 
-      return serveStatic(url.pathname)
-    },
-    websocket: ws.handlers,
-  })
-
-  const boundPort = server.port
-  if (boundPort === undefined) throw new Error('server failed to bind a port')
-
-  return {
-    server,
-    home,
-    port: boundPort,
-    hostname: server.hostname,
-    store,
-    agent,
-    stop() {
-      server.stop(true)
-      db.close()
-    },
+export async function startServer(opts: ServerOptions = {}) {
+  const runtime = ManagedRuntime.make(serverLayer(opts))
+  try {
+    const running = await runtime.runPromise(ServerService)
+    let stopped: Promise<void> | undefined
+    return {
+      ...running,
+      stop() {
+        return (stopped ??= runtime.dispose())
+      },
+    }
+  } catch (error) {
+    await runtime.dispose()
+    throw error
   }
 }
 
 if (import.meta.main) {
-  const running = startServer()
-  console.log(`jetty listening on http://${running.hostname}:${running.port}`)
-  console.log(`websocket at ws://${running.hostname}:${running.port}/ws`)
-
-  const shutdown = () => {
-    console.log('shutting down…')
-    for (const thread of running.store.listThreads()) {
-      running.agent.interrupt(thread.id, 'server shutdown')
-    }
-    running.stop()
-    process.exit(0)
-  }
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+  BunRuntime.runMain(
+    Effect.gen(function* () {
+      const running = yield* ServerService
+      yield* Effect.logInfo(`jetty listening on http://${running.hostname}:${running.port}`)
+      yield* Effect.never
+    }).pipe(Effect.provide(serverLayer()))
+  )
 }
