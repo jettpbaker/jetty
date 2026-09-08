@@ -1,6 +1,8 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk'
 import type { ContextUsage } from '@jetty/shared/events'
 
+import { Cause, Clock, Effect, Fiber, type Scope } from 'effect'
+
 const DEFAULT_WINDOW = 200_000
 const NATIVE_1M_WINDOW = 1_000_000
 
@@ -105,72 +107,91 @@ const MOVEMENT_FRACTION = 0.005
 
 export type ContextPoller = {
   /** `force` skips the throttle and the movement threshold; turn end always forces. */
-  poll: (force?: boolean) => void
-  stop: () => void
+  poll: (force?: boolean) => Effect.Effect<void>
+  stop: () => Effect.Effect<void>
 }
 
 export function createContextPoller(io: {
-  read: () => Promise<ContextUsage | null>
-  emit: (usage: ContextUsage) => void
+  read: Effect.Effect<ContextUsage | null>
+  emit: (usage: ContextUsage) => Effect.Effect<void>
   pollMs?: number
-  now?: () => number
-}): ContextPoller {
-  const pollMs = io.pollMs ?? POLL_MS
-  const now = io.now ?? Date.now
-  let lastPollAt = Number.NEGATIVE_INFINITY
-  let inFlight = false
-  let forcedWaiting = false
-  let stopped = false
-  let lastEmitted: { usedTokens: number; maxTokens: number; compactAt?: number } | null = null
+}): Effect.Effect<ContextPoller, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const scope = yield* Effect.scope
+    const pollMs = io.pollMs ?? POLL_MS
+    let lastPollAt = Number.NEGATIVE_INFINITY
+    let inFlight = false
+    let fiber: Fiber.Fiber<void> | undefined
+    let forcedWaiting = false
+    let stopped = false
+    let lastEmitted: { usedTokens: number; maxTokens: number; compactAt?: number } | null = null
 
-  function shouldEmit(usage: ContextUsage, force: boolean): boolean {
-    if (!lastEmitted) return true
-    if (usage.maxTokens !== lastEmitted.maxTokens) return true
-    if (usage.compactAt !== lastEmitted.compactAt) return true
-    const delta = Math.abs(usage.usedTokens - lastEmitted.usedTokens)
-    // An unmoved number is not news, however authoritative the read was.
-    if (delta === 0) return false
-    if (force) return true
-    return delta >= Math.max(MOVEMENT_FLOOR, usage.maxTokens * MOVEMENT_FRACTION)
-  }
-
-  function poll(force = false) {
-    if (stopped) return
-    if (inFlight) {
-      // The forced read is the number that stays on screen after a turn, so it
-      // waits for the in-flight one instead of being dropped.
-      if (force) forcedWaiting = true
-      return
+    function shouldEmit(usage: ContextUsage, force: boolean): boolean {
+      if (!lastEmitted) return true
+      if (usage.maxTokens !== lastEmitted.maxTokens) return true
+      if (usage.compactAt !== lastEmitted.compactAt) return true
+      const delta = Math.abs(usage.usedTokens - lastEmitted.usedTokens)
+      // An unmoved number is not news, however authoritative the read was.
+      if (delta === 0) return false
+      if (force) return true
+      return delta >= Math.max(MOVEMENT_FLOOR, usage.maxTokens * MOVEMENT_FRACTION)
     }
-    const at = now()
-    if (!force && at - lastPollAt < pollMs) return
-    inFlight = true
-    lastPollAt = at
-    void io
-      .read()
-      .then((usage) => {
-        if (!usage || stopped || !shouldEmit(usage, force)) return
-        lastEmitted = {
-          usedTokens: usage.usedTokens,
-          maxTokens: usage.maxTokens,
-          compactAt: usage.compactAt,
-        }
-        io.emit(usage)
-      })
-      .catch(() => {})
-      .finally(() => {
-        inFlight = false
-        if (forcedWaiting) {
-          forcedWaiting = false
-          poll(true)
-        }
-      })
-  }
 
-  return {
-    poll,
-    stop() {
-      stopped = true
-    },
-  }
+    function poll(force = false) {
+      return Effect.gen(function* () {
+        if (stopped) return
+        if (inFlight) {
+          // The forced read is the number that stays on screen after a turn, so it
+          // waits for the in-flight one instead of being dropped.
+          if (force) forcedWaiting = true
+          return
+        }
+        const at = yield* Clock.currentTimeMillis
+        if (!force && at - lastPollAt < pollMs) return
+        inFlight = true
+        lastPollAt = at
+        const read = Effect.gen(function* () {
+          let readForce = force
+          do {
+            yield* Effect.gen(function* () {
+              const usage = yield* io.read
+              if (!usage || stopped || !shouldEmit(usage, readForce)) return
+              yield* io.emit(usage)
+              lastEmitted = {
+                usedTokens: usage.usedTokens,
+                maxTokens: usage.maxTokens,
+                compactAt: usage.compactAt,
+              }
+            }).pipe(
+              Effect.catchCause((cause) =>
+                Cause.hasInterrupts(cause) ? Effect.failCause(cause) : Effect.void
+              )
+            )
+            if (stopped || !forcedWaiting) return
+            forcedWaiting = false
+            readForce = true
+            lastPollAt = yield* Clock.currentTimeMillis
+          } while (!stopped)
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              inFlight = false
+            })
+          )
+        )
+        fiber = yield* Effect.forkIn(read, scope)
+      }).pipe(Effect.uninterruptible)
+    }
+
+    function stop() {
+      return Effect.gen(function* () {
+        stopped = true
+        forcedWaiting = false
+        if (fiber) yield* Fiber.interrupt(fiber)
+      }).pipe(Effect.uninterruptible)
+    }
+
+    yield* Effect.addFinalizer(stop)
+    return { poll, stop }
+  })
 }

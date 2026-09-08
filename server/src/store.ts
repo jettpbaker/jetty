@@ -38,56 +38,52 @@ type ThreadRow = {
 export type Store = ReturnType<typeof createStore>
 
 export function createStore(db: Database) {
-  const insertProject = db.prepare(
+  const insertProject = db.query(
     'INSERT INTO projects (id, path, title, created_at) VALUES (?, ?, ?, ?)'
   )
-  const selectProjects = db.prepare(
+  const selectProjects = db.query(
     'SELECT id, path, title, created_at FROM projects ORDER BY created_at'
   )
-  const selectProject = db.prepare('SELECT id, path, title, created_at FROM projects WHERE id = ?')
-  const selectProjectByPath = db.prepare(
+  const selectProject = db.query('SELECT id, path, title, created_at FROM projects WHERE id = ?')
+  const selectProjectByPath = db.query(
     'SELECT id, path, title, created_at FROM projects WHERE path = ?'
   )
 
-  const insertThread = db.prepare(
+  const insertThread = db.query(
     `INSERT INTO threads (id, project_id, title, status, archived, updated_at)
      VALUES (?, ?, ?, ?, 0, ?)`
   )
-  const selectThreads = db.prepare(
+  const selectThreads = db.query(
     `SELECT id, project_id, title, status, archived, updated_at
      FROM threads ORDER BY updated_at DESC`
   )
-  const selectThread = db.prepare(
+  const selectThread = db.query(
     `SELECT id, project_id, title, status, archived, updated_at
      FROM threads WHERE id = ?`
   )
-  const selectThreadSessionId = db.prepare('SELECT agent_session_id FROM threads WHERE id = ?')
-  const updateThreadSessionId = db.prepare('UPDATE threads SET agent_session_id = ? WHERE id = ?')
-  const updateThreadArchive = db.prepare(
+  const selectThreadSessionId = db.query('SELECT agent_session_id FROM threads WHERE id = ?')
+  const updateThreadSessionId = db.query('UPDATE threads SET agent_session_id = ? WHERE id = ?')
+  const updateThreadArchive = db.query(
     'UPDATE threads SET archived = 1, updated_at = ? WHERE id = ?'
   )
-  const updateThreadStatus = db.prepare(
-    'UPDATE threads SET status = ?, updated_at = ? WHERE id = ?'
-  )
-  const touchThread = db.prepare('UPDATE threads SET updated_at = ? WHERE id = ?')
-  const updateThreadTitle = db.prepare('UPDATE threads SET title = ?, updated_at = ? WHERE id = ?')
+  const updateThreadStatus = db.query('UPDATE threads SET status = ?, updated_at = ? WHERE id = ?')
+  const touchThread = db.query('UPDATE threads SET updated_at = ? WHERE id = ?')
+  const updateThreadTitle = db.query('UPDATE threads SET title = ?, updated_at = ? WHERE id = ?')
 
-  const insertEvent = db.prepare(
+  const insertEvent = db.query(
     'INSERT INTO thread_events (thread_id, seq, ts, payload_json) VALUES (?, ?, ?, ?)'
   )
-  const selectEventsAfter = db.prepare(
+  const selectEventsAfter = db.query(
     `SELECT seq, ts, payload_json FROM thread_events
      WHERE thread_id = ? AND seq > ?
      ORDER BY seq`
   )
 
-  const upsertState = db.prepare(
+  const upsertState = db.query(
     `INSERT INTO thread_states (thread_id, state_json, last_seq) VALUES (?, ?, ?)
      ON CONFLICT(thread_id) DO UPDATE SET state_json = excluded.state_json, last_seq = excluded.last_seq`
   )
-  const selectState = db.prepare(
-    'SELECT state_json, last_seq FROM thread_states WHERE thread_id = ?'
-  )
+  const selectState = db.query('SELECT state_json, last_seq FROM thread_states WHERE thread_id = ?')
 
   const appendTx = db.transaction((threadId: string, event: ThreadEvent): AppendedEvent => {
     const prev = getThreadState(threadId)

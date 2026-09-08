@@ -1,5 +1,3 @@
-import type { ThreadEvent } from '@jetty/shared/events'
-
 import {
   query,
   type Options,
@@ -8,34 +6,79 @@ import {
   type Query,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk'
-import { type ApprovalDecision, QuestionSpec, type ThreadItem } from '@jetty/shared/items'
+import { type ThreadEvent } from '@jetty/shared/events'
+import { type ApprovalDecision, QuestionSpec } from '@jetty/shared/items'
 import { newId, type PermissionMode } from '@jetty/shared/wire'
-import { Result, Schema } from 'effect'
+import {
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Queue,
+  Result,
+  Schema,
+  Scope,
+  Semaphore,
+  Stream,
+} from 'effect'
 
-import type { Agent, AgentHooks, AgentImage, TurnInput } from './agent'
 import type { Attachments } from './attachments'
 import type { Store } from './store'
 
+import {
+  AgentError,
+  AgentService,
+  type Agent,
+  type AgentHooks,
+  type AgentImage,
+  type Emit,
+  type TurnInput,
+} from './agent'
 import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
-import { type ContextPoller, createContextPoller, readContextUsage } from './context-usage'
-import { slog } from './log'
+import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
 import { createJettyMcpServer, SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 import { readUsage } from './usage'
 
 const AUTO_ALLOWED_TOOLS = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL])
-
 const DEFAULT_TTL_MS = 10 * 60 * 1000
-/** Fallback when a turn omits model — the composer normally always sends one. */
-const DEFAULT_MODEL = 'haiku'
 
-// Overlapping spawn/result usage reads skip instead of stacking duplicate SDK calls.
-let usageInFlight = false
+export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
+export type ClaudeOptions = { query?: QueryFactory; ttlMs?: number; interruptGraceMs?: number }
 
-type SdkPermissionMode = NonNullable<Options['permissionMode']>
+type PendingApproval = {
+  result: Deferred.Deferred<PermissionResult>
+  input: Record<string, unknown>
+}
 
-/** Map jetty wire PermissionMode → Claude Agent SDK permissionMode. */
-function toSdkPermissionMode(mode: PermissionMode | undefined): SdkPermissionMode {
+type WarmSession = {
+  threadId: string
+  query: Query
+  input: Queue.Queue<SDKUserMessage, Cause.Done>
+  scope: Scope.Closeable
+  spawnKey: string
+  activeTurnId: string
+  pendingApprovals: Map<string, PendingApproval>
+  pendingQuestions: Map<string, PendingApproval>
+  idle: Fiber.Fiber<void> | null
+  grace: Fiber.Fiber<void> | null
+  ctx: TranslateCtx
+  emit: Emit
+  closed: boolean
+  queryClosed: boolean
+  awaitingResult: boolean
+  accepting: boolean
+  failReason: string | null
+  done: Deferred.Deferred<void, AgentError>
+  contextPoller: ContextPoller
+  publication: Semaphore.Semaphore
+}
+
+function toSdkPermissionMode(
+  mode: PermissionMode | undefined
+): NonNullable<Options['permissionMode']> {
   switch (mode ?? 'auto') {
     case 'full_access':
       return 'bypassPermissions'
@@ -46,495 +89,597 @@ function toSdkPermissionMode(mode: PermissionMode | undefined): SdkPermissionMod
   }
 }
 
-type PendingApproval = {
-  resolve: (result: PermissionResult) => void
-  input: Record<string, unknown>
-}
-
-type TurnWaiter = {
-  turnId: string
-  resolve: () => void
-}
-
-type WarmSession = {
-  threadId: string
-  query: Query
-  pushMessage: (text: string, images?: AgentImage[]) => void
-  endQueue: () => void
-  /** resolved model/effort/permission fingerprint the session was spawned with */
-  spawnKey: string
-  activeTurnId: string
-  pendingApprovals: Map<string, PendingApproval>
-  pendingQuestions: Map<string, PendingApproval>
-  idleTimer: ReturnType<typeof setTimeout> | null
-  ctx: TranslateCtx
-  emit: (event: ThreadEvent) => void
-  closed: boolean
-  awaitingResult: boolean
-  failReason: string | null
-  turnWaiter: TurnWaiter | null
-  contextPoller: ContextPoller
-}
-
-/** Resolved options a session runs under; a mismatch means recycle. */
 function resolvedModel(input: TurnInput): string {
-  return input.model ?? process.env.JETTY_DEFAULT_MODEL ?? DEFAULT_MODEL
+  return input.model ?? process.env.JETTY_DEFAULT_MODEL ?? 'haiku'
 }
 
 function turnOptionsKey(input: TurnInput): string {
   return `${resolvedModel(input)}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
 }
 
-function createQueue() {
-  const pending: SDKUserMessage[] = []
-  let wake: (() => void) | null = null
-  let done = false
-
-  function notify() {
-    const w = wake
-    wake = null
-    w?.()
-  }
-
+function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
   return {
-    push(text: string, images?: AgentImage[]) {
-      if (done) return
-      const content =
-        images && images.length > 0
-          ? [
-              ...images.map((img) => ({
-                type: 'image' as const,
-                source: {
-                  type: 'base64' as const,
-                  media_type: img.mimeType,
-                  data: img.base64data,
-                },
-              })),
-              { type: 'text' as const, text },
-            ]
-          : text
-      pending.push({
-        type: 'user',
-        message: { role: 'user', content },
-        parent_tool_use_id: null,
-      })
-      notify()
+    type: 'user',
+    message: {
+      role: 'user',
+      content: images?.length
+        ? [
+            ...images.map((image) => ({
+              type: 'image' as const,
+              source: {
+                type: 'base64' as const,
+                media_type: image.mimeType,
+                data: image.base64data,
+              },
+            })),
+            { type: 'text' as const, text },
+          ]
+        : text,
     },
-    end() {
-      done = true
-      notify()
-    },
-    iterable: {
-      async *[Symbol.asyncIterator]() {
-        while (true) {
-          while (pending.length > 0) {
-            yield pending.shift()!
-          }
-          if (done) return
-          await new Promise<void>((resolve) => {
-            wake = resolve
-          })
-        }
-      },
-    },
+    parent_tool_use_id: null,
   }
 }
 
 export function createClaudeAdapter(
   store: Store,
   attachments: Attachments,
-  hooks: AgentHooks = {}
-): Agent {
-  const sessions = new Map<string, WarmSession>()
-  const ttlMs = Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
+  hooks: AgentHooks = {},
+  config: ClaudeOptions = {}
+): Effect.Effect<Agent, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const owner = yield* Effect.scope
+    const context = yield* Effect.context<never>()
+    const run = Effect.runPromiseWith(context)
+    const sessions = new Map<string, WarmSession>()
+    const ttlMs = config.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
+    const makeQuery = config.query ?? query
+    let usageInFlight = false
 
-  function requestUsage(session: WarmSession) {
-    if (usageInFlight || session.closed || !hooks.onUsage) return
-    usageInFlight = true
-    void readUsage(session.query)
-      .then((usage) => {
-        if (usage) hooks.onUsage?.(usage)
-      })
-      .finally(() => {
-        usageInFlight = false
-      })
-  }
+    function current(session: WarmSession) {
+      return !session.closed && sessions.get(session.threadId) === session
+    }
 
-  function clearIdle(session: WarmSession) {
-    if (session.idleTimer) {
-      clearTimeout(session.idleTimer)
-      session.idleTimer = null
-    }
-  }
-
-  function settleTurn(session: WarmSession) {
-    session.awaitingResult = false
-    const waiter = session.turnWaiter
-    if (waiter) {
-      session.turnWaiter = null
-      waiter.resolve()
-    }
-  }
-
-  function denyPendingApprovals(session: WarmSession) {
-    for (const [itemId, pending] of session.pendingApprovals) {
-      try {
-        session.emit({
-          type: 'item.completed',
-          itemId,
-          patch: { decision: 'deny' satisfies ApprovalDecision },
-        })
-      } catch {
-        // emit may fail if store is gone
-      }
-      pending.resolve({ behavior: 'deny', message: 'Denied by user' })
-    }
-    session.pendingApprovals.clear()
-    for (const [itemId, pending] of session.pendingQuestions) {
-      try {
-        session.emit({ type: 'item.completed', itemId, patch: { skipped: true } })
-      } catch {
-        // emit may fail if store is gone
-      }
-      pending.resolve({ behavior: 'deny', message: 'The user did not answer the questions' })
-    }
-    session.pendingQuestions.clear()
-  }
-
-  function closeSession(threadId: string, reason?: string) {
-    const session = sessions.get(threadId)
-    if (!session || session.closed) return
-    slog('claude', `close session thread=${threadId} reason=${reason ?? 'idle ttl'}`)
-    session.closed = true
-    session.contextPoller.stop()
-    clearIdle(session)
-    denyPendingApprovals(session)
-    session.endQueue()
-    try {
-      session.query.close()
-    } catch {
-      // already closed
-    }
-    if (session.awaitingResult) {
-      const error = reason ?? session.failReason ?? 'stream ended'
-      try {
-        session.emit({ type: 'turn.failed', turnId: session.activeTurnId, error })
-      } catch {
-        // store may be gone
-      }
-    }
-    settleTurn(session)
-    if (sessions.get(threadId) === session) {
-      sessions.delete(threadId)
-    }
-  }
-
-  function armIdle(session: WarmSession) {
-    clearIdle(session)
-    if (ttlMs === 0) {
-      closeSession(session.threadId)
-      return
-    }
-    session.idleTimer = setTimeout(() => {
-      closeSession(session.threadId)
-    }, ttlMs)
-  }
-
-  async function runLoop(session: WarmSession) {
-    try {
-      for await (const msg of session.query) {
-        if (session.closed) break
-        slog(
-          'claude',
-          `msg thread=${session.threadId} type=${msg.type}${'subtype' in msg ? ` subtype=${String(msg.subtype)}` : ''}`
+    function publish(session: WarmSession, event: ThreadEvent) {
+      return Effect.gen(function* () {
+        const grace = yield* session.publication.withPermit(
+          Effect.gen(function* () {
+            if (!current(session)) return null
+            const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
+            if (terminal && !session.awaitingResult) return null
+            if (terminal) session.accepting = false
+            yield* session.emit(
+              terminal && session.failReason
+                ? { type: 'turn.failed', turnId: session.activeTurnId, error: session.failReason }
+                : event
+            )
+            if (terminal) {
+              session.awaitingResult = false
+              yield* Deferred.succeed(session.done, undefined)
+              const grace = session.grace
+              session.grace = null
+              return grace
+            }
+            return null
+          })
         )
-
-        const events = translate(msg as Parameters<typeof translate>[0], session.ctx)
-
-        if (session.ctx.sessionId) {
-          store.setThreadSessionId(session.threadId, session.ctx.sessionId)
-          session.ctx.sessionId = null
-        }
-
-        for (const event of events) {
-          session.emit(event)
-          if (event.type === 'turn.completed' || event.type === 'turn.failed') {
-            settleTurn(session)
-          }
-        }
-
-        if (msg.type === 'result' && !session.closed) {
-          // Read usage while the query is still alive — before armIdle may close it.
-          requestUsage(session)
-          session.contextPoller.poll(true)
-          if (session.awaitingResult) {
-            // result message without translate emitting (shouldn't happen) — still settle
-            settleTurn(session)
-          }
-          armIdle(session)
-        } else if (
-          msg.type === 'system' &&
-          'subtype' in msg &&
-          msg.subtype === 'compact_boundary' &&
-          !session.closed
-        ) {
-          // Last-request API totals stay pre-compact until the next call;
-          // force a read so the ring can drop on the category recount.
-          session.contextPoller.poll(true)
-        } else if (!session.closed) {
-          session.contextPoller.poll()
-        }
-      }
-
-      if (!session.closed) {
-        closeSession(session.threadId, session.failReason ?? 'stream ended')
-      }
-    } catch (err) {
-      if (session.closed) return
-      const message = err instanceof Error ? err.message : String(err)
-      closeSession(session.threadId, session.failReason ?? message)
-    }
-  }
-
-  function spawnSession(
-    input: TurnInput,
-    emit: (event: ThreadEvent) => void,
-    projectPath: string
-  ): WarmSession {
-    const queue = createQueue()
-    const sessionId = store.getThreadSessionId(input.threadId) ?? undefined
-    const sessionRef: { current: WarmSession | null } = { current: null }
-
-    const canUseTool: NonNullable<Options['canUseTool']> = async (toolName, toolInput, options) => {
-      const session = sessionRef.current
-      if (!session || session.closed) {
-        return { behavior: 'deny', message: 'Session closed' }
-      }
-
-      // send_images / send_video only copy into jetty's own store — never need approval.
-      if (AUTO_ALLOWED_TOOLS.has(toolName)) {
-        return { behavior: 'allow', updatedInput: toolInput }
-      }
-
-      // AskUserQuestion isn't a permission: the SDK routes it here so the host
-      // can render the question and return the answers via updatedInput.
-      if (toolName === 'AskUserQuestion') {
-        const parsed = Schema.decodeUnknownResult(Schema.Array(QuestionSpec))(
-          (toolInput as { questions?: unknown }).questions
-        )
-        if (Result.isFailure(parsed)) {
-          return { behavior: 'deny', message: 'Malformed questions' }
-        }
-        const itemId = newId()
-        session.emit({
-          type: 'item.started',
-          item: {
-            id: itemId,
-            turnId: session.activeTurnId,
-            createdAt: Date.now(),
-            kind: 'question',
-            questions: parsed.success,
-          },
-        })
-        session.emit({ type: 'session.status', status: 'awaiting_approval' })
-        return new Promise<PermissionResult>((resolve) => {
-          session.pendingQuestions.set(itemId, { resolve, input: toolInput })
-        })
-      }
-
-      const itemId = newId()
-      const item: ThreadItem = {
-        id: itemId,
-        turnId: session.activeTurnId,
-        createdAt: Date.now(),
-        kind: 'approval',
-        title: options.title ?? toolName,
-        toolName,
-        input: toolInput,
-        suggestions: options.suggestions ?? [],
-      }
-      session.emit({ type: 'item.started', item })
-      session.emit({ type: 'session.status', status: 'awaiting_approval' })
-
-      return new Promise<PermissionResult>((resolve) => {
-        session.pendingApprovals.set(itemId, { resolve, input: toolInput })
+        if (grace) yield* Fiber.interrupt(grace)
       })
     }
 
-    const jetty = createJettyMcpServer({
-      attachments,
-      projectPath,
-      turnId: () => sessionRef.current?.activeTurnId ?? input.turnId,
-      emit: (event) => {
-        sessionRef.current?.emit(event)
-      },
-    })
-
-    const permissionMode = toSdkPermissionMode(input.permissionMode)
-    const options: Options = {
-      cwd: projectPath,
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
-      settingSources: ['user', 'project', 'local'],
-      model: resolvedModel(input),
-      effort: input.effort,
-      permissionMode,
-      allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
-      includePartialMessages: true,
-      canUseTool,
-      resume: sessionId,
-      mcpServers: { jetty },
-      allowedTools: [SEND_IMAGES_TOOL, SEND_VIDEO_TOOL],
-    }
-
-    const q = query({ prompt: queue.iterable, options })
-
-    const session: WarmSession = {
-      threadId: input.threadId,
-      query: q,
-      pushMessage: queue.push,
-      endQueue: queue.end,
-      spawnKey: turnOptionsKey(input),
-      activeTurnId: input.turnId,
-      pendingApprovals: new Map(),
-      pendingQuestions: new Map(),
-      idleTimer: null,
-      ctx: createTranslateCtx(input.turnId),
-      emit,
-      closed: false,
-      awaitingResult: true,
-      failReason: null,
-      turnWaiter: null,
-      contextPoller: createContextPoller({
-        read: () => readContextUsage(q),
-        emit: (usage) => emit({ type: 'context.updated', usage }),
-      }),
-    }
-    sessionRef.current = session
-    sessions.set(input.threadId, session)
-    void runLoop(session)
-    requestUsage(session)
-    session.contextPoller.poll()
-    return session
-  }
-
-  function beginTurn(
-    session: WarmSession,
-    input: TurnInput,
-    emit: (event: ThreadEvent) => void
-  ): Promise<void> {
-    clearIdle(session)
-    session.activeTurnId = input.turnId
-    session.ctx = createTranslateCtx(input.turnId)
-    session.emit = emit
-    session.awaitingResult = true
-    session.failReason = null
-
-    return new Promise<void>((resolve) => {
-      session.turnWaiter = { turnId: input.turnId, resolve }
-      emit({ type: 'turn.started', turnId: input.turnId })
-      session.pushMessage(input.text, input.images)
-    })
-  }
-
-  return {
-    async startTurn(input: TurnInput, emit: (event: ThreadEvent) => void): Promise<void> {
-      const thread = store.getThread(input.threadId)
-      if (!thread) throw new Error(`Thread ${input.threadId} not found`)
-      const project = store.getProject(thread.projectId)
-      if (!project) throw new Error(`Project ${thread.projectId} not found`)
-
-      const existing = sessions.get(input.threadId)
-      if (existing && !existing.closed) {
-        // mid-turn the options can't change anyway; otherwise a picker change
-        // recycles the session — the fresh one resumes the stored CC
-        // sessionId, so conversation context survives
-        if (existing.awaitingResult || existing.spawnKey === turnOptionsKey(input)) {
-          slog('claude', `reuse warm session thread=${input.threadId} turn=${input.turnId}`)
-          return beginTurn(existing, input, emit)
+    function denyPending(session: WarmSession) {
+      return Effect.gen(function* () {
+        for (const [itemId, pending] of session.pendingApprovals) {
+          yield* session
+            .emit({
+              type: 'item.completed',
+              itemId,
+              patch: { decision: 'deny' satisfies ApprovalDecision },
+            })
+            .pipe(Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error))))
+          session.pendingApprovals.delete(itemId)
+          yield* Deferred.succeed(pending.result, { behavior: 'deny', message: 'Denied by user' })
         }
-        slog('claude', `recycle session thread=${input.threadId} (options changed)`)
-        closeSession(input.threadId)
-      }
+        session.pendingApprovals.clear()
+        for (const [itemId, pending] of session.pendingQuestions) {
+          yield* session
+            .emit({ type: 'item.completed', itemId, patch: { skipped: true } })
+            .pipe(Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error))))
+          session.pendingQuestions.delete(itemId)
+          yield* Deferred.succeed(pending.result, {
+            behavior: 'deny',
+            message: 'The user did not answer the questions',
+          })
+        }
+        session.pendingQuestions.clear()
+      })
+    }
 
-      const session = spawnSession(input, emit, project.path)
-      slog(
-        'claude',
-        `spawn thread=${input.threadId} turn=${input.turnId} model=${resolvedModel(input)} cwd=${project.path} resume=${store.getThreadSessionId(input.threadId) ?? 'fresh'}`
-      )
-      return beginTurn(session, input, emit)
-    },
-
-    steer(threadId: string, text: string, images?: AgentImage[]): boolean {
-      const session = sessions.get(threadId)
-      if (!session || session.closed) return false
-      clearIdle(session)
-      session.pushMessage(text, images)
-      return true
-    },
-
-    interrupt(threadId: string, reason = 'interrupted') {
-      const session = sessions.get(threadId)
-      if (!session || session.closed) return
-      session.failReason = reason
-      const interruptedTurnId = session.activeTurnId
-      denyPendingApprovals(session)
-      void session.query.interrupt().catch(() => {})
-      setTimeout(() => {
+    function closeResources(
+      session: WarmSession,
+      reason = 'server shutdown',
+      expected?: { turnId: string; awaitingResult: boolean }
+    ) {
+      return Effect.gen(function* () {
+        if (session.closed) return false
         if (
-          sessions.get(threadId) === session &&
-          !session.closed &&
-          session.activeTurnId === interruptedTurnId
-        ) {
-          closeSession(threadId, session.failReason ?? reason)
+          expected &&
+          (!current(session) ||
+            session.activeTurnId !== expected.turnId ||
+            session.awaitingResult !== expected.awaitingResult)
+        )
+          return false
+        session.closed = true
+        session.accepting = false
+        yield* Queue.end(session.input)
+        yield* Effect.try(() => closeQuery(session)).pipe(Effect.ignore)
+        yield* denyPending(session).pipe(Effect.ignore)
+        if (session.awaitingResult) {
+          session.awaitingResult = false
+          yield* session
+            .emit({
+              type: 'turn.failed',
+              turnId: session.activeTurnId,
+              error: session.failReason ?? reason,
+            })
+            .pipe(Effect.ignore)
         }
-      }, 2000)
-    },
+        yield* Deferred.succeed(session.done, undefined)
+        if (sessions.get(session.threadId) === session) sessions.delete(session.threadId)
+        return true
+      }).pipe(session.publication.withPermit, Effect.uninterruptible)
+    }
 
-    respondToApproval(
-      threadId: string,
-      itemId: string,
-      decision: ApprovalDecision,
-      message?: string,
-      updatedPermissions?: unknown[]
-    ): boolean {
-      const session = sessions.get(threadId)
-      if (!session || session.closed) return false
-      const pending = session.pendingApprovals.get(itemId)
-      if (!pending) return false
-      session.pendingApprovals.delete(itemId)
+    function closeQuery(session: WarmSession) {
+      if (session.queryClosed) return
+      session.queryClosed = true
+      session.query.close()
+    }
 
-      if (decision === 'allow') {
-        session.emit({ type: 'item.completed', itemId, patch: { decision } })
-        session.emit({ type: 'session.status', status: 'running' })
-        pending.resolve({
-          behavior: 'allow',
-          updatedInput: pending.input,
-          updatedPermissions: updatedPermissions as PermissionUpdate[] | undefined,
-        })
-      } else {
-        const reason = message?.trim() ? message.trim() : undefined
-        session.emit({
-          type: 'item.completed',
-          itemId,
-          patch: { decision, ...(reason ? { deniedReason: reason } : {}) },
-        })
-        session.emit({ type: 'session.status', status: 'running' })
-        pending.resolve({ behavior: 'deny', message: reason ?? 'Denied by user' })
+    function closeSession(session: WarmSession, reason?: string) {
+      return closeResources(session, reason).pipe(
+        Effect.andThen(Scope.close(session.scope, Exit.void))
+      )
+    }
+
+    function retire(
+      session: WarmSession,
+      reason: string,
+      expected?: { turnId: string; awaitingResult: boolean }
+    ) {
+      return closeResources(session, reason, expected).pipe(
+        Effect.flatMap((closed) =>
+          closed ? Effect.forkIn(Scope.close(session.scope, Exit.void), owner) : Effect.void
+        ),
+        Effect.asVoid
+      )
+    }
+
+    function requestUsage(session: WarmSession) {
+      return Effect.gen(function* () {
+        if (usageInFlight || !current(session) || !hooks.onUsage) return
+        usageInFlight = true
+        yield* Effect.promise(() => readUsage(session.query)).pipe(
+          Effect.flatMap((usage) =>
+            Effect.sync(() => {
+              if (usage && current(session)) hooks.onUsage?.(usage)
+            })
+          ),
+          Effect.ensuring(
+            Effect.sync(() => {
+              usageInFlight = false
+            })
+          ),
+          Effect.forkIn(session.scope)
+        )
+      })
+    }
+
+    function armIdle(session: WarmSession) {
+      return Effect.gen(function* () {
+        if (session.idle) yield* Fiber.interrupt(session.idle)
+        const turnId = session.activeTurnId
+        session.idle = yield* Effect.sleep(ttlMs).pipe(
+          Effect.andThen(retire(session, 'idle ttl', { turnId, awaitingResult: false })),
+          Effect.forkIn(session.scope)
+        )
+      })
+    }
+
+    function readSession(session: WarmSession) {
+      const messages = {
+        [Symbol.asyncIterator]() {
+          const iterator = session.query[Symbol.asyncIterator]()
+          return {
+            next: () => iterator.next(),
+            return() {
+              closeQuery(session)
+              return iterator.return
+                ? iterator.return()
+                : Promise.resolve({ done: true as const, value: undefined })
+            },
+          }
+        },
       }
-      return true
-    },
+      return Stream.fromAsyncIterable(messages, (error) => new AgentError(String(error))).pipe(
+        Stream.runForEach((message) =>
+          Effect.gen(function* () {
+            if (!current(session)) return
+            if (!session.awaitingResult && message.type !== 'system') return
+            if (message.type === 'result') session.accepting = false
+            const events = yield* Effect.try({
+              try: () => translate(message as Parameters<typeof translate>[0], session.ctx),
+              catch: (error) => new AgentError(String(error)),
+            })
+            if (session.ctx.sessionId) {
+              yield* Effect.try({
+                try: () => store.setThreadSessionId(session.threadId, session.ctx.sessionId!),
+                catch: (error) => new AgentError(String(error)),
+              })
+              session.ctx.sessionId = null
+            }
+            for (const event of events) yield* publish(session, event)
+            if (message.type === 'result') {
+              yield* requestUsage(session)
+              yield* session.contextPoller.poll(true)
+              yield* armIdle(session)
+            } else {
+              yield* session.contextPoller.poll(
+                message.type === 'system' &&
+                  'subtype' in message &&
+                  message.subtype === 'compact_boundary'
+              )
+            }
+          })
+        ),
+        Effect.matchEffect({
+          onFailure: (error) => retire(session, error.message),
+          onSuccess: () => retire(session, 'stream ended'),
+        })
+      )
+    }
 
-    respondToQuestion(threadId: string, itemId: string, answers: Record<string, string>): boolean {
-      const session = sessions.get(threadId)
-      if (!session || session.closed) return false
-      const pending = session.pendingQuestions.get(itemId)
-      if (!pending) return false
-      session.pendingQuestions.delete(itemId)
+    function spawnSession(input: TurnInput, emit: Emit, projectPath: string) {
+      return Effect.gen(function* () {
+        const scope = yield* Scope.fork(owner)
+        const queue = yield* Queue.make<SDKUserMessage, Cause.Done>()
+        const done = yield* Deferred.make<void, AgentError>()
+        let session: WarmSession | undefined
 
-      session.emit({ type: 'item.completed', itemId, patch: { answers } })
-      session.emit({ type: 'session.status', status: 'running' })
-      pending.resolve({ behavior: 'allow', updatedInput: { ...pending.input, answers } })
-      return true
-    },
-  }
+        function callback<A>(effect: Effect.Effect<A, AgentError>, signal?: AbortSignal) {
+          return run(
+            Effect.gen(function* () {
+              if (!session || !current(session))
+                return yield* Effect.fail(new AgentError('Session closed'))
+              const fiber = yield* Effect.forkIn(effect, scope)
+              return yield* Fiber.join(fiber).pipe(Effect.onInterrupt(() => Fiber.interrupt(fiber)))
+            }),
+            { signal }
+          )
+        }
+
+        const canUseTool: NonNullable<Options['canUseTool']> = (toolName, toolInput, options) =>
+          callback(
+            Effect.gen(function* () {
+              if (!session) return { behavior: 'deny' as const, message: 'Session closed' }
+              const target = session
+              return yield* Effect.gen(function* () {
+                const result = yield* Deferred.make<PermissionResult>()
+                yield* target.publication.withPermit(
+                  Effect.gen(function* () {
+                    if (!current(target) || !target.accepting) {
+                      yield* Deferred.succeed(result, {
+                        behavior: 'deny',
+                        message: 'Session closed',
+                      })
+                      return
+                    }
+                    if (AUTO_ALLOWED_TOOLS.has(toolName)) {
+                      yield* Deferred.succeed(result, {
+                        behavior: 'allow',
+                        updatedInput: toolInput,
+                      })
+                      return
+                    }
+                    const itemId = newId()
+                    if (toolName === 'AskUserQuestion') {
+                      const parsed = Schema.decodeUnknownResult(Schema.Array(QuestionSpec))(
+                        (toolInput as { questions?: unknown }).questions
+                      )
+                      if (Result.isFailure(parsed)) {
+                        yield* Deferred.succeed(result, {
+                          behavior: 'deny',
+                          message: 'Malformed questions',
+                        })
+                        return
+                      }
+                      target.pendingQuestions.set(itemId, { result, input: toolInput })
+                      yield* target.emit({
+                        type: 'item.started',
+                        item: {
+                          id: itemId,
+                          turnId: target.activeTurnId,
+                          createdAt: Date.now(),
+                          kind: 'question',
+                          questions: parsed.success,
+                        },
+                      })
+                    } else {
+                      target.pendingApprovals.set(itemId, { result, input: toolInput })
+                      yield* target.emit({
+                        type: 'item.started',
+                        item: {
+                          id: itemId,
+                          turnId: target.activeTurnId,
+                          createdAt: Date.now(),
+                          kind: 'approval',
+                          title: options.title ?? toolName,
+                          toolName,
+                          input: toolInput,
+                          suggestions: options.suggestions ?? [],
+                        },
+                      })
+                    }
+                    yield* target.emit({ type: 'session.status', status: 'awaiting_approval' })
+                  }).pipe(
+                    Effect.onError(() =>
+                      Effect.sync(() => {
+                        target.accepting = false
+                      })
+                    )
+                  )
+                )
+                return yield* Deferred.await(result)
+              }).pipe(Effect.onError(() => retire(target, 'Unable to complete tool permission')))
+            }),
+            options.signal
+          ).catch(() => ({ behavior: 'deny' as const, message: 'Session closed' }))
+
+        const jetty = createJettyMcpServer({
+          attachments,
+          projectPath,
+          turnId: () => session?.activeTurnId ?? input.turnId,
+          emit: (event, turnId) =>
+            callback(
+              Effect.suspend(() =>
+                session && session.accepting && session.activeTurnId === turnId
+                  ? publish(session, event)
+                  : Effect.void
+              )
+            ),
+        })
+        const permissionMode = toSdkPermissionMode(input.permissionMode)
+        const q = yield* Effect.acquireRelease(
+          Effect.try({
+            try: () =>
+              makeQuery({
+                prompt: {
+                  async *[Symbol.asyncIterator]() {
+                    while (true) {
+                      const next = await run(Queue.take(queue).pipe(Effect.option))
+                      if (next._tag === 'None') return
+                      yield next.value
+                    }
+                  },
+                },
+                options: {
+                  cwd: projectPath,
+                  systemPrompt: { type: 'preset', preset: 'claude_code' },
+                  settingSources: ['user', 'project', 'local'],
+                  model: resolvedModel(input),
+                  effort: input.effort,
+                  permissionMode,
+                  allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
+                  includePartialMessages: true,
+                  canUseTool,
+                  resume: store.getThreadSessionId(input.threadId) ?? undefined,
+                  mcpServers: { jetty },
+                  allowedTools: [SEND_IMAGES_TOOL, SEND_VIDEO_TOOL],
+                },
+              }),
+            catch: (error) => new AgentError(String(error)),
+          }),
+          (q) => (session ? closeResources(session) : Effect.sync(() => q.close()))
+        ).pipe(
+          Scope.provide(scope),
+          Effect.onError(() => Scope.close(scope, Exit.void))
+        )
+        const poller = yield* createContextPoller({
+          read: Effect.promise(() => readContextUsage(q)),
+          emit: (usage) =>
+            Effect.suspend(() =>
+              session && current(session)
+                ? publish(session, { type: 'context.updated', usage }).pipe(Effect.ignore)
+                : Effect.void
+            ),
+        }).pipe(Scope.provide(scope))
+        session = {
+          threadId: input.threadId,
+          query: q,
+          input: queue,
+          scope,
+          spawnKey: turnOptionsKey(input),
+          activeTurnId: input.turnId,
+          pendingApprovals: new Map(),
+          pendingQuestions: new Map(),
+          idle: null,
+          grace: null,
+          ctx: createTranslateCtx(input.turnId),
+          emit,
+          closed: false,
+          queryClosed: false,
+          awaitingResult: false,
+          accepting: false,
+          failReason: null,
+          done,
+          contextPoller: poller,
+          publication: yield* Semaphore.make(1),
+        }
+        const created = session
+        sessions.set(input.threadId, created)
+        return created
+      })
+    }
+
+    return {
+      startTurn(input, emit) {
+        return Effect.gen(function* () {
+          const projectPath = yield* Effect.try({
+            try: () => {
+              const thread = store.getThread(input.threadId)
+              const project = thread && store.getProject(thread.projectId)
+              if (!project) throw new AgentError(`Thread ${input.threadId} project not found`)
+              return project.path
+            },
+            catch: (error) => (error instanceof AgentError ? error : new AgentError(String(error))),
+          })
+          let session = sessions.get(input.threadId)
+          if (session) {
+            const idle = session.idle
+            session.idle = null
+            if (idle) yield* Fiber.interrupt(idle)
+            yield* session.publication.withPermit(Effect.void)
+          }
+          if (session && !current(session)) session = undefined
+          if (session?.awaitingResult)
+            return yield* Effect.fail(new AgentError('Turn already active'))
+          if (session && session.spawnKey !== turnOptionsKey(input)) {
+            yield* closeSession(session, 'options changed')
+            session = undefined
+          }
+          const fresh = !session
+          session ??= yield* spawnSession(input, emit, projectPath)
+          const started = session
+          return yield* Effect.gen(function* () {
+            started.activeTurnId = input.turnId
+            started.ctx = createTranslateCtx(input.turnId)
+            started.emit = emit
+            started.awaitingResult = true
+            started.accepting = true
+            started.failReason = null
+            started.done = yield* Deferred.make<void, AgentError>()
+            yield* publish(started, { type: 'turn.started', turnId: input.turnId })
+            yield* Queue.offer(started.input, userMessage(input.text, input.images))
+            if (fresh) {
+              yield* Effect.forkIn(readSession(started), started.scope)
+              yield* requestUsage(started)
+              yield* started.contextPoller.poll()
+              yield* Scope.addFinalizer(started.scope, closeResources(started))
+            }
+            return { await: Deferred.await(started.done) }
+          }).pipe(Effect.onError(() => closeSession(started, 'Unable to start turn')))
+        })
+      },
+      steer(threadId, text, images) {
+        return Effect.gen(function* () {
+          const session = sessions.get(threadId)
+          if (!session || !current(session) || !session.accepting) return false
+          return yield* Queue.offer(session.input, userMessage(text, images))
+        })
+      },
+      interrupt(threadId, reason = 'interrupted') {
+        return Effect.gen(function* () {
+          const session = sessions.get(threadId)
+          if (!session) return
+          const turnId = yield* session.publication
+            .withPermit(
+              Effect.gen(function* () {
+                if (!current(session) || !session.awaitingResult) return null
+                session.failReason = reason
+                session.accepting = false
+                yield* denyPending(session)
+                return session.activeTurnId
+              })
+            )
+            .pipe(Effect.onError(() => retire(session, reason)))
+          if (turnId === null) return
+          if (!current(session) || !session.awaitingResult || session.activeTurnId !== turnId)
+            return
+          yield* Effect.tryPromise(() => session.query.interrupt()).pipe(
+            Effect.ignore,
+            Effect.forkIn(session.scope)
+          )
+          if (session.grace) yield* Fiber.interrupt(session.grace)
+          session.grace = yield* Effect.sleep(config.interruptGraceMs ?? 2000).pipe(
+            Effect.andThen(retire(session, reason, { turnId, awaitingResult: true })),
+            Effect.forkIn(session.scope)
+          )
+        })
+      },
+      respondToApproval(threadId, itemId, decision, message, updatedPermissions) {
+        return Effect.suspend(() => {
+          const session = sessions.get(threadId)
+          if (!session) return Effect.succeed(false)
+          return session.publication
+            .withPermit(
+              Effect.gen(function* () {
+                const pending = session.pendingApprovals.get(itemId)
+                if (!current(session) || !session.accepting || !pending) return false
+                const reason = message?.trim() || undefined
+                yield* session.emit({
+                  type: 'item.completed',
+                  itemId,
+                  patch: {
+                    decision,
+                    ...(decision === 'deny' && reason ? { deniedReason: reason } : {}),
+                  },
+                })
+                session.pendingApprovals.delete(itemId)
+                yield* session.emit({ type: 'session.status', status: 'running' }).pipe(
+                  Effect.ensuring(
+                    Deferred.succeed(
+                      pending.result,
+                      decision === 'allow'
+                        ? {
+                            behavior: 'allow',
+                            updatedInput: pending.input,
+                            updatedPermissions: updatedPermissions as
+                              | PermissionUpdate[]
+                              | undefined,
+                          }
+                        : { behavior: 'deny', message: reason ?? 'Denied by user' }
+                    )
+                  )
+                )
+                return true
+              })
+            )
+            .pipe(Effect.uninterruptible)
+        })
+      },
+      respondToQuestion(threadId, itemId, answers) {
+        return Effect.suspend(() => {
+          const session = sessions.get(threadId)
+          if (!session) return Effect.succeed(false)
+          return session.publication
+            .withPermit(
+              Effect.gen(function* () {
+                const pending = session.pendingQuestions.get(itemId)
+                if (!current(session) || !session.accepting || !pending) return false
+                yield* session.emit({ type: 'item.completed', itemId, patch: { answers } })
+                session.pendingQuestions.delete(itemId)
+                yield* session.emit({ type: 'session.status', status: 'running' }).pipe(
+                  Effect.ensuring(
+                    Deferred.succeed(pending.result, {
+                      behavior: 'allow',
+                      updatedInput: { ...pending.input, answers },
+                    })
+                  )
+                )
+                return true
+              })
+            )
+            .pipe(Effect.uninterruptible)
+        })
+      },
+    } satisfies Agent
+  })
+}
+
+export function claudeLayer(
+  store: Store,
+  attachments: Attachments,
+  hooks: AgentHooks = {},
+  options: ClaudeOptions = {}
+) {
+  return Layer.effect(AgentService, createClaudeAdapter(store, attachments, hooks, options))
 }

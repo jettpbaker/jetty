@@ -5,10 +5,15 @@ import { join } from 'node:path'
 export function openDb(home: string): Database {
   mkdirSync(home, { recursive: true })
   const db = new Database(join(home, 'jetty.db'))
-  db.run('PRAGMA journal_mode = WAL')
-  db.run('PRAGMA foreign_keys = ON')
-  migrate(db)
-  return db
+  try {
+    db.run('PRAGMA journal_mode = WAL')
+    db.run('PRAGMA foreign_keys = ON')
+    migrate(db)
+    return db
+  } catch (error) {
+    db.close()
+    throw error
+  }
 }
 
 function migrate(db: Database) {

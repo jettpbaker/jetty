@@ -1,4 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { Effect, Stream } from 'effect'
 
 import type { Titler } from './titler'
 
@@ -12,31 +13,53 @@ const REPLY_OPENER = /^(i['’]d|i['’]ll|i['’]m|i can|sure|happy|of course|c
 export function createClaudeTitler(
   model = process.env.JETTY_TITLER_MODEL ?? DEFAULT_TITLE_MODEL
 ): Titler {
-  return async (text: string) => {
-    try {
-      const q = query({
-        prompt: `Title this conversation opener:\n\n<opening-message>\n${text}\n</opening-message>`,
-        options: {
-          model,
-          maxTurns: 1,
-          allowedTools: [],
-          settingSources: [],
-          systemPrompt: SYSTEM_PROMPT,
-        },
-      })
+  return (text: string) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const q = yield* Effect.acquireRelease(
+          Effect.try(() =>
+            query({
+              prompt: `Title this conversation opener:\n\n<opening-message>\n${text}\n</opening-message>`,
+              options: {
+                model,
+                maxTurns: 1,
+                allowedTools: [],
+                settingSources: [],
+                systemPrompt: SYSTEM_PROMPT,
+              },
+            })
+          ),
+          (q) => Effect.try(() => q.close()).pipe(Effect.ignore)
+        )
 
-      let resultText: string | null = null
-      for await (const msg of q) {
-        if (msg.type === 'result' && msg.subtype === 'success') {
-          resultText = msg.result
+        let resultText: string | null = null
+        const messages = {
+          [Symbol.asyncIterator]() {
+            const iterator = q[Symbol.asyncIterator]()
+            return {
+              next: () => iterator.next(),
+              return() {
+                q.close()
+                return iterator.return
+                  ? iterator.return()
+                  : Promise.resolve({ done: true as const, value: undefined })
+              },
+            }
+          },
         }
-      }
+        yield* Stream.fromAsyncIterable(messages, (error) => error).pipe(
+          Stream.runForEach((msg) =>
+            Effect.sync(() => {
+              if (msg.type === 'result' && msg.subtype === 'success') {
+                resultText = msg.result
+              }
+            })
+          )
+        )
 
-      return normalizeTitle(resultText)
-    } catch {
-      return null
-    }
-  }
+        return normalizeTitle(resultText)
+      })
+    ).pipe(Effect.catch(() => Effect.succeed(null)))
 }
 
 function normalizeTitle(raw: string | null | undefined): string | null {

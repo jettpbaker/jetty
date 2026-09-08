@@ -2,6 +2,8 @@ import type { Query } from '@anthropic-ai/claude-agent-sdk'
 import type { ContextUsage } from '@jetty/shared/events'
 
 import { describe, expect, test } from 'bun:test'
+import { Deferred, Effect, type Scope } from 'effect'
+import { TestClock } from 'effect/testing'
 
 import { createContextPoller, readContextUsage, resolveContextWindow } from './context-usage'
 
@@ -218,126 +220,293 @@ function usageAt(usedTokens: number, maxTokens = 200_000): ContextUsage {
   return { usedTokens, maxTokens, slices: [], asOf: usedTokens }
 }
 
-/** Reads resolve only when the test says so, so a poll can be held in flight. */
-function pollerHarness(startAt = 0) {
-  const reads: ((usage: ContextUsage | null) => void)[] = []
-  const emitted: ContextUsage[] = []
-  let clock = startAt
-  const poller = createContextPoller({
-    read: () => new Promise<ContextUsage | null>((resolve) => reads.push(resolve)),
-    emit: (usage) => emitted.push(usage),
-    now: () => clock,
+function pollerHarness(
+  options: {
+    emit?: (usage: ContextUsage) => Effect.Effect<void>
+    pollMs?: number
+  } = {}
+) {
+  return Effect.gen(function* () {
+    const reads: Deferred.Deferred<ContextUsage | null>[] = []
+    const emitted: ContextUsage[] = []
+    const interrupted: number[] = []
+    const poller = yield* createContextPoller({
+      read: Effect.gen(function* () {
+        const response = yield* Deferred.make<ContextUsage | null>()
+        const index = reads.push(response) - 1
+        return yield* Deferred.await(response).pipe(
+          Effect.onInterrupt(() =>
+            Effect.sync(() => {
+              interrupted.push(index)
+            })
+          )
+        )
+      }),
+      emit: (usage) =>
+        Effect.gen(function* () {
+          if (options.emit) yield* options.emit(usage)
+          emitted.push(usage)
+        }),
+      pollMs: options.pollMs,
+    })
+    return {
+      poller: {
+        poll(force = false) {
+          return poller.poll(force).pipe(Effect.andThen(Effect.yieldNow))
+        },
+        stop: poller.stop,
+      },
+      reads,
+      emitted,
+      interrupted,
+      advance: TestClock.adjust,
+      settle(index: number, usage: ContextUsage | null) {
+        return Deferred.succeed(reads[index]!, usage).pipe(Effect.andThen(Effect.yieldNow))
+      },
+    }
   })
-  return {
-    poller,
-    reads,
-    emitted,
-    advance(ms: number) {
-      clock += ms
-    },
-    async settle(index: number, usage: ContextUsage | null) {
-      reads[index]!(usage)
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    },
-  }
+}
+
+function runPollerTest(program: Effect.Effect<void, never, Scope.Scope>) {
+  return Effect.runPromise(program.pipe(Effect.scoped, Effect.provide(TestClock.layer())))
 }
 
 describe('createContextPoller', () => {
-  test('emits the first read', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    await h.settle(0, usageAt(20_000))
-    expect(h.emitted).toEqual([usageAt(20_000)])
-  })
+  test('emits the first read', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
+        expect(h.emitted).toEqual([usageAt(20_000)])
+      })
+    ))
 
-  test('throttles unforced polls, force bypasses the throttle', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    await h.settle(0, usageAt(20_000))
-    h.advance(100)
-    h.poller.poll()
-    expect(h.reads).toHaveLength(1)
-    h.poller.poll(true)
-    expect(h.reads).toHaveLength(2)
-    h.advance(2500)
-    h.poller.poll()
-    expect(h.reads).toHaveLength(2) // the forced read is still in flight
-  })
+  test('throttles unforced polls, force bypasses the throttle', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
+        yield* h.advance(100)
+        yield* h.poller.poll()
+        expect(h.reads).toHaveLength(1)
+        yield* h.poller.poll(true)
+        expect(h.reads).toHaveLength(2)
+        yield* h.advance(2500)
+        yield* h.poller.poll()
+        expect(h.reads).toHaveLength(2) // the forced read is still in flight
+      })
+    ))
 
-  test('a forced poll arriving mid-read still lands once the read settles', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    h.poller.poll(true)
-    expect(h.reads).toHaveLength(1)
+  test('a forced poll arriving mid-read still lands once the read settles', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.poller.poll(true)
+        expect(h.reads).toHaveLength(1)
 
-    await h.settle(0, usageAt(20_000))
-    expect(h.reads).toHaveLength(2)
+        yield* h.settle(0, usageAt(20_000))
+        expect(h.reads).toHaveLength(2)
 
-    await h.settle(1, usageAt(40_000))
-    expect(h.emitted).toEqual([usageAt(20_000), usageAt(40_000)])
-  })
+        yield* h.settle(1, usageAt(40_000))
+        expect(h.emitted).toEqual([usageAt(20_000), usageAt(40_000)])
+      })
+    ))
 
-  test('holds mid-turn reads until the number moves, force lowers the bar', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    await h.settle(0, usageAt(20_000))
+  test('holds mid-turn reads until the number moves, force lowers the bar', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
 
-    h.advance(2500)
-    h.poller.poll()
-    await h.settle(1, usageAt(20_400))
-    expect(h.emitted).toHaveLength(1)
+        yield* h.advance(2500)
+        yield* h.poller.poll()
+        yield* h.settle(1, usageAt(20_400))
+        expect(h.emitted).toHaveLength(1)
 
-    h.poller.poll(true)
-    await h.settle(2, usageAt(20_400))
-    expect(h.emitted).toHaveLength(2)
-  })
+        yield* h.poller.poll(true)
+        yield* h.settle(2, usageAt(20_400))
+        expect(h.emitted).toHaveLength(2)
+      })
+    ))
 
-  test('an unmoved number is never emitted twice, even forced', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    await h.settle(0, usageAt(20_000))
-    h.poller.poll(true)
-    await h.settle(1, usageAt(20_000))
-    expect(h.emitted).toHaveLength(1)
-  })
+  test('an unmoved number is never emitted twice, even forced', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
+        yield* h.poller.poll(true)
+        yield* h.settle(1, usageAt(20_000))
+        expect(h.emitted).toHaveLength(1)
+      })
+    ))
 
-  test('a changed window emits even when the total is unmoved', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    await h.settle(0, usageAt(20_000, 200_000))
-    h.poller.poll(true)
-    await h.settle(1, usageAt(20_000, 1_000_000))
-    expect(h.emitted).toEqual([usageAt(20_000, 200_000), usageAt(20_000, 1_000_000)])
-  })
+  test('a changed window emits even when the total is unmoved', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000, 200_000))
+        yield* h.poller.poll(true)
+        yield* h.settle(1, usageAt(20_000, 1_000_000))
+        expect(h.emitted).toEqual([usageAt(20_000, 200_000), usageAt(20_000, 1_000_000)])
+      })
+    ))
 
-  test('a changed compact threshold emits even when the total is unmoved', async () => {
-    const h = pollerHarness()
-    const first = { ...usageAt(20_000), compactAt: 180_000 }
-    const second = { ...usageAt(20_000), compactAt: 835_000 }
-    h.poller.poll()
-    await h.settle(0, first)
-    h.poller.poll(true)
-    await h.settle(1, second)
-    expect(h.emitted).toEqual([first, second])
-  })
+  test('a changed compact threshold emits even when the total is unmoved', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        const first = { ...usageAt(20_000), compactAt: 180_000 }
+        const second = { ...usageAt(20_000), compactAt: 835_000 }
+        yield* h.poller.poll()
+        yield* h.settle(0, first)
+        yield* h.poller.poll(true)
+        yield* h.settle(1, second)
+        expect(h.emitted).toEqual([first, second])
+      })
+    ))
 
-  test('stop suppresses a read that resolves after the session closed', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    h.poller.stop()
-    await h.settle(0, usageAt(20_000))
-    expect(h.emitted).toHaveLength(0)
-    h.poller.poll(true)
-    expect(h.reads).toHaveLength(1)
-  })
+  test('stop suppresses a read that resolves after the session closed', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.poller.stop()
+        yield* h.settle(0, usageAt(20_000))
+        expect(h.emitted).toHaveLength(0)
+        yield* h.poller.poll(true)
+        expect(h.reads).toHaveLength(1)
+      })
+    ))
 
-  test('a failed read neither emits nor wedges the next poll', async () => {
-    const h = pollerHarness()
-    h.poller.poll()
-    await h.settle(0, null)
-    expect(h.emitted).toHaveLength(0)
-    h.poller.poll(true)
-    await h.settle(1, usageAt(20_000))
-    expect(h.emitted).toEqual([usageAt(20_000)])
-  })
+  test('a failed read neither emits nor wedges the next poll', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.settle(0, null)
+        expect(h.emitted).toHaveLength(0)
+        yield* h.poller.poll(true)
+        yield* h.settle(1, usageAt(20_000))
+        expect(h.emitted).toEqual([usageAt(20_000)])
+      })
+    ))
+
+  test('multiple forced polls coalesce into one follow-up read', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness()
+        yield* h.poller.poll()
+        yield* h.poller.poll(true)
+        yield* h.poller.poll(true)
+        yield* h.poller.poll(true)
+        expect(h.reads).toHaveLength(1)
+        yield* h.settle(0, null)
+        expect(h.reads).toHaveLength(2)
+        yield* h.settle(1, usageAt(20_000))
+        expect(h.reads).toHaveLength(2)
+        expect(h.emitted).toEqual([usageAt(20_000)])
+      })
+    ))
+
+  test('uses the configured throttle boundary from the Effect clock', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* pollerHarness({ pollMs: 100 })
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
+        yield* h.advance(99)
+        yield* h.poller.poll()
+        expect(h.reads).toHaveLength(1)
+        yield* h.advance(1)
+        yield* h.poller.poll()
+        expect(h.reads).toHaveLength(2)
+      })
+    ))
+
+  test('movement uses the floor and window fraction in both directions', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        for (const [window, threshold] of [
+          [100_000, 1000],
+          [1_000_000, 5000],
+        ] as const) {
+          const h = yield* pollerHarness({ pollMs: 0 })
+          yield* h.poller.poll()
+          yield* h.settle(0, usageAt(20_000, window))
+          yield* h.poller.poll()
+          yield* h.settle(1, usageAt(20_000 + threshold - 1, window))
+          expect(h.emitted).toHaveLength(1)
+          yield* h.poller.poll()
+          yield* h.settle(2, usageAt(20_000 + threshold, window))
+          expect(h.emitted).toHaveLength(2)
+          yield* h.poller.poll()
+          yield* h.settle(3, usageAt(20_000, window))
+          expect(h.emitted).toEqual([
+            usageAt(20_000, window),
+            usageAt(20_000 + threshold, window),
+            usageAt(20_000, window),
+          ])
+        }
+      })
+    ))
+
+  test('awaits emission before starting the forced follow-up read', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const emission = yield* Deferred.make<void>()
+        const h = yield* pollerHarness({ emit: () => Deferred.await(emission) })
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
+        yield* h.poller.poll(true)
+        expect(h.emitted).toHaveLength(0)
+        expect(h.reads).toHaveLength(1)
+        yield* Deferred.succeed(emission, undefined)
+        yield* Effect.yieldNow
+        expect(h.emitted).toEqual([usageAt(20_000)])
+        expect(h.reads).toHaveLength(2)
+        yield* h.settle(1, usageAt(40_000))
+        expect(h.emitted).toEqual([usageAt(20_000), usageAt(40_000)])
+      })
+    ))
+
+  test('stop interrupts an awaiting emission and discards its forced follow-up', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const emission = yield* Deferred.make<void>()
+        const h = yield* pollerHarness({ emit: () => Deferred.await(emission) })
+        yield* h.poller.poll()
+        yield* h.settle(0, usageAt(20_000))
+        yield* h.poller.poll(true)
+        yield* h.poller.stop()
+        yield* Deferred.succeed(emission, undefined)
+        yield* Effect.yieldNow
+        expect(h.emitted).toHaveLength(0)
+        expect(h.reads).toHaveLength(1)
+      })
+    ))
+
+  test('closing the owner scope interrupts reads and suppresses later polls', () =>
+    runPollerTest(
+      Effect.gen(function* () {
+        const h = yield* Effect.scoped(
+          Effect.gen(function* () {
+            const fixture = yield* pollerHarness()
+            yield* fixture.poller.poll()
+            yield* fixture.poller.poll(true)
+            return fixture
+          })
+        )
+        expect(h.interrupted).toEqual([0])
+        yield* h.settle(0, usageAt(20_000))
+        yield* h.poller.poll(true)
+        expect(h.emitted).toHaveLength(0)
+        expect(h.reads).toHaveLength(1)
+      })
+    ))
 })

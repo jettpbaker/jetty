@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "latest",
+    "@effect/platform-bun": "4.0.0-rc.112",
     "@jetty/shared": "workspace:*",
     "effect": "4.0.0-rc.112",
     "zod": "^4.4.3"

@@ -1,7 +1,9 @@
 import type { PushMessage, ResponseMessage, ServerMessage } from '@jetty/shared/wire'
 
 import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
-import { afterEach, describe, expect, test } from 'bun:test'
+import { Database } from 'bun:sqlite'
+import { afterEach, describe, expect, spyOn, test } from 'bun:test'
+import { Effect } from 'effect'
 import {
   existsSync,
   mkdirSync,
@@ -41,15 +43,15 @@ const TINY_PNG_B64 =
 const TINY_PNG_BYTES = Buffer.from(TINY_PNG_B64, 'base64')
 const TINY_PNG_DATA_URL = `data:image/png;base64,${TINY_PNG_B64}`
 
-type Running = ReturnType<typeof startServer>
+type Running = Awaited<ReturnType<typeof startServer>>
 
 const servers: Running[] = []
 const homes: string[] = []
 
-function boot(opts: Parameters<typeof startServer>[0] = {}) {
+async function boot(opts: Parameters<typeof startServer>[0] = {}) {
   const home = mkdtempSync(join(tmpdir(), 'jetty-test-'))
   homes.push(home)
-  const running = startServer({ home, port: 0, hostname: '127.0.0.1', ...opts })
+  const running = await startServer({ home, port: 0, hostname: '127.0.0.1', ...opts })
   servers.push(running)
   return running
 }
@@ -58,8 +60,8 @@ function isChromePush(msg: ServerMessage): msg is Extract<PushMessage, { sub: 'c
   return 'sub' in msg && msg.sub === 'chrome'
 }
 
-afterEach(() => {
-  while (servers.length) servers.pop()?.stop()
+afterEach(async () => {
+  while (servers.length) await servers.pop()?.stop()
   while (homes.length) {
     const home = homes.pop()
     if (home) rmSync(home, { recursive: true, force: true })
@@ -153,8 +155,80 @@ function threadEvents(client: Client, threadId: string) {
 }
 
 describe('server skeleton', () => {
+  test('simultaneous starts serialize admission and survive both client disconnects', async () => {
+    const running = await boot()
+    const project = running.store.createProject(running.home)
+    const thread = running.store.createThread(project.id, newId())
+    const first = await connect(running.port)
+    const second = await connect(running.port)
+    const turns = await Promise.all([
+      first.request<{ turnId: string }>('turn.start', { threadId: thread.id, text: 'first' }),
+      second.request<{ turnId: string }>('turn.start', { threadId: thread.id, text: 'second' }),
+    ])
+    expect(turns[0]!.turnId).toBe(turns[1]!.turnId)
+    first.close()
+    second.close()
+    const observer = await connect(running.port)
+    await observer.request('thread.subscribe', { threadId: thread.id, afterSeq: 0 })
+    await observer.waitFor(
+      (message) => isThreadPush(message) && message.event.type === 'turn.completed'
+    )
+    const events = running.store.getEventsAfter(thread.id, 0)
+    expect(events.filter(({ event }) => event.type === 'turn.started')).toHaveLength(1)
+    expect(events.filter(({ event }) => event.type === 'turn.completed')).toHaveLength(1)
+    expect(
+      events.filter(
+        ({ event }) => event.type === 'item.started' && event.item.kind === 'user_message'
+      )
+    ).toHaveLength(2)
+    expect(events.map(({ seq }) => seq)).toEqual(events.map((_, index) => index + 1))
+    const assistant = running.store
+      .getThreadState(thread.id)
+      .items.find((item) => item.kind === 'assistant_message')
+    expect(assistant && 'text' in assistant && assistant.text).toBe('firstsecond')
+    observer.close()
+  })
+
+  test('shutdown joins active turns, writes one terminal before closing SQLite, and is idempotent', async () => {
+    const running = await boot()
+    const project = running.store.createProject(running.home)
+    const thread = running.store.createThread(project.id, newId())
+    const client = await connect(running.port)
+    await client.request('turn.start', { threadId: thread.id, text: 'in flight' })
+    await Promise.all([running.stop(), running.stop()])
+    expect(() => running.store.getEventsAfter(thread.id, 0)).toThrow()
+    const db = openDb(running.home)
+    try {
+      const store = createStore(db)
+      const terminals = store
+        .getEventsAfter(thread.id, 0)
+        .filter(({ event }) => event.type === 'turn.completed' || event.type === 'turn.failed')
+      expect(terminals).toHaveLength(1)
+      expect(terminals[0]!.event).toMatchObject({ type: 'turn.failed', error: 'server shutdown' })
+      expect(store.getThreadState(thread.id).activeTurnId).toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+
+  test('a listener startup failure rolls back the already acquired SQLite connection', async () => {
+    const running = await boot()
+    const home = mkdtempSync(join(tmpdir(), 'jetty-startup-failure-'))
+    homes.push(home)
+    const close = spyOn(Database.prototype, 'close')
+    try {
+      await expect(startServer({ home, port: running.port, agent: 'echo' })).rejects.toThrow()
+      expect(close).toHaveBeenCalledTimes(1)
+    } finally {
+      close.mockRestore()
+    }
+    const retry = await startServer({ home, port: 0, agent: 'echo' })
+    servers.push(retry)
+    expect(retry.port).toBeGreaterThan(0)
+  })
+
   test('create project → thread → subscribe → turn.start streams events', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string; path: string } }>(
@@ -271,7 +345,7 @@ describe('server skeleton', () => {
   })
 
   test('reconnect with afterSeq replays the gap', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c1 = await connect(port)
 
     const { project } = await c1.request<{ project: { id: string } }>('project.create', {
@@ -317,7 +391,7 @@ describe('server skeleton', () => {
   })
 
   test('two clients both receive fan-out', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const a = await connect(port)
     const b = await connect(port)
 
@@ -358,7 +432,7 @@ describe('server skeleton', () => {
   })
 
   test('invalid request gets an error response', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     // unknown method
@@ -407,7 +481,7 @@ describe('server skeleton', () => {
   })
 
   test('steer: second turn.start mid-turn joins active turn', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
       path: dir('/tmp/busy'),
@@ -461,12 +535,13 @@ describe('server skeleton', () => {
 
   test('first turn on untitled thread pushes generated title', async () => {
     const titlerCalls: string[] = []
-    const { port, store } = boot({
+    const { port, store } = await boot({
       agent: 'echo',
-      titler: async (text) => {
-        titlerCalls.push(text)
-        return 'Fix the login bug'
-      },
+      titler: (text) =>
+        Effect.sync(() => {
+          titlerCalls.push(text)
+          return 'Fix the login bug'
+        }),
     })
     const c = await connect(port)
     await c.request('chrome.subscribe', {})
@@ -499,12 +574,13 @@ describe('server skeleton', () => {
 
   test('thread that already has a title never triggers titler', async () => {
     let called = false
-    const { port, store } = boot({
+    const { port, store } = await boot({
       agent: 'echo',
-      titler: async () => {
-        called = true
-        return 'Should not apply'
-      },
+      titler: () =>
+        Effect.sync(() => {
+          called = true
+          return 'Should not apply'
+        }),
     })
     const c = await connect(port)
 
@@ -533,12 +609,13 @@ describe('server skeleton', () => {
 
   test('titler returning null leaves title unchanged', async () => {
     let called = false
-    const { port, store } = boot({
+    const { port, store } = await boot({
       agent: 'echo',
-      titler: async () => {
-        called = true
-        return null
-      },
+      titler: () =>
+        Effect.sync(() => {
+          called = true
+          return null
+        }),
     })
     const c = await connect(port)
     await c.request('chrome.subscribe', {})
@@ -587,7 +664,7 @@ describe('server skeleton', () => {
     expect(store.getThreadState(thread.id).status).toBe('running')
     db.close()
 
-    const running = startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+    const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
     servers.push(running)
 
     const c = await connect(running.port)
@@ -626,7 +703,7 @@ describe('server skeleton', () => {
   })
 
   test('thread.create is idempotent for same id and projectId', async () => {
-    const { port, store } = boot()
+    const { port, store } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -657,7 +734,7 @@ describe('server skeleton', () => {
   })
 
   test('thread.create rejects same id under a different project', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const { project: projectA } = await c.request<{ project: { id: string } }>('project.create', {
@@ -696,7 +773,7 @@ describe('server skeleton', () => {
   })
 
   test('thread.create without id is invalid_params', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -731,7 +808,7 @@ describe('server skeleton', () => {
   })
 
   test('client-minted thread id works with turn.start', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -777,7 +854,7 @@ describe('server skeleton', () => {
 
 describe('image attachments', () => {
   test('turn.start with attachments writes files and user-item metadata', async () => {
-    const { port, home } = boot()
+    const { port, home } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -826,7 +903,7 @@ describe('image attachments', () => {
   })
 
   test('oversized image is invalid_params, no file, no turn', async () => {
-    const { port, home } = boot()
+    const { port, home } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -880,7 +957,7 @@ describe('image attachments', () => {
   })
 
   test('base64 that passes the charset but decodes to nothing is invalid_params', async () => {
-    const { port, home } = boot()
+    const { port, home } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -934,38 +1011,43 @@ describe('image attachments', () => {
   test('agent receives image blocks on startTurn', async () => {
     const received: TurnInput[] = []
     const fake: Agent = {
-      async startTurn(input, emit) {
-        received.push(input)
-        emit({ type: 'turn.started', turnId: input.turnId })
-        const item = {
-          id: newId(),
-          turnId: input.turnId,
-          createdAt: Date.now(),
-          kind: 'assistant_message' as const,
-          text: 'ok',
-        }
-        emit({ type: 'item.started', item })
-        emit({ type: 'item.completed', itemId: item.id })
-        emit({
-          type: 'turn.completed',
-          turnId: input.turnId,
-          usage: { inputTokens: 0, outputTokens: 0 },
-          costUsd: 0,
+      startTurn(input, emit) {
+        return Effect.gen(function* () {
+          received.push(input)
+          yield* emit({ type: 'turn.started', turnId: input.turnId })
+          const item = {
+            id: newId(),
+            turnId: input.turnId,
+            createdAt: Date.now(),
+            kind: 'assistant_message' as const,
+            text: 'ok',
+          }
+          yield* emit({ type: 'item.started', item })
+          yield* emit({ type: 'item.completed', itemId: item.id })
+          yield* emit({
+            type: 'turn.completed',
+            turnId: input.turnId,
+            usage: { inputTokens: 0, outputTokens: 0 },
+            costUsd: 0,
+          })
+          return { await: Effect.void }
         })
       },
-      interrupt() {},
+      interrupt() {
+        return Effect.void
+      },
       steer() {
-        return false
+        return Effect.succeed(false)
       },
       respondToApproval() {
-        return false
+        return Effect.succeed(false)
       },
       respondToQuestion() {
-        return false
+        return Effect.succeed(false)
       },
     }
 
-    const { port } = boot({ agent: fake })
+    const { port } = await boot({ agent: fake })
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -997,7 +1079,7 @@ describe('image attachments', () => {
   })
 
   test('GET /attachments/<id> serves bytes; unknown and traversal 404', async () => {
-    const { port, home } = boot()
+    const { port, home } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -1060,34 +1142,42 @@ describe('image attachments', () => {
 
     let jettyHome = ''
     const fake: Agent = {
-      async startTurn(input, emit) {
-        emit({ type: 'turn.started', turnId: input.turnId })
-        await createSendImagesTool({
-          attachments: createAttachments(jettyHome),
-          projectPath: projectDir,
-          turnId: () => input.turnId,
-          emit,
-        }).handler({ paths: ['shot.png'], caption: 'UI check' }, {})
-        emit({
-          type: 'turn.completed',
-          turnId: input.turnId,
-          usage: { inputTokens: 0, outputTokens: 0 },
-          costUsd: 0,
+      startTurn(input, emit) {
+        return Effect.gen(function* () {
+          yield* emit({ type: 'turn.started', turnId: input.turnId })
+          const run = Effect.runPromiseWith(yield* Effect.context<never>())
+          yield* Effect.promise(() =>
+            createSendImagesTool({
+              attachments: createAttachments(jettyHome),
+              projectPath: projectDir,
+              turnId: () => input.turnId,
+              emit: (event) => run(emit(event)),
+            }).handler({ paths: ['shot.png'], caption: 'UI check' }, {})
+          )
+          yield* emit({
+            type: 'turn.completed',
+            turnId: input.turnId,
+            usage: { inputTokens: 0, outputTokens: 0 },
+            costUsd: 0,
+          })
+          return { await: Effect.void }
         })
       },
-      interrupt() {},
+      interrupt() {
+        return Effect.void
+      },
       steer() {
-        return false
+        return Effect.succeed(false)
       },
       respondToApproval() {
-        return false
+        return Effect.succeed(false)
       },
       respondToQuestion() {
-        return false
+        return Effect.succeed(false)
       },
     }
 
-    const { port, home } = boot({ agent: fake })
+    const { port, home } = await boot({ agent: fake })
     jettyHome = home
     const c = await connect(port)
 
@@ -1142,34 +1232,42 @@ describe('image attachments', () => {
 
     let jettyHome = ''
     const fake: Agent = {
-      async startTurn(input, emit) {
-        emit({ type: 'turn.started', turnId: input.turnId })
-        await createSendVideoTool({
-          attachments: createAttachments(jettyHome),
-          projectPath: projectDir,
-          turnId: () => input.turnId,
-          emit,
-        }).handler({ path: 'clip.mp4', caption: 'UI flow' }, {})
-        emit({
-          type: 'turn.completed',
-          turnId: input.turnId,
-          usage: { inputTokens: 0, outputTokens: 0 },
-          costUsd: 0,
+      startTurn(input, emit) {
+        return Effect.gen(function* () {
+          yield* emit({ type: 'turn.started', turnId: input.turnId })
+          const run = Effect.runPromiseWith(yield* Effect.context<never>())
+          yield* Effect.promise(() =>
+            createSendVideoTool({
+              attachments: createAttachments(jettyHome),
+              projectPath: projectDir,
+              turnId: () => input.turnId,
+              emit: (event) => run(emit(event)),
+            }).handler({ path: 'clip.mp4', caption: 'UI flow' }, {})
+          )
+          yield* emit({
+            type: 'turn.completed',
+            turnId: input.turnId,
+            usage: { inputTokens: 0, outputTokens: 0 },
+            costUsd: 0,
+          })
+          return { await: Effect.void }
         })
       },
-      interrupt() {},
+      interrupt() {
+        return Effect.void
+      },
       steer() {
-        return false
+        return Effect.succeed(false)
       },
       respondToApproval() {
-        return false
+        return Effect.succeed(false)
       },
       respondToQuestion() {
-        return false
+        return Effect.succeed(false)
       },
     }
 
-    const { port, home } = boot({ agent: fake })
+    const { port, home } = await boot({ agent: fake })
     jettyHome = home
     const c = await connect(port)
 
@@ -1246,7 +1344,7 @@ describe('fs.browse', () => {
     return root
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     if (fixture) rmSync(fixture, { recursive: true, force: true })
   })
 
@@ -1356,7 +1454,7 @@ describe('fs.search', () => {
   })
 
   test('non-git project dir returns [] over the wire', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -1381,7 +1479,7 @@ describe('fs.search', () => {
     })
     if (!repo) return
 
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
       path: repo,
@@ -1404,7 +1502,7 @@ describe('fs.search', () => {
   })
 
   test('unknown projectId → not_found', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     await expect(
@@ -1431,7 +1529,7 @@ describe('skills.list', () => {
       '---\ndescription: nope\nuser-invocable: false\n---\n'
     )
 
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
       path: repo,
@@ -1450,7 +1548,7 @@ describe('skills.list', () => {
   })
 
   test('unknown projectId → not_found', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
     await expect(c.request('skills.list', { projectId: 'no-such-project' })).rejects.toThrow(
       'not_found'
@@ -1461,7 +1559,7 @@ describe('skills.list', () => {
 
 describe('thread.diff', () => {
   test('non-git project directory responds with an empty diff', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const { project } = await c.request<{ project: { id: string } }>('project.create', {
@@ -1566,7 +1664,7 @@ describe('thread.diff', () => {
 
 describe('ws origin gate', () => {
   test('browser origins must be loopback; native clients pass', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const upgrade = (origin?: string) =>
       fetch(`http://127.0.0.1:${port}/ws`, {
         headers: {
@@ -1587,7 +1685,7 @@ describe('ws origin gate', () => {
 
 describe('project.create validation', () => {
   test('rejects a path that is not an existing directory', async () => {
-    const { port } = boot()
+    const { port } = await boot()
     const c = await connect(port)
 
     const missing = join(tmpdir(), `jetty-missing-${newId()}`)
@@ -1597,7 +1695,7 @@ describe('project.create validation', () => {
   })
 
   test('is idempotent for a duplicate directory', async () => {
-    const { port, store } = boot()
+    const { port, store } = await boot()
     const c = await connect(port)
 
     const path = dir(join(tmpdir(), `jetty-dup-${newId()}`))
