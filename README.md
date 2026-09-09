@@ -47,3 +47,23 @@ append-as-you-go, and stale state is reconciled at the next boot instead of watc
 
 Stack: Bun + bun:sqlite, TypeScript, zod contracts in `shared/`, React 19 + Vite +
 TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.
+
+## Codex backend (v2)
+
+Run `codex login status` on the server host to check the CLI's existing login,
+then start Jetty with `JETTY_AGENT=codex bun run dev:server`. Claude remains the
+implicit default; `JETTY_AGENT=echo` still needs no credentials. This is a backend
+integration only; the replacement frontend is not wired yet.
+
+`JETTY_CODEX_BIN` selects a CLI executable (default `codex`).
+`JETTY_CODEX_MODEL` selects the default model; a turn's explicit model wins,
+otherwise Codex uses its own configured model. Codex runs at standard speed.
+Jetty does not read credentials, purchase credits, or fall back to an API key.
+
+Codex owns its tools and conversation history. Jetty stores a separate Codex
+resume pointer and opens a scoped app-server process per turn, closing it before
+publishing completion. Restarting Jetty resumes the same Codex conversation.
+Switching providers does not transfer their conversation histories.
+
+The [provider walkthrough](docs/chunks/codex-provider.md) covers permission mapping,
+validation, and remaining gaps. The [build status](docs/chunks.md) tracks this work.

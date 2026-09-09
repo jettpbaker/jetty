@@ -223,6 +223,21 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      getProviderSessionId(threadId: string, provider: string) {
+        return sql<{ session_id: string }>`SELECT session_id FROM provider_sessions
+          WHERE thread_id = ${threadId} AND provider = ${provider}`.pipe(
+          Effect.map((rows) => rows[0]?.session_id ?? null),
+          Effect.mapError(storeError)
+        )
+      },
+      setProviderSessionId(threadId: string, provider: string, sessionId: string) {
+        return sql`INSERT INTO provider_sessions (thread_id, provider, session_id)
+          VALUES (${threadId}, ${provider}, ${sessionId})
+          ON CONFLICT(thread_id, provider) DO UPDATE SET session_id = excluded.session_id`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       getThreadSessionId(threadId: string) {
         return sql<{
           agent_session_id: string | null

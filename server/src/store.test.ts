@@ -236,6 +236,7 @@ test('repeat migration and reopen preserve events, snapshots and session pointer
   const { store, runtime, home, thread, close } = await setup()
   await runtime.runPromise(store.appendEvent(thread.id, { type: 'turn.started', turnId: 'active' }))
   await runtime.runPromise(store.setThreadSessionId(thread.id, 'session-id'))
+  await runtime.runPromise(store.setProviderSessionId(thread.id, 'codex', 'codex-id'))
   const before = await runtime.runPromise(store.getThreadState(thread.id))
   await close()
   await expect(Effect.runPromise(store.getThreadState(thread.id))).rejects.toMatchObject({
@@ -253,6 +254,9 @@ test('repeat migration and reopen preserve events, snapshots and session pointer
       expect(
         await reopened.runtime.runPromise(reopened.store.getEventsAfter(thread.id, 0))
       ).toHaveLength(1)
+      expect(
+        await reopened.runtime.runPromise(reopened.store.getProviderSessionId(thread.id, 'codex'))
+      ).toBe('codex-id')
       const migrations = await reopened.runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient
@@ -261,7 +265,7 @@ test('repeat migration and reopen preserve events, snapshots and session pointer
           }>`SELECT migration_id FROM effect_sql_migrations ORDER BY migration_id`
         })
       )
-      expect(migrations.map((row) => row.migration_id)).toEqual([1, 2])
+      expect(migrations.map((row) => row.migration_id)).toEqual([1, 2, 3])
     } finally {
       await reopened.close()
     }

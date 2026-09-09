@@ -30,6 +30,13 @@ const migrations = SqliteMigrator.fromRecord({
       yield* sql`ALTER TABLE threads ADD COLUMN agent_session_id TEXT`
     }
   }),
+  '003_provider_sessions': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE provider_sessions (
+      thread_id TEXT NOT NULL REFERENCES threads(id), provider TEXT NOT NULL,
+      session_id TEXT NOT NULL, PRIMARY KEY (thread_id, provider)
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {
