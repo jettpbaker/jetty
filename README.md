@@ -64,6 +64,3 @@ Codex owns its tools and conversation history. Jetty stores a separate Codex
 resume pointer and opens a scoped app-server process per turn, closing it before
 publishing completion. Restarting Jetty resumes the same Codex conversation.
 Switching providers does not transfer their conversation histories.
-
-The [provider walkthrough](docs/chunks/codex-provider.md) covers permission mapping,
-validation, and remaining gaps. The [build status](docs/chunks.md) tracks this work.
