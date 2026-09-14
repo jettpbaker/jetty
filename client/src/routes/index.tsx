@@ -13,7 +13,6 @@ import { cn } from '@/lib/utils'
 import {
   ArchiveIcon,
   FolderPlusIcon,
-  GearIcon,
   GitBranchIcon,
   GitPullRequestIcon,
   MagnifyingGlassIcon,
@@ -220,14 +219,6 @@ function HomePage() {
 
         <div className='grid grid-cols-1 gap-x-14 gap-y-10 md:grid-cols-3'>
           <aside className='order-2 flex flex-col md:order-1 md:col-span-1'>
-            <button
-              type='button'
-              className={sideItem}
-              {...pressHandlers(() => void navigate({ to: '/settings' }))}
-            >
-              <GearIcon className='size-4 shrink-0' />
-              Settings
-            </button>
             <button
               type='button'
               className={sideItem}
