@@ -64,3 +64,27 @@ Codex owns its tools and conversation history. Jetty stores a separate Codex
 resume pointer and opens a scoped app-server process per turn, closing it before
 publishing completion. Restarting Jetty resumes the same Codex conversation.
 Switching providers does not transfer their conversation histories.
+
+## Grok Build backend (v2)
+
+Install Grok Build and run `grok login`, then start the backend with
+`JETTY_AGENT=grok bun run dev:server`. It uses the CLI's existing login, or an
+explicitly configured `XAI_API_KEY`. No provider controls are added to the old UI.
+
+`JETTY_GROK_BIN` overrides the CLI executable; `JETTY_GROK_MODEL` supplies an
+optional model ID. Omitting the model, or passing `grok-build`, keeps the CLI's
+advertised model. RPC callers can set model and reasoning effort per turn.
+
+Grok owns its tools and stores its conversation history. Jetty persists a separate
+Grok session pointer and loads it after a backend restart. Auto uses Grok's auto
+permission mode and workspace sandbox; full access uses bypass permissions and
+the off sandbox. Both disable plan mode. Each turn owns an isolated ACP process,
+including steering, and closes it before publishing completion. Approvals and
+questions use the existing backend RPCs. Provider quota/cost reporting is not
+integrated.
+
+The adapter follows [Grok's ACP documentation](https://docs.x.ai/build/cli/headless-scripting)
+and the session, model-selection and xAI extension handling in
+[T3 Code](https://github.com/pingdotgg/t3code). The opt-in real-provider smoke test is
+`JETTY_GROK_LIVE_TEST=1 bun test server/src/grok-live.test.ts`; ordinary tests
+use a local protocol fixture.
