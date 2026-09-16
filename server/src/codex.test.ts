@@ -283,7 +283,7 @@ test('translation handles completed-only items and authoritative final text with
   expect(t.finish()).toEqual([])
 })
 
-for (const permissionMode of ['auto', 'plan', 'full_access'] as const)
+for (const permissionMode of ['auto', 'full_access'] as const)
   test(`Codex maps ${permissionMode}, effort and image inputs without enabling Fast mode`, async () => {
     const f = await setup()
     const turn = await Effect.runPromise(
@@ -305,12 +305,7 @@ for (const permissionMode of ['auto', 'plan', 'full_access'] as const)
       params: {
         model: 'fixture-model',
         serviceTier: 'default',
-        sandbox:
-          permissionMode === 'full_access'
-            ? 'danger-full-access'
-            : permissionMode === 'plan'
-              ? 'read-only'
-              : 'workspace-write',
+        sandbox: permissionMode === 'full_access' ? 'danger-full-access' : 'workspace-write',
         approvalPolicy: permissionMode === 'full_access' ? 'never' : 'on-request',
       },
     })

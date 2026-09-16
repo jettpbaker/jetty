@@ -269,7 +269,7 @@ describe('wire schema decoding', () => {
           ...params,
           attachments: Array(MAX_IMAGES_PER_TURN).fill(upload),
           effort: 'xhigh',
-          permissionMode: 'plan',
+          permissionMode: 'full_access',
         })
       )
     ).toBe(true)
@@ -283,6 +283,7 @@ describe('wire schema decoding', () => {
     ).toBe(true)
     expect(Result.isFailure(decode({ ...params, effort: 'extreme' }))).toBe(true)
     expect(Result.isFailure(decode({ ...params, permissionMode: 'unknown' }))).toBe(true)
+    expect(Result.isFailure(decode({ ...params, permissionMode: 'plan' }))).toBe(true)
   })
 
   test('decodes both push variants and responses, stripping unknown struct keys', () => {

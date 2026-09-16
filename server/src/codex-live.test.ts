@@ -28,7 +28,7 @@ test.skipIf(process.env.JETTY_CODEX_LIVE_TEST !== '1')(
         text: 'Read marker.txt using a shell tool. Reply with only its exact contents. Do not write files or use network tools.',
         model: process.env.JETTY_CODEX_MODEL ?? 'gpt-6-astra',
         effort: 'medium',
-        permissionMode: 'plan',
+        permissionMode: 'auto',
       })
       const terminal = await subscription.waitFor(
         (message) =>
@@ -65,7 +65,7 @@ test.skipIf(process.env.JETTY_CODEX_LIVE_TEST !== '1')(
         text: 'Without calling tools, repeat the exact marker from your previous reply.',
         model: process.env.JETTY_CODEX_MODEL ?? 'gpt-6-astra',
         effort: 'medium',
-        permissionMode: 'plan',
+        permissionMode: 'auto',
       })
       const second = await resumedSubscription.waitFor(
         (message) =>
