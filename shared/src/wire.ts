@@ -11,7 +11,7 @@ export const MAX_IMAGES_PER_TURN = 8
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
-export const PermissionMode = Schema.Literals(['auto', 'full_access', 'plan'])
+export const PermissionMode = Schema.Literals(['auto', 'full_access'])
 export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 
 /** Claude Code reasoning-effort levels (xhigh/max are model-dependent). */

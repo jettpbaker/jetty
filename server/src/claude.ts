@@ -83,8 +83,6 @@ function toSdkPermissionMode(
   switch (mode ?? 'auto') {
     case 'full_access':
       return 'bypassPermissions'
-    case 'plan':
-      return 'plan'
     case 'auto':
       return 'auto'
   }
@@ -483,6 +481,7 @@ export function createClaudeAdapter(
                   model: resolvedModel(input),
                   effort: input.effort,
                   permissionMode,
+                  disallowedTools: ['EnterPlanMode', 'ExitPlanMode'],
                   allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
                   includePartialMessages: true,
                   canUseTool,

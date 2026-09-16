@@ -849,6 +849,7 @@ describe('scoped Claude sessions', () => {
   test('settled sessions stay warm, while model, effort and mode changes recycle with resume', async () => {
     const f = await setup()
     const first = await f.start('first')
+    expect(f.queries[0]!.options.disallowedTools).toEqual(['EnterPlanMode', 'ExitPlanMode'])
     f.queries[0]!.push({ type: 'system', subtype: 'init', session_id: 'resume-me' })
     f.queries[0]!.push({ type: 'result', subtype: 'success' })
     await f.runtime.runPromise(first.await)
@@ -859,7 +860,7 @@ describe('scoped Claude sessions', () => {
     for (const [index, extra] of [
       { model: 'sonnet' },
       { model: 'sonnet', effort: 'high' as const },
-      { model: 'sonnet', effort: 'high' as const, permissionMode: 'plan' as const },
+      { model: 'sonnet', effort: 'high' as const, permissionMode: 'full_access' as const },
     ].entries()) {
       const turn = await f.start(`recycle-${index}`, extra)
       expect(f.queries).toHaveLength(index + 2)

@@ -32,7 +32,6 @@ const MODEL_ALIASES: Record<string, string> = {
 export const APPROVAL_MODES: ApprovalOption[] = [
   { id: 'auto', label: 'Auto' },
   { id: 'full_access', label: 'Full access' },
-  { id: 'plan', label: 'Plan' },
 ]
 
 export type ComposerPrefs = {
@@ -66,7 +65,10 @@ function hydratePrefs(stored: StoredPrefs | undefined, base: ComposerPrefs): Com
   return {
     model,
     effort: model.efforts.find((option) => option.id === stored.effort) ?? null,
-    approval: APPROVAL_MODES.find((option) => option.id === stored.approval) ?? base.approval,
+    approval:
+      stored.approval === 'plan'
+        ? APPROVAL_MODES[0]!
+        : (APPROVAL_MODES.find((option) => option.id === stored.approval) ?? base.approval),
   }
 }
 

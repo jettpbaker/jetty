@@ -60,13 +60,8 @@ function threadOptions(input: TurnInput, cwd: string) {
     serviceTier: 'default',
     approvalPolicy: full ? 'never' : 'on-request',
     approvalsReviewer: 'user',
-    developerInstructions:
-      input.permissionMode === 'plan' ? 'Plan the work without modifying files.' : '',
-    sandbox: full
-      ? 'danger-full-access'
-      : input.permissionMode === 'plan'
-        ? 'read-only'
-        : 'workspace-write',
+    developerInstructions: '',
+    sandbox: full ? 'danger-full-access' : 'workspace-write',
   }
 }
 
