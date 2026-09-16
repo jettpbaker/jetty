@@ -20,6 +20,7 @@ import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
+import { grokLayer, type GrokOptions } from './grok'
 import { createHub } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
@@ -32,13 +33,14 @@ export type ServerOptions = {
   port?: number
   hostname?: string
   /** Override agent selection (defaults to JETTY_AGENT env, then 'claude'). */
-  agent?: 'echo' | 'claude' | 'codex' | Agent
+  agent?: 'echo' | 'claude' | 'codex' | 'grok' | Agent
   /** Override titler (defaults to real titler for claude, null for echo). */
   titler?: Titler | null
+  grok?: GrokOptions
   codex?: CodexOptions
 }
 
-function selectTitler(kind: 'echo' | 'claude' | 'codex' | Agent): Titler | null {
+function selectTitler(kind: 'echo' | 'claude' | 'codex' | 'grok' | Agent): Titler | null {
   if (typeof kind !== 'string') return null
   return kind === 'claude' ? createClaudeTitler() : null
 }
@@ -98,11 +100,13 @@ function createServer(opts: ServerOptions = {}) {
     const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
     const agentKind =
       opts.agent ??
-      (process.env.JETTY_AGENT === 'codex'
-        ? 'codex'
-        : process.env.JETTY_AGENT === 'echo'
-          ? 'echo'
-          : 'claude')
+      (process.env.JETTY_AGENT === 'grok'
+        ? 'grok'
+        : process.env.JETTY_AGENT === 'codex'
+          ? 'codex'
+          : process.env.JETTY_AGENT === 'echo'
+            ? 'echo'
+            : 'claude')
 
     const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
     const store = Context.get(database, Store)
@@ -137,7 +141,9 @@ function createServer(opts: ServerOptions = {}) {
           ? echoLayer(hooks)
           : agentKind === 'codex'
             ? codexLayer(store, opts.codex)
-            : claudeLayer(store, attachments, hooks)
+            : agentKind === 'grok'
+              ? grokLayer(store, opts.grok)
+              : claudeLayer(store, attachments, hooks)
     const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
     const services = yield* Layer.build(
       Layer.merge(
