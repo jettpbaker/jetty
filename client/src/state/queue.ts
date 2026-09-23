@@ -170,10 +170,13 @@ function releaseQueued(registry: Registry, threadId: string, messageId: string) 
 }
 
 // The server releases an edit hold after 60s, so renew every draft's hold from here rather than
-// from its composer, which unmounts when the user switches threads mid-edit.
+// from its composer, which unmounts when the user switches threads mid-edit. A reload brings
+// its drafts back, so their holds are taken again straight away, before the lease runs out.
 export function useRenewQueueHolds() {
   const registry = useContext(RegistryContext)
   useEffect(() => {
+    for (const [threadId, messageId] of editingDrafts(registry))
+      holdQueued(registry, threadId, messageId)
     const timer = setInterval(() => {
       const threads = registry.get(chromeAtom)?.threads
       for (const [threadId, messageId] of editingDrafts(registry))
