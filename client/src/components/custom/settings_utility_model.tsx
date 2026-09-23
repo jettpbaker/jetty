@@ -48,10 +48,15 @@ export function SettingsUtilityModel() {
   const label = chosen ? chosen.name : 'Automatic'
   return (
     <div className='appearance-option-row'>
-      <span>Titles and review</span>
+      <div className='flex flex-col gap-1'>
+        <span>Utility model</span>
+        <p className='text-xs text-muted-foreground'>
+          Names threads and flags replies that are ready for review.
+        </p>
+      </div>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          aria-label={`Titles and review: ${label}`}
+          aria-label={`Utility model: ${label}`}
           render={
             <Button
               variant='ghost'
