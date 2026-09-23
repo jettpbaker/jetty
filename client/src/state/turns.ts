@@ -286,7 +286,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   const optimistic = turns.has(threadId)
   const promptCount = prompts.get(threadId)?.length ?? 0
   const status = thread?.status
-  const live = status === 'running' || status === 'starting'
+  const live = status === 'running' || status === 'starting' || status === 'awaiting_approval'
 
   useEffect(() => {
     const current = registry.get(pendingPromptsAtom).get(threadId) ?? []
