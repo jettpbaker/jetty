@@ -2,9 +2,8 @@ import type { Usage } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope, Path } from 'effect'
+import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
-import { ChildProcessSpawner } from 'effect/unstable/process'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
@@ -24,6 +23,7 @@ import { createGrokTitler } from './grok-titler'
 import { createHub } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
+import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { chainTitlers, firstLineTitler, type Titler } from './titler'
@@ -33,7 +33,7 @@ export type ServerOptions = {
   home?: string
   port?: number
   hostname?: string
-  /** Override agent selection (defaults to JETTY_AGENT env, then 'claude'). */
+  /** Default provider when a turn omits one (JETTY_AGENT, else claude). Echo is exclusive; claude, codex, and grok share the process. */
   agent?: 'echo' | 'claude' | 'codex' | 'grok' | Agent
   /** Override titler (defaults to the selectTitler chain). */
   titler?: Titler | null
@@ -41,19 +41,30 @@ export type ServerOptions = {
   codex?: CodexOptions
 }
 
-/** Luna first whatever the provider, then the provider's own model, then the opener's first line. */
+/** Luna first for the thread's provider, then that provider's own model, then the opener's first line. */
 function selectTitler(kind: 'echo' | 'claude' | 'codex' | 'grok' | Agent, opts: ServerOptions) {
   return Effect.gen(function* () {
+    if (opts.titler !== undefined) {
+      const fixed = opts.titler
+      if (!fixed) return null
+      return (_provider: AgentProvider, text: string) => fixed(text)
+    }
     if (typeof kind !== 'string') return null
-    if (kind === 'echo') return firstLineTitler
+    if (kind === 'echo') return (_provider: AgentProvider, text: string) => firstLineTitler(text)
     const luna = yield* createCodexTitler(opts.codex)
-    const own =
-      kind === 'claude'
-        ? [createClaudeTitler()]
-        : kind === 'grok'
-          ? [yield* createGrokTitler(opts.grok)]
-          : []
-    return chainTitlers(luna, ...own, firstLineTitler)
+    const claude = createClaudeTitler()
+    const grok = yield* createGrokTitler(opts.grok)
+    return (provider: AgentProvider, text: string) => {
+      if (provider === 'echo') return firstLineTitler(text)
+      const own = provider === 'claude' ? [claude] : provider === 'grok' ? [grok] : []
+      return chainTitlers(luna, ...own, firstLineTitler)(text)
+    }
+  })
+}
+
+function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
+  return Effect.gen(function* () {
+    return Context.get(yield* Layer.build(layer), AgentService)
   })
 }
 
@@ -142,28 +153,25 @@ function createServer(opts: ServerOptions = {}) {
         hub.pushChrome({ type: 'usage', usage })
       },
     }
-    const agentLayer: Layer.Layer<
-      Agent,
-      never,
-      Path.Path | ChildProcessSpawner.ChildProcessSpawner
-    > =
+    const registry =
       typeof agentKind !== 'string'
-        ? Layer.succeed(AgentService, agentKind)
+        ? singleAgentRegistry(agentKind)
         : agentKind === 'echo'
-          ? echoLayer(hooks)
-          : agentKind === 'codex'
-            ? codexLayer(store, opts.codex)
-            : agentKind === 'grok'
-              ? grokLayer(store, opts.grok)
-              : claudeLayer(store, attachments, hooks)
-    const titler = opts.titler !== undefined ? opts.titler : yield* selectTitler(agentKind, opts)
+          ? singleAgentRegistry(yield* loadAgent(echoLayer(hooks)))
+          : agentRegistry(
+              {
+                claude: yield* loadAgent(claudeLayer(store, attachments, hooks)),
+                codex: yield* loadAgent(codexLayer(store, opts.codex)),
+                grok: yield* loadAgent(grokLayer(store, opts.grok)),
+              },
+              agentKind
+            )
+    const titler = yield* selectTitler(agentKind, opts)
     const services = yield* Layer.build(
-      Layer.merge(
-        agentLayer,
-        orchestratorLayer(store, hub, titler, attachments).pipe(Layer.provide(agentLayer))
-      )
+      orchestratorLayer(store, hub, titler, attachments, registry)
     )
-    const agent = Context.get(services, AgentService)
+    const agent = registry.agent(registry.defaultProvider)
+    if (!agent) return yield* Effect.fail(new Error('default provider is not registered'))
     const orch = Context.get(services, OrchestratorService)
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
     const handlers = yield* createRpcHandlers(store, orch, hub, () => lastUsage).pipe(

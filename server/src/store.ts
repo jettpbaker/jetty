@@ -1,6 +1,12 @@
 import { ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
-import { newId, type ErrorCode, type Project, type ThreadMeta } from '@jetty/shared/wire'
+import {
+  newId,
+  type ErrorCode,
+  type Project,
+  type ProviderId,
+  type ThreadMeta,
+} from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Schema } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
 
@@ -26,6 +32,7 @@ type ThreadRow = {
   archived: number
   pinned: number
   updated_at: number
+  provider: string | null
 }
 
 export class StoreError extends Error {
@@ -50,7 +57,13 @@ function rowToProject(row: ProjectRow): Project {
   return { id: row.id, path: row.path, title: row.title, createdAt: row.created_at }
 }
 
+function publicProvider(value: string | null): ProviderId | undefined {
+  if (value === 'claude' || value === 'codex' || value === 'grok') return value
+  return undefined
+}
+
 function rowToThread(row: ThreadRow): ThreadMeta {
+  const provider = publicProvider(row.provider)
   return {
     id: row.id,
     projectId: row.project_id,
@@ -59,6 +72,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
     updatedAt: row.updated_at,
+    ...(provider ? { provider } : {}),
   }
 }
 
@@ -272,6 +286,34 @@ export function createStore() {
           Effect.map((rows) => rows.map(rowToThread)),
           Effect.mapError(storeError)
         )
+      },
+      getThreadProvider(threadId: string) {
+        return sql<{
+          provider: string | null
+        }>`SELECT provider FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows[0]?.provider ?? null),
+          Effect.mapError(storeError)
+        )
+      },
+      listProviderSessionProviders(threadId: string) {
+        return sql<{
+          provider: string
+        }>`SELECT provider FROM provider_sessions WHERE thread_id = ${threadId}`.pipe(
+          Effect.map((rows) => rows.map((row) => row.provider)),
+          Effect.mapError(storeError)
+        )
+      },
+      setThreadProviderIfAbsent(threadId: string, provider: string) {
+        return Effect.gen(function* () {
+          yield* sql`UPDATE threads SET provider = ${provider} WHERE id = ${threadId} AND provider IS NULL`
+          const rows = yield* sql<{
+            provider: string | null
+          }>`SELECT provider FROM threads WHERE id = ${threadId}`
+          const stored = rows[0]?.provider
+          if (!stored)
+            return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
+          return stored
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getProviderSessionId(threadId: string, provider: string) {
         return sql<{ session_id: string }>`SELECT session_id FROM provider_sessions

@@ -1,6 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, Attachment } from '@jetty/shared/items'
-import type { EffortLevel, PermissionMode, UploadAttachment } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, ProviderId, UploadAttachment } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 import { Context, Effect, Layer, Semaphore } from 'effect'
@@ -8,9 +8,15 @@ import { Context, Effect, Layer, Semaphore } from 'effect'
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
-import type { Titler } from './titler'
 
-import { AgentError, AgentService, type Agent } from './agent'
+import { AgentError, type Agent } from './agent'
+import {
+  isAgentProvider,
+  singleAgentRegistry,
+  type AgentProvider,
+  type AgentRegistry,
+  type ProviderTitler,
+} from './registry'
 import { StoreError } from './store'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
@@ -25,15 +31,25 @@ export type StartTurnInput = {
   model?: string
   effort?: EffortLevel
   permissionMode?: PermissionMode
+  provider?: ProviderId
+}
+
+function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
+  return 'defaultProvider' in agent ? agent : singleAgentRegistry(agent)
+}
+
+function providerConflict(bound: string, requested: string) {
+  return new StoreError('conflict', `Thread is bound to ${bound} and cannot switch to ${requested}`)
 }
 
 export function createOrchestrator(
   store: Store,
-  agent: Agent,
+  agent: Agent | AgentRegistry,
   hub: Hub,
-  titler: Titler | null = null,
+  titler: ProviderTitler | null = null,
   attachments: Attachments | null = null
 ) {
+  const registry = registryFrom(agent)
   return Effect.gen(function* () {
     const scope = yield* Effect.scope
     const threads = new Map<
@@ -127,9 +143,9 @@ export function createOrchestrator(
       })
     }
 
-    function maybeTitle(threadId: string, text: string) {
+    function maybeTitle(threadId: string, provider: AgentProvider, text: string) {
       if (!titler) return Effect.void
-      return titler(text).pipe(
+      return titler(provider, text).pipe(
         Effect.flatMap((title) =>
           hub.withChromePublication(
             Effect.gen(function* () {
@@ -146,12 +162,91 @@ export function createOrchestrator(
       )
     }
 
+    function soleInferredProvider(threadId: string) {
+      return Effect.gen(function* () {
+        const names = new Set<string>()
+        for (const provider of yield* store.listProviderSessionProviders(threadId)) {
+          names.add(provider)
+        }
+        if (yield* store.getThreadSessionId(threadId)) names.add('claude')
+        if (names.size > 1) {
+          return yield* Effect.fail(
+            new StoreError('conflict', 'Thread has resume state for more than one provider')
+          )
+        }
+        const [only] = names
+        return only ?? null
+      })
+    }
+
+    function chooseProvider(threadId: string, requested: ProviderId | undefined) {
+      return Effect.gen(function* () {
+        const column = yield* store.getThreadProvider(threadId)
+        const inferred = column ? null : yield* soleInferredProvider(threadId)
+        const existing = column ?? inferred
+        if (existing && requested && requested !== existing) {
+          return yield* Effect.fail(providerConflict(existing, requested))
+        }
+        const provider = existing ?? requested ?? registry.defaultProvider
+        if (!isAgentProvider(provider) || !registry.agent(provider)) {
+          return yield* Effect.fail(
+            new StoreError('invalid_params', `Provider ${provider} is not available`)
+          )
+        }
+        return { provider, stored: column === provider }
+      })
+    }
+
+    function commitProvider(threadId: string, provider: AgentProvider, stored: boolean) {
+      return Effect.gen(function* () {
+        if (stored) return false
+        const written = yield* store.setThreadProviderIfAbsent(threadId, provider)
+        if (!isAgentProvider(written) || !registry.agent(written)) {
+          return yield* Effect.fail(
+            new StoreError('invalid_params', `Provider ${written} is not available`)
+          )
+        }
+        if (written !== provider) return yield* Effect.fail(providerConflict(written, provider))
+        return true
+      })
+    }
+
+    function publishProvider(threadId: string) {
+      return hub.withChromePublication(
+        Effect.gen(function* () {
+          const thread = yield* store.getThread(threadId)
+          if (thread?.provider) hub.pushChrome({ type: 'thread.upserted', thread })
+        })
+      )
+    }
+
+    function agentFor(provider: AgentProvider) {
+      const found = registry.agent(provider)
+      return found
+        ? Effect.succeed(found)
+        : Effect.fail(new StoreError('invalid_params', `Provider ${provider} is not available`))
+    }
+
+    function agentForThread(threadId: string) {
+      return Effect.gen(function* () {
+        const column = yield* store.getThreadProvider(threadId)
+        const provider = column ?? registry.defaultProvider
+        if (!isAgentProvider(provider)) {
+          return yield* Effect.fail(
+            new StoreError('invalid_params', `Provider ${provider} is not available`)
+          )
+        }
+        return yield* agentFor(provider)
+      })
+    }
+
     function startTurnEffect(input: StartTurnInput) {
       return Effect.scoped(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
               yield* checkThread(input.threadId)
+              const chosen = yield* chooseProvider(input.threadId, input.provider)
               let committed = false
               const onCommit = Effect.sync(() => {
                 committed = true
@@ -176,8 +271,11 @@ export function createOrchestrator(
                     )
                   )
                 : EMPTY_ATTACHMENTS
+              const inserted = yield* commitProvider(input.threadId, chosen.provider, chosen.stored)
+              if (inserted) yield* publishProvider(input.threadId)
+              const agent = yield* agentFor(chosen.provider)
               if (yield* store.needsGeneratedTitle(input.threadId))
-                yield* maybeTitle(input.threadId, input.text)
+                yield* maybeTitle(input.threadId, chosen.provider, input.text)
               const live = state(input.threadId)
               if (live.turnId) {
                 const existing = live.turnId
@@ -210,7 +308,20 @@ export function createOrchestrator(
                 saved.meta,
                 onCommit
               ).pipe(
-                Effect.andThen(agent.startTurn({ ...input, turnId, images: saved.images }, emit)),
+                Effect.andThen(
+                  agent.startTurn(
+                    {
+                      threadId: input.threadId,
+                      turnId,
+                      text: input.text,
+                      images: saved.images,
+                      model: input.model,
+                      effort: input.effort,
+                      permissionMode: input.permissionMode,
+                    },
+                    emit
+                  )
+                ),
                 Effect.onError(() =>
                   append(input.threadId, {
                     type: 'turn.failed',
@@ -250,7 +361,10 @@ export function createOrchestrator(
       },
       startTurnEffect,
       interrupt(threadId: string) {
-        return checkThread(threadId).pipe(Effect.andThen(agent.interrupt(threadId)))
+        return checkThread(threadId).pipe(
+          Effect.andThen(agentForThread(threadId)),
+          Effect.flatMap((agent) => agent.interrupt(threadId))
+        )
       },
       respondApproval(
         threadId: string,
@@ -260,7 +374,8 @@ export function createOrchestrator(
         updatedPermissions?: unknown[]
       ) {
         return checkThread(threadId).pipe(
-          Effect.andThen(
+          Effect.andThen(agentForThread(threadId)),
+          Effect.flatMap((agent) =>
             agent.respondToApproval(threadId, itemId, decision, message, updatedPermissions)
           ),
           Effect.flatMap((found) =>
@@ -272,7 +387,8 @@ export function createOrchestrator(
       },
       respondQuestion(threadId: string, itemId: string, answers: Record<string, string>) {
         return checkThread(threadId).pipe(
-          Effect.andThen(agent.respondToQuestion(threadId, itemId, answers)),
+          Effect.andThen(agentForThread(threadId)),
+          Effect.flatMap((agent) => agent.respondToQuestion(threadId, itemId, answers)),
           Effect.flatMap((found) =>
             found
               ? Effect.void
@@ -327,13 +443,12 @@ export function createOrchestrator(
 export function orchestratorLayer(
   store: Store,
   hub: Hub,
-  titler: Titler | null,
-  attachments: Attachments
+  titler: ProviderTitler | null,
+  attachments: Attachments,
+  registry: AgentRegistry
 ) {
   return Layer.effect(
     OrchestratorService,
-    Effect.gen(function* () {
-      return yield* createOrchestrator(store, yield* AgentService, hub, titler, attachments)
-    })
+    createOrchestrator(store, registry, hub, titler, attachments)
   )
 }

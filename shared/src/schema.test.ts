@@ -284,6 +284,9 @@ describe('wire schema decoding', () => {
     expect(Result.isFailure(decode({ ...params, effort: 'extreme' }))).toBe(true)
     expect(Result.isFailure(decode({ ...params, permissionMode: 'unknown' }))).toBe(true)
     expect(Result.isFailure(decode({ ...params, permissionMode: 'plan' }))).toBe(true)
+    expect(Result.isSuccess(decode({ ...params, provider: 'grok', model: 'grok-4.7' }))).toBe(true)
+    expect(Result.isFailure(decode({ ...params, provider: 'echo' }))).toBe(true)
+    expect(Result.isFailure(decode({ ...params, provider: 'openai' }))).toBe(true)
   })
 
   test('decodes both push variants and responses, stripping unknown struct keys', () => {

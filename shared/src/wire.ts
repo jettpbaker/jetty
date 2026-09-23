@@ -18,6 +18,10 @@ export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 export const EffortLevel = Schema.Literals(['low', 'medium', 'high', 'xhigh', 'max'])
 export type EffortLevel = Schema.Schema.Type<typeof EffortLevel>
 
+/** A real coding agent. Echo stays off this list; it is the test double, not a choice. */
+export const ProviderId = Schema.Literals(['claude', 'codex', 'grok'])
+export type ProviderId = Schema.Schema.Type<typeof ProviderId>
+
 export const Project = Schema.Struct({
   id: Schema.String,
   path: Schema.String,
@@ -47,6 +51,8 @@ export const ThreadMeta = Schema.Struct({
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
   updatedAt: Schema.Int,
+  /** Set on the first turn for Claude, Codex, or Grok. Omitted until then. */
+  provider: Schema.optional(ProviderId),
   git: Schema.optional(ThreadGitStatus),
 })
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
@@ -166,6 +172,8 @@ export const methods = {
       model: Schema.optional(Schema.String),
       effort: Schema.optional(EffortLevel),
       permissionMode: Schema.optional(PermissionMode),
+      /** Locks the thread on the first turn. Omitted turns use the server default. */
+      provider: Schema.optional(ProviderId),
     }),
     result: Schema.Struct({ turnId: Schema.String }),
   },

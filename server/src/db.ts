@@ -47,6 +47,13 @@ const migrations = SqliteMigrator.fromRecord({
       yield* sql`ALTER TABLE threads ADD COLUMN title_locked INTEGER NOT NULL DEFAULT 0`
     }
   }),
+  '005_thread_provider': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const columns = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
+    if (!columns.some((column) => column.name === 'provider')) {
+      yield* sql`ALTER TABLE threads ADD COLUMN provider TEXT`
+    }
+  }),
 })
 
 export function databaseLayer(home: string) {
