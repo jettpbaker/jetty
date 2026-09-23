@@ -9,7 +9,8 @@
     "./wire": "./src/wire.ts",
     "./model-name": "./src/model-name.ts",
     "./rpc": "./src/rpc.ts",
-    "./pull-request": "./src/pull-request.ts"
+    "./pull-request": "./src/pull-request.ts",
+    "./github-media": "./src/github-media.ts"
   },
   "dependencies": {
     "effect": "4.0.0-rc.112",

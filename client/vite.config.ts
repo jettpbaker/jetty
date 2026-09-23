@@ -108,6 +108,7 @@ export default defineConfig({
     proxy: {
       '/ws': { target: server, ws: true },
       '/attachments': { target: server },
+      '/github-media': { target: server },
     },
   },
 })

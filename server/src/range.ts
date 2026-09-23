@@ -3,7 +3,12 @@ import { HttpServerResponse } from 'effect/unstable/http'
 
 type ByteRange = { start: number; end: number }
 
-export function rangeResponse(path: string, mimeType: string, rangeHeader: string | null) {
+export function rangeResponse(
+  path: string,
+  mimeType: string,
+  rangeHeader: string | null,
+  extraHeaders: Record<string, string> = {}
+) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const size = Number((yield* fs.stat(path)).size)
@@ -13,6 +18,7 @@ export function rangeResponse(path: string, mimeType: string, rangeHeader: strin
       'Accept-Ranges': 'bytes',
       // Attachment ids are never reused, so a stored file never changes.
       'Cache-Control': 'private, max-age=31536000, immutable',
+      ...extraHeaders,
     }
     if (parsed === 'full') {
       return yield* HttpServerResponse.file(path, {

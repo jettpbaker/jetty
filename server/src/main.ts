@@ -23,6 +23,7 @@ import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
+import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
@@ -174,6 +175,30 @@ function originAllowed(origin: string | undefined): boolean {
   }
 }
 
+const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+// Private GitHub media is only for Jetty's own pages: no cross-site embeds, no rebound hostnames.
+function ownPageRequest(headers: Record<string, string | undefined>) {
+  const site = headers['sec-fetch-site']
+  if (site && site !== 'same-origin' && site !== 'none') return false
+  try {
+    const { host, hostname } = new URL(`http://${headers.host}`)
+    return (
+      loopbackHosts.has(hostname) ||
+      [...extraOrigins].some((origin) => URL.canParse(origin) && new URL(origin).host === host)
+    )
+  } catch {
+    return false
+  }
+}
+
+const githubMediaHeaders = {
+  'Cross-Origin-Resource-Policy': 'same-origin',
+  'X-Content-Type-Options': 'nosniff',
+  // An SVG opened on its own renders inert instead of running script on Jetty's origin.
+  'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+}
+
 function createServer(opts: ServerOptions = {}) {
   return Effect.gen(function* () {
     const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
@@ -212,6 +237,7 @@ function createServer(opts: ServerOptions = {}) {
     const attachments = Context.get(io, Attachments)
     const hub = createHub()
     const pullRequests = createPullRequests(store, hub)
+    const githubMedia = createGithubMedia(home)
     const mcp = createMcpSessions()
     let lastUsage: RateLimits | null = null
     const hooks = {
@@ -459,6 +485,24 @@ function createServer(opts: ServerOptions = {}) {
         const resolved = yield* attachments.resolve(id)
         if (!resolved) return HttpServerResponse.text('Not found', { status: 404 })
         return yield* rangeResponse(resolved.path, resolved.mimeType, request.headers.range ?? null)
+      }
+      if (
+        (request.method === 'GET' || request.method === 'HEAD') &&
+        url.pathname === '/github-media'
+      ) {
+        if (!localPeer || !ownPageRequest(request.headers))
+          return HttpServerResponse.text('Forbidden', { status: 403 })
+        const media = yield* Effect.promise(() =>
+          githubMedia.resolve(url.searchParams.get('url') ?? '')
+        )
+        if (media instanceof GithubMediaError)
+          return HttpServerResponse.text(media.message, { status: media.status })
+        return yield* rangeResponse(
+          media.path,
+          media.mimeType,
+          request.headers.range ?? null,
+          githubMediaHeaders
+        )
       }
       return yield* serveStatic(url.pathname, wsSecret, !!localPeer)
     }).pipe(
