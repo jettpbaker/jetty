@@ -85,14 +85,16 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   }))
 }
 
+// Only links GitHub has resolved count; a pending or not-found one mustn't hide the rest.
 function latestPullRequest(links: readonly PullRequestLink[]) {
-  const latest = links.reduce<PullRequestLink | undefined>(
+  const resolved = links.filter((link) => link.state)
+  const latest = resolved.reduce<PullRequestLink | undefined>(
     (best, link) =>
       !best || (link.updatedAt ?? link.linkedAt) > (best.updatedAt ?? best.linkedAt) ? link : best,
     undefined
   )
   return latest?.state
-    ? { repo: latest.repo, number: latest.number, state: latest.state, count: links.length }
+    ? { repo: latest.repo, number: latest.number, state: latest.state, count: resolved.length }
     : undefined
 }
 
