@@ -25,6 +25,7 @@ type PullRequestState = PullRequestListItem['state']
 const groupOrder: readonly PullRequestState[] = ['open', 'draft', 'merged', 'closed']
 
 const scrollTops = new Map<PullRequestListTab, number>()
+const openedRows = new Map<PullRequestListTab, string>()
 
 function collapsedKey(tab: PullRequestListTab) {
   return `jetty.pull-requests.collapsed.${tab}`
@@ -183,7 +184,14 @@ function PullRequestGroups({
   }
 
   useLayoutEffect(() => {
-    if (list.current) list.current.scrollTop = scrollTops.get(tab) ?? 0
+    if (!list.current) return
+    list.current.scrollTop = scrollTops.get(tab) ?? 0
+    const opened = openedRows.get(tab)
+    openedRows.delete(tab)
+    if (opened)
+      list.current
+        .querySelector<HTMLElement>(`[data-pr-row="${CSS.escape(opened)}"]`)
+        ?.focus({ preventScroll: true })
   }, [tab])
 
   return (
@@ -220,6 +228,7 @@ function PullRequestGroups({
                   now={now}
                   showRepo={showRepo}
                   onKeyDown={moveFocus}
+                  onOpen={() => openedRows.set(tab, `${item.repo}#${item.number}`)}
                 />
               ))}
             </CollapsibleContent>
@@ -238,11 +247,13 @@ function PullRequestListRow({
   now,
   showRepo,
   onKeyDown,
+  onOpen,
 }: {
   item: PullRequestListItem
   now: number
   showRepo: boolean
   onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => void
+  onOpen: () => void
 }) {
   const prefetch = usePrefetchPullRequest()
   const [owner = '', repo = ''] = item.repo.split('/')
@@ -250,12 +261,13 @@ function PullRequestListRow({
   const age = formatAge(item.updatedAt, now)
   return (
     <Link
-      data-pr-row
+      data-pr-row={`${item.repo}#${item.number}`}
       to='/pull-requests/$owner/$repo/$number'
       params={{ owner, repo, number: String(item.number) }}
       onPointerEnter={() => prefetch(item)}
       onKeyDown={onKeyDown}
-      className='flex h-9 min-w-0 cursor-default items-center gap-2.5 px-4 text-sm outline-none hover:bg-accent/50 focus-visible:bg-accent'
+      onClick={onOpen}
+      className='flex h-9 min-w-0 scroll-mt-8 cursor-default items-center gap-2.5 px-4 text-sm outline-none hover:bg-accent/50 focus-visible:bg-accent'
     >
       <span className='w-11 shrink-0 font-mono text-xs text-muted-foreground tabular-nums'>
         #{item.number}
