@@ -13,7 +13,6 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   clearSlot,
   copilotModels,
@@ -35,9 +34,10 @@ import { createPortal } from 'react-dom'
 import type { ProviderEnabled, ProviderId } from './settings_providers'
 
 import { moveOnKeys } from './composer_loadout'
+import { DisabledTooltip } from './disabled_tooltip'
 import { LightningIcon } from './lightning_icon'
-import { ProviderGlyph } from './provider_glyph'
 import './settings_loadout.css'
+import { ProviderGlyph } from './provider_glyph'
 
 type ClearedConfig = { slot: Slot; model: LoadoutModel; rect: DOMRect }
 type EquipFlight = {
@@ -307,22 +307,19 @@ export function SettingsLoadout({
             </div>
             <div className='flex flex-col gap-1'>
               {copilotModels.map((name) => (
-                <Tooltip key={name}>
-                  <TooltipTrigger render={<span className='flex cursor-not-allowed' />}>
-                    <button
-                      type='button'
-                      disabled
-                      className='pointer-events-none flex h-7 w-full min-w-0 items-center rounded-menu-item text-left text-xs text-disabled-foreground'
-                      aria-label={`${name} — GitHub Copilot disabled`}
-                    >
-                      <span className='flex w-6 shrink-0 items-center justify-center'>
-                        <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
-                      </span>
-                      <span className='truncate px-1'>{name}</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>Connect Copilot to use its models</TooltipContent>
-                </Tooltip>
+                <DisabledTooltip key={name} reason='Connect Copilot to use its models' wrap='flex'>
+                  <button
+                    type='button'
+                    disabled
+                    className='pointer-events-none flex h-7 w-full min-w-0 items-center rounded-menu-item text-left text-xs text-disabled-foreground'
+                    aria-label={`${name} — GitHub Copilot disabled`}
+                  >
+                    <span className='flex w-6 shrink-0 items-center justify-center'>
+                      <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
+                    </span>
+                    <span className='truncate px-1'>{name}</span>
+                  </button>
+                </DisabledTooltip>
               ))}
             </div>
           </div>
@@ -797,23 +794,20 @@ function CatalogModel({ model, disabledReason }: { model: LoadoutModel; disabled
   const { ref, handleRef, isDragging } = useDraggable({ id: modelKey(model), disabled })
   return (
     <div ref={ref} className='min-w-0' style={{ opacity: isDragging ? 0.4 : 1 }}>
-      <Tooltip disabled={!disabled}>
-        <TooltipTrigger render={<span className={disabled ? 'flex cursor-not-allowed' : 'flex'} />}>
-          <button
-            ref={handleRef}
-            type='button'
-            disabled={disabled}
-            aria-label={`Drag ${model.name}`}
-            className='flex h-7 w-full min-w-0 touch-none cursor-grab items-center rounded-menu-item text-left text-xs enabled:hover:bg-accent disabled:pointer-events-none disabled:text-disabled-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing'
-          >
-            <span className='flex w-6 shrink-0 items-center justify-center text-muted-foreground'>
-              <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
-            </span>
-            <span className='truncate px-1'>{model.name}</span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>{disabledReason}</TooltipContent>
-      </Tooltip>
+      <DisabledTooltip reason={disabledReason} wrap='flex'>
+        <button
+          ref={handleRef}
+          type='button'
+          disabled={disabled}
+          aria-label={`Drag ${model.name}`}
+          className='flex h-7 w-full min-w-0 touch-none cursor-grab items-center rounded-menu-item text-left text-xs enabled:hover:bg-accent disabled:pointer-events-none disabled:text-disabled-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing'
+        >
+          <span className='flex w-6 shrink-0 items-center justify-center text-muted-foreground'>
+            <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
+          </span>
+          <span className='truncate px-1'>{model.name}</span>
+        </button>
+      </DisabledTooltip>
     </div>
   )
 }

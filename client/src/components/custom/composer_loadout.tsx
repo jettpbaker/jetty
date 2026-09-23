@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   describeLoadout,
   effortLabels,
@@ -38,6 +37,7 @@ import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { ArrowUpRightIcon, DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react'
 import { useReducedMotion } from 'motion/react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { ProviderGlyph } from './provider_glyph'
 
 const subTriggerClass = 'gap-1 [&>svg:last-child]:ml-0 [&>svg:last-child]:text-muted-foreground'
@@ -131,20 +131,15 @@ function SortableLoadoutItem({
     transition: reducedMotion ? null : { duration: 150, easing: 'ease-out' },
   })
   return (
-    <Tooltip disabled={!disabled}>
-      <TooltipTrigger
-        render={
-          <DropdownMenuRadioItem
-            ref={ref}
-            value={id}
-            disabled={disabled}
-            closeOnClick
-            className='group/loadout h-8! gap-0 pl-1.5 pr-1.5 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden'
-            title='Drag to reorder · Option+Shift+↑/↓'
-            aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
-            onKeyDown={moveOnKeys(index, onMove)}
-          />
-        }
+    <DisabledTooltip reason={disabled ? 'Threads can’t switch providers' : undefined} side='right'>
+      <DropdownMenuRadioItem
+        ref={ref}
+        value={id}
+        disabled={disabled}
+        className='group/loadout h-8! gap-0 pl-1.5 pr-1.5 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden'
+        title='Drag to reorder · Option+Shift+↑/↓'
+        aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
+        onKeyDown={moveOnKeys(index, onMove)}
       >
         <DragHandle handleRef={handleRef} isDragging={isDragging} />
         <span className='flex items-center gap-1.5'>
@@ -156,9 +151,8 @@ function SortableLoadoutItem({
           <span className='text-muted-foreground'>{details}</span>
         </span>
         <SettingsArrow onOpenSettings={onOpenSettings} />
-      </TooltipTrigger>
-      <TooltipContent side='right'>Threads can’t switch providers</TooltipContent>
-    </Tooltip>
+      </DropdownMenuRadioItem>
+    </DisabledTooltip>
   )
 }
 
@@ -381,27 +375,29 @@ export function ComposerLoadout({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>
-            <Tooltip disabled={efforts.length > 0}>
-              <TooltipTrigger
-                render={
-                  <DropdownMenuSubTrigger
-                    className={cn(
-                      subTriggerClass,
-                      'data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground'
-                    )}
-                    disabled={efforts.length === 0}
-                  />
-                }
+            <DisabledTooltip
+              reason={
+                efforts.length > 0
+                  ? undefined
+                  : value
+                    ? `${name} doesn’t support effort levels`
+                    : 'Choose a model first'
+              }
+              side='right'
+            >
+              <DropdownMenuSubTrigger
+                className={cn(
+                  subTriggerClass,
+                  'data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground'
+                )}
+                disabled={efforts.length === 0}
               >
                 Effort
                 <span className='ml-auto pl-4 text-muted-foreground'>
                   {value?.effort && effortLabels[value.effort]}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent side='right'>
-                {value ? `${name} doesn’t support effort levels` : 'Choose a model first'}
-              </TooltipContent>
-            </Tooltip>
+              </DropdownMenuSubTrigger>
+            </DisabledTooltip>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup
                 value={value?.effort ?? ''}
@@ -418,17 +414,22 @@ export function ComposerLoadout({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <Tooltip disabled={!!value && !!model?.fast}>
-            <TooltipTrigger
-              render={
-                <DropdownMenuCheckboxItem
-                  className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-                  disabled={!value || !model?.fast}
-                  checked={value?.fast ?? false}
-                  closeOnClick={false}
-                  onCheckedChange={(fast) => value && onChange({ ...value, fast })}
-                />
-              }
+          <DisabledTooltip
+            reason={
+              value && model?.fast
+                ? undefined
+                : value
+                  ? `${name} doesn’t support Fast`
+                  : 'Choose a model first'
+            }
+            side='right'
+          >
+            <DropdownMenuCheckboxItem
+              className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+              disabled={!value || !model?.fast}
+              checked={value?.fast ?? false}
+              closeOnClick={false}
+              onCheckedChange={(fast) => value && onChange({ ...value, fast })}
             >
               Fast
               <Switch
@@ -439,11 +440,8 @@ export function ComposerLoadout({
                 aria-hidden='true'
                 className='pointer-events-none ml-auto'
               />
-            </TooltipTrigger>
-            <TooltipContent side='right'>
-              {value ? `${name} doesn’t support Fast` : 'Choose a model first'}
-            </TooltipContent>
-          </Tooltip>
+            </DropdownMenuCheckboxItem>
+          </DisabledTooltip>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

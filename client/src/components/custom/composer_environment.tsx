@@ -9,8 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ContainerIcon, DeviceDesktopIcon, TerminalIcon } from '@primer/octicons-react'
+
+import { DisabledTooltip } from './disabled_tooltip'
 
 type Environment = 'local' | 'container'
 
@@ -50,29 +51,24 @@ export function ComposerEnvironment({
             <DeviceDesktopIcon className='text-muted-foreground' />
             Local
           </DropdownMenuRadioItem>
-          <Tooltip disabled={containersConfigured}>
-            <TooltipTrigger
-              render={<DropdownMenuRadioItem value='container' disabled={!containersConfigured} />}
-            >
+          <DisabledTooltip
+            reason={containersConfigured ? undefined : 'Set up containers first'}
+            side='right'
+          >
+            <DropdownMenuRadioItem value='container' disabled={!containersConfigured}>
               <ContainerIcon className='text-muted-foreground' />
               Container
-            </TooltipTrigger>
-            <TooltipContent side='right'>Set up containers first</TooltipContent>
-          </Tooltip>
+            </DropdownMenuRadioItem>
+          </DisabledTooltip>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <Tooltip disabled={!!onSetupContainers}>
-            <TooltipTrigger
-              render={
-                <DropdownMenuItem disabled={!onSetupContainers} onClick={onSetupContainers} />
-              }
-            >
+          <DisabledTooltip reason={onSetupContainers ? undefined : 'Coming soon'} side='right'>
+            <DropdownMenuItem disabled={!onSetupContainers} onClick={onSetupContainers}>
               <TerminalIcon className='text-muted-foreground' />
               Set up containers
-            </TooltipTrigger>
-            <TooltipContent side='right'>Coming soon</TooltipContent>
-          </Tooltip>
+            </DropdownMenuItem>
+          </DisabledTooltip>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

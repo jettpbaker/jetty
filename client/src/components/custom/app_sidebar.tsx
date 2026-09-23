@@ -9,7 +9,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { effortLabels, modelKey } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
@@ -37,6 +36,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
@@ -201,19 +201,16 @@ export function AppSidebar() {
             </SidebarMenuItem>
             {comingSoon.map(({ label, icon: Icon }) => (
               <SidebarMenuItem key={label}>
-                <Tooltip>
-                  <TooltipTrigger render={<span className='block cursor-not-allowed' />}>
-                    <Button
-                      variant='ghost'
-                      className={`${navigationButtonClass} pointer-events-none`}
-                      disabled
-                    >
-                      <Icon className='size-3' />
-                      {label}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='right'>Coming soon</TooltipContent>
-                </Tooltip>
+                <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
+                  <Button
+                    variant='ghost'
+                    className={`${navigationButtonClass} pointer-events-none`}
+                    disabled
+                  >
+                    <Icon className='size-3' />
+                    {label}
+                  </Button>
+                </DisabledTooltip>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

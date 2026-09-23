@@ -19,6 +19,7 @@ import { useState, type ComponentProps, type ReactNode } from 'react'
 import type { Approval, Question, Source, Todo } from './composer_strip_model'
 
 import { NeedsInputIcon } from './circle_status_icon'
+import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { mediaUrl } from './media_layout'
 import { ProviderGlyph } from './provider_glyph'
@@ -230,21 +231,19 @@ function ApprovalActions({ ctl, typed }: { ctl: ApprovalControl; typed: boolean 
       <StripButton variant='ghost' tone='muted' onClick={ctl.deny}>
         {typed ? 'Deny with note' : 'Deny'}
       </StripButton>
-      <Tooltip disabled={ctl.canAlways}>
-        <TooltipTrigger
-          render={<span className={ctl.canAlways ? 'flex' : 'flex cursor-not-allowed'} />}
+      <DisabledTooltip
+        reason={ctl.canAlways ? undefined : 'Not available for this request'}
+        wrap='flex'
+      >
+        <StripButton
+          variant='secondary'
+          disabled={!ctl.canAlways}
+          onClick={() => ctl.decide('always')}
+          className={ctl.canAlways ? undefined : 'pointer-events-none'}
         >
-          <StripButton
-            variant='secondary'
-            disabled={!ctl.canAlways}
-            onClick={() => ctl.decide('always')}
-            className={ctl.canAlways ? undefined : 'pointer-events-none'}
-          >
-            Allow always
-          </StripButton>
-        </TooltipTrigger>
-        <TooltipContent>Not available for this request</TooltipContent>
-      </Tooltip>
+          Allow always
+        </StripButton>
+      </DisabledTooltip>
       <StripButton onClick={() => ctl.decide('once')}>Allow once</StripButton>
     </div>
   )

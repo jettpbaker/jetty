@@ -11,6 +11,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { CommentIcon, SearchIcon, UnlockIcon } from '@primer/octicons-react'
 
+import { DisabledTooltip } from './disabled_tooltip'
+
 const modes: Record<PermissionMode, { label: string; Icon: typeof SearchIcon }> = {
   auto: { label: 'Auto', Icon: SearchIcon },
   full_access: { label: 'Full access', Icon: UnlockIcon },
@@ -31,21 +33,18 @@ export function ComposerAccessMode({
 }) {
   if (model?.autoMode === false)
     return (
-      <Tooltip>
-        <TooltipTrigger render={<span className='flex cursor-not-allowed' />}>
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            disabled
-            aria-label='Access mode: Asks first'
-            className='pointer-events-none'
-          >
-            <CommentIcon className='size-3.5' />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{model.name} only supports asking first</TooltipContent>
-      </Tooltip>
+      <DisabledTooltip reason={`${model.name} only supports asking first`} wrap='flex'>
+        <Button
+          variant='ghost'
+          tone='muted'
+          size='icon'
+          disabled
+          aria-label='Access mode: Asks first'
+          className='pointer-events-none'
+        >
+          <CommentIcon className='size-3.5' />
+        </Button>
+      </DisabledTooltip>
     )
   const { label, Icon } = modes[value]
   return (

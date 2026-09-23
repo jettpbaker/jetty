@@ -28,6 +28,7 @@ export function OptionPicker({
   actions,
   disabled = false,
   emptyLabel = 'Select',
+  'aria-describedby': describedBy,
 }: {
   name: string
   label: string
@@ -40,6 +41,7 @@ export function OptionPicker({
   actions?: readonly PickerAction[]
   disabled?: boolean
   emptyLabel?: string
+  'aria-describedby'?: string
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -68,6 +70,7 @@ export function OptionPicker({
     >
       <PopoverTrigger
         aria-label={selected ? `${name}: ${selected.label}` : label}
+        aria-describedby={describedBy}
         disabled={disabled}
         render={
           <Button

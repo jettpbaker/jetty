@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChrome, useCreateProject } from '@/state'
 import { ArrowUpRightIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react'
 import { useRef, useState } from 'react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { ProjectFolderDialog } from './project_folder_dialog'
 import { ProjectIconPicker } from './project_icon_picker'
 
@@ -52,37 +52,31 @@ export function SettingsProjects() {
                 </span>
               </td>
               <td className='px-2 py-3 text-xs text-muted-foreground'>
-                <Tooltip>
-                  <TooltipTrigger render={<span className='inline-flex cursor-not-allowed' />}>
-                    <Button
-                      variant='ghost-text'
-                      size='sm'
-                      className='pointer-events-none -ml-2 h-7 gap-1 rounded-sm'
-                      disabled
-                    >
-                      Set up
-                      <ArrowUpRightIcon aria-hidden='true' className='size-3' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Coming soon</TooltipContent>
-                </Tooltip>
+                <DisabledTooltip reason='Coming soon' wrap='inline-flex'>
+                  <Button
+                    variant='ghost-text'
+                    size='sm'
+                    className='pointer-events-none -ml-2 h-7 gap-1 rounded-sm'
+                    disabled
+                  >
+                    Set up
+                    <ArrowUpRightIcon aria-hidden='true' className='size-3' />
+                  </Button>
+                </DisabledTooltip>
               </td>
               <td className='py-3 text-right'>
-                <Tooltip>
-                  <TooltipTrigger render={<span className='inline-flex cursor-not-allowed' />}>
-                    <Button
-                      variant='ghost'
-                      tone='muted'
-                      size='icon'
-                      aria-label={`Remove ${project.title}`}
-                      className='pointer-events-none'
-                      disabled
-                    >
-                      <TrashIcon aria-hidden='true' className='size-3.5 text-status-error' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Coming soon</TooltipContent>
-                </Tooltip>
+                <DisabledTooltip reason='Coming soon' wrap='inline-flex'>
+                  <Button
+                    variant='ghost'
+                    tone='muted'
+                    size='icon'
+                    aria-label={`Remove ${project.title}`}
+                    className='pointer-events-none'
+                    disabled
+                  >
+                    <TrashIcon aria-hidden='true' className='size-3.5 text-status-error' />
+                  </Button>
+                </DisabledTooltip>
               </td>
             </tr>
           ))}
