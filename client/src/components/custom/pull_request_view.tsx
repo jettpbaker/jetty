@@ -17,7 +17,12 @@ import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { formatAgo, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { usePullRequest, useRefreshPullRequest, useUnlinkPullRequest } from '@/state'
+import {
+  useLinkPullRequest,
+  usePullRequest,
+  useRefreshPullRequest,
+  useUnlinkPullRequest,
+} from '@/state'
 import {
   ArrowClockwiseIcon,
   ArrowSquareOutIcon,
@@ -38,6 +43,7 @@ import {
 } from '@phosphor-icons/react'
 import { DiffIcon, GitMergeIcon, IssueOpenedIcon, PeopleIcon } from '@primer/octicons-react'
 import { lazy, Suspense, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
+import { toast } from 'sonner'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
@@ -774,6 +780,19 @@ function RefreshButton({ link, error }: { link: PullRequestLink; error?: string 
 
 function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestLink }) {
   const unlink = useUnlinkPullRequest()
+  const relink = useLinkPullRequest()
+  function unlinkWithUndo() {
+    unlink(threadId, link)
+    toast('Pull request unlinked', {
+      action: {
+        label: 'Undo',
+        onClick: () =>
+          void relink(threadId, link.url).then((error) => {
+            if (error) toast.error(error)
+          }),
+      },
+    })
+  }
   return (
     <Tooltip>
       <TooltipTrigger
@@ -784,7 +803,7 @@ function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestL
             size='icon'
             className='h-7'
             aria-label='Unlink from thread'
-            onClick={() => unlink(threadId, link)}
+            onClick={unlinkWithUndo}
           />
         }
       >
