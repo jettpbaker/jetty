@@ -58,12 +58,14 @@ const comingSoon = [
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project.title]))
   const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
+  const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
   return chrome.threads
     .filter((thread) => !thread.archived)
     .map((thread) => ({
       id: thread.id,
       title: thread.title,
       project: projects.get(thread.projectId) ?? '',
+      parent: thread.parentThreadId && titles.get(thread.parentThreadId),
       status: threadStatus(thread.status),
       lastActivity: formatAge(thread.updatedAt, now),
       updatedAt: thread.updatedAt,

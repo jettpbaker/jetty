@@ -2,6 +2,7 @@ import type { ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
 import { RepoIcon } from '@primer/octicons-react'
 
 import { OverflowTitle } from './overflow_title'
@@ -14,6 +15,7 @@ import './thread_row.css'
 export function ThreadRow({
   title,
   project,
+  parent,
   status,
   lastActivity,
   pullRequest,
@@ -26,6 +28,7 @@ export function ThreadRow({
 }: {
   title: string
   project: string
+  parent?: string
   status: ThreadStatus
   lastActivity: string
   pullRequest?: ThreadPullRequest
@@ -65,10 +68,17 @@ export function ThreadRow({
               <ThreadStatusGlyph status={status} iconClassName='size-3.5' />
             </span>
             <span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
-              <span className='flex min-w-0 items-center gap-1' title={project}>
-                <RepoIcon aria-hidden='true' className='icon-optical-down size-3' />
-                <span className='truncate'>{project}</span>
-              </span>
+              {parent ? (
+                <span className='flex min-w-0 items-center gap-1' title={`Created by ${parent}`}>
+                  <ArrowElbowDownRightIcon aria-hidden='true' className='size-3 shrink-0' />
+                  <span className='truncate'>{parent}</span>
+                </span>
+              ) : (
+                <span className='flex min-w-0 items-center gap-1' title={project}>
+                  <RepoIcon aria-hidden='true' className='icon-optical-down size-3' />
+                  <span className='truncate'>{project}</span>
+                </span>
+              )}
               {pullRequest && pr && (
                 <>
                   <span aria-hidden='true' className='shrink-0 text-muted-foreground'>
