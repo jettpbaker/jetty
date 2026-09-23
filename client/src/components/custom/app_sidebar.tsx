@@ -87,7 +87,7 @@ export function AppSidebar() {
   const onSettings = useLocation({ select: (location) => location.pathname === '/settings' })
   const reducedMotion = useReducedMotion()
   const [query, setQuery] = useState('')
-  const [grouping, setGrouping] = useState<ThreadGrouping>('project')
+  const [grouping, setGrouping] = useState<ThreadGrouping>('date')
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query)
   const layoutDependency = `${grouping}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.updatedAt}`).join(',')}`
