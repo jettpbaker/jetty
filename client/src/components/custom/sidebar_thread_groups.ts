@@ -1,4 +1,6 @@
-import type { ThreadPullRequest } from './thread_row'
+import type { ProviderId } from '@jetty/shared/wire'
+
+import type { ThreadPullRequest } from './thread_pull_request'
 import type { ThreadStatus } from './thread_status'
 
 export type ThreadGrouping = 'project' | 'status' | 'date'
@@ -12,6 +14,9 @@ export type SidebarThread = {
   updatedAt: number
   pinned: boolean
   pullRequest?: ThreadPullRequest
+  provider?: ProviderId
+  model?: string
+  effort?: string
 }
 
 const statusGroups = [

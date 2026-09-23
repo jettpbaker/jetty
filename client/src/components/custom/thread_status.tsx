@@ -21,7 +21,7 @@ export function threadStatus(status: SessionStatus): ThreadStatus {
   }
 }
 
-const statusPresentation = {
+export const statusPresentation = {
   idle: { icon: null, label: 'Idle', color: 'text-muted-foreground' },
   working: { icon: InProgressIcon, label: 'Working', color: 'text-status-working' },
   'needs-attention': { icon: NeedsInputIcon, label: 'Needs input', color: 'text-status-attention' },

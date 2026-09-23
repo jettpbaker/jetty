@@ -1,0 +1,37 @@
+/* Base UI positions its floating surface with physical offsets. */
+.thread-hover-positioner {
+  transition:
+    top 200ms cubic-bezier(0.645, 0.045, 0.355, 1),
+    left 200ms cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+.thread-hover-positioner[data-instant] {
+  transition: none;
+}
+.thread-hover-shared {
+  transition: opacity 100ms ease;
+}
+.thread-hover-shared[data-starting-style],
+.thread-hover-shared[data-ending-style] {
+  opacity: 0;
+}
+.thread-hover-viewport {
+  position: relative;
+}
+.thread-hover-viewport > [data-current],
+.thread-hover-viewport > [data-previous] {
+  transition: opacity 120ms ease;
+}
+.thread-hover-viewport > [data-previous] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.thread-hover-viewport > [data-current][data-starting-style],
+.thread-hover-viewport > [data-previous][data-ending-style] {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-hover-positioner {
+    transition: none;
+  }
+}

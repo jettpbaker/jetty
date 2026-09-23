@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
+import { effortLabels, modelKey } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
 import {
@@ -39,6 +40,7 @@ import {
   type SidebarThread,
   type ThreadGrouping,
 } from './sidebar_thread_groups'
+import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
 import { ThreadStatusGlyph, threadStatus } from './thread_status'
 
@@ -55,6 +57,7 @@ const comingSoon = [
 
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project.title]))
+  const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
   return chrome.threads
     .filter((thread) => !thread.archived)
     .map((thread) => ({
@@ -66,6 +69,12 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
       updatedAt: thread.updatedAt,
       pinned: thread.pinned,
       pullRequest: thread.git?.pr ?? undefined,
+      provider: thread.provider,
+      model:
+        thread.provider && thread.model
+          ? (models.get(modelKey({ provider: thread.provider, id: thread.model })) ?? thread.model)
+          : undefined,
+      effort: thread.effort && effortLabels[thread.effort],
     }))
 }
 
@@ -178,87 +187,92 @@ export function AppSidebar() {
           onShowPinnedChange={setShowPinned}
         />
       </div>
-      <MotionSidebarContent layoutScroll className='overscroll-contain px-1.5 pb-0'>
-        <nav aria-label='Threads'>
-          <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
-            {items.map((item) => {
-              if (item.kind === 'heading')
-                return (
-                  <h3
-                    key={item.id}
-                    className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
-                  >
-                    {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
-                    {!item.pinned && grouping === 'project' && (
-                      <RepoIcon className='icon-optical-down size-3 shrink-0' aria-hidden='true' />
-                    )}
-                    {item.status === 'idle' ? (
-                      <CircleIcon
-                        weight='regular'
-                        stroke='currentColor'
-                        strokeWidth={16}
-                        className='size-3 shrink-0'
-                        aria-hidden='true'
-                      />
-                    ) : (
-                      item.status && (
-                        <ThreadStatusGlyph status={item.status} iconClassName='size-3' />
-                      )
-                    )}
-                    <span className='flex min-w-0 flex-1 items-baseline gap-1'>
-                      <span className='min-w-0 truncate font-medium'>{item.label}</span>
-                      <span
-                        className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
-                        aria-label={`${item.count} threads`}
-                      >
-                        {item.count}
+      <ThreadHoverGroup>
+        <MotionSidebarContent layoutScroll className='overscroll-contain px-1.5 pb-0'>
+          <nav aria-label='Threads'>
+            <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
+              {items.map((item) => {
+                if (item.kind === 'heading')
+                  return (
+                    <h3
+                      key={item.id}
+                      className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
+                    >
+                      {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
+                      {!item.pinned && grouping === 'project' && (
+                        <RepoIcon
+                          className='icon-optical-down size-3 shrink-0'
+                          aria-hidden='true'
+                        />
+                      )}
+                      {item.status === 'idle' ? (
+                        <CircleIcon
+                          weight='regular'
+                          stroke='currentColor'
+                          strokeWidth={16}
+                          className='size-3 shrink-0'
+                          aria-hidden='true'
+                        />
+                      ) : (
+                        item.status && (
+                          <ThreadStatusGlyph status={item.status} iconClassName='size-3' />
+                        )
+                      )}
+                      <span className='flex min-w-0 flex-1 items-baseline gap-1'>
+                        <span className='min-w-0 truncate font-medium'>{item.label}</span>
+                        <span
+                          className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
+                          aria-label={`${item.count} threads`}
+                        >
+                          {item.count}
+                        </span>
                       </span>
-                    </span>
-                  </h3>
-                )
-              const thread = item.thread
-              return (
-                <motion.div
-                  key={thread.id}
-                  data-thread-row
-                  layout={reducedMotion ? false : 'position'}
-                  layoutDependency={layoutDependency}
-                  initial={false}
-                  transition={{ layout: rowLayoutTransition }}
-                  onPointerEnter={() => {
-                    if (thread.id === selectedId) return
-                    hovering.current = thread.id
-                    setWarmId(thread.id)
-                  }}
-                  onPointerLeave={() => {
-                    if (hovering.current !== thread.id) return
-                    hovering.current = undefined
-                    if (warmId === thread.id && warmed) setWarmId(undefined)
-                  }}
-                >
-                  <ThreadRow
-                    {...thread}
-                    selected={selectedId === thread.id}
-                    actions={{
-                      pinned: thread.pinned,
-                      onArchive: () => archive(thread.id),
-                      onDelete: () => remove(thread.id),
-                      onPin: () => pinThread(thread.id, !thread.pinned),
-                      onRename: (title) => renameThread(thread.id, title),
+                    </h3>
+                  )
+                const thread = item.thread
+                return (
+                  <motion.div
+                    key={thread.id}
+                    data-thread-row
+                    layout={reducedMotion ? false : 'position'}
+                    layoutDependency={layoutDependency}
+                    initial={false}
+                    transition={{ layout: rowLayoutTransition }}
+                    onPointerEnter={() => {
+                      if (thread.id === selectedId) return
+                      hovering.current = thread.id
+                      setWarmId(thread.id)
                     }}
-                    onSelect={() =>
-                      navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
-                    }
-                  />
-                </motion.div>
-              )
-            })}
-            {chrome && !groups.length && (
-              <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
-            )}
-          </div>
-        </nav>
-      </MotionSidebarContent>
+                    onPointerLeave={() => {
+                      if (hovering.current !== thread.id) return
+                      hovering.current = undefined
+                      if (warmId === thread.id && warmed) setWarmId(undefined)
+                    }}
+                  >
+                    <ThreadRow
+                      {...thread}
+                      selected={selectedId === thread.id}
+                      actions={{
+                        pinned: thread.pinned,
+                        onArchive: () => archive(thread.id),
+                        onDelete: () => remove(thread.id),
+                        onPin: () => pinThread(thread.id, !thread.pinned),
+                        onRename: (title) => renameThread(thread.id, title),
+                      }}
+                      onSelect={() =>
+                        navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
+                      }
+                    />
+                  </motion.div>
+                )
+              })}
+              {chrome && !groups.length && (
+                <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
+              )}
+            </div>
+          </nav>
+        </MotionSidebarContent>
+      </ThreadHoverGroup>
       <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
         <Button
           variant='ghost'
