@@ -62,7 +62,6 @@ export function ThreadComposer({
   const draft = saved.text
   const editing = saved.editing
   const setDraft = (text: string) => update({ text })
-  const [chosen, setChosen] = useState(0)
   const attachments = useImageAttachments(draftKey)
   const { loadouts, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
@@ -87,22 +86,44 @@ export function ThreadComposer({
     () => pendingItems(items, { provider, projectPath, projectTitle }),
     [items, projectPath, projectTitle, provider]
   )
-  const index = Math.max(0, Math.min(chosen, pending.length - 1))
+  const index = Math.max(
+    0,
+    pending.findIndex((entry) => entry.id === saved.pendingId)
+  )
   const item = pending[index]
+  // The next item to show brings back whatever was typed for it earlier.
+  function settled(entry: { id: string }) {
+    const next = pending.find((candidate) => candidate.id !== entry.id)
+    const parked = next && saved.parked?.[next.id]
+    if (!next || parked === undefined) return
+    const { [next.id]: _, ...rest } = saved.parked ?? {}
+    update({ pendingId: next.id, text: parked, parked: rest })
+  }
+
   const approval = useApproval(
     item?.kind === 'approval' ? item : undefined,
     draft,
     setDraft,
-    (entry, decision, note) =>
-      threadId &&
+    (entry, decision, note) => {
+      if (!threadId) return
       respondApproval(threadId, entry.id, decision === 'once' ? 'allow' : decision, note)
+      settled(entry)
+    }
   )
   const question = useQuestion(
     item?.kind === 'question' ? item : undefined,
-    draft,
-    setDraft,
-    (entry, answers) => threadId && respondQuestion(threadId, entry.id, answers),
-    (entry) => threadId && dismissQuestion(threadId, entry.id)
+    saved,
+    update,
+    (entry, answers) => {
+      if (!threadId) return
+      respondQuestion(threadId, entry.id, answers)
+      settled(entry)
+    },
+    (entry) => {
+      if (!threadId) return
+      dismissQuestion(threadId, entry.id)
+      settled(entry)
+    }
   )
   const todos = useMemo(() => currentTodos(items), [items])
   const openTodo =
@@ -182,13 +203,29 @@ export function ThreadComposer({
     },
   }
 
+  // Each pending item keeps its own typed text, so paging never answers one with another's.
+  function choose(to: number) {
+    const target = pending[to]
+    if (!target || !item || target === item) return
+    const parked = Object.fromEntries(
+      Object.entries(saved.parked ?? {}).filter(([id]) =>
+        pending.some((entry) => entry.id === id && entry !== target)
+      )
+    )
+    update({
+      pendingId: target.id,
+      text: saved.parked?.[target.id] ?? '',
+      parked: { ...parked, [item.id]: draft },
+    })
+  }
+
   const header = pending.length > 1 && item && (
     <SeveralHeader
       index={index}
       total={pending.length}
       source={item.source}
       queued={queue.length}
-      onChoose={setChosen}
+      onChoose={choose}
     />
   )
 

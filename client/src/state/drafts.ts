@@ -4,12 +4,18 @@ import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext } from 'react'
 
+export type QuestionProgress = { step: number; picks: string[][]; custom: string[] }
+
 // The unsent composer state of one thread; the new-thread composer uses the key ''.
 export type Draft = {
   text: string
   images: readonly ComposerImage[]
   // the queued message this draft rewrites
   editing?: string
+  // the pending approval or question the text answers, and what was typed for the others
+  pendingId?: string
+  parked?: Readonly<Record<string, string>>
+  questions?: Readonly<Record<string, QuestionProgress>>
 }
 
 const emptyDraft: Draft = { text: '', images: [] }

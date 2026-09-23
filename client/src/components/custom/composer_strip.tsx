@@ -1,3 +1,4 @@
+import type { Draft, QuestionProgress } from '@/state'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
@@ -182,8 +183,8 @@ export function useApproval(
     respond(item, decision, note.trim())
   }
   function deny() {
-    decide('deny', draft)
     setDraft('')
+    decide('deny', draft)
   }
   function send() {
     if (confirming) decide('always')
@@ -345,30 +346,36 @@ export function ApprovalStrip({
 
 /* 2a · Question */
 
-type Progress = { id: string; step: number; picks: string[][]; custom: string[] }
-
-function freshProgress(item: Question): Progress {
+function freshProgress(item: Question): QuestionProgress {
   return {
-    id: item.id,
     step: 0,
     picks: item.questions.map(() => []),
     custom: item.questions.map(() => ''),
   }
 }
 
+// Progress lives in the draft store so it survives thread switches alongside the typed answer.
 export function useQuestion(
   item: Question | undefined,
-  draft: string,
-  setDraft: (value: string) => void,
+  saved: Draft,
+  update: (patch: Partial<Draft>) => void,
   answer: (item: Question, answers: Record<string, string>) => void,
   dismiss: (item: Question) => void
 ) {
-  const [saved, setProgress] = useState<Progress>()
-  const progress = item && (saved?.id === item.id ? saved : freshProgress(item))
+  const draft = saved.text
+  const progress = item && (saved.questions?.[item.id] ?? freshProgress(item))
   const step = progress?.step ?? 0
   const spec = item?.questions[step]
   const total = item?.questions.length ?? 0
   const last = step === total - 1
+
+  function save(next: QuestionProgress | undefined, text?: string) {
+    if (!item) return
+    const questions = { ...saved.questions }
+    if (next) questions[item.id] = next
+    else delete questions[item.id]
+    update(text === undefined ? { questions } : { questions, text })
+  }
 
   function answerAt(index: number) {
     if (!progress) return ''
@@ -385,13 +392,12 @@ export function useQuestion(
         ? picked.filter((entry) => entry !== label)
         : [...picked, label]
       : [label]
-    setProgress({ ...progress, picks: progress.picks.with(step, next) })
+    save({ ...progress, picks: progress.picks.with(step, next) })
   }
   function go(to: number) {
     if (!progress || to < 0 || to >= total || to === step) return
     const custom = progress.custom.with(step, draft)
-    setProgress({ ...progress, step: to, custom })
-    setDraft(custom[to] ?? '')
+    save({ ...progress, step: to, custom }, custom[to] ?? '')
   }
   function next() {
     if (!item || !current) return
@@ -399,7 +405,7 @@ export function useQuestion(
       go(step + 1)
       return
     }
-    setDraft('')
+    save(undefined, '')
     answer(
       item,
       Object.fromEntries(
@@ -409,7 +415,7 @@ export function useQuestion(
   }
   function onDismiss() {
     if (!item) return
-    setDraft('')
+    save(undefined, '')
     dismiss(item)
   }
   function onKey(event: KeyboardEvent) {
