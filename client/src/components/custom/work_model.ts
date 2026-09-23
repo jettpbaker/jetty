@@ -127,7 +127,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const target = !summarise
     ? current.target
     : first.kind === 'generic'
-      ? `${shown} ${first.name} calls`
+      ? `${shown} ${first.name} call${shown === 1 ? '' : 's'}`
       : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done
   if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {

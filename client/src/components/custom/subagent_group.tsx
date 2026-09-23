@@ -57,10 +57,10 @@ export function SubagentGroup({
             )}
             <span
               className='font-mono'
-              aria-label={`${totalTokens.toLocaleString('en')} total tokens`}
+              aria-label={`${totalTokens.toLocaleString('en')} total token${totalTokens === 1 ? '' : 's'}`}
             >
               {formatSubagentTokens(totalTokens)}
-              <span className='sr-only'> tokens</span>
+              <span className='sr-only'> token{totalTokens === 1 ? '' : 's'}</span>
             </span>
           </span>
         )}

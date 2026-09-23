@@ -218,7 +218,7 @@ export function AppSidebar() {
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>
                         <span
                           className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
-                          aria-label={`${item.count} threads`}
+                          aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
                         >
                           {item.count}
                         </span>

@@ -31,7 +31,9 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
   }, [])
   const active = activity.status === 'running'
   const tokens =
-    activity.tokens === undefined ? undefined : `${activity.tokens.toLocaleString('en')} tokens`
+    activity.tokens === undefined
+      ? undefined
+      : `${activity.tokens.toLocaleString('en')} token${activity.tokens === 1 ? '' : 's'}`
   const duration = formatActivityDuration(activity.elapsedSeconds)
   const state = active
     ? 'Thinking'

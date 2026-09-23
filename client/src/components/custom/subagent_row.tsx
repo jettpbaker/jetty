@@ -127,7 +127,7 @@ export function SubagentRow({
       </span>
       <span
         className='text-right font-mono text-xs text-muted-foreground'
-        aria-label={`${agent.tokens.toLocaleString('en')} tokens`}
+        aria-label={`${agent.tokens.toLocaleString('en')} token${agent.tokens === 1 ? '' : 's'}`}
       >
         {formatSubagentTokens(agent.tokens)}
       </span>
