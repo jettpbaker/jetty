@@ -14,10 +14,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   From t3code: create the worktree on first send, store an explicit cwd per thread,
   reuse existing worktrees, recreate a missing one; never switch a checkout under a
   running agent; key worktree paths per repo; make branch deletion explicit.
-- Project icons: pick an emoji or an icon from a curated Phosphor list, per
-  project. Emoji render as Microsoft Fluent **Flat** (github.com/microsoft/fluentui-emoji,
-  MIT), never the OS font. The sketchpad's emoji-picker-react can load custom images
-  via `getEmojiUrl`; Fluent assets are keyed by name, so map from their metadata.
 - Workflows, after the v1 cut (status lines under the composer, sidebar working,
   a2a in-chat row, per-workflow stop): the detail view (c1 / c1b / c1c in the
   sketchpad) and resume. Resume plan: after a restart jetty resumes interrupted
