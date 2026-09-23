@@ -2,6 +2,14 @@ import { layout, prepare, type PreparedText } from '@chenglou/pretext'
 
 import type { ThreadRow } from './thread_rows'
 
+import {
+  BUBBLE_IMAGE_MAX_HEIGHT,
+  fittedSize,
+  galleryHeight,
+  INLINE_IMAGE_MAX_HEIGHT,
+  VIDEO_CARD_HEIGHT,
+} from './media_layout'
+
 const font = '14px "Geist Variable"'
 const lineHeight = 23
 const cache = new Map<string, { text: string; prepared: PreparedText }>()
@@ -23,17 +31,20 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean) {
 }
 
 function captionHeight(id: string, caption: string | undefined, width: number) {
-  return caption ? textHeight(`${id}:caption`, caption, width * 0.8, false) + 8 : 0
+  return caption ? textHeight(`${id}:caption`, caption, width, false) + 8 : 0
 }
 
 export function estimateRow(row: ThreadRow, width: number) {
   switch (row.kind) {
-    case 'user':
-      return (
-        textHeight(row.id, row.item.text, width * 0.8, true) +
-        16 +
-        (row.item.attachments.length ? 72 : 0)
-      )
+    case 'user': {
+      let height = textHeight(row.id, row.item.text, width * 0.8, true) + 16
+      for (const attachment of row.item.attachments)
+        height +=
+          8 +
+          (fittedSize(attachment, width * 0.8 - 24, BUBBLE_IMAGE_MAX_HEIGHT)?.height ??
+            BUBBLE_IMAGE_MAX_HEIGHT)
+      return height
+    }
     case 'assistant':
     case 'plan':
       return textHeight(row.id, row.item.text, width, false) + 8
@@ -50,10 +61,14 @@ export function estimateRow(row: ThreadRow, width: number) {
       return textHeight(row.id, row.message, width * 0.8, true) + 24
     case 'gallery':
       return (
-        160 * Math.ceil(row.item.images.length / 2) + captionHeight(row.id, row.item.caption, width)
+        (row.item.images.length === 1
+          ? (fittedSize(row.item.images[0]!, width, INLINE_IMAGE_MAX_HEIGHT)?.height ??
+            INLINE_IMAGE_MAX_HEIGHT)
+          : galleryHeight(row.item.images.length, width)) +
+        captionHeight(row.id, row.item.caption, width)
       )
     case 'video':
-      return 180 + captionHeight(row.id, row.item.caption, width)
+      return VIDEO_CARD_HEIGHT
     case 'subagents':
       return 44 + 50 * row.agents.length
     case 'question': {

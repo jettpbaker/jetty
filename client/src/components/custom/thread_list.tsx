@@ -5,6 +5,7 @@ import type { TurnOutcome } from '@jetty/shared/reducer'
 import { AssistantMessage } from '@/components/custom/assistant_message'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
+import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { QuestionMessage } from '@/components/custom/question_message'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
@@ -195,37 +196,40 @@ export function ThreadList({
   }, [virtualizer, rows.length, stamp, width])
 
   return (
-    <section
-      ref={scroller}
-      className='scrollbar-subtle scroll-fade-y [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
-      aria-label='Conversation'
-      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
-      tabIndex={0}
-      onScroll={({ currentTarget: element }) => {
-        pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
-      }}
-    >
-      <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((virtualRow) => (
-          <div
-            key={virtualRow.key}
-            data-index={virtualRow.index}
-            ref={virtualizer.measureElement}
-            className='absolute top-0 left-0 w-full'
-            style={{ transform: `translateY(${virtualRow.start}px)` }}
-          >
-            <div className='mx-auto w-full max-w-[708px] px-6'>
-              <ThreadItemRow
-                row={rows[virtualRow.index]!}
-                selectedAgent={agentId}
-                onSelectAgent={onSelectAgent}
-                onApproval={onApproval}
-                onAnswer={onAnswer}
-              />
+    <MediaLightboxProvider>
+      <section
+        ref={scroller}
+        className='scrollbar-subtle scroll-fade-y [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
+        aria-label='Conversation'
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
+        tabIndex={0}
+        onScroll={({ currentTarget: element }) => {
+          pinned.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
+        }}
+      >
+        <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((virtualRow) => (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              className='absolute top-0 left-0 w-full'
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+            >
+              <div className='mx-auto w-full max-w-[708px] px-6'>
+                <ThreadItemRow
+                  row={rows[virtualRow.index]!}
+                  selectedAgent={agentId}
+                  onSelectAgent={onSelectAgent}
+                  onApproval={onApproval}
+                  onAnswer={onAnswer}
+                />
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </section>
+          ))}
+        </div>
+      </section>
+    </MediaLightboxProvider>
   )
 }
