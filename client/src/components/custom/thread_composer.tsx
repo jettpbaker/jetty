@@ -46,7 +46,7 @@ export function ThreadComposer({
 
   function submit() {
     const text = draft.trim()
-    if ((!text && attachments.images.length === 0) || needsModel) return
+    if (!text && attachments.images.length === 0) return
     const id = threadId ?? (projectId ? createThread(projectId) : undefined)
     if (!id) return
     const prior = items.filter((item) => item.kind === 'user_message' && item.text === text).length
