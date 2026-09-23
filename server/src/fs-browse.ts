@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 export type BrowseEntry = { name: string; fullPath: string; isGitRepo: boolean }
 export type BrowseResult = { parentPath: string; entries: BrowseEntry[] }
 
-const MAX_ENTRIES = 50
+const MAX_ENTRIES = 500
 
 export function expandHome(input: string): string {
   if (input === '~') return homedir()
@@ -50,7 +50,7 @@ export function browse(partialPath: string) {
           Effect.catch(() => Effect.succeed(false)),
           Effect.map((isGitRepo) => ({ ...entry, isGitRepo }))
         ),
-      { concurrency: 'unbounded' }
+      { concurrency: 32 }
     )
     return { parentPath: dir, entries: shown }
   })

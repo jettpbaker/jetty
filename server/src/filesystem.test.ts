@@ -41,9 +41,9 @@ describe('Effect filesystem services', () => {
             'Beta',
           ])
           expect((yield* browse(root + '/missing/')).entries).toEqual([])
-          for (let index = 0; index < 55; index++)
+          for (let index = 0; index < 505; index++)
             yield* fs.makeDirectory(path.join(root, `entry-${index}`))
-          expect((yield* browse(root + '/')).entries).toHaveLength(50)
+          expect((yield* browse(root + '/')).entries).toHaveLength(500)
           expect(normalizePath(root + '/Alpha/../Beta')).toBe(root + '/Beta')
           expect(expandHome('relative')).toBe('relative')
         })
