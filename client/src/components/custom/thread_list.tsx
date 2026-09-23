@@ -47,7 +47,15 @@ function rowStamp(row: ThreadRow) {
   }
 }
 
-function ThreadItemRow({ row }: { row: ThreadRow }) {
+function ThreadItemRow({
+  row,
+  onApproval,
+  onAnswer,
+}: {
+  row: ThreadRow
+  onApproval: (itemId: string, approved: boolean) => void
+  onAnswer: (itemId: string, answers: Record<string, string>) => void
+}) {
   if (row.kind === 'user')
     return <UserMessage text={row.item.text} attachments={row.item.attachments} />
   if (row.kind === 'assistant' || row.kind === 'plan')
@@ -63,21 +71,26 @@ function ThreadItemRow({ row }: { row: ThreadRow }) {
         </MessageContent>
       </Message>
     )
-  if (row.kind === 'work') return <WorkBlock activities={row.activities} status={row.status} />
+  if (row.kind === 'work')
+    return <WorkBlock activities={row.activities} status={row.status} onApproval={onApproval} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
   if (row.kind === 'video')
     return <VideoMessage video={row.item.video} caption={row.item.caption} />
-  return <QuestionMessage item={row.item} />
+  return <QuestionMessage item={row.item} onAnswer={(answers) => onAnswer(row.item.id, answers)} />
 }
 
 export function ThreadList({
   items,
   status,
+  onApproval,
+  onAnswer,
 }: {
   items: readonly ThreadItem[]
   status: SessionStatus
+  onApproval: (itemId: string, approved: boolean) => void
+  onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   const rows = useMemo(() => threadRows(items, status), [items, status])
   const scroller = useRef<HTMLDivElement>(null)
@@ -145,7 +158,11 @@ export function ThreadList({
             style={{ transform: `translateY(${virtualRow.start}px)` }}
           >
             <div className='mx-auto w-full max-w-[708px] px-6'>
-              <ThreadItemRow row={rows[virtualRow.index]!} />
+              <ThreadItemRow
+                row={rows[virtualRow.index]!}
+                onApproval={onApproval}
+                onAnswer={onAnswer}
+              />
             </div>
           </div>
         ))}

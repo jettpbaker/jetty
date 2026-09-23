@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
@@ -7,6 +8,7 @@ import {
   formatActivityDuration,
   groupWorkActivities,
   type ActivityStatus,
+  type ToolActivity,
   type WorkActivity,
   type WorkEntry,
 } from './work_model'
@@ -59,17 +61,20 @@ export function WorkBlock({
   elapsedSeconds,
   previewCount = 3,
   defaultView,
+  onApproval,
 }: {
   activities: readonly WorkActivity[]
   status: ActivityStatus
   elapsedSeconds?: number
   previewCount?: number
   defaultView?: ActivityView
+  onApproval?: (id: string, approved: boolean) => void
 }) {
   const ended = ['complete', 'failed', 'cancelled', 'interrupted'].includes(status)
   const entries = groupWorkActivities(activities, ended)
   const waiting = activities.filter(
-    (activity) => activity.type === 'tool' && activity.status === 'waiting'
+    (activity): activity is ToolActivity =>
+      activity.type === 'tool' && activity.status === 'waiting'
   )
   const duration = formatActivityDuration(elapsedSeconds)
   const heading =
@@ -98,6 +103,36 @@ export function WorkBlock({
       renderContent={(view) => (
         <WorkHistory entries={entries} recentStart={recentStart} view={view} />
       )}
+      footer={
+        waiting.length > 0 ? (
+          <div className='mx-2 mt-2 flex flex-col gap-2 rounded-sm border border-border bg-card p-3'>
+            {waiting.map((call) => (
+              <div key={call.id} className='flex flex-col gap-2'>
+                <p className='text-xs text-muted-foreground'>
+                  Allow <span className='font-mono break-all text-foreground'>{call.target}</span>?
+                </p>
+                <div className='flex gap-2'>
+                  <Button
+                    size='xs'
+                    disabled={!onApproval}
+                    onClick={() => onApproval?.(call.id, true)}
+                  >
+                    Allow once
+                  </Button>
+                  <Button
+                    size='xs'
+                    variant='ghost-text'
+                    disabled={!onApproval}
+                    onClick={() => onApproval?.(call.id, false)}
+                  >
+                    Deny
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : undefined
+      }
     />
   )
 }

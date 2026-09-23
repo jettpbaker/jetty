@@ -10,11 +10,12 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
+import { newThreadProject } from '@/lib/thread_project'
 import { formatAge } from '@/lib/time'
 import {
   useArchiveThread,
+  useBumpDraft,
   useChrome,
-  useCreateThread,
   useDeleteThread,
   usePinThread,
   usePrefetchThread,
@@ -60,16 +61,6 @@ export type SidebarThread = {
   updatedAt: number
   pinned: boolean
   pullRequests: ThreadPullRequest[]
-}
-
-function newThreadProject(chrome: Chrome, selectedId: string | undefined) {
-  const threads = chrome.threads.filter((thread) => !thread.archived)
-  const selected = threads.find((thread) => thread.id === selectedId)
-  const recent = threads.reduce<(typeof threads)[number] | undefined>(
-    (latest, thread) => (!latest || thread.updatedAt > latest.updatedAt ? thread : latest),
-    undefined
-  )
-  return (selected ?? recent)?.projectId ?? chrome.projects[0]?.id
 }
 
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
@@ -128,7 +119,7 @@ export function AppSidebar() {
     },
     ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
   ])
-  const createThread = useCreateThread()
+  const bumpDraft = useBumpDraft()
   const archiveThread = useArchiveThread()
   const renameThread = useRenameThread()
   const pinThread = usePinThread()
@@ -138,8 +129,8 @@ export function AppSidebar() {
 
   function newThread() {
     if (!projectId) return
-    const threadId = createThread(projectId)
-    void navigate({ to: '/threads/$threadId', params: { threadId } })
+    bumpDraft()
+    void navigate({ to: '/' })
   }
 
   function leaveIfSelected(threadId: string) {

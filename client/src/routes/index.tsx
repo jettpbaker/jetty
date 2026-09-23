@@ -1,13 +1,18 @@
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
+import { ThreadComposer } from '@/components/custom/thread_composer'
+import { useDraftEpoch } from '@/state'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({ component: Home })
 
 function Home() {
+  const epoch = useDraftEpoch()
   return (
-    <>
+    <section key={epoch} className='flex h-full min-h-0 flex-col' aria-label='New thread'>
       <PageSidebarTrigger standalone />
-      <p className='p-4 text-sm text-muted-foreground'>Pick a thread or start a new one.</p>
-    </>
+      <div className='flex min-h-0 flex-1 flex-col justify-center'>
+        <ThreadComposer items={[]} running={false} rows={2} />
+      </div>
+    </section>
   )
 }
