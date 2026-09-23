@@ -6,6 +6,7 @@ import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom } from 'effect/unstable/reactivity'
 
 import { subscribe } from './connection'
+import { awaitCreation } from './mutations'
 
 function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
   if (update.type === 'snapshot') return { ...update.snapshot, lastSeq: update.seq }
@@ -22,7 +23,9 @@ const liveAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     const cached = get.once(resumeAtom(threadId))
     return subscribe(get, (connection) =>
-      connection.subscribeThread(threadId, cached?.lastSeq)
+      Stream.unwrap(
+        Effect.as(awaitCreation(threadId), connection.subscribeThread(threadId, cached?.lastSeq))
+      )
     ).pipe(
       Stream.scan(cached ?? emptyThread, foldUpdate),
       Stream.drop(1),
