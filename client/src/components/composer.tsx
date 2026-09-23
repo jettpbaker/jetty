@@ -113,11 +113,7 @@ export function ComposerFooter({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <PromptInputButton
-              variant='ghost-text'
-              size='sm'
-              disabled={disabled}
-            >
+            <PromptInputButton variant='ghost-text' size='sm' disabled={disabled}>
               {prefs.approval.label}
             </PromptInputButton>
           }
