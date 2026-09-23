@@ -381,7 +381,18 @@ export function createMcpHandler(
             'List live Jetty providers, model IDs and names, and supported effort levels for create_thread.',
           inputSchema: {},
         },
-        () => invoke(Effect.succeed(models() ?? []))
+        () =>
+          invoke(
+            Effect.succeed(
+              (models() ?? []).map(({ provider, id, name, efforts, defaultEffort }) => ({
+                provider,
+                id,
+                name,
+                efforts,
+                defaultEffort,
+              }))
+            )
+          )
       )
       server.registerTool(
         'create_thread',
