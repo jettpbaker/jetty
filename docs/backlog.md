@@ -19,8 +19,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   From t3code: create the worktree on first send, store an explicit cwd per thread,
   reuse existing worktrees, recreate a missing one; never switch a checkout under a
   running agent; key worktree paths per repo; make branch deletion explicit.
-- Project icons: pick an emoji (one pinned emoji style, not the OS default) or an
-  icon from a curated Phosphor list, per project.
+- Project icons: pick an emoji or an icon from a curated Phosphor list, per
+  project. Emoji render as Microsoft Fluent **Flat** (github.com/microsoft/fluentui-emoji,
+  MIT), never the OS font. The sketchpad's emoji-picker-react can load custom images
+  via `getEmojiUrl`; Fluent assets are keyed by name, so map from their metadata.
 - Grok doesn't report context usage, so its ring stays empty.
 - Model discovery runs once at server start; logging in to a provider later
   needs a restart.
