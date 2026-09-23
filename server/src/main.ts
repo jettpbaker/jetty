@@ -2,7 +2,7 @@ import type { ProviderModel } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, type RateLimits } from '@jetty/shared/wire'
+import { MAX_TURN_IMAGE_BYTES, type RateLimits } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
@@ -85,8 +85,7 @@ function reconcileOnStartup(store: Store) {
 }
 
 // base64 inflates by 4/3; the extra MiB covers the rest of the turn.start frame.
-const MAX_TURN_PAYLOAD_BYTES =
-  Math.ceil((MAX_IMAGES_PER_TURN * MAX_IMAGE_BYTES * 4) / 3) + 1024 * 1024
+const MAX_TURN_PAYLOAD_BYTES = Math.ceil((MAX_TURN_IMAGE_BYTES * 4) / 3) + 1024 * 1024
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 

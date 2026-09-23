@@ -9,8 +9,10 @@ export function newId() {
   return uuidv7()
 }
 
-export const MAX_IMAGES_PER_TURN = 8
+export const MAX_IMAGES_PER_TURN = 20
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+// Bounds the turn.start frame at ~65 MB rather than 20 full-size images (~270 MB).
+export const MAX_TURN_IMAGE_BYTES = 48 * 1024 * 1024
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
 export const PermissionMode = Schema.Literals(['auto', 'full_access'])

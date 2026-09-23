@@ -1,6 +1,12 @@
 import type { Attachment } from '@jetty/shared/items'
 
-import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, newId, type UploadAttachment } from '@jetty/shared/wire'
+import {
+  MAX_IMAGE_BYTES,
+  MAX_TURN_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+  newId,
+  type UploadAttachment,
+} from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 
 import type { AgentImage } from './agent'
@@ -63,6 +69,7 @@ export function createAttachments(home: string) {
       return Effect.scoped(
         Effect.gen(function* () {
           const staging = yield* fs.makeTempDirectoryScoped({ directory: dir, prefix: '.upload-' })
+          let totalBytes = 0
           for (const upload of uploads) {
             const { bytes, base64data } = yield* decodeDataUrl(upload)
             if (bytes.byteLength > MAX_IMAGE_BYTES) {
@@ -70,6 +77,15 @@ export function createAttachments(home: string) {
                 new StoreError(
                   'invalid_params',
                   `Image exceeds ${MAX_IMAGE_BYTES} bytes (got ${bytes.byteLength})`
+                )
+              )
+            }
+            totalBytes += bytes.byteLength
+            if (totalBytes > MAX_TURN_IMAGE_BYTES) {
+              return yield* Effect.fail(
+                new StoreError(
+                  'invalid_params',
+                  `Images exceed ${MAX_TURN_IMAGE_BYTES} bytes in total`
                 )
               )
             }
