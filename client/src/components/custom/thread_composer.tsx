@@ -407,7 +407,10 @@ export function ThreadComposer({
         attachments={attachments}
         context={
           threadId ? (
-            <WorkflowLines threadId={threadId} items={items} />
+            // Holds the project/branch footer's height so the composer sits where it did on the new thread.
+            <div className='min-h-7'>
+              <WorkflowLines threadId={threadId} items={items} />
+            </div>
           ) : (
             <ComposerFooter projectId={projectId} onProjectChange={setPickedProjectId} />
           )
