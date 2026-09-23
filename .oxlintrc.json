@@ -12,7 +12,7 @@
         "paths": [
           {
             "name": "lucide-react",
-            "message": "Icons are Phosphor (@phosphor-icons/react), never lucide. See AGENTS.md (icons)."
+            "message": "Icons are Phosphor (@phosphor-icons/react) or Octicons (@primer/octicons-react), never lucide. See AGENTS.md (icons)."
           }
         ]
       }
@@ -34,6 +34,65 @@
         "jsx-a11y/click-events-have-key-events": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off",
         "jsx-a11y/heading-has-content": "off"
+      }
+    },
+    {
+      "files": ["client/src/**"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          { "name": "location", "message": "Go through @/platform." },
+          { "name": "localStorage", "message": "Go through @/platform (storage)." },
+          { "name": "sessionStorage", "message": "Go through @/platform (storage)." },
+          { "name": "indexedDB", "message": "Go through @/platform (storage)." },
+          { "name": "WebSocket", "message": "Go through @/net/connection." }
+        ],
+        "no-restricted-properties": [
+          "error",
+          { "object": "window", "property": "location", "message": "Go through @/platform." },
+          { "object": "document", "property": "location", "message": "Go through @/platform." },
+          {
+            "object": "window",
+            "property": "localStorage",
+            "message": "Go through @/platform (storage)."
+          },
+          {
+            "object": "window",
+            "property": "sessionStorage",
+            "message": "Go through @/platform (storage)."
+          },
+          {
+            "object": "window",
+            "property": "indexedDB",
+            "message": "Go through @/platform (storage)."
+          }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "lucide-react",
+                "message": "Icons are Phosphor (@phosphor-icons/react) or Octicons (@primer/octicons-react), never lucide. See AGENTS.md (icons)."
+              },
+              { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
+              { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["client/src/state/**"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["client/src/platform/**"],
+      "rules": {
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off"
       }
     }
   ]

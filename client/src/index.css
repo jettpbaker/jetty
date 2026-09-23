@@ -1,0 +1,224 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --motion-control-duration: 150ms;
+  --motion-control-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --motion-sidebar-open-duration: 200ms;
+  --motion-sidebar-close-duration: 150ms;
+  --motion-sidebar-ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-disclosure-open-duration: 250ms;
+  --motion-disclosure-close-duration: 200ms;
+  --motion-disclosure-ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-popup-duration: 150ms;
+  --motion-popup-ease: cubic-bezier(0.19, 1, 0.22, 1);
+  --motion-popup-enter-scale: 0.97;
+  --motion-popup-enter: menu-enter var(--motion-popup-duration) var(--motion-popup-ease) both;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-enter: 140ms;
+  font-family: 'Geist Variable', sans-serif;
+  color: var(--foreground);
+  background: var(--background);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+  --border: oklch(0.86 0 0);
+  --scrollbar-thumb: oklch(0.86 0 0);
+  --muted: oklch(0.935 0 0);
+  --background: oklch(0.97 0 0);
+  --foreground: oklch(0.25 0 0);
+  --card: oklch(0.985 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.5 0.18 282.178);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.935 0 0);
+  --secondary-foreground: var(--foreground);
+  --muted-foreground: oklch(0.49 0 0);
+  --disabled-foreground: oklch(0.49 0 0 / 50%);
+  --accent: oklch(0.91 0 0);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.577 0.245 27.325);
+  --input: oklch(0.82 0 0);
+  --ring: var(--primary);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.94 0 0);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --status-working: var(--primary);
+  --status-attention: oklch(0.698 0.201 55);
+  --status-error: var(--pr-closed);
+  --status-error-glyph: var(--pr-closed);
+  --status-success: oklch(0.698 0.125 158.358);
+  --tick-complete: var(--status-success);
+  --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);
+  --status-error-wash: color-mix(in oklch, var(--status-error) 16%, transparent);
+  --pr-open: var(--status-success);
+  --pr-draft: oklch(0.697 0.003 286.325);
+  --pr-merged: oklch(0.552 0.148 276.827);
+  --pr-closed: oklch(0.655 0.201 23.018);
+}
+
+.dark {
+  color-scheme: dark;
+  --status-working: var(--primary);
+  --background: oklch(0.195 0 0);
+  --foreground: oklch(0.933 0 0);
+  --card: oklch(0.254 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: #232323;
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.772 0.119 282.178);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.625 0 0);
+  --disabled-foreground: oklch(0.625 0 0 / 50%);
+  --accent: oklch(0.32 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(0.3 0 0);
+  --scrollbar-thumb: oklch(0.3 0 0);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+  --color-status-attention: var(--status-attention);
+  --color-status-working: var(--status-working);
+  --color-status-error: var(--status-error);
+  --color-status-error-glyph: var(--status-error-glyph);
+  --color-status-success: var(--status-success);
+  --color-tick-complete: var(--tick-complete);
+  --color-pr-open: var(--pr-open);
+  --color-pr-draft: var(--pr-draft);
+  --color-pr-merged: var(--pr-merged);
+  --color-pr-closed: var(--pr-closed);
+  --radius-menu-item: 4px;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --spacing-menu-item-compact: 26px;
+  --spacing-glyph: 1.125rem;
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', sans-serif;
+  --text-13: 0.8125rem;
+  --text-13--line-height: calc(1.125 / 0.8125);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-disabled-foreground: var(--disabled-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+  }
+  input,
+  textarea,
+  [contenteditable] {
+    caret-color: var(--primary);
+  }
+  ::selection {
+    color: var(--primary);
+    background-color: color-mix(in oklch, var(--primary) 10%, transparent);
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Keep popup entrances compositable: the generic enter keyframe also animates filter. */
+@keyframes menu-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 0.6);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+      scale3d(var(--motion-popup-enter-scale), var(--motion-popup-enter-scale), 1);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@utility scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}

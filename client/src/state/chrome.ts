@@ -1,108 +1,52 @@
-import type { Project, ThreadMeta, ChromePushData, Usage } from '@jetty/shared/wire'
+import type { ChromePushData, Project, ThreadMeta, Usage } from '@jetty/shared/wire'
 
-import type { Socket } from '../socket'
+import { useAtomValue } from '@effect/atom-react'
+import { Stream } from 'effect'
+import { AsyncResult, Atom } from 'effect/unstable/reactivity'
 
-export type ChromeState = {
+import { subscribe } from './connection'
+
+export type Chrome = {
   projects: readonly Project[]
   threads: readonly ThreadMeta[]
-  /** Rate-limit meters; null until the server has reported usage. */
-  usage: Usage | null
+  usage?: Usage
 }
 
-const emptyChrome: ChromeState = { projects: [], threads: [], usage: null }
+const emptyChrome: Chrome = { projects: [], threads: [] }
 
-export type ChromeStore = {
-  subscribe: (listener: () => void) => () => void
-  getSnapshot: () => ChromeState
-  /** Seed from disk only if no server push has landed yet. */
-  hydrate: (state: ChromeState) => void
+function upsert<T extends { id: string }>(list: readonly T[], item: T) {
+  return list.some((entry) => entry.id === item.id)
+    ? list.map((entry) => (entry.id === item.id ? item : entry))
+    : [...list, item]
 }
 
-export function createChromeStore(
-  socket: Socket,
-  persist?: (state: ChromeState) => void
-): ChromeStore {
-  let state: ChromeState = emptyChrome
-  const listeners = new Set<() => void>()
-
-  function emit() {
-    for (const listener of listeners) {
-      listener()
-    }
-  }
-
-  function setState(next: ChromeState) {
-    if (next === state) return
-    state = next
-    persist?.(state)
-    emit()
-  }
-
-  function applyPush(data: ChromePushData) {
-    switch (data.type) {
-      case 'snapshot':
-        setState({
-          projects: data.projects,
-          threads: data.threads,
-          usage: data.usage ?? null,
-        })
-        return
-      case 'project.upserted': {
-        const projects = upsertById(state.projects, data.project)
-        setState({ projects, threads: state.threads, usage: state.usage })
-        return
+function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
+  switch (update.type) {
+    case 'snapshot':
+      return { projects: update.projects, threads: update.threads, usage: update.usage }
+    case 'project.upserted':
+      return { ...chrome, projects: upsert(chrome.projects, update.project) }
+    case 'thread.upserted':
+      return { ...chrome, threads: upsert(chrome.threads, update.thread) }
+    case 'thread.removed':
+      return {
+        ...chrome,
+        threads: chrome.threads.filter((thread) => thread.id !== update.threadId),
       }
-      case 'thread.upserted': {
-        const threads = upsertById(state.threads, data.thread)
-        setState({ projects: state.projects, threads, usage: state.usage })
-        return
-      }
-      case 'thread.removed': {
-        const threads = state.threads.filter((t) => t.id !== data.threadId)
-        if (threads.length === state.threads.length) return
-        setState({ projects: state.projects, threads, usage: state.usage })
-        return
-      }
-      case 'usage':
-        setState({ projects: state.projects, threads: state.threads, usage: data.usage })
-        return
-    }
-  }
-
-  function resubscribe() {
-    void socket.request('chrome.subscribe', {}).catch(() => {
-      // reconnect will retry
-    })
-  }
-
-  socket.onChromePush(applyPush)
-  socket.onReconnect(resubscribe)
-
-  return {
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    getSnapshot() {
-      return state
-    },
-    hydrate(next) {
-      // Reference equality with the initial empty constant: any setState (incl.
-      // server snapshot) replaces it, so disk never clobbers fresher chrome.
-      if (state !== emptyChrome) return
-      state = next
-      emit()
-    },
+    case 'usage':
+      return { ...chrome, usage: update.usage }
   }
 }
 
-function upsertById<T extends { id: string }>(list: readonly T[], item: T): readonly T[] {
-  const index = list.findIndex((row) => row.id === item.id)
-  if (index === -1) return [...list, item]
-  if (list[index] === item) return list
-  const next = [...list]
-  next[index] = item
-  return next
+const liveAtom = Atom.make((get) =>
+  subscribe(get, (connection) => connection.subscribeChrome()).pipe(
+    Stream.scan(emptyChrome, foldChrome),
+    Stream.drop(1)
+  )
+).pipe(Atom.keepAlive)
+
+const chromeAtom = Atom.readable((get) => AsyncResult.getOrElse(get(liveAtom), () => undefined))
+
+export function useChrome(): Chrome | undefined {
+  return useAtomValue(chromeAtom)
 }
