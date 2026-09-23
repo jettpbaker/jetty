@@ -8,7 +8,12 @@ export function rangeResponse(path: string, mimeType: string, rangeHeader: strin
     const fs = yield* FileSystem.FileSystem
     const size = Number((yield* fs.stat(path)).size)
     const parsed = parseBytesRange(rangeHeader, size)
-    const headers = { 'Content-Type': mimeType, 'Accept-Ranges': 'bytes' }
+    const headers = {
+      'Content-Type': mimeType,
+      'Accept-Ranges': 'bytes',
+      // Attachment ids are never reused, so a stored file never changes.
+      'Cache-Control': 'private, max-age=31536000, immutable',
+    }
     if (parsed === 'full') {
       return yield* HttpServerResponse.file(path, {
         headers: { ...headers, 'Content-Length': String(size) },

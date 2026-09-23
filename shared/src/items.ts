@@ -7,6 +7,9 @@ export const Attachment = Schema.Struct({
   name: Schema.String,
   mimeType: Schema.String,
   sizeBytes: Schema.Natural,
+  // Pixel size, so the chat can reserve an image's space before it loads.
+  width: Schema.optional(Schema.Int),
+  height: Schema.optional(Schema.Int),
 })
 export type Attachment = Schema.Schema.Type<typeof Attachment>
 

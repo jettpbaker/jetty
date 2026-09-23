@@ -11,6 +11,7 @@ import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 
 import type { AgentImage } from './agent'
 
+import { imageSize } from './image-size'
 import { StoreError } from './store'
 
 const MIME_EXT = {
@@ -106,6 +107,7 @@ export function createAttachments(home: string) {
               name: upload.name,
               mimeType: upload.mimeType,
               sizeBytes: bytes.byteLength,
+              ...imageSize(bytes),
             })
             images.push({ mimeType: upload.mimeType, base64data })
           }
@@ -154,12 +156,15 @@ export function createAttachments(home: string) {
             yield* fs.copyFile(srcPath, temporary)
             const copied = yield* fs.stat(temporary)
             yield* checkSize(copied.size)
+            const dimensions =
+              kind === 'image' ? imageSize(yield* fs.readFile(temporary)) : undefined
             yield* fs.rename(temporary, dest).pipe(Effect.uninterruptible)
             return {
               id,
               name: path.basename(srcPath),
               mimeType: EXT_MIME[ext]!,
               sizeBytes: Number(copied.size),
+              ...dimensions,
             } satisfies Attachment
           }).pipe(
             Effect.mapError((error) =>
