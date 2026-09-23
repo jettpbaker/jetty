@@ -1,0 +1,35 @@
+.sidebar-resize-handle {
+  position: fixed;
+  top: var(--app-tab-bar-height, 0px);
+  bottom: 0;
+  left: calc(var(--sidebar-width) - 4px);
+  width: 8px;
+  z-index: 11;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 3px;
+  width: 2px;
+}
+.sidebar-resize-handle:focus-visible::after {
+  background: var(--border);
+}
+[data-slot='sidebar-wrapper'][data-resizing] [data-slot='sidebar-gap'],
+[data-slot='sidebar-wrapper'][data-resizing] [data-slot='shell-navigation'] {
+  transition: none;
+}
+[data-slot='sidebar-wrapper']:has(.sidebar-resize-handle) [data-slot='sidebar-container'] {
+  transition-property: transform;
+}
+[data-slot='sidebar-wrapper'][data-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+[data-slot='sidebar-wrapper'][data-resizing] * {
+  cursor: col-resize !important;
+}
