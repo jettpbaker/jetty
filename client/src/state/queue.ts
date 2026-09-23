@@ -154,10 +154,15 @@ function editQueued(registry: Registry, threadId: string, messageId: string, tex
 
 function sendQueuedNow(registry: Registry, threadId: string, messageId: string) {
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
-  track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
-    unarchive(connection).pipe(
-      Effect.andThen(connection.request('queue.sendNow', { threadId, messageId }))
-    )
+  track(
+    registry,
+    threadId,
+    { kind: 'remove', id: messageId },
+    (connection) =>
+      unarchive(connection).pipe(
+        Effect.andThen(connection.request('queue.sendNow', { threadId, messageId }))
+      ),
+    { onFailure: () => toast.error("Couldn't send message") }
   )
 }
 
