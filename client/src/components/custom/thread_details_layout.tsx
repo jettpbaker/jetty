@@ -197,6 +197,7 @@ export function ThreadDetailsLayout({
     const next = clamp(drag.current.width + drag.current.x - event.clientX)
     drag.current.next = next
     root.current.style.setProperty('--details-width', `${next}px`)
+    root.current.style.setProperty('--details-pane-width', `${next}px`)
     event.currentTarget.setAttribute('aria-valuenow', String(Math.round(next)))
   }
 
@@ -226,7 +227,7 @@ export function ThreadDetailsLayout({
         }}
         className='details-pane h-full min-w-0 gap-0'
       >
-        <header className='flex h-(--app-tab-bar-height) shrink-0 border-b border-border pr-[74px]'>
+        <header className='flex h-(--app-tab-bar-height) shrink-0 justify-end border-b border-border pr-[42px]'>
           {full && (
             <div className='flex shrink-0 items-center pl-(--page-header-inset)'>
               <PageSidebarTrigger />
@@ -244,9 +245,22 @@ export function ThreadDetailsLayout({
               onValueChange={setTab}
             />
           </div>
+          {!narrow && (
+            <div className='ml-1 flex shrink-0 items-center'>
+              <Button
+                variant='ghost-text'
+                size='icon'
+                aria-label={expanded ? 'Restore split view' : 'Expand thread details'}
+                title={expanded ? 'Restore split view' : 'Expand thread details'}
+                {...pressProps(() => setExpanded((value) => !value))}
+              >
+                {expanded ? <ArrowsInSimpleIcon /> : <ArrowsOutSimpleIcon />}
+              </Button>
+            </div>
+          )}
         </header>
         <div className='min-h-0 flex-1 overflow-hidden'>
-          <div className='details-tab-track'>
+          <div className='details-tab-track min-w-(--details-pane-width)'>
             <TabsContent
               keepMounted
               value='chat'
@@ -340,6 +354,8 @@ export function ThreadDetailsLayout({
     [
       tab,
       full,
+      narrow,
+      expanded,
       open,
       threadId,
       childThreads,
@@ -357,7 +373,12 @@ export function ThreadDetailsLayout({
       data-details-open={open}
       data-details-full={full || undefined}
       className='thread-details-layout'
-      style={{ '--details-width': `${open ? width : 0}px` } as CSSProperties}
+      style={
+        {
+          '--details-width': `${open ? width : 0}px`,
+          '--details-pane-width': `${width}px`,
+        } as CSSProperties
+      }
     >
       <div
         className='min-h-0 min-w-0 overflow-hidden'
@@ -378,17 +399,6 @@ export function ThreadDetailsLayout({
         </aside>
       </OpenFileLink>
       <div className='absolute top-0 right-2.5 z-20 flex h-[calc(var(--app-tab-bar-height)-1px)] items-center gap-1'>
-        {open && !narrow && (
-          <Button
-            variant='ghost-text'
-            size='icon'
-            aria-label={expanded ? 'Restore split view' : 'Expand thread details'}
-            title={expanded ? 'Restore split view' : 'Expand thread details'}
-            {...pressProps(() => setExpanded((value) => !value))}
-          >
-            {expanded ? <ArrowsInSimpleIcon /> : <ArrowsOutSimpleIcon />}
-          </Button>
-        )}
         <Button
           variant='ghost-text'
           size='icon'

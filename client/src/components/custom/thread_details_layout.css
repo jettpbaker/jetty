@@ -51,8 +51,18 @@
   }
 }
 
+/* Eases in step with the pane so the header's trailing controls never pass under the toggle. */
+.thread-details-layout:not([data-details-full]) .thread-conversation-header {
+  transition: padding-right var(--motion-sidebar-close-duration) var(--motion-sidebar-ease);
+}
 .thread-details-layout[data-details-open='true'] .thread-conversation-header {
   padding-right: 8px;
+  transition-duration: var(--motion-sidebar-open-duration);
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-details-layout .thread-conversation-header {
+    transition: none;
+  }
 }
 
 .details-tab-track {
