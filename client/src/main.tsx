@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 
 import { routeTree } from './routeTree.gen'
 import './index.css'
+import './accent.css'
 
 const router = createRouter({ routeTree })
 
