@@ -26,7 +26,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { type FileChange } from './file_diff_model'
+import { diffId, type FileChange } from './file_diff_model'
 import { ScrollOverlay } from './scroll_overlay'
 import './file_changes_viewer.css'
 
@@ -205,13 +205,16 @@ export function FileChangesViewer({
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
   const items = useMemo(
     () =>
-      changes.map((file) => ({
-        id: file.path,
-        type: 'diff' as const,
-        fileDiff: file.diff,
-        collapsed: collapsedFiles.has(file.path),
-        version: Number(collapsedFiles.has(file.path)),
-      })),
+      changes.map((file) => {
+        const collapsed = collapsedFiles.has(file.path)
+        return {
+          id: file.path,
+          type: 'diff' as const,
+          fileDiff: file.diff,
+          collapsed,
+          version: diffId(file.diff) * 2 + Number(collapsed),
+        }
+      }),
     [changes, collapsedFiles]
   )
   const selectFile = useCallback((path: string) => {
