@@ -47,6 +47,7 @@ const migrations = SqliteMigrator.fromRecord({
     title_locked: 'INTEGER NOT NULL DEFAULT 0',
   }),
   '005_thread_provider': addThreadColumns({ provider: 'TEXT' }),
+  '006_thread_loadout': addThreadColumns({ model: 'TEXT', effort: 'TEXT', fast: 'INTEGER' }),
   '007_orchestration': Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* addThreadColumns({
@@ -66,7 +67,6 @@ const migrations = SqliteMigrator.fromRecord({
       result_json TEXT NOT NULL, PRIMARY KEY(caller_id, request_id, operation)
     )`
   }),
-  '006_thread_loadout': addThreadColumns({ model: 'TEXT', effort: 'TEXT', fast: 'INTEGER' }),
 })
 
 export function databaseLayer(home: string) {

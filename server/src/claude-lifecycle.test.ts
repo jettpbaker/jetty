@@ -146,7 +146,7 @@ async function setup(
       const thread = yield* store.createThread(project.id, newId())
       const notifications = yield* Queue.make<ThreadEvent>()
       const attachments = yield* createAttachments(home)
-      const agent = yield* createClaudeAdapter(store, attachments, hooks, {
+      const agent = yield* createClaudeAdapter(store, hooks, {
         query: fake.factory,
         ttlMs: 1000,
         interruptGraceMs: 100,

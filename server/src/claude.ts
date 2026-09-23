@@ -18,7 +18,6 @@ import {
   Exit,
   Fiber,
   Layer,
-  Path,
   Queue,
   Result,
   Schema,
@@ -27,7 +26,6 @@ import {
   Stream,
 } from 'effect'
 
-import type { Attachments } from './attachments'
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
@@ -139,10 +137,9 @@ function trackAgents(running: Set<string>, event: ThreadEvent) {
 
 export function createClaudeAdapter(
   store: Store,
-  _attachments: Attachments,
   hooks: AgentHooks = {},
   config: ClaudeOptions = {}
-): Effect.Effect<Agent, never, Scope.Scope | Path.Path> {
+): Effect.Effect<Agent, never, Scope.Scope> {
   return Effect.gen(function* () {
     const owner = yield* Effect.scope
     const context = yield* Effect.context<never>()
@@ -759,11 +756,6 @@ export function createClaudeAdapter(
   })
 }
 
-export function claudeLayer(
-  store: Store,
-  _attachments: Attachments,
-  hooks: AgentHooks = {},
-  options: ClaudeOptions = {}
-) {
-  return Layer.effect(AgentService, createClaudeAdapter(store, _attachments, hooks, options))
+export function claudeLayer(store: Store, hooks: AgentHooks = {}, options: ClaudeOptions = {}) {
+  return Layer.effect(AgentService, createClaudeAdapter(store, hooks, options))
 }

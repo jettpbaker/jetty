@@ -17,7 +17,6 @@ const live = process.env.JETTY_LIVE_TEST === '1'
 describe.skipIf(!live)('claude live', () => {
   test('one tiny turn: spawn→init and init→first-delta timings', async () => {
     const { claudeLayer } = await import('./claude')
-    const { createAttachments } = await import('./attachments')
     const { openTestStore } = await import('./store-fixture')
 
     const home = mkdtempSync(join(tmpdir(), 'jetty-live-'))
@@ -27,12 +26,7 @@ describe.skipIf(!live)('claude live', () => {
       const { store } = db
       const project = await Effect.runPromise(store.createProject(projectPath))
       const thread = await Effect.runPromise(store.createThread(project.id, newId()))
-      const attachments = await Effect.runPromise(
-        createAttachments(home).pipe(Effect.provide(BunServices.layer))
-      )
-      const runtime = ManagedRuntime.make(
-        claudeLayer(store, attachments).pipe(Layer.provide(BunServices.layer))
-      )
+      const runtime = ManagedRuntime.make(claudeLayer(store).pipe(Layer.provide(BunServices.layer)))
       const agent = await runtime.runPromise(AgentService)
 
       const t0 = performance.now()

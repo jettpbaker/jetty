@@ -172,7 +172,7 @@ function createServer(opts: ServerOptions = {}) {
           : agentRegistry(
               {
                 claude: yield* loadAgent(
-                  claudeLayer(store, attachments, hooks, {
+                  claudeLayer(store, hooks, {
                     mcp,
                     supportsAutoMode: (id) =>
                       models?.find((model) => model.provider === 'claude' && model.id === id)
