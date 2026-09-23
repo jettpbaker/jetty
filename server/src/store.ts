@@ -334,6 +334,20 @@ export function createStore() {
 
     return {
       queueChanges,
+      isQueuePaused(threadId: string) {
+        return sql<{
+          queue_paused: number
+        }>`SELECT queue_paused FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows[0]?.queue_paused === 1),
+          Effect.mapError(storeError)
+        )
+      },
+      setQueuePaused(threadId: string, paused: boolean) {
+        return sql`UPDATE threads SET queue_paused = ${paused ? 1 : 0} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       transaction<A, E, R>(effect: Effect.Effect<A, E, R>) {
         return effect.pipe(sql.withTransaction, Effect.mapError(storeError))
       },

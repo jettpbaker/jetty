@@ -41,6 +41,7 @@ export type StartTurnInput = {
   provider?: ProviderId
   queued?: QueuedMessage
   sendNow?: boolean
+  resumeQueue?: boolean
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -275,6 +276,8 @@ export function createOrchestrator(
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
               const thread = yield* store.requireThread(input.threadId)
+              if (!input.queued || (input.sendNow && input.resumeQueue !== false))
+                yield* store.setQueuePaused(input.threadId, false)
               if (input.queued) {
                 if (
                   thread.archived ||
@@ -489,8 +492,10 @@ export function createOrchestrator(
           )
         )
       },
-      sendQueuedNow(threadId: string, messageId: string) {
+      sendQueuedNow(threadId: string, messageId: string, byUser = true) {
         return Effect.gen(function* () {
+          if (!byUser && (yield* store.isQueuePaused(threadId)))
+            return yield* Effect.fail(new StoreError('conflict', 'Queue is paused'))
           const thread = yield* store.requireThread(threadId)
           const queued = thread.pendingMessages?.find((m) => m.id === messageId)
           if (!queued)
@@ -500,6 +505,7 @@ export function createOrchestrator(
             text: queued.text,
             queued,
             sendNow: true,
+            resumeQueue: byUser,
           })
           if (!result.turnId)
             return yield* Effect.fail(new StoreError('conflict', 'Queued message was not accepted'))
@@ -530,7 +536,13 @@ export function createOrchestrator(
                 })
               )
             }
-            if (thread.archived || state(thread.id).turnId || !state(thread.id).ready || !queue[0])
+            if (
+              thread.archived ||
+              (yield* store.isQueuePaused(thread.id)) ||
+              state(thread.id).turnId ||
+              !state(thread.id).ready ||
+              !queue[0]
+            )
               continue
             yield* startTurnEffect({
               threadId: thread.id,
@@ -581,7 +593,11 @@ export function createOrchestrator(
         ).pipe(Effect.forkIn(scope), Effect.asVoid)
       },
       interrupt(threadId: string) {
-        return agentForThread(threadId).pipe(Effect.flatMap((agent) => agent.interrupt(threadId)))
+        return agentForThread(threadId).pipe(
+          Effect.flatMap((agent) =>
+            store.setQueuePaused(threadId, true).pipe(Effect.andThen(agent.interrupt(threadId)))
+          )
+        )
       },
       stopWorkflow(threadId: string, taskId: string) {
         return Effect.gen(function* () {
@@ -597,10 +613,15 @@ export function createOrchestrator(
         decision: ApprovalDecision,
         message?: string
       ) {
-        return agentForThread(threadId).pipe(
-          Effect.flatMap((agent) => agent.respondToApproval(threadId, itemId, decision, message)),
-          Effect.flatMap(requireFound(`approval ${itemId}`))
-        )
+        return Effect.gen(function* () {
+          const provider = yield* store.getThreadProvider(threadId)
+          const agent = yield* agentForThread(threadId)
+          yield* requireFound(`approval ${itemId}`)(
+            yield* agent.respondToApproval(threadId, itemId, decision, message)
+          )
+          if (decision === 'deny' && message?.trim() && provider === 'grok')
+            yield* agent.steer(threadId, `User's note on the denied approval: ${message.trim()}`)
+        })
       },
       respondQuestion(threadId: string, itemId: string, answers: Record<string, string> | null) {
         return agentForThread(threadId).pipe(

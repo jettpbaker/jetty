@@ -93,6 +93,7 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`ALTER TABLE projects ADD COLUMN icon TEXT`
   }),
+  '012_queue_pause': addThreadColumns({ queue_paused: 'INTEGER NOT NULL DEFAULT 0' }),
 })
 
 export function databaseLayer(home: string) {

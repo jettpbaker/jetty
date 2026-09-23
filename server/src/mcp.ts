@@ -181,7 +181,7 @@ export function createMcpHandler(
         )
         let delivery = 'queued'
         if (input.steer && !response.duplicate && response.messageId) {
-          const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId).pipe(
+          const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId, false).pipe(
             Effect.as(true),
             Effect.catchCause(() => Effect.succeed(false))
           )
