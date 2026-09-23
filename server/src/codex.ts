@@ -118,6 +118,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 method === 'item/fileChange/requestApproval' ? 'fileChange' : 'commandExecution',
               input: params,
               suggestions: [],
+              always: { scope: 'session', patterns: [] },
             },
           })
         } else if (
@@ -396,10 +397,17 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             pending.questions
               ? undefined
               : pending.mcpTool
-                ? decision === 'allow'
-                  ? { action: 'accept', content: {} }
-                  : { action: 'decline', content: null }
-                : { decision: decision === 'allow' ? 'accept' : 'decline' },
+                ? decision === 'deny'
+                  ? { action: 'decline', content: null }
+                  : { action: 'accept', content: {} }
+                : {
+                    decision:
+                      decision === 'always'
+                        ? 'acceptForSession'
+                        : decision === 'allow'
+                          ? 'accept'
+                          : 'decline',
+                  },
           { decision, ...(message ? { deniedReason: message } : {}) }
         )
       },

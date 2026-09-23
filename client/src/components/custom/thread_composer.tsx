@@ -88,18 +88,9 @@ export function ThreadComposer({
     item?.kind === 'approval' ? item : undefined,
     draft,
     setDraft,
-    (entry, decision, note) => {
-      if (!threadId) return
-      if (decision === 'deny') respondApproval(threadId, entry.id, 'deny', note)
-      else
-        respondApproval(
-          threadId,
-          entry.id,
-          'allow',
-          undefined,
-          decision === 'always' ? entry.suggestions : undefined
-        )
-    }
+    (entry, decision, note) =>
+      threadId &&
+      respondApproval(threadId, entry.id, decision === 'once' ? 'allow' : decision, note)
   )
   const question = useQuestion(
     item?.kind === 'question' ? item : undefined,

@@ -546,13 +546,10 @@ export function createOrchestrator(
         threadId: string,
         itemId: string,
         decision: ApprovalDecision,
-        message?: string,
-        updatedPermissions?: unknown[]
+        message?: string
       ) {
         return agentForThread(threadId).pipe(
-          Effect.flatMap((agent) =>
-            agent.respondToApproval(threadId, itemId, decision, message, updatedPermissions)
-          ),
+          Effect.flatMap((agent) => agent.respondToApproval(threadId, itemId, decision, message)),
           Effect.flatMap(requireFound(`approval ${itemId}`))
         )
       },

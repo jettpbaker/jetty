@@ -54,8 +54,7 @@ export type Agent = {
     threadId: string,
     itemId: string,
     decision: ApprovalDecision,
-    message?: string,
-    updatedPermissions?: unknown[]
+    message?: string
   ): Effect.Effect<boolean, AgentError>
   // null answers dismiss the question
   respondToQuestion(

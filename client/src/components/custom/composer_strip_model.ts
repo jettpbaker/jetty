@@ -17,9 +17,8 @@ export type Approval = {
   run: boolean
   target: string
   detail?: string
-  patterns: string[]
-  scope?: string
-  suggestions: readonly unknown[]
+  // absent when the provider can't remember the choice
+  always?: { patterns: readonly string[]; scope?: string }
 }
 
 export type Question = { id: string; kind: 'question'; source: Source; questions: QuestionSpec[] }
@@ -57,28 +56,9 @@ function editDetail(input: Record<string, unknown>) {
   return added || removed ? `+${added} −${removed}` : undefined
 }
 
-function describeRule(rule: Record<string, unknown>) {
-  return typeof rule.ruleContent === 'string' ? rule.ruleContent : String(rule.toolName ?? '')
-}
-
-// Claude's permission suggestions are what "Allow always" would add.
-function suggestedPatterns(suggestions: readonly unknown[]) {
-  const patterns: string[] = []
-  let destination: string | undefined
-  for (const suggestion of suggestions.map(record)) {
-    destination ??= typeof suggestion.destination === 'string' ? suggestion.destination : undefined
-    if (Array.isArray(suggestion.rules))
-      patterns.push(...suggestion.rules.map(record).map(describeRule))
-    else if (Array.isArray(suggestion.directories))
-      patterns.push(...suggestion.directories.filter((dir) => typeof dir === 'string'))
-    else if (typeof suggestion.mode === 'string') patterns.push(suggestion.mode)
-  }
-  return { patterns: patterns.filter(Boolean), destination }
-}
-
-function scopeLabel(destination: string | undefined, projectTitle: string | undefined) {
-  if (destination === 'session') return 'this session'
-  if (destination === 'userSettings') return 'every project'
+function scopeLabel(scope: string | undefined, projectTitle: string | undefined) {
+  if (scope === 'session') return 'this session'
+  if (scope === 'user') return 'every project'
   return projectTitle
 }
 
@@ -88,18 +68,28 @@ export function approvalView(
   projectTitle?: string
 ) {
   const input = record(item.input)
+  const view = viewOf(item, input, projectPath)
+  const always = item.always && {
+    patterns: item.always.patterns.length ? item.always.patterns : [view.target],
+    scope: scopeLabel(item.always.scope, projectTitle),
+  }
+  return { ...view, always }
+}
+
+function viewOf(
+  item: ApprovalItem,
+  input: Record<string, unknown>,
+  projectPath: string | undefined
+): { action: string; run: boolean; target: string; detail?: string } {
   const name = item.toolName.toLowerCase()
   const shell = command(input)
-  const { patterns, destination } = suggestedPatterns(item.suggestions)
-  const base = { patterns, scope: scopeLabel(destination, projectTitle) }
   if (runTools.has(name) || (shell && !editTools.has(name))) {
     const cwd = typeof input.cwd === 'string' ? input.cwd : projectPath
-    return { ...base, action: 'Run', run: true, target: shell || item.title, detail: cwd }
+    return { action: 'Run', run: true, target: shell || item.title, detail: cwd }
   }
   if (editTools.has(name)) {
     const path = input.file_path ?? input.notebook_path ?? input.path
     return {
-      ...base,
       action: 'Edit',
       run: false,
       target: typeof path === 'string' ? projectRelative(path, projectPath) : item.title,
@@ -108,7 +98,6 @@ export function approvalView(
   }
   const target = toolTarget(item.toolName, item.input, projectPath)
   return {
-    ...base,
     action: item.toolName,
     run: false,
     target: target === item.toolName ? item.title : target,
@@ -143,7 +132,6 @@ export function pendingItems(
         id: item.id,
         kind: 'approval',
         source,
-        suggestions: item.suggestions,
         ...approvalView(item, projectPath, projectTitle),
       })
     else if (item.kind === 'question')

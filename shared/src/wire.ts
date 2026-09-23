@@ -244,7 +244,6 @@ export const methods = {
       itemId: Schema.String,
       decision: ApprovalDecision,
       message: Schema.optional(Schema.String),
-      updatedPermissions: Schema.optional(Schema.Array(Schema.Unknown)),
     }),
     result: Schema.Null,
   },

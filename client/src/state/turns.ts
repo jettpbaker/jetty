@@ -166,8 +166,7 @@ function respondApproval(
   threadId: string,
   itemId: string,
   decision: ApprovalDecision,
-  note?: string,
-  updatedPermissions?: readonly unknown[]
+  note?: string
 ) {
   const message = note?.trim() || undefined
   resolve(
@@ -180,7 +179,6 @@ function respondApproval(
         itemId,
         decision,
         message,
-        updatedPermissions,
       })
   )
 }

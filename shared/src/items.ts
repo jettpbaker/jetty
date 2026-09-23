@@ -13,7 +13,7 @@ export const Attachment = Schema.Struct({
 })
 export type Attachment = Schema.Schema.Type<typeof Attachment>
 
-export const ApprovalDecision = Schema.Literals(['allow', 'deny'])
+export const ApprovalDecision = Schema.Literals(['allow', 'always', 'deny'])
 export type ApprovalDecision = Schema.Schema.Type<typeof ApprovalDecision>
 
 export const QuestionSpec = Schema.Struct({
@@ -74,6 +74,13 @@ export const ThreadItem = Schema.Union([
     toolName: Schema.String,
     input: Schema.Unknown,
     suggestions: Schema.Array(Schema.Unknown),
+    // what "Allow always" would permit; absent when the provider can't remember a choice
+    always: Schema.optional(
+      Schema.Struct({
+        scope: Schema.Literals(['session', 'project', 'user']),
+        patterns: Schema.Array(Schema.String),
+      })
+    ),
     decision: Schema.optional(ApprovalDecision),
     deniedReason: Schema.optional(Schema.String),
   }),

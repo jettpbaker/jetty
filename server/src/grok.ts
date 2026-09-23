@@ -134,6 +134,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               toolName: string(tool.kind) || 'tool',
               input: tool.rawInput ?? {},
               suggestions: [],
+              ...(options.some((o) => o.kind === 'allow_always' && string(o.optionId))
+                ? { always: { scope: 'session' as const, patterns: [] } }
+                : {}),
             },
           })
         } else if (method === 'x.ai/ask_user_question' || method === '_x.ai/ask_user_question') {
@@ -459,9 +462,15 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             pending.questions
               ? undefined
               : (() => {
-                  const option = pending.options?.find(
-                    (o) => o.kind === (decision === 'allow' ? 'allow_once' : 'reject_once')
-                  )
+                  const kind =
+                    decision === 'deny'
+                      ? 'reject_once'
+                      : decision === 'always'
+                        ? 'allow_always'
+                        : 'allow_once'
+                  const option =
+                    pending.options?.find((o) => o.kind === kind) ??
+                    pending.options?.find((o) => o.kind === 'allow_once' && decision !== 'deny')
                   return {
                     outcome: option
                       ? { outcome: 'selected', optionId: option.optionId }

@@ -195,13 +195,7 @@ export function createRpcHandlers(
         orch.interrupt(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'approval.respond': (params) =>
         orch
-          .respondApproval(
-            params.threadId,
-            params.itemId,
-            params.decision,
-            params.message,
-            params.updatedPermissions ? [...params.updatedPermissions] : undefined
-          )
+          .respondApproval(params.threadId, params.itemId, params.decision, params.message)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
       'question.respond': (params) =>
         orch

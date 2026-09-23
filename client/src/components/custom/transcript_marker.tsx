@@ -14,7 +14,17 @@ const markerIcons: Record<Tone, typeof CheckIcon> = {
 }
 
 function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
-  const { target } = approvalView(item, projectPath)
+  const { target, always } = approvalView(item, projectPath)
+  if (item.decision === 'always')
+    return {
+      tone: 'allow' as const,
+      text: (
+        <>
+          <span className='shrink-0'>Always allowed</span>
+          <Code>{always?.patterns.join(', ') ?? target}</Code>
+        </>
+      ),
+    }
   if (item.decision === 'allow')
     return {
       tone: 'allow' as const,

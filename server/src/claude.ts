@@ -71,6 +71,29 @@ export type ClaudeOptions = {
 type PendingApproval = {
   result: Deferred.Deferred<PermissionResult>
   input: Record<string, unknown>
+  suggestions?: PermissionUpdate[]
+}
+
+const alwaysScopes = {
+  session: 'session',
+  cliArg: 'session',
+  localSettings: 'project',
+  projectSettings: 'project',
+  userSettings: 'user',
+} as const
+
+// What "Allow always" would add, from Claude's permission suggestions.
+function alwaysFrom(suggestions: PermissionUpdate[] | undefined) {
+  const first = suggestions?.[0]
+  if (!first) return {}
+  const patterns = suggestions.flatMap((suggestion) =>
+    'rules' in suggestion
+      ? suggestion.rules.map((rule) => rule.ruleContent ?? rule.toolName)
+      : 'directories' in suggestion
+        ? suggestion.directories
+        : [suggestion.mode]
+  )
+  return { always: { scope: alwaysScopes[first.destination], patterns } }
 }
 
 type SessionOptions = {
@@ -463,7 +486,11 @@ export function createClaudeAdapter(
                 },
               })
             } else {
-              session.pendingApprovals.set(itemId, { result, input: toolInput })
+              session.pendingApprovals.set(itemId, {
+                result,
+                input: toolInput,
+                suggestions: options.suggestions,
+              })
               yield* session.emit({
                 type: 'item.started',
                 item: {
@@ -473,6 +500,7 @@ export function createClaudeAdapter(
                   toolName,
                   input: toolInput,
                   suggestions: options.suggestions ?? [],
+                  ...alwaysFrom(options.suggestions),
                 },
               })
             }
@@ -752,7 +780,7 @@ export function createClaudeAdapter(
           )
         })
       },
-      respondToApproval(threadId, itemId, decision, message, updatedPermissions) {
+      respondToApproval(threadId, itemId, decision, message) {
         const reason = message?.trim() || undefined
         return resolvePending(
           threadId,
@@ -760,11 +788,11 @@ export function createClaudeAdapter(
           (session) => session.pendingApprovals,
           { decision, ...(decision === 'deny' && reason ? { deniedReason: reason } : {}) },
           (pending) =>
-            decision === 'allow'
+            decision !== 'deny'
               ? {
                   behavior: 'allow',
                   updatedInput: pending.input,
-                  updatedPermissions: updatedPermissions as PermissionUpdate[] | undefined,
+                  ...(decision === 'always' ? { updatedPermissions: pending.suggestions } : {}),
                 }
               : { behavior: 'deny', message: reason ?? 'Denied by user' }
         )

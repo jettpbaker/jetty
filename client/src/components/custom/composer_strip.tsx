@@ -169,7 +169,7 @@ export function useApproval(
   const [expandedId, setExpandedId] = useState<string>()
   const confirming = Boolean(item) && confirmingId === item?.id
   const expanded = Boolean(item) && expandedId === item?.id
-  const canAlways = Boolean(item?.patterns.length)
+  const canAlways = Boolean(item?.always)
   function decide(decision: Decision, note = '') {
     if (!item) return
     if (decision === 'always' && !canAlways) return
@@ -279,8 +279,10 @@ export function ApprovalStrip({
         {ctl.confirming ? (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
             <span className='shrink-0 text-muted-foreground'>Always allow</span>
-            <Code>{item.patterns.join(', ')}</Code>
-            {item.scope && <span className='shrink-0 text-muted-foreground'>in {item.scope}?</span>}
+            <Code>{item.always?.patterns.join(', ')}</Code>
+            {item.always?.scope && (
+              <span className='shrink-0 text-muted-foreground'>in {item.always.scope}?</span>
+            )}
           </span>
         ) : (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
