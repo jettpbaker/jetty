@@ -80,12 +80,20 @@ function until(events: ThreadEvent[], predicate: (event: ThreadEvent) => boolean
   )
 }
 
-function dead(home: string) {
+async function dead(home: string) {
   const pid = Number(readFileSync(join(home, 'peer.pid'), 'utf8'))
-  expect(() => process.kill(pid, 0)).toThrow()
+  for (let i = 0; i < 100; i++) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  throw new Error('Grok peer is still alive')
 }
 
-test('streams ACP, preserves partial tool output, filters replay, resumes, and reaps', async () => {
+test('streams ACP, preserves partial tool output, filters replay, stays warm, and resumes', async () => {
   const f = await setup()
   await Effect.runPromise((await f.start('hello')).await)
   expect(f.events.filter((e) => e.type === 'turn.completed')).toHaveLength(1)
@@ -104,8 +112,21 @@ test('streams ACP, preserves partial tool output, filters replay, resumes, and r
     'grok-session'
   )
   expect(await Effect.runPromise(f.store.getThreadSessionId(f.threadId))).toBe('claude-original')
-  dead(f.home)
+  const pid = Number(readFileSync(join(f.home, 'peer.pid'), 'utf8'))
+  expect(() => process.kill(pid, 0)).not.toThrow()
   await Effect.runPromise((await f.start('again')).await)
+  expect(f.log().filter((m) => m.method === 'session/load')).toHaveLength(0)
+  await f.first.dispose()
+  await dead(f.home)
+  const restarted = f.runtime()
+  const agent = await restarted.runPromise(f.service)
+  await Effect.runPromise(
+    (
+      await Effect.runPromise(
+        agent.startTurn({ threadId: f.threadId, turnId: newId(), text: 'again' }, f.emit)
+      )
+    ).await
+  )
   expect(f.log().filter((m) => m.method === 'session/load')).toHaveLength(1)
 })
 
@@ -156,7 +177,9 @@ for (const mode of ['extension', 'rate_limit'])
     expect(
       f.events.filter((e) => e.type === (mode === 'extension' ? 'turn.completed' : 'turn.failed'))
     ).toHaveLength(1)
-    dead(f.home)
+    expect(() =>
+      process.kill(Number(readFileSync(join(f.home, 'peer.pid'), 'utf8')), 0)
+    ).not.toThrow()
   })
 
 test('steering cancels then prompts, ignores old completion, and preserves one logical turn', async () => {
@@ -184,7 +207,7 @@ test('steering cancels then prompts, ignores old completion, and preserves one l
   expect(f.log().filter((m) => m.method === 'session/prompt')).toHaveLength(2)
 })
 
-test('interrupt kills an unresponsive process and settles approval items', async () => {
+test('interrupt settles approval items and preserves the warm process', async () => {
   const f = await setup()
   const turn = await f.start('approval')
   await until(f.events, (e) => e.type === 'item.started' && e.item.kind === 'approval')
@@ -194,14 +217,18 @@ test('interrupt kills an unresponsive process and settles approval items', async
     true
   )
   expect(f.events.filter((e) => e.type === 'turn.failed')).toHaveLength(1)
-  dead(f.home)
+  expect(() =>
+    process.kill(Number(readFileSync(join(f.home, 'peer.pid'), 'utf8')), 0)
+  ).not.toThrow()
 })
 
 test('process crashes reject the turn and release admission', async () => {
   const f = await setup()
   await expect(Effect.runPromise((await f.start('crash')).await)).rejects.toThrow()
   await Effect.runPromise((await f.start('next')).await)
-  dead(f.home)
+  expect(() =>
+    process.kill(Number(readFileSync(join(f.home, 'peer.pid'), 'utf8')), 0)
+  ).not.toThrow()
 })
 
 test('permission modes disable plans and use separate sandbox profiles', () => {

@@ -27,7 +27,11 @@ import {
   type RpcMessage,
 } from './stdio-rpc'
 
-export type GrokOptions = StdioProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
+export type GrokOptions = StdioProcessOptions & {
+  interruptGraceMs?: number
+  ttlMs?: number
+  mcp?: McpSessions
+}
 type Pending = {
   id: RpcId
   options?: Record<string, unknown>[]
@@ -44,7 +48,15 @@ type Session = {
   promptCount: number
   next?: { text: string; images?: AgentImage[] }
   accepting: boolean
-  settled: boolean
+  awaitingResult: boolean
+  done: Deferred.Deferred<void, AgentError>
+  idle: Fiber.Fiber<void> | null
+  runningWorkflows: Set<string>
+  runningSubagents: Set<string>
+  settings: string
+  modelId?: string
+  effort?: TurnInput['effort']
+  fastIds: Map<string, string>
   reason: string | null
   pending: Map<string, Pending>
   publication: Semaphore.Semaphore
@@ -81,11 +93,51 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const sessions = new Map<string, Session>()
     const admission = yield* Semaphore.make(1)
+    const ttlMs = options.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? 10 * 60 * 1000)
+
+    function armIdle(session: Session) {
+      return Effect.gen(function* () {
+        if (
+          session.awaitingResult ||
+          session.runningWorkflows.size ||
+          session.runningSubagents.size
+        )
+          return
+        if (session.idle) yield* Fiber.interrupt(session.idle)
+        session.idle = yield* Effect.sleep(ttlMs).pipe(
+          Effect.andThen(
+            Effect.suspend(() =>
+              !session.awaitingResult &&
+              !session.runningWorkflows.size &&
+              !session.runningSubagents.size &&
+              sessions.get(session.input.threadId) === session &&
+              session.fiber
+                ? Fiber.interrupt(session.fiber).pipe(Effect.forkIn(owner), Effect.asVoid)
+                : Effect.void
+            )
+          ),
+          Effect.forkIn(owner)
+        )
+      })
+    }
+
+    function publish(session: Session, event: ThreadEvent) {
+      return Effect.gen(function* () {
+        yield* session.emit(event)
+        if (event.type === 'item.started' && event.item.kind === 'workflow')
+          session.runningWorkflows.add(event.item.id)
+        if (event.type === 'item.completed') session.runningWorkflows.delete(event.itemId)
+        if (session.runningWorkflows.size || session.runningSubagents.size) {
+          if (session.idle) yield* Fiber.interrupt(session.idle)
+          session.idle = null
+        } else if (!session.awaitingResult) yield* armIdle(session)
+      })
+    }
 
     function settleOpenItems(session: Session) {
       return Effect.gen(function* () {
         for (const [itemId, pending] of session.pending) {
-          yield* session.emit({
+          yield* publish(session, {
             type: 'item.completed',
             itemId,
             patch: pending.questions
@@ -94,7 +146,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           })
         }
         session.pending.clear()
-        for (const event of session.translator.finish()) yield* session.emit(event)
+        for (const event of session.translator.finish()) yield* publish(session, event)
       })
     }
 
@@ -233,6 +285,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const requestedModel = session.input.model ?? process.env.JETTY_GROK_MODEL
           const currentId = string(object(result.models).currentModelId)
           const { fastIds } = foldGrokModels(object(result.models).availableModels)
+          session.fastIds = fastIds
           const baseOf = new Map([...fastIds].map(([base, fast]) => [fast, base]))
           const baseId =
             requestedModel && requestedModel !== 'grok-build'
@@ -248,38 +301,106 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               ...(session.input.effort ? { _meta: { reasoningEffort: session.input.effort } } : {}),
             })
           }
+          session.modelId = modelId
+          session.effort = session.input.effort
           // Loading replays history; the ledger already owns those messages.
           for (const message of yield* Queue.takeAll(connection.messages)) {
             if (message.id !== undefined) yield* connection.reject(message.id, 'Session is loading')
           }
-          yield* session.emit({ type: 'turn.started', turnId: session.input.turnId })
+          yield* publish(session, { type: 'turn.started', turnId: session.input.turnId })
           yield* prompt(session, session.input.text, session.input.images)
           session.accepting = true
           while (true) {
             const message = yield* Queue.take(connection.messages)
-            const terminal = yield* session.publication.withPermit(
+            yield* session.publication.withPermit(
               Effect.gen(function* () {
                 if (message.id !== undefined) {
                   yield* handleRequest(session, message)
-                  return null
+                  return
+                }
+                const update = object(message.params.update)
+                const notification =
+                  (message.method === 'session/update' ||
+                    message.method === '_x.ai/session/update' ||
+                    message.method === '_x.ai/session_notification') &&
+                  message.params.sessionId === sessionId
+                if (notification) {
+                  if (update.sessionUpdate === 'subagent_spawned') {
+                    const id = string(update.subagent_id)
+                    if (id) session.runningSubagents.add(id)
+                  } else if (update.sessionUpdate === 'subagent_finished') {
+                    session.runningSubagents.delete(string(update.subagent_id))
+                  }
+                  if (
+                    !session.awaitingResult &&
+                    (update.sessionUpdate === 'agent_message_chunk' ||
+                      update.sessionUpdate === 'agent_thought_chunk' ||
+                      update.sessionUpdate === 'tool_call')
+                  ) {
+                    session.input = { ...session.input, turnId: newId(), text: '' }
+                    session.translator = createGrokTranslator(
+                      session.input.turnId,
+                      session.translator.workflows
+                    )
+                    session.awaitingResult = true
+                    session.accepting = true
+                    session.done = yield* Deferred.make<void, AgentError>()
+                    session.promptId = string(object(message.params._meta).promptId) || undefined
+                    session.requestId = undefined
+                    if (session.idle) yield* Fiber.interrupt(session.idle)
+                    session.idle = null
+                    yield* publish(session, { type: 'turn.started', turnId: session.input.turnId })
+                  }
+                  for (const event of session.translator.translate(update))
+                    yield* publish(session, event)
+                  if (
+                    update.sessionUpdate === 'turn_completed' &&
+                    session.awaitingResult &&
+                    session.requestId === undefined &&
+                    update.prompt_id === session.promptId
+                  ) {
+                    session.accepting = false
+                    yield* settleOpenItems(session)
+                    session.awaitingResult = false
+                    session.promptId = undefined
+                    yield* session.emit(
+                      update.stop_reason === 'end_turn'
+                        ? { type: 'turn.completed', turnId: session.input.turnId }
+                        : {
+                            type: 'turn.failed',
+                            turnId: session.input.turnId,
+                            error: 'Grok stopped: ' + String(update.stop_reason ?? 'unknown'),
+                          }
+                    )
+                    yield* Deferred.succeed(session.done, undefined)
+                  }
+                  if (!session.awaitingResult) yield* armIdle(session)
                 }
                 const response =
-                  message.method === '$response' && message.params.requestId === session.requestId
+                  session.awaitingResult &&
+                  session.requestId !== undefined &&
+                  message.method === '$response' &&
+                  message.params.requestId === session.requestId
                 const completion =
+                  session.awaitingResult &&
                   message.method === '_x.ai/session/prompt_complete' &&
                   message.params.sessionId === sessionId &&
                   (message.params.promptId === session.promptId ||
-                    (!message.params.promptId && session.promptCount === 1))
+                    (!message.params.promptId &&
+                      (session.requestId === undefined || session.promptCount === 1)))
                 if (response || completion) {
                   const result = response ? object(message.params.result) : message.params
                   if (session.next) {
                     const next = session.next
                     session.next = undefined
                     yield* settleOpenItems(session)
-                    session.translator = createGrokTranslator(session.input.turnId)
+                    session.translator = createGrokTranslator(
+                      session.input.turnId,
+                      session.translator.workflows
+                    )
                     yield* session.emit({ type: 'session.status', status: 'running' })
                     yield* prompt(session, next.text, next.images)
-                    return null
+                    return
                   }
                   session.accepting = false
                   yield* settleOpenItems(session)
@@ -290,51 +411,94 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                         string(result.agentResult) ||
                         'Grok stopped: ' + String(result.stopReason ?? 'missing stop reason')
                       : '')
-                  return error || session.reason
-                    ? ({
-                        type: 'turn.failed',
-                        turnId: session.input.turnId,
-                        error: session.reason ?? error,
-                      } satisfies ThreadEvent)
-                    : ({
-                        type: 'turn.completed',
-                        turnId: session.input.turnId,
-                      } satisfies ThreadEvent)
+                  const terminal =
+                    error || session.reason
+                      ? ({
+                          type: 'turn.failed',
+                          turnId: session.input.turnId,
+                          error: session.reason ?? error,
+                        } satisfies ThreadEvent)
+                      : ({
+                          type: 'turn.completed',
+                          turnId: session.input.turnId,
+                        } satisfies ThreadEvent)
+                  session.awaitingResult = false
+                  session.requestId = undefined
+                  session.promptId = undefined
+                  yield* session.emit(terminal)
+                  yield* Deferred.succeed(session.done, undefined)
+                  yield* armIdle(session)
                 }
-                if (message.method === 'session/update' && message.params.sessionId === sessionId) {
-                  for (const event of session.translator.translate(object(message.params.update)))
-                    yield* session.emit(event)
-                }
-                return null
               })
             )
-            if (terminal) return terminal
           }
         })
       ).pipe(
-        Effect.flatMap((terminal) =>
-          session.publication.withPermit(
-            session.emit(
-              terminal,
-              Effect.sync(() => {
-                session.settled = true
-                if (sessions.get(session.input.threadId) === session)
-                  sessions.delete(session.input.threadId)
-              })
-            )
-          )
-        ),
         Effect.mapError((error) =>
           error instanceof AgentError ? error : new AgentError(error.message)
         )
       )
     }
 
+    // Grok advertises /workflow stop as a prompt command, but no task-specific ACP stop request.
     return {
       startTurn(input, emit) {
         return Effect.gen(function* () {
-          if (sessions.has(input.threadId))
-            return yield* Effect.fail(new AgentError('Turn already active'))
+          let existing = sessions.get(input.threadId)
+          const settings = JSON.stringify(grokArgs(input))
+          if (existing) {
+            let retire = false
+            yield* existing.publication.withPermit(
+              Effect.gen(function* () {
+                if (existing!.awaitingResult)
+                  return yield* Effect.fail(new AgentError('Turn already active'))
+                if (existing!.settings !== settings) {
+                  if (existing!.runningWorkflows.size || existing!.runningSubagents.size)
+                    return yield* Effect.fail(
+                      new AgentError('Grok permission mode cannot change during background work')
+                    )
+                  retire = true
+                  return
+                }
+                const currentId = existing!.modelId ?? ''
+                const baseOf = new Map([...existing!.fastIds].map(([base, fast]) => [fast, base]))
+                const requestedModel = input.model ?? process.env.JETTY_GROK_MODEL
+                const baseId =
+                  requestedModel && requestedModel !== 'grok-build'
+                    ? requestedModel
+                    : (baseOf.get(currentId) ?? currentId)
+                const modelId = input.fast ? (existing!.fastIds.get(baseId) ?? baseId) : baseId
+                if (modelId !== currentId || input.effort !== existing!.effort) {
+                  yield* existing!.connection!.request('session/set_model', {
+                    sessionId: existing!.providerThreadId,
+                    modelId,
+                    ...(input.effort ? { _meta: { reasoningEffort: input.effort } } : {}),
+                  })
+                  existing!.modelId = modelId
+                  existing!.effort = input.effort
+                }
+                if (existing!.idle) yield* Fiber.interrupt(existing!.idle)
+                existing!.idle = null
+                existing!.input = input
+                existing!.emit = emit
+                existing!.translator = createGrokTranslator(
+                  input.turnId,
+                  existing!.translator.workflows
+                )
+                existing!.done = yield* Deferred.make<void, AgentError>()
+                existing!.reason = null
+                existing!.awaitingResult = true
+                existing!.accepting = true
+                yield* publish(existing!, { type: 'turn.started', turnId: input.turnId })
+                yield* prompt(existing!, input.text, input.images)
+              })
+            )
+            if (retire) {
+              if (existing.fiber) yield* Fiber.interrupt(existing.fiber)
+              existing = undefined
+            }
+            if (existing) return { await: Deferred.await(existing.done) }
+          }
           const thread = yield* store.getThread(input.threadId)
           const project = thread && (yield* store.getProject(thread.projectId))
           if (!project) return yield* Effect.fail(new AgentError('Thread project not found'))
@@ -344,7 +508,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             emit,
             translator: createGrokTranslator(input.turnId),
             accepting: false,
-            settled: false,
+            awaitingResult: true,
+            done,
+            idle: null,
+            runningWorkflows: new Set(),
+            runningSubagents: new Set(),
+            settings,
+            fastIds: new Map(),
             reason: null,
             pending: new Map(),
             promptCount: 0,
@@ -357,13 +527,22 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 .withPermit(
                   Effect.gen(function* () {
                     session.accepting = false
-                    if (session.settled) return
                     yield* settleOpenItems(session).pipe(Effect.ignore)
-                    yield* emit({
-                      type: 'turn.failed',
-                      turnId: input.turnId,
-                      error: session.reason ?? 'server shutdown',
-                    })
+                    if (session.awaitingResult) {
+                      yield* session.emit({
+                        type: 'turn.failed',
+                        turnId: session.input.turnId,
+                        error: session.reason ?? 'server shutdown',
+                      })
+                      session.awaitingResult = false
+                    }
+                    for (const itemId of session.runningWorkflows)
+                      yield* session.emit({
+                        type: 'item.completed',
+                        itemId,
+                        patch: { status: 'stopped', stopReason: 'crash' },
+                      })
+                    yield* Deferred.succeed(session.done, undefined)
                   })
                 )
                 .pipe(Effect.ignore)
@@ -383,7 +562,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 if (sessions.get(input.threadId) === session) sessions.delete(input.threadId)
               })
             ),
-            Effect.onExit((exit) => Deferred.done(done, exit))
+            Effect.onExit((exit) => Deferred.done(session.done, exit))
           )
           session.fiber = yield* Effect.forkIn(lifecycle, owner)
           return { await: Deferred.await(done) }
@@ -439,11 +618,12 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       interrupt(threadId, reason = 'interrupted') {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
-          if (!session) return
-          yield* session.publication.withPermit(
+          if (!session || !session.awaitingResult) return
+          const promptId = yield* session.publication.withPermit(
             Effect.sync(() => {
               session.reason = reason
               session.accepting = false
+              return session.promptId
             })
           )
           if (session.connection && session.providerThreadId) {
@@ -451,7 +631,16 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               .notify('session/cancel', { sessionId: session.providerThreadId })
               .pipe(Effect.timeout(options.interruptGraceMs ?? 2000), Effect.ignore)
           }
-          if (session.fiber) yield* Fiber.interrupt(session.fiber)
+          yield* Effect.sleep(options.interruptGraceMs ?? 2000).pipe(
+            Effect.andThen(
+              Effect.suspend(() =>
+                session.awaitingResult && session.promptId === promptId && session.fiber
+                  ? Fiber.interrupt(session.fiber)
+                  : Effect.void
+              )
+            ),
+            Effect.forkIn(owner)
+          )
         })
       },
       respondToApproval(threadId, itemId, decision, message?: string) {
