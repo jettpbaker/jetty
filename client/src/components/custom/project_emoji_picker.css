@@ -1,0 +1,21 @@
+.project-emoji-picker .EmojiPickerReact {
+  --epr-bg-color: var(--popover);
+  --epr-text-color: var(--foreground);
+  --epr-search-input-bg-color: var(--background);
+  --epr-search-input-text-color: var(--foreground);
+  --epr-search-input-placeholder-color: var(--muted-foreground);
+  --epr-search-border-color: var(--border);
+  --epr-search-input-bg-color-active: var(--background);
+  --epr-picker-border-color: transparent;
+  --epr-category-label-bg-color: var(--popover);
+  --epr-category-label-text-color: var(--muted-foreground);
+  --epr-category-icon-inactive-color: var(--muted-foreground);
+  --epr-category-icon-active-color: var(--foreground);
+  --epr-hover-bg-color: var(--accent);
+  --epr-focus-bg-color: var(--accent);
+  --epr-highlight-color: var(--primary);
+  --epr-picker-border-radius: 0;
+  --epr-emoji-size: 24px;
+  --epr-horizontal-padding: 8px;
+  --epr-header-padding: 8px var(--epr-horizontal-padding);
+}

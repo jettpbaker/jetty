@@ -2,10 +2,10 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChrome, useCreateProject } from '@/state'
 import { ArrowUpRightIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react'
-import { RepoIcon } from '@primer/octicons-react'
 import { useRef, useState } from 'react'
 
 import { ProjectFolderDialog } from './project_folder_dialog'
+import { ProjectIconPicker } from './project_icon_picker'
 
 export function SettingsProjects() {
   const projects = useChrome()?.projects ?? []
@@ -40,12 +40,7 @@ export function SettingsProjects() {
             <tr key={project.id} className='border-b border-border hover:bg-accent'>
               <td className='px-2 py-3'>
                 <div className='flex min-w-0 items-center gap-3'>
-                  <span
-                    aria-hidden='true'
-                    className='flex size-7 shrink-0 items-center justify-center text-muted-foreground'
-                  >
-                    <RepoIcon className='size-4' />
-                  </span>
+                  <ProjectIconPicker project={project} />
                   <span className='truncate' title={project.title}>
                     {project.title}
                   </span>
