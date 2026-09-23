@@ -924,24 +924,41 @@ export function LivePullRequestView({
     )
   if (!failure) return <p className='p-4 text-xs text-muted-foreground'>Loading pull request…</p>
   return (
+    <PullRequestUnavailable
+      title={unavailableTitle[snapshot.status]}
+      detail={
+        snapshot.status === 'unavailable' && snapshot.error
+          ? snapshot.error
+          : `${link.repo}#${link.number}`
+      }
+    >
+      <Button variant='outline' size='sm' disabled={refreshing} onClick={() => refresh(link)}>
+        Try again
+      </Button>
+      <Button variant='ghost' size='sm' nativeButton={false} render={externalLink(link.url)}>
+        Open on GitHub
+      </Button>
+      {threadId && <UnlinkButton threadId={threadId} link={link} />}
+    </PullRequestUnavailable>
+  )
+}
+
+export function PullRequestUnavailable({
+  title,
+  detail,
+  children,
+}: {
+  title: string
+  detail: string
+  children: ReactNode
+}) {
+  return (
     <div className='flex h-full flex-col items-center justify-center gap-3 p-4 text-center'>
       <div className='flex flex-col gap-1'>
-        <p className='text-sm'>{unavailableTitle[snapshot.status]}</p>
-        <p className='text-xs text-muted-foreground'>
-          {snapshot.status === 'unavailable' && snapshot.error
-            ? snapshot.error
-            : `${link.repo}#${link.number}`}
-        </p>
+        <p className='text-sm'>{title}</p>
+        <p className='text-xs text-muted-foreground'>{detail}</p>
       </div>
-      <div className='flex items-center gap-1'>
-        <Button variant='outline' size='sm' disabled={refreshing} onClick={() => refresh(link)}>
-          Try again
-        </Button>
-        <Button variant='ghost' size='sm' nativeButton={false} render={externalLink(link.url)}>
-          Open on GitHub
-        </Button>
-        {threadId && <UnlinkButton threadId={threadId} link={link} />}
-      </div>
+      <div className='flex items-center gap-1'>{children}</div>
     </div>
   )
 }
