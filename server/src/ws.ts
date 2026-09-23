@@ -255,19 +255,21 @@ export function createRpcHandlers(
         ),
       'thread.create': (params) =>
         Effect.gen(function* () {
-          const project = yield* requireProject(params.projectId)
+          const project = yield* requireProject(params.projectId).pipe(Effect.mapError(wireError))
           let base: string | undefined
           if (params.environment === 'container') {
             if (!containers)
-              return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
+              return yield* Effect.fail(
+                wireError(new StoreError('invalid_params', 'Containers are disabled'))
+              )
             yield* Effect.tryPromise({
               try: () => containers.registration(project),
               catch: (error) => new StoreError('invalid_params', String(error)),
-            })
+            }).pipe(Effect.mapError(wireError))
             base = yield* Effect.tryPromise({
               try: () => gitCommit(project.path, params.ref),
               catch: (error) => new StoreError('invalid_params', String(error)),
-            })
+            }).pipe(Effect.mapError(wireError))
           }
           const thread = yield* upsertThread(
             Effect.gen(function* () {
@@ -277,7 +279,7 @@ export function createRpcHandlers(
             })
           )
           return { thread }
-        }).pipe(Effect.mapError(wireError)),
+        }),
       'thread.archive': (params) =>
         upsertThread(store.archiveThread(params.threadId, params.archived)).pipe(
           Effect.tap(() =>

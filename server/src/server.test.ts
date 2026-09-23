@@ -1747,8 +1747,11 @@ describe('thread.diff', () => {
 describe('ws origin gate', () => {
   test('websocket upgrades require an allowed origin', async () => {
     const { port } = await boot()
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text()
+    const secret = html.match(/<meta name="jetty-ws-secret" content="([a-f0-9]+)">/)?.[1]
+    expect(secret).toBeDefined()
     const upgrade = (origin?: string) =>
-      fetch(`http://127.0.0.1:${port}/ws`, {
+      fetch(`http://127.0.0.1:${port}/ws?secret=${secret}`, {
         headers: {
           ...(origin ? { Origin: origin } : {}),
           Upgrade: 'websocket',
