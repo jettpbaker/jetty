@@ -111,11 +111,13 @@ function sendTurn(
   const prompt: PendingPrompt = {
     text,
     priorCount,
-    images: images.map(({ url, name, mimeType, sizeBytes }) => ({
+    images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
       name,
       mimeType,
       sizeBytes,
+      width,
+      height,
     })),
   }
   registry.update(pendingPromptsAtom, (prompts) =>

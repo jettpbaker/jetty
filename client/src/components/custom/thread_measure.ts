@@ -39,10 +39,11 @@ export function estimateRow(row: ThreadRow, width: number) {
     case 'user': {
       let height = textHeight(row.id, row.item.text, width * 0.8, true) + 16
       for (const attachment of row.item.attachments)
-        height +=
-          8 +
-          (fittedSize(attachment, width * 0.8 - 24, BUBBLE_IMAGE_MAX_HEIGHT)?.height ??
-            BUBBLE_IMAGE_MAX_HEIGHT)
+        height += attachment.mimeType.startsWith('image/')
+          ? 8 +
+            (fittedSize(attachment, width * 0.8 - 24, BUBBLE_IMAGE_MAX_HEIGHT)?.height ??
+              BUBBLE_IMAGE_MAX_HEIGHT)
+          : lineHeight
       return height
     }
     case 'assistant':

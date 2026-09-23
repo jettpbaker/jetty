@@ -14,6 +14,8 @@ export type ComposerImage = {
   mimeType: ImageType
   sizeBytes: number
   dataUrl?: string
+  width?: number
+  height?: number
 }
 export type ReadyImage = ComposerImage & { dataUrl: string }
 export type ImageAttachments = ReturnType<typeof useImageAttachments>
@@ -48,31 +50,30 @@ function readDataUrl(blob: Blob) {
   })
 }
 
-async function downscale(file: File, type: ImageType): Promise<Blob> {
+async function encode(file: File, type: ImageType) {
   const bitmap = await createImageBitmap(file)
   try {
-    const scale = MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height)
-    if (scale >= 1) return file
-    const canvas = new OffscreenCanvas(
-      Math.round(bitmap.width * scale),
-      Math.round(bitmap.height * scale)
-    )
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('no 2d context')
-    context.imageSmoothingQuality = 'high'
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    // GIFs keep only their first frame, which is all Claude reads.
-    return await canvas.convertToBlob(
-      type === 'image/gif' || type === 'image/png' ? { type: 'image/png' } : { type, quality: 0.92 }
-    )
+    const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height))
+    const width = Math.round(bitmap.width * scale)
+    const height = Math.round(bitmap.height * scale)
+    let blob: Blob = file
+    if (scale < 1) {
+      const canvas = new OffscreenCanvas(width, height)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('no 2d context')
+      context.imageSmoothingQuality = 'high'
+      context.drawImage(bitmap, 0, 0, width, height)
+      // GIFs keep only their first frame, which is all Claude reads.
+      blob = await canvas.convertToBlob(
+        type === 'image/gif' || type === 'image/png'
+          ? { type: 'image/png' }
+          : { type, quality: 0.92 }
+      )
+    }
+    return { blob, width, height, dataUrl: await readDataUrl(blob) }
   } finally {
     bitmap.close()
   }
-}
-
-async function encode(file: File, type: ImageType) {
-  const blob = await downscale(file, type)
-  return { blob, dataUrl: await readDataUrl(blob) }
 }
 
 export function useImageAttachments() {
@@ -99,7 +100,7 @@ export function useImageAttachments() {
     const encoded = await encode(file, type).catch(() => undefined)
     if (!current.current.some((image) => image.url === url)) return
     if (!encoded) return drop(url, `Couldn't read ${file.name}.`)
-    const { blob, dataUrl } = encoded
+    const { blob, dataUrl, width, height } = encoded
     if (blob.size > MAX_IMAGE_BYTES) {
       return drop(url, `${file.name} must be under ${megabytes(MAX_IMAGE_BYTES)}.`)
     }
@@ -108,7 +109,7 @@ export function useImageAttachments() {
       return drop(url, `Images in one message must total under ${megabytes(MAX_TURN_IMAGE_BYTES)}.`)
     }
     const mimeType = isImageType(blob.type) ? blob.type : type
-    patch(url, (image) => ({ ...image, mimeType, sizeBytes: blob.size, dataUrl }))
+    patch(url, (image) => ({ ...image, mimeType, sizeBytes: blob.size, dataUrl, width, height }))
   }
 
   function add(files: Iterable<File>) {
