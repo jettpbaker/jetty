@@ -92,6 +92,7 @@ export const GitHubFile = Schema.Struct({
   deletions: Schema.Int,
   changes: Schema.Int,
   previous_filename: Schema.optional(Schema.String),
+  patch: Schema.optional(Schema.String),
 })
 
 export const PullRequestData = Schema.Struct({
