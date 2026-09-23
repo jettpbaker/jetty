@@ -1,4 +1,9 @@
-import { MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, UploadAttachment } from '@jetty/shared/wire'
+import {
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES_PER_TURN,
+  MAX_TURN_IMAGE_BYTES,
+  UploadAttachment,
+} from '@jetty/shared/wire'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 
 type ImageType = UploadAttachment['mimeType']
@@ -30,13 +35,44 @@ export function dropImages(files: Iterable<File>) {
   dropTarget?.(files)
 }
 
-function readDataUrl(file: File) {
+// Claude downscales anything longer than this anyway; sending more only slows the upload.
+const MAX_IMAGE_EDGE = 2576
+const megabytes = (bytes: number) => `${bytes / 1024 / 1024} MB`
+
+function readDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.addEventListener('load', () => resolve(String(reader.result)))
     reader.addEventListener('error', () => reject(reader.error))
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(blob)
   })
+}
+
+async function downscale(file: File, type: ImageType): Promise<Blob> {
+  const bitmap = await createImageBitmap(file)
+  try {
+    const scale = MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height)
+    if (scale >= 1) return file
+    const canvas = new OffscreenCanvas(
+      Math.round(bitmap.width * scale),
+      Math.round(bitmap.height * scale)
+    )
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context')
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    // GIFs keep only their first frame, which is all Claude reads.
+    return await canvas.convertToBlob(
+      type === 'image/gif' || type === 'image/png' ? { type: 'image/png' } : { type, quality: 0.92 }
+    )
+  } finally {
+    bitmap.close()
+  }
+}
+
+async function encode(file: File, type: ImageType) {
+  const blob = await downscale(file, type)
+  return { blob, dataUrl: await readDataUrl(blob) }
 }
 
 export function useImageAttachments() {
@@ -53,6 +89,28 @@ export function useImageAttachments() {
     update(current.current.flatMap((image) => (image.url === url ? (change(image) ?? []) : image)))
   }
 
+  function drop(url: string, problem: string | undefined) {
+    URL.revokeObjectURL(url)
+    patch(url, () => undefined)
+    setError(problem)
+  }
+
+  async function prepare(url: string, file: File, type: ImageType) {
+    const encoded = await encode(file, type).catch(() => undefined)
+    if (!current.current.some((image) => image.url === url)) return
+    if (!encoded) return drop(url, `Couldn't read ${file.name}.`)
+    const { blob, dataUrl } = encoded
+    if (blob.size > MAX_IMAGE_BYTES) {
+      return drop(url, `${file.name} must be under ${megabytes(MAX_IMAGE_BYTES)}.`)
+    }
+    const others = current.current.filter((image) => image.url !== url && image.dataUrl)
+    if (others.reduce((sum, image) => sum + image.sizeBytes, blob.size) > MAX_TURN_IMAGE_BYTES) {
+      return drop(url, `Images in one message must total under ${megabytes(MAX_TURN_IMAGE_BYTES)}.`)
+    }
+    const mimeType = isImageType(blob.type) ? blob.type : type
+    patch(url, (image) => ({ ...image, mimeType, sizeBytes: blob.size, dataUrl }))
+  }
+
   function add(files: Iterable<File>) {
     const problems: string[] = []
     const added: ComposerImage[] = []
@@ -60,21 +118,14 @@ export function useImageAttachments() {
     for (const file of files) {
       if (!isImageType(file.type)) {
         problems.push(`${file.name} isn't a PNG, JPEG, GIF or WebP image.`)
-      } else if (file.size === 0 || file.size > MAX_IMAGE_BYTES) {
-        problems.push(`${file.name} must be under ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`)
+      } else if (file.size === 0) {
+        problems.push(`${file.name} is empty.`)
       } else if (current.current.length + added.length >= MAX_IMAGES_PER_TURN) {
         overflow = true
       } else {
         const url = URL.createObjectURL(file)
         added.push({ url, name: file.name, mimeType: file.type, sizeBytes: file.size })
-        readDataUrl(file).then(
-          (dataUrl) => patch(url, (image) => ({ ...image, dataUrl })),
-          () => {
-            URL.revokeObjectURL(url)
-            patch(url, () => undefined)
-            setError(`Couldn't read ${file.name}.`)
-          }
-        )
+        void prepare(url, file, file.type)
       }
     }
     if (overflow) problems.push(`Up to ${MAX_IMAGES_PER_TURN} images per message.`)
@@ -83,9 +134,7 @@ export function useImageAttachments() {
   }
 
   function remove(url: string) {
-    URL.revokeObjectURL(url)
-    patch(url, () => undefined)
-    setError(undefined)
+    drop(url, undefined)
   }
 
   function take(): ReadyImage[] {
