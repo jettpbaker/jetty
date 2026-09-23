@@ -85,6 +85,10 @@ const migrations = SqliteMigrator.fromRecord({
         WHEN 'video' THEN json_array(json_extract(i.value, '$.video'))
         ELSE '[]' END) a`
   }),
+  '010_thread_turn_times': addThreadColumns({
+    turn_started_at: 'INTEGER',
+    turn_ended_at: 'INTEGER',
+  }),
 })
 
 export function databaseLayer(home: string) {

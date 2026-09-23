@@ -36,6 +36,8 @@ type ThreadRow = {
   archived: number
   pinned: number
   updated_at: number
+  turn_started_at: number | null
+  turn_ended_at: number | null
   provider: string | null
   model: string | null
   effort: string | null
@@ -86,6 +88,8 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
     updatedAt: row.updated_at,
+    ...(row.turn_started_at === null ? {} : { turnStartedAt: row.turn_started_at }),
+    ...(row.turn_ended_at === null ? {} : { turnEndedAt: row.turn_ended_at }),
     createdBy: row.created_by,
     ...(row.parent_thread_id ? { parentThreadId: row.parent_thread_id } : {}),
     pendingMessages: JSON.parse(row.pending_messages),
@@ -269,14 +273,29 @@ export function createStore() {
             }
           }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         }
-        yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts} WHERE id = ${threadId}`
+        const turnStartedAt =
+          validated.type === 'turn.started' ? ts : (thread.turnStartedAt ?? null)
+        const turnEndedAt =
+          validated.type === 'turn.started'
+            ? null
+            : validated.type === 'turn.completed' || validated.type === 'turn.failed'
+              ? ts
+              : (thread.turnEndedAt ?? null)
+        yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts},
+          turn_started_at = ${turnStartedAt}, turn_ended_at = ${turnEndedAt} WHERE id = ${threadId}`
         return {
           seq,
           ts,
           event: validated,
           state,
           prevStatus: prev.status,
-          thread: { ...thread, status: state.status, updatedAt: ts },
+          thread: {
+            ...thread,
+            status: state.status,
+            updatedAt: ts,
+            turnStartedAt: turnStartedAt ?? undefined,
+            turnEndedAt: turnEndedAt ?? undefined,
+          },
         } satisfies AppendedEvent
       })
     }

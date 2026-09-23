@@ -135,12 +135,12 @@ describe('applyEvent', () => {
     expect(state.items[0]).toEqual({ ...assistant('a1'), streaming: false, completedAt: 0 })
   })
 
-  test('turn.failed returns to idle', () => {
+  test('turn.failed retains error', () => {
     const state = run([
       { type: 'turn.started', turnId: 't1' },
       { type: 'turn.failed', turnId: 't1', error: 'boom' },
     ])
-    expect(state.status).toBe('idle')
+    expect(state.status).toBe('error')
     expect(state.activeTurnId).toBeNull()
   })
 

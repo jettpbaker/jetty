@@ -84,12 +84,12 @@ function reconcileOnStartup(store: Store) {
             itemId: item.id,
             patch: { status: 'stopped' },
           })
-      if (state.status === 'idle') continue
+      if (!state.activeTurnId) continue
       yield* store.appendEvent(
         thread.id,
         {
           type: 'turn.failed',
-          turnId: state.activeTurnId ?? 'unknown',
+          turnId: state.activeTurnId,
           error: 'server restarted',
         },
         false

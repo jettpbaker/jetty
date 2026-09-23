@@ -250,7 +250,7 @@ test('shutdown with active native streams is awaitable, idempotent, and persists
   const restarted = await startServer({ home: f.server.home, port: 0, agent: 'echo' })
   try {
     const state = await Effect.runPromise(restarted.store.getThreadState(f.thread.id))
-    expect(state.status).toBe('idle')
+    expect(state.status).toBe('error')
     expect(
       (await Effect.runPromise(restarted.store.getEventsAfter(f.thread.id, 0))).at(-1)?.event
     ).toMatchObject({

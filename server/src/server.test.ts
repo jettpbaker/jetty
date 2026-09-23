@@ -781,7 +781,7 @@ describe('server skeleton', () => {
     const c = await connect(running.port)
     const sub = await c.subscribeThread({ threadId: thread.id }).ready
 
-    expect(sub.snapshot.status).toBe('idle')
+    expect(sub.snapshot.status).toBe('error')
     expect(sub.snapshot.activeTurnId).toBeNull()
     expect(sub.snapshot.lastSeq).toBe(2)
 

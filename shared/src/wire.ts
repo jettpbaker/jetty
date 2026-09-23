@@ -76,6 +76,8 @@ export const ThreadMeta = Schema.Struct({
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
   updatedAt: Schema.Int,
+  turnStartedAt: Schema.optional(Schema.Int),
+  turnEndedAt: Schema.optional(Schema.Int),
   provider: Schema.optional(ProviderId),
   model: Schema.optional(Schema.String),
   effort: Schema.optional(EffortLevel),

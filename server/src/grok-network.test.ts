@@ -83,7 +83,7 @@ test('Grok fixture over backend RPC: disconnect, durable completion, immediate n
     const reopened = await openTestStore(home)
     try {
       const stopped = await Effect.runPromise(reopened.store.getThreadState(threadId))
-      expect(stopped.status).toBe('idle')
+      expect(stopped.status).toBe('error')
       expect(stopped.activeTurnId).toBeNull()
       const events = await Effect.runPromise(reopened.store.getEventsAfter(threadId, state.lastSeq))
       expect(events.filter((event) => event.event.type === 'turn.failed')).toHaveLength(1)

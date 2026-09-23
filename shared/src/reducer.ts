@@ -38,14 +38,15 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
       return { ...state, activeTurnId: event.turnId, status: 'running' }
     case 'turn.completed':
     case 'turn.failed':
+      const outcome = turnOutcome(event)
       return {
         ...state,
         turnOutcomes: {
           ...state.turnOutcomes,
-          [event.turnId]: turnOutcome(event),
+          [event.turnId]: outcome,
         },
         activeTurnId: null,
-        status: 'idle',
+        status: outcome === 'failed' ? 'error' : 'idle',
         items: state.items.map((item) => settleStreaming(item, ts)),
       }
     case 'item.started':
