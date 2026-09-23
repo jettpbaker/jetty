@@ -42,6 +42,7 @@ import {
 import { claudeBin } from './claude-bin'
 import {
   createTranslateCtx,
+  subagentOf,
   translate,
   type SdkLikeMessage,
   type TranslateCtx,
@@ -85,6 +86,7 @@ type WarmSession = {
   idle: Fiber.Fiber<void> | null
   grace: Fiber.Fiber<void> | null
   ctx: TranslateCtx
+  runningAgents: Set<string>
   emit: Emit
   closed: boolean
   queryClosed: boolean
@@ -120,11 +122,17 @@ function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
 }
 
 // A tool the SDK reports as failed after Stop was cut off, not broken: leaving its status
-// unsettled lets the client show it as stopped.
-function withoutToolFailure(event: ThreadEvent): ThreadEvent {
+// unsettled lets the client show it as stopped. Subagents settle with their own status.
+function withoutToolFailure(event: ThreadEvent, agents: ReadonlySet<string>): ThreadEvent {
   if (event.type !== 'item.completed' || event.patch?.status !== 'failed') return event
+  if (agents.has(event.itemId)) return event
   const { status: _, ...patch } = event.patch
   return { ...event, patch }
+}
+
+function trackAgents(running: Set<string>, event: ThreadEvent) {
+  if (event.type === 'item.started' && event.item.kind === 'subagent') running.add(event.item.id)
+  if (event.type === 'item.completed') running.delete(event.itemId)
 }
 
 export function createClaudeAdapter(
@@ -195,8 +203,9 @@ export function createClaudeAdapter(
                 ? event
                 : terminal
                   ? { type: 'turn.failed', turnId: session.activeTurnId, error: session.failReason }
-                  : withoutToolFailure(event)
+                  : withoutToolFailure(event, session.runningAgents)
             )
+            trackAgents(session.runningAgents, event)
             if (terminal) {
               session.awaitingResult = false
               yield* Deferred.succeed(session.done, undefined)
@@ -253,6 +262,11 @@ export function createClaudeAdapter(
         yield* Queue.end(session.input)
         yield* Effect.try(() => closeQuery(session)).pipe(Effect.ignore)
         yield* denyPending(session).pipe(Effect.ignore)
+        for (const itemId of session.runningAgents)
+          yield* session
+            .emit({ type: 'item.completed', itemId, patch: { status: 'stopped' } })
+            .pipe(Effect.ignore)
+        session.runningAgents.clear()
         if (session.awaitingResult) {
           session.awaitingResult = false
           yield* session
@@ -316,7 +330,6 @@ export function createClaudeAdapter(
 
     function armIdle(session: WarmSession) {
       return Effect.gen(function* () {
-        if (session.idle) yield* Fiber.interrupt(session.idle)
         const turnId = session.activeTurnId
         session.idle = yield* Effect.sleep(ttlMs).pipe(
           Effect.andThen(retire(session, 'idle ttl', { turnId, awaitingResult: false })),
@@ -365,10 +378,12 @@ export function createClaudeAdapter(
               session.ctx.sessionId = null
             }
             for (const event of events) yield* publish(session, event)
+            // Background subagents outlive their turn; the session stays warm until they settle.
+            if (!session.awaitingResult && session.runningAgents.size === 0 && !session.idle)
+              yield* armIdle(session)
             if (message.type === 'result') {
               yield* requestUsage(session)
               yield* session.contextPoller.poll(true)
-              yield* armIdle(session)
             } else {
               yield* session.contextPoller.poll(
                 message.type === 'system' &&
@@ -410,6 +425,13 @@ export function createClaudeAdapter(
               return
             }
             const itemId = newId()
+            const agentId = subagentOf(session.ctx, options.agentID)
+            const base = {
+              id: itemId,
+              turnId: session.activeTurnId,
+              createdAt: Date.now(),
+              ...(agentId ? { agentId } : {}),
+            }
             if (toolName === 'AskUserQuestion') {
               const parsed = Schema.decodeUnknownResult(Schema.Array(QuestionSpec))(
                 (toolInput as { questions?: unknown }).questions
@@ -425,9 +447,7 @@ export function createClaudeAdapter(
               yield* session.emit({
                 type: 'item.started',
                 item: {
-                  id: itemId,
-                  turnId: session.activeTurnId,
-                  createdAt: Date.now(),
+                  ...base,
                   kind: 'question',
                   questions: parsed.success,
                 },
@@ -437,9 +457,7 @@ export function createClaudeAdapter(
               yield* session.emit({
                 type: 'item.started',
                 item: {
-                  id: itemId,
-                  turnId: session.activeTurnId,
-                  createdAt: Date.now(),
+                  ...base,
                   kind: 'approval',
                   title: options.title ?? toolName,
                   toolName,
@@ -478,8 +496,9 @@ export function createClaudeAdapter(
               if (!current(session) || !session.accepting || !pending) return false
               yield* session.emit({ type: 'item.completed', itemId, patch })
               pendingOf(session).delete(itemId)
+              const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
               yield* session
-                .emit({ type: 'session.status', status: 'running' })
+                .emit({ type: 'session.status', status: waiting ? 'awaiting_approval' : 'running' })
                 .pipe(Effect.ensuring(Deferred.succeed(pending.result, result(pending))))
               return true
             })
@@ -591,6 +610,7 @@ export function createClaudeAdapter(
           idle: null,
           grace: null,
           ctx: createTranslateCtx(input.turnId),
+          runningAgents: new Set(),
           emit,
           closed: false,
           queryClosed: false,
@@ -648,7 +668,7 @@ export function createClaudeAdapter(
           const started = session
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId
-            started.ctx = createTranslateCtx(input.turnId, started.ctx.agents)
+            started.ctx = createTranslateCtx(input.turnId, started.ctx)
             started.emit = emit
             started.awaitingResult = true
             started.accepting = true
