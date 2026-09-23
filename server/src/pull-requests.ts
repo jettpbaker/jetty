@@ -1,7 +1,7 @@
 import type { PullRequestSnapshot } from '@jetty/shared/wire'
 
 import { PullRequestData } from '@jetty/shared/pull-request'
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { Hub } from './hub'
 import type { Store } from './store'
@@ -9,6 +9,35 @@ import type { Store } from './store'
 import { StoreError } from './store'
 
 export type PullRequestRef = { repo: string; number: number }
+
+export async function githubConnection(): Promise<{
+  state: 'connected' | 'signed-out' | 'missing' | 'error'
+}> {
+  const gh = Bun.which('gh')
+  if (!gh) return { state: 'missing' }
+  try {
+    const child = Bun.spawn([gh, 'auth', 'status'], {
+      stdout: 'ignore',
+      stderr: 'ignore',
+      signal: AbortSignal.timeout(3000),
+    })
+    const exitCode = await child.exited
+    if (child.signalCode) return { state: 'error' }
+    return { state: exitCode === 0 ? 'connected' : 'signed-out' }
+  } catch {
+    return { state: 'error' }
+  }
+}
+
+export function validPullRequestRef(ref: PullRequestRef): boolean {
+  const parts = ref.repo.split('/')
+  return (
+    parts.length === 2 &&
+    parts.every((part) => /^[A-Za-z0-9_.-]+$/.test(part) && part !== '.' && part !== '..') &&
+    Number.isSafeInteger(ref.number) &&
+    ref.number > 0
+  )
+}
 
 export function parsePullRequestUrl(value: string): PullRequestRef | null {
   try {
@@ -35,8 +64,34 @@ export function pullRequestUrls(text: string): PullRequestRef[] {
   )) {
     const ref = parsePullRequestUrl(match[0])
     if (ref) found.set(`${ref.repo}#${ref.number}`, ref)
+    if (found.size >= 3) break
   }
   return [...found.values()]
+}
+
+export function createAutoLinkPullRequests(
+  store: Store,
+  hub: Hub,
+  pulls: ReturnType<typeof createPullRequests>,
+  scope: Scope.Scope
+) {
+  return (threadId: string, text: string) =>
+    Effect.gen(function* () {
+      for (const ref of pullRequestUrls(text)) {
+        if (yield* store.hasPullRequestLink(threadId, ref.repo, ref.number)) continue
+        yield* hub.withChromePublication(
+          Effect.gen(function* () {
+            if (yield* store.hasPullRequestLink(threadId, ref.repo, ref.number)) return
+            const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
+            hub.pushChrome({ type: 'thread.upserted', thread })
+          })
+        )
+        yield* pulls.refreshIfStale(ref).pipe(
+          Effect.catchCause((cause) => Effect.logWarning(cause)),
+          Effect.forkIn(scope)
+        )
+      }
+    })
 }
 
 export async function projectRemote(path: string): Promise<string | null> {
@@ -76,11 +131,18 @@ export function resolvePullRequestReference(
   )
 }
 
-type GhFailure = { kind: 'unavailable' | 'not_found' | 'rate_limited'; message: string }
+class GhFailure extends Error {
+  constructor(
+    readonly kind: 'unavailable' | 'not_found' | 'rate_limited',
+    message: string
+  ) {
+    super(message)
+  }
+}
 
 async function ghApi(path: string): Promise<unknown> {
   const gh = Bun.which('gh')
-  if (!gh) throw { kind: 'unavailable', message: 'GitHub CLI is not installed' } satisfies GhFailure
+  if (!gh) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
   try {
     const child = Bun.spawn([gh, 'api', path], {
       stdout: 'pipe',
@@ -95,29 +157,15 @@ async function ghApi(path: string): Promise<unknown> {
     if (code === 0) return JSON.parse(out)
     const detail = err.trim()
     if (/rate limit|secondary rate limit|abuse detection/i.test(detail))
-      throw { kind: 'rate_limited', message: 'GitHub API rate limit reached' } satisfies GhFailure
-    if (/HTTP 404|Not Found/i.test(detail))
-      throw {
-        kind: 'not_found',
-        message: 'Pull request not found or access denied',
-      } satisfies GhFailure
-    if (/HTTP 403/i.test(detail))
-      throw {
-        kind: 'not_found',
-        message: 'Pull request not found or access denied',
-      } satisfies GhFailure
+      throw new GhFailure('rate_limited', 'GitHub API rate limit reached')
+    if (/HTTP 404|Not Found|HTTP 403/i.test(detail))
+      throw new GhFailure('not_found', 'Pull request not found or access denied')
     if (/authentication|not logged|HTTP 401|gh auth login/i.test(detail))
-      throw {
-        kind: 'unavailable',
-        message: 'Sign in with gh auth login to view pull requests',
-      } satisfies GhFailure
-    throw {
-      kind: 'unavailable',
-      message: detail || 'GitHub API is unavailable',
-    } satisfies GhFailure
+      throw new GhFailure('unavailable', 'Sign in with gh auth login to view pull requests')
+    throw new GhFailure('unavailable', detail || 'GitHub API is unavailable')
   } catch (error) {
-    if (error && typeof error === 'object' && 'kind' in error) throw error
-    throw { kind: 'unavailable', message: 'GitHub API is unavailable' } satisfies GhFailure
+    if (error instanceof GhFailure) throw error
+    throw new GhFailure('unavailable', 'GitHub API is unavailable')
   }
 }
 
@@ -144,9 +192,9 @@ async function ghGraphql(ref: PullRequestRef): Promise<{
         'graphql',
         '-f',
         `query=${query}`,
-        '-F',
+        '-f',
         `owner=${owner}`,
-        '-F',
+        '-f',
         `name=${name}`,
         '-F',
         `number=${ref.number}`,
@@ -197,6 +245,20 @@ async function ghPages(path: string): Promise<unknown[]> {
   return items
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function string(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback
+}
+
+function enumValue<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
+  return values.find((candidate) => candidate === value) ?? fallback
+}
+
 async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
   const base = `repos/${ref.repo}`
   const pull = (await ghApi(`${base}/pulls/${ref.number}`)) as Record<string, unknown>
@@ -212,24 +274,24 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
   ])
   const repository = repo as Record<string, unknown>
   const checkRuns = (checks as { check_runs?: unknown[] }).check_runs ?? []
-  function record(value: unknown): Record<string, any> {
-    return value && typeof value === 'object' ? (value as Record<string, any>) : {}
-  }
   function user(value: unknown) {
     const valueRecord = record(value)
     return {
-      login: valueRecord.login ?? 'ghost',
-      avatar_url: valueRecord.avatar_url ?? '',
-      html_url: valueRecord.html_url ?? '',
+      login: string(valueRecord.login, 'ghost'),
+      avatar_url: string(valueRecord.avatar_url),
+      html_url: string(valueRecord.html_url),
     }
   }
-  const state = ['clean', 'blocked', 'dirty', 'unstable'].includes(String(pull.mergeable_state))
-    ? pull.mergeable_state
-    : 'unknown'
+  const state = enumValue(
+    pull.mergeable_state,
+    ['clean', 'blocked', 'dirty', 'unstable'],
+    'unknown'
+  )
   const fixture = {
     pull: {
       ...pull,
-      body: pull.body ?? '',
+      state: enumValue(pull.state, ['open', 'closed'], 'closed'),
+      body: string(pull.body),
       user: user(pull.user),
       mergeable_state: state,
       requested_reviewers: ((pull.requested_reviewers as unknown[]) ?? []).map(user),
@@ -239,8 +301,13 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       return {
         ...review,
         user: user(review.user),
-        body: review.body ?? '',
-        submitted_at: review.submitted_at ?? '',
+        state: enumValue(
+          review.state,
+          ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED', 'PENDING', 'DISMISSED'],
+          'COMMENTED'
+        ),
+        body: string(review.body),
+        submitted_at: string(review.submitted_at),
       }
     }),
     reviewComments: reviewComments.map((value) => {
@@ -248,22 +315,38 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       return {
         ...comment,
         user: user(comment.user),
-        body: comment.body ?? '',
+        body: string(comment.body),
         line: comment.line ?? null,
         pull_request_review_id: comment.pull_request_review_id ?? 0,
-        resolved: graph.resolved.get(comment.id) ?? false,
+        resolved: graph.resolved.get(Number(comment.id)) ?? false,
       }
     }),
     checkRuns: checkRuns.map((value) => {
       const check = record(value)
       return {
         ...check,
-        status: ['queued', 'in_progress', 'completed'].includes(check.status)
-          ? check.status
-          : 'queued',
-        started_at: check.started_at ?? '',
+        status: enumValue(check.status, ['queued', 'in_progress', 'completed'], 'queued'),
+        conclusion:
+          check.conclusion === null
+            ? null
+            : enumValue(
+                check.conclusion,
+                [
+                  'success',
+                  'failure',
+                  'neutral',
+                  'cancelled',
+                  'skipped',
+                  'timed_out',
+                  'action_required',
+                  'stale',
+                  'startup_failure',
+                ],
+                'neutral'
+              ),
+        started_at: string(check.started_at),
         completed_at: check.completed_at ?? null,
-        app: { name: record(check.app).name ?? 'GitHub' },
+        app: { name: string(record(check.app).name, 'GitHub') },
       }
     }),
     commits: commits.map((value) => {
@@ -272,7 +355,7 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       const author = record(commit.author)
       return {
         ...item,
-        commit: { ...commit, author: { name: author.name ?? '', date: author.date ?? '' } },
+        commit: { ...commit, author: { name: string(author.name), date: string(author.date) } },
         author: item.author ? user(item.author) : null,
       }
     }),
@@ -280,19 +363,17 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       const file = record(value)
       return {
         ...file,
-        status: ['added', 'removed', 'modified', 'renamed'].includes(file.status)
-          ? file.status
-          : 'modified',
+        status: enumValue(file.status, ['added', 'removed', 'modified', 'renamed'], 'modified'),
       }
     }),
     closingIssuesReferences: graph.closingIssuesReferences.map((value) => {
       const issue = record(value)
       return {
-        number: issue.number,
-        title: issue.title,
-        url: issue.url,
+        number: Number(issue.number),
+        title: string(issue.title),
+        url: string(issue.url),
         ...(issue.repository
-          ? { repository: { nameWithOwner: record(issue.repository).nameWithOwner } }
+          ? { repository: { nameWithOwner: string(record(issue.repository).nameWithOwner) } }
           : {}),
       }
     }),
@@ -312,43 +393,47 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
 
 export function createPullRequests(store: Store, hub: Hub) {
   const inFlight = new Map<string, Promise<PullRequestSnapshot>>()
+  const refreshSlots = Semaphore.makeUnsafe(2)
 
   function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
-    return Effect.gen(function* () {
-      const key = `${ref.repo}#${ref.number}`
-      let pending = inFlight.get(key)
-      if (!pending) {
-        pending = (async () => {
-          try {
-            return {
-              ...ref,
-              status: 'ready' as const,
-              data: await fetchPullRequest(ref),
-              refreshedAt: Date.now(),
+    return refreshSlots.withPermits(1)(
+      Effect.gen(function* () {
+        const key = `${ref.repo}#${ref.number}`
+        let pending = inFlight.get(key)
+        if (!pending) {
+          pending = (async () => {
+            try {
+              return {
+                ...ref,
+                status: 'ready' as const,
+                data: await fetchPullRequest(ref),
+                refreshedAt: Date.now(),
+              }
+            } catch (error) {
+              const failure =
+                error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+              return {
+                ...ref,
+                status: failure.kind ?? 'unavailable',
+                error: failure.message ?? 'GitHub API is unavailable',
+                refreshedAt: Date.now(),
+              }
             }
-          } catch (error) {
-            const failure = error as GhFailure
-            return {
-              ...ref,
-              status: failure.kind ?? 'unavailable',
-              error: failure.message ?? 'GitHub API is unavailable',
-              refreshedAt: Date.now(),
-            }
-          }
-        })()
-        inFlight.set(key, pending)
-        void pending.finally(() => inFlight.delete(key))
-      }
-      yield* store.savePullRequest(yield* Effect.promise(() => pending))
-      // The stored snapshot keeps the last good data when this read failed.
-      const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
-      hub.pushPullRequest(snapshot)
-      for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
-        const thread = yield* store.requireThread(threadId)
-        hub.pushChrome({ type: 'thread.upserted', thread })
-      }
-      return snapshot
-    })
+          })()
+          inFlight.set(key, pending)
+          void pending.finally(() => inFlight.delete(key))
+        }
+        yield* store.savePullRequest(yield* Effect.promise(() => pending))
+        // The stored snapshot keeps the last good data when this read failed.
+        const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
+        hub.pushPullRequest(snapshot)
+        for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
+          const thread = yield* store.requireThread(threadId)
+          hub.pushChrome({ type: 'thread.upserted', thread })
+        }
+        return snapshot
+      })
+    )
   }
 
   function get(ref: PullRequestRef) {

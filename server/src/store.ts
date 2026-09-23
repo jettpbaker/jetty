@@ -139,34 +139,41 @@ export function createStore() {
       repo: string
       number: number
       linked_at: number
-      data_json: string | null
+      title: string | null
+      state: string | null
+      merged: number | null
+      draft: number | null
+      updated_at: string | null
     }
 
     function rowToLink(row: LinkRow): PullRequestLink {
-      const pull = row.data_json ? JSON.parse(row.data_json).pull : null
       return {
         repo: row.repo,
         number: row.number,
         url: `https://github.com/${row.repo}/pull/${row.number}`,
         linkedAt: row.linked_at,
-        ...(pull
+        ...(row.title
           ? {
-              title: pull.title,
-              state: pull.merged
+              title: row.title,
+              state: row.merged
                 ? ('merged' as const)
-                : pull.state === 'closed'
+                : row.state === 'closed'
                   ? ('closed' as const)
-                  : pull.draft
+                  : row.draft
                     ? ('draft' as const)
                     : ('open' as const),
-              updatedAt: Date.parse(pull.updated_at),
+              updatedAt: Date.parse(row.updated_at ?? ''),
             }
           : {}),
       }
     }
 
     function getLinks(threadId: string) {
-      return sql<LinkRow>`SELECT l.*, p.data_json FROM thread_pull_requests l
+      return sql<LinkRow>`SELECT l.*, json_extract(p.data_json, '$.pull.title') AS title,
+        json_extract(p.data_json, '$.pull.state') AS state,
+        json_extract(p.data_json, '$.pull.merged') AS merged,
+        json_extract(p.data_json, '$.pull.draft') AS draft,
+        json_extract(p.data_json, '$.pull.updated_at') AS updated_at FROM thread_pull_requests l
         JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
         WHERE l.thread_id = ${threadId} ORDER BY l.linked_at DESC`.pipe(
         Effect.map((rows) => rows.map(rowToLink))
@@ -255,7 +262,10 @@ export function createStore() {
 
     function append(threadId: string, event: ThreadEvent, notifyParent = true) {
       return Effect.gen(function* () {
-        const thread = yield* requireThread(threadId)
+        const [threadRow] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
+        if (!threadRow)
+          return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
+        const thread = rowToThread(threadRow)
         const validated = yield* Schema.decodeUnknownEffect(ThreadEvent)(event)
         const prev = yield* getThreadState(threadId)
         const seq = prev.lastSeq + 1
@@ -353,6 +363,7 @@ export function createStore() {
           prevStatus: prev.status,
           thread: {
             ...thread,
+            pullRequests: [],
             status: state.status,
             updatedAt: ts,
             turnStartedAt: turnStartedAt ?? undefined,
@@ -625,6 +636,9 @@ export function createStore() {
           yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
           yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM pull_requests WHERE NOT EXISTS (
+            SELECT 1 FROM thread_pull_requests l WHERE l.repo = pull_requests.repo AND l.number = pull_requests.number
+          )`
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
@@ -661,7 +675,12 @@ export function createStore() {
       listThreads() {
         return Effect.gen(function* () {
           const rows = yield* sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`
-          const links = yield* sql<LinkRow>`SELECT l.*, p.data_json FROM thread_pull_requests l
+          const links =
+            yield* sql<LinkRow>`SELECT l.*, json_extract(p.data_json, '$.pull.title') AS title,
+            json_extract(p.data_json, '$.pull.state') AS state,
+            json_extract(p.data_json, '$.pull.merged') AS merged,
+            json_extract(p.data_json, '$.pull.draft') AS draft,
+            json_extract(p.data_json, '$.pull.updated_at') AS updated_at FROM thread_pull_requests l
             JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number ORDER BY l.linked_at DESC`
           const byThread = new Map<string, PullRequestLink[]>()
           for (const link of links) {
@@ -683,6 +702,12 @@ export function createStore() {
             VALUES (${threadId}, ${repo}, ${number}, ${Date.now()})`
           return yield* requireThread(threadId)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      hasPullRequestLink(threadId: string, repo: string, number: number) {
+        return sql`SELECT 1 FROM thread_pull_requests WHERE thread_id = ${threadId} AND repo = ${repo} AND number = ${number} LIMIT 1`.pipe(
+          Effect.map((rows) => rows.length > 0),
+          Effect.mapError(storeError)
+        )
       },
       unlinkPullRequest(threadId: string, repo: string, number: number) {
         return Effect.gen(function* () {

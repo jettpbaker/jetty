@@ -66,6 +66,8 @@ export const GitHubCheckRun = Schema.Struct({
       'skipped',
       'timed_out',
       'action_required',
+      'stale',
+      'startup_failure',
     ])
   ),
   started_at: Schema.String,
