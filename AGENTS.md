@@ -29,6 +29,8 @@
   library demands one, or for stateful render engines (e.g. `GlowEngine`).
 - `function` declarations for named top-level functions; arrows only for inline
   callbacks and single-expression helpers.
+- New tests are opt-in: don't write tests unless asked. Tests freeze behaviour Jett
+  has signed off, so they come after sign-off, not alongside new work.
 
 ## ui feel
 
@@ -38,7 +40,9 @@
 - Components come from a strict ladder: use a shadcn/ui or AI Elements component
   if one fits; else compose one from shadcn primitives; truly custom only when
   both fail, and say so in the PR.
-- Icons are Phosphor (`@phosphor-icons/react`), never lucide. Registry components
+- Icons are Phosphor (`@phosphor-icons/react`) or Octicons (`@primer/octicons-react`),
+  never lucide. Both packs are intentional — keep each icon in the pack the design
+  uses; never convert between them. Registry components
   arrive speaking lucide — swapping their icon imports to Phosphor equivalents is
   part of adding them (lucide's `Chevron*` is Phosphor's `Caret*`). oxlint bans
   `lucide-react` imports so a missed swap fails the lint gate. Weight/stroke

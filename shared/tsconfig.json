@@ -2,7 +2,7 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "types": ["bun"],
-    "strict": true,
+    "strict": true
   },
   "include": ["src"]
 }

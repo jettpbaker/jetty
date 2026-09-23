@@ -1,7 +1,9 @@
 import type { Query, SDKControlGetUsageResponse } from '@anthropic-ai/claude-agent-sdk'
 import type { ExtraUsage, Usage, UsageWindow } from '@jetty/shared/wire'
 
-type RawExtraUsage = NonNullable<NonNullable<SDKControlGetUsageResponse['rate_limits']>['extra_usage']>
+type RawExtraUsage = NonNullable<
+  NonNullable<SDKControlGetUsageResponse['rate_limits']>['extra_usage']
+>
 
 /** Only place the experimental SDK usage method name may appear. */
 export async function readUsage(query: Query): Promise<Usage | null> {

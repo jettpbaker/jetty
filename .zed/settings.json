@@ -14,12 +14,7 @@
   },
   "languages": {
     "TypeScript": {
-      "language_servers": [
-        "effect-tsgo",
-        "oxfmt",
-        "!vtsls",
-        "!typescript-language-server"
-      ],
+      "language_servers": ["effect-tsgo", "oxfmt", "!vtsls", "!typescript-language-server"],
       "format_on_save": "on",
       "prettier": {
         "allowed": false
@@ -33,12 +28,7 @@
       ]
     },
     "TSX": {
-      "language_servers": [
-        "effect-tsgo",
-        "oxfmt",
-        "!vtsls",
-        "!typescript-language-server"
-      ],
+      "language_servers": ["effect-tsgo", "oxfmt", "!vtsls", "!typescript-language-server"],
       "format_on_save": "on",
       "prettier": {
         "allowed": false
