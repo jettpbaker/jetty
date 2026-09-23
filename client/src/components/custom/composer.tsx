@@ -68,7 +68,7 @@ export function Composer({
         target instanceof HTMLElement &&
         (target.isContentEditable ||
           target.closest(
-            'input, textarea, select, button, a, [role="button"], [role="checkbox"], [role="combobox"], [role="textbox"], [role="slider"], [role="separator"], [role="menu"], [role="menuitem"], [role="menuitemradio"]'
+            'input, textarea, select, button, a, [role="button"], [role="checkbox"], [role="combobox"], [role="textbox"], [role="slider"], [role="separator"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="dialog"]'
           ))
       )
         return

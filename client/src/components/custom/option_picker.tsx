@@ -42,6 +42,7 @@ export function OptionPicker({
   const [query, setQuery] = useState('')
   const [activeOption, setActiveOption] = useState('')
   const pointerSelection = useRef(false)
+  const actionChosen = useRef(false)
   const search = query.trim().toLowerCase()
   const results = options.filter((option) => option.label.toLowerCase().includes(search))
   const selected = options.find((option) => option.value === value)
@@ -56,7 +57,10 @@ export function OptionPicker({
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next) setQuery('')
+        if (next) {
+          setQuery('')
+          actionChosen.current = false
+        }
       }}
     >
       <PopoverTrigger
@@ -69,6 +73,7 @@ export function OptionPicker({
       </PopoverTrigger>
       <PopoverContent
         align={align}
+        finalFocus={() => !actionChosen.current}
         className='search-picker w-56 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
       >
         <PopoverTitle className='sr-only'>{label}</PopoverTitle>
@@ -122,7 +127,9 @@ export function OptionPicker({
                       value={`action:${label}`}
                       disabled={!onSelect}
                       onSelect={() => {
-                        if (onSelect) select(onSelect)
+                        if (!onSelect) return
+                        actionChosen.current = true
+                        select(onSelect)
                       }}
                     >
                       {icon}
