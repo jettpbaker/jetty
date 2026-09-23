@@ -215,11 +215,15 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           session.providerThreadId = sessionId
           yield* store.setProviderSessionId(session.input.threadId, 'grok', sessionId)
           const requestedModel = session.input.model ?? process.env.JETTY_GROK_MODEL
-          const explicit = requestedModel && requestedModel !== 'grok-build'
-          const baseId = explicit ? requestedModel : string(object(result.models).currentModelId)
+          const currentId = string(object(result.models).currentModelId)
           const { fastIds } = foldGrokModels(object(result.models).availableModels)
+          const baseOf = new Map([...fastIds].map(([base, fast]) => [fast, base]))
+          const baseId =
+            requestedModel && requestedModel !== 'grok-build'
+              ? requestedModel
+              : (baseOf.get(currentId) ?? currentId)
           const modelId = session.input.fast ? (fastIds.get(baseId) ?? baseId) : baseId
-          if (explicit || modelId !== baseId || session.input.effort) {
+          if (modelId !== currentId || session.input.effort) {
             if (!modelId)
               return yield* Effect.fail(new AgentError('Grok did not advertise a current model'))
             yield* connection.request('session/set_model', {
