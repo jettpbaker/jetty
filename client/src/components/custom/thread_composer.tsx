@@ -14,6 +14,7 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { currentTodos, pendingItems } from '@/components/custom/composer_strip_model'
+import { WorkflowLines } from '@/components/custom/workflow_lines'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { findModel } from '@/lib/loadout'
 import { newThreadProject } from '@/lib/thread_project'
@@ -263,7 +264,9 @@ export function ThreadComposer({
         onAccessModeChange={setAccessMode}
         attachments={attachments}
         context={
-          threadId ? undefined : (
+          threadId ? (
+            <WorkflowLines threadId={threadId} items={items} />
+          ) : (
             <ComposerFooter projectId={projectId} onProjectChange={setPickedProjectId} />
           )
         }
