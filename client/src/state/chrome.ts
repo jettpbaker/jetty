@@ -5,6 +5,7 @@ import { Stream } from 'effect'
 import { AsyncResult, Atom } from 'effect/unstable/reactivity'
 
 import { subscribe } from './connection'
+import { archivedThreadsAtom, createdThreadsAtom } from './mutations'
 
 export type Chrome = {
   projects: readonly Project[]
@@ -45,7 +46,24 @@ const liveAtom = Atom.make((get) =>
   )
 ).pipe(Atom.keepAlive)
 
-const chromeAtom = Atom.readable((get) => AsyncResult.getOrElse(get(liveAtom), () => undefined))
+function withPending(
+  chrome: Chrome,
+  created: ReadonlyMap<string, ThreadMeta>,
+  archived: ReadonlySet<string>
+): Chrome {
+  if (created.size === 0 && archived.size === 0) return chrome
+  const known = new Set(chrome.threads.map((thread) => thread.id))
+  const threads = [
+    ...chrome.threads,
+    ...[...created.values()].filter((thread) => !known.has(thread.id)),
+  ].map((thread) => (archived.has(thread.id) ? { ...thread, archived: true } : thread))
+  return { ...chrome, threads }
+}
+
+const chromeAtom = Atom.readable((get) => {
+  const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
+  return chrome && withPending(chrome, get(createdThreadsAtom), get(archivedThreadsAtom))
+})
 
 export function useChrome(): Chrome | undefined {
   return useAtomValue(chromeAtom)

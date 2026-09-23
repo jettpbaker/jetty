@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
-import { useChrome, type Chrome } from '@/state'
+import { useArchiveThread, useChrome, useCreateThread, type Chrome } from '@/state'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
 import { ComposeIcon, GitPullRequestIcon, IssueOpenedIcon, RepoIcon } from '@primer/octicons-react'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
@@ -46,6 +46,16 @@ export type SidebarThread = {
   pullRequests: ThreadPullRequest[]
 }
 
+function newThreadProject(chrome: Chrome, selectedId: string | undefined) {
+  const threads = chrome.threads.filter((thread) => !thread.archived)
+  const selected = threads.find((thread) => thread.id === selectedId)
+  const recent = threads.reduce<(typeof threads)[number] | undefined>(
+    (latest, thread) => (!latest || thread.updatedAt > latest.updatedAt ? thread : latest),
+    undefined
+  )
+  return (selected ?? recent)?.projectId ?? chrome.projects[0]?.id
+}
+
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project.title]))
   return chrome.threads
@@ -69,7 +79,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     }))
 }
 
-export function AppSidebar({ onNewThread }: { onNewThread: () => void }) {
+export function AppSidebar() {
   const chrome = useChrome()
   const now = useNow(60_000)
   const navigate = useNavigate()
@@ -91,7 +101,21 @@ export function AppSidebar({ onNewThread }: { onNewThread: () => void }) {
     },
     ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
   ])
+  const createThread = useCreateThread()
+  const archiveThread = useArchiveThread()
+  const projectId = chrome && newThreadProject(chrome, selectedId)
   const openSettings = () => navigate({ to: '/settings' })
+
+  function newThread() {
+    if (!projectId) return
+    const threadId = createThread(projectId)
+    void navigate({ to: '/threads/$threadId', params: { threadId } })
+  }
+
+  function archive(threadId: string) {
+    archiveThread(threadId)
+    if (threadId === selectedId) void navigate({ to: '/' })
+  }
 
   return (
     <Sidebar
@@ -112,7 +136,8 @@ export function AppSidebar({ onNewThread }: { onNewThread: () => void }) {
               <Button
                 variant='ghost'
                 className={navigationButtonClass}
-                {...pressProps(onNewThread)}
+                disabled={!projectId}
+                {...pressProps(newThread)}
               >
                 <ComposeIcon className='size-3' />
                 New thread
@@ -196,6 +221,7 @@ export function AppSidebar({ onNewThread }: { onNewThread: () => void }) {
                   <ThreadRow
                     {...thread}
                     selected={selectedId === thread.id}
+                    actions={{ onArchive: () => archive(thread.id) }}
                     onSelect={() =>
                       navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
                     }

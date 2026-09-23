@@ -121,7 +121,7 @@ const Workspace = memo(function Workspace({
           </div>
         </header>
         <div className='flex min-h-0 flex-1'>
-          <AppSidebar onNewThread={() => navigate({ to: '/' })} />
+          <AppSidebar />
           <SidebarResizeHandle width={sidebarWidth} onWidthChange={onSidebarWidthChange} />
           <SidebarInset
             aria-label='Thread workspace'
