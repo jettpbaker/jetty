@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 import { useRef, useState, type ReactNode } from 'react'
 
 import './option_picker.css'
@@ -68,7 +69,13 @@ export function OptionPicker({
       <PopoverTrigger
         aria-label={selected ? `${name}: ${selected.label}` : label}
         disabled={disabled}
-        render={<Button variant='ghost-text' size='sm' className='gap-1.5 rounded-sm' />}
+        render={
+          <Button
+            variant='ghost-text'
+            size='sm'
+            className={cn('gap-1.5 rounded-sm', disabled && 'pointer-events-none')}
+          />
+        }
       >
         {selected?.icon ?? icon}
         {selected?.label ?? emptyLabel}

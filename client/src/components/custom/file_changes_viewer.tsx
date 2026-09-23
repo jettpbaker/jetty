@@ -402,9 +402,12 @@ export function FileChangesViewer({
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start' className='w-max min-w-32'>
                 <DropdownMenuRadioGroup value='uncommitted'>
-                  <DropdownMenuRadioItem value='branch' disabled>
-                    Branch
-                  </DropdownMenuRadioItem>
+                  <Tooltip>
+                    <TooltipTrigger render={<DropdownMenuRadioItem value='branch' disabled />}>
+                      Branch
+                    </TooltipTrigger>
+                    <TooltipContent side='right'>Coming soon</TooltipContent>
+                  </Tooltip>
                   <DropdownMenuRadioItem value='uncommitted'>Uncommitted</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>

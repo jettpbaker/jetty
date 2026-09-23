@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { imageAccept } from '@/hooks/use-image-attachments'
 import { pickFiles } from '@/platform'
 import { XIcon } from '@phosphor-icons/react'
@@ -30,10 +31,13 @@ export function ComposerAttach({ onAttach }: { onAttach: (files: File[]) => void
             <PaperclipIcon className='text-muted-foreground' />
             Attach images
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            <IssueOpenedIcon className='text-muted-foreground' />
-            Link issue
-          </DropdownMenuItem>
+          <Tooltip>
+            <TooltipTrigger render={<DropdownMenuItem disabled />}>
+              <IssueOpenedIcon className='text-muted-foreground' />
+              Link issue
+            </TooltipTrigger>
+            <TooltipContent side='right'>Coming soon</TooltipContent>
+          </Tooltip>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

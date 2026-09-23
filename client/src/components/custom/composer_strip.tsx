@@ -230,13 +230,21 @@ function ApprovalActions({ ctl, typed }: { ctl: ApprovalControl; typed: boolean 
       <StripButton variant='ghost' tone='muted' onClick={ctl.deny}>
         {typed ? 'Deny with note' : 'Deny'}
       </StripButton>
-      <StripButton
-        variant='secondary'
-        disabled={!ctl.canAlways}
-        onClick={() => ctl.decide('always')}
-      >
-        Allow always
-      </StripButton>
+      <Tooltip disabled={ctl.canAlways}>
+        <TooltipTrigger
+          render={<span className={ctl.canAlways ? 'flex' : 'flex cursor-not-allowed'} />}
+        >
+          <StripButton
+            variant='secondary'
+            disabled={!ctl.canAlways}
+            onClick={() => ctl.decide('always')}
+            className={ctl.canAlways ? undefined : 'pointer-events-none'}
+          >
+            Allow always
+          </StripButton>
+        </TooltipTrigger>
+        <TooltipContent>Not available for this request</TooltipContent>
+      </Tooltip>
       <StripButton onClick={() => ctl.decide('once')}>Allow once</StripButton>
     </div>
   )

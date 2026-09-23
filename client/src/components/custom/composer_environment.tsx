@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ContainerIcon, DeviceDesktopIcon, TerminalIcon } from '@primer/octicons-react'
 
 type Environment = 'local' | 'container'
@@ -49,17 +50,29 @@ export function ComposerEnvironment({
             <DeviceDesktopIcon className='text-muted-foreground' />
             Local
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value='container' disabled={!containersConfigured}>
-            <ContainerIcon className='text-muted-foreground' />
-            Container
-          </DropdownMenuRadioItem>
+          <Tooltip disabled={containersConfigured}>
+            <TooltipTrigger
+              render={<DropdownMenuRadioItem value='container' disabled={!containersConfigured} />}
+            >
+              <ContainerIcon className='text-muted-foreground' />
+              Container
+            </TooltipTrigger>
+            <TooltipContent side='right'>Set up containers first</TooltipContent>
+          </Tooltip>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem disabled={!onSetupContainers} onClick={onSetupContainers}>
-            <TerminalIcon className='text-muted-foreground' />
-            Set up containers
-          </DropdownMenuItem>
+          <Tooltip disabled={!!onSetupContainers}>
+            <TooltipTrigger
+              render={
+                <DropdownMenuItem disabled={!onSetupContainers} onClick={onSetupContainers} />
+              }
+            >
+              <TerminalIcon className='text-muted-foreground' />
+              Set up containers
+            </TooltipTrigger>
+            <TooltipContent side='right'>Coming soon</TooltipContent>
+          </Tooltip>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
