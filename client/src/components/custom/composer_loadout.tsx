@@ -192,7 +192,8 @@ export function ComposerLoadout({
     if (from === to || to < 0 || to >= equipped.length) return
     const next = equipped.map(({ slot }) => slot)
     next.splice(to, 0, ...next.splice(from, 1))
-    onReorder([...next, ...loadouts.filter((slot) => slot.model === null)])
+    let equippedIndex = 0
+    onReorder(loadouts.map((slot) => (slot.model === null ? slot : next[equippedIndex++]!)))
   }
 
   function swapModel(key: string) {
