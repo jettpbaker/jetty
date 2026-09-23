@@ -40,11 +40,13 @@
     opacity 200ms cubic-bezier(0.25, 1, 0.5, 1),
     transform 200ms cubic-bezier(0.25, 1, 0.5, 1);
 }
-.thread-row:has(:focus-visible) .thread-row-actions {
+.thread-row:has(:focus-visible) .thread-row-actions,
+.thread-row-actions[data-overlay='menu'] {
   opacity: 1;
   transform: none;
 }
-.thread-row:has(:focus-visible) .thread-row-action {
+.thread-row:has(:focus-visible) .thread-row-action,
+.thread-row-actions[data-overlay='menu'] .thread-row-action {
   pointer-events: auto;
 }
 @media (hover: hover) {

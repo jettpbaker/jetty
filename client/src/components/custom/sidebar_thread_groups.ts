@@ -58,17 +58,31 @@ export function groupSidebarThreads(
   threads: SidebarThread[],
   grouping: ThreadGrouping,
   query: string,
+  showPinned: boolean,
   now = new Date()
 ) {
   const search = query.trim().toLowerCase()
   const filtered = threads
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
     .sort((a, b) => b.updatedAt - a.updatedAt)
-  return groupsFor(grouping, filtered)
-    .map((group) => ({
-      id: `${grouping}:${group.id}`,
-      label: group.label,
-      threads: filtered.filter((thread) => threadInGroup(thread, grouping, group.id, now)),
-    }))
-    .filter((group) => group.threads.length > 0)
+  const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
+  const grouped = groupsFor(grouping, remaining).map((group) => ({
+    id: `${grouping}:${group.id}`,
+    label: group.label,
+    pinned: false,
+    threads: remaining.filter((thread) => threadInGroup(thread, grouping, group.id, now)),
+  }))
+  return [
+    ...(showPinned
+      ? [
+          {
+            id: 'pinned',
+            label: 'Pinned',
+            pinned: true,
+            threads: filtered.filter((thread) => thread.pinned),
+          },
+        ]
+      : []),
+    ...grouped,
+  ].filter((group) => group.threads.length > 0)
 }

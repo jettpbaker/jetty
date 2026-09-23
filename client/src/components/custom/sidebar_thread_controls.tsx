@@ -1,12 +1,15 @@
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Switch } from '@/components/ui/switch'
 import { MagnifyingGlassIcon, SlidersHorizontalIcon } from '@phosphor-icons/react'
 
 import type { ThreadGrouping } from './sidebar_thread_groups'
@@ -18,11 +21,15 @@ export function SidebarThreadControls({
   onQueryChange,
   grouping,
   onGroupingChange,
+  showPinned,
+  onShowPinnedChange,
 }: {
   query: string
   onQueryChange: (query: string) => void
   grouping: ThreadGrouping
   onGroupingChange: (grouping: ThreadGrouping) => void
+  showPinned: boolean
+  onShowPinnedChange: (show: boolean) => void
 }) {
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
@@ -64,6 +71,23 @@ export function SidebarThreadControls({
             <DropdownMenuRadioItem value='status'>Status</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value='date'>Date</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+            checked={showPinned}
+            onCheckedChange={(checked) => onShowPinnedChange(checked === true)}
+            closeOnClick={false}
+          >
+            Show pinned
+            <Switch
+              render={<span />}
+              size='sm'
+              checked={showPinned}
+              tabIndex={-1}
+              aria-hidden='true'
+              className='pointer-events-none ml-auto'
+            />
+          </DropdownMenuCheckboxItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

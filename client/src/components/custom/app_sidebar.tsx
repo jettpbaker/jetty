@@ -15,11 +15,20 @@ import {
   useArchiveThread,
   useChrome,
   useCreateThread,
+  useDeleteThread,
+  usePinThread,
   usePrefetchThread,
+  useRenameThread,
   type Chrome,
 } from '@/state'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
-import { ComposeIcon, GitPullRequestIcon, IssueOpenedIcon, RepoIcon } from '@primer/octicons-react'
+import {
+  ComposeIcon,
+  GitPullRequestIcon,
+  IssueOpenedIcon,
+  PinIcon,
+  RepoIcon,
+} from '@primer/octicons-react'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
@@ -49,6 +58,7 @@ export type SidebarThread = {
   status: ThreadStatus
   lastActivity: string
   updatedAt: number
+  pinned: boolean
   pullRequests: ThreadPullRequest[]
 }
 
@@ -73,6 +83,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
       status: threadStatus(thread.status),
       lastActivity: formatAge(thread.updatedAt, now),
       updatedAt: thread.updatedAt,
+      pinned: thread.pinned,
       pullRequests: thread.git?.pr
         ? [
             {
@@ -94,6 +105,7 @@ export function AppSidebar() {
   const reducedMotion = useReducedMotion()
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<ThreadGrouping>('date')
+  const [showPinned, setShowPinned] = useState(true)
   const [warmId, setWarmId] = useState<string | undefined>()
   const hovering = useRef<string | undefined>(undefined)
   const warmed = usePrefetchThread(warmId)
@@ -103,20 +115,24 @@ export function AppSidebar() {
   }, [warmed, warmId])
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
-  const groups = groupSidebarThreads(threads, grouping, query)
-  const layoutDependency = `${grouping}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.updatedAt}`).join(',')}`
+  const groups = groupSidebarThreads(threads, grouping, query, showPinned)
+  const layoutDependency = `${grouping}:${showPinned}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.updatedAt}`).join(',')}`
   const items = groups.flatMap((group) => [
     {
       kind: 'heading' as const,
       id: `heading:${group.id}`,
       label: group.label,
+      pinned: group.pinned,
       count: group.threads.length,
-      status: grouping === 'status' ? group.threads[0]?.status : undefined,
+      status: !group.pinned && grouping === 'status' ? group.threads[0]?.status : undefined,
     },
     ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
   ])
   const createThread = useCreateThread()
   const archiveThread = useArchiveThread()
+  const renameThread = useRenameThread()
+  const pinThread = usePinThread()
+  const deleteThread = useDeleteThread()
   const projectId = chrome && newThreadProject(chrome, selectedId)
   const openSettings = () => navigate({ to: '/settings' })
 
@@ -126,9 +142,18 @@ export function AppSidebar() {
     void navigate({ to: '/threads/$threadId', params: { threadId } })
   }
 
+  function leaveIfSelected(threadId: string) {
+    if (threadId === selectedId) void navigate({ to: '/' })
+  }
+
   function archive(threadId: string) {
     archiveThread(threadId)
-    if (threadId === selectedId) void navigate({ to: '/' })
+    leaveIfSelected(threadId)
+  }
+
+  function remove(threadId: string) {
+    deleteThread(threadId)
+    leaveIfSelected(threadId)
   }
 
   return (
@@ -183,6 +208,8 @@ export function AppSidebar() {
           onQueryChange={setQuery}
           grouping={grouping}
           onGroupingChange={setGrouping}
+          showPinned={showPinned}
+          onShowPinnedChange={setShowPinned}
         />
       </div>
       <MotionSidebarContent layoutScroll className='overscroll-contain px-1.5 pb-0'>
@@ -195,7 +222,8 @@ export function AppSidebar() {
                     key={item.id}
                     className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
                   >
-                    {grouping === 'project' && (
+                    {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
+                    {!item.pinned && grouping === 'project' && (
                       <RepoIcon className='icon-optical-down size-3 shrink-0' aria-hidden='true' />
                     )}
                     {item.status === 'idle' ? (
@@ -245,7 +273,13 @@ export function AppSidebar() {
                   <ThreadRow
                     {...thread}
                     selected={selectedId === thread.id}
-                    actions={{ onArchive: () => archive(thread.id) }}
+                    actions={{
+                      pinned: thread.pinned,
+                      onArchive: () => archive(thread.id),
+                      onDelete: () => remove(thread.id),
+                      onPin: () => pinThread(thread.id, !thread.pinned),
+                      onRename: (title) => renameThread(thread.id, title),
+                    }}
                     onSelect={() =>
                       navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
                     }
