@@ -37,6 +37,15 @@ type MediaRequest = {
   summary: (media: Attachment[]) => string
 }
 
+function containerSource(src: string, paths: NonNullable<MediaToolHost['containerPaths']>) {
+  if (src === '/artifacts') return paths.artifacts
+  if (src.startsWith('/artifacts/'))
+    return resolve(paths.artifacts, src.slice('/artifacts/'.length))
+  if (src === '/workspace') return paths.checkout
+  if (src.startsWith('/workspace/')) return resolve(paths.checkout, src.slice('/workspace/'.length))
+  return resolve(paths.checkout, src)
+}
+
 export function createMediaSender(host: MediaToolHost) {
   return Effect.gen(function* () {
     const scope = yield* Scope.Scope
@@ -66,19 +75,7 @@ export function createMediaSender(host: MediaToolHost) {
                 src === '/artifacts' || src.startsWith('/artifacts/')
                   ? host.containerPaths.artifacts
                   : host.containerPaths.checkout
-              const suffix =
-                src === '/workspace' || src === '/artifacts'
-                  ? ''
-                  : src.startsWith('/workspace/')
-                    ? src.slice('/workspace/'.length)
-                    : src.startsWith('/artifacts/')
-                      ? src.slice('/artifacts/'.length)
-                      : src
-              if (isAbsolute(suffix))
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', 'Media path is outside the environment')
-                )
-              source = resolve(root, suffix)
+              source = containerSource(src, host.containerPaths)
               const real = yield* Effect.tryPromise({
                 try: () => realpath(source),
                 catch: () => new StoreError('invalid_params', 'Media file not found'),

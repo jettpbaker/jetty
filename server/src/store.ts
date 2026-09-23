@@ -85,6 +85,35 @@ export type EnvironmentRecord = {
   state: string
   lastError: string | null
 }
+type EnvironmentRow = {
+  id: string
+  thread_id: string
+  recipe_json: string
+  image_id: string
+  base_commit: string
+  checkout_path: string
+  home_path: string
+  artifacts_path: string
+  container_id: string | null
+  state: string
+  last_error: string | null
+}
+
+function rowToEnvironment(row: EnvironmentRow): EnvironmentRecord {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    recipeJson: row.recipe_json,
+    imageId: row.image_id,
+    baseCommit: row.base_commit,
+    checkoutPath: row.checkout_path,
+    homePath: row.home_path,
+    artifactsPath: row.artifacts_path,
+    containerId: row.container_id,
+    state: row.state,
+    lastError: row.last_error,
+  }
+}
 
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
 
@@ -642,36 +671,8 @@ export function createStore() {
         )
       },
       getEnvironment(threadId: string) {
-        return sql<{
-          id: string
-          thread_id: string
-          recipe_json: string
-          image_id: string
-          base_commit: string
-          checkout_path: string
-          home_path: string
-          artifacts_path: string
-          container_id: string | null
-          state: string
-          last_error: string | null
-        }>`SELECT * FROM environments WHERE thread_id = ${threadId}`.pipe(
-          Effect.map((rows) =>
-            rows[0]
-              ? {
-                  id: rows[0].id,
-                  threadId: rows[0].thread_id,
-                  recipeJson: rows[0].recipe_json,
-                  imageId: rows[0].image_id,
-                  baseCommit: rows[0].base_commit,
-                  checkoutPath: rows[0].checkout_path,
-                  homePath: rows[0].home_path,
-                  artifactsPath: rows[0].artifacts_path,
-                  containerId: rows[0].container_id,
-                  state: rows[0].state,
-                  lastError: rows[0].last_error,
-                }
-              : null
-          ),
+        return sql<EnvironmentRow>`SELECT * FROM environments WHERE thread_id = ${threadId}`.pipe(
+          Effect.map((rows) => (rows[0] ? rowToEnvironment(rows[0]) : null)),
           Effect.mapError(storeError)
         )
       },
@@ -684,36 +685,8 @@ export function createStore() {
         )
       },
       listEnvironments() {
-        return sql<{
-          id: string
-          thread_id: string
-          recipe_json: string
-          image_id: string
-          base_commit: string
-          checkout_path: string
-          home_path: string
-          artifacts_path: string
-          container_id: string | null
-          state: string
-          last_error: string | null
-        }>`SELECT * FROM environments`.pipe(
-          Effect.map((rows) =>
-            rows.map(
-              (record): EnvironmentRecord => ({
-                id: record.id,
-                threadId: record.thread_id,
-                recipeJson: record.recipe_json,
-                imageId: record.image_id,
-                baseCommit: record.base_commit,
-                checkoutPath: record.checkout_path,
-                homePath: record.home_path,
-                artifactsPath: record.artifacts_path,
-                containerId: record.container_id,
-                state: record.state,
-                lastError: record.last_error,
-              })
-            )
-          ),
+        return sql<EnvironmentRow>`SELECT * FROM environments`.pipe(
+          Effect.map((rows) => rows.map(rowToEnvironment)),
           Effect.mapError(storeError)
         )
       },

@@ -14,7 +14,7 @@ import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
-import { gitCommit } from './containers'
+import { containerDefaults, gitCommit } from './containers'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
@@ -140,11 +140,7 @@ export function createRpcHandlers(
           : Effect.succeed({
               enabled: false,
               docker: false,
-              maxRunning: 2,
-              cpus: 2,
-              memoryGiB: 8,
-              memoryBudgetGiB: 16,
-              idleMinutes: 10,
+              ...containerDefaults,
               running: 0,
               retained: [],
               credentials: { codex: false, claude: false, grok: false },
@@ -284,23 +280,8 @@ export function createRpcHandlers(
       'fs.search': (params) =>
         Effect.gen(function* () {
           const project = yield* requireProject(params.projectId)
-          const thread = params.threadId ? yield* store.requireThread(params.threadId) : null
-          if (thread && thread.projectId !== project.id)
-            return yield* Effect.fail(new StoreError('invalid_params', 'Thread is outside project'))
-          const record =
-            thread?.environment === 'container' && containers
-              ? yield* Effect.promise(() => containers.record(thread.id))
-              : null
-          if (thread?.environment === 'container' && !record)
-            return yield* Effect.fail(
-              new StoreError('not_found', 'Container checkout is not ready')
-            )
           return {
-            files: yield* search.searchFiles(
-              record?.checkoutPath ?? project.path,
-              params.query,
-              params.limit
-            ),
+            files: yield* search.searchFiles(project.path, params.query, params.limit),
           }
         }).pipe(Effect.mapError(wireError)),
       'skills.list': (params) =>
