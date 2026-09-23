@@ -14,15 +14,15 @@
 
 - taste decisions — tech choices, UX, naming, API shapes — get checked with Jett
   first, every time. When in doubt, ask.
-- `~/code/scratch/jetty-design` is the visual source of truth. If design has a
-  component, port it verbatim — same markup, classes, primitives, and icons — and
-  change only the data wiring. Never re-create a component design already has, and
-  never ship "unstyled for now" for something design has already styled. Any
-  visual deviation from design is named in the commit message.
-- Before calling UI work done, compare it against the design side by side
+- This repo is the source of truth for UI. `~/code/scratch/jetty-design` is a
+  sketchpad for designing new UI quickly against mock data.
+- When bringing a design over from the sketchpad, port it verbatim — same markup,
+  classes, primitives, and icons — and change only the data wiring. Never
+  re-create something the sketchpad already built, and name any visual deviation
+  in the commit message. Once ported, the component lives here; don't backport.
+- Before calling ported UI done, compare it against the sketchpad side by side
   (screenshots of both), not just "it works".
-- Only UI that design doesn't have yet rides default shadcn styles until design
-  catches up.
+- UI with no sketchpad design yet rides default shadcn styles.
 
 ## code
 
@@ -44,8 +44,9 @@
 - Performance is the #1 UX value. Interactions render synchronously from local
   state; the network is never on the critical path of a click. Thread switching
   must be instant — cached state first, catch-up patches after.
-- Components come from a strict ladder: the jetty-design component if one exists;
-  else a shadcn/ui or AI Elements component if one fits; else compose one from
+- Components come from a strict ladder: an existing component in this repo, or the
+  sketchpad's version if it hasn't been ported yet; else a shadcn/ui or AI Elements
+  component if one fits; else compose one from
   shadcn primitives; truly custom only when all fail, and say so in the commit.
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue", the branch picker) — never hidden. They're reminders of

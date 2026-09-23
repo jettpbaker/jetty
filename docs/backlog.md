@@ -2,7 +2,7 @@
 
 Deferred on purpose. Delete items as they land; delete this file when it's empty.
 
-## design drift (needs Jett's call)
+## sketchpad designs not ported yet (needs Jett's call)
 
 - New-thread backdrop isn't ported — the Settings wallpaper only sets the accent,
   it's never shown. Design: `new_thread_backdrop.tsx` + ambient `ComposerShadow`.
@@ -20,8 +20,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 - Branches: branch picker is disabled and always reads "Branch" — nothing on the
   server fills `ThreadMeta.git`. Real switching probably wants a worktree per thread.
-- One source of UI components shared by design and app (a `design/` workspace
-  importing the client's components) so porting stops being copying.
 - Grok doesn't report context usage, so its ring stays empty.
 - Model discovery runs once at server start; logging in to a provider later
   needs a restart.
