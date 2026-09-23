@@ -5,7 +5,7 @@ import type { TurnOutcome } from '@jetty/shared/reducer'
 import { awaitsInput } from '@/state/thread_tab'
 
 import type { Subagent } from './subagent_row'
-import type { ActivityStatus, ToolKind, WorkActivity } from './work_model'
+import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
 
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
 type AssistantItem = Extract<ThreadItem, { kind: 'assistant_message' }>
@@ -67,6 +67,79 @@ function toolKind(name: string): ToolKind {
 
 const pathKeys = new Set(['file_path', 'path'])
 
+function mcpTool(name: string) {
+  const match = /^mcp__(.+?)__(.+)$/.exec(name)
+  return match ? { server: match[1]!, tool: match[2]! } : undefined
+}
+
+// Jetty's MCP tools answer with JSON text.
+function resultField(output: string, key: string) {
+  try {
+    const value = (JSON.parse(output) as Record<string, unknown>)[key]
+    return typeof value === 'string' ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+type JettyTool = {
+  action: string
+  words: ToolWords
+  target: (input: Record<string, unknown>, output: string) => string | undefined
+}
+
+function words(active: string, done: string, singular: string, noun = `${singular}s`) {
+  return { active, done, singular, noun }
+}
+
+const jettyTools: Record<string, JettyTool> = {
+  list_threads: {
+    action: 'List threads',
+    words: words('Listing', 'Listed', 'thread list'),
+    target: () => 'threads',
+  },
+  read_thread: {
+    action: 'Read thread',
+    words: words('Reading', 'Read', 'thread'),
+    target: (_, output) => resultField(output, 'title'),
+  },
+  create_thread: {
+    action: 'Create thread',
+    words: words('Creating', 'Created', 'thread'),
+    target: (input) => (typeof input.title === 'string' ? input.title : undefined),
+  },
+  send_message: {
+    action: 'Send message',
+    words: words('Messaging', 'Messaged', 'thread'),
+    target: (_, output) => resultField(output, 'title'),
+  },
+  send_images: {
+    action: 'Share images',
+    words: words('Sharing', 'Shared', 'gallery', 'galleries'),
+    target: (input) => {
+      const count = [input.paths, input.attachmentIds].flat().filter(Boolean).length
+      return count ? `${count} image${count === 1 ? '' : 's'}` : 'images'
+    },
+  },
+  send_video: {
+    action: 'Share video',
+    words: words('Sharing', 'Shared', 'video'),
+    target: () => 'video',
+  },
+}
+
+function jettyTool(name: string) {
+  const mcp = mcpTool(name)
+  return mcp?.server === 'jetty' ? jettyTools[mcp.tool] : undefined
+}
+
+// A human name for MCP tools, whose raw ids read as mcp__server__tool.
+export function toolAction(name: string) {
+  const mcp = mcpTool(name)
+  if (!mcp) return name
+  return jettyTool(name)?.action ?? `${mcp.server} · ${mcp.tool}`
+}
+
 export function toolTarget(name: string, input: unknown, projectPath: string | undefined) {
   if (!input || typeof input !== 'object') return name
   const record = input as Record<string, unknown>
@@ -127,12 +200,23 @@ function toActivity(
     }
   }
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
+  const name = toolAction(item.toolName)
+  const jetty = jettyTool(item.toolName)
+  const fields = (item.input && typeof item.input === 'object' ? item.input : {}) as Record<
+    string,
+    unknown
+  >
   return {
     type: 'tool',
     id: item.id,
     kind: toolKind(item.toolName),
-    name: item.toolName,
-    target: toolTarget(item.toolName, item.input, projectPath),
+    name,
+    words: jetty?.words,
+    target: jetty
+      ? (jetty.target(fields, item.output) ?? jetty.words.singular)
+      : mcpTool(item.toolName)
+        ? name
+        : toolTarget(item.toolName, item.input, projectPath),
     description: toolDescription(item.input),
     status:
       item.status === 'failed'
@@ -161,11 +245,10 @@ function createdThreadId(item: ThreadItem) {
   if (
     item.kind !== 'tool_call' ||
     item.status !== 'succeeded' ||
-    !/^(?:mcp__jetty__|jetty[.:/\s-]+)create_thread$/i.test(item.toolName.trim())
+    item.toolName !== 'mcp__jetty__create_thread'
   )
     return undefined
-  // Providers wrap the tool's JSON result differently, sometimes re-stringified.
-  return /threadId\\?"\s*:\s*\\?"([^"\\]+)/.exec(item.output)?.[1]
+  return resultField(item.output, 'threadId')
 }
 
 function isWork(item: ThreadItem): item is WorkItem {

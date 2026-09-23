@@ -132,7 +132,7 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
             id: tool.id,
             kind: 'tool_call',
             toolName: grokToolName(update),
-            input: update.rawInput ?? {},
+            input: grokToolInput(update.rawInput) ?? {},
             output: '',
             status: 'running',
           },
@@ -144,8 +144,10 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
         type: 'item.completed',
         itemId: tool.id,
         patch: {
-          ...(update.kind === undefined ? {} : { toolName: grokToolName(update) }),
-          ...(update.rawInput === undefined ? {} : { input: update.rawInput }),
+          ...(update.kind === undefined && update.rawInput === undefined
+            ? {}
+            : { toolName: grokToolName(update) }),
+          ...(update.rawInput === undefined ? {} : { input: grokToolInput(update.rawInput) }),
           ...(update.rawOutput === undefined && update.content === undefined
             ? {}
             : {
@@ -174,7 +176,21 @@ function natural(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 }
 
+// Grok runs MCP tools through a UseTool wrapper named `server__tool`.
+function grokMcpTool(rawInput: unknown) {
+  const input = object(rawInput)
+  const [server, ...tool] = string(input.tool_name).split('__')
+  if (input.variant !== 'UseTool' || !server || !tool.length) return undefined
+  return { name: `mcp__${server}__${tool.join('__')}`, input: input.tool_input ?? {} }
+}
+
+function grokToolInput(rawInput: unknown) {
+  return grokMcpTool(rawInput)?.input ?? rawInput
+}
+
 function grokToolName(update: Record<string, unknown>): string {
+  const mcp = grokMcpTool(update.rawInput)
+  if (mcp) return mcp.name
   switch (update.kind) {
     case 'read':
       return 'Read'
@@ -201,6 +217,7 @@ function grokToolOutput(value: unknown): string {
   }
   if (Array.isArray(value)) return value.map(grokToolOutput).filter(Boolean).join('\n')
   const output = object(value)
+  if (typeof output.OkayOutput === 'string') return output.OkayOutput
   if (typeof output.output_for_prompt === 'string') return output.output_for_prompt
   if (typeof output.text === 'string') return output.text
   if (output.output !== undefined) return grokToolOutput(output.output)

@@ -6,11 +6,13 @@ export type ActivityStatus =
   | 'interrupted'
   | 'waiting'
 export type ToolKind = 'read' | 'edit' | 'write' | 'search' | 'terminal' | 'web' | 'generic'
+export type ToolWords = { active: string; done: string; noun: string; singular: string }
 export type ToolActivity = {
   type: 'tool'
   id: string
   kind: ToolKind
   name: string
+  words?: ToolWords
   target: string
   description?: string
   status: ActivityStatus
@@ -72,7 +74,7 @@ const vocabulary = {
     noun: 'calls',
     singular: 'call',
   },
-} satisfies Record<ToolKind, { active: string; done: string; noun: string; singular: string }>
+} satisfies Record<ToolKind, ToolWords>
 
 export function formatActivityDuration(seconds?: number) {
   if (seconds === undefined) return undefined
@@ -117,7 +119,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const failed = count('failed')
   const cancelled = count('cancelled')
   const interrupted = count('interrupted')
-  const words = vocabulary[first.kind]
+  const words = first.words ?? vocabulary[first.kind]
   const active = running.length > 0
   const summarise = (sealed && calls.length > 1 && !active) || running.length > 1
   const shown = active ? running.length : completed || calls.length
@@ -126,7 +128,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
     first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
   const target = !summarise
     ? current.target
-    : first.kind === 'generic'
+    : first.kind === 'generic' && !first.words
       ? `${shown} ${first.name} call${shown === 1 ? '' : 's'}`
       : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done

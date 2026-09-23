@@ -151,7 +151,7 @@ export function createMcpHandler(
                 input.requestId,
                 'send_message'
               )
-              if (previous) return { ...previous, duplicate: true }
+              if (previous) return { ...previous, title: target.title, duplicate: true }
             }
             const caller = yield* store.requireThread(identity.threadId)
             if (
@@ -173,7 +173,7 @@ export function createMcpHandler(
               hop: turn.hop + 1,
               createdAt: Date.now(),
             })
-            const response = { threadId: target.id, messageId }
+            const response = { threadId: target.id, title: target.title, messageId }
             if (input.requestId)
               yield* store.saveRequest(caller.id, input.requestId, 'send_message', response)
             return { ...response, duplicate: false }
@@ -187,7 +187,12 @@ export function createMcpHandler(
           )
           if (sent) delivery = 'delivered'
         }
-        return { threadId: response.threadId, messageId: response.messageId, delivery }
+        return {
+          threadId: response.threadId,
+          title: response.title,
+          messageId: response.messageId,
+          delivery,
+        }
       })
     }
 
@@ -264,7 +269,7 @@ export function createMcpHandler(
         (input) =>
           invoke(
             Effect.gen(function* () {
-              yield* accessible(identity, input.threadId)
+              const thread = yield* accessible(identity, input.threadId)
               const state = yield* store.getThreadState(input.threadId)
               const messages = state.items.filter(
                 (i) => i.kind === 'user_message' || i.kind === 'assistant_message'
@@ -274,6 +279,7 @@ export function createMcpHandler(
                 return yield* Effect.fail(new StoreError('invalid_params', 'Unknown after cursor'))
               const page = input.after ? messages.slice(index + 1, index + 21) : messages.slice(-20)
               return {
+                title: thread.title,
                 messages: page.map((i) => ({
                   id: i.id,
                   role: i.kind === 'user_message' ? 'user' : 'assistant',
