@@ -165,6 +165,10 @@ export function createRpcHandlers(
           const project = yield* requireProject(thread.projectId)
           return yield* diff.readDiffFile(project.path, params.path, params.prevPath)
         }).pipe(Effect.mapError(wireError)),
+      'queue.add': (params) =>
+        orch
+          .enqueue(params.threadId, params.messageId, params.text)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'queue.remove': (params) =>
         orch
           .editQueued(params.threadId, params.messageId)
@@ -202,6 +206,10 @@ export function createRpcHandlers(
       'question.respond': (params) =>
         orch
           .respondQuestion(params.threadId, params.itemId, params.answers)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'question.dismiss': (params) =>
+        orch
+          .respondQuestion(params.threadId, params.itemId, null)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
     })
   })

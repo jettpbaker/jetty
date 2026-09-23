@@ -86,6 +86,26 @@ export function createCodexTranslator(turnId: string) {
       if (item && typeof params.delta === 'string') {
         events.push({ type: 'item.delta', itemId: item.id, delta: params.delta })
       }
+    } else if (method === 'turn/plan/updated' && Array.isArray(params.plan)) {
+      // Mirrors Claude's TodoWrite input so one reader serves both providers.
+      const todos = params.plan.map(object).map((step) => ({
+        content: string(step.step),
+        status: step.status === 'inProgress' ? 'in_progress' : string(step.status),
+      }))
+      const item: ThreadItem = {
+        id: newId(),
+        turnId,
+        createdAt: Date.now(),
+        kind: 'tool_call',
+        toolName: 'update_plan',
+        input: { todos },
+        output: '',
+        status: 'running',
+      }
+      events.push(
+        { type: 'item.started', item },
+        { type: 'item.completed', itemId: item.id, patch: { status: 'succeeded' } }
+      )
     } else if (method === 'thread/tokenUsage/updated') {
       const tokenUsage = object(params.tokenUsage)
       const last = object(tokenUsage.last)

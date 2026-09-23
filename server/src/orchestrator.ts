@@ -426,6 +426,16 @@ export function createOrchestrator(
             : Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
         )
       },
+      enqueue(threadId: string, messageId: string, text: string) {
+        return hub.withChromePublication(
+          store.enqueue(threadId, { id: messageId, text, createdAt: Date.now(), hop: 0 }).pipe(
+            Effect.tap((thread) =>
+              Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+            ),
+            Effect.uninterruptible
+          )
+        )
+      },
       editQueued(threadId: string, messageId: string, text?: string) {
         return state(threadId).admission.withPermit(
           hub.withChromePublication(
@@ -452,6 +462,16 @@ export function createOrchestrator(
           })
           if (!result.turnId)
             return yield* Effect.fail(new StoreError('conflict', 'Queued message was not accepted'))
+          // Steering leaves the status unchanged, so nothing else republishes the shorter queue.
+          yield* hub.withChromePublication(
+            store
+              .requireThread(threadId)
+              .pipe(
+                Effect.tap((current) =>
+                  Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread: current }))
+                )
+              )
+          )
         })
       },
       resumeQueues() {
@@ -536,7 +556,7 @@ export function createOrchestrator(
           Effect.flatMap(requireFound(`approval ${itemId}`))
         )
       },
-      respondQuestion(threadId: string, itemId: string, answers: Record<string, string>) {
+      respondQuestion(threadId: string, itemId: string, answers: Record<string, string> | null) {
         return agentForThread(threadId).pipe(
           Effect.flatMap((agent) => agent.respondToQuestion(threadId, itemId, answers)),
           Effect.flatMap(requireFound(`question ${itemId}`))

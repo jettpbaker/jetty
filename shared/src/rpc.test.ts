@@ -72,6 +72,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'thread.delete': () => Effect.succeed(null),
           'thread.diff': () => Effect.succeed({ diff: '' }),
           'thread.diffFile': () => Effect.succeed({ before: null, after: null }),
+          'queue.add': () => Effect.succeed(null),
           'queue.edit': () => Effect.succeed(null),
           'queue.remove': () => Effect.succeed(null),
           'queue.sendNow': () => Effect.succeed(null),
@@ -80,6 +81,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'turn.interrupt': () => Effect.succeed(null),
           'approval.respond': () => Effect.succeed(null),
           'question.respond': () => Effect.succeed(null),
+          'question.dismiss': () => Effect.succeed(null),
           'chrome.subscribe': () =>
             Stream.succeed({ type: 'snapshot' as const, projects: [], threads: [] }),
           'thread.subscribe': ({ threadId }) =>

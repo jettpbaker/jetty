@@ -85,6 +85,7 @@ export const ThreadItem = Schema.Union([
     answers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     // the turn ended unanswered, not a user choice
     skipped: Schema.optional(Schema.Boolean),
+    dismissed: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
     ...itemBase,

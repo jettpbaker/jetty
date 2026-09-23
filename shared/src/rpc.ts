@@ -38,6 +38,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('thread.delete'),
   unary('thread.diff'),
   unary('thread.diffFile'),
+  unary('queue.add'),
   unary('queue.remove'),
   unary('queue.edit'),
   unary('queue.sendNow'),
@@ -45,6 +46,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('turn.interrupt'),
   unary('approval.respond'),
   unary('question.respond'),
+  unary('question.dismiss'),
   Rpc.make('chrome.subscribe', {
     payload: methods['chrome.subscribe'].params,
     success: ChromePushData,

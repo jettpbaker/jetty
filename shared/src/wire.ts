@@ -194,6 +194,14 @@ export const methods = {
       seq: Schema.Natural,
     }),
   },
+  'queue.add': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      messageId: Schema.String.check(Schema.isMinLength(1)),
+      text: Schema.String.check(Schema.isMinLength(1)),
+    }),
+    result: Schema.Null,
+  },
   'queue.remove': {
     params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
     result: Schema.Null,
@@ -246,6 +254,10 @@ export const methods = {
       itemId: Schema.String,
       answers: Schema.Record(Schema.String, Schema.String),
     }),
+    result: Schema.Null,
+  },
+  'question.dismiss': {
+    params: Schema.Struct({ threadId: Schema.String, itemId: Schema.String }),
     result: Schema.Null,
   },
 } as const

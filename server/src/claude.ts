@@ -774,8 +774,11 @@ export function createClaudeAdapter(
           threadId,
           itemId,
           (session) => session.pendingQuestions,
-          { answers },
-          (pending) => ({ behavior: 'allow', updatedInput: { ...pending.input, answers } })
+          answers ? { answers } : { dismissed: true },
+          (pending) =>
+            answers
+              ? { behavior: 'allow', updatedInput: { ...pending.input, answers } }
+              : { behavior: 'deny', message: 'The user dismissed the questions' }
         )
       },
     } satisfies Agent

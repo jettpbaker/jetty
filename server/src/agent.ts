@@ -57,10 +57,11 @@ export type Agent = {
     message?: string,
     updatedPermissions?: unknown[]
   ): Effect.Effect<boolean, AgentError>
+  // null answers dismiss the question
   respondToQuestion(
     threadId: string,
     itemId: string,
-    answers: Record<string, string>
+    answers: Record<string, string> | null
   ): Effect.Effect<boolean, AgentError>
 }
 

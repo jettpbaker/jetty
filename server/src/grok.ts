@@ -476,22 +476,24 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           threadId,
           itemId,
           (pending) =>
-            pending.questions
-              ? {
-                  outcome: 'accepted',
-                  answers: Object.fromEntries(
-                    pending.questions.map((q) => [
-                      q.id,
-                      answers[q.question] === undefined
-                        ? []
-                        : q.multiSelect
-                          ? answers[q.question]!.split(',').map((s) => s.trim())
-                          : [answers[q.question]],
-                    ])
-                  ),
-                }
-              : undefined,
-          { answers }
+            !pending.questions
+              ? undefined
+              : !answers
+                ? { outcome: 'cancelled' }
+                : {
+                    outcome: 'accepted',
+                    answers: Object.fromEntries(
+                      pending.questions.map((q) => [
+                        q.id,
+                        answers[q.question] === undefined
+                          ? []
+                          : q.multiSelect
+                            ? answers[q.question]!.split(',').map((s) => s.trim())
+                            : [answers[q.question]],
+                      ])
+                    ),
+                  },
+          answers ? { answers } : { dismissed: true }
         )
       },
     } satisfies Agent

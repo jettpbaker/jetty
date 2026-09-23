@@ -413,12 +413,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   answers: Object.fromEntries(
                     pending.questions.map((q) => [
                       q.id,
-                      { answers: answers[q.question] === undefined ? [] : [answers[q.question]] },
+                      { answers: answers?.[q.question] === undefined ? [] : [answers[q.question]] },
                     ])
                   ),
                 }
               : undefined,
-          { answers }
+          answers ? { answers } : { dismissed: true }
         )
       },
     } satisfies Agent
