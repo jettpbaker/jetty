@@ -35,6 +35,45 @@
         "jsx-a11y/no-noninteractive-element-interactions": "off",
         "jsx-a11y/heading-has-content": "off"
       }
+    },
+    {
+      "files": ["client/src/**"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          { "name": "location", "message": "Go through @/platform." },
+          { "name": "localStorage", "message": "Go through @/platform (storage)." },
+          { "name": "sessionStorage", "message": "Go through @/platform (storage)." },
+          { "name": "indexedDB", "message": "Go through @/platform (storage)." }
+        ],
+        "no-restricted-properties": [
+          "error",
+          { "object": "window", "property": "location", "message": "Go through @/platform." },
+          { "object": "document", "property": "location", "message": "Go through @/platform." },
+          {
+            "object": "window",
+            "property": "localStorage",
+            "message": "Go through @/platform (storage)."
+          },
+          {
+            "object": "window",
+            "property": "sessionStorage",
+            "message": "Go through @/platform (storage)."
+          },
+          {
+            "object": "window",
+            "property": "indexedDB",
+            "message": "Go through @/platform (storage)."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["client/src/platform/**"],
+      "rules": {
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off"
+      }
     }
   ]
 }
