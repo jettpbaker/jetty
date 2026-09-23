@@ -212,6 +212,7 @@ export function ThreadList({
   }, [])
 
   useEffect(() => {
+    if (document.fonts.status === 'loaded') return
     void document.fonts.ready.then(() => {
       clearTextMeasure()
       // Re-render so the virtualizer re-estimates unmeasured rows with the loaded font.
