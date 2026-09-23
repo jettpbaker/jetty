@@ -27,7 +27,7 @@ import {
 import { createCodexTranslator } from './codex-translate'
 
 export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
-type Pending = { id: RpcId; questions?: { id: string; question: string }[] }
+type Pending = { id: RpcId; questions?: { id: string; question: string }[]; mcpTool?: true }
 type Session = {
   input: TurnInput
   emit: Emit
@@ -120,6 +120,22 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               suggestions: [],
             },
           })
+        } else if (
+          method === 'mcpServer/elicitation/request' &&
+          object(params._meta).codex_approval_kind === 'mcp_tool_call'
+        ) {
+          session.pending.set(itemId, { id, mcpTool: true })
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.message) || 'Run MCP tool',
+              toolName: 'mcpToolCall',
+              input: object(object(params._meta).tool_params),
+              suggestions: [],
+            },
+          })
         } else if (method === 'item/tool/requestUserInput') {
           const questions = Array.isArray(params.questions) ? params.questions.map(object) : []
           if (
@@ -176,6 +192,10 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
                     '-c',
                     'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
+                    '-c',
+                    'mcp_servers.jetty.tools.send_images.approval_mode="approve"',
+                    '-c',
+                    'mcp_servers.jetty.tools.send_video.approval_mode="approve"',
                   ],
                   env: { ...process.env, ...options.env, JETTY_MCP_TOKEN: binding.token },
                 }
@@ -372,7 +392,11 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           (pending) =>
             pending.questions
               ? undefined
-              : { decision: decision === 'allow' ? 'accept' : 'decline' },
+              : pending.mcpTool
+                ? decision === 'allow'
+                  ? { action: 'accept', content: {} }
+                  : { action: 'decline', content: null }
+                : { decision: decision === 'allow' ? 'accept' : 'decline' },
           { decision, ...(message ? { deniedReason: message } : {}) }
         )
       },
