@@ -24,6 +24,7 @@ type ThreadRow = {
   title: string
   status: SessionStatus
   archived: number
+  pinned: number
   updated_at: number
 }
 
@@ -56,8 +57,23 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     title: row.title,
     status: row.status,
     archived: row.archived !== 0,
+    pinned: row.pinned !== 0,
     updatedAt: row.updated_at,
   }
+}
+
+function attachmentIdsOf(state: ThreadState): string[] {
+  const ids: string[] = []
+  for (const item of state.items) {
+    if (item.kind === 'user_message') {
+      for (const attachment of item.attachments) ids.push(attachment.id)
+    } else if (item.kind === 'image_gallery') {
+      for (const image of item.images) ids.push(image.id)
+    } else if (item.kind === 'video') {
+      ids.push(item.video.id)
+    }
+  }
+  return ids
 }
 
 export type Store = Effect.Success<ReturnType<typeof createStore>>
@@ -84,6 +100,15 @@ export function createStore() {
             : Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
         )
       )
+    }
+
+    function lockTitle(threadId: string, title: string) {
+      return Effect.gen(function* () {
+        const existing = yield* requireThread(threadId)
+        const now = Date.now()
+        yield* sql`UPDATE threads SET title = ${title}, title_locked = 1, updated_at = ${now} WHERE id = ${threadId}`
+        return { ...existing, title, updatedAt: now }
+      }).pipe(sql.withTransaction, Effect.mapError(storeError))
     }
 
     function getThreadState(threadId: string) {
@@ -200,10 +225,11 @@ export function createStore() {
             title: DEFAULT_THREAD_TITLE,
             status: 'idle',
             archived: false,
+            pinned: false,
             updatedAt: Date.now(),
           }
-          yield* sql`INSERT INTO threads (id, project_id, title, status, archived, updated_at)
-            VALUES (${id}, ${projectId}, ${thread.title}, ${thread.status}, 0, ${thread.updatedAt})`
+          yield* sql`INSERT INTO threads (id, project_id, title, status, archived, pinned, title_locked, updated_at)
+            VALUES (${id}, ${projectId}, ${thread.title}, ${thread.status}, 0, 0, 0, ${thread.updatedAt})`
           yield* writeState(id, { ...emptyThread, items: [] })
           return thread
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
@@ -214,6 +240,30 @@ export function createStore() {
           const now = Date.now()
           yield* sql`UPDATE threads SET archived = 1, updated_at = ${now} WHERE id = ${threadId}`
           return { ...existing, archived: true, updatedAt: now }
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      renameThread(threadId: string, title: string) {
+        const trimmed = title.trim()
+        if (trimmed.length === 0)
+          return Effect.fail(new StoreError('invalid_params', 'Title is empty'))
+        return lockTitle(threadId, trimmed)
+      },
+      pinThread(threadId: string, pinned: boolean) {
+        return Effect.gen(function* () {
+          const existing = yield* requireThread(threadId)
+          yield* sql`UPDATE threads SET pinned = ${pinned ? 1 : 0} WHERE id = ${threadId}`
+          return { ...existing, pinned }
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      deleteThread(threadId: string) {
+        return Effect.gen(function* () {
+          yield* requireThread(threadId)
+          const ids = attachmentIdsOf(yield* getThreadState(threadId))
+          yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM threads WHERE id = ${threadId}`
+          return ids
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThread,
@@ -253,11 +303,24 @@ export function createStore() {
         )
       },
       setThreadTitle(threadId: string, title: string) {
+        return lockTitle(threadId, title)
+      },
+      needsGeneratedTitle(threadId: string) {
+        return sql<{ id: string }>`SELECT id FROM threads
+          WHERE id = ${threadId} AND title_locked = 0 AND title = ${DEFAULT_THREAD_TITLE}`.pipe(
+          Effect.map((rows) => rows.length > 0),
+          Effect.mapError(storeError)
+        )
+      },
+      setGeneratedTitle(threadId: string, title: string) {
         return Effect.gen(function* () {
           const existing = yield* requireThread(threadId)
           const now = Date.now()
-          yield* sql`UPDATE threads SET title = ${title}, updated_at = ${now} WHERE id = ${threadId}`
-          return { ...existing, title, updatedAt: now }
+          yield* sql`UPDATE threads SET title = ${title}, updated_at = ${now}
+            WHERE id = ${threadId} AND title_locked = 0 AND title = ${DEFAULT_THREAD_TITLE}`
+          const wrote = yield* sql<{ id: string }>`SELECT id FROM threads
+            WHERE id = ${threadId} AND title = ${title} AND title_locked = 0 AND updated_at = ${now}`
+          return wrote[0] ? { ...existing, title, updatedAt: now } : null
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThreadState,

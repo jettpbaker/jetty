@@ -45,6 +45,7 @@ export const ThreadMeta = Schema.Struct({
   title: Schema.String,
   status: SessionStatus,
   archived: Schema.Boolean,
+  pinned: Schema.Boolean,
   updatedAt: Schema.Int,
   git: Schema.optional(ThreadGitStatus),
 })
@@ -117,6 +118,18 @@ export const methods = {
     result: Schema.Struct({ thread: ThreadMeta }),
   },
   'thread.archive': {
+    params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Null,
+  },
+  'thread.rename': {
+    params: Schema.Struct({ threadId: Schema.String, title: Schema.String }),
+    result: Schema.Null,
+  },
+  'thread.pin': {
+    params: Schema.Struct({ threadId: Schema.String, pinned: Schema.Boolean }),
+    result: Schema.Null,
+  },
+  'thread.delete': {
     params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,
   },
@@ -198,6 +211,7 @@ export const ErrorCode = Schema.Literals([
   'invalid_params',
   'unknown_method',
   'not_found',
+  'conflict',
   'internal',
 ])
 export type ErrorCode = Schema.Schema.Type<typeof ErrorCode>

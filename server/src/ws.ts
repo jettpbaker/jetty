@@ -115,6 +115,24 @@ export function createRpcHandlers(
             return null
           })
         ),
+      'thread.rename': (params) =>
+        mutation(
+          Effect.gen(function* () {
+            const thread = yield* store.renameThread(params.threadId, params.title)
+            hub.pushChrome({ type: 'thread.upserted', thread })
+            return null
+          })
+        ),
+      'thread.pin': (params) =>
+        mutation(
+          Effect.gen(function* () {
+            const thread = yield* store.pinThread(params.threadId, params.pinned)
+            hub.pushChrome({ type: 'thread.upserted', thread })
+            return null
+          })
+        ),
+      'thread.delete': (params) =>
+        orch.deleteThread(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'fs.browse': (params) => browser.browse(params.partialPath).pipe(Effect.mapError(wireError)),
       'fs.search': (params) =>
         Effect.gen(function* () {

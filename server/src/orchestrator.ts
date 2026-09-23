@@ -11,7 +11,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Titler } from './titler'
 
 import { AgentError, AgentService, type Agent } from './agent'
-import { DEFAULT_THREAD_TITLE, StoreError } from './store'
+import { StoreError } from './store'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
 
@@ -134,12 +134,9 @@ export function createOrchestrator(
           hub.withChromePublication(
             Effect.gen(function* () {
               if (!title) return
-              const current = yield* store.getThread(threadId)
-              if (!current || current.title !== DEFAULT_THREAD_TITLE) return
-              hub.pushChrome({
-                type: 'thread.upserted',
-                thread: yield* store.setThreadTitle(threadId, title),
-              })
+              const updated = yield* store.setGeneratedTitle(threadId, title)
+              if (!updated) return
+              hub.pushChrome({ type: 'thread.upserted', thread: updated })
             }).pipe(Effect.uninterruptible)
           )
         ),
@@ -154,7 +151,7 @@ export function createOrchestrator(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              const thread = yield* checkThread(input.threadId)
+              yield* checkThread(input.threadId)
               let committed = false
               const onCommit = Effect.sync(() => {
                 committed = true
@@ -179,7 +176,7 @@ export function createOrchestrator(
                     )
                   )
                 : EMPTY_ATTACHMENTS
-              if (thread.title === DEFAULT_THREAD_TITLE)
+              if (yield* store.needsGeneratedTitle(input.threadId))
                 yield* maybeTitle(input.threadId, input.text)
               const live = state(input.threadId)
               if (live.turnId) {
@@ -282,6 +279,38 @@ export function createOrchestrator(
               : Effect.fail(new StoreError('not_found', `No pending question ${itemId}`))
           )
         )
+      },
+      deleteThread(threadId: string) {
+        return Effect.suspend(() => {
+          const live = state(threadId)
+          // admission, then publication, then chrome — same order as a turn's writes.
+          return live.admission.withPermit(
+            live.publication.withPermit(
+              hub.withChromePublication(
+                Effect.gen(function* () {
+                  const thread = yield* store.getThread(threadId)
+                  if (!thread)
+                    return yield* Effect.fail(
+                      new StoreError('not_found', `Thread ${threadId} not found`)
+                    )
+                  // turnId is the live writer. Persisted activeTurnId survives a crash
+                  // with no agent left, so it must not block delete.
+                  if (live.turnId)
+                    return yield* Effect.fail(
+                      new StoreError('conflict', 'Cannot delete a thread while a turn is running')
+                    )
+                  const attachmentIds = yield* store.deleteThread(threadId)
+                  const files = attachments
+                  if (files)
+                    yield* Effect.forEach(attachmentIds, (id) => files.remove(id), {
+                      discard: true,
+                    })
+                  hub.pushChrome({ type: 'thread.removed', threadId })
+                }).pipe(Effect.uninterruptible)
+              )
+            )
+          )
+        })
       },
       isActive(threadId: string) {
         return Effect.gen(function* () {

@@ -37,6 +37,16 @@ const migrations = SqliteMigrator.fromRecord({
       session_id TEXT NOT NULL, PRIMARY KEY (thread_id, provider)
     )`
   }),
+  '004_thread_pin_title_lock': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const columns = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
+    if (!columns.some((column) => column.name === 'pinned')) {
+      yield* sql`ALTER TABLE threads ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`
+    }
+    if (!columns.some((column) => column.name === 'title_locked')) {
+      yield* sql`ALTER TABLE threads ADD COLUMN title_locked INTEGER NOT NULL DEFAULT 0`
+    }
+  }),
 })
 
 export function databaseLayer(home: string) {
