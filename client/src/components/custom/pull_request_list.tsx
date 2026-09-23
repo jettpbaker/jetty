@@ -13,7 +13,7 @@ import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList }
 import { ArrowClockwiseIcon, CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
 import { ChevronRightIcon, EyeIcon, PersonIcon } from '@primer/octicons-react'
 import { Link } from '@tanstack/react-router'
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import { InProgressIcon } from './in_progress_icon'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -149,6 +149,9 @@ function PullRequestGroups({
   truncated: boolean
 }) {
   const list = useRef<HTMLDivElement>(null)
+  const prefetch = usePrefetchPullRequest()
+  const hover = useRef<{ key: string; timer: ReturnType<typeof setTimeout> } | null>(null)
+  const lastScroll = useRef(0)
   const [collapsed, setCollapsed] = useState(() => loadCollapsed(tab))
   const now = useNow(60_000)
   const showRepo = new Set(items.map((item) => item.repo)).size > 1
@@ -183,6 +186,27 @@ function PullRequestGroups({
     storage.set(collapsedKey(tab), JSON.stringify([...next]))
   }
 
+  function leaveRow(key?: string) {
+    if (!hover.current || (key && hover.current.key !== key)) return
+    clearTimeout(hover.current.timer)
+    hover.current = null
+  }
+
+  function enterRow(item: PullRequestListItem) {
+    leaveRow()
+    if (Date.now() - lastScroll.current < 150) return
+    const key = `${item.repo}#${item.number}`
+    hover.current = {
+      key,
+      timer: setTimeout(() => {
+        hover.current = null
+        prefetch(item)
+      }, 150),
+    }
+  }
+
+  useEffect(() => () => leaveRow(), [])
+
   useLayoutEffect(() => {
     if (!list.current) return
     list.current.scrollTop = scrollTops.get(tab) ?? 0
@@ -197,7 +221,11 @@ function PullRequestGroups({
   return (
     <div
       ref={list}
-      onScroll={(event) => scrollTops.set(tab, event.currentTarget.scrollTop)}
+      onScroll={(event) => {
+        scrollTops.set(tab, event.currentTarget.scrollTop)
+        lastScroll.current = Date.now()
+        leaveRow()
+      }}
       className='scroll-fade-b scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'
     >
       {groups.map((group) => {
@@ -228,6 +256,8 @@ function PullRequestGroups({
                   now={now}
                   showRepo={showRepo}
                   onKeyDown={moveFocus}
+                  onPointerEnter={() => enterRow(item)}
+                  onPointerLeave={() => leaveRow(`${item.repo}#${item.number}`)}
                   onOpen={() => openedRows.set(tab, `${item.repo}#${item.number}`)}
                 />
               ))}
@@ -247,15 +277,18 @@ function PullRequestListRow({
   now,
   showRepo,
   onKeyDown,
+  onPointerEnter,
+  onPointerLeave,
   onOpen,
 }: {
   item: PullRequestListItem
   now: number
   showRepo: boolean
   onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => void
+  onPointerEnter: () => void
+  onPointerLeave: () => void
   onOpen: () => void
 }) {
-  const prefetch = usePrefetchPullRequest()
   const [owner = '', repo = ''] = item.repo.split('/')
   const pr = prPresentation[item.state]
   const age = formatAge(item.updatedAt, now)
@@ -264,7 +297,8 @@ function PullRequestListRow({
       data-pr-row={`${item.repo}#${item.number}`}
       to='/pull-requests/$owner/$repo/$number'
       params={{ owner, repo, number: String(item.number) }}
-      onPointerEnter={() => prefetch(item)}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onKeyDown={onKeyDown}
       onClick={onOpen}
       className='flex h-9 min-w-0 scroll-mt-8 cursor-default items-center gap-2.5 px-4 text-sm outline-none hover:bg-accent/50 focus-visible:bg-accent'

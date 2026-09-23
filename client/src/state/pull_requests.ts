@@ -51,7 +51,7 @@ const snapshotAtom = Atom.family((key: string) =>
 const fetchedAtom = Atom.family((key: string) =>
   Atom.make((get) =>
     get.result(connectionAtom).pipe(
-      Effect.flatMap((connection) => connection.request('pullRequest.get', parseKey(key))),
+      Effect.flatMap((connection) => connection.request('pullRequest.prefetch', parseKey(key))),
       Effect.tap((snapshot) => Effect.sync(() => get.set(cacheAtom(key), snapshot)))
     )
   ).pipe(Atom.setIdleTTL('1 minute'))
