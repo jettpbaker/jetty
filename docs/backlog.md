@@ -24,7 +24,5 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   MIT), never the OS font. The sketchpad's emoji-picker-react can load custom images
   via `getEmojiUrl`; Fluent assets are keyed by name, so map from their metadata.
 - Grok doesn't report context usage, so its ring stays empty.
-- Model discovery runs once at server start; logging in to a provider later
-  needs a restart.
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
