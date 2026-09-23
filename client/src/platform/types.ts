@@ -1,5 +1,5 @@
 export type Platform = {
-  connectionUrl: () => string
+  connectionUrl: (reconnecting: boolean) => Promise<string>
   pickFiles: (options?: { accept?: string; multiple?: boolean }) => Promise<File[]>
   storage: {
     get: (key: string) => string | undefined

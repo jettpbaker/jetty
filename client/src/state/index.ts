@@ -1,6 +1,7 @@
 export { useAccessMode } from './access_mode'
 export { useBrowse } from './browse'
 export { useChrome, type Chrome } from './chrome'
+export { useConnectionNotice } from './connection'
 export { useMarkThreadSeen } from './mutations'
 export { useDiffFileLoader, useProjectFile, useThreadDiff } from './diff'
 export { useDraft, useForgetDeletedDrafts, type Draft, type QuestionProgress } from './drafts'

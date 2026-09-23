@@ -4,6 +4,7 @@ import { storage } from '@/platform'
 import {
   MAIN_TAB,
   useChrome,
+  useConnectionNotice,
   useRenewQueueHolds,
   useForgetDeletedDrafts,
   useSubagentTabs,
@@ -93,6 +94,7 @@ function Workspace({
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
   useRenewQueueHolds()
   useForgetDeletedDrafts()
+  useConnectionNotice()
 
   useEffect(() => {
     function openSettings(event: KeyboardEvent) {
