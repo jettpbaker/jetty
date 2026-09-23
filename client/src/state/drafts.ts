@@ -121,7 +121,8 @@ function persist(key: string, { images, ...draft }: Draft, previous: Draft) {
     Object.keys(draft.parked ?? {}).length > 0 ||
     Object.keys(draft.questions ?? {}).length > 0
   writeStored(textsKey, key, kept ? draft : undefined)
-  if (images === previous.images) return
+  const stale = storedImagesStale.delete(key)
+  if (images === previous.images && !stale) return
   const stored = readStored(imagesKey)
   delete stored[key]
   let room = imageBudget - JSON.stringify(stored).length
@@ -140,7 +141,15 @@ const draftAtom = Atom.family((key: string) =>
   Atom.make((get) => get(draftsAtom).get(key) ?? emptyDraft)
 )
 
+// A draft this tab has edited, or has on screen, is this tab's own; another tab's writes to it
+// never replace it here. Every other draft follows the latest write from any tab.
+const edited = new Set<string>()
+const onScreen = new Map<string, number>()
+// Own drafts whose stored images another tab has since rewritten.
+const storedImagesStale = new Set<string>()
+
 function change(registry: Registry, key: string, edit: (draft: Draft) => Draft) {
+  edited.add(key)
   const previous = registry.get(draftsAtom).get(key) ?? emptyDraft
   const draft = edit(previous)
   registry.set(draftsAtom, new Map(registry.get(draftsAtom)).set(key, draft))
@@ -165,8 +174,16 @@ export function useSyncDrafts() {
   const registry = useContext(RegistryContext)
   useEffect(() => {
     function sync(event: StorageEvent) {
-      if (event.key === textsKey || event.key === imagesKey || event.key === null)
-        registry.set(draftsAtom, loadDrafts())
+      if (event.key !== textsKey && event.key !== imagesKey && event.key !== null) return
+      const drafts = loadDrafts()
+      const current = registry.get(draftsAtom)
+      for (const key of [...edited, ...onScreen.keys()]) {
+        const own = current.get(key)
+        if (own) drafts.set(key, own)
+        else drafts.delete(key)
+        if (event.key !== textsKey) storedImagesStale.add(key)
+      }
+      registry.set(draftsAtom, drafts)
     }
     window.addEventListener('storage', sync)
     return () => window.removeEventListener('storage', sync)
@@ -213,6 +230,14 @@ export function useForgetDeletedDrafts() {
 export function useDraft(key: string) {
   const registry = useContext(RegistryContext)
   const draft = useAtomValue(draftAtom(key))
+  useEffect(() => {
+    onScreen.set(key, (onScreen.get(key) ?? 0) + 1)
+    return () => {
+      const left = (onScreen.get(key) ?? 1) - 1
+      if (left) onScreen.set(key, left)
+      else onScreen.delete(key)
+    }
+  }, [key])
   const update = useCallback(
     (patch: Partial<Draft>) =>
       change(registry, key, (draft) => ({
