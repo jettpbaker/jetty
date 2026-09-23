@@ -59,14 +59,20 @@ export async function projectRemote(path: string): Promise<string | null> {
   }
 }
 
-export function resolvePullRequestReference(value: string, remote: string | null): PullRequestRef {
+export function resolvePullRequestReference(
+  value: string,
+  remote: string | null
+): Effect.Effect<PullRequestRef, StoreError> {
   const url = parsePullRequestUrl(value.trim())
-  if (url) return url
+  if (url) return Effect.succeed(url)
   const number = Number(value.trim().replace(/^#/, ''))
-  if (remote && Number.isSafeInteger(number) && number > 0) return { repo: remote, number }
-  throw new StoreError(
-    'invalid_params',
-    'Use a GitHub pull request URL or a number in a project with a GitHub origin'
+  if (remote && Number.isSafeInteger(number) && number > 0)
+    return Effect.succeed({ repo: remote, number })
+  return Effect.fail(
+    new StoreError(
+      'invalid_params',
+      'Use a GitHub pull request URL or a number in a project with a GitHub origin'
+    )
   )
 }
 

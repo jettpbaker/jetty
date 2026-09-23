@@ -111,7 +111,7 @@ export function createRpcHandlers(
         if (url) return url
         const project = yield* requireProject(thread.projectId)
         const remote = yield* Effect.promise(() => projectRemote(project.path))
-        return resolvePullRequestReference(value, remote)
+        return yield* resolvePullRequestReference(value, remote)
       })
     }
 
