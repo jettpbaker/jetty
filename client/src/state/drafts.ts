@@ -1,6 +1,6 @@
 import type { ComposerImage } from '@/hooks/use-image-attachments'
 
-import { storage } from '@/platform'
+import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { UploadAttachment } from '@jetty/shared/wire'
 import { Schema } from 'effect'
@@ -25,6 +25,8 @@ export type Draft = {
   images: readonly ComposerImage[]
   // the queued message this draft rewrites
   editing?: string
+  editingOwner?: string
+  editingAt?: number
   // the pending approval or question on show, and what was typed for the others
   pendingId?: string
   // the pending item the text was started for; absent, the text is a follow-up message
@@ -36,6 +38,8 @@ export type Draft = {
 const StoredDraft = Schema.Struct({
   text: Schema.String,
   editing: Schema.optional(Schema.String),
+  editingOwner: Schema.optional(Schema.String),
+  editingAt: Schema.optional(Schema.Number),
   pendingId: Schema.optional(Schema.String),
   typedFor: Schema.optional(Schema.String),
   parked: Schema.optional(Schema.Record(Schema.String, Schema.String)),
@@ -57,6 +61,15 @@ const isStoredImage = Schema.is(StoredImage)
 const textsKey = 'jetty.drafts'
 const imagesKey = 'jetty.draft-images'
 const imageBudget = 2_000_000
+const editingLifetime = 3 * 60_000
+const ownerKey = 'jetty.draft-owner'
+const editingOwner = (() => {
+  const saved = session.get(ownerKey)
+  if (saved) return saved
+  const id = crypto.randomUUID()
+  session.set(ownerKey, id)
+  return id
+})()
 
 const emptyDraft: Draft = { text: '', images: [] }
 
@@ -70,20 +83,25 @@ function readStored(key: string): Record<string, unknown> {
 }
 
 function writeStored(key: string, draftKey: string, value: unknown, stored = readStored(key)) {
-  try {
-    if (value === undefined) delete stored[draftKey]
-    else stored[draftKey] = value
-    if (Object.keys(stored).length) storage.set(key, JSON.stringify(stored))
-    else storage.remove(key)
-  } catch {
-    // Storage is full or blocked; the draft still lives for this visit.
-  }
+  if (value === undefined) delete stored[draftKey]
+  else stored[draftKey] = value
+  if (Object.keys(stored).length) storage.set(key, JSON.stringify(stored))
+  else storage.remove(key)
 }
 
 function loadDrafts() {
   const drafts = new Map<string, Draft>()
   for (const [key, stored] of Object.entries(readStored(textsKey)))
-    if (isStoredDraft(stored)) drafts.set(key, { ...stored, images: [] })
+    if (isStoredDraft(stored)) {
+      const draft = { ...stored, images: [] }
+      if (draft.editing && (!draft.editingAt || Date.now() - draft.editingAt > editingLifetime)) {
+        draft.editing = undefined
+        draft.editingOwner = undefined
+        draft.editingAt = undefined
+        writeStored(textsKey, key, draft)
+      }
+      drafts.set(key, draft)
+    }
   for (const [key, stored] of Object.entries(readStored(imagesKey))) {
     if (!Array.isArray(stored)) continue
     // A restored image's data URL is its identity, so a picture attached twice comes back once.
@@ -133,8 +151,26 @@ function change(registry: Registry, key: string, edit: (draft: Draft) => Draft) 
 export function editingDrafts(registry: Registry) {
   const editing: [threadId: string, messageId: string][] = []
   for (const [key, draft] of registry.get(draftsAtom))
-    if (key && draft.editing) editing.push([key, draft.editing])
+    if (key && draft.editing && draft.editingOwner === editingOwner)
+      editing.push([key, draft.editing])
   return editing
+}
+
+export function renewEditingDrafts(registry: Registry) {
+  for (const [key] of editingDrafts(registry))
+    change(registry, key, (draft) => ({ ...draft, editingAt: Date.now() }))
+}
+
+export function useSyncDrafts() {
+  const registry = useContext(RegistryContext)
+  useEffect(() => {
+    function sync(event: StorageEvent) {
+      if (event.key === textsKey || event.key === imagesKey || event.key === null)
+        registry.set(draftsAtom, loadDrafts())
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [registry])
 }
 
 // Puts a message the server refused back in its composer, ahead of anything typed since.
@@ -149,6 +185,8 @@ export function restoreDraft(
     text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
     images: [...restored.images, ...draft.images],
     editing: draft.editing ?? restored.editing,
+    editingOwner: draft.editing ? draft.editingOwner : editingOwner,
+    editingAt: Date.now(),
   }))
 }
 
@@ -176,7 +214,19 @@ export function useDraft(key: string) {
   const registry = useContext(RegistryContext)
   const draft = useAtomValue(draftAtom(key))
   const update = useCallback(
-    (patch: Partial<Draft>) => change(registry, key, (draft) => ({ ...draft, ...patch })),
+    (patch: Partial<Draft>) =>
+      change(registry, key, (draft) => ({
+        ...draft,
+        ...patch,
+        ...('editing' in patch
+          ? {
+              editingOwner: patch.editing ? editingOwner : undefined,
+              editingAt: patch.editing ? Date.now() : undefined,
+            }
+          : draft.editingOwner === editingOwner && draft.editing
+            ? { editingAt: Date.now() }
+            : {}),
+      })),
     [key, registry]
   )
   // the latest draft, for work that finishes after a render

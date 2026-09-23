@@ -146,14 +146,11 @@ export function SettingsLoadout({
     }))
     .filter((group) => group.models.length > 0)
   function save(next: Slot[], message: string) {
-    try {
+    setAnnouncement(
       setLoadouts(next)
-      setAnnouncement(message)
-    } catch {
-      setAnnouncement(
-        `${message} Changes are available for this visit; browser storage is unavailable.`
-      )
-    }
+        ? message
+        : `${message} Changes are available for this visit; browser storage is unavailable.`
+    )
   }
   function equip(slot: Slot, model: LoadoutModel) {
     const next = equipModel(slot, model)

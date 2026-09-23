@@ -3,8 +3,12 @@ export type Platform = {
   pickFiles: (options?: { accept?: string; multiple?: boolean }) => Promise<File[]>
   storage: {
     get: (key: string) => string | undefined
-    set: (key: string, value: string) => void
+    set: (key: string, value: string) => boolean
     remove: (key: string) => void
+  }
+  session: {
+    get: (key: string) => string | undefined
+    set: (key: string, value: string) => boolean
   }
   blobs: {
     get: (key: string) => Promise<Blob | undefined>

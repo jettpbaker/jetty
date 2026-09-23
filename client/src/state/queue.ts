@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 
 import { chromeAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
-import { editingDrafts, restoreDraft } from './drafts'
+import { editingDrafts, renewEditingDrafts, restoreDraft, useSyncDrafts } from './drafts'
 import { unarchiveFirst, without } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -173,11 +173,14 @@ function releaseQueued(registry: Registry, threadId: string, messageId: string) 
 // from its composer, which unmounts when the user switches threads mid-edit. A reload brings
 // its drafts back, so their holds are taken again straight away, before the lease runs out.
 export function useRenewQueueHolds() {
+  useSyncDrafts()
   const registry = useContext(RegistryContext)
   useEffect(() => {
+    renewEditingDrafts(registry)
     for (const [threadId, messageId] of editingDrafts(registry))
       holdQueued(registry, threadId, messageId)
     const timer = setInterval(() => {
+      renewEditingDrafts(registry)
       const threads = registry.get(chromeAtom)?.threads
       for (const [threadId, messageId] of editingDrafts(registry))
         if (

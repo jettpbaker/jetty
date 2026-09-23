@@ -50,7 +50,7 @@ export function useLoadouts() {
   const setLoadouts = useCallback(
     (next: readonly LoadoutSlot[]) => {
       registry.set(storedAtom, next)
-      storage.set(key, JSON.stringify(next))
+      return storage.set(key, JSON.stringify(next))
     },
     [registry]
   )

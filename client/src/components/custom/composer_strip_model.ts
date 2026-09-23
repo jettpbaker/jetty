@@ -181,7 +181,31 @@ function scopeLabel(scope: string | undefined, projectTitle: string | undefined)
   return projectTitle
 }
 
+const approvalViews = new WeakMap<
+  ApprovalItem,
+  Map<string, ReturnType<typeof computeApprovalView>>
+>()
+
 export function approvalView(
+  item: ApprovalItem,
+  projectPath: string | undefined,
+  projectTitle?: string
+) {
+  const key = JSON.stringify([projectPath, projectTitle])
+  let cached = approvalViews.get(item)
+  if (!cached) {
+    cached = new Map()
+    approvalViews.set(item, cached)
+  }
+  let view = cached.get(key)
+  if (!view) {
+    view = computeApprovalView(item, projectPath, projectTitle)
+    cached.set(key, view)
+  }
+  return view
+}
+
+function computeApprovalView(
   item: ApprovalItem,
   projectPath: string | undefined,
   projectTitle?: string

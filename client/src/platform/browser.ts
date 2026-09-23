@@ -36,11 +36,35 @@ export const browser: Platform = {
         return undefined
       }
     },
-    set: (key, value) => localStorage.setItem(key, value),
+    set(key, value) {
+      try {
+        localStorage.setItem(key, value)
+        return true
+      } catch {
+        return false
+      }
+    },
     remove(key) {
       try {
         localStorage.removeItem(key)
       } catch {}
+    },
+  },
+  session: {
+    get(key) {
+      try {
+        return sessionStorage.getItem(key) ?? undefined
+      } catch {
+        return undefined
+      }
+    },
+    set(key, value) {
+      try {
+        sessionStorage.setItem(key, value)
+        return true
+      } catch {
+        return false
+      }
     },
   },
   blobs: {
