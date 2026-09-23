@@ -86,12 +86,8 @@ function toSdkPermissionMode(mode: PermissionMode | undefined) {
   return mode === 'full_access' ? 'bypassPermissions' : 'auto'
 }
 
-function resolvedModel(input: TurnInput): string {
-  return input.model ?? process.env.JETTY_DEFAULT_MODEL ?? 'haiku'
-}
-
 function turnOptionsKey(input: TurnInput): string {
-  return `${resolvedModel(input)}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
+  return `${input.model ?? ''}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
 }
 
 function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
@@ -499,7 +495,7 @@ export function createClaudeAdapter(
                   cwd: projectPath,
                   systemPrompt: { type: 'preset', preset: 'claude_code' },
                   settingSources: ['user', 'project', 'local'],
-                  model: resolvedModel(input),
+                  model: input.model,
                   effort: input.effort,
                   permissionMode,
                   disallowedTools: ['EnterPlanMode', 'ExitPlanMode'],
