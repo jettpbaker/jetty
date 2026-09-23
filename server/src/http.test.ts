@@ -2,10 +2,11 @@ import { newId } from '@jetty/shared/wire'
 import { afterEach, expect, test } from 'bun:test'
 import { Effect, Schedule } from 'effect'
 import {
+  fstatSync,
   mkdtempSync,
   readdirSync,
-  readlinkSync,
   rmSync,
+  statSync,
   symlinkSync,
   truncateSync,
   writeFileSync,
@@ -32,9 +33,11 @@ async function fixture() {
 }
 
 function openFiles(path: string) {
-  return readdirSync('/proc/self/fd').filter((fd) => {
+  const target = statSync(path)
+  return readdirSync('/dev/fd').filter((fd) => {
     try {
-      return readlinkSync(`/proc/self/fd/${fd}`) === path
+      const file = fstatSync(Number(fd))
+      return file.dev === target.dev && file.ino === target.ino
     } catch {
       return false
     }

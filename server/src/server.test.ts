@@ -133,9 +133,11 @@ describe('server skeleton', () => {
                 AND json_extract(payload_json, '$.item.id') = json_extract(NEW.payload_json, '$.itemId')
                 AND json_extract(payload_json, '$.item.text') = 'never accepted')
           BEGIN SELECT RAISE(ABORT, 'injected second admission write failure'); END`)
-        await expect(
-          client.request('turn.start', { threadId: thread.id, text: 'never accepted' })
-        ).rejects.toMatchObject({ code: 'internal' })
+        // Bun's .rejects synchronously pumps the event loop, re-entering WebSocket reads.
+        const failure = await client
+          .request('turn.start', { threadId: thread.id, text: 'never accepted' })
+          .catch((error: unknown) => error)
+        expect(failure).toMatchObject({ code: 'internal' })
         expect(writes).toHaveBeenCalledTimes(1)
         const attempted = writes.mock.calls[0]![1]
         const started = attempted[0]
@@ -200,9 +202,11 @@ describe('server skeleton', () => {
       db.run(`CREATE TRIGGER reject_input BEFORE INSERT ON thread_events
         WHEN json_extract(NEW.payload_json, '$.item.text') = 'lost'
         BEGIN SELECT RAISE(ABORT, 'injected input failure'); END`)
-      await expect(
-        client.request('turn.start', { threadId: thread.id, text: 'lost' })
-      ).rejects.toMatchObject({ code: 'internal' })
+      // Await rejection before asserting to avoid Bun's synchronous .rejects event-loop pump.
+      const initialFailure = await client
+        .request('turn.start', { threadId: thread.id, text: 'lost' })
+        .catch((error: unknown) => error)
+      expect(initialFailure).toMatchObject({ code: 'internal' })
       expect(
         (await Effect.runPromise(running.store.getThreadState(thread.id))).activeTurnId
       ).toBeNull()
@@ -210,9 +214,10 @@ describe('server skeleton', () => {
         threadId: thread.id,
         text: 'first',
       })
-      await expect(
-        client.request('turn.start', { threadId: thread.id, text: 'lost' })
-      ).rejects.toMatchObject({ code: 'internal' })
+      const steeredFailure = await client
+        .request('turn.start', { threadId: thread.id, text: 'lost' })
+        .catch((error: unknown) => error)
+      expect(steeredFailure).toMatchObject({ code: 'internal' })
       const second = await client.request('turn.start', {
         threadId: thread.id,
         text: 'second',
