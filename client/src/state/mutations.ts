@@ -1,5 +1,5 @@
 import type { Connection } from '@/net/connection'
-import type { ThreadMeta } from '@jetty/shared/wire'
+import type { ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
 import { RegistryContext } from '@effect/atom-react'
 import { Deferred, Effect, Exit } from 'effect'
@@ -8,7 +8,7 @@ import { useCallback, useContext } from 'react'
 
 import { connectionAtom } from './connection'
 
-export type ThreadPatch = { title?: string; pinned?: boolean }
+export type ThreadPatch = { title?: string; pinned?: boolean; provider?: ProviderId }
 
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
   Atom.keepAlive
@@ -91,7 +91,12 @@ function clearPatch(registry: AtomRegistry.AtomRegistry, threadId: string, key: 
     const nextPatch = { ...current }
     delete nextPatch[key]
     const next = new Map(patches)
-    if (nextPatch.title === undefined && nextPatch.pinned === undefined) next.delete(threadId)
+    if (
+      nextPatch.title === undefined &&
+      nextPatch.pinned === undefined &&
+      nextPatch.provider === undefined
+    )
+      next.delete(threadId)
     else next.set(threadId, nextPatch)
     return next
   })

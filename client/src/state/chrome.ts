@@ -58,6 +58,7 @@ function applyPatch(thread: ThreadMeta, patch: ThreadPatch | undefined) {
     ...thread,
     ...(patch.title !== undefined ? { title: patch.title } : {}),
     ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
+    ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
   }
 }
 

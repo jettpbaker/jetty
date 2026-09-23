@@ -1,4 +1,5 @@
 import type { Loadout } from '@/state'
+import type { ProviderId } from '@jetty/shared/wire'
 
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,8 @@ export function Composer({
   sendDisabled = false,
   loadout,
   onLoadoutChange,
-  providerLabel,
+  provider,
+  providerDisabled,
   rows = 2,
 }: {
   value: string
@@ -27,7 +29,8 @@ export function Composer({
   sendDisabled?: boolean
   loadout: Loadout
   onLoadoutChange: (loadout: Loadout) => void
-  providerLabel: string
+  provider: ProviderId
+  providerDisabled: boolean
   rows?: number
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -97,7 +100,8 @@ export function Composer({
           <ComposerLoadout
             loadout={loadout}
             onChange={onLoadoutChange}
-            providerLabel={providerLabel}
+            provider={provider}
+            providerDisabled={providerDisabled}
           />
           {stop ? (
             <Button variant='default' size='icon-sm' aria-label='Stop' onClick={onInterrupt}>

@@ -1,5 +1,5 @@
 import type { Loadout } from '@/state'
-import type { EffortLevel, PermissionMode } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +38,18 @@ const permissions = [
   { id: 'full_access', label: 'Full access' },
 ] as const
 
+const providers = [
+  { id: 'grok', label: 'Grok' },
+  { id: 'codex', label: 'Codex' },
+  { id: 'claude', label: 'Claude' },
+] as const
+
+const providerLabels: Record<ProviderId, string> = {
+  grok: 'Grok',
+  codex: 'Codex',
+  claude: 'Claude',
+}
+
 const effortLabels: Record<EffortLevel, string> = {
   low: 'Low',
   medium: 'Medium',
@@ -61,21 +73,27 @@ function isPermission(value: string): value is PermissionMode {
   return permissions.some((permission) => permission.id === value)
 }
 
+function isProvider(value: string): value is ProviderId {
+  return providers.some((provider) => provider.id === value)
+}
+
 export function ComposerLoadout({
   loadout,
   onChange,
-  providerLabel,
+  provider,
+  providerDisabled,
 }: {
   loadout: Loadout
   onChange: (loadout: Loadout) => void
-  providerLabel: string
+  provider: ProviderId
+  providerDisabled: boolean
 }) {
   const modelId = loadout.model ?? 'default'
   const modelLabel =
     models.find((model) => model.id === modelId)?.label ?? loadout.model ?? 'Default'
+  const providerLabel = providerLabels[provider]
   return (
     <div className='flex items-center gap-1.5'>
-      <span className='px-2 text-xs text-muted-foreground'>{providerLabel}</span>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           aria-label={`Loadout: ${providerLabel}, ${modelLabel}, ${effortLabels[loadout.effort]}, ${permissionLabels[loadout.permissionMode]}`}
@@ -87,6 +105,9 @@ export function ComposerLoadout({
             />
           }
         >
+          <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
+            {providerLabel}
+          </span>
           {modelLabel}
           <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
             {effortLabels[loadout.effort]}
@@ -94,12 +115,36 @@ export function ComposerLoadout({
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start' className='w-max min-w-56'>
           <DropdownMenuGroup>
-            <DropdownMenuLabel className='flex items-center'>
-              Provider
-              <span className='ml-auto pl-4 font-normal text-muted-foreground'>
-                {providerLabel}
-              </span>
-            </DropdownMenuLabel>
+            {providerDisabled ? (
+              <DropdownMenuLabel className='flex items-center'>
+                Provider
+                <span className='ml-auto pl-4 font-normal text-muted-foreground'>
+                  {providerLabel}
+                </span>
+              </DropdownMenuLabel>
+            ) : (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className={subTriggerClass}>
+                  Provider
+                  <span className='ml-auto pl-4 text-muted-foreground'>{providerLabel}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup
+                    value={provider}
+                    onValueChange={(id) => {
+                      const next = String(id)
+                      if (isProvider(next)) onChange({ ...loadout, provider: next })
+                    }}
+                  >
+                    {providers.map((item) => (
+                      <DropdownMenuRadioItem key={item.id} value={item.id}>
+                        {item.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>

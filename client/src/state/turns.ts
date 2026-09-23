@@ -1,7 +1,7 @@
 import type { Connection } from '@/net/connection'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
-import type { EffortLevel, PermissionMode } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, ProviderId } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect, Exit } from 'effect'
@@ -9,19 +9,22 @@ import { Atom, AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
 
 import { connectionAtom } from './connection'
-import { awaitCreation } from './mutations'
+import { awaitCreation, threadPatchesAtom, type ThreadPatch } from './mutations'
 
 export type Loadout = {
   model?: string
   effort: EffortLevel
   permissionMode: PermissionMode
+  provider: ProviderId
 }
 
 export type PendingPrompt = { text: string; priorCount: number }
 
-const loadoutAtom = Atom.make<Loadout>({ effort: 'high', permissionMode: 'auto' }).pipe(
-  Atom.keepAlive
-)
+const loadoutAtom = Atom.make<Loadout>({
+  effort: 'high',
+  permissionMode: 'auto',
+  provider: 'grok',
+}).pipe(Atom.keepAlive)
 const draftEpochAtom = Atom.make(0).pipe(Atom.keepAlive)
 const pendingPromptsAtom = Atom.make<ReadonlyMap<string, readonly PendingPrompt[]>>(new Map()).pipe(
   Atom.keepAlive
@@ -125,12 +128,34 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
   }))
 }
 
+function patchProvider(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  provider: ProviderId | undefined
+) {
+  registry.update(threadPatchesAtom, (patches) => {
+    const current: ThreadPatch = { ...patches.get(threadId) }
+    if (provider === undefined) delete current.provider
+    else current.provider = provider
+    const next = new Map(patches)
+    if (
+      current.title === undefined &&
+      current.pinned === undefined &&
+      current.provider === undefined
+    )
+      next.delete(threadId)
+    else next.set(threadId, current)
+    return next
+  })
+}
+
 function sendTurn(
   registry: AtomRegistry.AtomRegistry,
   threadId: string,
   text: string,
   priorCount: number,
-  loadout: Loadout
+  loadout: Loadout,
+  provider: ProviderId
 ) {
   registry.update(pendingPromptsAtom, (prompts) => {
     const next = new Map(prompts)
@@ -138,6 +163,7 @@ function sendTurn(
     return next
   })
   registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
+  patchProvider(registry, threadId, provider)
   run(
     registry,
     (connection) =>
@@ -146,6 +172,7 @@ function sendTurn(
           connection.request('turn.start', {
             threadId,
             text,
+            provider,
             effort: loadout.effort,
             permissionMode: loadout.permissionMode,
             ...(loadout.model ? { model: loadout.model } : {}),
@@ -154,6 +181,7 @@ function sendTurn(
       ),
     (exit) => {
       if (Exit.isSuccess(exit)) return
+      patchProvider(registry, threadId, undefined)
       registry.update(pendingPromptsAtom, (prompts) =>
         withoutPrompt(prompts, threadId, text, priorCount)
       )
@@ -227,15 +255,22 @@ export function useDraftEpoch() {
 
 export function useBumpDraft() {
   const registry = useContext(RegistryContext)
-  return useCallback(() => registry.update(draftEpochAtom, (epoch) => epoch + 1), [registry])
+  return useCallback(() => {
+    registry.update(draftEpochAtom, (epoch) => epoch + 1)
+    registry.update(loadoutAtom, (current) => {
+      if (current.provider === 'grok') return current
+      const next: Loadout = { ...current, provider: 'grok' }
+      return next
+    })
+  }, [registry])
 }
 
 export function useSendTurn() {
   const registry = useContext(RegistryContext)
   const loadout = useAtomValue(loadoutAtom)
   return useCallback(
-    (threadId: string, text: string, priorCount: number) =>
-      sendTurn(registry, threadId, text, priorCount, loadout),
+    (threadId: string, text: string, priorCount: number, provider: ProviderId) =>
+      sendTurn(registry, threadId, text, priorCount, loadout, provider),
     [loadout, registry]
   )
 }
