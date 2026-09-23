@@ -1,7 +1,7 @@
-import { useAtomRefresh, useAtomValue } from '@effect/atom-react'
+import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { AsyncResult, Atom } from 'effect/unstable/reactivity'
-import { useEffect, useRef } from 'react'
+import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
+import { useCallback, useContext, useEffect, useRef } from 'react'
 
 import { connectionAtom } from './connection'
 import { useThread } from './threads'
@@ -39,4 +39,23 @@ export function useThreadDiff(threadId: string) {
     diff: AsyncResult.getOrElse(result, () => undefined),
     failed: AsyncResult.isFailure(result),
   }
+}
+
+export function useDiffFileLoader(threadId: string) {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (path: string, prevPath?: string) =>
+      Effect.runPromise(
+        AtomRegistry.getResult(registry, connectionAtom).pipe(
+          Effect.flatMap((connection) =>
+            connection.request('thread.diffFile', {
+              threadId,
+              path,
+              ...(prevPath === undefined ? {} : { prevPath }),
+            })
+          )
+        )
+      ),
+    [registry, threadId]
+  )
 }

@@ -1,4 +1,4 @@
-import type { CodeViewOptions } from '@pierre/diffs'
+import type { CodeViewOptions, FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -26,7 +26,13 @@ import {
   type ReactNode,
 } from 'react'
 
-import { diffId, type FileChange } from './file_diff_model'
+import {
+  diffId,
+  loadedFiles,
+  withoutContext,
+  type FileChange,
+  type LoadDiffFile,
+} from './file_diff_model'
 import { ScrollOverlay } from './scroll_overlay'
 import './file_changes_viewer.css'
 
@@ -192,31 +198,55 @@ export function FileChangesViewer({
   footer,
   embedded = false,
   layout = 'panel',
+  loadFile,
 }: {
   files: FileChange[]
   footer?: ReactNode
   embedded?: boolean
   layout?: 'panel' | 'page'
+  loadFile?: LoadDiffFile
 }) {
   const resolvedTheme = useResolvedTheme()
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set())
+  const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
+    () => new Map()
+  )
   const scrollViewport = useRef<HTMLDivElement>(null)
   const scrollId = useId()
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
   const items = useMemo(
     () =>
       changes.map((file) => {
+        const fileDiff = noContext.get(file.diff) ?? file.diff
         const collapsed = collapsedFiles.has(file.path)
         return {
           id: file.path,
           type: 'diff' as const,
-          fileDiff: file.diff,
+          fileDiff,
           collapsed,
-          version: diffId(file.diff) * 2 + Number(collapsed),
+          version: diffId(fileDiff) * 2 + Number(collapsed),
         }
       }),
-    [changes, collapsedFiles]
+    [changes, collapsedFiles, noContext]
   )
+  // One request per diff revision, shared by the hover prefetch and the expand click.
+  const loadDiffFiles = useMemo(() => {
+    if (!loadFile) return undefined
+    const requests = new WeakMap<FileDiffMetadata, Promise<FileDiffLoadedFiles>>()
+    return (diff: FileDiffMetadata) => {
+      let request = requests.get(diff)
+      if (!request) {
+        request = loadFile(diff.name, diff.prevName).then((contents) => {
+          if (!('unavailable' in contents)) return loadedFiles(diff, contents)
+          setNoContext((previous) => new Map(previous).set(diff, withoutContext(diff)))
+          throw new Error(`No context for ${diff.name}: ${contents.unavailable}`)
+        })
+        requests.set(diff, request)
+        request.catch(() => requests.delete(diff))
+      }
+      return request
+    }
+  }, [loadFile])
   const selectFile = useCallback((path: string) => {
     setSelected(path)
     viewer.current?.scrollTo({ type: 'item', id: path, align: 'start', behavior: 'instant' })
@@ -269,6 +299,7 @@ export function FileChangesViewer({
       layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
       hunkSeparators: 'line-info',
       expansionLineCount: 20,
+      loadDiffFiles,
       unsafeCSS: `
               [data-diffs-header] { height: 36px; min-height: 36px; box-sizing: border-box; background-color: var(--background); border-bottom: 1px solid var(--border); }
               [data-diffs-header]::before {
@@ -281,7 +312,7 @@ export function FileChangesViewer({
             `,
       overflow: split ? 'wrap' : 'scroll',
     }),
-    [split, resolvedTheme]
+    [split, resolvedTheme, loadDiffFiles]
   )
   useLayoutEffect(() => {
     if (!root.current) return
@@ -309,6 +340,16 @@ export function FileChangesViewer({
         painted.push(row)
       }
     }
+    function prefetch(separator: Element) {
+      const shadow = separator.getRootNode()
+      if (!(shadow instanceof ShadowRoot)) return
+      const item = viewer.current
+        ?.getInstance()
+        ?.getRenderedItems()
+        .find((rendered) => rendered.element === shadow.host)
+      if (item?.type === 'diff' && item.item.fileDiff.isPartial)
+        void loadDiffFiles?.(item.item.fileDiff)
+    }
     function onMove(event: PointerEvent) {
       const separator = separatorFromEvent(event)
       if (separator && painted.includes(separator)) return
@@ -316,6 +357,7 @@ export function FileChangesViewer({
         clear()
         return
       }
+      prefetch(separator)
       paint(separator)
     }
     function onLeave() {
@@ -328,7 +370,7 @@ export function FileChangesViewer({
       node.removeEventListener('pointerleave', onLeave)
       clear()
     }
-  }, [file])
+  }, [file, loadDiffFiles])
   if (!file) return <p className='p-4 text-sm text-muted-foreground'>No changed files.</p>
   return (
     <div

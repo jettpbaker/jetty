@@ -1,4 +1,4 @@
-import { useThreadDiff } from '@/state'
+import { useDiffFileLoader, useThreadDiff } from '@/state'
 import { lazy, Suspense, useMemo } from 'react'
 
 const PatchViewer = lazy(async () => {
@@ -11,12 +11,22 @@ const PatchViewer = lazy(async () => {
     themes: ['pierre-dark-soft', 'pierre-light-soft'],
     langs: ['typescript', 'tsx'],
   })
-  function PatchViewer({ patch, notShown }: { patch: string; notShown: readonly string[] }) {
+  function PatchViewer({
+    threadId,
+    patch,
+    notShown,
+  }: {
+    threadId: string
+    patch: string
+    notShown: readonly string[]
+  }) {
     const files = useMemo(() => parseFileChanges(patch), [patch])
+    const loadFile = useDiffFileLoader(threadId)
     return (
       <FileChangesViewer
         embedded
         files={files}
+        loadFile={loadFile}
         footer={notShown.length > 0 && <NotShown paths={notShown} />}
       />
     )
@@ -47,7 +57,7 @@ export function ThreadChanges({ threadId }: { threadId: string }) {
     )
   return (
     <Suspense fallback={loading}>
-      <PatchViewer patch={diff.diff} notShown={notShown} />
+      <PatchViewer threadId={threadId} patch={diff.diff} notShown={notShown} />
     </Suspense>
   )
 }
