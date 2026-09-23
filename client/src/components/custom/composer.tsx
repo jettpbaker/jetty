@@ -149,7 +149,9 @@ export function Composer({
                 </InputGroupButton>
               ) : (
                 <Tooltip disabled={!sendHint}>
-                  <TooltipTrigger render={<span className='flex' />}>
+                  <TooltipTrigger
+                    render={<span className={sendHint ? 'flex cursor-not-allowed' : 'flex'} />}
+                  >
                     <InputGroupButton
                       variant='default'
                       size='icon-sm'

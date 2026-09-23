@@ -32,7 +32,7 @@ export function ComposerAccessMode({
   if (model?.autoMode === false)
     return (
       <Tooltip>
-        <TooltipTrigger render={<span className='flex' />}>
+        <TooltipTrigger render={<span className='flex cursor-not-allowed' />}>
           <Button
             variant='ghost'
             tone='muted'

@@ -160,7 +160,7 @@ export function AppSidebar() {
             {comingSoon.map(({ label, icon: Icon }) => (
               <SidebarMenuItem key={label}>
                 <Tooltip>
-                  <TooltipTrigger render={<span className='block' />}>
+                  <TooltipTrigger render={<span className='block cursor-not-allowed' />}>
                     <Button
                       variant='ghost'
                       className={`${navigationButtonClass} pointer-events-none`}
