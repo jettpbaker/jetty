@@ -47,6 +47,7 @@ function createThread(registry: AtomRegistry.AtomRegistry, projectId: string) {
       title: 'New thread',
       status: 'idle',
       archived: false,
+      pinned: false,
       updatedAt: Date.now(),
     })
   )
