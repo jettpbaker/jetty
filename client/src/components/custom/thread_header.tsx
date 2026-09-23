@@ -14,7 +14,7 @@ export function ThreadHeader({ context }: { context: ContextUsage | null }) {
     ? `Context window ${Math.round(fraction * 100)}% full`
     : 'Context usage unavailable'
   return (
-    <header className='thread-conversation-header flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border pr-[42px] pl-1.5'>
+    <header className='thread-conversation-header flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border pr-[42px] pl-4'>
       <div className='flex min-w-0 items-center gap-2'>
         <PageSidebarTrigger />
       </div>
