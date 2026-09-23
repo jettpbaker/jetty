@@ -1,6 +1,7 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
+import { ContainerIcon, DeviceDesktopIcon } from '@primer/octicons-react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -19,6 +20,7 @@ export function ThreadRow({
   status,
   lastActivity,
   pullRequest,
+  environment,
   provider,
   model,
   effort,
@@ -34,6 +36,7 @@ export function ThreadRow({
   status: ThreadStatus
   lastActivity: string
   pullRequest?: ThreadPullRequest
+  environment: 'local' | 'container'
   provider?: ProviderId
   model?: string
   effort?: string
@@ -95,15 +98,22 @@ export function ThreadRow({
                 </span>
               </>
             )}
-            <span
-              className='ml-auto mr-px shrink-0 font-mono'
-              aria-label={
-                lastActivity === 'now'
-                  ? 'Last activity just now'
-                  : `Last activity ${lastActivity} ago`
-              }
-            >
-              {lastActivity}
+            <span className='ml-auto mr-px flex shrink-0 items-center gap-2'>
+              <span
+                className='font-mono'
+                aria-label={
+                  lastActivity === 'now'
+                    ? 'Last activity just now'
+                    : `Last activity ${lastActivity} ago`
+                }
+              >
+                {lastActivity}
+              </span>
+              {environment === 'container' ? (
+                <ContainerIcon aria-label='Runs in a container' className='size-3' />
+              ) : (
+                <DeviceDesktopIcon aria-label='Runs locally' className='size-3' />
+              )}
             </span>
           </TwoLineRow>
         )}

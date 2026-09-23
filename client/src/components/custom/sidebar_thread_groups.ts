@@ -13,6 +13,7 @@ export type SidebarThread = {
   parent?: string
   status: ThreadStatus
   lastActivity: string
+  environment: 'local' | 'container'
   updatedAt: number
   pinned: boolean
   archived: boolean

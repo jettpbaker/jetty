@@ -72,6 +72,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     parent: thread.parentThreadId && titles.get(thread.parentThreadId),
     status: threadStatus(thread.status, thread.readyForReview),
     lastActivity: formatAge(thread.updatedAt, now),
+    environment: thread.environment ?? 'local',
     updatedAt: thread.updatedAt,
     pinned: thread.pinned,
     archived: thread.archived,
