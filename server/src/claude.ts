@@ -119,6 +119,14 @@ function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
   }
 }
 
+// A tool the SDK reports as failed after Stop was cut off, not broken: leaving its status
+// unsettled lets the client show it as stopped.
+function withoutToolFailure(event: ThreadEvent): ThreadEvent {
+  if (event.type !== 'item.completed' || event.patch?.status !== 'failed') return event
+  const { status: _, ...patch } = event.patch
+  return { ...event, patch }
+}
+
 export function createClaudeAdapter(
   store: Store,
   attachments: Attachments,
@@ -183,9 +191,11 @@ export function createClaudeAdapter(
             if (terminal && !session.awaitingResult) return null
             if (terminal) session.accepting = false
             yield* session.emit(
-              terminal && session.failReason
-                ? { type: 'turn.failed', turnId: session.activeTurnId, error: session.failReason }
-                : event
+              !session.failReason
+                ? event
+                : terminal
+                  ? { type: 'turn.failed', turnId: session.activeTurnId, error: session.failReason }
+                  : withoutToolFailure(event)
             )
             if (terminal) {
               session.awaitingResult = false

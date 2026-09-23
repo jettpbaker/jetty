@@ -39,7 +39,9 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
       ? 'Thought'
       : activity.status === 'waiting'
         ? 'Thinking paused'
-        : `Thinking ${activity.status}`
+        : activity.status === 'interrupted'
+          ? 'Thinking stopped'
+          : `Thinking ${activity.status}`
   const titleSuffix = (tokens ?? duration) ? ` for ${tokens ?? duration}` : active ? '…' : ''
   const summary = activity.summary.trim()
   const heading = (

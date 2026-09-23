@@ -1,5 +1,6 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
+import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import type { ActivityStatus, ToolKind, WorkActivity } from './work_model'
 
@@ -153,8 +154,12 @@ function toActivity(
   }
 }
 
-function workStatus(activities: readonly WorkActivity[]): ActivityStatus {
-  for (const status of ['waiting', 'running', 'interrupted', 'failed'] as const)
+function workStatus(
+  activities: readonly WorkActivity[],
+  outcome: TurnOutcome | undefined
+): ActivityStatus {
+  if (outcome) return outcome === 'completed' ? 'complete' : outcome
+  for (const status of ['waiting', 'running', 'interrupted'] as const)
     if (activities.some((activity) => activity.status === status)) return status
   return 'complete'
 }
@@ -166,6 +171,7 @@ function isWork(item: ThreadItem): item is WorkItem {
 export function threadRows(
   items: readonly ThreadItem[],
   status: SessionStatus,
+  outcomes: Readonly<Record<string, TurnOutcome>> = {},
   projectPath?: string
 ): ThreadRow[] {
   const rows: ThreadRow[] = []
@@ -181,7 +187,7 @@ export function threadRows(
     const activities = pending.map((item, index) =>
       toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
     )
-    const blockStatus = workStatus(activities)
+    const blockStatus = workStatus(activities, outcomes[pending[0]!.turnId])
     rows.push({
       kind: 'work',
       id: pending[0]!.id,

@@ -82,7 +82,7 @@ export function WorkBlock({
             ? 'Work failed'
             : status === 'cancelled'
               ? 'Work cancelled'
-              : 'Work interrupted'
+              : 'Stopped'
   const timing = duration ? ` ${ended && status !== 'complete' ? 'after' : 'for'} ${duration}` : ''
   const recentStart = Math.max(0, entries.length - previewCount)
   return (

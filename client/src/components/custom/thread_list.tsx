@@ -1,5 +1,6 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
+import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { AssistantMessage } from '@/components/custom/assistant_message'
 import { ErrorMessage } from '@/components/custom/error_message'
@@ -91,17 +92,22 @@ function ThreadItemRow({
 export function ThreadList({
   items,
   status,
+  outcomes,
   projectPath,
   onApproval,
   onAnswer,
 }: {
   items: readonly ThreadItem[]
   status: SessionStatus
+  outcomes?: Readonly<Record<string, TurnOutcome>>
   projectPath?: string
   onApproval: (itemId: string, approved: boolean) => void
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
-  const rows = useMemo(() => threadRows(items, status, projectPath), [items, status, projectPath])
+  const rows = useMemo(
+    () => threadRows(items, status, outcomes, projectPath),
+    [items, status, outcomes, projectPath]
+  )
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const [width, setWidth] = useState(660)

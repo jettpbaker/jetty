@@ -145,7 +145,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   else if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
     if (latest.status === 'failed') verb = words.failed
     else if (latest.status === 'cancelled') verb = 'Cancelled'
-    else if (latest.status === 'interrupted') verb = 'Interrupted'
+    else if (latest.status === 'interrupted') verb = 'Stopped'
   }
   const notices =
     calls.length === 1
@@ -153,7 +153,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
       : [
           failed && `${failed} failed`,
           cancelled && `${cancelled} cancelled`,
-          interrupted && `${interrupted} interrupted`,
+          interrupted && `${interrupted} stopped`,
         ]
           .filter(Boolean)
           .join(', ')

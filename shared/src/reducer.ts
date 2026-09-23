@@ -3,12 +3,18 @@ import { Effect, Schema } from 'effect'
 import { ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
 import { ThreadItem } from './items'
 
+export const TurnOutcome = Schema.Literals(['completed', 'failed', 'interrupted'])
+export type TurnOutcome = Schema.Schema.Type<typeof TurnOutcome>
+
 export const ThreadState = Schema.Struct({
   items: Schema.Array(ThreadItem),
   status: SessionStatus,
   activeTurnId: Schema.NullOr(Schema.String),
   lastSeq: Schema.Natural,
   context: Schema.NullOr(ContextUsage).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+  turnOutcomes: Schema.Record(Schema.String, TurnOutcome).pipe(
+    Schema.withDecodingDefault(Effect.succeed({}))
+  ),
 })
 export type ThreadState = Schema.Schema.Type<typeof ThreadState>
 
@@ -18,6 +24,7 @@ export const emptyThread: ThreadState = {
   activeTurnId: null,
   lastSeq: 0,
   context: null,
+  turnOutcomes: {},
 }
 
 export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEvent): ThreadState {
@@ -33,6 +40,10 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
     case 'turn.failed':
       return {
         ...state,
+        turnOutcomes: {
+          ...state.turnOutcomes,
+          [event.turnId]: turnOutcome(event),
+        },
         activeTurnId: null,
         status: 'idle',
         items: state.items.map((item) => settleStreaming(item, ts)),
@@ -54,6 +65,13 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
     case 'context.updated':
       return { ...state, context: event.usage }
   }
+}
+
+function turnOutcome(
+  event: Extract<ThreadEvent, { type: 'turn.completed' | 'turn.failed' }>
+): TurnOutcome {
+  if (event.type === 'turn.completed') return 'completed'
+  return event.error === 'interrupted' ? 'interrupted' : 'failed'
 }
 
 function settleStreaming(item: ThreadItem, ts: number): ThreadItem {
