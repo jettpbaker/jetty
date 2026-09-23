@@ -40,7 +40,11 @@ export function SubagentGroup({
                 {[
                   completed > 0 && `${completed} complete`,
                   stopped > 0 && `${stopped} stopped`,
-                  failed > 0 && <span className='text-status-error'>{failed} failed</span>,
+                  failed > 0 && (
+                    <span key='failed' className='text-status-error'>
+                      {failed} failed
+                    </span>
+                  ),
                 ]
                   .filter(Boolean)
                   .map((part, index) => (
