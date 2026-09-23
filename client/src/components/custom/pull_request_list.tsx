@@ -8,11 +8,12 @@ import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { storage } from '@/platform'
 import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList } from '@/state'
 import { ArrowClockwiseIcon, CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
 import { ChevronRightIcon, EyeIcon, PersonIcon } from '@primer/octicons-react'
 import { Link } from '@tanstack/react-router'
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import { InProgressIcon } from './in_progress_icon'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -22,6 +23,21 @@ import './thread_details_layout.css'
 type PullRequestState = PullRequestListItem['state']
 
 const groupOrder: readonly PullRequestState[] = ['open', 'draft', 'merged', 'closed']
+
+const scrollTops = new Map<PullRequestListTab, number>()
+
+function collapsedKey(tab: PullRequestListTab) {
+  return `jetty.pull-requests.collapsed.${tab}`
+}
+
+function loadCollapsed(tab: PullRequestListTab): ReadonlySet<PullRequestState> {
+  try {
+    const saved: unknown = JSON.parse(storage.get(collapsedKey(tab)) ?? '[]')
+    return new Set(Array.isArray(saved) ? (saved as PullRequestState[]) : [])
+  } catch {
+    return new Set()
+  }
+}
 
 const unavailableTitle = {
   unavailable: 'GitHub unavailable',
@@ -94,7 +110,12 @@ export function PullRequestList({
       </header>
       {list?.items ? (
         list.items.length > 0 ? (
-          <PullRequestGroups key={tab} items={list.items} />
+          <PullRequestGroups
+            key={tab}
+            tab={tab}
+            items={list.items}
+            truncated={list.truncated ?? false}
+          />
         ) : (
           <div className='flex flex-1 items-center justify-center p-4'>
             <p className='text-sm text-muted-foreground'>No pull requests</p>
@@ -117,9 +138,17 @@ export function PullRequestList({
   )
 }
 
-function PullRequestGroups({ items }: { items: readonly PullRequestListItem[] }) {
+function PullRequestGroups({
+  tab,
+  items,
+  truncated,
+}: {
+  tab: PullRequestListTab
+  items: readonly PullRequestListItem[]
+  truncated: boolean
+}) {
   const list = useRef<HTMLDivElement>(null)
-  const [collapsed, setCollapsed] = useState<ReadonlySet<PullRequestState>>(new Set())
+  const [collapsed, setCollapsed] = useState(() => loadCollapsed(tab))
   const now = useNow(60_000)
   const showRepo = new Set(items.map((item) => item.repo)).size > 1
   const groups = groupOrder.flatMap((state) => {
@@ -146,18 +175,22 @@ function PullRequestGroups({ items }: { items: readonly PullRequestListItem[] })
   }
 
   function toggle(state: PullRequestState, open: boolean) {
-    setCollapsed((current) => {
-      const next = new Set(current)
-      if (open) next.delete(state)
-      else next.add(state)
-      return next
-    })
+    const next = new Set(collapsed)
+    if (open) next.delete(state)
+    else next.add(state)
+    setCollapsed(next)
+    storage.set(collapsedKey(tab), JSON.stringify([...next]))
   }
+
+  useLayoutEffect(() => {
+    if (list.current) list.current.scrollTop = scrollTops.get(tab) ?? 0
+  }, [tab])
 
   return (
     <div
       ref={list}
-      className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'
+      onScroll={(event) => scrollTops.set(tab, event.currentTarget.scrollTop)}
+      className='scroll-fade-b scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'
     >
       {groups.map((group) => {
         const pr = prPresentation[group.state]
@@ -193,6 +226,9 @@ function PullRequestGroups({ items }: { items: readonly PullRequestListItem[] })
           </Collapsible>
         )
       })}
+      {truncated && (
+        <p className='px-4 py-2 text-xs text-muted-foreground'>Showing latest {items.length}</p>
+      )}
     </div>
   )
 }
@@ -229,9 +265,14 @@ function PullRequestListRow({
         <span className='sr-only'>{pr.label}</span>
       </span>
       <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-      {showRepo && (
-        <span className='hidden shrink-0 text-xs text-muted-foreground md:inline'>{item.repo}</span>
-      )}
+      <span
+        className={cn(
+          'max-w-2/5 min-w-0 truncate text-xs text-muted-foreground',
+          !showRepo && 'sr-only'
+        )}
+      >
+        {item.repo}
+      </span>
       <ChecksMark checks={item.checks} />
       <span
         className='w-8 shrink-0 text-right font-mono text-xs text-muted-foreground tabular-nums'
