@@ -5,6 +5,7 @@ import {
   MAIN_TAB,
   useChrome,
   useRenewQueueHolds,
+  useForgetDeletedDrafts,
   useSubagentTabs,
   useThreadTab,
   type SubagentTab,
@@ -91,6 +92,7 @@ function Workspace({
 
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
   useRenewQueueHolds()
+  useForgetDeletedDrafts()
 
   useEffect(() => {
     function openSettings(event: KeyboardEvent) {
