@@ -16,11 +16,11 @@ function fakeQuery(impl: Query['getContextUsage']): Query {
 function baseResponse(overrides: Partial<FakeResponse> = {}): FakeResponse {
   return {
     categories: [
-      { name: 'System prompt', tokens: 3248, color: '#fff' },
-      { name: 'System tools', tokens: 11760, color: '#eee' },
-      { name: 'Messages', tokens: 4200, color: '#ddd' },
-      { name: 'Free space', tokens: 180_792, color: '#ccc' },
-      { name: 'Empty', tokens: 0, color: '#bbb' },
+      { name: 'System prompt', tokens: 3248, color: '#fff', kind: 'used' },
+      { name: 'System tools', tokens: 11760, color: '#eee', kind: 'used' },
+      { name: 'Messages', tokens: 4200, color: '#ddd', kind: 'used' },
+      { name: 'Free space', tokens: 180_792, color: '#ccc', kind: 'free' },
+      { name: 'Empty', tokens: 0, color: '#bbb', kind: 'used' },
     ],
     totalTokens: 19_208,
     maxTokens: 200_000,
@@ -60,11 +60,11 @@ describe('readContextUsage', () => {
       fakeQuery(async () =>
         baseResponse({
           categories: [
-            { name: 'Messages', tokens: 100, color: '#fff' },
-            { name: 'free space', tokens: 50_000, color: '#eee' },
-            { name: 'FREE SPACE', tokens: 1, color: '#ddd' },
-            { name: 'Scratch', tokens: -5, color: '#ccc' },
-            { name: 'Zero', tokens: 0, color: '#bbb' },
+            { name: 'Messages', tokens: 100, color: '#fff', kind: 'used' },
+            { name: 'free space', tokens: 50_000, color: '#eee', kind: 'free' },
+            { name: 'FREE SPACE', tokens: 1, color: '#ddd', kind: 'free' },
+            { name: 'Scratch', tokens: -5, color: '#ccc', kind: 'used' },
+            { name: 'Zero', tokens: 0, color: '#bbb', kind: 'used' },
           ],
           totalTokens: 100,
         })
@@ -79,10 +79,10 @@ describe('readContextUsage', () => {
         baseResponse({
           totalTokens: 180_000,
           categories: [
-            { name: 'System prompt', tokens: 3_000, color: '#fff' },
-            { name: 'Messages', tokens: 12_000, color: '#eee' },
-            { name: 'Autocompact buffer', tokens: 33_000, color: '#ddd' },
-            { name: 'Free space', tokens: 152_000, color: '#ccc' },
+            { name: 'System prompt', tokens: 3_000, color: '#fff', kind: 'used' },
+            { name: 'Messages', tokens: 12_000, color: '#eee', kind: 'used' },
+            { name: 'Autocompact buffer', tokens: 33_000, color: '#ddd', kind: 'buffer' },
+            { name: 'Free space', tokens: 152_000, color: '#ccc', kind: 'free' },
           ],
         })
       )
@@ -100,8 +100,14 @@ describe('readContextUsage', () => {
         baseResponse({
           totalTokens: 50_000,
           categories: [
-            { name: 'System tools', tokens: 8_000, color: '#fff' },
-            { name: 'MCP tools (deferred)', tokens: 40_000, color: '#eee', isDeferred: true },
+            { name: 'System tools', tokens: 8_000, color: '#fff', kind: 'used' },
+            {
+              name: 'MCP tools (deferred)',
+              tokens: 40_000,
+              color: '#eee',
+              isDeferred: true,
+              kind: 'deferred',
+            },
           ],
         })
       )
@@ -176,7 +182,7 @@ describe('readContextUsage', () => {
         fakeQuery(async () =>
           baseResponse({
             totalTokens: 0,
-            categories: [{ name: 'Free space', tokens: 200_000, color: '#fff' }],
+            categories: [{ name: 'Free space', tokens: 200_000, color: '#fff', kind: 'free' }],
           })
         )
       )
