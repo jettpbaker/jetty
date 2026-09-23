@@ -74,6 +74,13 @@ function reconcileOnStartup(store: Store) {
   return Effect.gen(function* () {
     for (const thread of yield* store.listThreads()) {
       const state = yield* store.getThreadState(thread.id)
+      for (const item of state.items)
+        if (item.kind === 'subagent' && item.status === 'running')
+          yield* store.appendEvent(thread.id, {
+            type: 'item.completed',
+            itemId: item.id,
+            patch: { status: 'stopped' },
+          })
       if (state.status === 'idle') continue
       yield* store.appendEvent(thread.id, {
         type: 'turn.failed',
