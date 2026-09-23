@@ -190,6 +190,7 @@ function workflowSnapshot(value: unknown) {
                     ? 'active'
                     : 'queued',
         tokens: natural(Number(part.tokens)) ?? 0,
+        ...(typeof part.startedAt === 'number' ? { startedAt: part.startedAt } : {}),
         toolCalls: natural(Number(part.toolCalls)) ?? 0,
         ...(word(part.lastToolName) ? { lastTool: word(part.lastToolName) } : {}),
         ...(word(part.lastToolSummary) ? { lastSummary: word(part.lastToolSummary) } : {}),

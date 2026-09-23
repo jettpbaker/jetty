@@ -25,6 +25,15 @@ function agentsIn(workflow: Workflow, index: number) {
 
 function AgentLine({ workflow, agent }: { workflow: Workflow; agent: WorkflowAgent }) {
   const state = shownState(workflow, agent)
+  const now = useNow(1000, state === 'active' || state === 'waiting')
+  const seconds =
+    state === 'active' || state === 'waiting'
+      ? agent.startedAt
+        ? Math.max(0, now - agent.startedAt) / 1000
+        : undefined
+      : agent.durationMs != null
+        ? agent.durationMs / 1000
+        : undefined
   const detail =
     state === 'active' || state === 'waiting'
       ? [agent.lastTool, agent.lastSummary].filter(Boolean).join(' ')
@@ -55,7 +64,8 @@ function AgentLine({ workflow, agent }: { workflow: Workflow; agent: WorkflowAge
         {detail}
       </span>
       <span className='justify-self-end text-muted-foreground tabular-nums'>
-        {agent.durationMs ? formatDuration(agent.durationMs / 1000) : ''}
+        {seconds != null ? formatDuration(seconds) : ''}
+        {agent.tokens > 0 && ` · ${formatSubagentTokens(agent.tokens)}`}
       </span>
     </div>
   )

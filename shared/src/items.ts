@@ -40,6 +40,7 @@ export const WorkflowAgent = Schema.Struct({
   prompt: Schema.optional(Schema.String),
   result: Schema.optional(Schema.String),
   durationMs: Schema.optional(Schema.Natural),
+  startedAt: Schema.optional(Schema.Int),
 })
 export type WorkflowAgent = Schema.Schema.Type<typeof WorkflowAgent>
 
