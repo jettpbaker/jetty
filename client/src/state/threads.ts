@@ -41,6 +41,12 @@ const threadAtom = Atom.family((threadId: string) =>
   })
 )
 
+const unread = Atom.readable<ThreadState | undefined>(() => undefined)
+
 export function useThread(threadId: string): ThreadState | undefined {
   return useAtomValue(threadAtom(threadId))
+}
+
+export function usePrefetchThread(threadId: string | undefined) {
+  return useAtomValue(threadId ? threadAtom(threadId) : unread)
 }

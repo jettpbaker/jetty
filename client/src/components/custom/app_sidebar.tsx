@@ -11,12 +11,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
-import { useArchiveThread, useChrome, useCreateThread, type Chrome } from '@/state'
+import {
+  useArchiveThread,
+  useChrome,
+  useCreateThread,
+  usePrefetchThread,
+  type Chrome,
+} from '@/state'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
 import { ComposeIcon, GitPullRequestIcon, IssueOpenedIcon, RepoIcon } from '@primer/octicons-react'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { ThreadPullRequest, ThreadStatus } from './thread_row'
 
@@ -88,6 +94,14 @@ export function AppSidebar() {
   const reducedMotion = useReducedMotion()
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<ThreadGrouping>('date')
+  const [warmId, setWarmId] = useState<string | undefined>()
+  const hovering = useRef<string | undefined>(undefined)
+  const warmed = usePrefetchThread(warmId)
+
+  useEffect(() => {
+    if (warmed && hovering.current !== warmId) setWarmId(undefined)
+  }, [warmed, warmId])
+
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query)
   const layoutDependency = `${grouping}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.updatedAt}`).join(',')}`
@@ -217,6 +231,16 @@ export function AppSidebar() {
                   layoutDependency={layoutDependency}
                   initial={false}
                   transition={{ layout: rowLayoutTransition }}
+                  onPointerEnter={() => {
+                    if (thread.id === selectedId) return
+                    hovering.current = thread.id
+                    setWarmId(thread.id)
+                  }}
+                  onPointerLeave={() => {
+                    if (hovering.current !== thread.id) return
+                    hovering.current = undefined
+                    if (warmId === thread.id && warmed) setWarmId(undefined)
+                  }}
                 >
                   <ThreadRow
                     {...thread}
