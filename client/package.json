@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jetty/shared": "workspace:*",
     "@tanstack/react-router": "^1.170.33",
+    "effect": "4.0.0-rc.112",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
