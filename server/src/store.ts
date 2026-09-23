@@ -224,20 +224,48 @@ export function createStore() {
           const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
           const [turn] = yield* sql<{
             hop: number
-          }>`SELECT hop FROM orchestration_turns WHERE turn_id = ${event.turnId}`
+            initiator_thread_id: string | null
+          }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
           const hop = (turn?.hop ?? 0) + 1
-          if (settings?.notify_parent && parent && !parent.archived && hop <= 20) {
+          if (
+            settings?.notify_parent &&
+            parent &&
+            !parent.archived &&
+            turn?.initiator_thread_id === parent.id
+          ) {
             const reply = state.items
               .filter((item) => item.turnId === event.turnId && item.kind === 'assistant_message')
               .map((item) => ('text' in item ? item.text : ''))
               .join('\n')
-            yield* enqueue(parent.id, {
-              id: newId(),
-              createdAt: ts,
-              hop,
-              from: { threadId, title: thread.title },
-              text: `Thread ${thread.title} ${event.type === 'turn.failed' ? 'failed' : 'finished'}: ${(event.type === 'turn.failed' ? event.error : reply).slice(0, 2000)}`,
-            })
+            if (hop > 20) {
+              yield* enqueue(threadId, {
+                id: newId(),
+                createdAt: ts,
+                hop: turn.hop,
+                text: `Completion notification to ${parent.title} was not delivered: message hop limit exceeded.`,
+              })
+            } else {
+              const media = state.items.flatMap((item) =>
+                item.turnId !== event.turnId
+                  ? []
+                  : item.kind === 'image_gallery'
+                    ? item.images.map((image) => ({
+                        kind: 'image',
+                        ...image,
+                        caption: item.caption,
+                      }))
+                    : item.kind === 'video'
+                      ? [{ kind: 'video', ...item.video, caption: item.caption }]
+                      : []
+              )
+              yield* enqueue(parent.id, {
+                id: newId(),
+                createdAt: ts,
+                hop,
+                from: { threadId, title: thread.title },
+                text: `Thread ${thread.title} is ready for review: ${(event.type === 'turn.failed' ? event.error : reply).slice(0, 2000)}${media.length ? '\nMedia available to re-post with send_images/send_video by attachment id:\n' + media.map((a) => JSON.stringify({ attachmentId: a.id, kind: a.kind, name: a.name, caption: a.caption })).join('\n') : ''}`,
+              })
+            }
           }
         }
         yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts} WHERE id = ${threadId}`
@@ -307,7 +335,10 @@ export function createStore() {
             yield* writeState(threadId, { ...current, activeTurnId: turnId, status: 'starting' })
             yield* sql`UPDATE threads SET status = 'starting' WHERE id = ${threadId}`
           }
-          yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop) VALUES (${turnId}, ${threadId}, ${hop}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
+          const thread = yield* requireThread(threadId)
+          const initiator =
+            thread.pendingMessages?.find((m) => m.id === messageId)?.from?.threadId ?? null
+          yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${hop}, ${initiator}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
           if (messageId) yield* removeQueued(threadId, messageId)
         }).pipe(Effect.mapError(storeError))
       },
@@ -460,14 +491,18 @@ export function createStore() {
       deleteThread(threadId: string) {
         return Effect.gen(function* () {
           yield* requireThread(threadId)
-          const ids = attachmentIdsOf(yield* getThreadState(threadId))
+          const ids = new Set(attachmentIdsOf(yield* getThreadState(threadId)))
           yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
           yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
-          return ids
+          const remaining = yield* sql<ThreadRow>`SELECT * FROM threads`
+          for (const row of remaining) {
+            for (const id of attachmentIdsOf(yield* getThreadState(row.id))) ids.delete(id)
+          }
+          return [...ids]
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThread,

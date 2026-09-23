@@ -67,6 +67,17 @@ const migrations = SqliteMigrator.fromRecord({
       result_json TEXT NOT NULL, PRIMARY KEY(caller_id, request_id, operation)
     )`
   }),
+  '008_turn_initiator': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE orchestration_turns ADD COLUMN initiator_thread_id TEXT`
+    yield* sql`UPDATE orchestration_turns SET initiator_thread_id = (
+      SELECT json_extract(payload_json, '$.item.from.threadId') FROM thread_events
+      WHERE thread_events.thread_id = orchestration_turns.thread_id
+        AND json_extract(payload_json, '$.item.turnId') = orchestration_turns.turn_id
+        AND json_extract(payload_json, '$.item.kind') = 'user_message'
+      ORDER BY seq LIMIT 1
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {

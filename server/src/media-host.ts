@@ -1,5 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { Attachment } from '@jetty/shared/items'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 import { newId } from '@jetty/shared/wire'
 import { Effect, Fiber, Path, Scope } from 'effect'
@@ -10,6 +11,7 @@ import { StoreError } from './store'
 
 export type MediaToolHost = {
   attachments: Attachments
+  resolveAttachment?: (id: string, kind: PersistKind) => Effect.Effect<Attachment, Error>
   projectPath: string
   turnId: () => string
   emit: (
@@ -26,6 +28,7 @@ type MediaItem =
 type MediaRequest = {
   kind: PersistKind
   paths: readonly string[]
+  attachmentIds?: readonly string[]
   caption: string | undefined
   toItem: (media: Attachment[]) => MediaItem
   summary: (media: Attachment[]) => string
@@ -41,6 +44,21 @@ export function createMediaSender(host: MediaToolHost) {
         Effect.gen(function* () {
           const turnId = host.turnId()
           const media: Attachment[] = []
+          const count = request.paths.length + (request.attachmentIds?.length ?? 0)
+          if (count < 1 || count > (request.kind === 'image' ? 4 : 1))
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                'Provide 1–4 images or one video, using paths or attachment ids'
+              )
+            )
+          for (const id of request.attachmentIds ?? []) {
+            if (!host.resolveAttachment)
+              return yield* Effect.fail(
+                new StoreError('not_found', 'Attachment not found in caller project')
+              )
+            media.push(yield* host.resolveAttachment(id, request.kind))
+          }
           let committed = false
           for (const src of request.paths) {
             media.push(
@@ -90,7 +108,7 @@ export function createMediaSender(host: MediaToolHost) {
       )
     }
 
-    return function run(request: MediaRequest, extra: unknown) {
+    return function run(request: MediaRequest, extra: unknown): Promise<CallToolResult> {
       const signal =
         extra &&
         typeof extra === 'object' &&

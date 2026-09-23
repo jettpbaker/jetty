@@ -309,6 +309,30 @@ export function createMcpHandler(
               return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
             const host = {
               attachments,
+              resolveAttachment: (id: string, kind: 'image' | 'video') =>
+                Effect.gen(function* () {
+                  for (const thread of yield* store.listThreads()) {
+                    if (thread.projectId !== caller.projectId || thread.archived) continue
+                    const state = yield* store.getThreadState(thread.id)
+                    for (const item of state.items) {
+                      const media =
+                        item.kind === 'image_gallery'
+                          ? item.images
+                          : item.kind === 'video'
+                            ? [item.video]
+                            : item.kind === 'user_message'
+                              ? item.attachments
+                              : []
+                      const found = media.find(
+                        (a) => a.id === id && a.mimeType.startsWith(kind + '/')
+                      )
+                      if (found && (yield* attachments.resolve(id))) return found
+                    }
+                  }
+                  return yield* Effect.fail(
+                    new StoreError('not_found', 'Attachment not found in caller project')
+                  )
+                }),
               projectPath: project.path,
               turnId: () => orch.currentTurn(caller.id) ?? '',
               emit: (
