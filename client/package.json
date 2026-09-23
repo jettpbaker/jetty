@@ -10,6 +10,8 @@
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@chenglou/pretext": "^0.0.9",
+    "@dnd-kit/dom": "^0.5.0",
+    "@dnd-kit/react": "^0.5.0",
     "@effect/atom-react": "4.0.0-rc.112",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
@@ -21,7 +23,9 @@
     "@tanstack/react-router": "^1.170.33",
     "@tanstack/react-virtual": "^3.14.13",
     "class-variance-authority": "^0.7.1",
+    "cmdk": "^1.1.1",
     "cn": "^0.2.6",
+    "culori": "^4.0.2",
     "effect": "4.0.0-rc.112",
     "motion": "^13.2.0",
     "react": "^19.2.8",
@@ -34,6 +38,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.36",
+    "@types/culori": "^4.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",

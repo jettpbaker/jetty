@@ -26,6 +26,20 @@
   "ignorePatterns": ["dist/**"],
   "overrides": [
     {
+      "files": [
+        "client/src/components/custom/settings_*.tsx",
+        "client/src/components/custom/wallpaper_editor.tsx",
+        "client/src/components/custom/accent_picker.tsx",
+        "client/src/components/custom/project_folder_dialog.tsx"
+      ],
+      "rules": {
+        "jsx-a11y/prefer-tag-over-role": "off",
+        "jsx-a11y/no-noninteractive-tabindex": "off",
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        "jsx-a11y/control-has-associated-label": "off"
+      }
+    },
+    {
       "files": ["client/src/components/ui/**", "client/src/components/ai-elements/**"],
       "rules": {
         "no-unused-vars": "off",

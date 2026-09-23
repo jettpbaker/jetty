@@ -1,0 +1,30 @@
+/* Only theme switches get these rules; ordinary controls keep their own motion. */
+html[data-theme-transition='off'] *,
+html[data-theme-transition='crossfade'] * {
+  transition: none !important;
+}
+html[data-theme-transition='crossfade']::view-transition-old(root) {
+  animation: theme-fade-out 150ms ease-out both;
+  z-index: 1;
+  mix-blend-mode: normal;
+}
+html[data-theme-transition='crossfade']::view-transition-new(root) {
+  animation: none;
+  z-index: 0;
+  mix-blend-mode: normal;
+}
+html[data-theme-transition='crossfade']::view-transition-group(root) {
+  animation-duration: 150ms;
+}
+@keyframes theme-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-transition] *,
+  html[data-theme-transition] *::before,
+  html[data-theme-transition] *::after {
+    transition: none !important;
+  }
+}

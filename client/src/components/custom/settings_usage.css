@@ -1,0 +1,27 @@
+.settings-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+.settings-usage-provider {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-usage-provider + .settings-usage-provider::before {
+  content: '';
+  position: absolute;
+  inset: -20px 0 auto;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+.settings-usage-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-usage-window {
+  min-width: 0;
+}
