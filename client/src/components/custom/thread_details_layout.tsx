@@ -16,6 +16,7 @@ import {
 import { createPortal } from 'react-dom'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
+import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ThreadChanges } from './thread_changes'
 import { ThreadDetailsTabs } from './thread_details_tabs'
 import './thread_details_layout.css'
@@ -147,6 +148,11 @@ export function ThreadDetailsLayout({
         className='details-pane h-full min-w-0 gap-0'
       >
         <header className='flex h-(--app-tab-bar-height) shrink-0 border-b border-border pr-[74px]'>
+          {full && (
+            <div className='flex shrink-0 items-center pl-(--page-header-inset)'>
+              <PageSidebarTrigger />
+            </div>
+          )}
           <div className='min-w-0 flex-1 overflow-hidden'>
             <ThreadDetailsTabs
               chat={full}
