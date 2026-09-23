@@ -82,6 +82,11 @@ export const browser: Platform = {
         return false
       }
     },
+    remove(key) {
+      try {
+        sessionStorage.removeItem(key)
+      } catch {}
+    },
   },
   blobs: {
     async get(key) {

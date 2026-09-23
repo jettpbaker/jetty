@@ -9,6 +9,7 @@ export type Platform = {
   session: {
     get: (key: string) => string | undefined
     set: (key: string, value: string) => boolean
+    remove: (key: string) => void
   }
   blobs: {
     get: (key: string) => Promise<Blob | undefined>
