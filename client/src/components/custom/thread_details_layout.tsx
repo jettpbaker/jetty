@@ -1,8 +1,15 @@
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
+import {
+  pullRequestTabId,
+  useDetailsRequest,
+  usePullRequestTabs,
+  useThreadPullRequests,
+} from '@/state'
 import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, SidebarSimpleIcon } from '@phosphor-icons/react'
 import {
+  Activity,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -17,6 +24,7 @@ import { createPortal } from 'react-dom'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
+import { ThreadPullRequestView } from './pull_request_view'
 import { ThreadChanges } from './thread_changes'
 import { ThreadDetailsTabs } from './thread_details_tabs'
 import { ThreadOverview, useHasOverview } from './thread_overview'
@@ -54,6 +62,13 @@ export function ThreadDetailsLayout({
   const hasOverview = useHasOverview(threadId, childThreads)
   const hasOverviewNow = useRef(hasOverview)
   hasOverviewNow.current = hasOverview
+  const links = useThreadPullRequests(threadId)
+  const { visible: pullRequestLinks, show, hide } = usePullRequestTabs(threadId, links)
+  const pullRequests = useMemo(
+    () => ({ links, visible: pullRequestLinks, show, hide }),
+    [links, pullRequestLinks, show, hide]
+  )
+  const { tab: requestedTab, consume } = useDetailsRequest(threadId)
   const narrow = available < narrowWidth
   const full = narrow || expanded
   const max = Math.max(minWidth, available - 360)
@@ -64,6 +79,19 @@ export function ThreadDetailsLayout({
     if (root.current) setAvailable(root.current.clientWidth)
     setOpen((value) => !value)
   }
+
+  const openingTab = useRef<string>(undefined)
+  useLayoutEffect(() => {
+    if (!requestedTab) return
+    consume()
+    if (open) {
+      setTab(requestedTab)
+      return
+    }
+    openingTab.current = requestedTab
+    if (root.current) setAvailable(root.current.clientWidth)
+    setOpen(true)
+  }, [requestedTab, consume, open])
 
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
@@ -86,7 +114,9 @@ export function ThreadDetailsLayout({
   }, [])
 
   useLayoutEffect(() => {
-    if (open) setTab(hasOverviewNow.current ? 'overview' : 'changes')
+    if (!open) return
+    setTab(openingTab.current ?? (hasOverviewNow.current ? 'overview' : 'changes'))
+    openingTab.current = undefined
   }, [open])
 
   useLayoutEffect(() => {
@@ -164,7 +194,9 @@ export function ThreadDetailsLayout({
           <div className='min-w-0 flex-1 overflow-hidden'>
             <ThreadDetailsTabs
               chat={full}
+              threadId={threadId}
               threadCount={childThreads.length}
+              pullRequests={pullRequests}
               value={tab}
               onValueChange={setTab}
             />
@@ -219,11 +251,30 @@ export function ThreadDetailsLayout({
                 <ChildThreadList threads={childThreads} />
               </div>
             </TabsContent>
+            {pullRequestLinks.map((link) => {
+              const id = pullRequestTabId(link)
+              return (
+                <TabsContent
+                  key={id}
+                  keepMounted
+                  value={id}
+                  inert={tab !== id}
+                  aria-hidden={tab !== id}
+                  className='details-tab-panel'
+                >
+                  {open && (
+                    <Activity mode={tab === id ? 'visible' : 'hidden'}>
+                      <ThreadPullRequestView threadId={threadId} link={link} />
+                    </Activity>
+                  )}
+                </TabsContent>
+              )
+            })}
           </div>
         </div>
       </Tabs>
     ),
-    [tab, full, open, threadId, childThreads]
+    [tab, full, open, threadId, childThreads, pullRequests, pullRequestLinks]
   )
 
   return (

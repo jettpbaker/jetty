@@ -1,12 +1,18 @@
+import type { PullRequestLink } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import { storage } from '@/platform'
+import { pullRequestTabId, type PullRequestRef } from '@/state'
 import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -15,6 +21,7 @@ import {
   CommentDiscussionIcon,
   DiffIcon,
   ListUnorderedIcon,
+  LinkIcon,
   PlusIcon,
   WorkflowIcon,
   XIcon,
@@ -27,7 +34,11 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  type ReactNode,
 } from 'react'
+
+import { LinkPullRequestDialog } from './pull_request_link'
+import { prPresentation } from './thread_pull_request'
 
 const tabs = {
   chat: { label: 'Chat', Icon: CommentDiscussionIcon },
@@ -71,27 +82,46 @@ function loadState(): { order: TabId[]; closed: TabId[] } {
   return { order: sortableIds, closed: [] }
 }
 
+export type PullRequestTabs = {
+  links: readonly PullRequestLink[]
+  visible: readonly PullRequestLink[]
+  show: (ref: PullRequestRef) => void
+  hide: (ref: PullRequestRef) => void
+}
+
 export function ThreadDetailsTabs({
   chat = false,
+  threadId,
   threadCount,
+  pullRequests,
   value,
   onValueChange,
 }: {
   chat?: boolean
+  threadId: string
   threadCount: number
+  pullRequests: PullRequestTabs
   value: string
   onValueChange: (value: string) => void
 }) {
   const [{ order, closed }, setState] = useState(loadState)
   const [announcement, setAnnouncement] = useState('')
+  const [linking, setLinking] = useState(false)
   const closedSet = new Set(closed)
   const chatOpen = chat && !closedSet.has('chat')
   const available = order.filter((id) => id !== 'threads' || threadCount > 0)
   const openSortable = available.filter((id) => !closedSet.has(id))
-  const shownSortable = openSortable.length > 0 || chatOpen ? openSortable : [available[0]!]
+  const shownSortable =
+    openSortable.length > 0 || chatOpen || pullRequests.visible.length > 0
+      ? openSortable
+      : [available[0]!]
   const catalog = [...(chat ? ['chat' as const] : []), ...available]
-  const visible = [...(chatOpen ? ['chat' as const] : []), ...shownSortable]
-  const valueVisible = visible.includes(value as TabId)
+  const visible: string[] = [
+    ...(chatOpen ? ['chat' as const] : []),
+    ...shownSortable,
+    ...pullRequests.visible.map(pullRequestTabId),
+  ]
+  const valueVisible = visible.includes(value)
   const first = visible[0]!
   const fallback = available[0]!
   const reopenFirst = shownSortable !== openSortable
@@ -118,20 +148,34 @@ export function ThreadDetailsTabs({
     setState((state) => ({ ...state, order: next }))
     setAnnouncement(`${tabs[id!].label} moved to position ${to + 1} of ${nextVisible.length}`)
   }
+  function leave(id: string) {
+    const remaining = visible.filter((tab) => tab !== id)
+    if (value === id) onValueChange(remaining[0]!)
+  }
   function closeTab(id: TabId) {
     if (visible.length < 2) return
-    const remaining = visible.filter((tab) => tab !== id)
     setState((state) => ({
       ...state,
       closed: state.closed.includes(id) ? state.closed : [...state.closed, id],
     }))
     setAnnouncement(`${tabs[id].label} closed`)
-    if (value === id) onValueChange(remaining[0]!)
+    leave(id)
   }
   function openTab(id: TabId) {
     setState((state) => ({ ...state, closed: state.closed.filter((tab) => tab !== id) }))
     setAnnouncement(`${tabs[id].label} opened`)
     onValueChange(id)
+  }
+  function closePullRequest(link: PullRequestLink) {
+    if (visible.length < 2) return
+    pullRequests.hide(link)
+    setAnnouncement(`Pull request #${link.number} closed`)
+    leave(pullRequestTabId(link))
+  }
+  function openPullRequest(link: PullRequestLink) {
+    pullRequests.show(link)
+    setAnnouncement(`Pull request #${link.number} opened`)
+    onValueChange(pullRequestTabId(link))
   }
   const canClose = visible.length > 1
   return (
@@ -155,7 +199,7 @@ export function ThreadDetailsTabs({
             value='chat'
             className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
           >
-            <TabLabel id='chat' canClose={canClose} onClose={closeTab} />
+            <StaticTabLabel id='chat' canClose={canClose} onClose={closeTab} />
           </TabsTrigger>
         )}
         {shownSortable.map((id, index) => (
@@ -169,6 +213,24 @@ export function ThreadDetailsTabs({
             onClose={closeTab}
           />
         ))}
+        {pullRequests.visible.map((link) => {
+          const pr = prPresentation[link.state ?? 'open']
+          return (
+            <TabsTrigger
+              key={pullRequestTabId(link)}
+              value={pullRequestTabId(link)}
+              className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+              title={link.title ? `${link.title} · ${link.repo}#${link.number}` : link.url}
+            >
+              <TabLabel
+                label={`#${link.number}`}
+                icon={<pr.icon className={cn('details-tab-kind size-3', pr.color)} />}
+                canClose={canClose}
+                onClose={() => closePullRequest(link)}
+              />
+            </TabsTrigger>
+          )
+        })}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -178,7 +240,7 @@ export function ThreadDetailsTabs({
           >
             <PlusIcon className='size-3' />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align='start' className='min-w-36'>
+          <DropdownMenuContent align='start' className='max-w-72 min-w-36'>
             {catalog.map((id) => {
               const { label, Icon } = tabs[id]
               const open = visible.includes(id)
@@ -195,10 +257,35 @@ export function ThreadDetailsTabs({
                 </DropdownMenuCheckboxItem>
               )
             })}
+            <DropdownMenuSeparator />
+            {pullRequests.links.map((link) => {
+              const pr = prPresentation[link.state ?? 'open']
+              const open = pullRequests.visible.includes(link)
+              return (
+                <DropdownMenuCheckboxItem
+                  key={pullRequestTabId(link)}
+                  checked={open}
+                  disabled={open && !canClose}
+                  closeOnClick={false}
+                  onCheckedChange={(checked) =>
+                    checked ? openPullRequest(link) : closePullRequest(link)
+                  }
+                >
+                  <pr.icon className={pr.color} />
+                  <span className='font-mono text-muted-foreground'>#{link.number}</span>
+                  <span className='truncate'>{link.title}</span>
+                </DropdownMenuCheckboxItem>
+              )
+            })}
+            <DropdownMenuItem onClick={() => setLinking(true)}>
+              <LinkIcon />
+              Link pull request
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TabsList>
       <output className='sr-only'>{announcement}</output>
+      <LinkPullRequestDialog threadId={threadId} open={linking} onOpenChange={setLinking} />
     </DragDropProvider>
   )
 }
@@ -239,12 +326,12 @@ function SortableTab({
         onMove(index, index + (event.key === 'ArrowLeft' ? -1 : 1))
       }}
     >
-      <TabLabel id={id} count={count} canClose={canClose} onClose={onClose} />
+      <StaticTabLabel id={id} count={count} canClose={canClose} onClose={onClose} />
     </TabsTrigger>
   )
 }
 
-function TabLabel({
+function StaticTabLabel({
   id,
   count,
   canClose,
@@ -256,6 +343,30 @@ function TabLabel({
   onClose: (id: TabId) => void
 }) {
   const { label, Icon } = tabs[id]
+  return (
+    <TabLabel
+      label={label}
+      icon={<Icon className='details-tab-kind size-3' />}
+      count={count}
+      canClose={canClose}
+      onClose={() => onClose(id)}
+    />
+  )
+}
+
+function TabLabel({
+  label,
+  icon,
+  count,
+  canClose,
+  onClose,
+}: {
+  label: string
+  icon: ReactNode
+  count?: number
+  canClose: boolean
+  onClose: () => void
+}) {
   function stop(event: PointerEvent | MouseEvent | KeyboardEvent) {
     event.preventDefault()
     event.stopPropagation()
@@ -263,7 +374,7 @@ function TabLabel({
   return (
     <>
       <span className='details-tab-icon'>
-        <Icon className='details-tab-kind size-3' />
+        {icon}
         {canClose && (
           <span
             // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a <button> can't nest inside the tab's <button>
@@ -274,12 +385,12 @@ function TabLabel({
             onPointerDown={stop}
             onClick={(event) => {
               stop(event)
-              onClose(id)
+              onClose()
             }}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' && event.key !== ' ') return
               stop(event)
-              onClose(id)
+              onClose()
             }}
           >
             <XIcon className='size-3' />
