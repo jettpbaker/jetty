@@ -15,6 +15,8 @@ export type TranslateCtx = {
   agentId: string | null
   // shared by the main ctx and every subagent ctx: subagent streams stay separate
   agents: Map<string, TranslateCtx>
+  // the SDK's task id (canUseTool's agentID) → the subagent item id
+  tasks: Map<string, string>
   currentAssistantId: string | null
   currentReasoningId: string | null
   toolUseToItemId: Map<string, string>
@@ -27,13 +29,14 @@ export type TranslateCtx = {
 
 export function createTranslateCtx(
   turnId: string,
-  agents = new Map<string, TranslateCtx>(),
+  shared?: TranslateCtx,
   agentId: string | null = null
 ): TranslateCtx {
   return {
     turnId,
     agentId,
-    agents,
+    agents: shared?.agents ?? new Map(),
+    tasks: shared?.tasks ?? new Map(),
     currentAssistantId: null,
     currentReasoningId: null,
     toolUseToItemId: new Map(),
@@ -56,6 +59,8 @@ export type SdkLikeMessage = {
   }
   parent_tool_use_id?: string | null
   tool_use_id?: string
+  task_id?: string
+  subagent_type?: string
   status?: string
   usage?: {
     input_tokens?: number
@@ -118,7 +123,7 @@ export function translate(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[]
 function agentCtx(ctx: TranslateCtx, agentId: string): TranslateCtx {
   let agent = ctx.agents.get(agentId)
   if (!agent) {
-    agent = createTranslateCtx(ctx.turnId, ctx.agents, agentId)
+    agent = createTranslateCtx(ctx.turnId, ctx, agentId)
     ctx.agents.set(agentId, agent)
   }
   return agent
@@ -134,6 +139,14 @@ function itemBase(ctx: TranslateCtx) {
 
 const SETTLED_TASK_STATUSES: ReadonlySet<string> = new Set(['completed', 'failed', 'stopped'])
 
+function natural(value: number | undefined) {
+  return value != null && Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined
+}
+
+export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
+  return taskId ? ctx.tasks.get(taskId) : undefined
+}
+
 function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
   if (msg.subtype === 'init' && typeof msg.session_id === 'string') {
     ctx.sessionId = msg.session_id
@@ -141,10 +154,17 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
   }
   const itemId = msg.tool_use_id
   if (!itemId || !ctx.agents.has(itemId)) return []
-  const tokens = msg.usage?.total_tokens
+  const tokens = natural(msg.usage?.total_tokens)
+  if (msg.subtype === 'task_started') {
+    if (msg.task_id) ctx.tasks.set(msg.task_id, itemId)
+    return msg.subagent_type
+      ? [{ type: 'item.updated', itemId, patch: { agentType: msg.subagent_type } }]
+      : []
+  }
   if (msg.subtype === 'task_progress' && tokens != null)
-    return [{ type: 'item.completed', itemId, patch: { tokens } }]
-  if (msg.subtype === 'task_notification' && msg.status && SETTLED_TASK_STATUSES.has(msg.status))
+    return [{ type: 'item.updated', itemId, patch: { tokens } }]
+  if (msg.subtype === 'task_notification' && msg.status && SETTLED_TASK_STATUSES.has(msg.status)) {
+    const durationMs = natural(msg.usage?.duration_ms)
     return [
       {
         type: 'item.completed',
@@ -152,10 +172,11 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
         patch: {
           status: msg.status,
           ...(tokens != null ? { tokens } : {}),
-          ...(msg.usage?.duration_ms != null ? { durationMs: msg.usage.duration_ms } : {}),
+          ...(durationMs != null ? { durationMs } : {}),
         },
       },
     ]
+  }
   return []
 }
 
@@ -330,7 +351,7 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
   const model = msg.message?.model
   const modelPatch: ThreadEvent[] =
     ctx.agentId && model && !ctx.sawModel
-      ? [{ type: 'item.completed', itemId: ctx.agentId, patch: { model } }]
+      ? [{ type: 'item.updated', itemId: ctx.agentId, patch: { model } }]
       : []
   if (model) ctx.sawModel = true
   return [...modelPatch, ...translateAssistantContent(msg, ctx)]
