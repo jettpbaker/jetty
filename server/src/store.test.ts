@@ -267,7 +267,7 @@ test('repeat migration and reopen preserve events, snapshots and session pointer
           }>`SELECT migration_id FROM effect_sql_migrations ORDER BY migration_id`
         })
       )
-      expect(migrations.map((row) => row.migration_id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+      expect(migrations.map((row) => row.migration_id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
     } finally {
       await reopened.close()
     }
