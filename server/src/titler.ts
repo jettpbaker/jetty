@@ -7,7 +7,7 @@ const TITLE_TIMEOUT = '30 seconds'
 const REPLY_OPENER = /^(i['’]d|i['’]ll|i['’]m|i can|sure|happy|of course|certainly)\b/i
 
 export const TITLE_INSTRUCTIONS =
-  'Name the user’s task in 2–6 words, as a human would label a to-do. Use sentence case and preserve names and acronyms. Never include the word “title”. Do not answer the request. Reply with only the task name, without quotes or punctuation. Example: “Reply with the single word PONG” → “Reply with PONG”.'
+  'Name the user’s task in 2–6 words, as a human would label a to-do. Use sentence case and preserve names and acronyms. Never include the word “title”. Do not answer the request. Reply with only the task name, without quotes or punctuation. Example: “can you look into why the login test keeps failing on CI?” → “Fix flaky login test”.'
 
 export const titlePrompt = (text: string) =>
   `Title this conversation opener:\n\n<opening-message>\n${text}\n</opening-message>`
