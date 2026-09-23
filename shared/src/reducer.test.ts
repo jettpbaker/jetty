@@ -83,7 +83,12 @@ describe('applyEvent', () => {
       { type: 'item.delta', itemId: 'c1', delta: 'README.md\n' },
       { type: 'item.completed', itemId: 'c1', patch: { status: 'succeeded' } },
     ])
-    expect(state.items[0]).toEqual({ ...tool, output: 'README.md\n', status: 'succeeded' })
+    expect(state.items[0]).toEqual({
+      ...tool,
+      output: 'README.md\n',
+      status: 'succeeded',
+      completedAt: 0,
+    })
   })
 
   test('approval resolves via patch', () => {
@@ -103,7 +108,7 @@ describe('applyEvent', () => {
       { type: 'item.completed', itemId: 'p1', patch: { decision: 'allow' } },
       { type: 'session.status', status: 'running' },
     ])
-    expect(state.items[0]).toEqual({ ...approval, decision: 'allow' })
+    expect(state.items[0]).toEqual({ ...approval, decision: 'allow', completedAt: 0 })
     expect(state.status).toBe('running')
   })
 
@@ -113,7 +118,12 @@ describe('applyEvent', () => {
       { type: 'item.delta', itemId: 'a1', delta: 'hi' },
       { type: 'item.completed', itemId: 'a1' },
     ])
-    expect(state.items[0]).toEqual({ ...assistant('a1'), text: 'hi', streaming: false })
+    expect(state.items[0]).toEqual({
+      ...assistant('a1'),
+      text: 'hi',
+      streaming: false,
+      completedAt: 0,
+    })
   })
 
   test('turn end settles items stranded mid-stream', () => {
@@ -122,7 +132,7 @@ describe('applyEvent', () => {
       { type: 'item.started', item: { ...assistant('a1'), streaming: true } },
       { type: 'turn.failed', turnId: 't1', error: 'boom' },
     ])
-    expect(state.items[0]).toEqual({ ...assistant('a1'), streaming: false })
+    expect(state.items[0]).toEqual({ ...assistant('a1'), streaming: false, completedAt: 0 })
   })
 
   test('turn.failed returns to idle', () => {

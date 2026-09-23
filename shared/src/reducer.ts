@@ -20,12 +20,12 @@ export const emptyThread: ThreadState = {
   context: null,
 }
 
-export function applyEvent(state: ThreadState, { seq, event }: SequencedEvent): ThreadState {
+export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEvent): ThreadState {
   if (seq <= state.lastSeq) return state
-  return { ...reduce(state, event), lastSeq: seq }
+  return { ...reduce(state, event, ts), lastSeq: seq }
 }
 
-function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
+function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState {
   switch (event.type) {
     case 'turn.started':
       return { ...state, activeTurnId: event.turnId, status: 'running' }
@@ -35,7 +35,7 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
         ...state,
         activeTurnId: null,
         status: 'idle',
-        items: state.items.map(settleStreaming),
+        items: state.items.map((item) => settleStreaming(item, ts)),
       }
     case 'item.started':
       return { ...state, items: [...state.items, event.item] }
@@ -43,7 +43,11 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
       return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
     case 'item.completed':
       return updateItem(state, event.itemId, (item) =>
-        settleStreaming(Schema.decodeUnknownSync(ThreadItem)({ ...item, ...event.patch }))
+        Schema.decodeUnknownSync(ThreadItem)({
+          ...settleStreaming(item, ts),
+          ...event.patch,
+          completedAt: ts,
+        })
       )
     case 'session.status':
       return { ...state, status: event.status }
@@ -52,8 +56,9 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
   }
 }
 
-function settleStreaming(item: ThreadItem): ThreadItem {
-  if ('streaming' in item && item.streaming) return { ...item, streaming: false }
+function settleStreaming(item: ThreadItem, ts: number): ThreadItem {
+  if ('streaming' in item && item.streaming)
+    return { ...item, streaming: false, completedAt: item.completedAt ?? ts }
   return item
 }
 

@@ -283,7 +283,7 @@ describe('item completion patch decoding', () => {
       patch: { text: 'done', tokens: 2, ignored: { nested: true } },
     })
     expect(applyEvent(state, event).items).toEqual([
-      { ...reasoning, text: 'done', tokens: 2, streaming: false },
+      { ...reasoning, text: 'done', tokens: 2, streaming: false, completedAt: 0 },
     ])
     expect(state.items).toEqual([item])
   })

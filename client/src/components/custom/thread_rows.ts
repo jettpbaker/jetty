@@ -18,6 +18,7 @@ export type ThreadRow =
   | {
       kind: 'work'
       id: string
+      turnId: string
       activities: WorkActivity[]
       status: ActivityStatus
       elapsedSeconds?: number
@@ -86,8 +87,12 @@ function textRunning(
   return item.streaming ?? (isThreadTail && sessionRunning)
 }
 
-function elapsedSeconds(start: ThreadItem, end: ThreadItem | undefined) {
-  return end?.turnId === start.turnId ? (end.createdAt - start.createdAt) / 1000 : undefined
+function elapsedSeconds(span: readonly WorkItem[], next: ThreadItem | undefined) {
+  const start = span[0]!
+  const ends = span.map((item) => item.completedAt)
+  if (ends.every((end): end is number => end !== undefined))
+    return (Math.max(...ends) - start.createdAt) / 1000
+  return next?.turnId === start.turnId ? (next.createdAt - start.createdAt) / 1000 : undefined
 }
 
 function toActivity(
@@ -107,7 +112,7 @@ function toActivity(
       tokens: item.tokens,
       elapsedSeconds: running
         ? Math.max(0, (Date.now() - item.createdAt) / 1000)
-        : elapsedSeconds(item, next),
+        : elapsedSeconds([item], next),
     }
   }
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
@@ -176,12 +181,17 @@ export function threadRows(
     const activities = pending.map((item, index) =>
       toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
     )
+    const blockStatus = workStatus(activities)
     rows.push({
       kind: 'work',
       id: pending[0]!.id,
+      turnId: pending[0]!.turnId,
       activities,
-      status: workStatus(activities),
-      elapsedSeconds: elapsedSeconds(pending[0]!, next),
+      status: blockStatus,
+      elapsedSeconds:
+        blockStatus === 'running' || blockStatus === 'waiting'
+          ? undefined
+          : elapsedSeconds(pending, next),
     })
     pending = []
   }
@@ -232,5 +242,10 @@ export function threadRows(
     }
   }
   flush(undefined)
+  const lastWork = rows.findLast((row) => row.kind === 'work')
+  if (status === 'awaiting_approval' && lastWork && lastWork.turnId === items.at(-1)?.turnId) {
+    lastWork.status = 'waiting'
+    lastWork.elapsedSeconds = undefined
+  }
   return rows
 }

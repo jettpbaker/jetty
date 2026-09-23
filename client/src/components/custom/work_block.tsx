@@ -73,7 +73,7 @@ export function WorkBlock({
   const duration = formatActivityDuration(elapsedSeconds)
   const heading =
     waiting.length || status === 'waiting'
-      ? 'Waiting for approval'
+      ? 'Waiting for you'
       : status === 'running'
         ? 'Working'
         : status === 'complete'

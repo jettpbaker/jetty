@@ -25,6 +25,7 @@ const itemBase = {
   id: Schema.String,
   turnId: Schema.String,
   createdAt: Schema.Int,
+  completedAt: Schema.optional(Schema.Int),
 }
 
 export const ThreadItem = Schema.Union([
