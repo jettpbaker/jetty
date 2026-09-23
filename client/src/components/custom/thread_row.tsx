@@ -9,7 +9,7 @@ import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
 import { prPresentation, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
-import { ThreadStatusGlyph, type ThreadStatus } from './thread_status'
+import { StatusGlyph, type ThreadStatus } from './thread_status'
 import './thread_row.css'
 
 export function ThreadRow({
@@ -75,7 +75,7 @@ export function ThreadRow({
               >
                 {title}
               </OverflowTitle>
-              <ThreadStatusGlyph status={status} iconClassName='size-3.5' />
+              <StatusGlyph status={status} />
             </span>
             <span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
               {parent ? (

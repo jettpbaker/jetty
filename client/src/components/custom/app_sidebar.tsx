@@ -47,7 +47,7 @@ import {
 } from './sidebar_thread_groups'
 import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
-import { ThreadStatusGlyph, threadStatus } from './thread_status'
+import { StatusGlyph, threadStatus } from './thread_status'
 
 const MotionSidebarContent = motion.create(SidebarContent)
 const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0 }
@@ -261,9 +261,7 @@ export function AppSidebar() {
                           aria-hidden='true'
                         />
                       ) : (
-                        item.status && (
-                          <ThreadStatusGlyph status={item.status} iconClassName='size-3' />
-                        )
+                        item.status && <StatusGlyph status={item.status} className='size-3' />
                       )}
                       <span className='flex min-w-0 flex-1 items-baseline gap-1'>
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>

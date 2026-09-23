@@ -9,7 +9,7 @@ import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
 import { prPresentation, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
-import { ThreadStatusGlyph, statusPresentation, type ThreadStatus } from './thread_status'
+import { StatusGlyph, statusPresentation, type ThreadStatus } from './thread_status'
 import './thread_hover.css'
 
 export type ThreadDetails = {
@@ -102,7 +102,7 @@ function ThreadHoverContent({
       <div className='flex min-w-0 items-center justify-between gap-3 text-muted-foreground'>
         <span className='flex shrink-0 items-center gap-1.5'>
           <span className='flex items-center gap-1'>
-            <ThreadStatusGlyph status={status} iconClassName='size-3' />
+            <StatusGlyph status={status} className='size-3' />
             <span>{statusPresentation[status].label}</span>
           </span>
           <span aria-hidden='true'>·</span>

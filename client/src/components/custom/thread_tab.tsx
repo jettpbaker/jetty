@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactElement } from 'react'
 
 import { renderWorkingTitle } from '@/components/custom/subagent_row'
-import { ThreadStatusGlyph, type ThreadStatus } from '@/components/custom/thread_status'
+import { StatusGlyph, type ThreadStatus } from '@/components/custom/thread_status'
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -58,7 +58,7 @@ export function ThreadTab({
           <span className='sr-only'>Subagent, {status}</span>
         </span>
       ) : (
-        <ThreadStatusGlyph status={status} iconClassName='size-glyph' />
+        <StatusGlyph status={status} className='size-glyph' />
       )}
       <OverflowTitle
         renderText={isSubagent && status === 'working' ? renderWorkingTitle : undefined}

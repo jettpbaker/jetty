@@ -51,3 +51,27 @@ export function ErrorStatusIcon(props: StatusIconProps) {
 export function SuccessStatusIcon(props: StatusIconProps) {
   return <CircleStatusIcon symbol='success' {...props} />
 }
+
+// Outlined where the filled glyphs ask for attention: the run is over and nothing waits on you.
+export function DoneStatusIcon(props: StatusIconProps) {
+  return (
+    <svg width={16} height={16} viewBox='0 0 14 14' fill='none' {...props}>
+      <circle cx='7' cy='7' r='5.9' stroke='currentColor' strokeWidth={1.2} />
+      <path
+        d='m4.6 7.1 1.6 1.6 3.2-3.3'
+        stroke='currentColor'
+        strokeWidth={1.4}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
+export function QueuedStatusIcon(props: StatusIconProps) {
+  return (
+    <svg width={16} height={16} viewBox='0 0 14 14' fill='none' {...props}>
+      <circle cx='7' cy='7' r='3.5' stroke='currentColor' />
+    </svg>
+  )
+}

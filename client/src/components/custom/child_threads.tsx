@@ -1,4 +1,3 @@
-import type { SessionStatus } from '@jetty/shared/events'
 import type { ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
@@ -11,13 +10,19 @@ import { ContainerIcon, DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
-import { SuccessStatusIcon } from './circle_status_icon'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { formatDuration, renderWorkingTitle } from './subagent_row'
-import { ThreadStatusGlyph } from './thread_status'
+import {
+  StatusGlyph,
+  statusPresentation,
+  threadStatus,
+  type Status,
+  type ThreadStatus,
+} from './thread_status'
 
-export type ChildStatus = 'working' | 'needs-attention' | 'done' | 'ready' | 'error'
+// A child that has gone idle has finished its run.
+type ChildStatus = Exclude<Status, 'idle' | 'stopped' | 'queued'>
 type Environment = 'container' | 'local'
 
 export type ChildThread = {
@@ -34,21 +39,11 @@ export type ChildThread = {
 
 type Open = (child: ChildThread) => void
 
-const statusOrder: ChildStatus[] = ['needs-attention', 'ready', 'working', 'error', 'done']
-
-function childStatus(status: SessionStatus, readyForReview = false): ChildStatus {
-  switch (status) {
-    case 'starting':
-    case 'running':
-      return 'working'
-    case 'awaiting_approval':
-      return 'needs-attention'
-    case 'error':
-      return 'error'
-    case 'idle':
-      return readyForReview ? 'ready' : 'done'
-  }
+function childStatus(status: ThreadStatus): ChildStatus {
+  return status === 'idle' ? 'done' : status
 }
+
+const statusOrder: ChildStatus[] = ['needs-attention', 'ready', 'working', 'error', 'done']
 
 function childThreads(chrome: Chrome | undefined, parentId: string) {
   if (!chrome) return []
@@ -66,7 +61,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string) {
               thread.model)
             : undefined,
         env: 'local',
-        status: childStatus(thread.status, thread.readyForReview),
+        status: childStatus(threadStatus(thread.status, thread.readyForReview)),
         updatedAt: thread.updatedAt,
         run:
           thread.turnStartedAt === undefined ||
@@ -88,28 +83,9 @@ function useOpenThread(): Open {
   return (child) => void navigate({ to: '/threads/$threadId', params: { threadId: child.id } })
 }
 
-const statusLabel: Record<ChildStatus, string> = {
-  working: 'Working',
-  'needs-attention': 'Needs input',
-  done: 'Finished',
-  ready: 'Ready for review',
-  error: 'Failed',
-}
-
 const envLabel: Record<Environment, string> = {
   container: 'Runs in a container',
   local: 'Runs locally',
-}
-
-function ChildStatusGlyph({ status }: { status: ChildStatus }) {
-  if (status === 'done')
-    return (
-      <span className='flex shrink-0 items-center text-status-success' title='Done'>
-        <SuccessStatusIcon className='size-3.5' />
-        <span className='sr-only'>Done</span>
-      </span>
-    )
-  return <ThreadStatusGlyph status={status} iconClassName='size-3.5' />
 }
 
 function ChildTitle({ child }: { child: ChildThread }) {
@@ -153,7 +129,7 @@ function LastActivity({ child }: { child: ChildThread }) {
   return (
     <span
       className='shrink-0 font-mono text-xs text-muted-foreground'
-      aria-label={`${statusLabel[child.status]}, ${label}`}
+      aria-label={`${statusPresentation[child.status].label}, ${label}`}
     >
       {runDuration ?? lastActivity}
     </span>
@@ -201,7 +177,7 @@ function OwnedThreadRow({
     >
       <span className='flex min-w-0 items-center justify-between gap-3 text-foreground'>
         <ChildTitle child={child} />
-        <ChildStatusGlyph status={child.status} />
+        <StatusGlyph status={child.status} />
       </span>
       <span className='flex min-w-0 items-center gap-3 text-xs text-muted-foreground'>
         <AgentMeta child={child} />
@@ -246,7 +222,7 @@ function CreatedRow({
           <EnvTag env={child.env} />
         </span>
       </span>
-      <ChildStatusGlyph status={child.status} />
+      <StatusGlyph status={child.status} />
     </Button>
   )
 }

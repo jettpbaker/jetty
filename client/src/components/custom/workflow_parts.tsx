@@ -1,10 +1,6 @@
 import type { ThreadItem, WorkflowAgent } from '@jetty/shared/items'
 
-import { cn } from '@/lib/utils'
-import { CircleSlashIcon } from '@primer/octicons-react'
-
-import { ErrorStatusIcon, NeedsInputIcon, SuccessStatusIcon } from './circle_status_icon'
-import { InProgressIcon } from './in_progress_icon'
+import { StatusGlyph, type Status } from './thread_status'
 
 export type Workflow = Extract<ThreadItem, { kind: 'workflow' }>
 
@@ -60,58 +56,28 @@ export function waitingCount(workflow: Workflow) {
     : 0
 }
 
+const agentStatus: Record<ShownState, Status> = {
+  queued: 'queued',
+  active: 'working',
+  waiting: 'needs-attention',
+  done: 'done',
+  error: 'error',
+  stopped: 'stopped',
+}
+
+const workflowGlyphStatus: Record<Workflow['status'], Status> = {
+  running: 'working',
+  completed: 'done',
+  failed: 'error',
+  stopped: 'stopped',
+}
+
 export function WorkflowGlyph({ workflow, className }: { workflow: Workflow; className?: string }) {
-  const status = workflowStatus(workflow)
-  if (status === 'running')
-    return (
-      <InProgressIcon
-        aria-hidden='true'
-        className={cn('size-3.5 shrink-0 text-status-working', className)}
-      />
-    )
   return (
-    <AgentGlyph
-      state={status === 'completed' ? 'done' : status === 'failed' ? 'error' : 'stopped'}
-      className={className}
-    />
+    <StatusGlyph status={workflowGlyphStatus[workflowStatus(workflow)]} className={className} />
   )
 }
 
 export function AgentGlyph({ state, className }: { state: ShownState; className?: string }) {
-  const box = cn('flex size-3.5 shrink-0 items-center justify-center', className)
-  if (state === 'done')
-    return (
-      <span className={cn(box, 'text-status-success')}>
-        <SuccessStatusIcon className='size-3.5' />
-      </span>
-    )
-  if (state === 'error')
-    return (
-      <span className={cn(box, 'text-status-error')}>
-        <ErrorStatusIcon className='size-3.5' />
-      </span>
-    )
-  if (state === 'waiting')
-    return (
-      <span className={cn(box, 'text-status-attention')}>
-        <NeedsInputIcon className='size-3.5' />
-      </span>
-    )
-  if (state === 'stopped')
-    return (
-      <span className={cn(box, 'text-muted-foreground')}>
-        <CircleSlashIcon className='size-3' />
-      </span>
-    )
-  if (state === 'active')
-    return (
-      <span className={cn(box, 'text-status-working')}>
-        <InProgressIcon className='size-3.5' />
-      </span>
-    )
-  return (
-    <span className={box}>
-      <span className='size-2 rounded-full border border-muted-foreground' />
-    </span>
-  )
+  return <StatusGlyph status={agentStatus[state]} className={className} />
 }
