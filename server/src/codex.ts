@@ -196,6 +196,9 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     'mcp_servers.jetty.tools.send_images.approval_mode="approve"',
                     '-c',
                     'mcp_servers.jetty.tools.send_video.approval_mode="approve"',
+                    ...['list_threads', 'read_thread', 'create_thread', 'send_message'].flatMap(
+                      (name) => ['-c', `mcp_servers.jetty.tools.${name}.approval_mode="approve"`]
+                    ),
                   ],
                   env: { ...process.env, ...options.env, JETTY_MCP_TOKEN: binding.token },
                 }

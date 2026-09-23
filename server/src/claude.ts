@@ -51,7 +51,12 @@ import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 import { readUsage } from './usage'
 
-const AUTO_ALLOWED_TOOLS = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL])
+const AUTO_ALLOWED_TOOLS = new Set([
+  SEND_IMAGES_TOOL,
+  SEND_VIDEO_TOOL,
+  'mcp__jetty__list_threads',
+  'mcp__jetty__read_thread',
+])
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
@@ -420,7 +425,11 @@ export function createClaudeAdapter(
               })
               return
             }
-            if (AUTO_ALLOWED_TOOLS.has(toolName)) {
+            if (
+              AUTO_ALLOWED_TOOLS.has(toolName) ||
+              (session.options.permissionMode !== 'default' &&
+                ['mcp__jetty__create_thread', 'mcp__jetty__send_message'].includes(toolName))
+            ) {
               yield* Deferred.succeed(result, {
                 behavior: 'allow',
                 updatedInput: toolInput,
@@ -567,17 +576,36 @@ export function createClaudeAdapter(
                   includePartialMessages: true,
                   forwardSubagentText: true,
                   canUseTool,
+                  hooks: {
+                    PreToolUse: [
+                      {
+                        matcher: '^mcp__jetty__(create_thread|send_message)$',
+                        hooks: [
+                          async () =>
+                            session && session.options.permissionMode !== 'default'
+                              ? {
+                                  hookSpecificOutput: {
+                                    hookEventName: 'PreToolUse',
+                                    permissionDecision: 'allow',
+                                  },
+                                }
+                              : {},
+                        ],
+                      },
+                    ],
+                  },
                   resume: resume ?? undefined,
                   mcpServers: binding
                     ? {
                         jetty: {
                           type: 'http',
                           url: binding.url,
-                          headers: { Authorization: `Bearer ${binding.token}` },
+                          headers: { Authorization: 'Bearer ${JETTY_MCP_TOKEN}' },
                         },
                       }
                     : {},
-                  allowedTools: [SEND_IMAGES_TOOL, SEND_VIDEO_TOOL],
+                  env: binding ? { ...process.env, JETTY_MCP_TOKEN: binding.token } : undefined,
+                  allowedTools: [...AUTO_ALLOWED_TOOLS],
                 },
               }),
             catch: (error) => new AgentError(String(error)),
