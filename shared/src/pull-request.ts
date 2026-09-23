@@ -54,7 +54,7 @@ export const GitHubReviewComment = Schema.Struct({
 })
 
 export const GitHubCheckRun = Schema.Struct({
-  id: Schema.Int,
+  id: Schema.Union([Schema.Int, Schema.String]),
   name: Schema.String,
   status: Schema.Literals(['queued', 'in_progress', 'completed']),
   conclusion: Schema.NullOr(

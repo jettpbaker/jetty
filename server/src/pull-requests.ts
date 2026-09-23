@@ -239,6 +239,49 @@ async function ghGraphql(ref: PullRequestRef): Promise<{
   }
 }
 
+async function ghCheckRollup(ref: PullRequestRef, sha: string): Promise<unknown[]> {
+  const [owner, name] = ref.repo.split('/')
+  const query = `query($owner:String!,$name:String!,$sha:GitObjectID!,$after:String) {
+    repository(owner:$owner,name:$name) { object(oid:$sha) { ... on Commit {
+      statusCheckRollup { contexts(first:100,after:$after) {
+        nodes {
+          __typename
+          ... on CheckRun {
+            id name status conclusion detailsUrl startedAt completedAt
+            checkSuite { app { name } workflowRun { workflow { name } } }
+          }
+          ... on StatusContext { id context state targetUrl createdAt updatedAt }
+        }
+        pageInfo { hasNextPage endCursor }
+      } }
+    } } }
+  }`
+  const contexts: unknown[] = []
+  let after: string | undefined
+  do {
+    const response = record(
+      await ghApi(
+        'graphql',
+        '-f',
+        `query=${query}`,
+        '-f',
+        `owner=${owner}`,
+        '-f',
+        `name=${name}`,
+        '-f',
+        `sha=${sha}`,
+        ...(after ? ['-f', `after=${after}`] : [])
+      )
+    )
+    const rollup = record(record(record(record(response.data).repository).object).statusCheckRollup)
+    const connection = record(rollup.contexts)
+    contexts.push(...((connection.nodes as unknown[] | undefined) ?? []))
+    const pageInfo = record(connection.pageInfo)
+    after = pageInfo.hasNextPage ? string(pageInfo.endCursor) : undefined
+  } while (after)
+  return contexts
+}
+
 async function ghPages(path: string): Promise<unknown[]> {
   const items: unknown[] = []
   for (let page = 1; page <= 5; page++) {
@@ -271,14 +314,13 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
   const [reviews, reviewComments, checks, commits, files, repo, graph] = await Promise.all([
     ghPages(`${base}/pulls/${ref.number}/reviews`),
     ghPages(`${base}/pulls/${ref.number}/comments`),
-    ghApi(`${base}/commits/${head.sha}/check-runs?per_page=100`).catch(() => ({ check_runs: [] })),
+    ghCheckRollup(ref, head.sha),
     ghPages(`${base}/pulls/${ref.number}/commits`),
     ghPages(`${base}/pulls/${ref.number}/files`),
     ghApi(base),
     ghGraphql(ref),
   ])
   const repository = repo as Record<string, unknown>
-  const checkRuns = (checks as { check_runs?: unknown[] }).check_runs ?? []
   function user(value: unknown) {
     const valueRecord = record(value)
     return {
@@ -326,16 +368,44 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
         resolved: graph.resolved.get(Number(comment.id)) ?? false,
       }
     }),
-    checkRuns: checkRuns.map((value) => {
+    checkRuns: checks.map((value) => {
       const check = record(value)
+      if (check.__typename === 'StatusContext') {
+        const state = string(check.state)
+        return {
+          id: string(check.id),
+          name: string(check.context),
+          status: state === 'PENDING' || state === 'EXPECTED' ? 'queued' : 'completed',
+          conclusion:
+            state === 'SUCCESS'
+              ? 'success'
+              : state === 'FAILURE' || state === 'ERROR'
+                ? 'failure'
+                : null,
+          started_at: string(check.createdAt),
+          completed_at:
+            state === 'PENDING' || state === 'EXPECTED' ? null : string(check.updatedAt),
+          html_url: string(check.targetUrl),
+          app: { name: 'GitHub' },
+        }
+      }
+      const suite = record(check.checkSuite)
+      const workflow = string(record(record(suite.workflowRun).workflow).name)
+      const status = string(check.status)
       return {
-        ...check,
-        status: enumValue(check.status, ['queued', 'in_progress', 'completed'], 'queued'),
+        id: string(check.id),
+        name: workflow ? `${workflow} / ${string(check.name)}` : string(check.name),
+        status:
+          status === 'COMPLETED'
+            ? 'completed'
+            : status === 'IN_PROGRESS'
+              ? 'in_progress'
+              : 'queued',
         conclusion:
           check.conclusion === null
             ? null
             : enumValue(
-                check.conclusion,
+                string(check.conclusion).toLowerCase(),
                 [
                   'success',
                   'failure',
@@ -349,9 +419,10 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
                 ],
                 'neutral'
               ),
-        started_at: string(check.started_at),
-        completed_at: check.completed_at ?? null,
-        app: { name: string(record(check.app).name, 'GitHub') },
+        started_at: string(check.startedAt),
+        completed_at: check.completedAt ?? null,
+        html_url: string(check.detailsUrl),
+        app: { name: string(record(suite.app).name, 'GitHub') },
       }
     }),
     commits: commits.map((value) => {
