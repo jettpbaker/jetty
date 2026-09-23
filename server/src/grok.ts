@@ -82,7 +82,7 @@ export function grokArgs(input: TurnInput, jettyTools = false) {
     '--permission-mode',
     input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
     '--sandbox',
-    input.permissionMode === 'full_access' ? 'off' : 'workspace',
+    input.permissionMode === 'full_access' || input.environment ? 'off' : 'workspace',
     ...(jettyTools ? ['--rules', JETTY_INSTRUCTIONS] : []),
     'agent',
     '--no-leader',

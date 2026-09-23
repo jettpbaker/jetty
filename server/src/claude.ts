@@ -700,6 +700,7 @@ export function createClaudeAdapter(
                   model: options.model,
                   effort: options.effort,
                   permissionMode: options.permissionMode,
+                  ...(input.environment ? { sandbox: { enabled: false } } : {}),
                   disallowedTools: ['EnterPlanMode', 'ExitPlanMode'],
                   // Only permits a later live switch into bypassPermissions.
                   allowDangerouslySkipPermissions: true,

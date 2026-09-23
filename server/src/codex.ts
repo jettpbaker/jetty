@@ -68,7 +68,7 @@ function threadOptions(input: TurnInput, cwd: string, jettyTools: boolean) {
     approvalPolicy: full ? 'never' : 'on-request',
     approvalsReviewer: 'user',
     developerInstructions: jettyTools ? JETTY_INSTRUCTIONS : '',
-    sandbox: full ? 'danger-full-access' : 'workspace-write',
+    sandbox: full || input.environment ? 'danger-full-access' : 'workspace-write',
   }
 }
 

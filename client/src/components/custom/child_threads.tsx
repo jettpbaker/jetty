@@ -61,7 +61,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string) {
             ? (models.get(modelKey({ provider: thread.provider, id: thread.model })) ??
               thread.model)
             : undefined,
-        env: 'local',
+        env: thread.environment ?? 'local',
         status: childStatus(threadStatus(thread.status, thread.readyForReview)),
         updatedAt: thread.updatedAt,
         run:
