@@ -28,6 +28,22 @@ export function editingDrafts(registry: AtomRegistry.AtomRegistry) {
   return editing
 }
 
+// Puts a message the server refused back in its composer, ahead of anything typed since.
+export function restoreDraft(
+  registry: AtomRegistry.AtomRegistry,
+  key: string,
+  restored: Pick<Draft, 'text' | 'images' | 'editing'>
+) {
+  registry.update(draftsAtom, (drafts) => {
+    const draft = drafts.get(key) ?? emptyDraft
+    return new Map(drafts).set(key, {
+      text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
+      images: [...restored.images, ...draft.images],
+      editing: draft.editing ?? restored.editing,
+    })
+  })
+}
+
 export function useDraft(key: string) {
   const registry = useContext(RegistryContext)
   const draft = useAtomValue(draftAtom(key))

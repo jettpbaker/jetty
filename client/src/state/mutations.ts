@@ -1,3 +1,4 @@
+import type { Connection } from '@/net/connection'
 import type { Project, ProjectIcon, ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect, Fiber } from 'effect'
@@ -153,6 +154,20 @@ function deleteThread(registry: Registry, threadId: string) {
       )
     },
   }
+}
+
+// Sending to an archived thread brings it back first; the server won't queue on archived threads.
+export function unarchiveFirst(
+  registry: Registry,
+  threadId: string,
+  archived: boolean | undefined
+): (connection: Connection) => Effect.Effect<unknown, unknown> {
+  if (!archived) return () => Effect.void
+  setPatch(registry, threadId, { archived: false })
+  return (connection) =>
+    connection
+      .request('thread.archive', { threadId, archived: false })
+      .pipe(Effect.onError(() => Effect.sync(() => clearPatch(registry, threadId, 'archived'))))
 }
 
 function archiveThread(registry: Registry, threadId: string, archived: boolean) {

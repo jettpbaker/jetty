@@ -4,14 +4,15 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
-import { Effect } from 'effect'
+import { Effect, Exit } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useContext, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 
 import { chromeAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
-import { editingDrafts } from './drafts'
-import { without } from './mutations'
+import { editingDrafts, restoreDraft } from './drafts'
+import { unarchiveFirst, without } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
 
@@ -45,19 +46,29 @@ function track(
   threadId: string,
   op: QueueOp,
   request: (connection: Connection) => Effect.Effect<unknown, unknown>,
-  onSettle?: () => void
+  settled?: { onSuccess?: () => void; onFailure?: () => void }
 ) {
   registry.update(queueOpsAtom, (ops) =>
     new Map(ops).set(threadId, [...(ops.get(threadId) ?? []), op])
   )
-  const settle = Effect.sync(() => {
-    registry.update(queueOpsAtom, (ops) => {
-      const left = (ops.get(threadId) ?? []).filter((entry) => entry !== op)
-      return left.length ? new Map(ops).set(threadId, left) : without(ops, [threadId])
-    })
-    onSettle?.()
-  })
-  run(registry, (connection) => request(connection).pipe(Effect.ensuring(settle)))
+  run(registry, (connection) =>
+    request(connection).pipe(
+      Effect.onExit((exit) =>
+        Effect.sync(() => {
+          registry.update(queueOpsAtom, (ops) => {
+            const left = (ops.get(threadId) ?? []).filter((entry) => entry !== op)
+            return left.length ? new Map(ops).set(threadId, left) : without(ops, [threadId])
+          })
+          if (Exit.isSuccess(exit)) settled?.onSuccess?.()
+          else settled?.onFailure?.()
+        })
+      )
+    )
+  )
+}
+
+function isArchived(registry: Registry, threadId: string) {
+  return registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.archived
 }
 
 function addQueued(
@@ -80,27 +91,38 @@ function addQueued(
       height,
     })),
   }
+  const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
   track(
     registry,
     threadId,
     { kind: 'add', message },
     (connection) =>
-      connection.request('queue.add', {
-        threadId,
-        messageId: message.id,
-        text,
-        ...(images.length > 0
-          ? {
-              attachments: images.map(({ name, mimeType, dataUrl }) => ({
-                name,
-                mimeType,
-                dataUrl,
-              })),
-            }
-          : {}),
-      }),
-    () => {
-      for (const image of images) URL.revokeObjectURL(image.url)
+      unarchive(connection).pipe(
+        Effect.andThen(
+          connection.request('queue.add', {
+            threadId,
+            messageId: message.id,
+            text,
+            ...(images.length > 0
+              ? {
+                  attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                    name,
+                    mimeType,
+                    dataUrl,
+                  })),
+                }
+              : {}),
+          })
+        )
+      ),
+    {
+      onSuccess() {
+        for (const image of images) URL.revokeObjectURL(image.url)
+      },
+      onFailure() {
+        restoreDraft(registry, threadId, { text, images })
+        toast.error("Couldn't queue message")
+      },
     }
   )
 }
@@ -112,14 +134,30 @@ function removeQueued(registry: Registry, threadId: string, messageId: string) {
 }
 
 function editQueued(registry: Registry, threadId: string, messageId: string, text: string) {
-  track(registry, threadId, { kind: 'edit', id: messageId, text }, (connection) =>
-    connection.request('queue.edit', { threadId, messageId, text })
+  track(
+    registry,
+    threadId,
+    { kind: 'edit', id: messageId, text },
+    (connection) => connection.request('queue.edit', { threadId, messageId, text }),
+    {
+      onFailure() {
+        restoreDraft(registry, threadId, { text, images: [], editing: messageId })
+        if (
+          editingDrafts(registry).some(([id, editing]) => id === threadId && editing === messageId)
+        )
+          holdQueued(registry, threadId, messageId)
+        toast.error("Couldn't save edit")
+      },
+    }
   )
 }
 
 function sendQueuedNow(registry: Registry, threadId: string, messageId: string) {
+  const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
   track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
-    connection.request('queue.sendNow', { threadId, messageId })
+    unarchive(connection).pipe(
+      Effect.andThen(connection.request('queue.sendNow', { threadId, messageId }))
+    )
   )
 }
 

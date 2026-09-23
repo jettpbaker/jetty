@@ -8,12 +8,21 @@ import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 
 import { accessModeAtom } from './access_mode'
-import { modelsAtom, useChrome } from './chrome'
+import { chromeAtom, modelsAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
+import { restoreDraft } from './drafts'
 import { loadoutsAtom } from './loadouts'
-import { awaitCreation, clearPatch, setPatch, without, withoutId } from './mutations'
+import {
+  awaitCreation,
+  clearPatch,
+  setPatch,
+  unarchiveFirst,
+  without,
+  withoutId,
+} from './mutations'
 import { awaitsInput } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -43,6 +52,10 @@ function withPrompts(
 ) {
   if (list.length === 0) return without(prompts, [threadId])
   return new Map(prompts).set(threadId, list)
+}
+
+function threadMeta(registry: Registry, threadId: string) {
+  return registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
 }
 
 function releasePrompts(prompts: readonly PendingPrompt[]) {
@@ -131,10 +144,12 @@ function sendTurn(
   )
   registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
   if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
+  const unarchive = unarchiveFirst(registry, threadId, threadMeta(registry, threadId)?.archived)
   run(
     registry,
     (connection) =>
       awaitCreation(threadId).pipe(
+        Effect.andThen(unarchive(connection)),
         Effect.andThen(
           connection.request('turn.start', {
             threadId,
@@ -155,12 +170,14 @@ function sendTurn(
       ),
     () => {
       clearPatch(registry, threadId, 'provider')
-      releasePrompts([prompt])
       registry.update(pendingPromptsAtom, (prompts) => {
         const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)
         return withPrompts(prompts, threadId, list)
       })
       registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
+      // A thread that failed to create is gone; its message goes back to the new-thread composer.
+      restoreDraft(registry, threadMeta(registry, threadId) ? threadId : draftKey, { text, images })
+      toast.error("Couldn't send message")
     }
   )
 }
