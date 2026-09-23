@@ -5,6 +5,7 @@ export { useThreadDiff } from './diff'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export { usePrefetchThread, useThread } from './threads'
+export { MAIN_TAB, useThreadTab } from './thread_tab'
 export {
   useArchiveThread,
   useCreateProject,

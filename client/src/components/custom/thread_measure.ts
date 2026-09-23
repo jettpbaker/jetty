@@ -54,6 +54,8 @@ export function estimateRow(row: ThreadRow, width: number) {
       )
     case 'video':
       return 180 + captionHeight(row.id, row.item.caption, width)
+    case 'subagents':
+      return 44 + 50 * row.agents.length
     case 'question': {
       let height = 24
       for (const spec of row.item.questions) {

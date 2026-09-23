@@ -6,8 +6,14 @@ import { AssistantMessage } from '@/components/custom/assistant_message'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { QuestionMessage } from '@/components/custom/question_message'
+import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
-import { threadRows, type ThreadRow } from '@/components/custom/thread_rows'
+import {
+  threadRows,
+  toSubagent,
+  type SubagentItem,
+  type ThreadRow,
+} from '@/components/custom/thread_rows'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
@@ -35,6 +41,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.images.length}:${row.item.caption?.length ?? 0}`
     case 'video':
       return row.item.caption?.length ?? 0
+    case 'subagents':
+      return row.agents.map((agent) => `${agent.id}:${agent.status}`).join(',')
     case 'question':
       return `${row.item.questions.length}:${row.item.skipped ?? ''}:${Object.keys(row.item.answers ?? {}).length}`
     case 'work':
@@ -48,12 +56,42 @@ function rowStamp(row: ThreadRow) {
   }
 }
 
+function SubagentsRow({
+  agents,
+  selectedId,
+  onSelect,
+}: {
+  agents: readonly SubagentItem[]
+  selectedId?: string
+  onSelect: (id: string) => void
+}) {
+  const running = agents.some((agent) => agent.status === 'running')
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (!running) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [running])
+  return (
+    <SubagentGroup
+      agents={agents.map((agent) => toSubagent(agent, now))}
+      defaultOpen
+      selectedId={selectedId}
+      onSelect={onSelect}
+    />
+  )
+}
+
 function ThreadItemRow({
   row,
+  selectedAgent,
+  onSelectAgent,
   onApproval,
   onAnswer,
 }: {
   row: ThreadRow
+  selectedAgent?: string
+  onSelectAgent: (id: string) => void
   onApproval: (itemId: string, approved: boolean) => void
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
@@ -81,6 +119,8 @@ function ThreadItemRow({
         onApproval={onApproval}
       />
     )
+  if (row.kind === 'subagents')
+    return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
@@ -95,6 +135,8 @@ export function ThreadList({
   running,
   outcomes,
   projectPath,
+  agentId,
+  onSelectAgent,
   onApproval,
   onAnswer,
 }: {
@@ -103,12 +145,14 @@ export function ThreadList({
   running: boolean
   outcomes?: Readonly<Record<string, TurnOutcome>>
   projectPath?: string
+  agentId?: string
+  onSelectAgent: (id: string) => void
   onApproval: (itemId: string, approved: boolean) => void
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   const rows = useMemo(
-    () => threadRows(items, { status, running, outcomes, projectPath }),
-    [items, status, running, outcomes, projectPath]
+    () => threadRows(items, { status, running, outcomes, projectPath, agentId }),
+    [items, status, running, outcomes, projectPath, agentId]
   )
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -173,6 +217,8 @@ export function ThreadList({
             <div className='mx-auto w-full max-w-[708px] px-6'>
               <ThreadItemRow
                 row={rows[virtualRow.index]!}
+                selectedAgent={agentId}
+                onSelectAgent={onSelectAgent}
                 onApproval={onApproval}
                 onAnswer={onAnswer}
               />

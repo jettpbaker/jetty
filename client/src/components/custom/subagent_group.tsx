@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-// No subagent item kind yet, so the thread view does not mount this.
 import { ChevronRightIcon } from '@primer/octicons-react'
 
 import { SubagentRow, formatSubagentTokens, type Subagent } from './subagent_row'

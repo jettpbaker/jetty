@@ -1,24 +1,22 @@
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tabs, TabsList } from '@/components/ui/tabs'
 import { storage } from '@/platform'
-import { useChrome } from '@/state'
+import { MAIN_TAB, useChrome, usePrefetchThread, useThreadTab } from '@/state'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
+import { threadSubagents, toSubagent } from './thread_rows'
 import { threadStatus } from './thread_status'
 import { ThreadTab } from './thread_tab'
 import './app_shell.css'
 
 const widthKey = 'jetty.sidebar.width'
 const openKey = 'jetty.sidebar.open'
-
-// Per-thread views (main + subagents); hidden until the backend emits subagent events.
-const showThreadTabs = false
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => Number(storage.get(widthKey)) || 250)
@@ -67,6 +65,18 @@ function Workspace({
   const pathname = useLocation({ select: (location) => location.pathname })
   const threadId = useParams({ strict: false }).threadId
   const thread = useChrome()?.threads.find((entry) => entry.id === threadId)
+  const items = usePrefetchThread(threadId)?.items
+  const agents = useMemo(
+    () => threadSubagents(items ?? []).map((agent) => toSubagent(agent, agent.createdAt)),
+    [items]
+  )
+  const [tab, setTab] = useThreadTab(threadId ?? '')
+  const showThreadTabs = agents.length > 0
+  const [lastTabbed, setLastTabbed] = useState({ thread, agents })
+  if (showThreadTabs && (lastTabbed.thread !== thread || lastTabbed.agents !== agents))
+    setLastTabbed({ thread, agents })
+  // Retain the outgoing tabs until the strip has finished fading away.
+  const tabbed = showThreadTabs ? { thread, agents } : lastTabbed
 
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
 
@@ -92,7 +102,10 @@ function Workspace({
   return (
     <PageSidebarTriggerContext value={!showThreadTabs}>
       <Tabs
-        value='main'
+        value={showThreadTabs && agents.some((agent) => agent.id === tab) ? tab : MAIN_TAB}
+        onValueChange={(value) => {
+          if (typeof value === 'string') setTab(value)
+        }}
         className='app-workspace relative h-full min-w-0 flex-1 gap-0'
         data-thread-tabs={showThreadTabs}
       >
@@ -112,10 +125,21 @@ function Workspace({
                 aria-label='Thread views'
               >
                 <ThreadTab
-                  value='main'
-                  title={thread?.title ?? 'Thread'}
-                  status={thread ? threadStatus(thread.status) : 'idle'}
+                  value={MAIN_TAB}
+                  title={tabbed.thread?.title ?? 'Thread'}
+                  status={tabbed.thread ? threadStatus(tabbed.thread.status) : 'idle'}
                 />
+                {tabbed.agents.map((agent) => (
+                  <ThreadTab
+                    key={agent.id}
+                    value={agent.id}
+                    title={agent.title}
+                    status={agent.status === 'complete' ? 'idle' : agent.status}
+                    model={agent.model}
+                    effort={agent.effort}
+                    agentType='subagent'
+                  />
+                ))}
               </TabsList>
             </div>
           </div>

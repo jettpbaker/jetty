@@ -2,6 +2,7 @@ import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
+import type { Subagent } from './subagent_row'
 import type { ActivityStatus, ToolKind, WorkActivity } from './work_model'
 
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
@@ -11,6 +12,7 @@ type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' | 'approval' }>
+export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 
 export type ThreadRow =
   | { kind: 'user'; id: string; item: UserItem }
@@ -28,6 +30,7 @@ export type ThreadRow =
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
   | { kind: 'question'; id: string; item: QuestionItem }
+  | { kind: 'subagents'; id: string; agents: SubagentItem[] }
 
 function toolKind(name: string): ToolKind {
   switch (name.toLowerCase()) {
@@ -168,21 +171,60 @@ function isWork(item: ThreadItem): item is WorkItem {
   return item.kind === 'reasoning' || item.kind === 'tool_call' || item.kind === 'approval'
 }
 
+// claude-sonnet-5 → Sonnet 5, claude-opus-4-6 → Opus 4.6; aliases like `sonnet` stay a family name.
+function modelLabel(model: string | undefined) {
+  if (!model) return ''
+  const [family = '', ...version] = model.replace(/^claude-/, '').split('-')
+  const label = family.charAt(0).toUpperCase() + family.slice(1)
+  const numbers = version.filter((part) => /^\d{1,2}$/.test(part))
+  return numbers.length ? `${label} ${numbers.join('.')}` : label
+}
+
+export function toSubagent(item: SubagentItem, now: number): Subagent {
+  return {
+    id: item.id,
+    title: item.title,
+    model: modelLabel(item.model),
+    status:
+      item.status === 'running' ? 'working' : item.status === 'completed' ? 'complete' : 'error',
+    elapsedSeconds:
+      item.durationMs != null ? item.durationMs / 1000 : Math.max(0, (now - item.createdAt) / 1000),
+    tokens: item.tokens ?? 0,
+  }
+}
+
+export function threadSubagents(items: readonly ThreadItem[]) {
+  return items.filter((item): item is SubagentItem => item.kind === 'subagent')
+}
+
 export function threadRows(
-  items: readonly ThreadItem[],
+  allItems: readonly ThreadItem[],
   {
     status,
     running,
     outcomes = {},
     projectPath,
+    agentId,
   }: {
     status: SessionStatus
     running: boolean
     outcomes?: Readonly<Record<string, TurnOutcome>>
     projectPath?: string
+    agentId?: string
   }
 ): ThreadRow[] {
+  const items = allItems.filter((item) => item.agentId === agentId)
   const rows: ThreadRow[] = []
+  const agent = agentId && allItems.find((item) => item.id === agentId)
+  if (agent && agent.kind === 'subagent' && agent.prompt) {
+    const { turnId, createdAt, prompt } = agent
+    const id = `${agent.id}:prompt`
+    rows.push({
+      kind: 'user',
+      id,
+      item: { id, turnId, createdAt, kind: 'user_message', text: prompt, attachments: [] },
+    })
+  }
   const tailId = items.at(-1)?.id
   const sessionRunning = status === 'running' || status === 'starting'
   const sessionActive = sessionRunning || status === 'awaiting_approval'
@@ -221,7 +263,12 @@ export function threadRows(
       continue
     }
     flush(item)
+    const last = rows.at(-1)
     switch (item.kind) {
+      case 'subagent':
+        if (last?.kind === 'subagents') last.agents.push(item)
+        else rows.push({ kind: 'subagents', id: item.id, agents: [item] })
+        break
       case 'user_message':
         rows.push({ kind: 'user', id: item.id, item })
         break
