@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import {
+  BoxArrowUpIcon,
   DotsThreeVerticalIcon,
   PencilSimpleIcon,
   PushPinIcon,
@@ -23,6 +24,7 @@ type ActionOverlay = 'closed' | 'menu' | 'edit'
 export type ThreadRowActionsProps = {
   title: string
   pinned: boolean
+  archived?: boolean
   onArchive: () => void
   onDelete: () => void
   onPin: () => void
@@ -32,6 +34,7 @@ export type ThreadRowActionsProps = {
 export function ThreadRowActions({
   title,
   pinned,
+  archived = false,
   onArchive,
   onDelete,
   onPin,
@@ -67,10 +70,10 @@ export function ThreadRowActions({
           variant='ghost-text'
           size='icon'
           className='thread-row-action'
-          aria-label={`Archive ${title}`}
+          aria-label={`${archived ? 'Unarchive' : 'Archive'} ${title}`}
           onClick={onArchive}
         >
-          <ArchiveIcon className='size-3' />
+          {archived ? <BoxArrowUpIcon className='size-3' /> : <ArchiveIcon className='size-3' />}
         </Button>
         <DropdownMenu
           open={overlay === 'menu'}

@@ -567,12 +567,11 @@ export function createStore() {
           return yield* requireThread(id)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
-      archiveThread(threadId: string) {
+      archiveThread(threadId: string, archived: boolean) {
         return Effect.gen(function* () {
           const existing = yield* requireThread(threadId)
-          const now = Date.now()
-          yield* sql`UPDATE threads SET archived = 1, updated_at = ${now} WHERE id = ${threadId}`
-          return { ...existing, archived: true, updatedAt: now }
+          yield* sql`UPDATE threads SET archived = ${archived ? 1 : 0} WHERE id = ${threadId}`
+          return { ...existing, archived }
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       renameThread(threadId: string, title: string) {

@@ -184,7 +184,7 @@ export const methods = {
     result: Schema.Struct({ thread: ThreadMeta }),
   },
   'thread.archive': {
-    params: Schema.Struct({ threadId: Schema.String }),
+    params: Schema.Struct({ threadId: Schema.String, archived: Schema.Boolean }),
     result: Schema.Null,
   },
   'thread.rename': {

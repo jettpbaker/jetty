@@ -25,10 +25,17 @@ import {
   type Chrome,
 } from '@/state'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
-import { ComposeIcon, GitPullRequestIcon, IssueOpenedIcon, PinIcon } from '@primer/octicons-react'
-import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import {
+  ArchiveIcon,
+  ComposeIcon,
+  GitPullRequestIcon,
+  IssueOpenedIcon,
+  PinIcon,
+} from '@primer/octicons-react'
+import { Link, useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
@@ -56,26 +63,25 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project]))
   const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
   const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
-  return chrome.threads
-    .filter((thread) => !thread.archived)
-    .map((thread) => ({
-      id: thread.id,
-      title: thread.title,
-      project: projects.get(thread.projectId)?.title ?? '',
-      projectIcon: projects.get(thread.projectId)?.icon,
-      parent: thread.parentThreadId && titles.get(thread.parentThreadId),
-      status: threadStatus(thread.status),
-      lastActivity: formatAge(thread.updatedAt, now),
-      updatedAt: thread.updatedAt,
-      pinned: thread.pinned,
-      pullRequest: latestPullRequest(thread.pullRequests ?? []),
-      provider: thread.provider,
-      model:
-        thread.provider && thread.model
-          ? (models.get(modelKey({ provider: thread.provider, id: thread.model })) ?? thread.model)
-          : undefined,
-      effort: thread.effort && effortLabels[thread.effort],
-    }))
+  return chrome.threads.map((thread) => ({
+    id: thread.id,
+    title: thread.title,
+    project: projects.get(thread.projectId)?.title ?? '',
+    projectIcon: projects.get(thread.projectId)?.icon,
+    parent: thread.parentThreadId && titles.get(thread.parentThreadId),
+    status: threadStatus(thread.status),
+    lastActivity: formatAge(thread.updatedAt, now),
+    updatedAt: thread.updatedAt,
+    pinned: thread.pinned,
+    archived: thread.archived,
+    pullRequest: latestPullRequest(thread.pullRequests ?? []),
+    provider: thread.provider,
+    model:
+      thread.provider && thread.model
+        ? (models.get(modelKey({ provider: thread.provider, id: thread.model })) ?? thread.model)
+        : undefined,
+    effort: thread.effort && effortLabels[thread.effort],
+  }))
 }
 
 function latestPullRequest(links: readonly PullRequestLink[]) {
@@ -91,25 +97,31 @@ export function AppSidebar() {
   const chrome = useChrome()
   const now = useNow(60_000)
   const navigate = useNavigate()
+  const router = useRouter()
   const selectedId = useParams({ strict: false }).threadId
   const onSettings = useLocation({ select: (location) => location.pathname === '/settings' })
   const reducedMotion = useReducedMotion()
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<ThreadGrouping>('date')
   const [showPinned, setShowPinned] = useState(true)
+  const [showArchived, setShowArchived] = useState(false)
   const prefetch = useThreadRowPrefetch()
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
-  const groups = groupSidebarThreads(threads, grouping, query, showPinned)
-  const layoutDependency = `${grouping}:${showPinned}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.updatedAt}`).join(',')}`
+  const groups = groupSidebarThreads(threads, grouping, query, showPinned, showArchived)
+  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
   const items = groups.flatMap((group) => [
     {
       kind: 'heading' as const,
       id: `heading:${group.id}`,
       label: group.label,
       pinned: group.pinned,
+      archived: group.archived,
       count: group.threads.length,
-      status: !group.pinned && grouping === 'status' ? group.threads[0]?.status : undefined,
+      status:
+        !group.pinned && !group.archived && grouping === 'status'
+          ? group.threads[0]?.status
+          : undefined,
       projectIcon: group.threads[0]?.projectIcon,
     },
     ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
@@ -126,18 +138,44 @@ export function AppSidebar() {
     void navigate({ to: '/' })
   }
 
+  // Leaves a thread that's going away; the returned undo comes back to it if nothing else was opened.
   function leaveIfSelected(threadId: string) {
-    if (threadId === selectedId) void navigate({ to: '/' })
+    if (threadId !== selectedId) return () => {}
+    void navigate({ to: '/' })
+    return () => {
+      if (router.state.location.pathname === '/')
+        void navigate({ to: '/threads/$threadId', params: { threadId } })
+    }
   }
 
   function archive(threadId: string) {
-    archiveThread(threadId)
-    leaveIfSelected(threadId)
+    archiveThread(threadId, true)
+    const comeBack = leaveIfSelected(threadId)
+    toast('Thread archived', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          archiveThread(threadId, false)
+          comeBack()
+        },
+      },
+    })
   }
 
   function remove(threadId: string) {
-    deleteThread(threadId)
-    leaveIfSelected(threadId)
+    const deletion = deleteThread(threadId)
+    const comeBack = leaveIfSelected(threadId)
+    toast('Thread deleted', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          deletion.undo()
+          comeBack()
+        },
+      },
+      onAutoClose: deletion.commit,
+      onDismiss: deletion.commit,
+    })
   }
 
   return (
@@ -189,6 +227,8 @@ export function AppSidebar() {
           onGroupingChange={setGrouping}
           showPinned={showPinned}
           onShowPinnedChange={setShowPinned}
+          showArchived={showArchived}
+          onShowArchivedChange={setShowArchived}
         />
       </div>
       <ThreadHoverGroup>
@@ -203,7 +243,10 @@ export function AppSidebar() {
                       className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
                     >
                       {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
-                      {!item.pinned && grouping === 'project' && (
+                      {item.archived && (
+                        <ArchiveIcon className='size-3 shrink-0' aria-hidden='true' />
+                      )}
+                      {!item.pinned && !item.archived && grouping === 'project' && (
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
                       {item.status === 'idle' ? (
@@ -250,7 +293,9 @@ export function AppSidebar() {
                       selected={selectedId === thread.id}
                       actions={{
                         pinned: thread.pinned,
-                        onArchive: () => archive(thread.id),
+                        archived: thread.archived,
+                        onArchive: () =>
+                          thread.archived ? archiveThread(thread.id, false) : archive(thread.id),
                         onDelete: () => remove(thread.id),
                         onPin: () => pinThread(thread.id, !thread.pinned),
                         onRename: (title) => renameThread(thread.id, title),

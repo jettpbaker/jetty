@@ -2,13 +2,21 @@ import type { ContextUsage } from '@jetty/shared/events'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { BoxArrowUpIcon } from '@phosphor-icons/react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 
 const radius = 90
 const circumference = 2 * Math.PI * radius
 
-export function ThreadHeader({ context }: { context: ContextUsage | null }) {
+export function ThreadHeader({
+  context,
+  onUnarchive,
+}: {
+  context: ContextUsage | null
+  // set while the thread is archived
+  onUnarchive?: () => void
+}) {
   const fraction = context ? Math.max(0, Math.min(1, context.usedTokens / context.maxTokens)) : 0
   const label = context
     ? `Context window ${Math.round(fraction * 100)}% full`
@@ -17,6 +25,12 @@ export function ThreadHeader({ context }: { context: ContextUsage | null }) {
     <header className='thread-conversation-header flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border pr-[42px] pl-(--page-header-inset)'>
       <div className='flex min-w-0 items-center gap-2'>
         <PageSidebarTrigger />
+        {onUnarchive && (
+          <Button variant='ghost-text' size='sm' onClick={onUnarchive}>
+            <BoxArrowUpIcon />
+            Unarchive
+          </Button>
+        )}
       </div>
       <div className='flex items-center gap-1'>
         <Tooltip>

@@ -13,7 +13,6 @@ import { AsyncResult, Atom } from 'effect/unstable/reactivity'
 
 import { subscribe } from './connection'
 import {
-  archivedThreadsAtom,
   createdThreadsAtom,
   deletedThreadsAtom,
   projectIconPatchesAtom,
@@ -71,18 +70,11 @@ const liveAtom = Atom.make((get) =>
 function withPending(
   chrome: Chrome,
   created: ReadonlyMap<string, ThreadMeta>,
-  archived: ReadonlySet<string>,
   patches: ReadonlyMap<string, ThreadPatch>,
   deleted: ReadonlySet<string>,
   icons: ReadonlyMap<string, ProjectIcon | null>
 ): Chrome {
-  if (
-    created.size === 0 &&
-    archived.size === 0 &&
-    patches.size === 0 &&
-    deleted.size === 0 &&
-    icons.size === 0
-  )
+  if (created.size === 0 && patches.size === 0 && deleted.size === 0 && icons.size === 0)
     return chrome
   const known = new Set(chrome.threads.map((thread) => thread.id))
   const threads = [
@@ -92,7 +84,6 @@ function withPending(
     .filter((thread) => !deleted.has(thread.id))
     .map((thread) => {
       const patch = patches.get(thread.id)
-      if (archived.has(thread.id)) return { ...thread, ...patch, archived: true }
       return patch ? { ...thread, ...patch } : thread
     })
   const projects = chrome.projects.map((project) =>
@@ -108,7 +99,6 @@ const chromeAtom = Atom.readable((get) => {
     withPending(
       chrome,
       get(createdThreadsAtom),
-      get(archivedThreadsAtom),
       get(threadPatchesAtom),
       get(deletedThreadsAtom),
       get(projectIconPatchesAtom)

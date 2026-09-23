@@ -29,6 +29,8 @@ export function SidebarThreadControls({
   onGroupingChange,
   showPinned,
   onShowPinnedChange,
+  showArchived,
+  onShowArchivedChange,
 }: {
   query: string
   onQueryChange: (query: string) => void
@@ -36,6 +38,8 @@ export function SidebarThreadControls({
   onGroupingChange: (grouping: ThreadGrouping) => void
   showPinned: boolean
   onShowPinnedChange: (show: boolean) => void
+  showArchived: boolean
+  onShowArchivedChange: (show: boolean) => void
 }) {
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
@@ -85,6 +89,22 @@ export function SidebarThreadControls({
               render={<span />}
               size='sm'
               checked={showPinned}
+              tabIndex={-1}
+              aria-hidden='true'
+              className='pointer-events-none ml-auto'
+            />
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+            checked={showArchived}
+            onCheckedChange={onShowArchivedChange}
+            closeOnClick={false}
+          >
+            Show archived
+            <Switch
+              render={<span />}
+              size='sm'
+              checked={showArchived}
               tabIndex={-1}
               aria-hidden='true'
               className='pointer-events-none ml-auto'

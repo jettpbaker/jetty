@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import {
   MAIN_TAB,
+  useArchiveThread,
   useBumpDraft,
   useChrome,
   useThread,
@@ -29,6 +30,7 @@ function Thread() {
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
   const projectPath = project?.path
   const [tab, setTab] = useThreadTab(threadId)
+  const archiveThread = useArchiveThread()
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
   const agent = agents.find((entry) => entry.id === tab)
   const composer = (
@@ -56,7 +58,10 @@ function Thread() {
         )
       ) : (
         <ThreadDetailsLayout threadId={threadId}>
-          <ThreadHeader context={thread?.context ?? null} />
+          <ThreadHeader
+            context={thread?.context ?? null}
+            onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
+          />
           <ThreadList
             key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
             threadId={threadId}

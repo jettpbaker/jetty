@@ -7,12 +7,14 @@ import { run, useAction } from './connection'
 
 type Registry = AtomRegistry.AtomRegistry
 
-export type ThreadPatch = { title?: string; pinned?: boolean; provider?: ProviderId }
+export type ThreadPatch = {
+  title?: string
+  pinned?: boolean
+  archived?: boolean
+  provider?: ProviderId
+}
 
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
-  Atom.keepAlive
-)
-export const archivedThreadsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
   Atom.keepAlive
 )
 export const threadPatchesAtom = Atom.make<ReadonlyMap<string, ThreadPatch>>(new Map()).pipe(
@@ -114,24 +116,39 @@ function pinThread(registry: Registry, threadId: string, pinned: boolean) {
   )
 }
 
+// Hides the thread now; the server delete waits for `commit`, so `undo` can bring it back.
 function deleteThread(registry: Registry, threadId: string) {
   registry.update(deletedThreadsAtom, (deleted) => new Set(deleted).add(threadId))
-  run(
-    registry,
-    (connection) =>
-      awaitCreation(threadId).pipe(
-        Effect.andThen(connection.request('thread.delete', { threadId }))
-      ),
-    () => registry.update(deletedThreadsAtom, (deleted) => withoutId(deleted, threadId))
-  )
+  const restore = () =>
+    registry.update(deletedThreadsAtom, (deleted) => withoutId(deleted, threadId))
+  let settled = false
+  return {
+    undo() {
+      if (settled) return
+      settled = true
+      restore()
+    },
+    commit() {
+      if (settled) return
+      settled = true
+      run(
+        registry,
+        (connection) =>
+          awaitCreation(threadId).pipe(
+            Effect.andThen(connection.request('thread.delete', { threadId }))
+          ),
+        restore
+      )
+    },
+  }
 }
 
-function archiveThread(registry: Registry, threadId: string) {
-  registry.update(archivedThreadsAtom, (archived) => new Set(archived).add(threadId))
+function archiveThread(registry: Registry, threadId: string, archived: boolean) {
+  setPatch(registry, threadId, { archived })
   run(
     registry,
-    (connection) => connection.request('thread.archive', { threadId }),
-    () => registry.update(archivedThreadsAtom, (archived) => withoutId(archived, threadId))
+    (connection) => connection.request('thread.archive', { threadId, archived }),
+    () => clearPatch(registry, threadId, 'archived')
   )
 }
 

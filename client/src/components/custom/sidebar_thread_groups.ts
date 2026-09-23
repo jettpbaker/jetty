@@ -15,6 +15,7 @@ export type SidebarThread = {
   lastActivity: string
   updatedAt: number
   pinned: boolean
+  archived: boolean
   pullRequest?: ThreadPullRequest
   provider?: ProviderId
   model?: string
@@ -77,18 +78,21 @@ export function groupSidebarThreads(
   threads: SidebarThread[],
   grouping: ThreadGrouping,
   query: string,
-  showPinned: boolean
+  showPinned: boolean,
+  showArchived: boolean
 ) {
   const now = new Date()
   const search = query.trim().toLowerCase()
-  const filtered = threads
+  const matching = threads
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
     .sort((a, b) => b.updatedAt - a.updatedAt)
+  const filtered = matching.filter((thread) => !thread.archived)
   const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
   const grouped = groupsFor(grouping, remaining).map((group) => ({
     id: `${grouping}:${group.id}`,
     label: group.label,
     pinned: false,
+    archived: false,
     threads: remaining.filter((thread) => threadInGroup(thread, grouping, group.id, now)),
   }))
   return [
@@ -98,10 +102,22 @@ export function groupSidebarThreads(
             id: 'pinned',
             label: 'Pinned',
             pinned: true,
+            archived: false,
             threads: filtered.filter((thread) => thread.pinned),
           },
         ]
       : []),
     ...grouped,
+    ...(showArchived
+      ? [
+          {
+            id: 'archived',
+            label: 'Archived',
+            pinned: false,
+            archived: true,
+            threads: matching.filter((thread) => thread.archived),
+          },
+        ]
+      : []),
   ].filter((group) => group.threads.length > 0)
 }

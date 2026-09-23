@@ -167,7 +167,7 @@ export function createRpcHandlers(
           Effect.map((thread) => ({ thread }))
         ),
       'thread.archive': (params) =>
-        upsertThread(store.archiveThread(params.threadId)).pipe(Effect.as(null)),
+        upsertThread(store.archiveThread(params.threadId, params.archived)).pipe(Effect.as(null)),
       'thread.rename': (params) =>
         upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>
