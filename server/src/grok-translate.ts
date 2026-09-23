@@ -54,7 +54,7 @@ export function createGrokTranslator(turnId: string) {
             ...base,
             id: tool.id,
             kind: 'tool_call',
-            toolName: string(update.title) || string(update.kind) || 'tool',
+            toolName: grokToolName(update),
             input: update.rawInput ?? {},
             output: '',
             status: 'running',
@@ -67,15 +67,12 @@ export function createGrokTranslator(turnId: string) {
         type: 'item.completed',
         itemId: tool.id,
         patch: {
-          ...(update.title === undefined ? {} : { toolName: string(update.title) }),
+          ...(update.kind === undefined ? {} : { toolName: grokToolName(update) }),
           ...(update.rawInput === undefined ? {} : { input: update.rawInput }),
           ...(update.rawOutput === undefined && update.content === undefined
             ? {}
             : {
-                output:
-                  typeof update.rawOutput === 'string'
-                    ? update.rawOutput
-                    : JSON.stringify(update.rawOutput ?? update.content),
+                output: grokToolOutput(update.rawOutput ?? update.content),
               }),
           status: done ? (update.status === 'failed' ? 'failed' : 'succeeded') : 'running',
         },
@@ -94,4 +91,37 @@ export function createGrokTranslator(turnId: string) {
     return events
   }
   return { translate, finish }
+}
+
+function grokToolName(update: Record<string, unknown>): string {
+  switch (update.kind) {
+    case 'read':
+      return 'Read'
+    case 'edit':
+      return 'Edit'
+    case 'execute':
+      return 'Bash'
+    case 'search':
+      return 'Grep'
+    case 'fetch':
+      return 'WebFetch'
+    default:
+      return string(update.title) || string(update.kind) || 'Tool'
+  }
+}
+
+function grokToolOutput(value: unknown): string {
+  if (typeof value === 'string') {
+    try {
+      return grokToolOutput(JSON.parse(value))
+    } catch {
+      return value
+    }
+  }
+  if (Array.isArray(value)) return value.map(grokToolOutput).filter(Boolean).join('\n')
+  const output = object(value)
+  if (typeof output.output_for_prompt === 'string') return output.output_for_prompt
+  if (typeof output.text === 'string') return output.text
+  if (output.output !== undefined) return grokToolOutput(output.output)
+  return value == null ? '' : JSON.stringify(value)
 }

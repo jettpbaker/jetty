@@ -20,18 +20,18 @@ export function createCodexTranslator(turnId: string) {
         return { ...base, kind: 'plan', text: string(raw.text), streaming: true }
       case 'userMessage':
       case 'hookPrompt':
+      case 'functionCallOutput':
+      case 'subAgentActivity':
+      case 'enteredReviewMode':
+      case 'exitedReviewMode':
+      case 'contextCompaction':
         return undefined
       default:
-        const server = string(raw.server)
-        const tool = string(raw.tool)
         return {
           ...base,
           kind: 'tool_call',
-          toolName:
-            raw.type === 'mcpToolCall' && server && tool
-              ? `mcp__${server}__${tool}`
-              : tool || string(raw.type),
-          input: raw.arguments ?? raw.command ?? raw.changes ?? raw,
+          toolName: toolName(raw),
+          input: toolInput(raw),
           output: '',
           status: 'running',
         }
@@ -65,11 +65,7 @@ export function createCodexTranslator(turnId: string) {
                     ? 'failed'
                     : 'succeeded',
                 output:
-                  typeof raw.aggregatedOutput === 'string'
-                    ? raw.aggregatedOutput
-                    : JSON.stringify(
-                        raw.result ?? raw.error ?? raw.changes ?? raw.contentItems ?? raw
-                      ),
+                  typeof raw.aggregatedOutput === 'string' ? raw.aggregatedOutput : toolOutput(raw),
               }
             : {
                 streaming: false,
@@ -85,7 +81,8 @@ export function createCodexTranslator(turnId: string) {
       method === 'item/agentMessage/delta' ||
       method === 'item/reasoning/summaryTextDelta' ||
       method === 'item/plan/delta' ||
-      method === 'item/commandExecution/outputDelta'
+      method === 'item/commandExecution/outputDelta' ||
+      method === 'item/fileChange/outputDelta'
     ) {
       const item = items.get(string(params.itemId))
       if (item && typeof params.delta === 'string') {
@@ -139,6 +136,79 @@ export function createCodexTranslator(turnId: string) {
   }
 
   return { translate, finish }
+}
+
+function toolName(raw: Record<string, unknown>): string {
+  switch (raw.type) {
+    case 'commandExecution':
+      return 'Bash'
+    case 'fileChange':
+      return 'Edit'
+    case 'webSearch':
+      return 'WebSearch'
+    case 'imageView':
+      return 'Read'
+    case 'imageGeneration':
+      return 'ImageGen'
+    case 'sleep':
+      return 'Sleep'
+    case 'mcpToolCall':
+      return `mcp__${string(raw.server)}__${string(raw.tool)}`
+    case 'dynamicToolCall':
+      return [string(raw.namespace), string(raw.tool)].filter(Boolean).join('__') || 'Tool'
+    case 'collabAgentToolCall':
+      return string(raw.tool) || 'Task'
+    default:
+      return string(raw.tool) || 'Tool'
+  }
+}
+
+function toolInput(raw: Record<string, unknown>): unknown {
+  switch (raw.type) {
+    case 'commandExecution':
+      return { command: raw.command, cwd: raw.cwd }
+    case 'fileChange': {
+      const changes = Array.isArray(raw.changes) ? raw.changes.map(object) : []
+      return { path: string(changes[0]?.path), changes }
+    }
+    case 'webSearch':
+      return { query: raw.query, action: raw.action }
+    case 'imageView':
+      return { path: raw.path }
+    case 'mcpToolCall':
+    case 'dynamicToolCall':
+      return raw.arguments ?? {}
+    case 'collabAgentToolCall':
+      return { prompt: raw.prompt, agents: raw.receiverThreadIds }
+    default:
+      return raw
+  }
+}
+
+function toolOutput(raw: Record<string, unknown>): string {
+  if (raw.type === 'fileChange' && Array.isArray(raw.changes)) {
+    return raw.changes
+      .map(object)
+      .map((change) => {
+        return [string(change.path), string(change.diff)].filter(Boolean).join('\n')
+      })
+      .join('\n\n')
+  }
+  const result = object(raw.result)
+  if (Array.isArray(result.content))
+    return result.content
+      .map(object)
+      .map((part) => string(part.text))
+      .filter(Boolean)
+      .join('\n')
+  if (Array.isArray(raw.contentItems))
+    return raw.contentItems
+      .map(object)
+      .map((part) => string(part.text))
+      .filter(Boolean)
+      .join('\n')
+  if (raw.error) return string(object(raw.error).message) || JSON.stringify(raw.error)
+  return ''
 }
 
 function textArray(value: unknown): string {
