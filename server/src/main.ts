@@ -365,7 +365,7 @@ function createServer(opts: ServerOptions = {}) {
       const request = yield* HttpServerRequest.HttpServerRequest
       const url = new URL(request.url, 'http://localhost')
       if (url.pathname === '/mcp') {
-        if (!originAllowed(request.headers.origin))
+        if (request.headers.origin && !originAllowed(request.headers.origin))
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
         const web = yield* HttpServerRequest.toWeb(request)
         return HttpServerResponse.fromWeb(yield* Effect.promise(() => handleMcp(web)))
