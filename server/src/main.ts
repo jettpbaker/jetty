@@ -377,9 +377,7 @@ function createServer(opts: ServerOptions = {}) {
       const url = new URL(request.url, 'http://localhost')
       const peer = request.remoteAddress
       const localPeer =
-        peer &&
-        Option.isSome(peer) &&
-        ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer.value)
+        peer && Option.isSome(peer) && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer.value)
       if (url.pathname === '/mcp') {
         if (request.headers.origin && !originAllowed(request.headers.origin))
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
