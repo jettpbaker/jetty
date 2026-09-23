@@ -3,8 +3,9 @@ import type { ProviderModel } from '@jetty/shared/wire'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, type RateLimits } from '@jetty/shared/wire'
-import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
+import { Context, Deferred, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import { ChildProcessSpawner } from 'effect/unstable/process'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
@@ -188,27 +189,66 @@ function createServer(opts: ServerOptions = {}) {
               },
               agentKind
             )
-    if (typeof agentKind === 'string' && agentKind !== 'echo') {
-      yield* Effect.all(
-        [
-          discoverClaudeModels(),
-          discoverCodexModels(home, opts.codex),
-          discoverGrokModels(home, opts.grok),
-        ],
-        { concurrency: 'unbounded' }
-      ).pipe(
-        Effect.flatMap((lists) =>
-          hub.withChromePublication(
-            Effect.sync(() => {
-              const next = lists.flat()
-              models = next
-              hub.pushChrome({ type: 'models', models: next })
-            })
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const discoveryScope = yield* Effect.scope
+    let inFlight: Deferred.Deferred<void> | undefined
+    let lastDiscovery = -Infinity
+
+    function refreshModels(force = false) {
+      return Effect.uninterruptibleMask((restore) =>
+        Effect.suspend(() => {
+          if (inFlight) return restore(Deferred.await(inFlight))
+          if (typeof agentKind !== 'string' || agentKind === 'echo') return Effect.void
+          if (!force && Date.now() - lastDiscovery < 60_000) return Effect.void
+          lastDiscovery = Date.now()
+          const done = Deferred.makeUnsafe<void>()
+          inFlight = done
+          const initial = models === null
+          const lists = new Map(
+            ['claude', 'codex', 'grok'].map((provider) => [
+              provider,
+              models?.filter((model) => model.provider === provider) ?? [],
+            ])
           )
-        ),
-        Effect.forkIn(yield* Effect.scope)
+          function publish() {
+            return hub.withChromePublication(
+              Effect.sync(() => {
+                models = [...lists.values()].flat()
+                hub.pushChrome({ type: 'models', models })
+              })
+            )
+          }
+          const probes = [
+            ['claude', discoverClaudeModels().pipe(Effect.orElseSucceed(() => null))],
+            ['codex', discoverCodexModels(home, opts.codex).pipe(Effect.orElseSucceed(() => null))],
+            ['grok', discoverGrokModels(home, opts.grok).pipe(Effect.orElseSucceed(() => null))],
+          ] as const
+          return Effect.all(
+            probes.map(([provider, probe]) =>
+              probe.pipe(
+                Effect.flatMap((next) => {
+                  if (next === null) return Effect.void
+                  lists.set(provider, next)
+                  return initial ? Effect.void : publish()
+                })
+              )
+            ),
+            { concurrency: 'unbounded', discard: true }
+          ).pipe(
+            Effect.andThen(() => (initial ? publish() : Effect.void)),
+            Effect.onExit((exit) => {
+              inFlight = undefined
+              return Deferred.done(done, exit)
+            }),
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+            Effect.interruptible,
+            Effect.forkIn(discoveryScope),
+            Effect.andThen(restore(Deferred.await(done)))
+          )
+        })
       )
     }
+    yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
     const titler = yield* selectTitler(agentKind, opts)
     const services = yield* Layer.build(
       orchestratorLayer(store, hub, titler, attachments, registry)
@@ -220,7 +260,8 @@ function createServer(opts: ServerOptions = {}) {
       orch,
       hub,
       () => lastUsage,
-      () => models
+      () => models,
+      refreshModels
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

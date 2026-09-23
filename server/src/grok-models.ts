@@ -58,8 +58,5 @@ export function discoverGrokModels(cwd: string, options: StdioProcessOptions = {
       const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
       return foldGrokModels(object(session.models).availableModels).models
     })
-  ).pipe(
-    Effect.timeout(DISCOVERY_TIMEOUT_MS),
-    Effect.orElseSucceed((): ProviderModel[] => [])
-  )
+  ).pipe(Effect.timeout(DISCOVERY_TIMEOUT_MS))
 }

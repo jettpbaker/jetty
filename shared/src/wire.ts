@@ -100,6 +100,10 @@ export const Skill = Schema.Struct({
 export type Skill = Schema.Schema.Type<typeof Skill>
 
 export const methods = {
+  'models.refresh': {
+    params: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),
+    result: Schema.Null,
+  },
   'chrome.subscribe': {
     params: Schema.Record(Schema.String, Schema.Unknown).pipe(
       Schema.decodeTo(

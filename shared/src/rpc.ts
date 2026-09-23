@@ -26,6 +26,7 @@ function unary<M extends Exclude<MethodName, 'chrome.subscribe' | 'thread.subscr
 }
 
 export const JettyRpcs = RpcGroup.make(
+  unary('models.refresh'),
   unary('project.create'),
   unary('fs.browse'),
   unary('fs.search'),

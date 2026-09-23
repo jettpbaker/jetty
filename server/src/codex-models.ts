@@ -44,8 +44,5 @@ export function discoverCodexModels(cwd: string, options: StdioProcessOptions = 
       } while (cursor)
       return models.filter((model) => model.id)
     })
-  ).pipe(
-    Effect.timeout(DISCOVERY_TIMEOUT_MS),
-    Effect.orElseSucceed((): ProviderModel[] => [])
-  )
+  ).pipe(Effect.timeout(DISCOVERY_TIMEOUT_MS))
 }

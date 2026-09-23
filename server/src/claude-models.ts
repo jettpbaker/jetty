@@ -62,8 +62,5 @@ export function discoverClaudeModels() {
     } finally {
       abortController.abort()
     }
-  }).pipe(
-    Effect.timeout(DISCOVERY_TIMEOUT_MS),
-    Effect.orElseSucceed((): ProviderModel[] => [])
-  )
+  }).pipe(Effect.timeout(DISCOVERY_TIMEOUT_MS))
 }

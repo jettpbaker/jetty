@@ -59,7 +59,8 @@ export function createRpcHandlers(
   orch: Orchestrator,
   hub: Hub,
   getUsage: () => RateLimits | null,
-  getModels: () => readonly ProviderModel[] | null
+  getModels: () => readonly ProviderModel[] | null,
+  refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -97,6 +98,7 @@ export function createRpcHandlers(
     }
 
     return JettyRpcs.of({
+      'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
       'chrome.subscribe': () =>
         Stream.unwrap(
           hub.withChromePublication(
