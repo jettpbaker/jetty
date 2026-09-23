@@ -87,6 +87,13 @@ export function grokArgs(input: TurnInput) {
   ]
 }
 
+function grokModel(input: TurnInput, currentId: string, fastIds: Map<string, string>) {
+  const baseOf = new Map([...fastIds].map(([base, fast]) => [fast, base]))
+  const baseId =
+    input.model && input.model !== 'grok-build' ? input.model : (baseOf.get(currentId) ?? currentId)
+  return input.fast ? (fastIds.get(baseId) ?? baseId) : baseId
+}
+
 export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
   return Effect.gen(function* () {
     const owner = yield* Effect.scope
@@ -282,16 +289,10 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           if (!sessionId) return yield* Effect.fail(new AgentError('Grok returned no session id'))
           session.providerThreadId = sessionId
           yield* store.setProviderSessionId(session.input.threadId, 'grok', sessionId)
-          const requestedModel = session.input.model
           const currentId = string(object(result.models).currentModelId)
           const { fastIds } = foldGrokModels(object(result.models).availableModels)
           session.fastIds = fastIds
-          const baseOf = new Map([...fastIds].map(([base, fast]) => [fast, base]))
-          const baseId =
-            requestedModel && requestedModel !== 'grok-build'
-              ? requestedModel
-              : (baseOf.get(currentId) ?? currentId)
-          const modelId = session.input.fast ? (fastIds.get(baseId) ?? baseId) : baseId
+          const modelId = grokModel(session.input, currentId, fastIds)
           if (!modelId)
             return yield* Effect.fail(new AgentError('Grok did not advertise a current model'))
           yield* connection.request('session/set_model', {
@@ -459,13 +460,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   return
                 }
                 const currentId = existing!.modelId ?? ''
-                const baseOf = new Map([...existing!.fastIds].map(([base, fast]) => [fast, base]))
-                const requestedModel = input.model
-                const baseId =
-                  requestedModel && requestedModel !== 'grok-build'
-                    ? requestedModel
-                    : (baseOf.get(currentId) ?? currentId)
-                const modelId = input.fast ? (existing!.fastIds.get(baseId) ?? baseId) : baseId
+                const modelId = grokModel(input, currentId, existing!.fastIds)
                 if (modelId !== currentId || input.effort !== existing!.effort) {
                   yield* existing!.connection!.request('session/set_model', {
                     sessionId: existing!.providerThreadId,
@@ -519,42 +514,37 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
-          const lifecycle = run(session, project.path).pipe(
-            Effect.onInterrupt(() =>
-              session.publication
-                .withPermit(
-                  Effect.gen(function* () {
-                    session.accepting = false
-                    yield* settleOpenItems(session).pipe(Effect.ignore)
-                    if (session.awaitingResult) {
-                      yield* session.emit({
+          function cleanup(reason: string, failed = false) {
+            return session.publication
+              .withPermit(
+                Effect.gen(function* () {
+                  session.accepting = false
+                  yield* settleOpenItems(session).pipe(Effect.ignore)
+                  if (session.awaitingResult) {
+                    yield* session
+                      .emit({
                         type: 'turn.failed',
                         turnId: session.input.turnId,
-                        error: session.reason ?? 'server shutdown',
+                        error: reason,
                       })
-                      session.awaitingResult = false
-                    }
-                    for (const itemId of session.runningWorkflows)
-                      yield* session.emit({
-                        type: 'item.completed',
-                        itemId,
-                        patch: { status: 'stopped', stopReason: 'crash' },
-                      })
-                    yield* Deferred.succeed(session.done, undefined)
-                  })
-                )
-                .pipe(Effect.ignore)
-            ),
-            Effect.onError(() =>
-              session.publication
-                .withPermit(
-                  Effect.gen(function* () {
-                    session.accepting = false
-                    yield* settleOpenItems(session)
-                  })
-                )
-                .pipe(Effect.ignore)
-            ),
+                      .pipe(Effect.ignore)
+                    session.awaitingResult = false
+                  }
+                  for (const itemId of session.runningWorkflows)
+                    yield* publish(session, {
+                      type: 'item.completed',
+                      itemId,
+                      patch: { status: 'stopped', stopReason: 'crash' },
+                    }).pipe(Effect.ignore)
+                  if (failed) yield* Deferred.fail(session.done, new AgentError(reason))
+                  else yield* Deferred.succeed(session.done, undefined)
+                })
+              )
+              .pipe(Effect.ignore)
+          }
+          const lifecycle = run(session, project.path).pipe(
+            Effect.onInterrupt(() => cleanup(session.reason ?? 'server shutdown')),
+            Effect.onError((cause) => cleanup(`Grok session failed: ${String(cause)}`, true)),
             Effect.ensuring(
               Effect.sync(() => {
                 if (sessions.get(input.threadId) === session) sessions.delete(input.threadId)
