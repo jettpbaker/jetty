@@ -72,6 +72,7 @@ function FolderPicker({
   function onScroll(event: UIEvent<HTMLElement>) {
     const list = event.currentTarget
     list.dataset.scrolling = ''
+    list.toggleAttribute('data-scrolled', list.scrollTop > 0)
     clearTimeout(scrollIdle.current)
     scrollIdle.current = setTimeout(() => delete list.dataset.scrolling, 800)
   }
@@ -94,7 +95,7 @@ function FolderPicker({
         <div
           {...picker.list}
           onScroll={onScroll}
-          className='scrollbar-auto-hide h-80 scroll-pb-14 overflow-y-auto overscroll-contain px-2 pb-14 mask-b-from-[calc(100%-3.5rem)]'
+          className='scrollbar-auto-hide h-80 scroll-pb-14 overflow-y-auto overscroll-contain px-2 pb-14 mask-b-from-[calc(100%-3.5rem)] data-scrolled:mask-t-from-[calc(100%-1.5rem)]'
         >
           {picker.canGoUp && (
             <div {...picker.row(UP)} className={row}>
