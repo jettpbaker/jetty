@@ -298,6 +298,12 @@ export function createOrchestrator(
                   !thread.pendingMessages?.some((m) => m.id === input.queued!.id)
                 )
                   return { turnId: '' }
+                if (
+                  !input.sendNow &&
+                  (thread.pendingMessages.find((m) => m.id === input.queued!.id)?.editingUntil ??
+                    0) > Date.now()
+                )
+                  return { turnId: '' }
                 if (input.sendNow && !state(input.threadId).turnId && !state(input.threadId).ready)
                   return yield* Effect.fail(new StoreError('conflict', 'No accepting turn'))
                 if (
@@ -506,6 +512,18 @@ export function createOrchestrator(
           )
         )
       },
+      setQueuedEditing(threadId: string, messageId: string, editing: boolean) {
+        return state(threadId).admission.withPermit(
+          hub.withChromePublication(
+            store.setQueuedEditing(threadId, messageId, editing).pipe(
+              Effect.tap((thread) =>
+                Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+              ),
+              Effect.uninterruptible
+            )
+          )
+        )
+      },
       sendQueuedNow(threadId: string, messageId: string, byUser = true) {
         return Effect.gen(function* () {
           if (!byUser && (yield* store.isQueuePaused(threadId)))
@@ -555,7 +573,8 @@ export function createOrchestrator(
               (yield* store.isQueuePaused(thread.id)) ||
               state(thread.id).turnId ||
               !state(thread.id).ready ||
-              !queue[0]
+              !queue[0] ||
+              (queue[0].editingUntil ?? 0) > Date.now()
             )
               continue
             yield* startTurnEffect({
@@ -599,7 +618,7 @@ export function createOrchestrator(
         })
         return Effect.forever(
           drain.pipe(
-            Effect.andThen(Queue.take(store.queueChanges)),
+            Effect.andThen(Queue.take(store.queueChanges).pipe(Effect.timeoutOption(1000))),
             Effect.catchCause((cause) =>
               Effect.logError(cause).pipe(Effect.andThen(Effect.sleep(100)))
             )

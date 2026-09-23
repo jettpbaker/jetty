@@ -255,6 +255,14 @@ export function createRpcHandlers(
         orch
           .editQueued(params.threadId, params.messageId, params.text)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'queue.hold': (params) =>
+        orch
+          .setQueuedEditing(params.threadId, params.messageId, true)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'queue.release': (params) =>
+        orch
+          .setQueuedEditing(params.threadId, params.messageId, false)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'queue.sendNow': (params) =>
         Effect.gen(function* () {
           const fiber = yield* Effect.forkIn(

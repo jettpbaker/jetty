@@ -122,6 +122,14 @@ function sendQueuedNow(registry: Registry, threadId: string, messageId: string) 
   )
 }
 
+function holdQueued(registry: Registry, threadId: string, messageId: string) {
+  run(registry, (connection) => connection.request('queue.hold', { threadId, messageId }))
+}
+
+function releaseQueued(registry: Registry, threadId: string, messageId: string) {
+  run(registry, (connection) => connection.request('queue.release', { threadId, messageId }))
+}
+
 export function useThreadQueue(threadId: string | undefined) {
   const server = useChrome()?.threads.find((thread) => thread.id === threadId)?.pendingMessages
   const ops = useAtomValue(queueOpsAtom).get(threadId ?? '')
@@ -134,5 +142,7 @@ export function useQueueActions() {
     remove: useAction(removeQueued),
     edit: useAction(editQueued),
     sendNow: useAction(sendQueuedNow),
+    hold: useAction(holdQueued),
+    release: useAction(releaseQueued),
   }
 }

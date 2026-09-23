@@ -87,6 +87,7 @@ export const QueuedMessage = Schema.Struct({
   id: Schema.String,
   text: Schema.String,
   createdAt: Schema.Int,
+  editingUntil: Schema.optional(Schema.Int),
   from: Schema.optional(MessageSource),
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),
@@ -268,6 +269,14 @@ export const methods = {
       messageId: Schema.String,
       text: Schema.String.check(Schema.isMinLength(1)),
     }),
+    result: Schema.Null,
+  },
+  'queue.hold': {
+    params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
+    result: Schema.Null,
+  },
+  'queue.release': {
+    params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
     result: Schema.Null,
   },
   'queue.sendNow': {

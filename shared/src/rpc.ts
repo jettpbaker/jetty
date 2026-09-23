@@ -48,6 +48,8 @@ export const JettyRpcs = RpcGroup.make(
   unary('queue.add'),
   unary('queue.remove'),
   unary('queue.edit'),
+  unary('queue.hold'),
+  unary('queue.release'),
   unary('queue.sendNow'),
   unary('turn.start'),
   unary('turn.interrupt'),

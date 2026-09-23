@@ -409,9 +409,31 @@ export function createStore() {
           if (text !== undefined)
             yield* updateQueue(
               threadId,
-              (thread.pendingMessages ?? []).map((m) => (m.id === messageId ? { ...m, text } : m))
+              (thread.pendingMessages ?? []).map((m) =>
+                m.id === messageId ? { ...m, text, editingUntil: undefined } : m
+              )
             )
           else yield* removeQueued(threadId, messageId)
+          return yield* requireThread(threadId)
+        }).pipe(
+          sql.withTransaction,
+          Effect.tap(() => signalQueueChange),
+          Effect.mapError(storeError)
+        )
+      },
+      setQueuedEditing(threadId: string, messageId: string, editing: boolean) {
+        return Effect.gen(function* () {
+          const thread = yield* requireThread(threadId)
+          if (!(thread.pendingMessages ?? []).some((m) => m.id === messageId))
+            return yield* Effect.fail(new StoreError('not_found', 'Queued message not found'))
+          yield* updateQueue(
+            threadId,
+            (thread.pendingMessages ?? []).map((m) =>
+              m.id === messageId
+                ? { ...m, editingUntil: editing ? Date.now() + 60_000 : undefined }
+                : m
+            )
+          )
           return yield* requireThread(threadId)
         }).pipe(
           sql.withTransaction,

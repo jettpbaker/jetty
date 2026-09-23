@@ -89,6 +89,8 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Stream.succeed({ repo, number, status: 'loading' as const }),
           'queue.add': () => Effect.succeed(null),
           'queue.edit': () => Effect.succeed(null),
+          'queue.hold': () => Effect.succeed(null),
+          'queue.release': () => Effect.succeed(null),
           'queue.remove': () => Effect.succeed(null),
           'queue.sendNow': () => Effect.succeed(null),
           'turn.start': () =>

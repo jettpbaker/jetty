@@ -34,7 +34,7 @@ import {
   useThreadQueue,
 } from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -74,6 +74,7 @@ export function ThreadComposer({
   const respondQuestion = useRespondQuestion()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
+  const holdQueued = queueActions.hold
   const queue = useThreadQueue(threadId)
   const navigate = useNavigate()
   const chrome = useChrome()
@@ -112,6 +113,12 @@ export function ThreadComposer({
   const todo = openTodo ?? (running ? todos.at(-1) : undefined)
   const editingEntry = queue.find((entry) => entry.id === editing)
 
+  useEffect(() => {
+    if (!threadId || !editing) return
+    const timer = setInterval(() => holdQueued(threadId, editing), 30_000)
+    return () => clearInterval(timer)
+  }, [editing, holdQueued, threadId])
+
   function priorCount(text: string) {
     return items.filter((entry) => entry.kind === 'user_message' && entry.text === text).length
   }
@@ -135,6 +142,7 @@ export function ThreadComposer({
   }
 
   function changeDraft(value: string) {
+    if (!value.trim() && threadId && editing) queueActions.release(threadId, editing)
     update(value.trim() ? { text: value } : { text: value, editing: undefined })
   }
 
@@ -149,7 +157,9 @@ export function ThreadComposer({
       if (!threadId) return
       const previous = draft.trim()
       if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
+      else if (editingEntry) queueActions.release(threadId, editingEntry.id)
       else if (previous) queueActions.add(threadId, previous, attachments.take())
+      queueActions.hold(threadId, entry.id)
       update({ text: entry.text, editing: entry.id })
     },
     remove(entry: QueuedMessage) {
@@ -227,6 +237,7 @@ export function ThreadComposer({
             onSubmit: submit,
             onKeyDown: keyHandler((event) => {
               if (event.key !== 'Escape' || !editing) return false
+              if (threadId) queueActions.release(threadId, editing)
               update({ text: '', editing: undefined })
               return true
             }),
