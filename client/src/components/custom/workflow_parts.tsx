@@ -38,6 +38,11 @@ export const workflowTone: Record<Workflow['status'], string> = {
   stopped: 'text-muted-foreground',
 }
 
+// Grok's ACP has no per-workflow stop request.
+export function stopDisabledReason(workflow: Workflow) {
+  return workflow.provider === 'grok' ? 'Grok can’t stop a single workflow' : undefined
+}
+
 export function waitingCount(workflow: Workflow) {
   return workflow.status === 'running'
     ? workflow.agents.filter((agent) => agent.state === 'waiting').length

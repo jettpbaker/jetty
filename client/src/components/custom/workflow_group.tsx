@@ -7,10 +7,12 @@ import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
 import { ChevronRightIcon } from '@primer/octicons-react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { formatDuration, formatSubagentTokens } from './subagent_row'
 import {
   AgentGlyph,
   shownState,
+  stopDisabledReason,
   tally,
   workflowSeconds,
   workflowTone,
@@ -159,14 +161,17 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
           <div className='flex h-7 items-center justify-between gap-3 pl-2'>
             <span className='truncate text-xs text-muted-foreground'>{workflow.description}</span>
             {running && (
-              <Button
-                size='sm'
-                variant='ghost'
-                className='rounded-sm'
-                onClick={() => stopWorkflow(threadId, workflow.taskId)}
-              >
-                Stop
-              </Button>
+              <DisabledTooltip reason={stopDisabledReason(workflow)} wrap='flex'>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  className='rounded-sm disabled:pointer-events-none'
+                  disabled={!!stopDisabledReason(workflow)}
+                  onClick={() => stopWorkflow(threadId, workflow.taskId)}
+                >
+                  Stop
+                </Button>
+              </DisabledTooltip>
             )}
           </div>
         </div>

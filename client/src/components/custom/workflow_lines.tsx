@@ -6,9 +6,11 @@ import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
 import { useState } from 'react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { formatDuration, formatSubagentTokens } from './subagent_row'
 import {
   WorkflowGlyph,
+  stopDisabledReason,
   tally,
   waitingCount,
   workflowSeconds,
@@ -154,14 +156,20 @@ function WorkflowLine({
             <span className='text-muted-foreground tabular-nums [grid-area:1/1] group-focus-within/line:opacity-0 group-hover/line:opacity-0'>
               {formatSubagentTokens(workflow.tokens)}
             </span>
-            <Button
-              size='sm'
-              variant='ghost'
-              className='relative -mr-2.25 rounded-sm opacity-0 [grid-area:1/1] group-focus-within/line:opacity-100 group-hover/line:opacity-100'
-              onClick={onStop}
+            <DisabledTooltip
+              reason={stopDisabledReason(workflow)}
+              wrap='relative -mr-2.25 flex opacity-0 [grid-area:1/1] group-focus-within/line:opacity-100 group-hover/line:opacity-100'
             >
-              Stop
-            </Button>
+              <Button
+                size='sm'
+                variant='ghost'
+                className='rounded-sm disabled:pointer-events-none'
+                disabled={!!stopDisabledReason(workflow)}
+                onClick={onStop}
+              >
+                Stop
+              </Button>
+            </DisabledTooltip>
           </span>
         </>
       ) : (
