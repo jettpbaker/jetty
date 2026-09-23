@@ -183,12 +183,7 @@ export function createMcpHandler(
         if (input.steer && !response.duplicate && response.messageId) {
           const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId).pipe(
             Effect.as(true),
-            Effect.catch((error) =>
-              error.message === 'Active turn is not accepting input' ||
-              error.message === 'Queued message not found'
-                ? Effect.succeed(false)
-                : Effect.fail(error)
-            )
+            Effect.catch(() => Effect.succeed(false))
           )
           if (sent) delivery = 'delivered'
         }
@@ -300,7 +295,7 @@ export function createMcpHandler(
         'send_message',
         {
           description:
-            'Send a message to another thread in your project. Queues in order if busy, starts it if idle. Use steer=true only to redirect its current turn. Reuse requestId to retry safely.',
+            'Send a message to another thread in your project. Queues in order if busy, starts it if idle. Use steer=true only to redirect its current turn; if steering is unavailable the message stays queued and the call succeeds. Reuse requestId to retry safely.',
           inputSchema: sendInput,
         },
         (input) => invoke(sendMessage(identity, input))
