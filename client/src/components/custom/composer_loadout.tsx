@@ -1,5 +1,5 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
-import type { SyntheticEvent } from 'react'
+import type { KeyboardEvent, SyntheticEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -55,6 +55,36 @@ function stopSelect(event: SyntheticEvent) {
   event.stopPropagation()
 }
 
+function moveOnKeys(index: number, onMove: (from: number, to: number) => void) {
+  return (event: KeyboardEvent) => {
+    if (!event.altKey || !event.shiftKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
+    event.preventDefault()
+    event.stopPropagation()
+    onMove(index, index + (event.key === 'ArrowUp' ? -1 : 1))
+  }
+}
+
+function DragHandle({
+  handleRef,
+  isDragging,
+}: {
+  handleRef: (element: Element | null) => void
+  isDragging: boolean
+}) {
+  return (
+    <span
+      ref={handleRef}
+      aria-hidden='true'
+      tabIndex={-1}
+      className={`-my-0.5 -ml-1.5 flex h-8 w-7 shrink-0 touch-none items-center justify-center ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      onClick={stopSelect}
+      onPointerUp={stopSelect}
+    >
+      <DotsSixVerticalIcon className='size-4! text-muted-foreground' />
+    </span>
+  )
+}
+
 function SortableLoadoutItem({
   id,
   index,
@@ -89,24 +119,9 @@ function SortableLoadoutItem({
       className='group/loadout h-8! gap-0 pl-1.5 pr-1.5 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden'
       title='Drag to reorder · Option+Shift+↑/↓'
       aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
-      onKeyDown={(event) => {
-        if (!event.altKey || !event.shiftKey || !['ArrowUp', 'ArrowDown'].includes(event.key))
-          return
-        event.preventDefault()
-        event.stopPropagation()
-        onMove(index, index + (event.key === 'ArrowUp' ? -1 : 1))
-      }}
+      onKeyDown={moveOnKeys(index, onMove)}
     >
-      <span
-        ref={handleRef}
-        aria-hidden='true'
-        tabIndex={-1}
-        className={`-my-0.5 -ml-1.5 flex h-8 w-7 touch-none items-center justify-center ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-        onClick={stopSelect}
-        onPointerUp={stopSelect}
-      >
-        <DotsSixVerticalIcon className='size-4! text-muted-foreground' />
-      </span>
+      <DragHandle handleRef={handleRef} isDragging={isDragging} />
       <span className='flex items-center gap-1.5'>
         <ProviderGlyph
           provider={provider}
@@ -132,31 +147,65 @@ function SortableLoadoutItem({
   )
 }
 
-function EmptyLoadoutRows({
-  slots,
+const emptyRowClass =
+  'flex h-8! w-full items-center gap-1.5 rounded-menu-item pr-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground outline-none'
+
+function EmptyRowContent() {
+  return (
+    <>
+      <PlusIcon className='size-3 shrink-0' />
+      <span>Add configuration</span>
+      <span className='ml-auto flex size-5 shrink-0 items-center justify-center'>
+        <ArrowUpRightIcon className='size-3.5' />
+      </span>
+    </>
+  )
+}
+
+function EmptyLoadoutRow({ slot, onOpenSettings }: { slot: number; onOpenSettings: () => void }) {
+  return (
+    <DropdownMenuItem
+      onClick={onOpenSettings}
+      aria-label={`Add configuration to slot ${slot}`}
+      className={`${emptyRowClass} pl-2`}
+    >
+      <EmptyRowContent />
+    </DropdownMenuItem>
+  )
+}
+
+function SortableEmptyRow({
+  id,
+  index,
+  onMove,
   onOpenSettings,
 }: {
-  slots: readonly number[]
+  id: string
+  index: number
+  onMove: (from: number, to: number) => void
   onOpenSettings: () => void
 }) {
-  if (slots.length === 0) return null
+  const reducedMotion = useReducedMotion()
+  const { ref, handleRef, isDragging } = useSortable({
+    id,
+    index,
+    transition: reducedMotion ? null : { duration: 150, easing: 'ease-out' },
+  })
   return (
-    <div className='mt-0.5 flex flex-col gap-0.5'>
-      {slots.map((slot) => (
-        <DropdownMenuItem
-          key={slot}
-          onClick={onOpenSettings}
-          aria-label={`Add configuration to slot ${slot}`}
-          className='flex h-8! w-full items-center gap-1.5 rounded-menu-item pl-7 pr-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground outline-none'
-        >
-          <PlusIcon className='size-3 shrink-0' />
-          <span>Add configuration</span>
-          <span className='ml-auto flex size-5 shrink-0 items-center justify-center'>
-            <ArrowUpRightIcon className='size-3.5' />
-          </span>
-        </DropdownMenuItem>
-      ))}
-    </div>
+    <DropdownMenuItem
+      ref={ref}
+      onClick={onOpenSettings}
+      aria-label={`Add configuration to slot ${index + 1}`}
+      title='Drag to reorder · Option+Shift+↑/↓'
+      aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
+      onKeyDown={moveOnKeys(index, onMove)}
+      className={`${emptyRowClass} gap-0 pl-1.5`}
+    >
+      <DragHandle handleRef={handleRef} isDragging={isDragging} />
+      <span className='flex items-center gap-1.5'>
+        <EmptyRowContent />
+      </span>
+    </DropdownMenuItem>
   )
 }
 
@@ -183,7 +232,6 @@ export function ComposerLoadout({
     const loadout = slotLoadout(slot)
     return loadout ? [{ slot, loadout }] : []
   })
-  const empty = loadouts.flatMap((slot, index) => (slot.model === null ? [index + 1] : []))
   const checked =
     (value && equipped.find(({ loadout }) => sameLoadout(loadout, value))?.slot.id) ?? ''
   const models = lockedProvider
@@ -191,11 +239,10 @@ export function ComposerLoadout({
     : catalog
 
   function reorder(from: number, to: number) {
-    if (from === to || to < 0 || to >= equipped.length) return
-    const next = equipped.map(({ slot }) => slot)
+    if (from === to || to < 0 || to >= loadouts.length) return
+    const next = [...loadouts]
     next.splice(to, 0, ...next.splice(from, 1))
-    let equippedIndex = 0
-    onReorder(loadouts.map((slot) => (slot.model === null ? slot : next[equippedIndex++]!)))
+    onReorder(next)
   }
 
   function swapModel(key: string) {
@@ -252,22 +299,42 @@ export function ComposerLoadout({
               }}
               className='flex flex-col gap-0.5'
             >
-              {equipped.map(({ slot, loadout }, index) => (
-                <SortableLoadoutItem
-                  key={slot.id}
-                  id={slot.id}
-                  index={index}
-                  name={findModel(catalog, loadout)?.name ?? loadout.model}
-                  details={describeLoadout(loadout)}
-                  provider={loadout.provider}
-                  disabled={Boolean(lockedProvider && lockedProvider !== loadout.provider)}
-                  onMove={reorder}
-                  onOpenSettings={onOpenSettings}
-                />
-              ))}
+              {loadouts.map((slot, index) => {
+                const loadout = slotLoadout(slot)
+                if (equipped.length === 0)
+                  return (
+                    <EmptyLoadoutRow
+                      key={slot.id}
+                      slot={index + 1}
+                      onOpenSettings={onOpenSettings}
+                    />
+                  )
+                if (!loadout)
+                  return (
+                    <SortableEmptyRow
+                      key={slot.id}
+                      id={slot.id}
+                      index={index}
+                      onMove={reorder}
+                      onOpenSettings={onOpenSettings}
+                    />
+                  )
+                return (
+                  <SortableLoadoutItem
+                    key={slot.id}
+                    id={slot.id}
+                    index={index}
+                    name={findModel(catalog, loadout)?.name ?? loadout.model}
+                    details={describeLoadout(loadout)}
+                    provider={loadout.provider}
+                    disabled={Boolean(lockedProvider && lockedProvider !== loadout.provider)}
+                    onMove={reorder}
+                    onOpenSettings={onOpenSettings}
+                  />
+                )
+              })}
             </DropdownMenuRadioGroup>
           </DragDropProvider>
-          <EmptyLoadoutRows slots={empty} onOpenSettings={onOpenSettings} />
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
