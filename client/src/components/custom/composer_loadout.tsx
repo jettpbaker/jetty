@@ -170,20 +170,21 @@ export function ComposerLoadout({
 }: {
   catalog: readonly ProviderModel[]
   loadouts: readonly LoadoutSlot[]
-  value: Loadout
+  value?: Loadout
   lockedProvider?: ProviderId
   onChange: (loadout: Loadout) => void
   onReorder: (loadouts: LoadoutSlot[]) => void
   onOpenSettings: () => void
 }) {
-  const model = findModel(catalog, value)
-  const name = model?.name ?? value.model
+  const model = value && findModel(catalog, value)
+  const name = model?.name ?? value?.model
   const equipped = loadouts.flatMap((slot) => {
     const loadout = slotLoadout(slot)
     return loadout ? [{ slot, loadout }] : []
   })
   const empty = loadouts.flatMap((slot, index) => (slot.model === null ? [index + 1] : []))
-  const checked = equipped.find(({ loadout }) => sameLoadout(loadout, value))?.slot.id ?? ''
+  const checked =
+    (value && equipped.find(({ loadout }) => sameLoadout(loadout, value))?.slot.id) ?? ''
   const models = lockedProvider
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
@@ -199,14 +200,14 @@ export function ComposerLoadout({
   function swapModel(key: string) {
     const next = models.find((item) => modelKey(item) === key)
     if (!next) return
-    const { provider, model: id, effort, fast } = equipModel(value, next)
+    const { provider, model: id, effort, fast } = equipModel(value ?? { fast: false }, next)
     onChange({ provider, model: id, effort, fast })
   }
 
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
-        aria-label={`Loadout: ${name}, ${describeLoadout(value)}`}
+        aria-label={value ? `Loadout: ${name}, ${describeLoadout(value)}` : 'Choose a model'}
         render={
           <Button
             variant='ghost'
@@ -215,11 +216,17 @@ export function ComposerLoadout({
           />
         }
       >
-        <ProviderGlyph provider={value.provider} className='size-3' />
-        {name}
-        <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
-          {describeLoadout(value)}
-        </span>
+        {value ? (
+          <>
+            <ProviderGlyph provider={value.provider} className='size-3' />
+            {name}
+            <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
+              {describeLoadout(value)}
+            </span>
+          </>
+        ) : (
+          'Choose a model'
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' className='w-max min-w-56'>
         <DropdownMenuGroup>
@@ -266,7 +273,7 @@ export function ComposerLoadout({
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup
-                value={modelKey({ provider: value.provider, id: value.model })}
+                value={value ? modelKey({ provider: value.provider, id: value.model }) : ''}
                 onValueChange={(key) => swapModel(String(key))}
               >
                 {models.map((item) => (
@@ -278,7 +285,7 @@ export function ComposerLoadout({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          {model && model.efforts.length > 0 && (
+          {value && model && model.efforts.length > 0 && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className={subTriggerClass}>
                 Effort
@@ -303,7 +310,7 @@ export function ComposerLoadout({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )}
-          {model?.fast && (
+          {value && model?.fast && (
             <DropdownMenuCheckboxItem
               className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
               checked={value.fast}

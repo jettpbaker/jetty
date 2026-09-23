@@ -42,10 +42,11 @@ export function ThreadComposer({
   const [pickedProjectId, setPickedProjectId] = useState<string>()
   const projectId =
     !threadId && chrome ? (pickedProjectId ?? newThreadProject(chrome, selectedId)) : undefined
+  const needsModel = !threadId && !loadout
 
   function submit() {
     const text = draft.trim()
-    if (!text && attachments.images.length === 0) return
+    if ((!text && attachments.images.length === 0) || needsModel) return
     const id = threadId ?? (projectId ? createThread(projectId) : undefined)
     if (!id) return
     const prior = items.filter((item) => item.kind === 'user_message' && item.text === text).length
@@ -64,19 +65,18 @@ export function ThreadComposer({
           if (threadId) interruptTurn(threadId)
         }}
         running={running}
-        sendDisabled={!threadId && !projectId}
+        sendDisabled={(!threadId && !projectId) || needsModel}
+        sendHint={needsModel ? 'Choose a model first' : undefined}
         loadout={
-          loadout && (
-            <ComposerLoadout
-              catalog={catalog}
-              loadouts={loadouts}
-              value={loadout}
-              lockedProvider={lockedProvider}
-              onChange={setLoadout}
-              onReorder={setLoadouts}
-              onOpenSettings={() => void navigate({ to: '/settings' })}
-            />
-          )
+          <ComposerLoadout
+            catalog={catalog}
+            loadouts={loadouts}
+            value={loadout}
+            lockedProvider={lockedProvider}
+            onChange={setLoadout}
+            onReorder={setLoadouts}
+            onOpenSettings={() => void navigate({ to: '/settings' })}
+          />
         }
         accessMode={accessMode}
         onAccessModeChange={setAccessMode}

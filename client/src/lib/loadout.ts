@@ -72,14 +72,8 @@ function slotId(index: number) {
   return `slot-${index + 1}`
 }
 
-export function defaultLoadouts(catalog: readonly ProviderModel[]): LoadoutSlot[] {
-  const firsts = catalog.filter(
-    (model, index) => catalog.findIndex((item) => item.provider === model.provider) === index
-  )
-  return Array.from({ length: slotCount }, (_, index) => {
-    const model = firsts[index]
-    return model ? equipModel({ id: slotId(index), fast: false }, model) : emptySlot(slotId(index))
-  })
+function emptyLoadouts() {
+  return Array.from({ length: slotCount }, (_, index) => emptySlot(slotId(index)))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -87,7 +81,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function restoreLoadouts(value: unknown, catalog: readonly ProviderModel[]): LoadoutSlot[] {
-  const fallback = defaultLoadouts(catalog)
+  const fallback = emptyLoadouts()
   if (!Array.isArray(value) || value.length !== slotCount) return fallback
   return fallback.map((slot, index) => {
     const item: unknown = value[index]

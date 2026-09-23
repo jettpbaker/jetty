@@ -5,6 +5,7 @@ import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { StopIcon } from '@phosphor-icons/react'
 import { ArrowUpIcon } from '@primer/octicons-react'
 import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react'
@@ -16,6 +17,7 @@ export function Composer({
   onInterrupt,
   running,
   sendDisabled = false,
+  sendHint,
   loadout,
   accessMode,
   onAccessModeChange,
@@ -28,6 +30,7 @@ export function Composer({
   onInterrupt: () => void
   running: boolean
   sendDisabled?: boolean
+  sendHint?: string
   loadout: ReactNode
   accessMode: PermissionMode
   onAccessModeChange: (accessMode: PermissionMode) => void
@@ -126,15 +129,21 @@ export function Composer({
               <StopIcon weight='fill' />
             </Button>
           ) : (
-            <Button
-              variant='default'
-              size='icon-sm'
-              aria-label='Send'
-              disabled={!canSend}
-              onClick={submit}
-            >
-              <ArrowUpIcon />
-            </Button>
+            <Tooltip disabled={!sendHint}>
+              <TooltipTrigger render={<span className='flex' />}>
+                <Button
+                  variant='default'
+                  size='icon-sm'
+                  aria-label='Send'
+                  disabled={!canSend}
+                  className={sendHint ? 'pointer-events-none' : undefined}
+                  onClick={submit}
+                >
+                  <ArrowUpIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{sendHint}</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
