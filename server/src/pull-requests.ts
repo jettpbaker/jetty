@@ -339,14 +339,15 @@ export function createPullRequests(store: Store, hub: Hub) {
         inFlight.set(key, pending)
         void pending.finally(() => inFlight.delete(key))
       }
-      const snapshot = yield* Effect.promise(() => pending)
-      yield* store.savePullRequest(snapshot)
+      yield* store.savePullRequest(yield* Effect.promise(() => pending))
+      // The stored snapshot keeps the last good data when this read failed.
+      const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
       hub.pushPullRequest(snapshot)
       for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
         const thread = yield* store.requireThread(threadId)
         hub.pushChrome({ type: 'thread.upserted', thread })
       }
-      return yield* store.getPullRequest(ref.repo, ref.number)
+      return snapshot
     })
   }
 
