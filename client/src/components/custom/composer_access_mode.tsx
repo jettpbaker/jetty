@@ -1,4 +1,4 @@
-import type { PermissionMode } from '@jetty/shared/wire'
+import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { SearchIcon, UnlockIcon } from '@primer/octicons-react'
+import { CommentIcon, SearchIcon, UnlockIcon } from '@primer/octicons-react'
 
 const modes: Record<PermissionMode, { label: string; Icon: typeof SearchIcon }> = {
   auto: { label: 'Auto', Icon: SearchIcon },
@@ -22,12 +22,17 @@ function isMode(value: unknown): value is PermissionMode {
 
 export function ComposerAccessMode({
   value,
+  model,
   onChange,
 }: {
   value: PermissionMode
+  model?: ProviderModel
   onChange: (value: PermissionMode) => void
 }) {
-  const { label, Icon } = modes[value]
+  const noAuto = model?.autoMode === false ? model.name : undefined
+  const askFirst = value === 'auto' && noAuto !== undefined
+  const { label, Icon } = askFirst ? { label: 'Asks first', Icon: CommentIcon } : modes[value]
+  const tooltip = askFirst ? `Asks first — ${noAuto} doesn't support Auto` : label
   return (
     <DropdownMenu modal={false}>
       <Tooltip>
@@ -52,19 +57,26 @@ export function ComposerAccessMode({
         >
           <Icon className='size-3.5' />
         </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
+        <TooltipContent>{tooltip}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuRadioGroup
-          value={value}
+          value={askFirst ? null : value}
           onValueChange={(next) => {
             if (isMode(next)) onChange(next)
           }}
         >
           {Object.entries(modes).map(([id, mode]) => (
-            <DropdownMenuRadioItem key={id} value={id}>
+            <DropdownMenuRadioItem
+              key={id}
+              value={id}
+              disabled={id === 'auto' && noAuto !== undefined}
+            >
               <mode.Icon className='text-muted-foreground' />
               {mode.label}
+              {id === 'auto' && noAuto !== undefined ? (
+                <span className='text-muted-foreground'>Not supported by {noAuto}</span>
+              ) : null}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

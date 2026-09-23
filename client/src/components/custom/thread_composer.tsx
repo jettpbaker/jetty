@@ -4,6 +4,7 @@ import { Composer } from '@/components/custom/composer'
 import { ComposerFooter } from '@/components/custom/composer_footer'
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
+import { findModel } from '@/lib/loadout'
 import { newThreadProject } from '@/lib/thread_project'
 import {
   useAccessMode,
@@ -78,6 +79,7 @@ export function ThreadComposer({
             onOpenSettings={() => void navigate({ to: '/settings' })}
           />
         }
+        model={loadout && findModel(catalog, loadout)}
         accessMode={accessMode}
         onAccessModeChange={setAccessMode}
         attachments={attachments}

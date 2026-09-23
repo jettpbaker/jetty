@@ -1,5 +1,5 @@
 import type { ImageAttachments } from '@/hooks/use-image-attachments'
-import type { PermissionMode } from '@jetty/shared/wire'
+import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
@@ -24,6 +24,7 @@ export function Composer({
   sendDisabled = false,
   sendHint,
   loadout,
+  model,
   accessMode,
   onAccessModeChange,
   attachments,
@@ -38,6 +39,7 @@ export function Composer({
   sendDisabled?: boolean
   sendHint?: string
   loadout: ReactNode
+  model?: ProviderModel
   accessMode: PermissionMode
   onAccessModeChange: (accessMode: PermissionMode) => void
   attachments: ImageAttachments
@@ -118,7 +120,7 @@ export function Composer({
             <div className='flex items-center gap-0'>
               <ComposerAttach onAttach={attachments.add} />
               {loadout}
-              <ComposerAccessMode value={accessMode} onChange={onAccessModeChange} />
+              <ComposerAccessMode value={accessMode} model={model} onChange={onAccessModeChange} />
             </div>
             <div className='flex items-center gap-1'>
               <ComposerEnvironment />
