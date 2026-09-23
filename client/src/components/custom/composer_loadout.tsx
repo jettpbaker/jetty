@@ -85,6 +85,24 @@ function DragHandle({
   )
 }
 
+function SettingsArrow({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <button
+      type='button'
+      tabIndex={-1}
+      aria-label='Open loadout settings'
+      className='ml-auto flex size-5 shrink-0 items-center justify-center rounded-menu-item text-muted-foreground hover:text-foreground'
+      onClick={(event) => {
+        stopSelect(event)
+        onOpenSettings()
+      }}
+      onPointerUp={stopSelect}
+    >
+      <ArrowUpRightIcon className='size-3.5' />
+    </button>
+  )
+}
+
 function SortableLoadoutItem({
   id,
   index,
@@ -130,19 +148,7 @@ function SortableLoadoutItem({
         {name}
         <span className='text-muted-foreground'>{details}</span>
       </span>
-      <button
-        type='button'
-        tabIndex={-1}
-        aria-label='Open loadout settings'
-        className='ml-auto flex size-5 items-center justify-center rounded-menu-item text-muted-foreground hover:text-foreground'
-        onClick={(event) => {
-          stopSelect(event)
-          onOpenSettings()
-        }}
-        onPointerUp={stopSelect}
-      >
-        <ArrowUpRightIcon className='size-3.5' />
-      </button>
+      <SettingsArrow onOpenSettings={onOpenSettings} />
     </DropdownMenuRadioItem>
   )
 }
@@ -150,15 +156,12 @@ function SortableLoadoutItem({
 const emptyRowClass =
   'flex h-8! w-full items-center gap-1.5 rounded-menu-item pr-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground outline-none'
 
-function EmptyRowContent() {
+function EmptyRowLabel() {
   return (
-    <>
+    <span className='flex items-center gap-1.5'>
       <PlusIcon className='size-3 shrink-0' />
-      <span>Add configuration</span>
-      <span className='ml-auto flex size-5 shrink-0 items-center justify-center'>
-        <ArrowUpRightIcon className='size-3.5' />
-      </span>
-    </>
+      Add configuration
+    </span>
   )
 }
 
@@ -169,7 +172,8 @@ function EmptyLoadoutRow({ slot, onOpenSettings }: { slot: number; onOpenSetting
       aria-label={`Add configuration to slot ${slot}`}
       className={`${emptyRowClass} pl-2`}
     >
-      <EmptyRowContent />
+      <EmptyRowLabel />
+      <SettingsArrow onOpenSettings={onOpenSettings} />
     </DropdownMenuItem>
   )
 }
@@ -202,9 +206,8 @@ function SortableEmptyRow({
       className={`${emptyRowClass} gap-0 pl-1.5`}
     >
       <DragHandle handleRef={handleRef} isDragging={isDragging} />
-      <span className='flex items-center gap-1.5'>
-        <EmptyRowContent />
-      </span>
+      <EmptyRowLabel />
+      <SettingsArrow onOpenSettings={onOpenSettings} />
     </DropdownMenuItem>
   )
 }
