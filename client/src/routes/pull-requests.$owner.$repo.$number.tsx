@@ -28,6 +28,7 @@ function PullRequestPage() {
         key={`${repo}#${number}`}
         link={{ repo, number, url: `https://github.com/${repo}/pull/${number}` }}
         threads={threads}
+        standalone
       />
     </section>
   )

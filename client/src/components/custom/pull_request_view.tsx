@@ -194,6 +194,24 @@ function reviewerEntries(
   return entries
 }
 
+const conclusionLabel: Record<NonNullable<GitHubCheckRun['conclusion']>, string> = {
+  success: 'Passed',
+  failure: 'Failed',
+  neutral: 'Neutral',
+  cancelled: 'Cancelled',
+  skipped: 'Skipped',
+  timed_out: 'Timed out',
+  action_required: 'Action required',
+  stale: 'Stale',
+  startup_failure: 'Startup failure',
+}
+
+function checkResult(run: GitHubCheckRun) {
+  if (run.status === 'in_progress') return 'Running'
+  if (run.status === 'queued' || !run.conclusion) return 'Queued'
+  return conclusionLabel[run.conclusion]
+}
+
 function CheckStatusIcon({ run }: { run: GitHubCheckRun }) {
   if (run.status === 'in_progress')
     return <InProgressIcon className='shrink-0 text-status-working' />
@@ -223,7 +241,11 @@ function externalLink(href: string) {
 }
 
 function RowIcon({ children }: { children: ReactNode }) {
-  return <span className='flex size-4 shrink-0 items-center justify-center'>{children}</span>
+  return (
+    <span aria-hidden='true' className='flex size-4 shrink-0 items-center justify-center'>
+      {children}
+    </span>
+  )
 }
 
 function CommitRow({ commit, inset = false }: { commit: GitHubCommit; inset?: boolean }) {
@@ -520,10 +542,12 @@ type LinkedThread = { id: string; title: string }
 
 export function PullRequestView({
   data,
+  repo,
   actions,
   threads = [],
 }: {
   data: PullRequestData
+  repo?: string
   actions?: ReactNode
   threads?: readonly LinkedThread[]
 }) {
@@ -541,6 +565,17 @@ export function PullRequestView({
       <div className='flex shrink-0 items-center justify-between px-6 pt-4'>
         <div className='flex min-w-0 items-center gap-2'>
           <PageSidebarTrigger />
+          {repo && (
+            <p className='flex min-w-0 items-center gap-1.5 text-sm'>
+              <span className='truncate font-medium' title={repo}>
+                <span className='hidden sm:inline'>{repo.slice(0, repo.indexOf('/') + 1)}</span>
+                {repo.slice(repo.indexOf('/') + 1)}
+              </span>
+              <span className='font-mono text-xs text-muted-foreground tabular-nums'>
+                #{pull.number}
+              </span>
+            </p>
+          )}
           <Tabs
             value={pane}
             onValueChange={(value) => {
@@ -753,7 +788,10 @@ export function PullRequestView({
                       <RowIcon>
                         <CheckStatusIcon run={run} />
                       </RowIcon>
-                      <span className='min-w-0 flex-1 truncate'>{run.name}</span>
+                      <span className='min-w-0 flex-1 truncate'>
+                        {run.name}
+                        <span className='sr-only'>, {checkResult(run)}</span>
+                      </span>
                       <span className='w-16 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
                         {checkDuration(run)}
                       </span>
@@ -762,6 +800,7 @@ export function PullRequestView({
                         size='sm'
                         className='px-0'
                         nativeButton={false}
+                        aria-label={`${run.name} details`}
                         render={externalLink(run.html_url)}
                       >
                         Details
@@ -859,10 +898,12 @@ export function LivePullRequestView({
   link,
   threadId,
   threads,
+  standalone = false,
 }: {
   link: PullRequestAddress
   threadId?: string
   threads?: readonly LinkedThread[]
+  standalone?: boolean
 }) {
   const { snapshot, refreshing } = usePullRequest(link)
   const refresh = useRefreshPullRequest()
@@ -871,6 +912,7 @@ export function LivePullRequestView({
     return (
       <PullRequestView
         data={snapshot.data}
+        repo={standalone ? link.repo : undefined}
         threads={threads}
         actions={
           <>
