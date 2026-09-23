@@ -100,10 +100,11 @@ export function ThreadComposer({
     (entry) => threadId && dismissQuestion(threadId, entry.id)
   )
   const todos = useMemo(() => currentTodos(items), [items])
-  const todo =
-    running &&
-    (todos.find((entry) => entry.status === 'active') ??
-      todos.find((entry) => entry.status === 'pending'))
+  const openTodo =
+    todos.find((entry) => entry.status === 'active') ??
+    todos.find((entry) => entry.status === 'pending')
+  // Stays while tasks are open, even once the turn ends.
+  const todo = openTodo ?? (running ? todos.at(-1) : undefined)
   const editingEntry = queue.find((entry) => entry.id === editing)
 
   function priorCount(text: string) {

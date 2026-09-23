@@ -145,25 +145,24 @@ function todoStatus(status: unknown): Todo['status'] {
 }
 
 // The main agent's task list: Claude's TaskCreate/TaskUpdate (or older TodoWrite) calls, or
-// Codex's plan. A whole-list plan only counts in the turn that wrote it.
+// Codex's plan. Tasks finished in an earlier turn drop out; open ones carry over.
 export function currentTodos(items: readonly ThreadItem[]): Todo[] {
-  let todos: Todo[] = []
-  let planTurn: string | undefined
+  let todos: (Todo & { turnId: string })[] = []
   for (const item of items) {
     if (item.kind !== 'tool_call' || item.agentId) continue
     const input = record(item.input)
+    const { turnId } = item
     if (todoTools.has(item.toolName)) {
       const list = Array.isArray(input.todos) ? input.todos.map(record) : []
       todos = list.map((todo, index) => ({
         id: String(index + 1),
         text: String(todo.content ?? ''),
         status: todoStatus(todo.status),
+        turnId,
       }))
-      planTurn = item.turnId
     } else if (item.toolName === 'TaskCreate') {
       const id = /#(\d+)/.exec(item.output)?.[1] ?? String(todos.length + 1)
-      todos = [...todos, { id, text: String(input.subject ?? ''), status: 'pending' }]
-      planTurn = undefined
+      todos = [...todos, { id, text: String(input.subject ?? ''), status: 'pending', turnId }]
     } else if (item.toolName === 'TaskUpdate') {
       const id = String(input.taskId ?? '')
       todos =
@@ -175,10 +174,12 @@ export function currentTodos(items: readonly ThreadItem[]): Todo[] {
                     ...todo,
                     text: typeof input.subject === 'string' ? input.subject : todo.text,
                     status: input.status === undefined ? todo.status : todoStatus(input.status),
+                    turnId,
                   }
                 : todo
             )
     }
   }
-  return planTurn && planTurn !== items.at(-1)?.turnId ? [] : todos
+  const current = items.at(-1)?.turnId
+  return todos.filter((todo) => todo.turnId === current || todo.status !== 'done')
 }
