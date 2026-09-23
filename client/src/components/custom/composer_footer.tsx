@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
 import { PlusIcon } from '@primer/octicons-react'
+import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { ComposerBranch } from './composer_branch'
@@ -16,6 +17,7 @@ export function ComposerFooter({
 }) {
   const chrome = useChrome()
   const createProject = useCreateProject()
+  const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
   const projects = chrome?.projects ?? []
   const threads = chrome?.threads ?? []
@@ -39,6 +41,7 @@ export function ComposerFooter({
           options={projects.map((entry) => ({ value: entry.id, label: entry.title }))}
           onValueChange={onProjectChange}
           onNewProject={() => setAdding(true)}
+          onManageProjects={() => void navigate({ to: '/settings', hash: 'projects' })}
         />
       )}
       <ComposerBranch branch={branch} />

@@ -33,7 +33,11 @@ function Section({
   children: ReactNode
 }) {
   return (
-    <section className='flex flex-col gap-6' aria-labelledby={`settings-${id}-heading`}>
+    <section
+      id={id}
+      className='flex scroll-mt-6 flex-col gap-6'
+      aria-labelledby={`settings-${id}-heading`}
+    >
       <div className='flex items-center gap-2 text-muted-foreground'>
         <Icon aria-hidden='true' className='size-4' />
         <h2 id={`settings-${id}-heading`} className='text-sm font-medium'>

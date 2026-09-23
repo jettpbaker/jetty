@@ -9,8 +9,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Thread hover card (sidebar row preview) dropped. Design: `thread_hover.tsx`.
 - Details panel tabs are a plain TabsList. Design: `thread_details_tabs.tsx` —
   `+` open-tab menu, close ✕, drag reorder, Chat tab when full width.
-- Project footer: design's Edit/New project dialog (name + emoji) vs our folder
-  picker (needs a real path). Keep ours or merge them?
 - Disabled-but-visible items dim to 50% (branch chip, Link issue, sidebar
   Issues/PRs). Keep standard dimming or a subtler disabled look?
 - Design rebuilt Settings (sidebar nav, merged Models page) after our port.
