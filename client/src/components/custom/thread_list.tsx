@@ -23,10 +23,26 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useRevealRow } from '@/state'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const pinSlack = 96
+
+// Where each conversation was left, so coming back to it restores the reading position.
+// No anchor means it was at the bottom and should stay stuck there.
+type ScrollPosition = {
+  anchor?: { key: string; offset: number }
+  sizes: VirtualItem[]
+  width: number
+}
+
+const positions = new Map<string, ScrollPosition>()
+
+function anchorAt(virtualizer: Virtualizer<HTMLDivElement, Element>) {
+  const offset = virtualizer.scrollOffset ?? 0
+  const item = virtualizer.getVirtualItemForOffset(offset)
+  return item && { key: String(item.key), offset: offset - item.start }
+}
 
 function contentWidth(scrollerWidth: number) {
   return Math.max(1, Math.min(708, scrollerWidth) - 48)
@@ -175,9 +191,15 @@ export function ThreadList({
     () => threadRows(items, { status, running, outcomes, projectPath, agentId }),
     [items, status, running, outcomes, projectPath, agentId]
   )
+  const view = `${threadId}:${agentId ?? ''}`
+  const [saved] = useState(() => {
+    const position = positions.get(view)
+    const index = rows.findIndex((row) => row.id === position?.anchor?.key)
+    return position && { ...position, index }
+  })
   const scroller = useRef<HTMLDivElement>(null)
-  const pinned = useRef(true)
-  const [width, setWidth] = useState(660)
+  const pinned = useRef(!saved || saved.index === -1)
+  const [width, setWidth] = useState(saved?.width ?? 660)
   const [, setFontsReady] = useState(false)
 
   useEffect(() => {
@@ -206,7 +228,23 @@ export function ThreadList({
     paddingStart: 24,
     paddingEnd: 24,
     getItemKey: (index) => rows[index]!.id,
+    initialMeasurementsCache: saved?.sizes,
+    initialOffset: (): number =>
+      saved?.anchor && saved.index !== -1
+        ? (virtualizer.measurementsCache[saved.index]?.start ?? 0) + saved.anchor.offset
+        : 0,
   })
+
+  useLayoutEffect(
+    () => () => {
+      positions.set(view, {
+        anchor: pinned.current ? undefined : anchorAt(virtualizer),
+        sizes: virtualizer.takeSnapshot(),
+        width,
+      })
+    },
+    [view, virtualizer, width]
+  )
 
   const stamp = rows.map(rowStamp).join('|')
 
