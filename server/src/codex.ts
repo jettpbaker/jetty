@@ -128,6 +128,14 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           method === 'mcpServer/elicitation/request' &&
           object(params._meta).codex_approval_kind === 'mcp_tool_call'
         ) {
+          const meta = object(params._meta)
+          const name = string(meta.tool_name)
+          const server = string(params.serverName)
+          const toolName = name.startsWith('mcp__')
+            ? name
+            : server && name
+              ? `mcp__${server}__${name}`
+              : name || 'mcpToolCall'
           session.pending.set(itemId, { id, mcpTool: true })
           yield* session.emit({
             type: 'item.started',
@@ -135,8 +143,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               ...base,
               kind: 'approval',
               title: string(params.message) || 'Run MCP tool',
-              toolName: 'mcpToolCall',
-              input: object(object(params._meta).tool_params),
+              toolName,
+              input: object(meta.tool_params),
               suggestions: [],
             },
           })
