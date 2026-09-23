@@ -1,4 +1,4 @@
-import type { ProviderId, ThreadMeta } from '@jetty/shared/wire'
+import type { Project, ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect, Fiber } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
@@ -130,6 +130,18 @@ function archiveThread(registry: Registry, threadId: string) {
     (connection) => connection.request('thread.archive', { threadId }),
     () => registry.update(archivedThreadsAtom, (archived) => withoutId(archived, threadId))
   )
+}
+
+function createProject(registry: Registry, path: string, onCreated?: (project: Project) => void) {
+  run(registry, (connection) =>
+    connection
+      .request('project.create', { path })
+      .pipe(Effect.tap(({ project }) => Effect.sync(() => onCreated?.(project))))
+  )
+}
+
+export function useCreateProject() {
+  return useAction(createProject)
 }
 
 export function useCreateThread() {

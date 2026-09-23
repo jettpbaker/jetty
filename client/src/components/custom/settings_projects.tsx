@@ -1,28 +1,19 @@
 import { Button } from '@/components/ui/button'
-import { ArrowUpRightIcon, CheckIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react'
+import { useChrome, useCreateProject } from '@/state'
+import { ArrowUpRightIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react'
 import { RepoIcon } from '@primer/octicons-react'
 import { useRef, useState } from 'react'
 
 import { ProjectFolderDialog } from './project_folder_dialog'
 
-const initialProjects = [
-  { name: 'jetty', path: '~/code/jetty', emoji: '🛶', containers: true },
-  { name: 'jetty-design', path: '~/code/scratch/jetty-design', emoji: null, containers: false },
-]
-
 export function SettingsProjects() {
-  const [projects, setProjects] = useState(initialProjects)
+  const projects = useChrome()?.projects ?? []
+  const createProject = useCreateProject()
   const [adding, setAdding] = useState(false)
   const addButton = useRef<HTMLButtonElement>(null)
   function setDialogOpen(open: boolean) {
     setAdding(open)
     if (!open) requestAnimationFrame(() => addButton.current?.focus())
-  }
-  function add(path: string) {
-    setProjects((current) => [
-      ...current,
-      { name: path.split('/').pop() || path, path, emoji: null, containers: false },
-    ])
   }
   return (
     <div className='overflow-hidden'>
@@ -45,21 +36,17 @@ export function SettingsProjects() {
         </thead>
         <tbody>
           {projects.map((project) => (
-            <tr key={project.path} className='border-b border-border hover:bg-accent'>
+            <tr key={project.id} className='border-b border-border hover:bg-accent'>
               <td className='px-2 py-3'>
                 <div className='flex min-w-0 items-center gap-3'>
                   <span
                     aria-hidden='true'
                     className='flex size-7 shrink-0 items-center justify-center text-muted-foreground'
                   >
-                    {project.emoji ? (
-                      <span className='text-lg leading-none'>{project.emoji}</span>
-                    ) : (
-                      <RepoIcon className='size-4' />
-                    )}
+                    <RepoIcon className='size-4' />
                   </span>
-                  <span className='truncate' title={project.name}>
-                    {project.name}
+                  <span className='truncate' title={project.title}>
+                    {project.title}
                   </span>
                 </div>
               </td>
@@ -69,37 +56,23 @@ export function SettingsProjects() {
                 </span>
               </td>
               <td className='px-2 py-3 text-xs text-muted-foreground'>
-                {project.containers ? (
-                  <span role='img' aria-label='Containers configured'>
-                    <CheckIcon
-                      aria-hidden='true'
-                      weight='bold'
-                      className='size-4 text-status-success'
-                    />
-                  </span>
-                ) : (
-                  <Button
-                    variant='ghost-text'
-                    size='sm'
-                    className='-ml-2 h-7 gap-1 rounded-sm'
-                    onClick={() =>
-                      document
-                        .getElementById('settings-containers-heading')
-                        ?.scrollIntoView({ block: 'start' })
-                    }
-                  >
-                    Set up
-                    <ArrowUpRightIcon aria-hidden='true' className='size-3' />
-                  </Button>
-                )}
+                <Button
+                  variant='ghost-text'
+                  size='sm'
+                  className='-ml-2 h-7 gap-1 rounded-sm'
+                  disabled
+                >
+                  Set up
+                  <ArrowUpRightIcon aria-hidden='true' className='size-3' />
+                </Button>
               </td>
               <td className='py-3 text-right'>
                 <Button
                   variant='ghost'
                   tone='muted'
                   size='icon'
-                  aria-label={`Remove ${project.name}`}
-                  aria-disabled='true'
+                  aria-label={`Remove ${project.title}`}
+                  disabled
                 >
                   <TrashIcon aria-hidden='true' className='size-3.5 text-status-error' />
                 </Button>
@@ -127,7 +100,7 @@ export function SettingsProjects() {
         open={adding}
         onOpenChange={setDialogOpen}
         existingPaths={projects.map((project) => project.path)}
-        onAdd={add}
+        onAdd={(path) => createProject(path)}
       />
     </div>
   )
