@@ -21,11 +21,16 @@ export const QuestionSpec = Schema.Struct({
 })
 export type QuestionSpec = Schema.Schema.Type<typeof QuestionSpec>
 
+export const SubagentStatus = Schema.Literals(['running', 'completed', 'failed', 'stopped'])
+export type SubagentStatus = Schema.Schema.Type<typeof SubagentStatus>
+
 const itemBase = {
   id: Schema.String,
   turnId: Schema.String,
   createdAt: Schema.Int,
   completedAt: Schema.optional(Schema.Int),
+  // the subagent item this was produced inside; absent on the main timeline
+  agentId: Schema.optional(Schema.String),
 }
 
 export const ThreadItem = Schema.Union([
@@ -95,6 +100,17 @@ export const ThreadItem = Schema.Union([
     kind: Schema.Literal('plan'),
     text: Schema.String,
     streaming: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({
+    ...itemBase,
+    kind: Schema.Literal('subagent'),
+    title: Schema.String,
+    prompt: Schema.String,
+    agentType: Schema.optional(Schema.String),
+    model: Schema.optional(Schema.String),
+    status: SubagentStatus,
+    tokens: Schema.optional(Schema.Natural),
+    durationMs: Schema.optional(Schema.Natural),
   }),
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
 ])
