@@ -37,11 +37,16 @@
   height: 8px;
   transition-duration: var(--motion-thread-tabs-close-duration);
 }
+/* Without a tab row, the collapsed toggle rests in the page header's leading slot. */
+.app-workspace[data-thread-tabs='false'] .app-shell-navigation {
+  transition-property: width, translate;
+}
 .app-workspace[data-thread-tabs='false'] .app-shell-navigation[data-sidebar-open='false'] {
-  display: none;
+  translate: 8px 8.5px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-thread-bar {
+  .app-thread-bar,
+  .app-workspace[data-thread-tabs='false'] .app-shell-navigation {
     transition: none;
   }
 }

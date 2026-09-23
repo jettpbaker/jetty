@@ -1,29 +1,21 @@
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
+import { useSidebar } from '@/components/ui/sidebar'
 import { createContext, useContext } from 'react'
 
 export const PageSidebarTriggerContext = createContext(false)
 
 export function PageSidebarTrigger({ standalone = false }: { standalone?: boolean }) {
   const enabled = useContext(PageSidebarTriggerContext)
-  return enabled ? <CollapsedSidebarTrigger standalone={standalone} /> : null
+  return enabled ? <CollapsedSidebarSlot standalone={standalone} /> : null
 }
 
-function CollapsedSidebarTrigger({ standalone }: { standalone: boolean }) {
+// The shell navigation's toggle glides onto this slot as the sidebar closes.
+function CollapsedSidebarSlot({ standalone }: { standalone: boolean }) {
   const { open, isMobile, openMobile } = useSidebar()
   if (isMobile ? openMobile : open) return null
-  const button = (
-    <SidebarTrigger
-      variant='ghost'
-      tone='muted'
-      size='icon'
-      className='shrink-0 pointer-events-auto'
-      aria-label='Expand sidebar'
-      title='Expand sidebar (⌘B)'
-    />
-  )
+  const slot = <div aria-hidden='true' className='size-7 shrink-0' />
   return standalone ? (
-    <header className='flex h-(--app-tab-bar-height) shrink-0 items-center px-1.5'>{button}</header>
+    <header className='flex h-(--app-tab-bar-height) shrink-0 items-center px-1.5'>{slot}</header>
   ) : (
-    button
+    slot
   )
 }
