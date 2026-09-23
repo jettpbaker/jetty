@@ -153,6 +153,9 @@ export function threadRows(items: readonly ThreadItem[], status: SessionStatus):
   const tailId = items.at(-1)?.id
   const sessionRunning = status === 'running' || status === 'starting'
   const sessionActive = sessionRunning || status === 'awaiting_approval'
+  const askedTurns = new Set(
+    items.filter((item) => item.kind === 'question').map((item) => item.turnId)
+  )
   let pending: WorkItem[] = []
   function flush(next: ThreadItem | undefined) {
     if (pending.length === 0) return
@@ -169,6 +172,12 @@ export function threadRows(items: readonly ThreadItem[], status: SessionStatus):
     pending = []
   }
   for (const item of items) {
+    if (
+      item.kind === 'tool_call' &&
+      item.toolName === 'AskUserQuestion' &&
+      askedTurns.has(item.turnId)
+    )
+      continue
     if (isWork(item)) {
       pending.push(item)
       continue

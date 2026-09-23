@@ -7,6 +7,10 @@ import { useState } from 'react'
 
 type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 
+function normalized(text: string) {
+  return text.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
 export function QuestionMessage({
   item,
   onAnswer,
@@ -81,7 +85,10 @@ export function QuestionMessage({
                         {spec.options.map((option) => (
                           <li key={option.label}>
                             {option.label}
-                            {option.description ? ` — ${option.description}` : ''}
+                            {option.description &&
+                            normalized(option.description) !== normalized(option.label)
+                              ? ` — ${option.description}`
+                              : ''}
                           </li>
                         ))}
                       </ul>
