@@ -1,5 +1,7 @@
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
+import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
+import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
 import { useRespondApproval, useRespondQuestion, useThread, useThreadOverlay } from '@/state'
 import { createFileRoute } from '@tanstack/react-router'
@@ -22,7 +24,7 @@ function Thread() {
   )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      <PageSidebarTrigger standalone />
+      {overlay.empty && <PageSidebarTrigger standalone />}
       {overlay.empty ? (
         thread ? (
           <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
@@ -30,7 +32,8 @@ function Thread() {
           <p className='px-6 py-6 text-sm text-muted-foreground'>Loading…</p>
         )
       ) : (
-        <>
+        <ThreadDetailsLayout>
+          <ThreadHeader context={thread?.context ?? null} />
           <ThreadList
             key={threadId}
             items={overlay.items}
@@ -41,7 +44,7 @@ function Thread() {
             onAnswer={(itemId, answers) => respondQuestion(threadId, itemId, answers)}
           />
           {composer}
-        </>
+        </ThreadDetailsLayout>
       )}
     </section>
   )
