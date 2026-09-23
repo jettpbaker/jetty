@@ -6,6 +6,7 @@ import { projectRelative, toolAction, toolTarget } from './thread_rows'
 
 export type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
 export type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
+type ProposedChange = NonNullable<ApprovalItem['changes']>[number]
 
 export type Source = { kind: 'main' } | { kind: 'subagent'; title: string; provider: string }
 
@@ -17,9 +18,16 @@ export type Approval = {
   run: boolean
   target: string
   detail?: string
+  changes?: ProposedChanges
   // absent when the provider can't remember the choice
   always?: { patterns: readonly string[]; scope?: string }
 }
+
+export type ProposedFile = { path: string; added: number; removed: number }
+
+// `patch` is one git-style patch covering every file; `numbered` is false when some edit is a
+// fragment, whose line numbers mean nothing.
+export type ProposedChanges = { files: ProposedFile[]; patch: string; numbered: boolean }
 
 export type Question = { id: string; kind: 'question'; source: Source; questions: QuestionSpec[] }
 
@@ -56,6 +64,117 @@ function editDetail(input: Record<string, unknown>) {
   return added || removed ? `+${added} −${removed}` : undefined
 }
 
+function diffLines(text: string) {
+  const lines = text ? text.split('\n') : []
+  if (lines.at(-1) === '') lines.pop()
+  return lines
+}
+
+// Line diff by longest common subsequence. Edit fragments are small; past the cap the changed
+// block just reads as a plain replacement.
+function lineDiff(old: string[], next: string[]) {
+  if (old.length * next.length > 250_000)
+    return [...old.map((line) => `-${line}`), ...next.map((line) => `+${line}`)]
+  const common = Array.from({ length: old.length + 1 }, () => new Uint32Array(next.length + 1))
+  for (let i = old.length - 1; i >= 0; i--)
+    for (let j = next.length - 1; j >= 0; j--)
+      common[i]![j] =
+        old[i] === next[j]
+          ? common[i + 1]![j + 1]! + 1
+          : Math.max(common[i + 1]![j]!, common[i]![j + 1]!)
+  const body: string[] = []
+  let i = 0
+  let j = 0
+  while (i < old.length || j < next.length) {
+    if (i < old.length && j < next.length && old[i] === next[j]) {
+      body.push(` ${old[i++]}`)
+      j++
+    } else if (i < old.length && (j === next.length || common[i + 1]![j]! >= common[i]![j + 1]!))
+      body.push(`-${old[i++]}`)
+    else body.push(`+${next[j++]}`)
+  }
+  return body
+}
+
+// Each edit is one hunk; `at` keeps a file's hunks in order.
+function editHunk(before: string, after: string, at: { old: number; new: number }) {
+  const old = diffLines(before)
+  const next = diffLines(after)
+  let head = 0
+  while (head < old.length && head < next.length && old[head] === next[head]) head++
+  let tail = 0
+  while (
+    tail < old.length - head &&
+    tail < next.length - head &&
+    old[old.length - 1 - tail] === next[next.length - 1 - tail]
+  )
+    tail++
+  const body = [
+    ...old.slice(0, head).map((line) => ` ${line}`),
+    ...lineDiff(old.slice(head, old.length - tail), next.slice(head, next.length - tail)),
+    ...old.slice(old.length - tail).map((line) => ` ${line}`),
+  ]
+  const range = (start: number, count: number) => `${count ? start : start - 1},${count}`
+  const text = `@@ -${range(at.old, old.length)} +${range(at.new, next.length)} @@\n${body.join('\n')}\n`
+  at.old += old.length + 1
+  at.new += next.length + 1
+  return {
+    text,
+    added: body.filter((line) => line.startsWith('+')).length,
+    removed: body.filter((line) => line.startsWith('-')).length,
+  }
+}
+
+function patchHunks(diff: string) {
+  const start = diff.search(/^@@ /m)
+  if (start < 0) return { text: '', added: 0, removed: 0 }
+  const text = diff.slice(start)
+  let added = 0
+  let removed = 0
+  for (const line of text.split('\n')) {
+    if (line.startsWith('+')) added++
+    else if (line.startsWith('-')) removed++
+  }
+  return { text: text.endsWith('\n') ? text : `${text}\n`, added, removed }
+}
+
+export function proposedChanges(
+  changes: ApprovalItem['changes'],
+  projectPath: string | undefined
+): ProposedChanges | undefined {
+  if (!changes?.length) return undefined
+  const byPath = new Map<string, ProposedChange[]>()
+  for (const change of changes)
+    byPath.set(change.path, [...(byPath.get(change.path) ?? []), change])
+  const files: ProposedFile[] = []
+  let patch = ''
+  let numbered = true
+  for (const [absolute, edits] of byPath) {
+    const path = projectRelative(absolute, projectPath)
+    const at = { old: 1, new: 1 }
+    const hunks = edits.map((edit) => {
+      if (edit.diff !== undefined) return patchHunks(edit.diff)
+      if (edit.before !== undefined && edit.after !== undefined) numbered = false
+      return editHunk(edit.before ?? '', edit.after ?? '', at)
+    })
+    const file = { path, added: 0, removed: 0 }
+    for (const hunk of hunks) {
+      file.added += hunk.added
+      file.removed += hunk.removed
+    }
+    files.push(file)
+    const created = edits.every((edit) => edit.diff === undefined && edit.before === undefined)
+    const deleted = edits.every((edit) => edit.diff === undefined && edit.after === undefined)
+    patch += [
+      `diff --git a/${path} b/${path}`,
+      `--- ${created ? '/dev/null' : `a/${path}`}`,
+      `+++ ${deleted ? '/dev/null' : `b/${path}`}`,
+      hunks.map((hunk) => hunk.text).join(''),
+    ].join('\n')
+  }
+  return { files, patch, numbered }
+}
+
 function scopeLabel(scope: string | undefined, projectTitle: string | undefined) {
   if (scope === 'session') return 'this session'
   if (scope === 'user') return 'every project'
@@ -69,11 +188,27 @@ export function approvalView(
 ) {
   const input = record(item.input)
   const view = viewOf(item, input, projectPath)
+  const changes = proposedChanges(item.changes, projectPath)
   const always = item.always && {
     patterns: item.always.patterns.length ? item.always.patterns : [view.target],
     scope: scopeLabel(item.always.scope, projectTitle),
   }
-  return { ...view, always }
+  return { ...view, ...(changes && changesView(changes)), changes, always }
+}
+
+function changesView({ files }: ProposedChanges) {
+  let added = 0
+  let removed = 0
+  for (const file of files) {
+    added += file.added
+    removed += file.removed
+  }
+  return {
+    action: 'Edit',
+    run: false,
+    target: files.length === 1 ? files[0]!.path : `${files.length} files`,
+    detail: `+${added} −${removed}`,
+  }
 }
 
 function viewOf(

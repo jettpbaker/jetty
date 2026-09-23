@@ -15,7 +15,15 @@ import {
   SquareIcon,
 } from '@phosphor-icons/react'
 import { CheckIcon, ClockIcon, PencilIcon, XIcon } from '@primer/octicons-react'
-import { useState, type ComponentProps, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react'
 
 import type { Approval, Question, Source, Todo } from './composer_strip_model'
 
@@ -254,6 +262,23 @@ function ApprovalActions({ ctl, typed }: { ctl: ApprovalControl; typed: boolean 
   )
 }
 
+let proposedDiff: Promise<{ default: typeof import('./proposed_diff').ProposedDiff }> | undefined
+
+function loadProposedDiff() {
+  proposedDiff ??= Promise.all([import('./proposed_diff'), import('@pierre/diffs')]).then(
+    async ([{ ProposedDiff }, { preloadHighlighter }]) => {
+      await preloadHighlighter({
+        themes: ['pierre-dark-soft', 'pierre-light-soft'],
+        langs: ['typescript', 'tsx'],
+      })
+      return { default: ProposedDiff }
+    }
+  )
+  return proposedDiff
+}
+
+const ProposedDiff = lazy(loadProposedDiff)
+
 function FullTarget({ item }: { item: Approval }) {
   return (
     <div className='flex flex-col gap-1 rounded-sm bg-background px-2.5 py-2 font-mono text-xs'>
@@ -283,6 +308,12 @@ export function ApprovalStrip({
   header?: ReactNode
   hideSource?: boolean
 }) {
+  const changesId = useId()
+  const { changes } = item
+  // The diff chunk loads while the request is read, so expanding it doesn't wait.
+  useEffect(() => {
+    if (changes) void loadProposedDiff()
+  }, [changes])
   return (
     <FlushShell>
       {header}
@@ -313,12 +344,19 @@ export function ApprovalStrip({
                     />
                   }
                 >
-                  <Code className='hover:underline hover:decoration-muted-foreground hover:underline-offset-2'>
+                  <Code
+                    className={cn(
+                      'hover:underline hover:decoration-muted-foreground hover:underline-offset-2',
+                      changes && changes.files.length > 1 && 'font-sans text-sm'
+                    )}
+                  >
                     {item.target}
                   </Code>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Show the full {item.run ? 'command' : item.action === 'Edit' ? 'path' : 'input'}
+                  {changes
+                    ? 'Show the changes'
+                    : `Show the full ${item.run ? 'command' : item.action === 'Edit' ? 'path' : 'input'}`}
                 </TooltipContent>
               </Tooltip>
             )}
@@ -332,7 +370,9 @@ export function ApprovalStrip({
                 variant='ghost'
                 tone='muted'
                 size='icon'
-                aria-label='Hide the full command'
+                aria-label={changes ? 'Hide the changes' : 'Hide the full command'}
+                aria-expanded
+                aria-controls={changes ? changesId : undefined}
                 onClick={() => ctl.setExpanded(false)}
                 className='-my-1'
               >
@@ -343,7 +383,17 @@ export function ApprovalStrip({
         )}
         <ApprovalActions ctl={ctl} typed={typed} />
       </div>
-      {ctl.expanded && !ctl.confirming && <FullTarget item={item} />}
+      {ctl.expanded &&
+        !ctl.confirming &&
+        (changes ? (
+          <Suspense
+            fallback={<div className='h-9 rounded-sm border border-border bg-background' />}
+          >
+            <ProposedDiff id={changesId} changes={changes} />
+          </Suspense>
+        ) : (
+          <FullTarget item={item} />
+        ))}
     </FlushShell>
   )
 }
