@@ -21,6 +21,7 @@ import { useState } from 'react'
 
 import './settings_sections.css'
 import { subTriggerClass } from './composer_loadout'
+import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import { providerOptions } from './settings_providers'
 
@@ -103,7 +104,7 @@ export function SettingsUtilityModel() {
                       </DropdownMenuLabel>
                       {models.map((model) => (
                         <DropdownMenuRadioItem key={modelKey(model)} value={modelKey(model)}>
-                          {model.name}
+                          <ModelLabel model={model} />
                         </DropdownMenuRadioItem>
                       ))}
                     </DropdownMenuGroup>

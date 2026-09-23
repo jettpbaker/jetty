@@ -1,19 +1,12 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
-import { query, type ModelInfo, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { claudeModelName } from '@jetty/shared/model-name'
 import { Effect } from 'effect'
 
 import { claudeBin } from './claude-bin'
 
 const DISCOVERY_TIMEOUT_MS = 20_000
-
-function versionedName(model: ModelInfo) {
-  if (/\d/.test(model.displayName)) return model.displayName
-  const lead = model.description.split(' · ')[0]?.replace(/ with 1M context$/, '')
-  return lead?.startsWith(`${model.displayName} `) && /\d/.test(lead)
-    ? lead
-    : model.displayName || lead || model.value
-}
 
 export function discoverClaudeModels() {
   return Effect.tryPromise(async (signal) => {
@@ -54,7 +47,8 @@ export function discoverClaudeModels() {
           {
             provider: 'claude',
             id: model.value,
-            name: versionedName(model),
+            name: claudeModelName(model.value, model.displayName, model.description),
+            ...(/\[1m\]$/i.test(model.value) ? { contextWindow: '1m' as const } : {}),
             efforts: model.supportedEffortLevels ?? [],
             fast: false,
             autoMode: model.supportsAutoMode === true,

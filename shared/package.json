@@ -7,6 +7,7 @@
     "./events": "./src/events.ts",
     "./reducer": "./src/reducer.ts",
     "./wire": "./src/wire.ts",
+    "./model-name": "./src/model-name.ts",
     "./rpc": "./src/rpc.ts",
     "./pull-request": "./src/pull-request.ts"
   },

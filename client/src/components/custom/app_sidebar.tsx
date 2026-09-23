@@ -24,6 +24,7 @@ import {
   useRenameThread,
   type Chrome,
 } from '@/state'
+import { modelLabelText } from '@jetty/shared/model-name'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
 import {
   ArchiveIcon,
@@ -57,7 +58,7 @@ const navigationButtonClass =
 
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project]))
-  const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
+  const models = new Map(chrome.models?.map((model) => [modelKey(model), modelLabelText(model)]))
   const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
   return chrome.threads.map((thread) => ({
     id: thread.id,

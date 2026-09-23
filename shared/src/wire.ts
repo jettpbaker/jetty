@@ -34,8 +34,15 @@ export const ProviderModel = Schema.Struct({
   defaultEffort: Schema.optional(EffortLevel),
   fast: Schema.Boolean,
   autoMode: Schema.Boolean,
+  contextWindow: Schema.optional(Schema.Literal('1m')),
 })
 export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>
+
+export const ModelDiscovery = Schema.Record(
+  ProviderId,
+  Schema.Literals(['loading', 'ready', 'error'])
+)
+export type ModelDiscovery = Schema.Schema.Type<typeof ModelDiscovery>
 
 export const ModelRef = Schema.Struct({ provider: ProviderId, id: Schema.String })
 export type ModelRef = Schema.Schema.Type<typeof ModelRef>
@@ -546,6 +553,7 @@ export const ChromePushData = Schema.Union([
     threads: Schema.Array(ThreadMeta),
     usage: Schema.optional(RateLimits),
     models: Schema.optional(Schema.Array(ProviderModel)),
+    modelDiscovery: Schema.optional(ModelDiscovery),
     utilityModel: Schema.optional(UtilityModel),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
@@ -553,6 +561,7 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
+  Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
   Schema.Struct({ type: Schema.Literal('utilityModel'), ...UtilityModel.fields }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>

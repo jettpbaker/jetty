@@ -34,10 +34,12 @@ import { PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
+import { modelLabelText } from '@jetty/shared/model-name'
 import { ArrowUpRightIcon, DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react'
 import { useReducedMotion } from 'motion/react'
 
 import { DisabledTooltip } from './disabled_tooltip'
+import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
 export const subTriggerClass =
@@ -289,7 +291,7 @@ export function ComposerLoadout({
         {value ? (
           <>
             <ProviderGlyph provider={value.provider} className='size-3' />
-            {name}
+            {model ? <ModelLabel model={model} /> : name}
             <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
               {describeLoadout(value)}
             </span>
@@ -337,12 +339,13 @@ export function ComposerLoadout({
                       onOpenSettings={onOpenSettings}
                     />
                   )
+                const slotModel = findModel(catalog, loadout)
                 return (
                   <SortableLoadoutItem
                     key={slot.id}
                     id={slot.id}
                     index={index}
-                    name={findModel(catalog, loadout)?.name ?? loadout.model}
+                    name={slotModel ? modelLabelText(slotModel) : loadout.model}
                     details={describeLoadout(loadout)}
                     provider={loadout.provider}
                     disabled={Boolean(lockedProvider && lockedProvider !== loadout.provider)}
@@ -369,7 +372,7 @@ export function ComposerLoadout({
                 {models.map((item) => (
                   <DropdownMenuRadioItem key={modelKey(item)} value={modelKey(item)}>
                     <ProviderGlyph provider={item.provider} className='size-3' />
-                    {item.name}
+                    <ModelLabel model={item} />
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
