@@ -53,7 +53,7 @@ const MotionSidebarContent = motion.create(SidebarContent)
 const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0 }
 
 const navigationButtonClass =
-  'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-current:bg-sidebar-accent aria-current:text-foreground'
+  'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
 
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project]))
@@ -328,7 +328,7 @@ export function AppSidebar() {
       <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
         <Button
           variant='ghost'
-          className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground enabled:hover:bg-sidebar-accent enabled:hover:text-foreground enabled:active:not-aria-[haspopup]:translate-y-0 aria-current:bg-sidebar-accent aria-current:text-foreground'
+          className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground enabled:hover:bg-sidebar-accent enabled:hover:text-foreground enabled:active:not-aria-[haspopup]:translate-y-0 aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
           aria-current={onSettings ? 'page' : undefined}
           aria-label='Settings'
           {...pressProps(openSettings)}
