@@ -9,128 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StyleguideRouteImport } from './routes/styleguide'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ScratchpadRouteImport } from './routes/scratchpad'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ThreadThreadIdRouteImport } from './routes/thread.$threadId'
-import { Route as NewDraftIdRouteImport } from './routes/new.$draftId'
 
-const StyleguideRoute = StyleguideRouteImport.update({
-  id: '/styleguide',
-  path: '/styleguide',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScratchpadRoute = ScratchpadRouteImport.update({
-  id: '/scratchpad',
-  path: '/scratchpad',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ThreadThreadIdRoute = ThreadThreadIdRouteImport.update({
-  id: '/thread/$threadId',
-  path: '/thread/$threadId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NewDraftIdRoute = NewDraftIdRouteImport.update({
-  id: '/new/$draftId',
-  path: '/new/$draftId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/scratchpad': typeof ScratchpadRoute
-  '/settings': typeof SettingsRoute
-  '/styleguide': typeof StyleguideRoute
-  '/new/$draftId': typeof NewDraftIdRoute
-  '/thread/$threadId': typeof ThreadThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/scratchpad': typeof ScratchpadRoute
-  '/settings': typeof SettingsRoute
-  '/styleguide': typeof StyleguideRoute
-  '/new/$draftId': typeof NewDraftIdRoute
-  '/thread/$threadId': typeof ThreadThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/scratchpad': typeof ScratchpadRoute
-  '/settings': typeof SettingsRoute
-  '/styleguide': typeof StyleguideRoute
-  '/new/$draftId': typeof NewDraftIdRoute
-  '/thread/$threadId': typeof ThreadThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/scratchpad'
-    | '/settings'
-    | '/styleguide'
-    | '/new/$draftId'
-    | '/thread/$threadId'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/scratchpad'
-    | '/settings'
-    | '/styleguide'
-    | '/new/$draftId'
-    | '/thread/$threadId'
-  id:
-    | '__root__'
-    | '/'
-    | '/scratchpad'
-    | '/settings'
-    | '/styleguide'
-    | '/new/$draftId'
-    | '/thread/$threadId'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ScratchpadRoute: typeof ScratchpadRoute
-  SettingsRoute: typeof SettingsRoute
-  StyleguideRoute: typeof StyleguideRoute
-  NewDraftIdRoute: typeof NewDraftIdRoute
-  ThreadThreadIdRoute: typeof ThreadThreadIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/styleguide': {
-      id: '/styleguide'
-      path: '/styleguide'
-      fullPath: '/styleguide'
-      preLoaderRoute: typeof StyleguideRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scratchpad': {
-      id: '/scratchpad'
-      path: '/scratchpad'
-      fullPath: '/scratchpad'
-      preLoaderRoute: typeof ScratchpadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -138,30 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/thread/$threadId': {
-      id: '/thread/$threadId'
-      path: '/thread/$threadId'
-      fullPath: '/thread/$threadId'
-      preLoaderRoute: typeof ThreadThreadIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/new/$draftId': {
-      id: '/new/$draftId'
-      path: '/new/$draftId'
-      fullPath: '/new/$draftId'
-      preLoaderRoute: typeof NewDraftIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ScratchpadRoute: ScratchpadRoute,
-  SettingsRoute: SettingsRoute,
-  StyleguideRoute: StyleguideRoute,
-  NewDraftIdRoute: NewDraftIdRoute,
-  ThreadThreadIdRoute: ThreadThreadIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
