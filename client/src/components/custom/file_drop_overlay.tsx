@@ -18,8 +18,10 @@ export function FileDropOverlay() {
 
   useEffect(() => {
     let depth = 0
+    let stale: ReturnType<typeof setTimeout> | undefined
 
     function reset() {
+      clearTimeout(stale)
       depth = 0
       setState(undefined)
     }
@@ -38,7 +40,10 @@ export function FileDropOverlay() {
     }
 
     function over(event: DragEvent) {
-      if (!carriesFiles(event) || event.defaultPrevented) return
+      if (!carriesFiles(event)) return
+      clearTimeout(stale)
+      stale = setTimeout(reset, 1000)
+      if (event.defaultPrevented) return
       event.preventDefault()
       event.dataTransfer.dropEffect = canDropImages() ? 'copy' : 'none'
     }
@@ -57,6 +62,7 @@ export function FileDropOverlay() {
     window.addEventListener('drop', drop)
     window.addEventListener('dragend', reset)
     return () => {
+      clearTimeout(stale)
       window.removeEventListener('dragenter', enter)
       window.removeEventListener('dragleave', leave)
       window.removeEventListener('dragover', over)
