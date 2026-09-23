@@ -80,6 +80,10 @@
   }
 }
 
+.thread-row-actions[data-overlay='menu'] {
+  --thread-row-surface: var(--sidebar-accent);
+}
+
 .thread-row-action {
   width: var(--thread-row-action-size);
   height: var(--thread-row-action-size);
