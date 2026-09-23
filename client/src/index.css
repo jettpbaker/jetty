@@ -208,6 +208,8 @@
   top: 1px;
 }
 
+@source '../node_modules/streamdown/dist/*.js';
+
 @utility scrollbar-subtle {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
