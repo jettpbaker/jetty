@@ -67,12 +67,16 @@ function FolderBrowser({
 }) {
   const [query, setQuery] = useState('~/')
   const result = useBrowse(query)
+  const candidate = query.trim().replace(/\/+$/, '')
+  const siblings = useBrowse(candidate || '/')
 
   const entries = result?.entries ?? []
   const parent = result?.parentPath
-  const addPath = query.endsWith('/')
-    ? parent
-    : entries.find((entry) => entry.name.toLowerCase() === baseName(query).toLowerCase())?.fullPath
+  const addPath = candidate
+    ? siblings?.entries.find(
+        (entry) => entry.name.toLowerCase() === baseName(candidate).toLowerCase()
+      )?.fullPath
+    : undefined
   const exists = addPath !== undefined && existingPaths.includes(addPath)
 
   function drill(path: string) {
