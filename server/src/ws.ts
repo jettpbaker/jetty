@@ -163,6 +163,23 @@ export function createRpcHandlers(
           const project = yield* requireProject(thread.projectId)
           return yield* diff.readDiffFile(project.path, params.path, params.prevPath)
         }).pipe(Effect.mapError(wireError)),
+      'queue.remove': (params) =>
+        orch
+          .editQueued(params.threadId, params.messageId)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'queue.edit': (params) =>
+        orch
+          .editQueued(params.threadId, params.messageId, params.text)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'queue.sendNow': (params) =>
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkIn(
+            orch.sendQueuedNow(params.threadId, params.messageId),
+            admissionScope
+          )
+          yield* Fiber.join(fiber)
+          return null
+        }).pipe(Effect.mapError(wireError)),
       'turn.start': (params) =>
         Effect.gen(function* () {
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)

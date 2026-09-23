@@ -47,6 +47,25 @@ const migrations = SqliteMigrator.fromRecord({
     title_locked: 'INTEGER NOT NULL DEFAULT 0',
   }),
   '005_thread_provider': addThreadColumns({ provider: 'TEXT' }),
+  '007_orchestration': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* addThreadColumns({
+      parent_thread_id: 'TEXT',
+      lineage_depth: 'INTEGER NOT NULL DEFAULT 0',
+      created_by: "TEXT NOT NULL DEFAULT 'user'",
+      notify_parent: 'INTEGER NOT NULL DEFAULT 0',
+      pending_messages: "TEXT NOT NULL DEFAULT '[]'",
+      permission_mode: 'TEXT',
+    })
+    yield* sql`CREATE TABLE orchestration_turns (
+      turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, hop INTEGER NOT NULL,
+      created_count INTEGER NOT NULL DEFAULT 0
+    )`
+    yield* sql`CREATE TABLE orchestration_requests (
+      caller_id TEXT NOT NULL, request_id TEXT NOT NULL, operation TEXT NOT NULL,
+      result_json TEXT NOT NULL, PRIMARY KEY(caller_id, request_id, operation)
+    )`
+  }),
   '006_thread_loadout': addThreadColumns({ model: 'TEXT', effort: 'TEXT', fast: 'INTEGER' }),
 })
 

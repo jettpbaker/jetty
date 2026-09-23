@@ -40,6 +40,8 @@ export const ThreadItem = Schema.Union([
   Schema.Struct({
     ...itemBase,
     kind: Schema.Literal('user_message'),
+    from: Schema.optional(Schema.Struct({ threadId: Schema.String, title: Schema.String })),
+    hop: Schema.optional(Schema.Natural),
     text: Schema.String,
     attachments: Schema.Array(Attachment),
   }),

@@ -1,9 +1,15 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, Attachment } from '@jetty/shared/items'
-import type { EffortLevel, PermissionMode, ProviderId, UploadAttachment } from '@jetty/shared/wire'
+import type {
+  EffortLevel,
+  PermissionMode,
+  ProviderId,
+  QueuedMessage,
+  UploadAttachment,
+} from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
-import { Context, Effect, Layer, Semaphore } from 'effect'
+import { Context, Effect, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
@@ -33,6 +39,8 @@ export type StartTurnInput = {
   fast?: boolean
   permissionMode?: PermissionMode
   provider?: ProviderId
+  queued?: QueuedMessage
+  sendNow?: boolean
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -59,7 +67,12 @@ export function createOrchestrator(
     const scope = yield* Effect.scope
     const threads = new Map<
       string,
-      { admission: Semaphore.Semaphore; publication: Semaphore.Semaphore; turnId: string | null }
+      {
+        admission: Semaphore.Semaphore
+        publication: Semaphore.Semaphore
+        turnId: string | null
+        ready: boolean
+      }
     >()
 
     function state(threadId: string) {
@@ -69,6 +82,7 @@ export function createOrchestrator(
           admission: Semaphore.makeUnsafe(1),
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
+          ready: true,
         }
         threads.set(threadId, value)
       }
@@ -87,12 +101,19 @@ export function createOrchestrator(
       }
     }
 
-    function append(threadId: string, event: ThreadEvent, onCommit = Effect.void) {
+    function append(
+      threadId: string,
+      event: ThreadEvent,
+      onCommit = Effect.void,
+      expectedTurnId?: string
+    ) {
       return Effect.suspend(() =>
         state(threadId).publication.withPermit(
           hub
             .withChromePublication(
               Effect.gen(function* () {
+                if (expectedTurnId && state(threadId).turnId !== expectedTurnId)
+                  return yield* Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
                 const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
                 if (terminal && state(threadId).turnId !== event.turnId) return
                 const appended = yield* store.appendEvent(threadId, event)
@@ -111,7 +132,8 @@ export function createOrchestrator(
       turnId: string,
       text: string,
       meta: Attachment[],
-      onCommit: Effect.Effect<void>
+      onCommit: Effect.Effect<void>,
+      queued?: QueuedMessage
     ) {
       return Effect.gen(function* () {
         const item = {
@@ -119,6 +141,7 @@ export function createOrchestrator(
           turnId,
           createdAt: Date.now(),
           kind: 'user_message' as const,
+          ...(queued ? { from: queued.from, hop: queued.hop } : {}),
           text,
           attachments: meta,
         }
@@ -126,10 +149,15 @@ export function createOrchestrator(
           hub
             .withChromePublication(
               Effect.gen(function* () {
-                const appended = yield* store.appendEvents(threadId, [
-                  { type: 'item.started', item },
-                  { type: 'item.completed', itemId: item.id },
-                ])
+                const appended = yield* store.transaction(
+                  Effect.gen(function* () {
+                    yield* store.beginDelivery(threadId, turnId, queued?.hop ?? 0, queued?.id)
+                    return yield* store.appendEvents(threadId, [
+                      { type: 'item.started', item },
+                      { type: 'item.completed', itemId: item.id },
+                    ])
+                  })
+                )
                 yield* onCommit
                 for (const event of appended) publish(threadId, event)
               })
@@ -231,7 +259,31 @@ export function createOrchestrator(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              yield* store.requireThread(input.threadId)
+              const thread = yield* store.requireThread(input.threadId)
+              if (input.queued) {
+                if (
+                  thread.archived ||
+                  !thread.pendingMessages?.some((m) => m.id === input.queued!.id)
+                )
+                  return { turnId: '' }
+                if (
+                  (state(input.threadId).turnId || !state(input.threadId).ready) &&
+                  !input.sendNow
+                )
+                  return { turnId: '' }
+                const queued = thread.pendingMessages.find((m) => m.id === input.queued!.id)!
+                input = {
+                  ...input,
+                  text: queued.text,
+                  queued,
+                  model: thread.model,
+                  effort: thread.effort,
+                  fast: thread.fast,
+                  permissionMode: yield* store.getPermissionMode(thread.id),
+                }
+              }
+              if (!state(input.threadId).turnId)
+                yield* store.setPermissionMode(input.threadId, input.permissionMode)
               const chosen = yield* chooseProvider(input.threadId, input.provider)
               let committed = false
               const onCommit = Effect.sync(() => {
@@ -269,9 +321,14 @@ export function createOrchestrator(
                   input.threadId,
                   input.text,
                   saved.images,
-                  appendUser(input.threadId, turnId, input.text, saved.meta, onCommit).pipe(
-                    Effect.mapError(toAgentError)
-                  )
+                  appendUser(
+                    input.threadId,
+                    turnId,
+                    input.text,
+                    saved.meta,
+                    onCommit,
+                    input.queued
+                  ).pipe(Effect.mapError(toAgentError))
                 )
                 if (!accepted) {
                   return yield* Effect.fail(
@@ -282,6 +339,7 @@ export function createOrchestrator(
               }
               const turnId = newId()
               live.turnId = turnId
+              live.ready = false
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
                 append(input.threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
               const turn = yield* appendUser(
@@ -289,7 +347,8 @@ export function createOrchestrator(
                 turnId,
                 input.text,
                 saved.meta,
-                onCommit
+                onCommit,
+                input.queued
               ).pipe(
                 Effect.andThen(
                   agent.startTurn(
@@ -316,7 +375,8 @@ export function createOrchestrator(
                     Effect.ensuring(
                       Effect.sync(() => {
                         if (live.turnId === turnId) live.turnId = null
-                      })
+                        live.ready = true
+                      }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
                     )
                   )
                 )
@@ -329,6 +389,11 @@ export function createOrchestrator(
                   emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(
                     Effect.ignore
                   )
+                ),
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    live.ready = true
+                  }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
                 ),
                 Effect.forkIn(scope, { startImmediately: true })
               )
@@ -344,6 +409,73 @@ export function createOrchestrator(
         return Effect.suspend(() => state(threadId).publication.withPermit(effect))
       },
       startTurnEffect,
+      currentTurn(threadId: string) {
+        return state(threadId).turnId
+      },
+      emitMedia(
+        threadId: string,
+        turnId: string,
+        event: ThreadEvent,
+        onCommit: Effect.Effect<void>
+      ) {
+        return Effect.suspend(() =>
+          state(threadId).turnId === turnId
+            ? append(threadId, event, onCommit, turnId)
+            : Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
+        )
+      },
+      editQueued(threadId: string, messageId: string, text?: string) {
+        return state(threadId).admission.withPermit(
+          hub.withChromePublication(
+            store.editQueued(threadId, messageId, text).pipe(
+              Effect.tap((thread) =>
+                Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+              ),
+              Effect.uninterruptible
+            )
+          )
+        )
+      },
+      sendQueuedNow(threadId: string, messageId: string) {
+        return Effect.gen(function* () {
+          const thread = yield* store.requireThread(threadId)
+          const queued = thread.pendingMessages?.find((m) => m.id === messageId)
+          if (!queued)
+            return yield* Effect.fail(new StoreError('not_found', 'Queued message not found'))
+          yield* startTurnEffect({ threadId, text: queued.text, queued, sendNow: true })
+        })
+      },
+      resumeQueues() {
+        const published = new Map<string, string>()
+        const drain = Effect.gen(function* () {
+          for (const thread of yield* store.listThreads()) {
+            const queue = thread.pendingMessages ?? []
+            if ((published.get(thread.id) ?? '[]') !== JSON.stringify(queue)) {
+              yield* hub.withChromePublication(
+                Effect.gen(function* () {
+                  const current = yield* store.getThread(thread.id)
+                  if (!current) return
+                  published.set(thread.id, JSON.stringify(current.pendingMessages ?? []))
+                  hub.pushChrome({ type: 'thread.upserted', thread: current })
+                })
+              )
+            }
+            if (thread.archived || state(thread.id).turnId || !state(thread.id).ready || !queue[0])
+              continue
+            yield* startTurnEffect({
+              threadId: thread.id,
+              text: queue[0].text,
+              queued: queue[0],
+            }).pipe(Effect.ignore)
+          }
+        })
+        return Effect.forever(
+          drain.pipe(
+            Effect.andThen(Queue.take(store.queueChanges)),
+            Effect.catch(() => Effect.sleep(100))
+          )
+        ).pipe(Effect.forkIn(scope), Effect.asVoid)
+      },
       interrupt(threadId: string) {
         return agentForThread(threadId).pipe(Effect.flatMap((agent) => agent.interrupt(threadId)))
       },

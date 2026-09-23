@@ -57,6 +57,16 @@ export const ThreadGitStatus = Schema.Struct({
 })
 export type ThreadGitStatus = Schema.Schema.Type<typeof ThreadGitStatus>
 
+export const MessageSource = Schema.Struct({ threadId: Schema.String, title: Schema.String })
+export const QueuedMessage = Schema.Struct({
+  id: Schema.String,
+  text: Schema.String,
+  createdAt: Schema.Int,
+  from: Schema.optional(MessageSource),
+  hop: Schema.Natural,
+})
+export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
+
 export const ThreadMeta = Schema.Struct({
   id: Schema.String,
   projectId: Schema.String,
@@ -70,6 +80,9 @@ export const ThreadMeta = Schema.Struct({
   effort: Schema.optional(EffortLevel),
   fast: Schema.optional(Schema.Boolean),
   git: Schema.optional(ThreadGitStatus),
+  parentThreadId: Schema.optional(Schema.String),
+  createdBy: Schema.optional(Schema.Literals(['user', 'agent'])),
+  pendingMessages: Schema.optional(Schema.Array(QueuedMessage)),
 })
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
 
@@ -176,6 +189,22 @@ export const methods = {
       snapshot: Schema.optional(ThreadState),
       seq: Schema.Natural,
     }),
+  },
+  'queue.remove': {
+    params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
+    result: Schema.Null,
+  },
+  'queue.edit': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      messageId: Schema.String,
+      text: Schema.String.check(Schema.isMinLength(1)),
+    }),
+    result: Schema.Null,
+  },
+  'queue.sendNow': {
+    params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
+    result: Schema.Null,
   },
   'turn.start': {
     params: Schema.Struct({

@@ -7,8 +7,10 @@ import {
   type Project,
   type ProviderId,
   type ThreadMeta,
+  type QueuedMessage,
+  type PermissionMode,
 } from '@jetty/shared/wire'
-import { Context, Effect, FileSystem, Layer, Path, Schema } from 'effect'
+import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { normalizePath } from './fs-browse'
@@ -37,6 +39,9 @@ type ThreadRow = {
   model: string | null
   effort: string | null
   fast: number | null
+  parent_thread_id: string | null
+  created_by: 'user' | 'agent'
+  pending_messages: string
 }
 
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
@@ -80,6 +85,9 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
     updatedAt: row.updated_at,
+    createdBy: row.created_by,
+    ...(row.parent_thread_id ? { parentThreadId: row.parent_thread_id } : {}),
+    pendingMessages: JSON.parse(row.pending_messages),
     ...(provider ? { provider } : {}),
     ...(row.model ? { model: row.model } : {}),
     ...(isEffort(row.effort) ? { effort: row.effort } : {}),
@@ -109,6 +117,8 @@ export function createStore() {
     const sql = yield* SqlClient.SqlClient
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
+    const queueChanges = yield* Queue.sliding<void>(1)
+    const signalQueueChange = Queue.offer(queueChanges, undefined)
 
     function getThread(threadId: string) {
       return sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`.pipe(
@@ -164,6 +174,32 @@ export function createStore() {
       })
     }
 
+    function updateQueue(threadId: string, messages: readonly QueuedMessage[]) {
+      return sql`UPDATE threads SET pending_messages = ${JSON.stringify(messages)} WHERE id = ${threadId}`
+    }
+
+    function enqueue(threadId: string, message: QueuedMessage) {
+      return Effect.gen(function* () {
+        const thread = yield* requireThread(threadId)
+        if (thread.archived)
+          return yield* Effect.fail(new StoreError('not_found', 'Thread is archived'))
+        if (message.hop > 20)
+          return yield* Effect.fail(new StoreError('invalid_params', 'Message hop limit exceeded'))
+        yield* updateQueue(threadId, [...(thread.pendingMessages ?? []), message])
+        return yield* requireThread(threadId)
+      })
+    }
+
+    function removeQueued(threadId: string, messageId: string) {
+      return Effect.gen(function* () {
+        const thread = yield* requireThread(threadId)
+        yield* updateQueue(
+          threadId,
+          (thread.pendingMessages ?? []).filter((m) => m.id !== messageId)
+        )
+      })
+    }
+
     function append(threadId: string, event: ThreadEvent) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
@@ -178,6 +214,32 @@ export function createStore() {
           catch: storeError,
         })
         yield* writeState(threadId, state)
+        if (
+          (event.type === 'turn.completed' || event.type === 'turn.failed') &&
+          !prev.turnOutcomes[event.turnId]
+        ) {
+          const [settings] = yield* sql<{
+            notify_parent: number
+          }>`SELECT notify_parent FROM threads WHERE id = ${threadId}`
+          const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
+          const [turn] = yield* sql<{
+            hop: number
+          }>`SELECT hop FROM orchestration_turns WHERE turn_id = ${event.turnId}`
+          const hop = (turn?.hop ?? 0) + 1
+          if (settings?.notify_parent && parent && !parent.archived && hop <= 20) {
+            const reply = state.items
+              .filter((item) => item.turnId === event.turnId && item.kind === 'assistant_message')
+              .map((item) => ('text' in item ? item.text : ''))
+              .join('\n')
+            yield* enqueue(parent.id, {
+              id: newId(),
+              createdAt: ts,
+              hop,
+              from: { threadId, title: thread.title },
+              text: `Thread ${thread.title} ${event.type === 'turn.failed' ? 'failed' : 'finished'}: ${(event.type === 'turn.failed' ? event.error : reply).slice(0, 2000)}`,
+            })
+          }
+        }
         yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts} WHERE id = ${threadId}`
         return {
           seq,
@@ -190,7 +252,122 @@ export function createStore() {
       })
     }
 
+    function turnContext(threadId: string) {
+      return Effect.gen(function* () {
+        const state = yield* getThreadState(threadId)
+        if (!state.activeTurnId)
+          return yield* Effect.fail(new StoreError('conflict', 'Caller has no active turn'))
+        const [turn] = yield* sql<{
+          hop: number
+          created_count: number
+        }>`SELECT hop, created_count FROM orchestration_turns WHERE turn_id = ${state.activeTurnId}`
+        return {
+          turnId: state.activeTurnId,
+          hop: turn?.hop ?? 0,
+          createdCount: turn?.created_count ?? 0,
+        }
+      }).pipe(Effect.mapError(storeError))
+    }
+
     return {
+      queueChanges,
+      transaction<A, E, R>(effect: Effect.Effect<A, E, R>) {
+        return effect.pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      turnContext,
+      enqueue(threadId: string, message: QueuedMessage) {
+        return enqueue(threadId, message).pipe(
+          sql.withTransaction,
+          Effect.tap(() => signalQueueChange),
+          Effect.mapError(storeError)
+        )
+      },
+      editQueued(threadId: string, messageId: string, text?: string) {
+        return Effect.gen(function* () {
+          const thread = yield* requireThread(threadId)
+          if (!(thread.pendingMessages ?? []).some((m) => m.id === messageId))
+            return yield* Effect.fail(new StoreError('not_found', 'Queued message not found'))
+          if (text !== undefined)
+            yield* updateQueue(
+              threadId,
+              (thread.pendingMessages ?? []).map((m) => (m.id === messageId ? { ...m, text } : m))
+            )
+          else yield* removeQueued(threadId, messageId)
+          return yield* requireThread(threadId)
+        }).pipe(
+          sql.withTransaction,
+          Effect.tap(() => signalQueueChange),
+          Effect.mapError(storeError)
+        )
+      },
+      beginDelivery(threadId: string, turnId: string, hop: number, messageId?: string) {
+        return Effect.gen(function* () {
+          const current = yield* getThreadState(threadId)
+          if (!current.activeTurnId) {
+            yield* writeState(threadId, { ...current, activeTurnId: turnId, status: 'starting' })
+            yield* sql`UPDATE threads SET status = 'starting' WHERE id = ${threadId}`
+          }
+          yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop) VALUES (${turnId}, ${threadId}, ${hop}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
+          if (messageId) yield* removeQueued(threadId, messageId)
+        }).pipe(Effect.mapError(storeError))
+      },
+      getPermissionMode(threadId: string) {
+        return sql<{
+          permission_mode: PermissionMode | null
+        }>`SELECT permission_mode FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows[0]?.permission_mode ?? undefined),
+          Effect.mapError(storeError)
+        )
+      },
+      setPermissionMode(threadId: string, mode?: PermissionMode) {
+        return sql`UPDATE threads SET permission_mode = ${mode ?? null} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      lineageDepth(threadId: string) {
+        return sql<{
+          lineage_depth: number
+        }>`SELECT lineage_depth FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows[0]?.lineage_depth ?? 0),
+          Effect.mapError(storeError)
+        )
+      },
+      markAgentThread(threadId: string, parentThreadId: string, notify: boolean) {
+        return sql`UPDATE threads SET lineage_depth = (SELECT lineage_depth + 1 FROM threads WHERE id = ${parentThreadId}), parent_thread_id = ${parentThreadId}, created_by = 'agent', notify_parent = ${notify ? 1 : 0} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      countCreation(turnId: string) {
+        return sql`UPDATE orchestration_turns SET created_count = created_count + 1 WHERE turn_id = ${turnId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      getRequest(callerId: string, requestId: string, operation: string) {
+        return sql<{
+          result_json: string
+        }>`SELECT result_json FROM orchestration_requests WHERE caller_id = ${callerId} AND request_id = ${requestId} AND operation = ${operation}`.pipe(
+          Effect.map((rows) =>
+            rows[0]
+              ? (JSON.parse(rows[0].result_json) as { threadId: string; messageId?: string })
+              : null
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      saveRequest(
+        callerId: string,
+        requestId: string,
+        operation: string,
+        result: { threadId: string; messageId?: string }
+      ) {
+        return sql`INSERT INTO orchestration_requests VALUES (${callerId}, ${requestId}, ${operation}, ${JSON.stringify(result)})`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       createProject(path: string) {
         return Effect.gen(function* () {
           const normalized = normalizePath(path)
@@ -256,7 +433,7 @@ export function createStore() {
           yield* sql`INSERT INTO threads (id, project_id, title, status, archived, pinned, title_locked, updated_at)
             VALUES (${id}, ${projectId}, ${thread.title}, ${thread.status}, 0, 0, 0, ${thread.updatedAt})`
           yield* writeState(id, { ...emptyThread, items: [] })
-          return thread
+          return yield* requireThread(id)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       archiveThread(threadId: string) {
@@ -284,6 +461,8 @@ export function createStore() {
         return Effect.gen(function* () {
           yield* requireThread(threadId)
           const ids = attachmentIdsOf(yield* getThreadState(threadId))
+          yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
           yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
@@ -385,11 +564,20 @@ export function createStore() {
       },
       getThreadState,
       appendEvent(threadId: string, event: ThreadEvent) {
-        return append(threadId, event).pipe(sql.withTransaction, Effect.mapError(storeError))
+        return append(threadId, event).pipe(
+          sql.withTransaction,
+          Effect.tap(() =>
+            event.type === 'turn.completed' || event.type === 'turn.failed'
+              ? signalQueueChange
+              : Effect.void
+          ),
+          Effect.mapError(storeError)
+        )
       },
       appendEvents(threadId: string, events: readonly [ThreadEvent, ...ThreadEvent[]]) {
         return Effect.forEach(events, (event) => append(threadId, event)).pipe(
           sql.withTransaction,
+          Effect.tap(() => signalQueueChange),
           Effect.mapError(storeError)
         )
       },
