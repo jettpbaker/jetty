@@ -129,7 +129,7 @@ export function ThreadList({
   useLayoutEffect(() => {
     if (!pinned.current || rows.length === 0) return
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp])
+  }, [virtualizer, rows.length, stamp, width])
 
   return (
     <section
