@@ -144,6 +144,8 @@ export function restoreDraft(
   restored: Pick<Draft, 'text' | 'images' | 'editing'>
 ) {
   change(registry, key, (draft) => ({
+    ...draft,
+    typedFor: undefined,
     text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
     images: [...restored.images, ...draft.images],
     editing: draft.editing ?? restored.editing,

@@ -758,7 +758,7 @@ export function createOrchestrator({
                             (m) => m.id === queue[0]!.id
                           )
                           if (!pending) return
-                          yield* store.editQueued(thread.id, queue[0]!.id)
+                          yield* store.setQueuePaused(thread.id, true)
                           const appended = yield* store.appendEvent(thread.id, {
                             type: 'item.started',
                             item: {
@@ -769,15 +769,18 @@ export function createOrchestrator({
                               message: String(cause),
                             },
                           })
-                          return { appended, attachments: pending.attachments ?? [] }
+                          return appended
                         })
                       )
                       .pipe(
                         Effect.tap((result) =>
                           Effect.gen(function* () {
                             if (!result) return
-                            publish(thread.id, result.appended)
-                            yield* removeAttachments(result.attachments)
+                            yield* publish(thread.id, result)
+                            hub.pushChrome({
+                              type: 'thread.upserted',
+                              thread: yield* store.requireThread(thread.id),
+                            })
                           })
                         )
                       )
