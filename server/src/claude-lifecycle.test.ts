@@ -33,6 +33,12 @@ function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
     let closeCount = 0
     let interrupts = 0
     let failure: Error | undefined
+    let rejectControls = false
+    const controls: unknown[][] = []
+    function control(...call: unknown[]) {
+      controls.push(call)
+      return rejectControls ? Promise.reject(new Error('control failed')) : Promise.resolve()
+    }
     const iterator = {
       next(): Promise<IteratorResult<SDKMessage>> {
         const message = pending.shift()
@@ -62,6 +68,10 @@ function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
       get interrupts() {
         return interrupts
       },
+      controls,
+      rejectControls() {
+        rejectControls = true
+      },
       push(message: object) {
         if (waiting) {
           const waiter = waiting
@@ -89,6 +99,9 @@ function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
         async interrupt() {
           interrupts++
         },
+        setModel: (model?: string) => control('setModel', model),
+        applyFlagSettings: (settings: object) => control('applyFlagSettings', settings),
+        setPermissionMode: (mode: string) => control('setPermissionMode', mode),
         async getContextUsage() {
           return { maxTokens: 0, rawMaxTokens: 0 }
         },
@@ -846,7 +859,7 @@ describe('scoped Claude sessions', () => {
     await f.runtime.runPromise(turn.await)
   })
 
-  test('settled sessions stay warm, while model, effort and mode changes recycle with resume', async () => {
+  test('settled sessions stay warm and apply model, effort and mode changes live, recycling with resume only if that fails', async () => {
     const f = await setup()
     const first = await f.start('first')
     expect(f.queries[0]!.options.disallowedTools).toEqual(['EnterPlanMode', 'ExitPlanMode'])
@@ -857,18 +870,30 @@ describe('scoped Claude sessions', () => {
     expect(f.queries).toHaveLength(1)
     f.queries[0]!.push({ type: 'result', subtype: 'success' })
     await f.runtime.runPromise(second.await)
+    expect(f.queries[0]!.options.allowDangerouslySkipPermissions).toBe(true)
     for (const [index, extra] of [
       { model: 'sonnet' },
       { model: 'sonnet', effort: 'high' as const },
       { model: 'sonnet', effort: 'high' as const, permissionMode: 'full_access' as const },
     ].entries()) {
-      const turn = await f.start(`recycle-${index}`, extra)
-      expect(f.queries).toHaveLength(index + 2)
-      expect(f.queries[index]!.closed).toBe(true)
-      expect(f.queries[index + 1]!.options.resume).toBe('resume-me')
-      f.queries[index + 1]!.push({ type: 'result', subtype: 'success' })
+      const turn = await f.start(`live-${index}`, extra)
+      expect(f.queries).toHaveLength(1)
+      f.queries[0]!.push({ type: 'result', subtype: 'success' })
       await f.runtime.runPromise(turn.await)
     }
+    expect(f.queries[0]!.controls).toEqual([
+      ['setModel', 'sonnet'],
+      ['applyFlagSettings', { effortLevel: 'high' }],
+      ['setPermissionMode', 'bypassPermissions'],
+    ])
+    f.queries[0]!.rejectControls()
+    const recycled = await f.start('recycle', { model: 'opus' })
+    expect(f.queries).toHaveLength(2)
+    expect(f.queries[0]!.closed).toBe(true)
+    expect(f.queries[1]!.options.resume).toBe('resume-me')
+    expect(f.queries[1]!.options.model).toBe('opus')
+    f.queries[1]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(recycled.await)
   })
 
   test('shutdown settles pending approvals and questions and closes the real query before joining its reader', async () => {

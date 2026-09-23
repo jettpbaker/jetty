@@ -1,6 +1,8 @@
 import {
   query,
+  type EffortLevel,
   type Options,
+  type PermissionMode,
   type PermissionResult,
   type PermissionUpdate,
   type Query,
@@ -65,12 +67,18 @@ type PendingApproval = {
   input: Record<string, unknown>
 }
 
+type SessionOptions = {
+  model: string | undefined
+  effort: EffortLevel | undefined
+  permissionMode: PermissionMode
+}
+
 type WarmSession = {
   threadId: string
   query: Query
   input: Queue.Queue<SDKUserMessage, Cause.Done>
   scope: Scope.Closeable
-  spawnKey: string
+  options: SessionOptions
   activeTurnId: string
   pendingApprovals: Map<string, PendingApproval>
   pendingQuestions: Map<string, PendingApproval>
@@ -128,13 +136,38 @@ export function createClaudeAdapter(
     const supportsAutoMode = config.supportsAutoMode ?? (() => true)
     let usageInFlight = false
 
-    function toSdkPermissionMode(input: TurnInput) {
+    function toSdkPermissionMode(input: TurnInput): PermissionMode {
       if (input.model && !supportsAutoMode(input.model)) return 'default'
       return input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto'
     }
 
-    function turnOptionsKey(input: TurnInput): string {
-      return `${input.model ?? ''}|${input.effort ?? ''}|${toSdkPermissionMode(input)}`
+    function sessionOptions(input: TurnInput): SessionOptions {
+      return {
+        model: input.model,
+        effort: input.effort,
+        permissionMode: toSdkPermissionMode(input),
+      }
+    }
+
+    // Model first: auto mode is only valid once the model supports it.
+    function applyOptions(session: WarmSession, next: SessionOptions) {
+      const { query, options } = session
+      return Effect.tryPromise({
+        try: async () => {
+          if (next.model !== options.model) await query.setModel(next.model)
+          if (next.effort !== options.effort)
+            await query.applyFlagSettings({ effortLevel: next.effort ?? null })
+          if (next.permissionMode !== options.permissionMode)
+            await query.setPermissionMode(next.permissionMode)
+        },
+        catch: (error) => new AgentError(String(error)),
+      }).pipe(
+        Effect.andThen(
+          Effect.sync(() => {
+            session.options = next
+          })
+        )
+      )
     }
 
     function current(session: WarmSession) {
@@ -482,7 +515,7 @@ export function createClaudeAdapter(
               )
             }),
         }).pipe(Effect.provideService(Path.Path, path), Effect.provideService(Scope.Scope, scope))
-        const permissionMode = toSdkPermissionMode(input)
+        const options = sessionOptions(input)
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
@@ -504,11 +537,12 @@ export function createClaudeAdapter(
                   pathToClaudeCodeExecutable: claudeBin,
                   systemPrompt: { type: 'preset', preset: 'claude_code' },
                   settingSources: ['user', 'project', 'local'],
-                  model: input.model,
-                  effort: input.effort,
-                  permissionMode,
+                  model: options.model,
+                  effort: options.effort,
+                  permissionMode: options.permissionMode,
                   disallowedTools: ['EnterPlanMode', 'ExitPlanMode'],
-                  allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
+                  // Only permits a later live switch into bypassPermissions.
+                  allowDangerouslySkipPermissions: true,
                   includePartialMessages: true,
                   canUseTool,
                   resume: resume ?? undefined,
@@ -537,7 +571,7 @@ export function createClaudeAdapter(
           query: q,
           input: queue,
           scope,
-          spawnKey: turnOptionsKey(input),
+          options,
           activeTurnId: input.turnId,
           pendingApprovals: new Map(),
           pendingQuestions: new Map(),
@@ -586,9 +620,15 @@ export function createClaudeAdapter(
           if (session && !current(session)) session = undefined
           if (session?.awaitingResult)
             return yield* Effect.fail(new AgentError('Turn already active'))
-          if (session && session.spawnKey !== turnOptionsKey(input)) {
-            yield* closeSession(session, 'options changed')
-            session = undefined
+          if (session) {
+            const applied = yield* applyOptions(session, sessionOptions(input)).pipe(
+              Effect.as(true),
+              Effect.orElseSucceed(() => false)
+            )
+            if (!applied || !current(session)) {
+              yield* closeSession(session, 'options changed')
+              session = undefined
+            }
           }
           const fresh = !session
           session ??= yield* spawnSession(input, emit, projectPath)
