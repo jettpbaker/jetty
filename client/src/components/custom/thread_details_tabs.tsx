@@ -14,6 +14,7 @@ import { isSortable, useSortable } from '@dnd-kit/react/sortable'
 import {
   CommentDiscussionIcon,
   DiffIcon,
+  ListUnorderedIcon,
   PlusIcon,
   WorkflowIcon,
   XIcon,
@@ -30,11 +31,12 @@ import {
 
 const tabs = {
   chat: { label: 'Chat', Icon: CommentDiscussionIcon },
+  overview: { label: 'Overview', Icon: ListUnorderedIcon },
   changes: { label: 'Changes', Icon: DiffIcon },
   threads: { label: 'Threads', Icon: WorkflowIcon },
 }
 type TabId = keyof typeof tabs
-const sortableIds: TabId[] = ['changes', 'threads']
+const sortableIds: TabId[] = ['overview', 'changes', 'threads']
 const storageKey = 'jetty.details-tabs'
 const sensors = [
   PointerSensor.configure({

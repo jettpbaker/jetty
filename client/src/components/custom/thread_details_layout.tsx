@@ -19,6 +19,7 @@ import { ChildThreadList, useChildThreads } from './child_threads'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ThreadChanges } from './thread_changes'
 import { ThreadDetailsTabs } from './thread_details_tabs'
+import { ThreadOverview, useHasOverview } from './thread_overview'
 import './thread_details_layout.css'
 
 const minWidth = 320
@@ -50,6 +51,9 @@ export function ThreadDetailsLayout({
     () => allChildThreads.filter((child) => !child.archived),
     [allChildThreads]
   )
+  const hasOverview = useHasOverview(threadId, childThreads)
+  const hasOverviewNow = useRef(hasOverview)
+  hasOverviewNow.current = hasOverview
   const narrow = available < narrowWidth
   const full = narrow || expanded
   const max = Math.max(minWidth, available - 360)
@@ -80,6 +84,10 @@ export function ThreadDetailsLayout({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  useLayoutEffect(() => {
+    if (open) setTab(hasOverviewNow.current ? 'overview' : 'changes')
+  }, [open])
 
   useLayoutEffect(() => {
     const element = root.current
@@ -172,6 +180,24 @@ export function ThreadDetailsLayout({
               className='details-tab-panel'
             >
               <div ref={setChatSlot} className='flex h-full min-h-0 min-w-0 flex-col' />
+            </TabsContent>
+            <TabsContent
+              keepMounted
+              value='overview'
+              inert={tab !== 'overview'}
+              aria-hidden={tab !== 'overview'}
+              className='details-tab-panel'
+            >
+              {open && (
+                <ThreadOverview
+                  threadId={threadId}
+                  childThreads={childThreads}
+                  onShowChat={() => {
+                    if (full) setTab('chat')
+                  }}
+                  onShowChanges={() => setTab('changes')}
+                />
+              )}
             </TabsContent>
             <TabsContent
               keepMounted
