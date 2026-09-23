@@ -690,7 +690,14 @@ export function createClaudeAdapter(
                       }
                     : {},
                   env: binding ? { ...process.env, JETTY_MCP_TOKEN: binding.token } : undefined,
-                  allowedTools: [...AUTO_ALLOWED_TOOLS],
+                  allowedTools: [
+                    ...AUTO_ALLOWED_TOOLS,
+                    'TaskCreate',
+                    'TaskUpdate',
+                    'TaskGet',
+                    'TaskList',
+                    'TodoWrite',
+                  ],
                 },
               }),
             catch: (error) => new AgentError(String(error)),
