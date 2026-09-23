@@ -16,6 +16,7 @@ import {
   type TurnInput,
 } from './agent'
 import {
+  DEFAULT_CODEX_ARGS,
   object,
   openCodexConnection,
   string,
@@ -192,7 +193,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               ? {
                   ...options,
                   args: [
-                    ...(options.args ?? ['app-server', '--listen', 'stdio://']),
+                    ...(options.args ?? DEFAULT_CODEX_ARGS),
                     '-c',
                     `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
                     '-c',
