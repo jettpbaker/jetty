@@ -66,7 +66,7 @@ function Thread() {
             }
             onAnswer={(itemId, answers) => respondQuestion(threadId, itemId, answers)}
           />
-          {composer}
+          {!agent && composer}
         </ThreadDetailsLayout>
       )}
     </section>

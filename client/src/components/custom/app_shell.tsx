@@ -1,21 +1,27 @@
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tabs, TabsList } from '@/components/ui/tabs'
 import { storage } from '@/platform'
-import { MAIN_TAB, useChrome, usePrefetchThread, useThreadTab } from '@/state'
+import { MAIN_TAB, useChrome, useSubagentTabs, useThreadTab, type SubagentTab } from '@/state'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
-import { threadSubagents, toSubagent } from './thread_rows'
-import { threadStatus } from './thread_status'
+import { subagentLabel } from './thread_rows'
+import { threadStatus, type ThreadStatus } from './thread_status'
 import { ThreadTab } from './thread_tab'
 import './app_shell.css'
 
 const widthKey = 'jetty.sidebar.width'
+
+function subagentTabStatus(tab: SubagentTab): ThreadStatus {
+  if (tab.needsInput) return 'needs-attention'
+  if (tab.status === 'running') return 'working'
+  return tab.status === 'completed' ? 'idle' : 'error'
+}
 const openKey = 'jetty.sidebar.open'
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -65,11 +71,7 @@ function Workspace({
   const pathname = useLocation({ select: (location) => location.pathname })
   const threadId = useParams({ strict: false }).threadId
   const thread = useChrome()?.threads.find((entry) => entry.id === threadId)
-  const items = usePrefetchThread(threadId)?.items
-  const agents = useMemo(
-    () => threadSubagents(items ?? []).map((agent) => toSubagent(agent, agent.createdAt)),
-    [items]
-  )
+  const agents = useSubagentTabs(threadId)
   const [tab, setTab] = useThreadTab(threadId ?? '')
   const showThreadTabs = agents.length > 0
   const [lastTabbed, setLastTabbed] = useState({ thread, agents })
@@ -134,9 +136,8 @@ function Workspace({
                     key={agent.id}
                     value={agent.id}
                     title={agent.title}
-                    status={agent.status === 'complete' ? 'idle' : agent.status}
-                    model={agent.model}
-                    effort={agent.effort}
+                    status={subagentTabStatus(agent)}
+                    model={subagentLabel(agent)}
                     agentType='subagent'
                   />
                 ))}

@@ -43,7 +43,7 @@ export function ThreadTab({
       className={cn(isSubagent && 'gap-2 px-3', className)}
       {...props}
     >
-      {isSubagent ? (
+      {isSubagent && status !== 'needs-attention' ? (
         <span className={cn('flex shrink-0 items-center', subagentGlyphColor[status])}>
           <DitherAvatar
             key={status}

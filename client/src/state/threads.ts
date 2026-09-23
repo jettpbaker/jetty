@@ -34,7 +34,7 @@ const liveAtom = Atom.family((threadId: string) =>
   }).pipe(Atom.setIdleTTL('90 seconds'))
 )
 
-const threadAtom = Atom.family((threadId: string) =>
+export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
     const resume = get(resumeAtom(threadId))
     return AsyncResult.getOrElse(get(liveAtom(threadId)), () => resume)
