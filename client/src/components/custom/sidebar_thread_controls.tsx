@@ -14,6 +14,8 @@ import { MagnifyingGlassIcon, SlidersHorizontalIcon } from '@phosphor-icons/reac
 
 import type { ThreadGrouping } from './sidebar_thread_groups'
 
+import { GhostInput } from './ghost_input'
+
 export function SidebarThreadControls({
   query,
   onQueryChange,
@@ -31,21 +33,17 @@ export function SidebarThreadControls({
 }) {
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
-      <label className='flex min-w-0 flex-1 items-center gap-1.5 text-muted-foreground'>
-        <span aria-hidden='true' className='flex shrink-0 items-center'>
-          <MagnifyingGlassIcon className='size-3' />
-        </span>
-        <input
-          aria-label='Search threads'
-          placeholder='Search threads'
-          className='h-7 w-full min-w-0 border-0 bg-transparent p-0 text-xs text-muted-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground'
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') onQueryChange('')
-          }}
-        />
-      </label>
+      <GhostInput
+        icon={<MagnifyingGlassIcon className='size-3' />}
+        aria-label='Search threads'
+        placeholder='Search threads'
+        className='text-xs text-muted-foreground'
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onQueryChange('')
+        }}
+      />
       <DropdownMenu key={grouping}>
         <DropdownMenuTrigger
           render={
