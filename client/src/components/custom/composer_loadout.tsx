@@ -56,7 +56,7 @@ function stopSelect(event: SyntheticEvent) {
   event.stopPropagation()
 }
 
-function moveOnKeys(index: number, onMove: (from: number, to: number) => void) {
+export function moveOnKeys(index: number, onMove: (from: number, to: number) => void) {
   return (event: KeyboardEvent) => {
     if (!event.altKey || !event.shiftKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
     event.preventDefault()

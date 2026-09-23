@@ -28,11 +28,12 @@ import { DragDropProvider, DragOverlay, useDraggable } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { ArrowUpRightIcon, DotsSixVerticalIcon, PlusIcon, XIcon } from '@phosphor-icons/react'
 import { motion, useReducedMotion } from 'motion/react'
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { ProviderEnabled, ProviderId } from './settings_providers'
 
+import { moveOnKeys } from './composer_loadout'
 import { LightningIcon } from './lightning_icon'
 import { ProviderGlyph } from './provider_glyph'
 import './settings_loadout.css'
@@ -51,6 +52,7 @@ const providers = [
   { id: 'codex', name: 'Codex' },
   { id: 'grok', name: 'Grok' },
 ] as const
+type ModelGroup = { provider: (typeof providers)[number]; models: LoadoutModel[] }
 const sensors = [
   PointerSensor.configure({
     activationConstraints: [new PointerActivationConstraints.Distance({ value: 6 })],
@@ -135,6 +137,13 @@ export function SettingsLoadout({
   const [cleared, setCleared] = useState<ClearedConfig | null>(null)
   const rowPreviewRef = useRef<HTMLDivElement>(null)
   const reducedMotion = !!useReducedMotion()
+  const groups = providers
+    .filter((provider) => enabledProviders[provider.id])
+    .map((provider) => ({
+      provider,
+      models: catalog.filter((model) => model.provider === provider.id),
+    }))
+    .filter((group) => group.models.length > 0)
   function save(next: Slot[], message: string) {
     try {
       setLoadouts(next)
@@ -160,6 +169,12 @@ export function SettingsLoadout({
       `${model.name} equipped in slot ${slots.indexOf(slot) + 1}. ${adjustments}`
     )
   }
+  function move(from: number, to: number) {
+    if (from === to || to < 0 || to >= slots.length) return
+    const next = [...slots]
+    next.splice(to, 0, ...next.splice(from, 1))
+    save(next, 'Configuration reordered.')
+  }
   return (
     <div className='settings-loadout'>
       <DragDropProvider
@@ -175,13 +190,8 @@ export function SettingsLoadout({
           const { source, target } = event.operation
           if (event.canceled || !source) return
           if (isSortable(source)) {
-            if (!target) {
-              save(clearSlot(slots, String(source.id)), 'Slot cleared.')
-            } else if (source.initialIndex !== source.index) {
-              const next = [...slots]
-              next.splice(source.index, 0, ...next.splice(source.initialIndex, 1))
-              save(next, 'Configuration reordered.')
-            }
+            if (!target) save(clearSlot(slots, String(source.id)), 'Slot cleared.')
+            else move(source.initialIndex, source.index)
             return
           }
           const slot = slots.find((item) => item.id === target?.id)
@@ -212,6 +222,12 @@ export function SettingsLoadout({
               slot={slot}
               index={index}
               catalog={catalog}
+              groups={groups}
+              onEquip={(key) => {
+                const picked = catalog.find((item) => modelKey(item) === key)
+                if (picked) equip(slot, picked)
+              }}
+              onMove={move}
               clearing={cleared?.slot.id === slot.id}
               onClear={(config) => {
                 setCleared(config)
@@ -358,6 +374,9 @@ function LoadoutSlot({
   slot,
   index,
   catalog,
+  groups,
+  onEquip,
+  onMove,
   clearing,
   onClear,
   previous,
@@ -371,6 +390,9 @@ function LoadoutSlot({
   slot: Slot
   index: number
   catalog: readonly LoadoutModel[]
+  groups: readonly ModelGroup[]
+  onEquip: (key: string) => void
+  onMove: (from: number, to: number) => void
   clearing: boolean
   onClear: (config: ClearedConfig) => void
   previous?: Slot
@@ -390,6 +412,13 @@ function LoadoutSlot({
     disabled: { draggable: !model },
     transition: reducedMotion ? null : { duration: 150, easing: 'ease-out' },
   })
+  const slotRef = useRef<HTMLDivElement>(null)
+  const picked = useRef(false)
+  useLayoutEffect(() => {
+    if (!model || !picked.current) return
+    picked.current = false
+    slotRef.current?.querySelector('button')?.focus()
+  }, [model])
   return (
     <div
       ref={ref}
@@ -418,26 +447,49 @@ function LoadoutSlot({
         onAnimationComplete={() => {
           if (previous) onReplaceComplete()
         }}
+        ref={slotRef}
         className={`loadout-slot group/slot relative flex min-w-0 ${!model ? 'loadout-slot-empty' : ''}`}
         role='group'
-        aria-label={`Slot ${index + 1}: ${model ? `${model.name}, ${describe(slot)}` : 'Empty'}`}
+        aria-label={`Slot ${index + 1}: ${model ? [model.name, describe(slot)].filter(Boolean).join(', ') : 'Empty'}`}
       >
         {!model ? (
-          <motion.div
-            initial={clearing ? { opacity: 0 } : false}
-            animate={{ opacity: catalogDragging && isDropTarget ? 0 : 1 }}
-            transition={{ duration: 0.12 }}
-            className='flex flex-1 items-center justify-center gap-2 text-muted-foreground'
+          <ModelPicker
+            groups={groups}
+            onPick={(key) => {
+              picked.current = true
+              onEquip(key)
+            }}
+            label={`Choose a model for slot ${index + 1}`}
+            render={
+              <button
+                type='button'
+                className='absolute inset-0 flex rounded-menu-item focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2'
+              />
+            }
           >
-            <PlusIcon aria-hidden='true' className='size-5' />
-            <span className='text-xs'>Drop a model</span>
-          </motion.div>
+            {/* Without a handle, dnd-kit would mark the whole slot a disabled button. */}
+            <motion.div
+              ref={handleRef}
+              aria-hidden='true'
+              tabIndex={-1}
+              initial={clearing ? { opacity: 0 } : false}
+              animate={{ opacity: catalogDragging && isDropTarget ? 0 : 1 }}
+              transition={{ duration: 0.12 }}
+              className='flex flex-1 items-center justify-center gap-2 text-muted-foreground'
+            >
+              <PlusIcon aria-hidden='true' className='size-5' />
+              <span className='text-xs'>Drop a model</span>
+            </motion.div>
+          </ModelPicker>
         ) : (
           <>
             <button
               ref={handleRef}
               type='button'
               aria-label={`Drag ${model.name} configuration from slot ${index + 1}`}
+              title='Drag to reorder · Option+Shift+↑/↓'
+              aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
+              onKeyDown={moveOnKeys(index, onMove)}
               className='absolute inset-0 touch-none cursor-grab rounded-menu-item focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:cursor-grabbing'
             />
             <button
@@ -466,7 +518,9 @@ function LoadoutSlot({
             >
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger
-                  aria-label={`Configure slot ${index + 1}: ${describe(slot)}`}
+                  aria-label={[`Configure slot ${index + 1}`, describe(slot)]
+                    .filter(Boolean)
+                    .join(': ')}
                   render={
                     <Button
                       variant='ghost'
@@ -686,6 +740,46 @@ function EquipAnimation({
         </>
       )}
     </div>
+  )
+}
+
+function ModelPicker({
+  groups,
+  onPick,
+  label,
+  render,
+  children,
+}: {
+  groups: readonly ModelGroup[]
+  onPick: (key: string) => void
+  label: string
+  render: ReactElement
+  children: ReactNode
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger aria-label={label} render={render}>
+        {children}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='start' className='min-w-48'>
+        {groups.map(({ provider, models }, index) => (
+          <DropdownMenuGroup key={provider.id}>
+            {index > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuLabel className='flex items-center gap-2 [&>.provider-icon]:size-3'>
+              <Glyph provider={provider.id} />
+              {provider.name}
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup value='' onValueChange={(value) => onPick(String(value))}>
+              {models.map((model) => (
+                <DropdownMenuRadioItem key={modelKey(model)} value={modelKey(model)}>
+                  {model.name}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
