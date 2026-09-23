@@ -218,6 +218,11 @@
   }
 }
 
+.icon-optical-down {
+  position: relative;
+  top: 1px;
+}
+
 @utility scrollbar-subtle {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
