@@ -24,6 +24,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 import './settings_sections.css'
 import { AccentPicker } from './accent_picker'
+import { DisabledTooltip } from './disabled_tooltip'
 import { WallpaperEditor } from './wallpaper_editor'
 
 const themes = [
@@ -208,16 +209,12 @@ export function SettingsAppearance() {
           </Button>
         )}
       </div>
-      <Tooltip disabled={Boolean(appearance.wallpaper)}>
-        <TooltipTrigger
-          render={
-            <div
-              className='appearance-option-row'
-              tabIndex={appearance.wallpaper ? -1 : 0}
-              role='group'
-              aria-label='Wallpaper accent'
-            />
-          }
+      <DisabledTooltip reason={appearance.wallpaper ? undefined : 'Add a wallpaper first.'}>
+        <div
+          className='appearance-option-row'
+          tabIndex={appearance.wallpaper ? -1 : 0}
+          role='group'
+          aria-label='Wallpaper accent'
         >
           <label
             htmlFor={wallpaperAccentId}
@@ -232,9 +229,8 @@ export function SettingsAppearance() {
             onCheckedChange={setAuto}
             className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
           />
-        </TooltipTrigger>
-        <TooltipContent>Add a wallpaper first.</TooltipContent>
-      </Tooltip>
+        </div>
+      </DisabledTooltip>
       {editing && <WallpaperEditor appearance={appearance} onClose={() => setEditing(false)} />}
       {error && (
         <p role='alert' className='text-xs text-destructive'>
