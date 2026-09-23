@@ -52,6 +52,10 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
       return { ...state, items: [...state.items, event.item] }
     case 'item.delta':
       return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
+    case 'item.updated':
+      return updateItem(state, event.itemId, (item) =>
+        Schema.decodeUnknownSync(ThreadItem)({ ...item, ...event.patch })
+      )
     case 'item.completed':
       return updateItem(state, event.itemId, (item) =>
         Schema.decodeUnknownSync(ThreadItem)({

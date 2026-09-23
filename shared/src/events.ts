@@ -54,6 +54,12 @@ export const ThreadEvent = Schema.Union([
     // an increment, not a running total
     tokens: Schema.optional(Schema.Natural),
   }),
+  // a non-terminal patch; only item.completed settles an item
+  Schema.Struct({
+    type: Schema.Literal('item.updated'),
+    itemId: Schema.String,
+    patch: Schema.Record(Schema.String, Schema.Unknown),
+  }),
   Schema.Struct({
     type: Schema.Literal('item.completed'),
     itemId: Schema.String,
