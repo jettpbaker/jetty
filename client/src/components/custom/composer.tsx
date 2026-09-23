@@ -4,6 +4,7 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
 import { ComposerEnvironment } from '@/components/custom/composer_environment'
+import { ComposerShadow } from '@/components/custom/composer_shadow'
 import {
   InputGroup,
   InputGroupAddon,
@@ -11,9 +12,11 @@ import {
   InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
+import { cn } from '@/lib/utils'
 import { StopIcon } from '@phosphor-icons/react'
 import { ArrowUpIcon } from '@primer/octicons-react'
-import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, type CSSProperties, type ReactNode } from 'react'
 
 export function Composer({
   value,
@@ -30,6 +33,7 @@ export function Composer({
   attachments,
   context,
   rows = 2,
+  ambient = false,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -45,6 +49,7 @@ export function Composer({
   attachments: ImageAttachments
   context: ReactNode
   rows?: number
+  ambient?: boolean
 }) {
   const textarea = useRef<HTMLTextAreaElement>(null)
   const empty = !value.trim() && attachments.images.length === 0
@@ -92,8 +97,17 @@ export function Composer({
 
   return (
     <div className='mx-auto flex w-full max-w-[660px] flex-col gap-1'>
-      <div className='relative'>
-        <InputGroup className='relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0'>
+      <div
+        className='relative'
+        style={ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined}
+      >
+        {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
+        <InputGroup
+          className={cn(
+            'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+            ambient && 'shadow-none'
+          )}
+        >
           <ComposerImages images={attachments.images} onRemove={attachments.remove} />
           <InputGroupTextarea
             ref={textarea}

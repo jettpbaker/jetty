@@ -1,0 +1,6 @@
+.composer-shadow {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--composer-radius);
+  pointer-events: none;
+}

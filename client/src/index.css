@@ -23,6 +23,7 @@
   --motion-popup-enter-scale: 0.97;
   --motion-popup-enter: menu-enter var(--motion-popup-duration) var(--motion-popup-ease) both;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-enter: 140ms;
   font-family: 'Geist Variable', sans-serif;
   color: var(--foreground);
   background: var(--background);

@@ -23,11 +23,13 @@ export function ThreadComposer({
   items,
   running,
   rows,
+  ambient = false,
 }: {
   threadId?: string
   items: readonly ThreadItem[]
   running: boolean
   rows: number
+  ambient?: boolean
 }) {
   const [draft, setDraft] = useState('')
   const attachments = useImageAttachments()
@@ -89,6 +91,7 @@ export function ThreadComposer({
           )
         }
         rows={rows}
+        ambient={ambient}
       />
     </div>
   )

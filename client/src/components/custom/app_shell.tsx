@@ -7,6 +7,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
+import { NewThreadBackdrop } from './new_thread_backdrop'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
@@ -79,6 +80,7 @@ function Workspace({
     setLastTabbed({ thread, agents })
   // Retain the outgoing tabs until the strip has finished fading away.
   const tabbed = showThreadTabs ? { thread, agents } : lastTabbed
+  const onNewThreadPage = pathname === '/'
 
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
 
@@ -153,6 +155,13 @@ function Workspace({
             className='mx-2 mb-2 mt-0 min-h-0 min-w-0 overflow-hidden rounded-none bg-sidebar shadow-none md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:mt-0 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2'
           >
             <div className='relative flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] bg-background'>
+              <div
+                className='new-thread-backdrop-shell'
+                data-visible={onNewThreadPage || undefined}
+                aria-hidden={!onNewThreadPage}
+              >
+                <NewThreadBackdrop />
+              </div>
               {children}
               <FileDropOverlay />
             </div>

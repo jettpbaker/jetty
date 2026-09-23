@@ -36,6 +36,7 @@ function Thread() {
       items={thread?.items ?? []}
       running={overlay.running}
       rows={overlay.empty ? 2 : 1}
+      ambient={overlay.empty}
     />
   )
   return (
