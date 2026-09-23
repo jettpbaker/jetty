@@ -84,11 +84,15 @@ function reconcileOnStartup(store: Store) {
             patch: { status: 'stopped' },
           })
       if (state.status === 'idle') continue
-      yield* store.appendEvent(thread.id, {
-        type: 'turn.failed',
-        turnId: state.activeTurnId ?? 'unknown',
-        error: 'server restarted',
-      })
+      yield* store.appendEvent(
+        thread.id,
+        {
+          type: 'turn.failed',
+          turnId: state.activeTurnId ?? 'unknown',
+          error: 'server restarted',
+        },
+        false
+      )
     }
   })
 }
@@ -270,7 +274,10 @@ function createServer(opts: ServerOptions = {}) {
       return yield* Effect.fail(new Error('server failed to bind a TCP port'))
     }
 
-    mcp.setUrl(`http://127.0.0.1:${server.address.port}/mcp`)
+    const mcpHostname = server.address.hostname.replace(/^\[|\]$/g, '')
+    mcp.setUrl(
+      `http://${mcpHostname.includes(':') ? `[${mcpHostname}]` : mcpHostname}:${server.address.port}/mcp`
+    )
     yield* orch.resumeQueues()
 
     return {

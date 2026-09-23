@@ -363,7 +363,9 @@ export function createClaudeAdapter(
             if (config.mcp && message.type === 'system' && message.subtype === 'init') {
               const jetty = message.mcp_servers.find((server) => server.name === 'jetty')
               if (jetty?.status !== 'connected')
-                return yield* Effect.fail(new AgentError('Jetty MCP failed to connect'))
+                yield* Effect.logWarning(
+                  'Jetty MCP failed to connect; orchestration tools unavailable'
+                )
             }
             // Background subagents keep working after the turn that spawned them ends.
             const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
@@ -425,11 +427,7 @@ export function createClaudeAdapter(
               })
               return
             }
-            if (
-              AUTO_ALLOWED_TOOLS.has(toolName) ||
-              (session.options.permissionMode !== 'default' &&
-                ['mcp__jetty__create_thread', 'mcp__jetty__send_message'].includes(toolName))
-            ) {
+            if (AUTO_ALLOWED_TOOLS.has(toolName)) {
               yield* Deferred.succeed(result, {
                 behavior: 'allow',
                 updatedInput: toolInput,
