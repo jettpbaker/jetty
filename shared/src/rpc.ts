@@ -3,7 +3,14 @@ import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { SequencedEvent } from './events'
 import { ThreadState } from './reducer'
-import { ChromePushData, methods, type MethodName, PullRequestSnapshot, WireError } from './wire'
+import {
+  ChromePushData,
+  methods,
+  type MethodName,
+  PullRequestList,
+  PullRequestSnapshot,
+  WireError,
+} from './wire'
 
 export const ThreadUpdate = Schema.Union([
   Schema.Struct({ type: Schema.Literal('snapshot'), snapshot: ThreadState, seq: Schema.Natural }),
@@ -13,7 +20,10 @@ export const ThreadUpdate = Schema.Union([
 export type ThreadUpdate = Schema.Schema.Type<typeof ThreadUpdate>
 
 function unary<
-  M extends Exclude<MethodName, 'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe'>,
+  M extends Exclude<
+    MethodName,
+    'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe' | 'pullRequestList.subscribe'
+  >,
 >(name: M) {
   return Rpc.make<
     M,
@@ -55,6 +65,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('pullRequest.unlink'),
   unary('pullRequest.get'),
   unary('pullRequest.refresh'),
+  unary('pullRequestList.refresh'),
   unary('queue.add'),
   unary('queue.remove'),
   unary('queue.edit'),
@@ -82,6 +93,12 @@ export const JettyRpcs = RpcGroup.make(
   Rpc.make('pullRequest.subscribe', {
     payload: methods['pullRequest.subscribe'].params,
     success: PullRequestSnapshot,
+    error: WireError,
+    stream: true,
+  }),
+  Rpc.make('pullRequestList.subscribe', {
+    payload: methods['pullRequestList.subscribe'].params,
+    success: PullRequestList,
     error: WireError,
     stream: true,
   })

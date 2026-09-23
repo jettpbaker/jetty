@@ -13,6 +13,8 @@ import {
   type QueuedMessage,
   type PermissionMode,
   type PullRequestLink,
+  type PullRequestList,
+  type PullRequestListTab,
   type PullRequestSnapshot,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
@@ -883,6 +885,35 @@ export function createStore() {
               status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at`
           return snapshot
         }).pipe(Effect.mapError(storeError))
+      },
+      getPullRequestList(tab: PullRequestListTab) {
+        return sql<{
+          items_json: string | null
+          status: PullRequestList['status']
+          error: string | null
+          refreshed_at: number | null
+        }>`SELECT items_json, status, error, refreshed_at FROM pull_request_lists WHERE tab = ${tab}`.pipe(
+          Effect.map((rows): PullRequestList => {
+            const row = rows[0]
+            return {
+              tab,
+              status: row?.status ?? 'loading',
+              ...(row?.items_json ? { items: JSON.parse(row.items_json) } : {}),
+              ...(row?.error ? { error: row.error } : {}),
+              ...(row?.refreshed_at ? { refreshedAt: row.refreshed_at } : {}),
+            }
+          }),
+          Effect.mapError(storeError)
+        )
+      },
+      savePullRequestList(list: PullRequestList) {
+        return sql`INSERT INTO pull_request_lists (tab, items_json, status, error, refreshed_at)
+          VALUES (${list.tab}, ${list.items ? JSON.stringify(list.items) : null}, ${list.status}, ${list.error ?? null}, ${list.refreshedAt ?? null})
+          ON CONFLICT(tab) DO UPDATE SET items_json = COALESCE(excluded.items_json, pull_request_lists.items_json),
+            status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at`.pipe(
+          Effect.as(list),
+          Effect.mapError(storeError)
+        )
       },
       threadsForPullRequest(repo: string, number: number) {
         return sql<{

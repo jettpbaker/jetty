@@ -1,5 +1,11 @@
 import type { ThreadUpdate } from '@jetty/shared/rpc'
-import type { ChromePushData, PullRequestSnapshot, WireError } from '@jetty/shared/wire'
+import type {
+  ChromePushData,
+  PullRequestList,
+  PullRequestListTab,
+  PullRequestSnapshot,
+  WireError,
+} from '@jetty/shared/wire'
 
 import { Effect, Queue, Semaphore } from 'effect'
 
@@ -10,6 +16,10 @@ export function createHub() {
   const chromeSubs = new Set<Queue.Queue<ChromePushData, WireError>>()
   const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
   const pullRequestSubs = new Map<string, Set<Queue.Queue<PullRequestSnapshot, WireError>>>()
+  const pullRequestListSubs = new Map<
+    PullRequestListTab,
+    Set<Queue.Queue<PullRequestList, WireError>>
+  >()
 
   function pushChrome(data: ChromePushData) {
     for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
@@ -78,6 +88,28 @@ export function createHub() {
     )
   }
 
+  function pushPullRequestList(list: PullRequestList) {
+    for (const queue of pullRequestListSubs.get(list.tab) ?? []) Queue.offerUnsafe(queue, list)
+  }
+
+  function subscribePullRequestList(tab: PullRequestListTab) {
+    return Effect.acquireRelease(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<PullRequestList, WireError>()
+        const subs = pullRequestListSubs.get(tab) ?? new Set()
+        subs.add(queue)
+        pullRequestListSubs.set(tab, subs)
+        return queue
+      }),
+      (queue) =>
+        Effect.sync(() => {
+          const subs = pullRequestListSubs.get(tab)
+          subs?.delete(queue)
+          if (subs?.size === 0) pullRequestListSubs.delete(tab)
+        }).pipe(Effect.andThen(Queue.shutdown(queue)))
+    )
+  }
+
   return {
     withChromePublication: chromePublication.withPermit,
     pushChrome,
@@ -86,11 +118,14 @@ export function createHub() {
     subscribeThread,
     pushPullRequest,
     subscribePullRequest,
+    pushPullRequestList,
+    subscribePullRequestList,
     subscriberCount: Effect.sync(
       () =>
         chromeSubs.size +
         [...threadSubs.values()].reduce((total, subs) => total + subs.size, 0) +
-        [...pullRequestSubs.values()].reduce((total, subs) => total + subs.size, 0)
+        [...pullRequestSubs.values()].reduce((total, subs) => total + subs.size, 0) +
+        [...pullRequestListSubs.values()].reduce((total, subs) => total + subs.size, 0)
     ),
   }
 }

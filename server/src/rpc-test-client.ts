@@ -7,7 +7,7 @@ import { Socket } from 'effect/unstable/socket'
 
 type UnaryMethod = Exclude<
   RpcGroup.Rpcs<typeof JettyRpcs>['_tag'],
-  'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe'
+  'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe' | 'pullRequestList.subscribe'
 >
 export type ThreadMessage = ThreadUpdate & { threadId: string }
 export type TestMessage = ThreadMessage | ChromePushData

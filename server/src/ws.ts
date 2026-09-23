@@ -19,6 +19,7 @@ import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
 import {
+  createPullRequestLists,
   createPullRequests,
   githubConnection,
   parsePullRequestUrl,
@@ -144,6 +145,8 @@ export function createRpcHandlers(
         Effect.forkIn(admissionScope)
       )
     }
+
+    const pullRequestLists = createPullRequestLists(store, hub)
 
     function checkedRef(ref: { repo: string; number: number }) {
       return validPullRequestRef(ref)
@@ -411,6 +414,30 @@ export function createRpcHandlers(
             )
             return Stream.concat(
               Stream.succeed(snapshot),
+              Stream.merge(Stream.fromQueue(queue), periodic)
+            )
+          }).pipe(Effect.mapError(wireError))
+        ),
+      'pullRequestList.refresh': ({ tab }) =>
+        pullRequestLists.refresh(tab).pipe(Effect.mapError(wireError)),
+      'pullRequestList.subscribe': ({ tab }) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const queue = yield* hub.subscribePullRequestList(tab)
+            const list = yield* pullRequestLists.get(tab)
+            yield* pullRequestLists.refreshIfStale(tab).pipe(
+              Effect.catch(() => Effect.void),
+              Effect.forkIn(admissionScope)
+            )
+            const periodic = Stream.tick('60 seconds').pipe(
+              Stream.mapEffect(() =>
+                pullRequestLists
+                  .refreshIfStale(tab)
+                  .pipe(Effect.catch(() => pullRequestLists.get(tab)))
+              )
+            )
+            return Stream.concat(
+              Stream.succeed(list),
               Stream.merge(Stream.fromQueue(queue), periodic)
             )
           }).pipe(Effect.mapError(wireError))

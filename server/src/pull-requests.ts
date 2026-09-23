@@ -1,4 +1,9 @@
-import type { PullRequestSnapshot } from '@jetty/shared/wire'
+import type {
+  PullRequestList,
+  PullRequestListItem,
+  PullRequestListTab,
+  PullRequestSnapshot,
+} from '@jetty/shared/wire'
 
 import { PullRequestData } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
@@ -140,11 +145,11 @@ class GhFailure extends Error {
   }
 }
 
-async function ghApi(path: string): Promise<unknown> {
+async function ghApi(...args: string[]): Promise<unknown> {
   const gh = Bun.which('gh')
   if (!gh) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
   try {
-    const child = Bun.spawn([gh, 'api', path], {
+    const child = Bun.spawn([gh, 'api', ...args], {
       stdout: 'pipe',
       stderr: 'pipe',
       signal: AbortSignal.timeout(20000),
@@ -451,4 +456,123 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   return { get, refresh, refreshIfStale }
+}
+
+const listLimit = 50
+const recentDays = 14
+
+function listSearches(tab: PullRequestListTab): string[] {
+  const open = 'is:pr is:open archived:false sort:updated-desc'
+  if (tab === 'for-you') return [`${open} review-requested:@me`, `${open} assignee:@me`]
+  const since = new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10)
+  return [
+    `${open} author:@me`,
+    `is:pr is:closed archived:false author:@me closed:>=${since} sort:updated-desc`,
+  ]
+}
+
+const checkStates: Record<string, PullRequestListItem['checks']> = {
+  SUCCESS: 'success',
+  FAILURE: 'failure',
+  ERROR: 'failure',
+  PENDING: 'pending',
+  EXPECTED: 'pending',
+}
+
+function listItem(value: unknown): PullRequestListItem | null {
+  const node = record(value)
+  const repo = string(record(node.repository).nameWithOwner).toLowerCase()
+  const number = Number(node.number)
+  if (!repo || !Number.isSafeInteger(number)) return null
+  const rollup = record(
+    record(record((record(node.commits).nodes as unknown[] | undefined)?.[0]).commit)
+      .statusCheckRollup
+  )
+  const checks = checkStates[string(rollup.state)]
+  return {
+    repo,
+    number,
+    title: string(node.title),
+    url: string(node.url),
+    state: node.merged
+      ? 'merged'
+      : node.state === 'CLOSED'
+        ? 'closed'
+        : node.isDraft
+          ? 'draft'
+          : 'open',
+    ...(checks ? { checks } : {}),
+    updatedAt: Date.parse(string(node.updatedAt)) || 0,
+  }
+}
+
+async function fetchPullRequestList(tab: PullRequestListTab): Promise<PullRequestListItem[]> {
+  const searches = listSearches(tab)
+  const fields = `nodes { ... on PullRequest {
+    number title url isDraft state merged updatedAt repository { nameWithOwner }
+    commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
+  } }`
+  const query = `query(${searches.map((_, index) => `$q${index}:String!`).join(',')}) {
+    ${searches.map((_, index) => `s${index}: search(query:$q${index},type:ISSUE,first:${listLimit}) { ${fields} }`).join('\n')}
+  }`
+  const response = record(
+    await ghApi(
+      'graphql',
+      '-f',
+      `query=${query}`,
+      ...searches.flatMap((search, index) => ['-f', `q${index}=${search}`])
+    )
+  )
+  const found = new Map<string, PullRequestListItem>()
+  for (const result of Object.values(record(response.data)))
+    for (const node of (record(result).nodes as unknown[] | undefined) ?? []) {
+      const item = listItem(node)
+      if (item) found.set(`${item.repo}#${item.number}`, item)
+    }
+  return [...found.values()].sort((left, right) => right.updatedAt - left.updatedAt)
+}
+
+export function createPullRequestLists(store: Store, hub: Hub) {
+  const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
+
+  function load(tab: PullRequestListTab) {
+    let pending = inFlight.get(tab)
+    if (pending) return pending
+    pending = fetchPullRequestList(tab).then(
+      (items): PullRequestList => ({ tab, status: 'ready', items, refreshedAt: Date.now() }),
+      (error): PullRequestList => ({
+        tab,
+        status:
+          error instanceof GhFailure && error.kind === 'rate_limited'
+            ? 'rate_limited'
+            : 'unavailable',
+        error: error instanceof GhFailure ? error.message : 'GitHub API is unavailable',
+        refreshedAt: Date.now(),
+      })
+    )
+    inFlight.set(tab, pending)
+    void pending.finally(() => inFlight.delete(tab))
+    return pending
+  }
+
+  function refresh(tab: PullRequestListTab) {
+    return Effect.gen(function* () {
+      yield* store.savePullRequestList(yield* Effect.promise(() => load(tab)))
+      // The stored list keeps the last good items when this read failed.
+      const list = yield* store.getPullRequestList(tab)
+      hub.pushPullRequestList(list)
+      return list
+    })
+  }
+
+  function refreshIfStale(tab: PullRequestListTab) {
+    return Effect.gen(function* () {
+      const list = yield* store.getPullRequestList(tab)
+      const maxAge = list.status === 'rate_limited' ? 5 * 60_000 : 60_000
+      if (list.refreshedAt && Date.now() - list.refreshedAt < maxAge) return list
+      return yield* refresh(tab)
+    })
+  }
+
+  return { get: store.getPullRequestList, refresh, refreshIfStale }
 }

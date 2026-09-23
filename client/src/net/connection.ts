@@ -1,3 +1,5 @@
+import type { PullRequestListTab } from '@jetty/shared/wire'
+
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { Effect, Latch, Layer, Schedule, Stream } from 'effect'
 import { RpcClient, RpcClientError, type RpcGroup, RpcSerialization } from 'effect/unstable/rpc'
@@ -5,7 +7,13 @@ import { Socket } from 'effect/unstable/socket'
 
 type UnaryRpcs = Exclude<
   RpcGroup.Rpcs<typeof JettyRpcs>,
-  { readonly _tag: 'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe' }
+  {
+    readonly _tag:
+      | 'chrome.subscribe'
+      | 'thread.subscribe'
+      | 'pullRequest.subscribe'
+      | 'pullRequestList.subscribe'
+  }
 >
 
 const backoff = Schedule.min([
@@ -100,7 +108,17 @@ export function createConnection(
       return online(rpc('pullRequest.subscribe', { repo, number })).pipe(Stream.retry(reconnect))
     }
 
-    return { request, subscribeChrome, subscribeThread, subscribePullRequest }
+    function subscribePullRequestList(tab: PullRequestListTab) {
+      return online(rpc('pullRequestList.subscribe', { tab })).pipe(Stream.retry(reconnect))
+    }
+
+    return {
+      request,
+      subscribeChrome,
+      subscribeThread,
+      subscribePullRequest,
+      subscribePullRequestList,
+    }
   })
 }
 

@@ -12,7 +12,8 @@ test('RPC operations preserve unary schemas and replace subscription messages wi
     if (
       name === 'chrome.subscribe' ||
       name === 'thread.subscribe' ||
-      name === 'pullRequest.subscribe'
+      name === 'pullRequest.subscribe' ||
+      name === 'pullRequestList.subscribe'
     ) {
       expect(RpcSchema.isStreamSchema(rpc.successSchema)).toBe(true)
     } else {
@@ -115,6 +116,10 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.subscribe': ({ repo, number }) =>
             Stream.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequestList.refresh': ({ tab }) =>
+            Effect.succeed({ tab, status: 'loading' as const }),
+          'pullRequestList.subscribe': ({ tab }) =>
+            Stream.succeed({ tab, status: 'loading' as const }),
           'queue.add': () => Effect.succeed(null),
           'queue.edit': () => Effect.succeed(null),
           'queue.hold': () => Effect.succeed(null),

@@ -129,6 +129,13 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL)`
   }),
+  '017_pull_request_lists': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE pull_request_lists (
+      tab TEXT PRIMARY KEY, items_json TEXT,
+      status TEXT NOT NULL DEFAULT 'loading', error TEXT, refreshed_at INTEGER
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {

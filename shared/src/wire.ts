@@ -111,6 +111,29 @@ export const PullRequestSnapshot = Schema.Struct({
 })
 export type PullRequestSnapshot = Schema.Schema.Type<typeof PullRequestSnapshot>
 
+export const PullRequestListTab = Schema.Literals(['for-you', 'created'])
+export type PullRequestListTab = Schema.Schema.Type<typeof PullRequestListTab>
+
+export const PullRequestListItem = Schema.Struct({
+  repo: Schema.String,
+  number: Schema.Int,
+  title: Schema.String,
+  url: Schema.String,
+  state: Schema.Literals(['draft', 'open', 'merged', 'closed']),
+  checks: Schema.optional(Schema.Literals(['pending', 'success', 'failure'])),
+  updatedAt: Schema.Int,
+})
+export type PullRequestListItem = Schema.Schema.Type<typeof PullRequestListItem>
+
+export const PullRequestList = Schema.Struct({
+  tab: PullRequestListTab,
+  status: Schema.Literals(['loading', 'ready', 'unavailable', 'rate_limited']),
+  error: Schema.optional(Schema.String),
+  refreshedAt: Schema.optional(Schema.Int),
+  items: Schema.optional(Schema.Array(PullRequestListItem)),
+})
+export type PullRequestList = Schema.Schema.Type<typeof PullRequestList>
+
 export const MessageSource = Schema.Struct({ threadId: Schema.String, title: Schema.String })
 export const QueuedMessage = Schema.Struct({
   id: Schema.String,
@@ -362,6 +385,14 @@ export const methods = {
   'pullRequest.subscribe': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
+  },
+  'pullRequestList.refresh': {
+    params: Schema.Struct({ tab: PullRequestListTab }),
+    result: PullRequestList,
+  },
+  'pullRequestList.subscribe': {
+    params: Schema.Struct({ tab: PullRequestListTab }),
+    result: PullRequestList,
   },
   'thread.subscribe': {
     params: Schema.Struct({
