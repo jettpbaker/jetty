@@ -108,7 +108,8 @@ export function ThreadComposer({
       if (!threadId) return
       respondApproval(threadId, entry.id, decision === 'once' ? 'allow' : decision, note)
       settled(entry)
-    }
+    },
+    keepKeyboardFocus
   )
   const question = useQuestion(
     item?.kind === 'question' ? item : undefined,
@@ -123,7 +124,8 @@ export function ThreadComposer({
       if (!threadId) return
       dismissQuestion(threadId, entry.id)
       settled(entry)
-    }
+    },
+    keepKeyboardFocus
   )
   const todos = useMemo(() => currentTodos(items), [items])
   const openTodo =
@@ -144,7 +146,8 @@ export function ThreadComposer({
     element.setSelectionRange(element.value.length, element.value.length)
   }, [editing])
 
-  // Steer and Remove unmount their row, so a keyboard user would otherwise be dropped on the page.
+  // Steer, Remove and strip answers unmount their button; a keyboard user would otherwise be
+  // dropped on the page.
   function keepKeyboardFocus() {
     if (document.activeElement?.matches(':focus-visible'))
       input.current?.focus({ preventScroll: true })

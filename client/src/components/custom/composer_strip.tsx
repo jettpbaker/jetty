@@ -166,7 +166,9 @@ export function useApproval(
   item: Approval | undefined,
   draft: string,
   setDraft: (value: string) => void,
-  respond: (item: Approval, decision: Decision, note?: string) => void
+  respond: (item: Approval, decision: Decision, note?: string) => void,
+  // strip actions unmount their own button; this keeps a keyboard user in the composer
+  keepFocus: () => void
 ) {
   const [confirmingId, setConfirmingId] = useState<string>()
   const [expandedId, setExpandedId] = useState<string>()
@@ -176,6 +178,7 @@ export function useApproval(
   function decide(decision: Decision, note = '') {
     if (!item) return
     if (decision === 'always' && !canAlways) return
+    keepFocus()
     if (decision === 'always' && !confirming) {
       setConfirmingId(item.id)
       return
@@ -206,8 +209,14 @@ export function useApproval(
     confirming,
     expanded,
     canAlways,
-    setConfirming: (value: boolean) => setConfirmingId(value ? item?.id : undefined),
-    setExpanded: (value: boolean) => setExpandedId(value ? item?.id : undefined),
+    setConfirming(value: boolean) {
+      keepFocus()
+      setConfirmingId(value ? item?.id : undefined)
+    },
+    setExpanded(value: boolean) {
+      keepFocus()
+      setExpandedId(value ? item?.id : undefined)
+    },
     decide,
     deny,
     send,
@@ -360,7 +369,8 @@ export function useQuestion(
   saved: Draft,
   update: (patch: Partial<Draft>) => void,
   answer: (item: Question, answers: Record<string, string>) => void,
-  dismiss: (item: Question) => void
+  dismiss: (item: Question) => void,
+  keepFocus: () => void
 ) {
   const draft = saved.text
   const progress = item && (saved.questions?.[item.id] ?? freshProgress(item))
@@ -405,6 +415,7 @@ export function useQuestion(
       go(step + 1)
       return
     }
+    keepFocus()
     save(undefined, '')
     answer(
       item,
@@ -415,6 +426,7 @@ export function useQuestion(
   }
   function onDismiss() {
     if (!item) return
+    keepFocus()
     save(undefined, '')
     dismiss(item)
   }
