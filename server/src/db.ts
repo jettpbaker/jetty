@@ -70,13 +70,22 @@ const migrations = SqliteMigrator.fromRecord({
   '008_turn_initiator': Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`ALTER TABLE orchestration_turns ADD COLUMN initiator_thread_id TEXT`
-    yield* sql`UPDATE orchestration_turns SET initiator_thread_id = (
-      SELECT json_extract(payload_json, '$.item.from.threadId') FROM thread_events
-      WHERE thread_events.thread_id = orchestration_turns.thread_id
-        AND json_extract(payload_json, '$.item.turnId') = orchestration_turns.turn_id
-        AND json_extract(payload_json, '$.item.kind') = 'user_message'
-      ORDER BY seq LIMIT 1
+  }),
+  '009_attachment_refs': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE attachment_refs (
+      thread_id TEXT NOT NULL, attachment_id TEXT NOT NULL, metadata_json TEXT NOT NULL,
+      PRIMARY KEY (thread_id, attachment_id)
     )`
+    yield* sql`CREATE INDEX attachment_refs_by_id ON attachment_refs (attachment_id)`
+    yield* sql`INSERT OR IGNORE INTO attachment_refs
+      SELECT s.thread_id, json_extract(a.value, '$.id'), a.value
+      FROM thread_states s, json_each(s.state_json, '$.items') i,
+      json_each(CASE json_extract(i.value, '$.kind')
+        WHEN 'user_message' THEN json_extract(i.value, '$.attachments')
+        WHEN 'image_gallery' THEN json_extract(i.value, '$.images')
+        WHEN 'video' THEN json_array(json_extract(i.value, '$.video'))
+        ELSE '[]' END) a`
   }),
 })
 

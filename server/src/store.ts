@@ -1,4 +1,5 @@
 import { ThreadEvent, type SessionStatus } from '@jetty/shared/events'
+import { Attachment } from '@jetty/shared/items'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
   EffortLevel,
@@ -95,20 +96,6 @@ function rowToThread(row: ThreadRow): ThreadMeta {
   }
 }
 
-function attachmentIdsOf(state: ThreadState): string[] {
-  const ids: string[] = []
-  for (const item of state.items) {
-    if (item.kind === 'user_message') {
-      for (const attachment of item.attachments) ids.push(attachment.id)
-    } else if (item.kind === 'image_gallery') {
-      for (const image of item.images) ids.push(image.id)
-    } else if (item.kind === 'video') {
-      ids.push(item.video.id)
-    }
-  }
-  return ids
-}
-
 export type Store = Effect.Success<ReturnType<typeof createStore>>
 export const Store = Context.Service<Store>('jetty/Store')
 
@@ -200,7 +187,7 @@ export function createStore() {
       })
     }
 
-    function append(threadId: string, event: ThreadEvent) {
+    function append(threadId: string, event: ThreadEvent, notifyParent = true) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         const validated = yield* Schema.decodeUnknownEffect(ThreadEvent)(event)
@@ -214,59 +201,73 @@ export function createStore() {
           catch: storeError,
         })
         yield* writeState(threadId, state)
+        if (validated.type === 'item.started') {
+          const item = validated.item
+          const media =
+            item.kind === 'user_message'
+              ? item.attachments
+              : item.kind === 'image_gallery'
+                ? item.images
+                : item.kind === 'video'
+                  ? [item.video]
+                  : []
+          for (const attachment of media)
+            yield* sql`INSERT OR IGNORE INTO attachment_refs (thread_id, attachment_id, metadata_json)
+              VALUES (${threadId}, ${attachment.id}, ${JSON.stringify(attachment)})`
+        }
         if (
+          notifyParent &&
           (event.type === 'turn.completed' || event.type === 'turn.failed') &&
           !prev.turnOutcomes[event.turnId]
         ) {
-          const [settings] = yield* sql<{
-            notify_parent: number
-          }>`SELECT notify_parent FROM threads WHERE id = ${threadId}`
-          const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
-          const [turn] = yield* sql<{
-            hop: number
-            initiator_thread_id: string | null
-          }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
-          const hop = (turn?.hop ?? 0) + 1
-          if (
-            settings?.notify_parent &&
-            parent &&
-            !parent.archived &&
-            turn?.initiator_thread_id === parent.id
-          ) {
-            const reply = state.items
-              .filter((item) => item.turnId === event.turnId && item.kind === 'assistant_message')
-              .map((item) => ('text' in item ? item.text : ''))
-              .join('\n')
-            if (hop > 20) {
-              yield* enqueue(threadId, {
-                id: newId(),
-                createdAt: ts,
-                hop: turn.hop,
-                text: `Completion notification to ${parent.title} was not delivered: message hop limit exceeded.`,
-              })
-            } else {
-              const media = state.items.flatMap((item) =>
-                item.turnId !== event.turnId
-                  ? []
-                  : item.kind === 'image_gallery'
-                    ? item.images.map((image) => ({
-                        kind: 'image',
-                        ...image,
-                        caption: item.caption,
-                      }))
-                    : item.kind === 'video'
-                      ? [{ kind: 'video', ...item.video, caption: item.caption }]
-                      : []
-              )
-              yield* enqueue(parent.id, {
-                id: newId(),
-                createdAt: ts,
-                hop,
-                from: { threadId, title: thread.title },
-                text: `Thread ${thread.title} is ready for review: ${(event.type === 'turn.failed' ? event.error : reply).slice(0, 2000)}${media.length ? '\nMedia available to re-post with send_images/send_video by attachment id:\n' + media.map((a) => JSON.stringify({ attachmentId: a.id, kind: a.kind, name: a.name, caption: a.caption })).join('\n') : ''}`,
-              })
+          yield* Effect.gen(function* () {
+            const [settings] = yield* sql<{
+              notify_parent: number
+            }>`SELECT notify_parent FROM threads WHERE id = ${threadId}`
+            const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
+            const [turn] = yield* sql<{
+              hop: number
+              initiator_thread_id: string | null
+            }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
+            const hop = (turn?.hop ?? 0) + 1
+            if (
+              settings?.notify_parent &&
+              parent &&
+              !parent.archived &&
+              turn?.initiator_thread_id === parent.id
+            ) {
+              const reply = state.items
+                .filter((item) => item.turnId === event.turnId && item.kind === 'assistant_message')
+                .map((item) => ('text' in item ? item.text : ''))
+                .join('\n')
+              if (hop > 20) {
+                yield* Effect.logWarning(
+                  `Completion notification from ${threadId} dropped: message hop limit exceeded`
+                )
+              } else {
+                const media = state.items.flatMap((item) =>
+                  item.turnId !== event.turnId
+                    ? []
+                    : item.kind === 'image_gallery'
+                      ? item.images.map((image) => ({
+                          kind: 'image',
+                          ...image,
+                          caption: item.caption,
+                        }))
+                      : item.kind === 'video'
+                        ? [{ kind: 'video', ...item.video, caption: item.caption }]
+                        : []
+                )
+                yield* enqueue(parent.id, {
+                  id: newId(),
+                  createdAt: ts,
+                  hop,
+                  from: { threadId, title: thread.title },
+                  text: `Thread ${thread.title} ${event.type === 'turn.failed' ? 'failed' : 'is ready for review'}: ${(event.type === 'turn.failed' ? event.error : reply).slice(0, 2000)}${media.length ? '\nMedia available to re-post with send_images/send_video by attachment id:\n' + media.map((a) => JSON.stringify({ attachmentId: a.id, kind: a.kind, name: a.name, caption: a.caption })).join('\n') : ''}`,
+                })
+              }
             }
-          }
+          }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         }
         yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts} WHERE id = ${threadId}`
         return {
@@ -491,19 +492,42 @@ export function createStore() {
       deleteThread(threadId: string) {
         return Effect.gen(function* () {
           yield* requireThread(threadId)
-          const ids = new Set(attachmentIdsOf(yield* getThreadState(threadId)))
+          const refs = yield* sql<{
+            attachment_id: string
+          }>`SELECT attachment_id FROM attachment_refs WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM attachment_refs WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
           yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
-          const remaining = yield* sql<ThreadRow>`SELECT * FROM threads`
-          for (const row of remaining) {
-            for (const id of attachmentIdsOf(yield* getThreadState(row.id))) ids.delete(id)
+          const unused: string[] = []
+          for (const { attachment_id: id } of refs) {
+            const shared =
+              yield* sql`SELECT 1 FROM attachment_refs WHERE attachment_id = ${id} LIMIT 1`
+            if (!shared.length) unused.push(id)
           }
-          return [...ids]
+          return unused
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      resolveAttachment(projectId: string, id: string, kind: 'image' | 'video') {
+        return Effect.gen(function* () {
+          const [row] = yield* sql<{
+            metadata_json: string
+          }>`SELECT r.metadata_json FROM attachment_refs r
+            JOIN threads t ON t.id = r.thread_id
+            WHERE r.attachment_id = ${id} AND t.project_id = ${projectId} AND t.archived = 0 LIMIT 1`
+          if (row) {
+            const attachment = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Attachment))(
+              row.metadata_json
+            )
+            if (attachment.mimeType.startsWith(kind + '/')) return attachment
+          }
+          return yield* Effect.fail(
+            new StoreError('not_found', 'Attachment not found in caller project')
+          )
+        }).pipe(Effect.mapError(storeError))
       },
       getThread,
       requireThread,
@@ -598,8 +622,8 @@ export function createStore() {
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThreadState,
-      appendEvent(threadId: string, event: ThreadEvent) {
-        return append(threadId, event).pipe(
+      appendEvent(threadId: string, event: ThreadEvent, notifyParent = true) {
+        return append(threadId, event, notifyParent).pipe(
           sql.withTransaction,
           Effect.tap(() =>
             event.type === 'turn.completed' || event.type === 'turn.failed'
