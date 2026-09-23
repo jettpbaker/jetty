@@ -5,14 +5,39 @@ import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
+import { useChrome } from '@/state'
+import { useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
+
+import { ProviderGlyph } from './provider_glyph'
+
+type MessageSource = { threadId: string; title: string }
+
+function SourceLabel({ from }: { from: MessageSource }) {
+  const navigate = useNavigate()
+  const provider = useChrome()?.threads.find((thread) => thread.id === from.threadId)?.provider
+  return (
+    <span className='flex items-center gap-1.5 self-end text-xs text-muted-foreground'>
+      {provider && <ProviderGlyph provider={provider} className='size-3' />}
+      <button
+        type='button'
+        onClick={() => navigate({ to: '/threads/$threadId', params: { threadId: from.threadId } })}
+        className='text-foreground/90 hover:text-foreground hover:underline'
+      >
+        {from.title}
+      </button>
+    </span>
+  )
+}
 
 export function UserMessage({
   text,
   attachments,
+  from,
 }: {
   text: string
   attachments: readonly Attachment[]
+  from?: MessageSource
 }) {
   const openMedia = useOpenMedia()
   const thumbnails = useRef<(HTMLButtonElement | null)[]>([])
@@ -20,11 +45,14 @@ export function UserMessage({
   const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
   return (
     <Message align='end'>
-      <MessageContent>
+      <MessageContent className={cn(from && 'gap-1.5')}>
+        {from && <SourceLabel from={from} />}
         <Bubble variant='secondary' align='end'>
           <BubbleContent
             className='rounded-lg'
-            style={{ backgroundColor: 'oklch(from var(--primary) l c h / 0.25)' }}
+            style={
+              from ? undefined : { backgroundColor: 'oklch(from var(--primary) l c h / 0.25)' }
+            }
           >
             {images.length > 0 && (
               <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
