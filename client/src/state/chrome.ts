@@ -92,7 +92,7 @@ function withPending(
   return { ...chrome, projects, threads }
 }
 
-const chromeAtom = Atom.readable((get) => {
+export const chromeAtom = Atom.readable((get) => {
   const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
   return (
     chrome &&

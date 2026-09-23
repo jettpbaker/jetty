@@ -1,7 +1,14 @@
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tabs, TabsList } from '@/components/ui/tabs'
 import { storage } from '@/platform'
-import { MAIN_TAB, useChrome, useSubagentTabs, useThreadTab, type SubagentTab } from '@/state'
+import {
+  MAIN_TAB,
+  useChrome,
+  useRenewQueueHolds,
+  useSubagentTabs,
+  useThreadTab,
+  type SubagentTab,
+} from '@/state'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
@@ -83,6 +90,7 @@ function Workspace({
   const onNewThreadPage = pathname === '/'
 
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
+  useRenewQueueHolds()
 
   useEffect(() => {
     function openSettings(event: KeyboardEvent) {

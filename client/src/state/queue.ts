@@ -2,14 +2,15 @@ import type { ReadyImage } from '@/hooks/use-image-attachments'
 import type { Connection } from '@/net/connection'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
-import { useAtomValue } from '@effect/atom-react'
+import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
-import { useMemo } from 'react'
+import { useContext, useEffect, useMemo } from 'react'
 
-import { useChrome } from './chrome'
+import { chromeAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
+import { editingDrafts } from './drafts'
 import { without } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -128,6 +129,25 @@ function holdQueued(registry: Registry, threadId: string, messageId: string) {
 
 function releaseQueued(registry: Registry, threadId: string, messageId: string) {
   run(registry, (connection) => connection.request('queue.release', { threadId, messageId }))
+}
+
+// The server releases an edit hold after 60s, so renew every draft's hold from here rather than
+// from its composer, which unmounts when the user switches threads mid-edit.
+export function useRenewQueueHolds() {
+  const registry = useContext(RegistryContext)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const threads = registry.get(chromeAtom)?.threads
+      for (const [threadId, messageId] of editingDrafts(registry))
+        if (
+          threads
+            ?.find((thread) => thread.id === threadId)
+            ?.pendingMessages?.some((message) => message.id === messageId)
+        )
+          holdQueued(registry, threadId, messageId)
+    }, 30_000)
+    return () => clearInterval(timer)
+  }, [registry])
 }
 
 export function useThreadQueue(threadId: string | undefined) {

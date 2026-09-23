@@ -34,7 +34,7 @@ import {
   useThreadQueue,
 } from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -74,7 +74,6 @@ export function ThreadComposer({
   const respondQuestion = useRespondQuestion()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
-  const holdQueued = queueActions.hold
   const queue = useThreadQueue(threadId)
   const navigate = useNavigate()
   const chrome = useChrome()
@@ -112,12 +111,6 @@ export function ThreadComposer({
   // Stays while tasks are open, even once the turn ends.
   const todo = openTodo ?? (running ? todos.at(-1) : undefined)
   const editingEntry = queue.find((entry) => entry.id === editing)
-
-  useEffect(() => {
-    if (!threadId || !editing) return
-    const timer = setInterval(() => holdQueued(threadId, editing), 30_000)
-    return () => clearInterval(timer)
-  }, [editing, holdQueued, threadId])
 
   function priorCount(text: string) {
     return items.filter((entry) => entry.kind === 'user_message' && entry.text === text).length

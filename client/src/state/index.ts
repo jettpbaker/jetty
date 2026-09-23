@@ -38,7 +38,7 @@ export {
   useUnlinkPullRequest,
   type PullRequestRef,
 } from './pull_requests'
-export { useQueueActions, useThreadQueue } from './queue'
+export { useQueueActions, useRenewQueueHolds, useThreadQueue } from './queue'
 export {
   useBumpDraft,
   useDismissQuestion,
