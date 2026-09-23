@@ -278,7 +278,9 @@ function Lightbox({
       event.preventDefault()
       // Trackpad pinch arrives as a ctrl+wheel in Chromium and Firefox.
       if (event.ctrlKey || event.metaKey) {
-        const factor = Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.05 : 0.01))
+        // A mouse-wheel notch is ~100px; capped so it steps like a pinch instead of jumping ~2.7×.
+        const delta = event.deltaY * (event.deltaMode === 1 ? 5 : 1)
+        const factor = Math.exp(-Math.max(-20, Math.min(20, delta)) * 0.01)
         zoom.zoomTo(zoom.scale.get() * factor, stagePoint(event.clientX, event.clientY), false)
       } else if (zoom.scale.get() > 1.001) {
         zoom.panBy(-event.deltaX, -event.deltaY)
