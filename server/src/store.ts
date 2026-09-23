@@ -36,6 +36,7 @@ type ProjectRow = {
   title: string
   created_at: number
   icon: string | null
+  container_registration: string | null
 }
 type ThreadRow = {
   id: string
@@ -57,6 +58,32 @@ type ThreadRow = {
   parent_thread_id: string | null
   created_by: 'user' | 'agent'
   pending_messages: string
+  environment: 'local' | 'container'
+  base_commit: string | null
+}
+
+export type ContainerRegistration = {
+  valid: boolean
+  manifestHash: string
+  imageId: string
+  validatedAt: number
+  providers: { codex: boolean; claude: boolean; grok: boolean }
+  result: string
+  devCount?: number
+}
+
+export type EnvironmentRecord = {
+  id: string
+  threadId: string
+  recipeJson: string
+  imageId: string
+  baseCommit: string
+  checkoutPath: string
+  homePath: string
+  artifactsPath: string
+  containerId: string | null
+  state: string
+  lastError: string | null
 }
 
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
@@ -84,12 +111,19 @@ function storeError(error: unknown) {
 
 function rowToProject(row: ProjectRow): Project {
   const icon: unknown = row.icon && JSON.parse(row.icon)
+  const container = row.container_registration
+    ? (JSON.parse(row.container_registration) as ContainerRegistration)
+    : null
   return {
     id: row.id,
     path: row.path,
     title: row.title,
     createdAt: row.created_at,
     ...(isProjectIcon(icon) ? { icon } : {}),
+    ...(container ? { containerReady: container.valid } : {}),
+    ...(container ? { containerResult: container.result } : {}),
+    ...(container ? { containerProviders: container.providers } : {}),
+    ...(container ? { containerServices: container.devCount ?? 0 } : {}),
   }
 }
 
@@ -103,6 +137,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
   return {
     id: row.id,
     projectId: row.project_id,
+    ...(row.environment === 'container' ? { environment: 'container' as const } : {}),
     title: row.title,
     status: row.status,
     queuePaused: row.queue_paused !== 0,
@@ -574,6 +609,114 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      getContainerRegistration(projectId: string) {
+        return sql<ProjectRow>`SELECT * FROM projects WHERE id = ${projectId}`.pipe(
+          Effect.map((rows) =>
+            rows[0]?.container_registration
+              ? (JSON.parse(rows[0].container_registration) as ContainerRegistration)
+              : null
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      setContainerRegistration(projectId: string, registration: ContainerRegistration) {
+        return sql`UPDATE projects SET container_registration = ${JSON.stringify(registration)} WHERE id = ${projectId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      setThreadEnvironment(
+        threadId: string,
+        environment: 'local' | 'container',
+        baseCommit?: string
+      ) {
+        return sql`UPDATE threads SET environment = ${environment}, base_commit = ${baseCommit ?? null} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      getThreadBaseCommit(threadId: string) {
+        return sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows[0]?.base_commit ?? null),
+          Effect.mapError(storeError)
+        )
+      },
+      getEnvironment(threadId: string) {
+        return sql<{
+          id: string
+          thread_id: string
+          recipe_json: string
+          image_id: string
+          base_commit: string
+          checkout_path: string
+          home_path: string
+          artifacts_path: string
+          container_id: string | null
+          state: string
+          last_error: string | null
+        }>`SELECT * FROM environments WHERE thread_id = ${threadId}`.pipe(
+          Effect.map((rows) =>
+            rows[0]
+              ? {
+                  id: rows[0].id,
+                  threadId: rows[0].thread_id,
+                  recipeJson: rows[0].recipe_json,
+                  imageId: rows[0].image_id,
+                  baseCommit: rows[0].base_commit,
+                  checkoutPath: rows[0].checkout_path,
+                  homePath: rows[0].home_path,
+                  artifactsPath: rows[0].artifacts_path,
+                  containerId: rows[0].container_id,
+                  state: rows[0].state,
+                  lastError: rows[0].last_error,
+                }
+              : null
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      saveEnvironment(record: EnvironmentRecord) {
+        return sql`INSERT INTO environments (id, thread_id, recipe_json, image_id, base_commit, checkout_path, home_path, artifacts_path, container_id, state, last_error)
+          VALUES (${record.id}, ${record.threadId}, ${record.recipeJson}, ${record.imageId}, ${record.baseCommit}, ${record.checkoutPath}, ${record.homePath}, ${record.artifactsPath}, ${record.containerId}, ${record.state}, ${record.lastError})
+          ON CONFLICT(id) DO UPDATE SET container_id = excluded.container_id, state = excluded.state, last_error = excluded.last_error`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      listEnvironments() {
+        return sql<{
+          id: string
+          thread_id: string
+          recipe_json: string
+          image_id: string
+          base_commit: string
+          checkout_path: string
+          home_path: string
+          artifacts_path: string
+          container_id: string | null
+          state: string
+          last_error: string | null
+        }>`SELECT * FROM environments`.pipe(
+          Effect.map((rows) =>
+            rows.map(
+              (record): EnvironmentRecord => ({
+                id: record.id,
+                threadId: record.thread_id,
+                recipeJson: record.recipe_json,
+                imageId: record.image_id,
+                baseCommit: record.base_commit,
+                checkoutPath: record.checkout_path,
+                homePath: record.home_path,
+                artifactsPath: record.artifacts_path,
+                containerId: record.container_id,
+                state: record.state,
+                lastError: record.last_error,
+              })
+            )
+          ),
+          Effect.mapError(storeError)
+        )
+      },
       createThread(projectId: string, id: string) {
         return Effect.gen(function* () {
           const projects = yield* sql`SELECT id FROM projects WHERE id = ${projectId}`
@@ -635,6 +778,7 @@ export function createStore() {
           yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
           yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM environments WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM pull_requests WHERE NOT EXISTS (
             SELECT 1 FROM thread_pull_requests l WHERE l.repo = pull_requests.repo AND l.number = pull_requests.number

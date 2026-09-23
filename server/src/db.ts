@@ -113,6 +113,18 @@ const migrations = SqliteMigrator.fromRecord({
     ready_for_review: 'INTEGER NOT NULL DEFAULT 0',
     review_seen_at: 'INTEGER NOT NULL DEFAULT 0',
   }),
+  '015_containers': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE threads ADD COLUMN environment TEXT NOT NULL DEFAULT 'local'`
+    yield* sql`ALTER TABLE threads ADD COLUMN base_commit TEXT`
+    yield* sql`ALTER TABLE projects ADD COLUMN container_registration TEXT`
+    yield* sql`CREATE TABLE environments (
+      id TEXT PRIMARY KEY, thread_id TEXT NOT NULL UNIQUE REFERENCES threads(id),
+      recipe_json TEXT NOT NULL, image_id TEXT NOT NULL, base_commit TEXT NOT NULL,
+      checkout_path TEXT NOT NULL, home_path TEXT NOT NULL, artifacts_path TEXT NOT NULL,
+      container_id TEXT, state TEXT NOT NULL, last_error TEXT
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {
