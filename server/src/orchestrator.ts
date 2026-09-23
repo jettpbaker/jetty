@@ -54,6 +54,13 @@ function providerConflict(bound: string, requested: string) {
   return new StoreError('conflict', `Thread is bound to ${bound} and cannot switch to ${requested}`)
 }
 
+// Agents otherwise read a relayed message as the user's own words.
+function agentText({ text, queued }: StartTurnInput) {
+  return queued?.from
+    ? `[Sent via Jetty from thread "${queued.from.title}" (${queued.from.threadId})]\n\n${text}`
+    : text
+}
+
 function toAgentError(error: Error) {
   return new AgentError(error.message)
 }
@@ -419,7 +426,7 @@ export function createOrchestrator(
                 const turnId = live.turnId
                 const accepted = yield* agent.steer(
                   input.threadId,
-                  input.text,
+                  agentText(input),
                   saved.images,
                   appendUser(
                     input.threadId,
@@ -455,7 +462,7 @@ export function createOrchestrator(
                     {
                       threadId: input.threadId,
                       turnId,
-                      text: input.text,
+                      text: agentText(input),
                       images: saved.images,
                       model: input.model,
                       effort: input.effort,
