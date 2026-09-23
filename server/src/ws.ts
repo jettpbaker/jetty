@@ -1,4 +1,4 @@
-import type { ChromePushData, ThreadMeta, Usage, WireError } from '@jetty/shared/wire'
+import type { ChromePushData, ThreadMeta, RateLimits, WireError } from '@jetty/shared/wire'
 
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { Effect, Fiber, Stream } from 'effect'
@@ -52,7 +52,7 @@ export function createRpcHandlers(
   store: Store,
   orch: Orchestrator,
   hub: Hub,
-  getUsage: () => Usage | null
+  getUsage: () => RateLimits | null
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope

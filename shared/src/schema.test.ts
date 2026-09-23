@@ -4,14 +4,7 @@ import { Result, Schema } from 'effect'
 import { ContextUsage, SequencedEvent, ThreadEvent, Usage as TokenUsage } from './events'
 import { Attachment, MAX_GALLERY_IMAGES, QuestionSpec, ThreadItem } from './items'
 import { applyEvent, emptyThread, ThreadState } from './reducer'
-import {
-  MAX_IMAGES_PER_TURN,
-  methods,
-  RequestMessage,
-  ServerMessage,
-  ThreadGitStatus,
-  UsageWindow,
-} from './wire'
+import { MAX_IMAGES_PER_TURN, methods, ThreadGitStatus, UsageWindow } from './wire'
 
 const attachment = { id: 'a', name: 'image.png', mimeType: 'image/png', sizeBytes: 0 }
 const itemBase = { id: 'item', turnId: 'turn', createdAt: 0 }
@@ -198,25 +191,6 @@ describe('wire schema decoding', () => {
     }
   })
 
-  test('keeps request params required even though their value is unknown', () => {
-    const request = {
-      id: 'request',
-      method: 'chrome.subscribe',
-      params: undefined,
-    } satisfies RequestMessage
-    expect(Schema.decodeUnknownSync(RequestMessage)(request)).toEqual(request)
-    expect(
-      Result.isFailure(
-        Schema.decodeUnknownResult(RequestMessage)({ id: request.id, method: request.method })
-      )
-    ).toBe(true)
-    expect(
-      Result.isFailure(
-        Schema.decodeUnknownResult(RequestMessage)({ ...request, method: 'unknown' })
-      )
-    ).toBe(true)
-  })
-
   test('enforces search limits, nonempty thread ids, and optional replay cursors', () => {
     const search = { projectId: 'project', query: '' }
     for (const limit of [undefined, 1, 100]) {
@@ -287,30 +261,6 @@ describe('wire schema decoding', () => {
     expect(Result.isSuccess(decode({ ...params, provider: 'grok', model: 'grok-4.7' }))).toBe(true)
     expect(Result.isFailure(decode({ ...params, provider: 'echo' }))).toBe(true)
     expect(Result.isFailure(decode({ ...params, provider: 'openai' }))).toBe(true)
-  })
-
-  test('decodes both push variants and responses, stripping unknown struct keys', () => {
-    const decode = Schema.decodeUnknownSync(ServerMessage)
-    const chrome = {
-      sub: 'chrome',
-      data: { type: 'snapshot', projects: [], threads: [] },
-    } satisfies ServerMessage
-    const thread = {
-      sub: 'thread',
-      threadId: 'thread',
-      seq: 1,
-      ts: 0,
-      event: { type: 'turn.started', turnId: 'turn' },
-    } satisfies ServerMessage
-    expect(decode({ ...chrome, ignored: true })).toEqual(chrome)
-    expect(decode(thread)).toEqual(thread)
-    expect(decode({ id: 'request', ok: true })).toEqual({ id: 'request', ok: true })
-    expect(Result.isFailure(Schema.decodeUnknownResult(ServerMessage)({ ...thread, seq: 0 }))).toBe(
-      true
-    )
-    expect(
-      Result.isFailure(Schema.decodeUnknownResult(ServerMessage)({ sub: 'unknown', data: {} }))
-    ).toBe(true)
   })
 })
 

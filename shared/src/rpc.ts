@@ -12,9 +12,7 @@ export const ThreadUpdate = Schema.Union([
 ])
 export type ThreadUpdate = Schema.Schema.Type<typeof ThreadUpdate>
 
-function unary<
-  M extends Exclude<MethodName, 'chrome.subscribe' | 'thread.subscribe' | 'thread.unsubscribe'>,
->(name: M) {
+function unary<M extends Exclude<MethodName, 'chrome.subscribe' | 'thread.subscribe'>>(name: M) {
   return Rpc.make<
     M,
     (typeof methods)[M]['params'],

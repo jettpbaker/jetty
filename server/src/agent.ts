@@ -1,6 +1,6 @@
 import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import type { EffortLevel, PermissionMode, UploadAttachment, Usage } from '@jetty/shared/wire'
+import type { EffortLevel, PermissionMode, UploadAttachment, RateLimits } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
@@ -21,7 +21,7 @@ export type TurnInput = {
 }
 
 export type AgentHooks = {
-  onUsage?: (usage: Usage) => void
+  onUsage?: (usage: RateLimits) => void
 }
 
 export class AgentError extends Error {

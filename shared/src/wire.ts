@@ -1,7 +1,7 @@
 import { Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
-import { SequencedEvent, SessionStatus } from './events'
+import { SessionStatus } from './events'
 import { ApprovalDecision } from './items'
 import { ThreadState } from './reducer'
 
@@ -148,10 +148,6 @@ export const methods = {
       seq: Schema.Natural,
     }),
   },
-  'thread.unsubscribe': {
-    params: Schema.Struct({ threadId: Schema.String }),
-    result: Schema.Null,
-  },
   'turn.start': {
     params: Schema.Struct({
       threadId: Schema.String,
@@ -195,15 +191,6 @@ export type MethodName = keyof typeof methods
 export type ParamsOf<M extends MethodName> = Schema.Schema.Type<(typeof methods)[M]['params']>
 export type ResultOf<M extends MethodName> = Schema.Schema.Type<(typeof methods)[M]['result']>
 
-const methodNames = Object.keys(methods) as [MethodName, ...MethodName[]]
-
-export const RequestMessage = Schema.Struct({
-  id: Schema.String,
-  method: Schema.Literals(methodNames),
-  params: Schema.Unknown,
-})
-export type RequestMessage = Schema.Schema.Type<typeof RequestMessage>
-
 export const ErrorCode = Schema.Literals([
   'invalid_request',
   'invalid_params',
@@ -216,14 +203,6 @@ export type ErrorCode = Schema.Schema.Type<typeof ErrorCode>
 
 export const WireError = Schema.Struct({ code: ErrorCode, message: Schema.String })
 export type WireError = Schema.Schema.Type<typeof WireError>
-
-export const ResponseMessage = Schema.Struct({
-  id: Schema.String,
-  ok: Schema.Boolean,
-  result: Schema.optional(Schema.Unknown),
-  error: Schema.optional(WireError),
-})
-export type ResponseMessage = Schema.Schema.Type<typeof ResponseMessage>
 
 // pct is 0–100
 export const UsageWindow = Schema.Struct({
@@ -241,37 +220,24 @@ export const ExtraUsage = Schema.Struct({
 })
 export type ExtraUsage = Schema.Schema.Type<typeof ExtraUsage>
 
-export const Usage = Schema.Struct({
+export const RateLimits = Schema.Struct({
   fiveHour: UsageWindow,
   sevenDay: UsageWindow,
   extraUsage: Schema.optional(ExtraUsage),
   asOf: Schema.Finite,
 })
-export type Usage = Schema.Schema.Type<typeof Usage>
+export type RateLimits = Schema.Schema.Type<typeof RateLimits>
 
 export const ChromePushData = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('snapshot'),
     projects: Schema.Array(Project),
     threads: Schema.Array(ThreadMeta),
-    usage: Schema.optional(Usage),
+    usage: Schema.optional(RateLimits),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('usage'), usage: Usage }),
+  Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>
-
-export const PushMessage = Schema.Union([
-  Schema.Struct({ sub: Schema.Literal('chrome'), data: ChromePushData }),
-  Schema.Struct({
-    ...SequencedEvent.fields,
-    sub: Schema.Literal('thread'),
-    threadId: Schema.String,
-  }),
-])
-export type PushMessage = Schema.Schema.Type<typeof PushMessage>
-
-export const ServerMessage = Schema.Union([PushMessage, ResponseMessage])
-export type ServerMessage = Schema.Schema.Type<typeof ServerMessage>

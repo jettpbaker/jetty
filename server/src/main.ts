@@ -1,4 +1,4 @@
-import type { Usage } from '@jetty/shared/wire'
+import type { RateLimits } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
@@ -138,9 +138,9 @@ function createServer(opts: ServerOptions = {}) {
     )
     const attachments = Context.get(io, Attachments)
     const hub = createHub()
-    let lastUsage: Usage | null = null
+    let lastUsage: RateLimits | null = null
     const hooks = {
-      onUsage(usage: Usage) {
+      onUsage(usage: RateLimits) {
         lastUsage = usage
         hub.pushChrome({ type: 'usage', usage })
       },

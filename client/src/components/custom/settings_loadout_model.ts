@@ -109,8 +109,7 @@ export function equipModel(slot: LoadoutSlot, model: LoadoutModel): Loadout {
   return { ...slot, model: model.id, effort, fast: model.fast && slot.fast }
 }
 export function restoreLoadouts(value: unknown): LoadoutSlot[] {
-  if (!Array.isArray(value) || (value.length !== 3 && value.length !== defaultLoadouts.length))
-    return defaultLoadouts
+  if (!Array.isArray(value) || value.length !== defaultLoadouts.length) return defaultLoadouts
   return defaultLoadouts.map((fallback, index) => {
     const item = value[index]
     if (!item || typeof item !== 'object') return fallback

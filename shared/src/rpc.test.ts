@@ -7,11 +7,7 @@ import { JettyRpcs, ThreadUpdate } from './rpc'
 import { methods, type Project, type WireError } from './wire'
 
 test('RPC operations preserve unary schemas and replace subscription messages with streams', () => {
-  expect([...JettyRpcs.requests.keys()].sort()).toEqual(
-    Object.keys(methods)
-      .filter((name) => name !== 'thread.unsubscribe')
-      .sort()
-  )
+  expect([...JettyRpcs.requests.keys()].sort()).toEqual(Object.keys(methods).sort())
   for (const [name, rpc] of JettyRpcs.requests) {
     if (name === 'chrome.subscribe' || name === 'thread.subscribe') {
       expect(RpcSchema.isStreamSchema(rpc.successSchema)).toBe(true)

@@ -1,4 +1,4 @@
-import type { ChromePushData, Project, ThreadMeta, Usage } from '@jetty/shared/wire'
+import type { ChromePushData, Project, ThreadMeta, RateLimits } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Stream } from 'effect'
@@ -16,7 +16,7 @@ import {
 export type Chrome = {
   projects: readonly Project[]
   threads: readonly ThreadMeta[]
-  usage?: Usage
+  usage?: RateLimits
 }
 
 const emptyChrome: Chrome = { projects: [], threads: [] }

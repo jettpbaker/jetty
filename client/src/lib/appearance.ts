@@ -26,8 +26,6 @@ type StoredAppearance = {
   wallpaper: '' | 'opfs'
   source?: 'opfs'
   crop?: WallpaperCrop
-  legacyWallpaper?: string
-  legacySource?: string
 }
 
 let cache: Appearance | undefined
@@ -65,17 +63,6 @@ function readStored(): StoredAppearance {
         wallpaper: 'opfs',
         source: data.source === 'opfs' ? 'opfs' : undefined,
         crop,
-      }
-    }
-    if (typeof data.wallpaper === 'string' && dataUrl.test(data.wallpaper)) {
-      return {
-        autoAccent: data.autoAccent,
-        filename,
-        wallpaper: '',
-        crop,
-        legacyWallpaper: data.wallpaper,
-        legacySource:
-          typeof data.source === 'string' && dataUrl.test(data.source) ? data.source : undefined,
       }
     }
     return empty
@@ -123,22 +110,6 @@ function publish(next: Appearance) {
   syncAppearanceAccent()
 }
 
-async function migrate(stored: StoredAppearance) {
-  if (!stored.legacyWallpaper) return stored
-  await blobs.put(wallpaperBlob, await dataUrlToBlob(stored.legacyWallpaper))
-  if (stored.legacySource) await blobs.put(sourceBlob, await dataUrlToBlob(stored.legacySource))
-  else await blobs.remove(sourceBlob)
-  const next: StoredAppearance = {
-    autoAccent: stored.autoAccent,
-    filename: stored.filename,
-    wallpaper: 'opfs',
-    source: stored.legacySource ? 'opfs' : undefined,
-    crop: stored.crop,
-  }
-  writeStored(next)
-  return next
-}
-
 function enqueue(work: () => Promise<void>) {
   const run = pending.then(work)
   pending = run.then(
@@ -173,14 +144,14 @@ function syncAppearanceAccent() {
 
 export function hydrateAppearance() {
   return enqueue(async () => {
-    const stored = await migrate(readStored())
+    const stored = readStored()
     publish(await materialize(stored))
   })
 }
 
 export function saveAppearance(next: Appearance) {
   return enqueue(async () => {
-    const stored = await migrate(readStored())
+    const stored = readStored()
     if (!next.wallpaper) {
       await blobs.remove(wallpaperBlob)
       await blobs.remove(sourceBlob)
