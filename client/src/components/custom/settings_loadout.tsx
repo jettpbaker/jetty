@@ -522,65 +522,69 @@ function LoadoutSlot({
                 ) : undefined
               }
             >
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger
-                  aria-label={[`Configure slot ${index + 1}`, describe(slot)]
-                    .filter(Boolean)
-                    .join(': ')}
-                  render={
-                    <Button
-                      variant='ghost'
-                      tone='muted'
-                      size='sm'
-                      className='pointer-events-auto -ml-2 h-7 gap-1 rounded-menu-item px-2 text-xs'
-                    />
-                  }
-                >
-                  <EffortSummary slot={slot} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='end' className='min-w-40'>
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>Effort</DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={slot.effort}
-                      onValueChange={(value) =>
-                        onChange({
-                          ...slot,
-                          effort: model.efforts.find((effort) => effort === value),
-                        })
-                      }
-                    >
-                      {model.efforts.map((effort) => (
-                        <DropdownMenuRadioItem key={effort} value={effort}>
-                          {effortLabels[effort]}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuGroup>
-                  {model.fast && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuCheckboxItem
-                        className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-                        checked={slot.fast}
-                        closeOnClick={false}
-                        onCheckedChange={(fast) => onChange({ ...slot, fast })}
-                      >
-                        <LightningIcon filled={slot.fast} className='text-muted-foreground' />
-                        Fast
-                        <Switch
-                          render={<span />}
-                          size='sm'
+              {(model.efforts.length > 0 || model.fast) && (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger
+                    aria-label={[`Configure slot ${index + 1}`, describe(slot)]
+                      .filter(Boolean)
+                      .join(': ')}
+                    render={
+                      <Button
+                        variant='ghost'
+                        tone='muted'
+                        size='sm'
+                        className='pointer-events-auto -ml-2 h-7 gap-1 rounded-menu-item px-2 text-xs'
+                      />
+                    }
+                  >
+                    <EffortSummary slot={slot} />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='end' className='min-w-40'>
+                    {model.efforts.length > 0 && (
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Effort</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={slot.effort}
+                          onValueChange={(value) =>
+                            onChange({
+                              ...slot,
+                              effort: model.efforts.find((effort) => effort === value),
+                            })
+                          }
+                        >
+                          {model.efforts.map((effort) => (
+                            <DropdownMenuRadioItem key={effort} value={effort}>
+                              {effortLabels[effort]}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuGroup>
+                    )}
+                    {model.fast && (
+                      <>
+                        {model.efforts.length > 0 && <DropdownMenuSeparator />}
+                        <DropdownMenuCheckboxItem
+                          className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
                           checked={slot.fast}
-                          tabIndex={-1}
-                          aria-hidden='true'
-                          className='pointer-events-none ml-auto'
-                        />
-                      </DropdownMenuCheckboxItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                          closeOnClick={false}
+                          onCheckedChange={(fast) => onChange({ ...slot, fast })}
+                        >
+                          <LightningIcon filled={slot.fast} className='text-muted-foreground' />
+                          Fast
+                          <Switch
+                            render={<span />}
+                            size='sm'
+                            checked={slot.fast}
+                            tabIndex={-1}
+                            aria-hidden='true'
+                            className='pointer-events-none ml-auto'
+                          />
+                        </DropdownMenuCheckboxItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </ConfigContent>
           </>
         )}
