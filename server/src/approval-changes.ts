@@ -5,10 +5,15 @@ export type ApprovalChange = { path: string; diff?: string; before?: string; aft
 export function approvalChanges(toolName: string, input: unknown): ApprovalChange[] {
   const data = object(input)
   if (Array.isArray(data.changes)) {
-    return data.changes.map(object).flatMap((change) => {
+    return data.changes.map(object).flatMap((change): ApprovalChange[] => {
       const path = string(change.path) || string(change.file_path)
       const diff = string(change.diff) || string(change.patch)
-      return path && diff ? [{ path, diff }] : []
+      if (!path || !diff) return []
+      // Codex sends a whole added or deleted file's contents in `diff`.
+      const kind = string(object(change.kind).type)
+      if (kind === 'add') return [{ path, after: diff }]
+      if (kind === 'delete') return [{ path, before: diff }]
+      return [{ path, diff }]
     })
   }
   const path = string(data.file_path) || string(data.path)
