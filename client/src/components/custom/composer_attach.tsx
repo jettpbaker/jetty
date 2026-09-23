@@ -49,15 +49,15 @@ export function ComposerImages({
 }) {
   if (images.length === 0) return null
   return (
-    <div className='flex w-full flex-wrap gap-2 px-2.5 pt-2.5'>
+    <div className='no-scrollbar scroll-fade-x flex w-full gap-2 overflow-x-auto px-2.5 pt-2.5'>
       {images.map((image) => (
-        <div key={image.url} className='relative'>
+        <div key={image.url} className='group/image relative shrink-0'>
           <img src={image.url} alt={image.name} className='size-12 rounded-sm object-cover' />
           <Button
             variant='secondary'
             size='icon-xs'
             aria-label={`Remove ${image.name}`}
-            className='absolute -top-1.5 -right-1.5 rounded-full'
+            className='absolute top-0.5 right-0.5 rounded-full opacity-0 group-hover/image:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100'
             onClick={() => onRemove(image.url)}
           >
             <XIcon />
