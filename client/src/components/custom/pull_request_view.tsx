@@ -1,5 +1,4 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
-import type { PullRequestLink } from '@jetty/shared/wire'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +21,7 @@ import {
   usePullRequest,
   useRefreshPullRequest,
   useUnlinkPullRequest,
+  type PullRequestRef,
 } from '@/state'
 import {
   ArrowClockwiseIcon,
@@ -41,7 +41,14 @@ import {
   UserPlusIcon,
   XCircleIcon,
 } from '@phosphor-icons/react'
-import { DiffIcon, GitMergeIcon, IssueOpenedIcon, PeopleIcon } from '@primer/octicons-react'
+import {
+  DiffIcon,
+  GitMergeIcon,
+  IssueOpenedIcon,
+  PeopleIcon,
+  WorkflowIcon,
+} from '@primer/octicons-react'
+import { Link } from '@tanstack/react-router'
 import { lazy, Suspense, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
@@ -65,6 +72,7 @@ import {
   type ReviewThread,
 } from './pull_request_model'
 import { prPresentation } from './thread_pull_request'
+import './thread_details_layout.css'
 
 const PullRequestDiff = lazy(async () => {
   const [{ FileChangesViewer }, { parseFileChanges }, { preloadHighlighter }] = await Promise.all([
@@ -508,7 +516,17 @@ function MergeAction({
   )
 }
 
-export function PullRequestView({ data, actions }: { data: PullRequestData; actions?: ReactNode }) {
+type LinkedThread = { id: string; title: string }
+
+export function PullRequestView({
+  data,
+  actions,
+  threads = [],
+}: {
+  data: PullRequestData
+  actions?: ReactNode
+  threads?: readonly LinkedThread[]
+}) {
   const { pull, reviews, reviewComments, checkRuns, commits, files, closingIssuesReferences } = data
   const [pane, setPane] = useState<PrPane>('info')
   const state = pullRequestState(pull)
@@ -634,6 +652,26 @@ export function PullRequestView({ data, actions }: { data: PullRequestData; acti
                   </dd>
                 </>
               )}
+              {threads.length > 0 && (
+                <>
+                  <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
+                    <WorkflowIcon className='size-3 shrink-0' />
+                    {threads.length === 1 ? 'Thread' : 'Threads'}
+                  </dt>
+                  <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
+                    {threads.map((thread) => (
+                      <Link
+                        key={thread.id}
+                        to='/threads/$threadId'
+                        params={{ threadId: thread.id }}
+                        className='min-w-0 truncate hover:underline'
+                      >
+                        {thread.title}
+                      </Link>
+                    ))}
+                  </dd>
+                </>
+              )}
               <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
                 <PeopleIcon className='size-3 shrink-0' />
                 Reviewers
@@ -748,7 +786,9 @@ const unavailableTitle = {
   rate_limited: 'GitHub rate limit reached',
 }
 
-function RefreshButton({ link, error }: { link: PullRequestLink; error?: string }) {
+type PullRequestAddress = PullRequestRef & { url: string }
+
+function RefreshButton({ link, error }: { link: PullRequestRef; error?: string }) {
   const refresh = useRefreshPullRequest()
   const { refreshing } = usePullRequest(link)
   return (
@@ -778,7 +818,7 @@ function RefreshButton({ link, error }: { link: PullRequestLink; error?: string 
   )
 }
 
-function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestLink }) {
+function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestAddress }) {
   const unlink = useUnlinkPullRequest()
   const relink = useLinkPullRequest()
   function unlinkWithUndo() {
@@ -814,12 +854,15 @@ function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestL
   )
 }
 
-export function ThreadPullRequestView({
-  threadId,
+// The thread's details tab and the full page both show a PR through this.
+export function LivePullRequestView({
   link,
+  threadId,
+  threads,
 }: {
-  threadId: string
-  link: PullRequestLink
+  link: PullRequestAddress
+  threadId?: string
+  threads?: readonly LinkedThread[]
 }) {
   const { snapshot, refreshing } = usePullRequest(link)
   const refresh = useRefreshPullRequest()
@@ -828,10 +871,11 @@ export function ThreadPullRequestView({
     return (
       <PullRequestView
         data={snapshot.data}
+        threads={threads}
         actions={
           <>
             <RefreshButton link={link} error={failure ? snapshot.error : undefined} />
-            <UnlinkButton threadId={threadId} link={link} />
+            {threadId && <UnlinkButton threadId={threadId} link={link} />}
           </>
         }
       />
@@ -854,7 +898,7 @@ export function ThreadPullRequestView({
         <Button variant='ghost' size='sm' nativeButton={false} render={externalLink(link.url)}>
           Open on GitHub
         </Button>
-        <UnlinkButton threadId={threadId} link={link} />
+        {threadId && <UnlinkButton threadId={threadId} link={link} />}
       </div>
     </div>
   )

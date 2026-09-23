@@ -1,4 +1,9 @@
-import type { PullRequestLink, PullRequestSnapshot } from '@jetty/shared/wire'
+import type {
+  PullRequestLink,
+  PullRequestList,
+  PullRequestListTab,
+  PullRequestSnapshot,
+} from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { useNavigate } from '@tanstack/react-router'
@@ -96,6 +101,57 @@ function refreshPullRequest(registry: Registry, ref: PullRequestRef) {
 
 export function useRefreshPullRequest() {
   return useAction(refreshPullRequest)
+}
+
+// Warms the server's copy of a PR before its page opens.
+function prefetchPullRequest(registry: Registry, ref: PullRequestRef) {
+  const key = pullRequestKey(ref)
+  if (!registry.get(cacheAtom(key))) registry.get(fetchedAtom(key))
+}
+
+export function usePrefetchPullRequest() {
+  return useAction(prefetchPullRequest)
+}
+
+const listCacheAtom = Atom.family((_tab: PullRequestListTab) =>
+  Atom.make<PullRequestList | undefined>(undefined).pipe(Atom.keepAlive)
+)
+
+const liveListAtom = Atom.family((tab: PullRequestListTab) =>
+  Atom.make((get) =>
+    subscribe(get, (connection) => connection.subscribePullRequestList(tab)).pipe(
+      Stream.tap((list) => Effect.sync(() => get.set(listCacheAtom(tab), list)))
+    )
+  ).pipe(Atom.setIdleTTL('5 seconds'))
+)
+
+const listAtom = Atom.family((tab: PullRequestListTab) =>
+  Atom.readable((get) => {
+    const cached = get(listCacheAtom(tab))
+    return AsyncResult.getOrElse(get(liveListAtom(tab)), () => cached)
+  })
+)
+
+export function usePullRequestList(tab: PullRequestListTab) {
+  const list = useAtomValue(listAtom(tab))
+  const refreshing = useAtomValue(refreshingAtom).has(`list:${tab}`)
+  return { list, refreshing }
+}
+
+function refreshPullRequestList(registry: Registry, tab: PullRequestListTab) {
+  const key = `list:${tab}`
+  if (registry.get(refreshingAtom).has(key)) return
+  setRefreshing(registry, key, true)
+  run(registry, (connection) =>
+    connection.request('pullRequestList.refresh', { tab }).pipe(
+      Effect.tap((list) => Effect.sync(() => registry.set(listCacheAtom(tab), list))),
+      Effect.ensuring(Effect.sync(() => setRefreshing(registry, key, false)))
+    )
+  )
+}
+
+export function useRefreshPullRequestList() {
+  return useAction(refreshPullRequestList)
 }
 
 // Which PR tabs a thread's details pane shows. The newest link shows until it's closed;
@@ -225,7 +281,11 @@ export function useLinkPullRequest() {
   )
 }
 
-function unlinkPullRequest(registry: Registry, threadId: string, link: PullRequestLink) {
+function unlinkPullRequest(
+  registry: Registry,
+  threadId: string,
+  link: PullRequestRef & { url: string }
+) {
   hideTab(registry, threadId, pullRequestKey(link))
   run(registry, (connection) =>
     connection.request('pullRequest.unlink', { threadId, reference: link.url })

@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom'
 import { ChildThreadList, useChildThreads } from './child_threads'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
-import { ThreadPullRequestView } from './pull_request_view'
+import { LivePullRequestView } from './pull_request_view'
 import { ThreadChanges } from './thread_changes'
 import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
 import { ThreadFile } from './thread_file'
@@ -314,7 +314,7 @@ export function ThreadDetailsLayout({
                 >
                   {open && (
                     <Activity mode={tab === id ? 'visible' : 'hidden'}>
-                      <ThreadPullRequestView threadId={threadId} link={link} />
+                      <LivePullRequestView threadId={threadId} link={link} />
                     </Activity>
                   )}
                 </TabsContent>

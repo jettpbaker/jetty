@@ -55,11 +55,6 @@ const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0
 const navigationButtonClass =
   'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-current:bg-sidebar-accent aria-current:text-foreground'
 
-const comingSoon = [
-  { label: 'Issues', icon: IssueOpenedIcon },
-  { label: 'Pull requests', icon: GitPullRequestIcon },
-] as const
-
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project]))
   const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
@@ -105,7 +100,9 @@ export function AppSidebar() {
   const navigate = useNavigate()
   const router = useRouter()
   const selectedId = useParams({ strict: false }).threadId
-  const onSettings = useLocation({ select: (location) => location.pathname === '/settings' })
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const onSettings = pathname === '/settings'
+  const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<ThreadGrouping>('date')
@@ -206,20 +203,29 @@ export function AppSidebar() {
                 New thread
               </Button>
             </SidebarMenuItem>
-            {comingSoon.map(({ label, icon: Icon }) => (
-              <SidebarMenuItem key={label}>
-                <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
-                  <Button
-                    variant='ghost'
-                    className={`${navigationButtonClass} pointer-events-none`}
-                    disabled
-                  >
-                    <Icon className='size-3' />
-                    {label}
-                  </Button>
-                </DisabledTooltip>
-              </SidebarMenuItem>
-            ))}
+            <SidebarMenuItem>
+              <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
+                <Button
+                  variant='ghost'
+                  className={`${navigationButtonClass} pointer-events-none`}
+                  disabled
+                >
+                  <IssueOpenedIcon className='size-3' />
+                  Issues
+                </Button>
+              </DisabledTooltip>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Button
+                variant='ghost'
+                className={navigationButtonClass}
+                aria-current={onPullRequests ? 'page' : undefined}
+                {...pressProps(() => navigate({ to: '/pull-requests' }))}
+              >
+                <GitPullRequestIcon className='size-3' />
+                Pull requests
+              </Button>
+            </SidebarMenuItem>
           </SidebarMenu>
         </nav>
       </SidebarHeader>

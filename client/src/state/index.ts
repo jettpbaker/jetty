@@ -32,10 +32,13 @@ export {
   useDetailsRequest,
   useLinkPullRequest,
   useOpenPullRequest,
+  usePrefetchPullRequest,
   usePullRequest,
+  usePullRequestList,
   usePullRequestSummary,
   usePullRequestTabs,
   useRefreshPullRequest,
+  useRefreshPullRequestList,
   useUnlinkPullRequest,
   type PullRequestRef,
 } from './pull_requests'

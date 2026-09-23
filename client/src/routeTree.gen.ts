@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PullRequestsIndexRouteImport } from './routes/pull-requests.index'
 import { Route as ThreadsThreadIdRouteImport } from './routes/threads.$threadId'
+import { Route as PullRequestsOwnerRepoNumberRouteImport } from './routes/pull-requests.$owner.$repo.$number'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +25,75 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PullRequestsIndexRoute = PullRequestsIndexRouteImport.update({
+  id: '/pull-requests/',
+  path: '/pull-requests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ThreadsThreadIdRoute = ThreadsThreadIdRouteImport.update({
   id: '/threads/$threadId',
   path: '/threads/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PullRequestsOwnerRepoNumberRoute =
+  PullRequestsOwnerRepoNumberRouteImport.update({
+    id: '/pull-requests/$owner/$repo/$number',
+    path: '/pull-requests/$owner/$repo/$number',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
+  '/pull-requests/': typeof PullRequestsIndexRoute
+  '/pull-requests/$owner/$repo/$number': typeof PullRequestsOwnerRepoNumberRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
+  '/pull-requests': typeof PullRequestsIndexRoute
+  '/pull-requests/$owner/$repo/$number': typeof PullRequestsOwnerRepoNumberRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
+  '/pull-requests/': typeof PullRequestsIndexRoute
+  '/pull-requests/$owner/$repo/$number': typeof PullRequestsOwnerRepoNumberRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/threads/$threadId'
+  fullPaths:
+    | '/'
+    | '/settings'
+    | '/threads/$threadId'
+    | '/pull-requests/'
+    | '/pull-requests/$owner/$repo/$number'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/threads/$threadId'
-  id: '__root__' | '/' | '/settings' | '/threads/$threadId'
+  to:
+    | '/'
+    | '/settings'
+    | '/threads/$threadId'
+    | '/pull-requests'
+    | '/pull-requests/$owner/$repo/$number'
+  id:
+    | '__root__'
+    | '/'
+    | '/settings'
+    | '/threads/$threadId'
+    | '/pull-requests/'
+    | '/pull-requests/$owner/$repo/$number'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
   ThreadsThreadIdRoute: typeof ThreadsThreadIdRoute
+  PullRequestsIndexRoute: typeof PullRequestsIndexRoute
+  PullRequestsOwnerRepoNumberRoute: typeof PullRequestsOwnerRepoNumberRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +112,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pull-requests/': {
+      id: '/pull-requests/'
+      path: '/pull-requests'
+      fullPath: '/pull-requests/'
+      preLoaderRoute: typeof PullRequestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/threads/$threadId': {
       id: '/threads/$threadId'
       path: '/threads/$threadId'
       fullPath: '/threads/$threadId'
       preLoaderRoute: typeof ThreadsThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pull-requests/$owner/$repo/$number': {
+      id: '/pull-requests/$owner/$repo/$number'
+      path: '/pull-requests/$owner/$repo/$number'
+      fullPath: '/pull-requests/$owner/$repo/$number'
+      preLoaderRoute: typeof PullRequestsOwnerRepoNumberRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -89,6 +140,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
   ThreadsThreadIdRoute: ThreadsThreadIdRoute,
+  PullRequestsIndexRoute: PullRequestsIndexRoute,
+  PullRequestsOwnerRepoNumberRoute: PullRequestsOwnerRepoNumberRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
