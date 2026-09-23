@@ -1,0 +1,84 @@
+.thread-row {
+  position: relative;
+  border-radius: var(--radius-sm);
+  --thread-row-surface: var(--sidebar);
+  --thread-row-action-size: 14px;
+  --thread-row-action-gap: 6px;
+  --thread-row-action-fade: 64px;
+}
+.thread-row[data-selected] {
+  --thread-row-surface: var(--sidebar-accent);
+}
+.thread-row > button {
+  background-color: transparent;
+  transition-property: color, translate;
+}
+.thread-row[data-selected] > button {
+  background-color: var(--thread-row-surface);
+}
+.thread-row-actions {
+  position: absolute;
+  inset-block: 1px;
+  right: 1px;
+  display: flex;
+  align-items: flex-start;
+  padding-top: calc(16px - var(--thread-row-action-size) / 2);
+  padding-right: 6px;
+  padding-left: var(--thread-row-action-fade);
+  gap: var(--thread-row-action-gap);
+  border-radius: inherit;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--thread-row-surface) var(--thread-row-action-fade)
+  );
+  color: var(--muted-foreground);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(3px);
+  transition:
+    opacity 200ms cubic-bezier(0.25, 1, 0.5, 1),
+    transform 200ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.thread-row:has(:focus-visible) .thread-row-actions {
+  opacity: 1;
+  transform: none;
+}
+.thread-row:has(:focus-visible) .thread-row-action {
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .thread-row:hover {
+    --thread-row-surface: var(--sidebar-accent);
+  }
+  .thread-row:hover > button {
+    background-color: var(--thread-row-surface);
+  }
+  .thread-row:hover .thread-row-actions {
+    opacity: 1;
+    transform: none;
+  }
+  .thread-row:hover .thread-row-action {
+    pointer-events: auto;
+  }
+}
+@media (hover: none) {
+  .thread-row-actions {
+    opacity: 1;
+    transform: none;
+  }
+  .thread-row-action {
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-row-actions {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
+}
+
+.thread-row-action {
+  width: var(--thread-row-action-size);
+  height: var(--thread-row-action-size);
+}
