@@ -44,7 +44,8 @@
           { "name": "location", "message": "Go through @/platform." },
           { "name": "localStorage", "message": "Go through @/platform (storage)." },
           { "name": "sessionStorage", "message": "Go through @/platform (storage)." },
-          { "name": "indexedDB", "message": "Go through @/platform (storage)." }
+          { "name": "indexedDB", "message": "Go through @/platform (storage)." },
+          { "name": "WebSocket", "message": "Go through @/net/connection." }
         ],
         "no-restricted-properties": [
           "error",
