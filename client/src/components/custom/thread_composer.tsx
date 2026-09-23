@@ -7,9 +7,9 @@ import { ComposerFooter } from '@/components/custom/composer_footer'
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import {
   ApprovalStrip,
+  PendingHeader,
   QuestionStrip,
   QueueTray,
-  SeveralHeader,
   TodoLine,
   useApproval,
   useQuestion,
@@ -81,6 +81,7 @@ export function ThreadComposer({
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
   const [pickedProjectId, setPickedProjectId] = useState<string>()
+  const [queueOpen, setQueueOpen] = useState(false)
   const projectId =
     !threadId && chrome ? (pickedProjectId ?? newThreadProject(chrome, selectedId)) : undefined
   const needsModel = !threadId && !loadout
@@ -194,7 +195,15 @@ export function ThreadComposer({
     if (threadId && text && editingEntry) queueActions.edit(threadId, editingEntry.id, text)
     else if (threadId && running) queueActions.add(threadId, text, attachments.take())
     else return startTurn(text)
-    update({ text: '', editing: undefined })
+    clearDraft()
+  }
+
+  // A reply set aside to edit a queued message comes back once the edit is done.
+  function clearDraft() {
+    const reply = item && saved.parked?.[item.id]
+    if (!item || reply === undefined) return update({ text: '', editing: undefined })
+    const { [item.id]: _, ...parked } = saved.parked ?? {}
+    update({ text: reply, editing: undefined, typedFor: item.id, parked })
   }
 
   const queueControl = {
@@ -210,12 +219,18 @@ export function ThreadComposer({
     edit(entry: QueuedMessage) {
       if (!threadId) return
       const previous = draft.trim()
+      const reply = answering && previous ? item : undefined
       if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
       else if (editingEntry) queueActions.release(threadId, editingEntry.id)
-      else if (previous) queueActions.add(threadId, previous, attachments.take())
+      else if (previous && !reply) queueActions.add(threadId, previous, attachments.take())
       queueActions.hold(threadId, entry.id)
       focusEdit.current = true
-      update({ text: entry.text, editing: entry.id, typedFor: undefined })
+      update({
+        text: entry.text,
+        editing: entry.id,
+        typedFor: undefined,
+        ...(reply && { parked: { ...saved.parked, [reply.id]: draft } }),
+      })
     },
     remove(entry: QueuedMessage) {
       if (!threadId) return
@@ -243,12 +258,14 @@ export function ThreadComposer({
     })
   }
 
-  const header = pending.length > 1 && item && (
-    <SeveralHeader
+  const header = item && (pending.length > 1 || queue.length > 0) && (
+    <PendingHeader
       index={index}
       total={pending.length}
       source={item.source}
-      queued={queue.length}
+      q={queueControl}
+      open={queueOpen}
+      onToggle={() => setQueueOpen((open) => !open)}
       onChoose={choose}
     />
   )
@@ -318,7 +335,7 @@ export function ThreadComposer({
           onKeyDown: keyHandler((event) => {
             if (event.key !== 'Escape' || !editing) return false
             if (threadId) queueActions.release(threadId, editing)
-            update({ text: '', editing: undefined })
+            clearDraft()
             return true
           }),
         }

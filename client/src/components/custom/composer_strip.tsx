@@ -3,6 +3,7 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import {
   CaretDownIcon,
@@ -816,38 +817,63 @@ export function TodoLine({ list, current }: { list: readonly Todo[]; current: To
   )
 }
 
-export function SeveralHeader({
+// Queued messages sit behind requests; the hint opens them for Steer, Edit and Remove.
+export function PendingHeader({
   index,
   total,
   source,
-  queued,
+  q,
+  open,
+  onToggle,
   onChoose,
 }: {
   index: number
   total: number
   source: Source
-  queued: number
+  q: QueueControl
+  open: boolean
+  onToggle: () => void
   onChoose: (index: number) => void
 }) {
+  const queued = q.queue.length
   return (
-    <div className='flex min-w-0 items-center gap-2 pt-1 text-xs text-muted-foreground'>
-      <Pager
-        noun='request'
-        className='-ml-1.5'
-        index={index}
-        total={total}
-        onPrev={() => onChoose(index - 1)}
-        onNext={() => onChoose(index + 1)}
-      />
-      <RequestSource source={source} />
-      <span className='ml-auto'>
-        {queued > 0 && (
-          <span className='flex shrink-0 items-center gap-1'>
-            <ClockIcon className='size-3' />
-            {queued} queued
-          </span>
+    <>
+      <div className='flex min-w-0 items-center gap-2 pt-1 text-xs text-muted-foreground'>
+        {total > 1 && (
+          <Pager
+            noun='request'
+            className='-ml-1.5'
+            index={index}
+            total={total}
+            onPrev={() => onChoose(index - 1)}
+            onNext={() => onChoose(index + 1)}
+          />
         )}
-      </span>
-    </div>
+        <RequestSource source={source} />
+        {queued > 0 && (
+          <Button
+            variant='ghost-text'
+            size='xs'
+            aria-expanded={open}
+            className='-my-1 ml-auto -mr-2 font-normal'
+            {...pressProps(onToggle)}
+          >
+            <ClockIcon />
+            {queued} queued{q.paused && ' · Paused'}
+            {open ? <CaretDownIcon /> : <CaretUpIcon />}
+          </Button>
+        )}
+      </div>
+      {open && queued > 0 && (
+        <>
+          <div className='flex flex-col'>
+            {q.queue.map((entry) => (
+              <QueueRow key={entry.id} entry={entry} q={q} />
+            ))}
+          </div>
+          <div className='-mx-3 border-t border-border' />
+        </>
+      )}
+    </>
   )
 }
