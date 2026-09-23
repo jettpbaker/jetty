@@ -49,7 +49,7 @@ export function ComposerImages({
 }) {
   if (images.length === 0) return null
   return (
-    <div className='flex flex-wrap gap-2 px-2.5 pt-2.5'>
+    <div className='flex w-full flex-wrap gap-2 px-2.5 pt-2.5'>
       {images.map((image) => (
         <div key={image.url} className='relative'>
           <img src={image.url} alt={image.name} className='size-12 rounded-sm object-cover' />

@@ -30,7 +30,10 @@ export function ComposerFooter({
         .toSorted((a, b) => b.updatedAt - a.updatedAt)[0]?.git?.branch
 
   return (
-    <div className='mx-auto flex w-full max-w-[660px] flex-wrap items-center justify-between gap-1 px-2.5'>
+    <div
+      className='relative z-10 flex flex-wrap items-center justify-between gap-1 px-2.5 opacity-100'
+      aria-label='Project and branch'
+    >
       {threadId ? (
         <span className='flex h-7 items-center gap-1.5 px-2 text-xs text-muted-foreground'>
           <RepoIcon className='icon-optical-down size-3' />
