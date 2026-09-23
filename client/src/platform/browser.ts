@@ -26,9 +26,19 @@ export const browser: Platform = {
     })
   },
   storage: {
-    get: (key) => localStorage.getItem(key) ?? undefined,
+    get(key) {
+      try {
+        return localStorage.getItem(key) ?? undefined
+      } catch {
+        return undefined
+      }
+    },
     set: (key, value) => localStorage.setItem(key, value),
-    remove: (key) => localStorage.removeItem(key),
+    remove(key) {
+      try {
+        localStorage.removeItem(key)
+      } catch {}
+    },
   },
   blobs: {
     async get(key) {
