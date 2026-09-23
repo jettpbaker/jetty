@@ -36,11 +36,21 @@ export const ProviderModel = Schema.Struct({
 })
 export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>
 
+export const ProjectIcon = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal('emoji'),
+    emoji: Schema.String.check(Schema.isMinLength(1)),
+  }),
+  Schema.Struct({ type: Schema.Literal('icon'), name: Schema.String.check(Schema.isMinLength(1)) }),
+])
+export type ProjectIcon = Schema.Schema.Type<typeof ProjectIcon>
+
 export const Project = Schema.Struct({
   id: Schema.String,
   path: Schema.String,
   title: Schema.String,
   createdAt: Schema.Int,
+  icon: Schema.optional(ProjectIcon),
 })
 export type Project = Schema.Schema.Type<typeof Project>
 
@@ -122,6 +132,10 @@ export const methods = {
   'project.create': {
     params: Schema.Struct({ path: Schema.String }),
     result: Schema.Struct({ project: Project }),
+  },
+  'project.setIcon': {
+    params: Schema.Struct({ projectId: Schema.String, icon: Schema.NullOr(ProjectIcon) }),
+    result: Schema.Null,
   },
   'fs.browse': {
     params: Schema.Struct({ partialPath: Schema.String }),

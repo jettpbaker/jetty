@@ -128,6 +128,15 @@ export function createRpcHandlers(
             return { project }
           })
         ),
+      'project.setIcon': (params) =>
+        mutation(
+          store.setProjectIcon(params.projectId, params.icon).pipe(
+            Effect.tap((project) =>
+              Effect.sync(() => hub.pushChrome({ type: 'project.upserted', project }))
+            ),
+            Effect.as(null)
+          )
+        ),
       'thread.create': (params) =>
         upsertThread(store.createThread(params.projectId, params.id)).pipe(
           Effect.map((thread) => ({ thread }))

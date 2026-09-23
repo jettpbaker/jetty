@@ -6,6 +6,7 @@ import {
   newId,
   type ErrorCode,
   type Project,
+  ProjectIcon,
   type ProviderId,
   type ThreadMeta,
   type QueuedMessage,
@@ -27,7 +28,13 @@ export type AppendedEvent = {
   thread: ThreadMeta
 }
 
-type ProjectRow = { id: string; path: string; title: string; created_at: number }
+type ProjectRow = {
+  id: string
+  path: string
+  title: string
+  created_at: number
+  icon: string | null
+}
 type ThreadRow = {
   id: string
   project_id: string
@@ -50,6 +57,7 @@ type ThreadRow = {
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
 
 const isEffort = Schema.is(EffortLevel)
+const isProjectIcon = Schema.is(ProjectIcon)
 
 export class StoreError extends Error {
   readonly _tag = 'StoreError'
@@ -70,7 +78,14 @@ function storeError(error: unknown) {
 }
 
 function rowToProject(row: ProjectRow): Project {
-  return { id: row.id, path: row.path, title: row.title, createdAt: row.created_at }
+  const icon: unknown = row.icon && JSON.parse(row.icon)
+  return {
+    id: row.id,
+    path: row.path,
+    title: row.title,
+    createdAt: row.created_at,
+    ...(isProjectIcon(icon) ? { icon } : {}),
+  }
 }
 
 function publicProvider(value: string | null): ProviderId | undefined {
@@ -449,6 +464,15 @@ export function createStore() {
           Effect.map((rows) => rows.map(rowToProject)),
           Effect.mapError(storeError)
         )
+      },
+      setProjectIcon(id: string, icon: ProjectIcon | null) {
+        return Effect.gen(function* () {
+          const rows =
+            yield* sql<ProjectRow>`UPDATE projects SET icon = ${icon && JSON.stringify(icon)} WHERE id = ${id} RETURNING *`
+          if (!rows[0])
+            return yield* Effect.fail(new StoreError('not_found', `Project ${id} not found`))
+          return rowToProject(rows[0])
+        }).pipe(Effect.mapError(storeError))
       },
       getProject(id: string) {
         return sql<ProjectRow>`SELECT * FROM projects WHERE id = ${id}`.pipe(

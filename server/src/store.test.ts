@@ -223,7 +223,9 @@ test('thread creation is atomic, concurrently idempotent, and preserves existing
   expect((await runtime.runPromise(store.createThread(project.id, id))).title).toBe('Renamed')
   expect((await runtime.runPromise(store.getThreadState(id))).lastSeq).toBe(1)
   expect(await runtime.runPromise(sql`SELECT * FROM threads WHERE id = ${id}`)).toHaveLength(1)
-  await runtime.runPromise(sql`INSERT INTO projects VALUES ('other', '/other', 'Other', 0)`)
+  await runtime.runPromise(
+    sql`INSERT INTO projects (id, path, title, created_at) VALUES ('other', '/other', 'Other', 0)`
+  )
   await expect(runtime.runPromise(store.createThread('other', id))).rejects.toMatchObject({
     code: 'invalid_params',
   })

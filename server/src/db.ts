@@ -89,6 +89,10 @@ const migrations = SqliteMigrator.fromRecord({
     turn_started_at: 'INTEGER',
     turn_ended_at: 'INTEGER',
   }),
+  '011_project_icon': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE projects ADD COLUMN icon TEXT`
+  }),
 })
 
 export function databaseLayer(home: string) {
