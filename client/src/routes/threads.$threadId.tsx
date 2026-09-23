@@ -4,8 +4,18 @@ import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
 import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
 import { threadSubagents } from '@/components/custom/thread_rows'
-import { MAIN_TAB, useChrome, useThread, useThreadOverlay, useThreadTab } from '@/state'
-import { createFileRoute } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
+import { pressProps } from '@/lib/press'
+import {
+  MAIN_TAB,
+  useBumpDraft,
+  useChrome,
+  useThread,
+  useThreadOverlay,
+  useThreadTab,
+} from '@/state'
+import { ComposeIcon } from '@primer/octicons-react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
@@ -34,6 +44,7 @@ function Thread() {
       projectTitle={project?.title}
     />
   )
+  if (chrome && !meta) return <ThreadNotFound />
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
       {overlay.empty && <PageSidebarTrigger standalone />}
@@ -63,6 +74,30 @@ function Thread() {
           {!agent && composer}
         </ThreadDetailsLayout>
       )}
+    </section>
+  )
+}
+
+function ThreadNotFound() {
+  const navigate = useNavigate()
+  const bumpDraft = useBumpDraft()
+  return (
+    <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
+      <PageSidebarTrigger standalone />
+      <div className='flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center'>
+        <p className='text-sm'>Thread not found</p>
+        <Button
+          variant='outline'
+          size='sm'
+          {...pressProps(() => {
+            bumpDraft()
+            void navigate({ to: '/' })
+          })}
+        >
+          <ComposeIcon />
+          New thread
+        </Button>
+      </div>
     </section>
   )
 }
