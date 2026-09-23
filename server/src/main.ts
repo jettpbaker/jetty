@@ -216,7 +216,9 @@ function createServer(opts: ServerOptions = {}) {
     const hooks = {
       onUsage(usage: RateLimits) {
         lastUsage = usage
-        hub.pushChrome({ type: 'usage', usage })
+        Effect.runFork(
+          hub.withChromePublication(Effect.sync(() => hub.pushChrome({ type: 'usage', usage })))
+        )
       },
     }
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
@@ -315,8 +317,7 @@ function createServer(opts: ServerOptions = {}) {
         (threadId, text) =>
           Effect.gen(function* () {
             for (const ref of pullRequestUrls(text)) {
-              const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
-              hub.pushChrome({ type: 'thread.upserted', thread })
+              yield* hub.upsertThread(store.linkPullRequest(threadId, ref.repo, ref.number))
               yield* pullRequests.refreshIfStale(ref).pipe(
                 Effect.catchCause((cause) => Effect.logWarning(cause)),
                 Effect.forkIn(discoveryScope)

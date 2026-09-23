@@ -1,5 +1,5 @@
 import type { ThreadUpdate } from '@jetty/shared/rpc'
-import type { ChromePushData, PullRequestSnapshot, WireError } from '@jetty/shared/wire'
+import type { ChromePushData, PullRequestSnapshot, ThreadMeta, WireError } from '@jetty/shared/wire'
 
 import { Effect, Queue, Semaphore } from 'effect'
 
@@ -13,6 +13,14 @@ export function createHub() {
 
   function pushChrome(data: ChromePushData) {
     for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
+  }
+
+  function upsertThread<E, R>(load: Effect.Effect<ThreadMeta, E, R>) {
+    return chromePublication.withPermit(
+      load.pipe(
+        Effect.tap((thread) => Effect.sync(() => pushChrome({ type: 'thread.upserted', thread })))
+      )
+    )
   }
 
   function pushThread(threadId: string, update: Extract<ThreadUpdate, { type: 'event' }>) {
@@ -80,6 +88,7 @@ export function createHub() {
 
   return {
     withChromePublication: chromePublication.withPermit,
+    upsertThread,
     pushChrome,
     pushThread,
     subscribeChrome,
@@ -87,7 +96,10 @@ export function createHub() {
     pushPullRequest,
     subscribePullRequest,
     subscriberCount: Effect.sync(
-      () => chromeSubs.size + [...threadSubs.values()].reduce((total, subs) => total + subs.size, 0)
+      () =>
+        chromeSubs.size +
+        [...threadSubs.values()].reduce((total, subs) => total + subs.size, 0) +
+        [...pullRequestSubs.values()].reduce((total, subs) => total + subs.size, 0)
     ),
   }
 }
