@@ -229,7 +229,7 @@ export function FileChangesViewer({
       }),
     [changes, collapsedFiles, noContext]
   )
-  // One request per diff revision, shared by the hover prefetch and the expand click.
+  // One request per diff revision, shared by the prefetch and the expand click.
   const loadDiffFiles = useMemo(() => {
     if (!loadFile) return undefined
     const requests = new WeakMap<FileDiffMetadata, Promise<FileDiffLoadedFiles>>()
@@ -247,6 +247,12 @@ export function FileChangesViewer({
       return request
     }
   }, [loadFile])
+  useEffect(() => {
+    if (!loadDiffFiles) return
+    for (const { diff } of changes)
+      if (diff.type === 'change' || diff.type === 'rename-changed')
+        loadDiffFiles(diff).catch(() => {})
+  }, [changes, loadDiffFiles])
   const selectFile = useCallback((path: string) => {
     setSelected(path)
     viewer.current?.scrollTo({ type: 'item', id: path, align: 'start', behavior: 'instant' })
