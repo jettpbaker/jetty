@@ -6,7 +6,7 @@ import type {
 } from '@jetty/shared/wire'
 
 import { PullRequestData } from '@jetty/shared/pull-request'
-import { Effect, Schema, Scope, Semaphore } from 'effect'
+import { Effect, Schema, Scope } from 'effect'
 
 import type { Hub } from './hub'
 import type { Store } from './store'
@@ -397,48 +397,137 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
 }
 
 export function createPullRequests(store: Store, hub: Hub) {
-  const inFlight = new Map<string, Promise<PullRequestSnapshot>>()
-  const refreshSlots = Semaphore.makeUnsafe(2)
+  const visibleLimit = 3
+  const prefetchLimit = 2
+  const queuedPrefetchLimit = 4
+  type Job = {
+    ref: PullRequestRef
+    key: string
+    priority: 'visible' | 'prefetch'
+    queuedAt: number
+    started: boolean
+    promise: Promise<PullRequestSnapshot | undefined>
+    resolve: (snapshot: PullRequestSnapshot | undefined) => void
+  }
+  const jobs = new Map<string, Job>()
+  const queue: Job[] = []
+  let activeVisible = 0
+  let activePrefetches = 0
+
+  function drain() {
+    while (true) {
+      let index =
+        activeVisible < visibleLimit ? queue.findIndex((job) => job.priority === 'visible') : -1
+      if (index < 0 && activePrefetches < prefetchLimit)
+        index = queue.findIndex((job) => job.priority === 'prefetch')
+      if (index < 0) return
+      const job = queue.splice(index, 1)[0]!
+      job.started = true
+      if (job.priority === 'prefetch') activePrefetches++
+      else activeVisible++
+      const waitMs = Date.now() - job.queuedAt
+      const startedAt = Date.now()
+      void (async () => {
+        let snapshot: PullRequestSnapshot
+        try {
+          snapshot = {
+            ...job.ref,
+            status: 'ready',
+            data: await fetchPullRequest(job.ref),
+            refreshedAt: Date.now(),
+          }
+        } catch (error) {
+          const failure =
+            error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+          snapshot = {
+            ...job.ref,
+            status: failure.kind,
+            error: failure.message,
+            refreshedAt: Date.now(),
+          }
+        }
+        if (process.env.JETTY_PR_FETCH_DEBUG === '1')
+          console.debug(
+            `[pr-fetch] ${job.key} ${job.priority} wait=${waitMs}ms fetch=${Date.now() - startedAt}ms`
+          )
+        jobs.delete(job.key)
+        if (job.priority === 'prefetch') activePrefetches--
+        else activeVisible--
+        job.resolve(snapshot)
+        drain()
+      })()
+    }
+  }
+
+  function schedule(ref: PullRequestRef, priority: Job['priority']) {
+    const key = `${ref.repo}#${ref.number}`
+    if (priority === 'visible') {
+      for (const job of queue.splice(0)) {
+        if (job.key === key) {
+          job.priority = 'visible'
+          queue.push(job)
+        } else if (job.priority === 'prefetch') {
+          jobs.delete(job.key)
+          job.resolve(undefined)
+        } else queue.push(job)
+      }
+    }
+    const existing = jobs.get(key)
+    if (existing) {
+      if (priority === 'visible' && existing.priority === 'prefetch') {
+        if (existing.started) {
+          activePrefetches--
+          activeVisible++
+        }
+        existing.priority = 'visible'
+      }
+      drain()
+      return existing.promise
+    }
+    if (
+      priority === 'prefetch' &&
+      queue.filter((job) => job.priority === 'prefetch').length >= queuedPrefetchLimit
+    )
+      return Promise.resolve(undefined)
+    let resolve!: Job['resolve']
+    const promise = new Promise<PullRequestSnapshot | undefined>((done) => {
+      resolve = done
+    })
+    const job: Job = { ref, key, priority, queuedAt: Date.now(), started: false, promise, resolve }
+    jobs.set(key, job)
+    queue.push(job)
+    drain()
+    return promise
+  }
 
   function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
-    return refreshSlots.withPermits(1)(
-      Effect.gen(function* () {
-        const key = `${ref.repo}#${ref.number}`
-        let pending = inFlight.get(key)
-        if (!pending) {
-          pending = (async () => {
-            try {
-              return {
-                ...ref,
-                status: 'ready' as const,
-                data: await fetchPullRequest(ref),
-                refreshedAt: Date.now(),
-              }
-            } catch (error) {
-              const failure =
-                error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
-              return {
-                ...ref,
-                status: failure.kind ?? 'unavailable',
-                error: failure.message ?? 'GitHub API is unavailable',
-                refreshedAt: Date.now(),
-              }
-            }
-          })()
-          inFlight.set(key, pending)
-          void pending.finally(() => inFlight.delete(key))
-        }
-        yield* store.savePullRequest(yield* Effect.promise(() => pending))
-        // The stored snapshot keeps the last good data when this read failed.
-        const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
-        hub.pushPullRequest(snapshot)
-        for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
-          const thread = yield* store.requireThread(threadId)
-          hub.pushChrome({ type: 'thread.upserted', thread })
-        }
-        return snapshot
-      })
-    )
+    return Effect.gen(function* () {
+      const fetched = yield* Effect.promise(() => schedule(ref, 'visible'))
+      yield* store.savePullRequest(fetched!)
+      // The stored snapshot keeps the last good data when this read failed.
+      const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
+      hub.pushPullRequest(snapshot)
+      for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
+        const thread = yield* store.requireThread(threadId)
+        hub.pushChrome({ type: 'thread.upserted', thread })
+      }
+      return snapshot
+    })
+  }
+
+  function prefetch(ref: PullRequestRef) {
+    return Effect.gen(function* () {
+      const cached = yield* store.getPullRequest(ref.repo, ref.number)
+      if (cached.refreshedAt && Date.now() - cached.refreshedAt < 60_000) return cached
+      const pull = (cached.data as { pull?: { state?: string } } | undefined)?.pull
+      if (pull?.state === 'closed') return cached
+      const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
+      if (!fetched) return yield* store.getPullRequest(ref.repo, ref.number)
+      yield* store.savePullRequest(fetched)
+      const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
+      hub.pushPullRequest(snapshot)
+      return snapshot
+    })
   }
 
   function get(ref: PullRequestRef) {
@@ -455,7 +544,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  return { get, refresh, refreshIfStale }
+  return { get, refresh, prefetch, refreshIfStale }
 }
 
 const listLimit = 100

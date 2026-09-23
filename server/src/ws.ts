@@ -408,6 +408,8 @@ export function createRpcHandlers(
             yield* refreshInBackground(ref)
           return snapshot
         }).pipe(Effect.mapError(wireError)),
+      'pullRequest.prefetch': (ref) =>
+        checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
       'pullRequest.refresh': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.refresh), Effect.mapError(wireError)),
       'pullRequest.subscribe': (ref) =>

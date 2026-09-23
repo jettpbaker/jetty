@@ -397,6 +397,10 @@ export const methods = {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
   },
+  'pullRequest.prefetch': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: PullRequestSnapshot,
+  },
   'pullRequest.refresh': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
