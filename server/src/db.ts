@@ -136,6 +136,10 @@ const migrations = SqliteMigrator.fromRecord({
       status TEXT NOT NULL DEFAULT 'loading', error TEXT, refreshed_at INTEGER
     )`
   }),
+  '018_pull_request_lists_truncated': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE pull_request_lists ADD COLUMN truncated INTEGER NOT NULL DEFAULT 0`
+  }),
 })
 
 export function databaseLayer(home: string) {

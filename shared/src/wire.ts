@@ -131,6 +131,7 @@ export const PullRequestList = Schema.Struct({
   error: Schema.optional(Schema.String),
   refreshedAt: Schema.optional(Schema.Int),
   items: Schema.optional(Schema.Array(PullRequestListItem)),
+  truncated: Schema.optional(Schema.Boolean),
 })
 export type PullRequestList = Schema.Schema.Type<typeof PullRequestList>
 

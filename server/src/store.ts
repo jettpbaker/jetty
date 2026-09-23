@@ -892,13 +892,15 @@ export function createStore() {
           status: PullRequestList['status']
           error: string | null
           refreshed_at: number | null
-        }>`SELECT items_json, status, error, refreshed_at FROM pull_request_lists WHERE tab = ${tab}`.pipe(
+          truncated: number
+        }>`SELECT items_json, status, error, refreshed_at, truncated FROM pull_request_lists WHERE tab = ${tab}`.pipe(
           Effect.map((rows): PullRequestList => {
             const row = rows[0]
             return {
               tab,
               status: row?.status ?? 'loading',
               ...(row?.items_json ? { items: JSON.parse(row.items_json) } : {}),
+              ...(row?.truncated ? { truncated: true } : {}),
               ...(row?.error ? { error: row.error } : {}),
               ...(row?.refreshed_at ? { refreshedAt: row.refreshed_at } : {}),
             }
@@ -907,9 +909,10 @@ export function createStore() {
         )
       },
       savePullRequestList(list: PullRequestList) {
-        return sql`INSERT INTO pull_request_lists (tab, items_json, status, error, refreshed_at)
-          VALUES (${list.tab}, ${list.items ? JSON.stringify(list.items) : null}, ${list.status}, ${list.error ?? null}, ${list.refreshedAt ?? null})
+        return sql`INSERT INTO pull_request_lists (tab, items_json, truncated, status, error, refreshed_at)
+          VALUES (${list.tab}, ${list.items ? JSON.stringify(list.items) : null}, ${list.truncated ? 1 : 0}, ${list.status}, ${list.error ?? null}, ${list.refreshedAt ?? null})
           ON CONFLICT(tab) DO UPDATE SET items_json = COALESCE(excluded.items_json, pull_request_lists.items_json),
+            truncated = CASE WHEN excluded.items_json IS NULL THEN pull_request_lists.truncated ELSE excluded.truncated END,
             status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at`.pipe(
           Effect.as(list),
           Effect.mapError(storeError)

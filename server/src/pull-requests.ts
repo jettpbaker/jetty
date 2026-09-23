@@ -458,16 +458,21 @@ export function createPullRequests(store: Store, hub: Hub) {
   return { get, refresh, refreshIfStale }
 }
 
-const listLimit = 50
+const listLimit = 100
 const recentDays = 14
+
+function recentSince() {
+  return new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10)
+}
 
 function listSearches(tab: PullRequestListTab): string[] {
   const open = 'is:pr is:open archived:false sort:updated-desc'
   if (tab === 'for-you') return [`${open} review-requested:@me`, `${open} assignee:@me`]
-  const since = new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10)
+  // GitHub's search index can miss `closed:` dates (it drops some freshly closed PRs), so
+  // search by update time and filter on the PR's own closedAt.
   return [
     `${open} author:@me`,
-    `is:pr is:closed archived:false author:@me closed:>=${since} sort:updated-desc`,
+    `is:pr is:closed archived:false author:@me updated:>=${recentSince()} sort:updated-desc`,
   ]
 }
 
@@ -506,10 +511,10 @@ function listItem(value: unknown): PullRequestListItem | null {
   }
 }
 
-async function fetchPullRequestList(tab: PullRequestListTab): Promise<PullRequestListItem[]> {
+async function fetchPullRequestList(tab: PullRequestListTab) {
   const searches = listSearches(tab)
-  const fields = `nodes { ... on PullRequest {
-    number title url isDraft state merged updatedAt repository { nameWithOwner }
+  const fields = `issueCount nodes { ... on PullRequest {
+    number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
     commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
   } }`
   const query = `query(${searches.map((_, index) => `$q${index}:String!`).join(',')}) {
@@ -523,13 +528,21 @@ async function fetchPullRequestList(tab: PullRequestListTab): Promise<PullReques
       ...searches.flatMap((search, index) => ['-f', `q${index}=${search}`])
     )
   )
+  const since = Date.parse(recentSince())
   const found = new Map<string, PullRequestListItem>()
-  for (const result of Object.values(record(response.data)))
-    for (const node of (record(result).nodes as unknown[] | undefined) ?? []) {
+  let truncated = false
+  for (const result of Object.values(record(response.data))) {
+    const nodes = (record(result).nodes as unknown[] | undefined) ?? []
+    if (Number(record(result).issueCount) > nodes.length) truncated = true
+    for (const node of nodes) {
+      const closedAt = Date.parse(string(record(node).closedAt))
+      if (closedAt < since) continue
       const item = listItem(node)
       if (item) found.set(`${item.repo}#${item.number}`, item)
     }
-  return [...found.values()].sort((left, right) => right.updatedAt - left.updatedAt)
+  }
+  const items = [...found.values()].sort((left, right) => right.updatedAt - left.updatedAt)
+  return { items, truncated }
 }
 
 export function createPullRequestLists(store: Store, hub: Hub) {
@@ -539,7 +552,13 @@ export function createPullRequestLists(store: Store, hub: Hub) {
     let pending = inFlight.get(tab)
     if (pending) return pending
     pending = fetchPullRequestList(tab).then(
-      (items): PullRequestList => ({ tab, status: 'ready', items, refreshedAt: Date.now() }),
+      ({ items, truncated }): PullRequestList => ({
+        tab,
+        status: 'ready',
+        items,
+        ...(truncated ? { truncated } : {}),
+        refreshedAt: Date.now(),
+      }),
       (error): PullRequestList => ({
         tab,
         status:
