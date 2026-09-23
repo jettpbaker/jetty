@@ -1,13 +1,11 @@
-import type { Loadout } from '@/state'
-import type { PermissionMode, ProviderId } from '@jetty/shared/wire'
+import type { PermissionMode } from '@jetty/shared/wire'
 
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
-import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { StopIcon } from '@phosphor-icons/react'
 import { ArrowUpIcon } from '@primer/octicons-react'
-import { useEffect, useEffectEvent, useRef } from 'react'
+import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react'
 
 export function Composer({
   value,
@@ -17,9 +15,6 @@ export function Composer({
   running,
   sendDisabled = false,
   loadout,
-  onLoadoutChange,
-  provider,
-  providerDisabled,
   accessMode,
   onAccessModeChange,
   rows = 2,
@@ -30,10 +25,7 @@ export function Composer({
   onInterrupt: () => void
   running: boolean
   sendDisabled?: boolean
-  loadout: Loadout
-  onLoadoutChange: (loadout: Loadout) => void
-  provider: ProviderId
-  providerDisabled: boolean
+  loadout: ReactNode
   accessMode: PermissionMode
   onAccessModeChange: (accessMode: PermissionMode) => void
   rows?: number
@@ -102,12 +94,7 @@ export function Composer({
         />
         <div className='flex items-center justify-between px-2.5 pb-2'>
           <div className='flex items-center gap-1.5'>
-            <ComposerLoadout
-              loadout={loadout}
-              onChange={onLoadoutChange}
-              provider={provider}
-              providerDisabled={providerDisabled}
-            />
+            {loadout}
             <ComposerAccessMode value={accessMode} onChange={onAccessModeChange} />
           </div>
           {stop ? (

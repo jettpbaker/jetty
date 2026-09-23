@@ -8,7 +8,7 @@ export type UsageWindow = {
 }
 
 export type ProviderUsage = {
-  id: 'anthropic' | 'openai' | 'xai' | 'copilot'
+  id: 'claude' | 'codex' | 'grok' | 'copilot'
   name: string
   plan: string
   windows: UsageWindow[]
@@ -18,7 +18,7 @@ export function createUsagePreview(now: number): ProviderUsage[] {
   const hours = (value: number) => now + value * 3_600_000
   return [
     {
-      id: 'anthropic',
+      id: 'claude',
       name: 'Claude',
       plan: 'Max 5×',
       windows: [
@@ -39,7 +39,7 @@ export function createUsagePreview(now: number): ProviderUsage[] {
       ],
     },
     {
-      id: 'openai',
+      id: 'codex',
       name: 'Codex',
       plan: 'Pro 5×',
       windows: [
@@ -60,7 +60,7 @@ export function createUsagePreview(now: number): ProviderUsage[] {
       ],
     },
     {
-      id: 'xai',
+      id: 'grok',
       name: 'Grok',
       plan: 'SuperGrok',
       windows: [

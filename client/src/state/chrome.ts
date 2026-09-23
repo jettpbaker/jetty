@@ -103,6 +103,12 @@ const chromeAtom = Atom.readable((get) => {
   )
 })
 
+const noModels: readonly ProviderModel[] = []
+
+export const modelsAtom = Atom.readable(
+  (get) => AsyncResult.getOrElse(get(liveAtom), () => undefined)?.models ?? noModels
+)
+
 export function useChrome(): Chrome | undefined {
   return useAtomValue(chromeAtom)
 }

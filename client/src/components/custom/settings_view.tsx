@@ -46,7 +46,7 @@ function Section({
 }
 
 export function SettingsView() {
-  const [provider, setProvider] = useState<ProviderId>('anthropic')
+  const [provider, setProvider] = useState<ProviderId>('claude')
   const [enabled, setEnabled] = useState(loadProviderEnabled)
   function showProvider(id: ProviderId) {
     setProvider(id)

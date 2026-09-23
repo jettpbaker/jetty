@@ -1,23 +1,26 @@
+import type { ProviderModel } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { providerLogoPath } from '@/lib/provider-logo'
+import { copilotModels } from '@/lib/loadout'
 import { storage } from '@/platform'
+import { useLoadouts } from '@/state'
 import { CheckIcon, CopyIcon, ArrowClockwiseIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
-import { copilotModels, loadoutCatalog } from './settings_loadout_model'
+import { ProviderGlyph } from './provider_glyph'
 import './settings_sections.css'
 
 export const providerOptions = [
   {
-    id: 'anthropic',
+    id: 'claude',
     name: 'Claude',
     product: 'Claude Code',
     login: 'claude auth login',
     ready: true,
   },
-  { id: 'openai', name: 'Codex', product: 'OpenAI Codex', login: 'codex login', ready: true },
-  { id: 'xai', name: 'Grok', product: 'Grok', login: 'grok login', ready: true },
+  { id: 'codex', name: 'Codex', product: 'OpenAI Codex', login: 'codex login', ready: true },
+  { id: 'grok', name: 'Grok', product: 'Grok', login: 'grok login', ready: true },
   {
     id: 'copilot',
     name: 'Copilot',
@@ -32,7 +35,7 @@ export type ProviderEnabled = Record<ProviderId, boolean>
 const enabledKey = 'jetty.provider-enabled'
 
 export function loadProviderEnabled(): ProviderEnabled {
-  const enabled = { anthropic: true, openai: true, xai: false, copilot: true }
+  const enabled = { claude: true, codex: true, grok: false, copilot: true }
   try {
     const saved = JSON.parse(storage.get(enabledKey) ?? '{}')
     for (const item of providerOptions)
@@ -47,36 +50,26 @@ export function saveProviderEnabled(enabled: ProviderEnabled) {
   storage.set(enabledKey, JSON.stringify(enabled))
 }
 
-function providerModels(id: ProviderId) {
+function providerModels(id: ProviderId, catalog: readonly ProviderModel[]) {
   if (id === 'copilot') return copilotModels
-  return loadoutCatalog.filter((model) => model.provider === id).map((model) => model.name)
+  return catalog.filter((model) => model.provider === id).map((model) => model.name)
 }
 
 const plans: Record<ProviderId, string> = {
-  anthropic: 'Max 5×',
-  openai: 'Pro 5×',
-  xai: 'SuperGrok',
+  claude: 'Max 5×',
+  codex: 'Pro 5×',
+  grok: 'SuperGrok',
   copilot: 'Pro',
 }
 
 const cliSetup: Record<ProviderId, { name: string; url: string }> = {
-  anthropic: { name: 'Claude Code CLI', url: 'https://code.claude.com/docs/en/overview' },
-  openai: { name: 'Codex CLI', url: 'https://developers.openai.com/codex/cli' },
-  xai: { name: 'Grok Build CLI', url: 'https://docs.x.ai/build/overview' },
+  claude: { name: 'Claude Code CLI', url: 'https://code.claude.com/docs/en/overview' },
+  codex: { name: 'Codex CLI', url: 'https://developers.openai.com/codex/cli' },
+  grok: { name: 'Grok Build CLI', url: 'https://docs.x.ai/build/overview' },
   copilot: {
     name: 'GitHub Copilot CLI',
     url: 'https://docs.github.com/en/copilot/get-started/cli-quickstart',
   },
-}
-
-function ProviderLogo({ id, className }: { id: ProviderId; className: string }) {
-  return (
-    <span
-      aria-hidden='true'
-      className={`provider-icon ${className}`}
-      style={{ maskImage: `url(${providerLogoPath(id)})` }}
-    />
-  )
 }
 
 export function SettingsProviders({
@@ -91,6 +84,7 @@ export function SettingsProviders({
   onEnabledChange: (id: ProviderId, value: boolean) => void
 }) {
   const provider = providerOptions.find((item) => item.id === selected)!
+  const { catalog } = useLoadouts()
   const [modelEnabled, setModelEnabled] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
@@ -116,8 +110,8 @@ export function SettingsProviders({
               className='flex min-w-0 flex-1 items-center gap-3 rounded-menu-item px-3 py-4 text-left focus-visible:outline-2 focus-visible:outline-ring'
               onClick={() => select(item.id)}
             >
-              <ProviderLogo
-                id={item.id}
+              <ProviderGlyph
+                provider={item.id}
                 className={`size-6 ${enabled[item.id] ? 'text-muted-foreground' : 'text-disabled-foreground'}`}
               />
               <span className='flex min-w-0 flex-col gap-1'>
@@ -151,7 +145,7 @@ export function SettingsProviders({
         className='scrollbar-subtle flex min-h-0 min-w-0 flex-col gap-6 overflow-y-auto p-5 [&>div:not(:last-child)]:shrink-0 [&>p]:shrink-0'
       >
         <div className='flex items-center gap-3'>
-          <ProviderLogo id={selected} className='size-7 text-muted-foreground' />
+          <ProviderGlyph provider={selected} className='size-7 text-muted-foreground' />
           <div className='flex flex-col gap-1'>
             <h3 className='text-13 font-medium'>{provider.product}</h3>
             <p className='text-xs text-muted-foreground'>
@@ -220,7 +214,7 @@ export function SettingsProviders({
             aria-label={`${provider.name} model availability`}
             tabIndex={0}
           >
-            {providerModels(selected).map((name) => (
+            {providerModels(selected, catalog).map((name) => (
               <label
                 key={name}
                 className={`flex min-h-8 items-center justify-between gap-3 text-13 ${usable ? '' : 'text-disabled-foreground'}`}

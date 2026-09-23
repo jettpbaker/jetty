@@ -1,0 +1,11 @@
+.provider-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+}
+.provider-icon[data-provider='claude'] {
+  transform: scale(1.2) translateY(-2.0833%);
+}

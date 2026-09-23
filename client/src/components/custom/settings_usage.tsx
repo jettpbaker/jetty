@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { providerLogoPath } from '@/lib/provider-logo'
 import { createUsagePreview, usageResetLabel, type UsageWindow } from '@/lib/provider-usage'
 import { ArrowCounterClockwiseIcon, ArrowUpRightIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 
+import { ProviderGlyph } from './provider_glyph'
 import './settings_sections.css'
 import './settings_usage.css'
 
@@ -86,10 +86,9 @@ export function SettingsUsage({ onConnectCopilot }: { onConnectCopilot: () => vo
           aria-label={`${provider.name} usage`}
         >
           <div className='flex items-center gap-2.5'>
-            <span
-              aria-hidden='true'
-              className={`provider-icon size-5 ${provider.id === 'copilot' ? 'text-disabled-foreground' : 'text-muted-foreground'}`}
-              style={{ maskImage: `url(${providerLogoPath(provider.id)})` }}
+            <ProviderGlyph
+              provider={provider.id}
+              className={`size-5 ${provider.id === 'copilot' ? 'text-disabled-foreground' : 'text-muted-foreground'}`}
             />
             <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
               <h3

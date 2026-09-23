@@ -1,3 +1,5 @@
+import type { ProviderModel as LoadoutModel } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,8 +13,16 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { providerLogoPath } from '@/lib/provider-logo'
-import { storage } from '@/platform'
+import {
+  clearSlot,
+  copilotModels,
+  effortLabels,
+  equipModel,
+  findModel,
+  modelKey,
+  type LoadoutSlot as Slot,
+} from '@/lib/loadout'
+import { useLoadouts } from '@/state'
 import { KeyboardSensor, PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { DragDropProvider, DragOverlay, useDraggable } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
@@ -24,18 +34,7 @@ import { createPortal } from 'react-dom'
 import type { ProviderEnabled, ProviderId } from './settings_providers'
 
 import { LightningIcon } from './lightning_icon'
-import {
-  clearSlot,
-  copilotModels,
-  defaultLoadouts,
-  effortLabels,
-  equipModel,
-  findModel,
-  loadoutCatalog,
-  restoreLoadouts,
-  type LoadoutModel,
-  type LoadoutSlot as Slot,
-} from './settings_loadout_model'
+import { ProviderGlyph } from './provider_glyph'
 import './settings_loadout.css'
 
 type ClearedConfig = { slot: Slot; model: LoadoutModel; rect: DOMRect }
@@ -47,11 +46,10 @@ type EquipFlight = {
   name: DOMRect
 }
 const equipSpring = { type: 'spring' as const, duration: 0.3, bounce: 0.12 }
-const storageKey = 'jetty.loadout.vertical'
 const providers = [
-  { id: 'anthropic', name: 'Claude' },
-  { id: 'openai', name: 'Codex' },
-  { id: 'xai', name: 'Grok' },
+  { id: 'claude', name: 'Claude' },
+  { id: 'codex', name: 'Codex' },
+  { id: 'grok', name: 'Grok' },
 ] as const
 const sensors = [
   PointerSensor.configure({
@@ -60,28 +58,15 @@ const sensors = [
   KeyboardSensor,
 ]
 
-function Glyph({
-  provider,
-  large = false,
-}: {
-  provider: LoadoutModel['provider'] | 'copilot'
-  large?: boolean
-}) {
-  return (
-    <span
-      aria-hidden='true'
-      data-provider={provider}
-      className={`provider-icon ${large ? 'size-7' : 'size-3'}`}
-      style={{ maskImage: `url(${providerLogoPath(provider)})` }}
-    />
-  )
+function Glyph({ provider, large = false }: { provider: string; large?: boolean }) {
+  return <ProviderGlyph provider={provider} className={large ? 'size-7' : 'size-3'} />
 }
 
 function EffortSummary({ slot }: { slot: Slot }) {
   return (
     <span data-equip-effort className='flex items-center gap-1'>
       {slot.fast && <LightningIcon filled data-icon='inline-start' className='size-3!' />}
-      {effortLabels[slot.effort]}
+      {slot.effort && effortLabels[slot.effort]}
     </span>
   )
 }
@@ -132,15 +117,7 @@ function ConfigContent({
 }
 
 function describe(slot: Slot) {
-  return `${effortLabels[slot.effort]}${slot.fast ? ' · Fast' : ''}`
-}
-
-function load() {
-  try {
-    return restoreLoadouts(JSON.parse(storage.get(storageKey) ?? 'null'))
-  } catch {
-    return defaultLoadouts
-  }
+  return [slot.effort && effortLabels[slot.effort], slot.fast && 'Fast'].filter(Boolean).join(' · ')
 }
 
 export function SettingsLoadout({
@@ -150,7 +127,7 @@ export function SettingsLoadout({
   enabledProviders: ProviderEnabled
   onConnectProvider: (id: ProviderId) => void
 }) {
-  const [slots, setSlots] = useState(load)
+  const { loadouts: slots, catalog, setLoadouts } = useLoadouts()
   const [announcement, setAnnouncement] = useState('')
   const [catalogDragging, setCatalogDragging] = useState(false)
   const [replaced, setReplaced] = useState<Slot | null>(null)
@@ -159,9 +136,8 @@ export function SettingsLoadout({
   const rowPreviewRef = useRef<HTMLDivElement>(null)
   const reducedMotion = !!useReducedMotion()
   function save(next: Slot[], message: string) {
-    setSlots(next)
     try {
-      storage.set(storageKey, JSON.stringify(next))
+      setLoadouts(next)
       setAnnouncement(message)
     } catch {
       setAnnouncement(
@@ -173,7 +149,7 @@ export function SettingsLoadout({
     const next = equipModel(slot, model)
     const adjustments = [
       slot.model && next.effort !== slot.effort
-        ? `Effort changed to ${effortLabels[next.effort]}.`
+        ? `Effort changed to ${next.effort ? effortLabels[next.effort] : 'none'}.`
         : '',
       slot.fast && !next.fast ? 'Fast is unavailable for this model and was turned off.' : '',
     ]
@@ -209,7 +185,7 @@ export function SettingsLoadout({
             return
           }
           const slot = slots.find((item) => item.id === target?.id)
-          const model = findModel(String(source.id))
+          const model = catalog.find((item) => modelKey(item) === String(source.id))
           if (!slot || !model) return
           if (slot.model) {
             setReplaced(slot)
@@ -235,6 +211,7 @@ export function SettingsLoadout({
               key={slot.id}
               slot={slot}
               index={index}
+              catalog={catalog}
               clearing={cleared?.slot.id === slot.id}
               onClear={(config) => {
                 setCleared(config)
@@ -275,11 +252,11 @@ export function SettingsLoadout({
                 {provider.name}
               </h3>
               <div className='flex flex-col gap-1'>
-                {loadoutCatalog
+                {catalog
                   .filter((model) => model.provider === provider.id)
                   .map((model) => (
                     <CatalogModel
-                      key={model.id}
+                      key={modelKey(model)}
                       model={model}
                       disabled={!enabledProviders[model.provider]}
                     />
@@ -328,7 +305,7 @@ export function SettingsLoadout({
         {createPortal(
           <DragOverlay dropAnimation={null}>
             {(source) => {
-              const model = findModel(String(source.id))
+              const model = catalog.find((item) => modelKey(item) === String(source.id))
               if (!model) return null
               return (
                 <div
@@ -380,6 +357,7 @@ export function SettingsLoadout({
 function LoadoutSlot({
   slot,
   index,
+  catalog,
   clearing,
   onClear,
   previous,
@@ -392,6 +370,7 @@ function LoadoutSlot({
 }: {
   slot: Slot
   index: number
+  catalog: readonly LoadoutModel[]
   clearing: boolean
   onClear: (config: ClearedConfig) => void
   previous?: Slot
@@ -402,8 +381,8 @@ function LoadoutSlot({
   catalogDragging: boolean
   onChange: (slot: Slot) => void
 }) {
-  const model = findModel(slot.model)
-  const previousModel = findModel(previous?.model ?? null)
+  const model = findModel(catalog, slot)
+  const previousModel = previous && findModel(catalog, previous)
   const { ref, handleRef, isDragging, isDropTarget } = useSortable({
     id: slot.id,
     index,
@@ -504,7 +483,12 @@ function LoadoutSlot({
                     <DropdownMenuLabel>Effort</DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                       value={slot.effort}
-                      onValueChange={(effort) => onChange({ ...slot, effort: String(effort) })}
+                      onValueChange={(value) =>
+                        onChange({
+                          ...slot,
+                          effort: model.efforts.find((effort) => effort === value),
+                        })
+                      }
                     >
                       {model.efforts.map((effort) => (
                         <DropdownMenuRadioItem key={effort} value={effort}>
@@ -706,7 +690,7 @@ function EquipAnimation({
 }
 
 function CatalogModel({ model, disabled = false }: { model: LoadoutModel; disabled?: boolean }) {
-  const { ref, handleRef, isDragging } = useDraggable({ id: model.id, disabled })
+  const { ref, handleRef, isDragging } = useDraggable({ id: modelKey(model), disabled })
   return (
     <div ref={ref} className='min-w-0' style={{ opacity: isDragging ? 0.4 : 1 }}>
       <button

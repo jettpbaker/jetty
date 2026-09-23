@@ -1,5 +1,6 @@
 export { useAccessMode } from './access_mode'
 export { useChrome, type Chrome } from './chrome'
+export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export { usePrefetchThread, useThread } from './threads'
 export {
@@ -13,10 +14,9 @@ export {
   useBumpDraft,
   useDraftEpoch,
   useInterruptTurn,
-  useLoadout,
   useRespondApproval,
   useRespondQuestion,
   useSendTurn,
+  useThreadLoadout,
   useThreadOverlay,
-  type Loadout,
 } from './turns'

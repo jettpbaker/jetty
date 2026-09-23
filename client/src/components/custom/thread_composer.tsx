@@ -1,14 +1,16 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
 import { Composer } from '@/components/custom/composer'
+import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import { newThreadProject } from '@/lib/thread_project'
 import {
   useAccessMode,
   useChrome,
   useCreateThread,
   useInterruptTurn,
-  useLoadout,
+  useLoadouts,
   useSendTurn,
+  useThreadLoadout,
 } from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -25,7 +27,8 @@ export function ThreadComposer({
   rows: number
 }) {
   const [draft, setDraft] = useState('')
-  const { loadout, setLoadout } = useLoadout()
+  const { loadouts, catalog, setLoadouts } = useLoadouts()
+  const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
@@ -34,11 +37,6 @@ export function ThreadComposer({
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
   const projectId = !threadId && chrome ? newThreadProject(chrome, selectedId) : undefined
-  const lockedProvider = threadId
-    ? chrome?.threads.find((thread) => thread.id === threadId)?.provider
-    : undefined
-  const provider = lockedProvider ?? loadout.provider
-  const providerDisabled = Boolean(lockedProvider) || running
 
   function submit() {
     const text = draft.trim()
@@ -47,7 +45,7 @@ export function ThreadComposer({
     if (!id) return
     const prior = items.filter((item) => item.kind === 'user_message' && item.text === text).length
     setDraft('')
-    sendTurn(id, text, prior, provider)
+    sendTurn(id, text, prior, loadout)
     if (!threadId) void navigate({ to: '/threads/$threadId', params: { threadId: id } })
   }
 
@@ -62,10 +60,19 @@ export function ThreadComposer({
         }}
         running={running}
         sendDisabled={!threadId && !projectId}
-        loadout={loadout}
-        onLoadoutChange={setLoadout}
-        provider={provider}
-        providerDisabled={providerDisabled}
+        loadout={
+          loadout && (
+            <ComposerLoadout
+              catalog={catalog}
+              loadouts={loadouts}
+              value={loadout}
+              lockedProvider={lockedProvider}
+              onChange={setLoadout}
+              onReorder={setLoadouts}
+              onOpenSettings={() => void navigate({ to: '/settings' })}
+            />
+          )
+        }
         accessMode={accessMode}
         onAccessModeChange={setAccessMode}
         rows={rows}

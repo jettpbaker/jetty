@@ -1,33 +1,27 @@
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
-import type { EffortLevel, ProviderId } from '@jetty/shared/wire'
+import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
+import { equipModel, sameLoadout, slotLoadout, type Loadout, type LoadoutSlot } from '@/lib/loadout'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
 
 import { accessModeAtom } from './access_mode'
+import { modelsAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
+import { loadoutsAtom } from './loadouts'
 import { awaitCreation, clearPatch, setPatch, without, withoutId } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
 
-export type Loadout = {
-  model?: string
-  effort: EffortLevel
-  provider: ProviderId
-}
-
 type PendingPrompt = { text: string; priorCount: number }
 type Answers = Readonly<Record<string, string>>
 
-const draftProvider: ProviderId = 'grok'
+const draftKey = ''
 
-const loadoutAtom = Atom.make<Loadout>({
-  effort: 'high',
-  provider: draftProvider,
-}).pipe(Atom.keepAlive)
+const loadoutOverridesAtom = Atom.make<ReadonlyMap<string, Loadout>>(new Map()).pipe(Atom.keepAlive)
 const draftEpochAtom = Atom.make(0).pipe(Atom.keepAlive)
 const pendingPromptsAtom = Atom.make<ReadonlyMap<string, readonly PendingPrompt[]>>(new Map()).pipe(
   Atom.keepAlive
@@ -102,14 +96,17 @@ function sendTurn(
   threadId: string,
   text: string,
   priorCount: number,
-  provider: ProviderId
+  loadout: Loadout | undefined
 ) {
-  const loadout = registry.get(loadoutAtom)
+  if (loadout)
+    registry.update(loadoutOverridesAtom, (overrides) =>
+      new Map(without(overrides, [draftKey])).set(threadId, loadout)
+    )
   registry.update(pendingPromptsAtom, (prompts) =>
     withPrompts(prompts, threadId, [...(prompts.get(threadId) ?? []), { text, priorCount }])
   )
   registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
-  setPatch(registry, threadId, { provider })
+  if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
   run(
     registry,
     (connection) =>
@@ -118,10 +115,8 @@ function sendTurn(
           connection.request('turn.start', {
             threadId,
             text,
-            provider,
-            effort: loadout.effort,
+            ...loadout,
             permissionMode: registry.get(accessModeAtom),
-            ...(loadout.model ? { model: loadout.model } : {}),
           })
         )
       ),
@@ -180,16 +175,51 @@ function respondQuestion(
 
 function bumpDraft(registry: Registry) {
   registry.update(draftEpochAtom, (epoch) => epoch + 1)
-  registry.update(loadoutAtom, (loadout) =>
-    loadout.provider === draftProvider ? loadout : { ...loadout, provider: draftProvider }
-  )
+  registry.update(loadoutOverridesAtom, (overrides) => without(overrides, [draftKey]))
 }
 
-export function useLoadout() {
+function firstLoadout(slots: readonly LoadoutSlot[]) {
+  for (const slot of slots) {
+    const loadout = slotLoadout(slot)
+    if (loadout) return loadout
+  }
+}
+
+function savedLoadout(
+  thread: ThreadMeta | undefined,
+  slots: readonly LoadoutSlot[],
+  catalog: readonly ProviderModel[]
+): Loadout | undefined {
+  const provider = thread?.provider
+  if (!provider) return firstLoadout(slots)
+  if (thread.model)
+    return { provider, model: thread.model, effort: thread.effort, fast: thread.fast ?? false }
+  const slot = firstLoadout(slots.filter((item) => item.provider === provider))
+  if (slot) return slot
+  const model = catalog.find((item) => item.provider === provider)
+  return model && equipModel({ fast: false }, model)
+}
+
+export function useThreadLoadout(threadId: string | undefined) {
   const registry = useContext(RegistryContext)
-  const loadout = useAtomValue(loadoutAtom)
-  const setLoadout = useCallback((next: Loadout) => registry.set(loadoutAtom, next), [registry])
-  return { loadout, setLoadout }
+  const key = threadId ?? draftKey
+  const override = useAtomValue(loadoutOverridesAtom).get(key)
+  const slots = useAtomValue(loadoutsAtom)
+  const catalog = useAtomValue(modelsAtom)
+  const thread = useChrome()?.threads.find((item) => item.id === threadId)
+  const saved = useMemo(() => savedLoadout(thread, slots, catalog), [catalog, slots, thread])
+  const settled = Boolean(override && saved && sameLoadout(override, saved))
+
+  useEffect(() => {
+    if (settled) registry.update(loadoutOverridesAtom, (overrides) => without(overrides, [key]))
+  }, [key, registry, settled])
+
+  const setLoadout = useCallback(
+    (next: Loadout) =>
+      registry.update(loadoutOverridesAtom, (overrides) => new Map(overrides).set(key, next)),
+    [key, registry]
+  )
+  return { loadout: override ?? saved, lockedProvider: thread?.provider, setLoadout }
 }
 
 export function useDraftEpoch() {
