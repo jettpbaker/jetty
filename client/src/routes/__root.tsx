@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/custom/app_shell'
+import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { StateProvider } from '@/state'
 import { IconContext, type IconProps } from '@phosphor-icons/react'
@@ -16,6 +17,7 @@ function Root() {
           <AppShell>
             <Outlet />
           </AppShell>
+          <Toaster position='top-center' />
         </TooltipProvider>
       </IconContext.Provider>
     </StateProvider>
