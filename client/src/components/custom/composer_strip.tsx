@@ -23,7 +23,7 @@ import { NeedsInputIcon } from './circle_status_icon'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { mediaUrl } from './media_layout'
-import { SourceLabel } from './source_label'
+import { SourceLabel, ThreadSourceLabel } from './source_label'
 
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -643,19 +643,27 @@ function QueuedImages({ entry }: { entry: QueuedMessage }) {
   )
 }
 
+function QueuedLine({ entry }: { entry: QueuedMessage }) {
+  return (
+    <>
+      <QueuedImages entry={entry} />
+      {entry.from && <ThreadSourceLabel from={entry.from} className='max-w-40 shrink-0' />}
+      <span className='min-w-0 flex-1 truncate'>{firstLine(entry.text)}</span>
+    </>
+  )
+}
+
 function QueueRow({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
   if (entry.id === q.editing)
     return (
       <div className='flex h-7 min-w-0 items-center gap-2 text-muted-foreground'>
-        <QueuedImages entry={entry} />
-        <span className='min-w-0 flex-1 truncate'>{firstLine(entry.text)}</span>
+        <QueuedLine entry={entry} />
         <span className='shrink-0 text-xs'>Editing</span>
       </div>
     )
   return (
     <div className='group/row flex h-7 min-w-0 items-center gap-2'>
-      <QueuedImages entry={entry} />
-      <span className='min-w-0 flex-1 truncate'>{firstLine(entry.text)}</span>
+      <QueuedLine entry={entry} />
       <span className='-mr-1.5 flex opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100'>
         <QueueActions entry={entry} q={q} />
       </span>
@@ -687,11 +695,7 @@ export function QueueTray({ q }: { q: QueueControl }) {
         <span className='shrink-0 text-xs text-muted-foreground'>
           {q.queue.length} queued{q.paused && ' · Paused'}
         </span>
-        {open ? (
-          <span className='flex-1' />
-        ) : (
-          <span className='min-w-0 flex-1 truncate'>{firstLine(next.text)}</span>
-        )}
+        {open ? <span className='flex-1' /> : <QueuedLine entry={next} />}
         <StripToggle
           open={open}
           onToggle={() => setOpen((value) => !value)}

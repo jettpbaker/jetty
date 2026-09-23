@@ -5,29 +5,9 @@ import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
-import { useChrome } from '@/state'
-import { useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
 
-import { SourceLabel } from './source_label'
-
-type MessageSource = { threadId: string; title: string }
-
-function MessageFrom({ from }: { from: MessageSource }) {
-  const navigate = useNavigate()
-  const provider = useChrome()?.threads.find((thread) => thread.id === from.threadId)?.provider
-  return (
-    <SourceLabel provider={provider} className='self-end'>
-      <button
-        type='button'
-        onClick={() => navigate({ to: '/threads/$threadId', params: { threadId: from.threadId } })}
-        className='text-foreground/90 hover:text-foreground hover:underline'
-      >
-        {from.title}
-      </button>
-    </SourceLabel>
-  )
-}
+import { ThreadSourceLabel, type MessageSource } from './source_label'
 
 export function UserMessage({
   text,
@@ -45,7 +25,7 @@ export function UserMessage({
   return (
     <Message align='end'>
       <MessageContent className={cn(from && 'gap-1.5')}>
-        {from && <MessageFrom from={from} />}
+        {from && <ThreadSourceLabel from={from} className='self-end' />}
         <Bubble variant='secondary' align='end'>
           <BubbleContent
             className='rounded-lg'
