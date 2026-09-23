@@ -18,6 +18,12 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   project. Emoji render as Microsoft Fluent **Flat** (github.com/microsoft/fluentui-emoji,
   MIT), never the OS font. The sketchpad's emoji-picker-react can load custom images
   via `getEmojiUrl`; Fluent assets are keyed by name, so map from their metadata.
+- Workflows, after the v1 cut (status lines under the composer, sidebar working,
+  a2a in-chat row, per-workflow stop): the detail view (c1 / c1b / c1c in the
+  sketchpad) and resume. Resume plan: after a restart jetty resumes interrupted
+  Claude workflows once, automatically; Resume shows only if that fails, you
+  stopped it, or it's Grok (same-process resume only). States: Running, Finished,
+  Failed, Stopped — no "Interrupted".
 - Grok doesn't report context usage, so its ring stays empty.
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
