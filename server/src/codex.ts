@@ -352,12 +352,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             .withPermit(
               Effect.gen(function* () {
                 if (!session.accepting || !session.connection) return false
-                yield* beforeAccept
                 yield* session.connection.request('turn/steer', {
                   threadId: session.providerThreadId,
                   expectedTurnId: session.providerTurnId,
                   input: codexInput(text, images),
                 })
+                yield* beforeAccept
                 return true
               })
             )

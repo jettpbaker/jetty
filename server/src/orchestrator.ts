@@ -266,9 +266,11 @@ export function createOrchestrator(
                   !thread.pendingMessages?.some((m) => m.id === input.queued!.id)
                 )
                   return { turnId: '' }
+                if (input.sendNow && !state(input.threadId).turnId)
+                  return yield* Effect.fail(new StoreError('conflict', 'No accepting turn'))
                 if (
-                  (state(input.threadId).turnId || !state(input.threadId).ready) &&
-                  !input.sendNow
+                  (!state(input.threadId).turnId && !state(input.threadId).ready) ||
+                  (state(input.threadId).turnId && !input.sendNow)
                 )
                   return { turnId: '' }
                 const queued = thread.pendingMessages.find((m) => m.id === input.queued!.id)!
@@ -442,7 +444,14 @@ export function createOrchestrator(
           const queued = thread.pendingMessages?.find((m) => m.id === messageId)
           if (!queued)
             return yield* Effect.fail(new StoreError('not_found', 'Queued message not found'))
-          yield* startTurnEffect({ threadId, text: queued.text, queued, sendNow: true })
+          const result = yield* startTurnEffect({
+            threadId,
+            text: queued.text,
+            queued,
+            sendNow: true,
+          })
+          if (!result.turnId)
+            return yield* Effect.fail(new StoreError('conflict', 'Queued message was not accepted'))
         })
       },
       resumeQueues() {
@@ -466,13 +475,47 @@ export function createOrchestrator(
               threadId: thread.id,
               text: queue[0].text,
               queued: queue[0],
-            }).pipe(Effect.ignore)
+            }).pipe(
+              Effect.catchCause((cause) =>
+                hub
+                  .withChromePublication(
+                    store
+                      .transaction(
+                        Effect.gen(function* () {
+                          const current = yield* store.getThread(thread.id)
+                          if (!current?.pendingMessages?.some((m) => m.id === queue[0]!.id)) return
+                          yield* store.editQueued(thread.id, queue[0]!.id)
+                          return yield* store.appendEvent(thread.id, {
+                            type: 'item.started',
+                            item: {
+                              id: newId(),
+                              turnId: newId(),
+                              createdAt: Date.now(),
+                              kind: 'error',
+                              message: String(cause),
+                            },
+                          })
+                        })
+                      )
+                      .pipe(
+                        Effect.tap((appended) =>
+                          Effect.sync(() => {
+                            if (appended) publish(thread.id, appended)
+                          })
+                        )
+                      )
+                  )
+                  .pipe(Effect.catchCause((failure) => Effect.logError(failure)))
+              )
+            )
           }
         })
         return Effect.forever(
           drain.pipe(
             Effect.andThen(Queue.take(store.queueChanges)),
-            Effect.catch(() => Effect.sleep(100))
+            Effect.catchCause((cause) =>
+              Effect.logError(cause).pipe(Effect.andThen(Effect.sleep(100)))
+            )
           )
         ).pipe(Effect.forkIn(scope), Effect.asVoid)
       },

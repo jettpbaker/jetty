@@ -169,7 +169,7 @@ test('question responses map question text to provider ids; unknown requests fai
   ).toMatchObject({ error: { code: -32601 } })
 })
 
-test('steering commits user input before provider acceptance and rejects after completion', async () => {
+test('steering commits user input after provider acceptance and rejects after completion', async () => {
   const f = await setup()
   const turn = await f.start('hold')
   await until(f.events, (e) => e.type === 'item.started')
@@ -342,7 +342,7 @@ test('concurrent start calls cannot create two processes for one thread', async 
   await f.first.dispose()
 })
 
-test('failed steering publication retires the turn without sending uncommitted input', async () => {
+test('failed steering publication retires the accepted turn', async () => {
   const f = await setup()
   const turn = await f.start('hold')
   await until(f.events, (e) => e.type === 'item.started')
@@ -361,7 +361,7 @@ test('failed steering publication retires the turn without sending uncommitted i
     )
   ).toBe(true)
   await Effect.runPromise(Effect.exit(turn.await))
-  expect(f.log().some((m) => m.method === 'turn/steer')).toBe(false)
+  expect(f.log().some((m) => m.method === 'turn/steer')).toBe(true)
   dead(f.home)
 })
 
