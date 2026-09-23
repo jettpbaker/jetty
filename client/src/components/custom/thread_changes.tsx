@@ -34,9 +34,11 @@ const PatchViewer = lazy(async () => {
     const [reveal, setReveal] = useState<FileTarget>()
     useLayoutEffect(() => {
       if (!target) return
-      const found = files.some((file) => file.path === target.path)
-      if (found) setReveal(target)
-      onTarget(target, found)
+      const exact = files.find((file) => file.path === target.path)
+      const suffix = exact ? [] : files.filter((file) => file.path.endsWith(`/${target.path}`))
+      const match = exact ?? (suffix.length === 1 ? suffix[0] : undefined)
+      if (match) setReveal({ ...target, path: match.path })
+      onTarget(target, !!match)
     }, [target, files, onTarget])
     return (
       <FileChangesViewer

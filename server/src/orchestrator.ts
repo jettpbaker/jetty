@@ -58,7 +58,7 @@ function providerConflict(bound: string, requested: string) {
 // Agents otherwise read a relayed message as the user's own words.
 function agentText({ text, queued }: StartTurnInput) {
   return queued?.from
-    ? `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${JSON.stringify(text)}\n</relayed-message>`
+    ? `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${text.replaceAll(/<\/relayed-message/gi, '&lt;/relayed-message')}\n</relayed-message>`
     : text
 }
 

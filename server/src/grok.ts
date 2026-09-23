@@ -15,7 +15,7 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
-import { approvalChanges } from './approval-changes'
+import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
 import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
 import { createGrokTranslator } from './grok-translate'
@@ -187,6 +187,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             return
           }
           session.pending.set(itemId, { id, options })
+          const changes = approvalChanges(string(tool.kind), tool.rawInput)
           yield* session.emit({
             type: 'item.started',
             item: {
@@ -194,11 +195,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               kind: 'approval',
               title: string(tool.title) || 'Run tool',
               toolName: string(tool.kind) || 'tool',
-              input: tool.rawInput ?? {},
+              input: changes.length
+                ? approvalInputWithoutChanges(object(tool.rawInput))
+                : (tool.rawInput ?? {}),
               suggestions: [],
-              ...(approvalChanges(string(tool.kind), tool.rawInput).length
-                ? { changes: approvalChanges(string(tool.kind), tool.rawInput) }
-                : {}),
+              ...(changes.length ? { changes } : {}),
               ...(options.some((o) => o.kind === 'allow_always' && string(o.optionId))
                 ? { always: { scope: 'session' as const, patterns: [] } }
                 : {}),

@@ -1,5 +1,7 @@
 import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
+import { constants } from 'node:fs'
+import { open, realpath, stat } from 'node:fs/promises'
 
 import { git } from './git-process'
 import { StoreError } from './store'
@@ -142,16 +144,46 @@ export function readProjectFile(cwd: string, path: string) {
     const root = yield* fs.realPath(cwd).pipe(Effect.option)
     if (Option.isNone(root))
       return yield* Effect.fail(new StoreError('not_found', 'Project folder not found'))
-    const file = yield* fs.realPath(paths.join(root.value, path)).pipe(Effect.option)
+    let file = yield* fs.realPath(paths.join(root.value, path)).pipe(Effect.option)
+    if (Option.isNone(file)) {
+      const top = yield* git(root.value, ['rev-parse', '--show-toplevel'])
+      if (top.code === 0)
+        file = yield* fs.realPath(paths.join(top.out.trim(), path)).pipe(Effect.option)
+    }
     if (Option.isNone(file)) return { contents: null }
     if (!file.value.startsWith(root.value + paths.sep))
       return yield* Effect.fail(new StoreError('invalid_params', `${path} is outside the project`))
-    const stat = yield* fs.stat(file.value).pipe(Effect.option)
-    if (Option.isNone(stat) || stat.value.type !== 'File') return { contents: null }
-    if (Number(stat.value.size) > MAX_CONTENTS_BYTES) return tooLarge
-    const bytes = yield* fs.readFile(file.value).pipe(Effect.option)
-    if (Option.isNone(bytes)) return { contents: null }
-    return bytes.value.includes(0) ? binary : { contents: new TextDecoder().decode(bytes.value) }
+    const opened = yield* Effect.promise(async () => {
+      try {
+        const handle = await open(file.value, constants.O_RDONLY | constants.O_NOFOLLOW)
+        try {
+          const [actual, fromHandle, fromPath] = await Promise.all([
+            realpath(file.value),
+            handle.stat(),
+            stat(file.value),
+          ])
+          if (
+            actual !== file.value ||
+            fromHandle.dev !== fromPath.dev ||
+            fromHandle.ino !== fromPath.ino
+          )
+            return { changed: true } as const
+          if (!fromHandle.isFile()) return { contents: null } as const
+          if (fromHandle.size > MAX_CONTENTS_BYTES) return tooLarge
+          return { bytes: await handle.readFile() } as const
+        } finally {
+          await handle.close()
+        }
+      } catch {
+        return { contents: null } as const
+      }
+    })
+    if ('changed' in opened)
+      return yield* Effect.fail(new StoreError('invalid_params', 'File changed while opening'))
+    if ('unavailable' in opened && opened.unavailable) return tooLarge
+    const bytes = 'bytes' in opened ? opened.bytes : undefined
+    if (!bytes) return { contents: null }
+    return bytes.includes(0) ? binary : { contents: new TextDecoder().decode(bytes) }
   })
 }
 

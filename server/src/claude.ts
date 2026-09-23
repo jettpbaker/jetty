@@ -39,7 +39,7 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
-import { approvalChanges } from './approval-changes'
+import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
 import { claudeBin } from './claude-bin'
 import {
   createTranslateCtx,
@@ -548,6 +548,7 @@ export function createClaudeAdapter(
                 },
               })
             } else {
+              const changes = approvalChanges(toolName, toolInput)
               session.pendingApprovals.set(itemId, {
                 result,
                 input: toolInput,
@@ -560,11 +561,9 @@ export function createClaudeAdapter(
                   kind: 'approval',
                   title: options.title ?? toolName,
                   toolName,
-                  input: toolInput,
+                  input: changes.length ? approvalInputWithoutChanges(toolInput) : toolInput,
                   suggestions: options.suggestions ?? [],
-                  ...(approvalChanges(toolName, toolInput).length
-                    ? { changes: approvalChanges(toolName, toolInput) }
-                    : {}),
+                  ...(changes.length ? { changes } : {}),
                   ...alwaysFrom(options.suggestions),
                 },
               })

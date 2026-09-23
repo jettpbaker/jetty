@@ -3,7 +3,7 @@ import type { ProviderModel } from '@jetty/shared/wire'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, type RateLimits } from '@jetty/shared/wire'
-import { Context, Deferred, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
+import { Context, Deferred, Effect, FileSystem, Layer, ManagedRuntime, Option, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
@@ -136,12 +136,15 @@ const MAX_TURN_PAYLOAD_BYTES = Math.ceil((MAX_TURN_IMAGE_BYTES * 4) / 3) + 1024 
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 
-function serveStatic(pathname: string, wsSecret: string) {
+function serveStatic(pathname: string, wsSecret: string, localPeer: boolean) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const indexPath = join(distDir, 'index.html')
     const secretTag = `<meta name="jetty-ws-secret" content="${wsSecret}">`
-    if (!(yield* fs.exists(indexPath))) return HttpServerResponse.html(secretTag)
+    if (!(yield* fs.exists(indexPath)))
+      return localPeer
+        ? HttpServerResponse.html(secretTag)
+        : HttpServerResponse.text('Forbidden', { status: 403 })
     const requested = pathname === '/' ? '/index.html' : pathname
     const filePath = normalize(join(distDir, requested))
     if (!filePath.startsWith(distDir + sep)) {
@@ -150,6 +153,7 @@ function serveStatic(pathname: string, wsSecret: string) {
     const stat = yield* fs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(null)))
     const path = stat?.type === 'File' ? filePath : indexPath
     if (path === indexPath) {
+      if (!localPeer) return HttpServerResponse.text('Forbidden', { status: 403 })
       const html = yield* fs.readFileString(indexPath)
       return HttpServerResponse.html(html.replace('</head>', `${secretTag}</head>`))
     }
@@ -371,6 +375,11 @@ function createServer(opts: ServerOptions = {}) {
     const app = Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const url = new URL(request.url, 'http://localhost')
+      const peer = request.remoteAddress
+      const localPeer =
+        peer &&
+        Option.isSome(peer) &&
+        ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer.value)
       if (url.pathname === '/mcp') {
         if (request.headers.origin && !originAllowed(request.headers.origin))
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
@@ -399,7 +408,7 @@ function createServer(opts: ServerOptions = {}) {
         if (!resolved) return HttpServerResponse.text('Not found', { status: 404 })
         return yield* rangeResponse(resolved.path, resolved.mimeType, request.headers.range ?? null)
       }
-      return yield* serveStatic(url.pathname, wsSecret)
+      return yield* serveStatic(url.pathname, wsSecret, !!localPeer)
     }).pipe(
       Effect.catch(() => Effect.succeed(HttpServerResponse.text('Not found', { status: 404 }))),
       Effect.interruptible

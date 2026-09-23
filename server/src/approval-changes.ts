@@ -2,6 +2,17 @@ import { object, string } from './stdio-rpc'
 
 export type ApprovalChange = { path: string; diff?: string; before?: string; after?: string }
 
+export function approvalInputWithoutChanges(
+  input: Record<string, unknown>
+): Record<string, unknown> {
+  const compact = { ...input }
+  for (const key of ['content', 'old_string', 'new_string', 'diff', 'patch', 'changes'])
+    delete compact[key]
+  if (Array.isArray(compact.edits))
+    compact.edits = compact.edits.map((edit) => approvalInputWithoutChanges(object(edit)))
+  return compact
+}
+
 export function approvalChanges(toolName: string, input: unknown): ApprovalChange[] {
   const data = object(input)
   if (Array.isArray(data.changes)) {

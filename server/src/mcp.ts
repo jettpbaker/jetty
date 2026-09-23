@@ -383,15 +383,23 @@ export function createMcpHandler(
         },
         () =>
           invoke(
-            Effect.succeed(
-              (models() ?? []).map(({ provider, id, name, efforts, defaultEffort }) => ({
+            Effect.gen(function* () {
+              const catalog = models()
+              if (!catalog)
+                return yield* Effect.fail(
+                  new StoreError(
+                    'invalid_params',
+                    'Provider discovery is still running; retry shortly'
+                  )
+                )
+              return catalog.map(({ provider, id, name, efforts, defaultEffort }) => ({
                 provider,
                 id,
                 name,
                 efforts,
                 defaultEffort,
               }))
-            )
+            })
           )
       )
       server.registerTool(
