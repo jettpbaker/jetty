@@ -5,7 +5,7 @@ import { Socket } from 'effect/unstable/socket'
 
 type UnaryRpcs = Exclude<
   RpcGroup.Rpcs<typeof JettyRpcs>,
-  { readonly _tag: 'chrome.subscribe' | 'thread.subscribe' }
+  { readonly _tag: 'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe' }
 >
 
 const backoff = Schedule.min([
@@ -50,7 +50,11 @@ export function createConnection(url: string) {
       )
     }
 
-    return { request, subscribeChrome, subscribeThread }
+    function subscribePullRequest(repo: string, number: number) {
+      return rpc('pullRequest.subscribe', { repo, number }).pipe(Stream.retry(reconnect))
+    }
+
+    return { request, subscribeChrome, subscribeThread, subscribePullRequest }
   })
 }
 

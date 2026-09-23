@@ -24,6 +24,19 @@ export {
   useRenameThread,
   useSetProjectIcon,
 } from './mutations'
+export {
+  pullRequestKey,
+  pullRequestTabId,
+  useThreadPullRequests,
+  useDetailsRequest,
+  useLinkPullRequest,
+  useOpenPullRequest,
+  usePullRequest,
+  usePullRequestTabs,
+  useRefreshPullRequest,
+  useUnlinkPullRequest,
+  type PullRequestRef,
+} from './pull_requests'
 export { useQueueActions, useThreadQueue } from './queue'
 export {
   useBumpDraft,
