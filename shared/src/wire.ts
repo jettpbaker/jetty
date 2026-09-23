@@ -104,7 +104,9 @@ export const methods = {
     params: Schema.Struct({ partialPath: Schema.String }),
     result: Schema.Struct({
       parentPath: Schema.String,
-      entries: Schema.Array(Schema.Struct({ name: Schema.String, fullPath: Schema.String })),
+      entries: Schema.Array(
+        Schema.Struct({ name: Schema.String, fullPath: Schema.String, isGitRepo: Schema.Boolean })
+      ),
     }),
   },
   'fs.search': {

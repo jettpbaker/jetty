@@ -2,7 +2,7 @@ import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-export type BrowseEntry = { name: string; fullPath: string }
+export type BrowseEntry = { name: string; fullPath: string; isGitRepo: boolean }
 export type BrowseResult = { parentPath: string; entries: BrowseEntry[] }
 
 const MAX_ENTRIES = 50
@@ -30,7 +30,7 @@ export function browse(partialPath: string) {
 
     const names = yield* fs.readDirectory(dir).pipe(Effect.catch(() => Effect.succeed([])))
 
-    const entries: BrowseEntry[] = []
+    const entries: Omit<BrowseEntry, 'isGitRepo'>[] = []
     for (const name of names) {
       if (!showDotfiles && name.startsWith('.')) continue
       if (filter && !name.toLowerCase().startsWith(filterLower)) continue
@@ -43,7 +43,16 @@ export function browse(partialPath: string) {
       entries.push({ name, fullPath })
     }
     entries.sort((a, b) => a.name.localeCompare(b.name))
-    return { parentPath: dir, entries: entries.slice(0, MAX_ENTRIES) }
+    const shown = yield* Effect.forEach(
+      entries.slice(0, MAX_ENTRIES),
+      (entry) =>
+        fs.exists(path.join(entry.fullPath, '.git')).pipe(
+          Effect.catch(() => Effect.succeed(false)),
+          Effect.map((isGitRepo) => ({ ...entry, isGitRepo }))
+        ),
+      { concurrency: 'unbounded' }
+    )
+    return { parentPath: dir, entries: shown }
   })
 }
 
