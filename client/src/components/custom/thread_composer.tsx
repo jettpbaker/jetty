@@ -175,11 +175,6 @@ export function ThreadComposer({
     update({ text: '', editing: undefined })
   }
 
-  function changeDraft(value: string) {
-    if (!value.trim() && threadId && editing) queueActions.release(threadId, editing)
-    update(value.trim() ? { text: value } : { text: value, editing: undefined })
-  }
-
   const queueControl = {
     queue,
     running,
@@ -302,7 +297,7 @@ export function ThreadComposer({
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
       <Composer
         value={draft}
-        onValueChange={changeDraft}
+        onValueChange={setDraft}
         onSubmit={mode.onSubmit}
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
