@@ -11,10 +11,12 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { formatDuration, formatSubagentTokens } from './subagent_row'
 import {
   AgentGlyph,
+  FailedCount,
   shownState,
   stopDisabledReason,
   tally,
   workflowSeconds,
+  workflowStatus,
   workflowTone,
   type Workflow,
 } from './workflow_parts'
@@ -82,12 +84,13 @@ function PhaseHeading({
   index: number
   title: string
 }) {
-  const { done, total } = tally(agentsIn(workflow, index))
+  const { done, failed, total } = tally(agentsIn(workflow, index))
   return (
     <div className='col-span-full flex h-7 items-end gap-2 px-2 pb-1 text-xs'>
       <span className='text-foreground'>{title}</span>
       <span className='text-muted-foreground tabular-nums'>
         {done}/{total}
+        <FailedCount failed={failed} />
       </span>
     </div>
   )
@@ -116,14 +119,15 @@ function AllLines({ workflow }: { workflow: Workflow }) {
 
 export function WorkflowGroup({ threadId, workflow }: { threadId: string; workflow: Workflow }) {
   const stopWorkflow = useStopWorkflow()
-  const running = workflow.status === 'running'
+  const status = workflowStatus(workflow)
+  const running = status === 'running'
   const now = useNow(1000, running)
-  const { done, total } = tally(workflow.agents)
+  const { done, failed, total } = tally(workflow.agents)
   const title = running
     ? 'Running'
-    : workflow.status === 'completed'
+    : status === 'completed'
       ? 'Ran'
-      : workflow.status === 'failed'
+      : status === 'failed'
         ? 'Failed'
         : 'Stopped'
   return (
@@ -136,9 +140,7 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
         <span
           className={cn(
             'shrink-0',
-            workflow.status !== 'running' &&
-              workflow.status !== 'completed' &&
-              workflowTone[workflow.status]
+            status !== 'running' && status !== 'completed' && workflowTone[status]
           )}
         >
           {title} workflow
@@ -147,6 +149,7 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
         <span className='ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground tabular-nums'>
           <span>
             {done}/{total} agents
+            <FailedCount failed={failed} />
           </span>
           <span>
             {running

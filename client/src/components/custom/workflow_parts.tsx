@@ -11,8 +11,19 @@ export type Workflow = Extract<ThreadItem, { kind: 'workflow' }>
 export function tally(agents: readonly WorkflowAgent[]) {
   return {
     done: agents.filter((agent) => agent.state === 'done').length,
+    failed: agents.filter((agent) => agent.state === 'error').length,
     total: agents.length,
   }
+}
+
+// Providers can report a workflow complete even when every agent failed.
+export function workflowStatus(workflow: Workflow): Workflow['status'] {
+  const { done, failed } = tally(workflow.agents)
+  return workflow.status === 'completed' && failed > 0 && done === 0 ? 'failed' : workflow.status
+}
+
+export function FailedCount({ failed }: { failed: number }) {
+  return failed > 0 && <span className='text-status-error'> · {failed} failed</span>
 }
 
 export function workflowSeconds(workflow: Workflow, now: number) {
@@ -50,7 +61,8 @@ export function waitingCount(workflow: Workflow) {
 }
 
 export function WorkflowGlyph({ workflow, className }: { workflow: Workflow; className?: string }) {
-  if (workflow.status === 'running')
+  const status = workflowStatus(workflow)
+  if (status === 'running')
     return (
       <InProgressIcon
         aria-hidden='true'
@@ -59,13 +71,7 @@ export function WorkflowGlyph({ workflow, className }: { workflow: Workflow; cla
     )
   return (
     <AgentGlyph
-      state={
-        workflow.status === 'completed'
-          ? 'done'
-          : workflow.status === 'failed'
-            ? 'error'
-            : 'stopped'
-      }
+      state={status === 'completed' ? 'done' : status === 'failed' ? 'error' : 'stopped'}
       className={className}
     />
   )

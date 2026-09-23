@@ -9,11 +9,13 @@ import { useState } from 'react'
 import { DisabledTooltip } from './disabled_tooltip'
 import { formatDuration, formatSubagentTokens } from './subagent_row'
 import {
+  FailedCount,
   WorkflowGlyph,
   stopDisabledReason,
   tally,
   waitingCount,
   workflowSeconds,
+  workflowStatus,
   type Workflow,
 } from './workflow_parts'
 
@@ -116,8 +118,9 @@ function WorkflowLine({
   onOpen?: () => void
   onStop: () => void
 }) {
-  const running = workflow.status === 'running'
-  const { done, total } = tally(workflow.agents)
+  const status = workflowStatus(workflow)
+  const running = status === 'running'
+  const { done, failed, total } = tally(workflow.agents)
   const waiting = waitingCount(workflow)
   return (
     <div
@@ -146,6 +149,7 @@ function WorkflowLine({
       </span>
       <span className='justify-self-end text-muted-foreground tabular-nums'>
         {done}/{total} agents done
+        <FailedCount failed={failed} />
       </span>
       {running ? (
         <>
@@ -177,10 +181,10 @@ function WorkflowLine({
           <span
             className={cn(
               'justify-self-end',
-              workflow.status === 'failed' ? 'text-status-error' : 'text-muted-foreground'
+              status === 'failed' ? 'text-status-error' : 'text-muted-foreground'
             )}
           >
-            {settledLabel[workflow.status]}
+            {settledLabel[status]}
           </span>
           <span className='justify-self-end text-muted-foreground tabular-nums'>
             {formatSubagentTokens(workflow.tokens)}
