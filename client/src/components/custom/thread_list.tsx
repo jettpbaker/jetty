@@ -7,7 +7,6 @@ import { CreatedThreads } from '@/components/custom/child_threads'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
-import { QuestionMessage } from '@/components/custom/question_message'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
 import {
@@ -16,6 +15,7 @@ import {
   type SubagentItem,
   type ThreadRow,
 } from '@/components/custom/thread_rows'
+import { TranscriptMarker } from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
@@ -47,8 +47,8 @@ function rowStamp(row: ThreadRow) {
       return row.agents.map((agent) => `${agent.id}:${agent.status}`).join(',')
     case 'created':
       return row.threadIds.join(',')
-    case 'question':
-      return `${row.item.questions.length}:${row.item.skipped ?? ''}:${Object.keys(row.item.answers ?? {}).length}`
+    case 'marker':
+      return row.item.kind
     case 'work':
       return row.activities
         .map((activity) =>
@@ -91,15 +91,15 @@ function ThreadItemRow({
   threadId,
   selectedAgent,
   onSelectAgent,
-  onApproval,
-  onAnswer,
+  provider,
+  projectPath,
 }: {
   row: ThreadRow
   threadId: string
   selectedAgent?: string
   onSelectAgent: (id: string) => void
-  onApproval: (itemId: string, approved: boolean) => void
-  onAnswer: (itemId: string, answers: Record<string, string>) => void
+  provider?: string
+  projectPath?: string
 }) {
   if (row.kind === 'user')
     return (
@@ -124,7 +124,6 @@ function ThreadItemRow({
         activities={row.activities}
         status={row.status}
         elapsedSeconds={row.elapsedSeconds}
-        onApproval={onApproval}
       />
     )
   if (row.kind === 'subagents')
@@ -135,7 +134,14 @@ function ThreadItemRow({
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
   if (row.kind === 'video')
     return <VideoMessage video={row.item.video} caption={row.item.caption} />
-  return <QuestionMessage item={row.item} onAnswer={(answers) => onAnswer(row.item.id, answers)} />
+  return (
+    <TranscriptMarker
+      item={row.item}
+      source={row.source}
+      provider={provider}
+      projectPath={projectPath}
+    />
+  )
 }
 
 export function ThreadList({
@@ -145,10 +151,9 @@ export function ThreadList({
   running,
   outcomes,
   projectPath,
+  provider,
   agentId,
   onSelectAgent,
-  onApproval,
-  onAnswer,
 }: {
   threadId: string
   items: readonly ThreadItem[]
@@ -156,10 +161,9 @@ export function ThreadList({
   running: boolean
   outcomes?: Readonly<Record<string, TurnOutcome>>
   projectPath?: string
+  provider?: string
   agentId?: string
   onSelectAgent: (id: string) => void
-  onApproval: (itemId: string, approved: boolean) => void
-  onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   const rows = useMemo(
     () => threadRows(items, { status, running, outcomes, projectPath, agentId }),
@@ -233,8 +237,8 @@ export function ThreadList({
                   threadId={threadId}
                   selectedAgent={agentId}
                   onSelectAgent={onSelectAgent}
-                  onApproval={onApproval}
-                  onAnswer={onAnswer}
+                  provider={provider}
+                  projectPath={projectPath}
                 />
               </div>
             </div>

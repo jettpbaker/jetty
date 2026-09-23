@@ -4,15 +4,7 @@ import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
 import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
 import { threadSubagents } from '@/components/custom/thread_rows'
-import {
-  MAIN_TAB,
-  useChrome,
-  useRespondApproval,
-  useRespondQuestion,
-  useThread,
-  useThreadOverlay,
-  useThreadTab,
-} from '@/state'
+import { MAIN_TAB, useChrome, useThread, useThreadOverlay, useThreadTab } from '@/state'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
@@ -23,20 +15,22 @@ function Thread() {
   const thread = useThread(threadId)
   const overlay = useThreadOverlay(threadId, thread)
   const chrome = useChrome()
-  const projectId = chrome?.threads.find((item) => item.id === threadId)?.projectId
-  const projectPath = chrome?.projects.find((project) => project.id === projectId)?.path
-  const respondApproval = useRespondApproval()
-  const respondQuestion = useRespondQuestion()
+  const meta = chrome?.threads.find((item) => item.id === threadId)
+  const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
+  const projectPath = project?.path
   const [tab, setTab] = useThreadTab(threadId)
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
   const agent = agents.find((entry) => entry.id === tab)
   const composer = (
     <ThreadComposer
       threadId={threadId}
-      items={thread?.items ?? []}
+      items={overlay.serverItems}
       running={overlay.running}
       rows={overlay.empty ? 2 : 1}
       ambient={overlay.empty}
+      provider={meta?.provider}
+      projectPath={projectPath}
+      projectTitle={project?.title}
     />
   )
   return (
@@ -61,12 +55,9 @@ function Thread() {
             running={agent ? false : overlay.running}
             outcomes={agent ? undefined : thread?.turnOutcomes}
             projectPath={projectPath}
+            provider={meta?.provider}
             agentId={agent?.id}
             onSelectAgent={setTab}
-            onApproval={(itemId, approved) =>
-              respondApproval(threadId, itemId, approved ? 'allow' : 'deny')
-            }
-            onAnswer={(itemId, answers) => respondQuestion(threadId, itemId, answers)}
           />
           {!agent && composer}
         </ThreadDetailsLayout>

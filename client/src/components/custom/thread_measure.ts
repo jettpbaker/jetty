@@ -74,13 +74,7 @@ export function estimateRow(row: ThreadRow, width: number) {
       return 44 + 50 * row.agents.length
     case 'created':
       return 28 * row.threadIds.length
-    case 'question': {
-      let height = 24
-      for (const spec of row.item.questions) {
-        height += textHeight(`${row.id}:${spec.question}`, spec.question, width * 0.8, false)
-        height += 20 * spec.options.length + 16
-      }
-      return height
-    }
+    case 'marker':
+      return 16
   }
 }

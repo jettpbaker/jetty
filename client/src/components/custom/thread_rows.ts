@@ -2,16 +2,19 @@ import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
+import { awaitsInput } from '@/state/thread_tab'
+
 import type { Subagent } from './subagent_row'
 import type { ActivityStatus, ToolKind, WorkActivity } from './work_model'
 
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
 type AssistantItem = Extract<ThreadItem, { kind: 'assistant_message' }>
 type PlanItem = Extract<ThreadItem, { kind: 'plan' }>
+type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
 type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
-type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' | 'approval' }>
+type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 
 export type ThreadRow =
@@ -29,7 +32,8 @@ export type ThreadRow =
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
-  | { kind: 'question'; id: string; item: QuestionItem }
+  // a settled approval or question; pending ones live in the composer strip
+  | { kind: 'marker'; id: string; item: ApprovalItem | QuestionItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'created'; id: string; threadIds: string[] }
 
@@ -61,7 +65,7 @@ function toolKind(name: string): ToolKind {
 
 const pathKeys = new Set(['file_path', 'path'])
 
-function toolTarget(name: string, input: unknown, projectPath: string | undefined) {
+export function toolTarget(name: string, input: unknown, projectPath: string | undefined) {
   if (!input || typeof input !== 'object') return name
   const record = input as Record<string, unknown>
   for (const key of ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'text']) {
@@ -72,7 +76,7 @@ function toolTarget(name: string, input: unknown, projectPath: string | undefine
   return name
 }
 
-function projectRelative(path: string, projectPath: string | undefined) {
+export function projectRelative(path: string, projectPath: string | undefined) {
   if (!projectPath) return path
   const root = projectPath.endsWith('/') ? projectPath : `${projectPath}/`
   return path.startsWith(root) ? path.slice(root.length) : path
@@ -105,8 +109,7 @@ function toActivity(
   next: ThreadItem | undefined,
   sessionRunning: boolean,
   sessionActive: boolean,
-  projectPath: string | undefined,
-  source: string | undefined
+  projectPath: string | undefined
 ): WorkActivity {
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
@@ -122,24 +125,6 @@ function toActivity(
     }
   }
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
-  if (item.kind === 'approval')
-    return {
-      type: 'tool',
-      id: item.id,
-      kind: 'generic',
-      name: item.toolName,
-      target: item.title || item.toolName,
-      source,
-      status:
-        item.decision === 'allow' ? 'complete' : item.decision === 'deny' ? 'cancelled' : 'waiting',
-      input,
-      output:
-        item.decision === 'allow'
-          ? 'Allowed'
-          : item.decision === 'deny'
-            ? `Denied${item.deniedReason ? `: ${item.deniedReason}` : ''}`
-            : undefined,
-    }
   return {
     type: 'tool',
     id: item.id,
@@ -182,7 +167,7 @@ function createdThreadId(item: ThreadItem) {
 }
 
 function isWork(item: ThreadItem): item is WorkItem {
-  return item.kind === 'reasoning' || item.kind === 'tool_call' || item.kind === 'approval'
+  return item.kind === 'reasoning' || item.kind === 'tool_call'
 }
 
 // claude-sonnet-5 → Sonnet 5, claude-opus-4-6 → Opus 4.6; aliases like `sonnet` stay a family name.
@@ -268,14 +253,7 @@ export function threadRows(
   function flush(next: ThreadItem | undefined) {
     if (pending.length === 0) return
     const activities = pending.map((item, index) =>
-      toActivity(
-        item,
-        pending[index + 1] ?? next,
-        sessionRunning,
-        sessionActive,
-        projectPath,
-        item.agentId && agentTitles.get(item.agentId)
-      )
+      toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
     )
     const blockStatus = workStatus(activities, outcomes[pending[0]!.turnId])
     rows.push({
@@ -343,8 +321,15 @@ export function threadRows(
       case 'video':
         rows.push({ kind: 'video', id: item.id, item })
         break
+      case 'approval':
       case 'question':
-        rows.push({ kind: 'question', id: item.id, item })
+        if (!awaitsInput(item))
+          rows.push({
+            kind: 'marker',
+            id: item.id,
+            item,
+            source: item.agentId && agentTitles.get(item.agentId),
+          })
         break
     }
   }

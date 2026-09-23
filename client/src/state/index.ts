@@ -14,8 +14,10 @@ export {
   usePinThread,
   useRenameThread,
 } from './mutations'
+export { useQueueActions, useThreadQueue } from './queue'
 export {
   useBumpDraft,
+  useDismissQuestion,
   useDraftEpoch,
   useInterruptTurn,
   useRespondApproval,

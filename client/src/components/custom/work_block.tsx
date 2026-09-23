@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
@@ -9,7 +8,6 @@ import {
   formatActivityDuration,
   groupWorkActivities,
   type ActivityStatus,
-  type ToolActivity,
   type WorkActivity,
   type WorkEntry,
 } from './work_model'
@@ -58,22 +56,16 @@ export function WorkBlock({
   activities,
   status,
   elapsedSeconds,
-  onApproval,
 }: {
   activities: readonly WorkActivity[]
   status: ActivityStatus
   elapsedSeconds?: number
-  onApproval: (id: string, approved: boolean) => void
 }) {
   const ended = ['complete', 'failed', 'cancelled', 'interrupted'].includes(status)
   const entries = groupWorkActivities(activities, ended)
-  const waiting = activities.filter(
-    (activity): activity is ToolActivity =>
-      activity.type === 'tool' && activity.status === 'waiting'
-  )
   const duration = formatActivityDuration(elapsedSeconds)
   const heading =
-    waiting.length || status === 'waiting'
+    status === 'waiting'
       ? 'Waiting for you'
       : status === 'running'
         ? 'Working'
@@ -99,32 +91,6 @@ export function WorkBlock({
       renderContent={(view) => (
         <WorkHistory entries={entries} recentStart={recentStart} view={view} />
       )}
-      footer={
-        waiting.length > 0 && (
-          <div className='mx-2 mt-2 flex flex-col gap-2 rounded-sm border border-border bg-card p-3'>
-            {waiting.map((call) => (
-              <div key={call.id} className='flex flex-col gap-2'>
-                {call.source && (
-                  <p className='text-xs text-muted-foreground'>
-                    From subagent <span className='text-foreground'>{call.source}</span>
-                  </p>
-                )}
-                <p className='text-xs text-muted-foreground'>
-                  Allow <span className='font-mono break-all text-foreground'>{call.target}</span>?
-                </p>
-                <div className='flex gap-2'>
-                  <Button size='xs' onClick={() => onApproval(call.id, true)}>
-                    Allow once
-                  </Button>
-                  <Button size='xs' variant='ghost-text' onClick={() => onApproval(call.id, false)}>
-                    Deny
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      }
     />
   )
 }

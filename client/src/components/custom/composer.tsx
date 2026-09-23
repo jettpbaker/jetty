@@ -24,8 +24,12 @@ export function Composer({
   onSubmit,
   onInterrupt,
   running,
-  sendDisabled = false,
+  strip,
+  placeholder = 'What would you like to work on?',
+  sendLabel = 'Send',
+  sendDisabled,
   sendHint,
+  onKeyDown,
   loadout,
   model,
   accessMode,
@@ -40,8 +44,13 @@ export function Composer({
   onSubmit: () => void
   onInterrupt: () => void
   running: boolean
+  strip?: ReactNode
+  placeholder?: string
+  sendLabel?: string
+  // defaults to disabled while empty
   sendDisabled?: boolean
   sendHint?: string
+  onKeyDown?: (event: KeyboardEvent) => void
   loadout: ReactNode
   model?: ProviderModel
   accessMode: PermissionMode
@@ -51,12 +60,25 @@ export function Composer({
   rows?: number
   ambient?: boolean
 }) {
+  const root = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const empty = !value.trim() && attachments.images.length === 0
-  const canSend = !sendDisabled && !empty && attachments.ready
+  const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stop = running && empty
 
   const append = useEffectEvent((key: string) => onValueChange(value + key))
+  const handleKey = useEffectEvent((event: KeyboardEvent) => onKeyDown?.(event))
+
+  // A native listener, unlike React's, doesn't hear keys from portaled menus.
+  useEffect(() => {
+    const element = root.current
+    if (!element) return
+    function listener(event: KeyboardEvent) {
+      handleKey(event)
+    }
+    element.addEventListener('keydown', listener)
+    return () => element.removeEventListener('keydown', listener)
+  }, [])
 
   useEffect(() => {
     function focusComposer(event: KeyboardEvent) {
@@ -96,79 +118,94 @@ export function Composer({
   }
 
   return (
-    <div className='mx-auto flex w-full max-w-[660px] flex-col gap-1'>
-      <div
-        className='relative'
-        style={ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined}
-      >
-        {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
-        <InputGroup
-          className={cn(
-            'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0',
-            ambient && 'shadow-none'
-          )}
+    <div ref={root} className='mx-auto flex w-full max-w-[660px] flex-col gap-1'>
+      <div>
+        {strip ? <div className='px-3'>{strip}</div> : null}
+        <div
+          className='relative'
+          style={
+            ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined
+          }
         >
-          <ComposerImages images={attachments.images} onRemove={attachments.remove} />
-          <InputGroupTextarea
-            ref={textarea}
-            aria-label='Thread prompt'
-            placeholder='What would you like to work on?'
-            value={value}
-            onChange={(event) => onValueChange(event.target.value)}
-            onPaste={(event) => {
-              if (event.clipboardData.files.length === 0) return
-              event.preventDefault()
-              attachments.add(event.clipboardData.files)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+          {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
+          <InputGroup
+            className={cn(
+              'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+              ambient && 'shadow-none'
+            )}
+          >
+            <ComposerImages images={attachments.images} onRemove={attachments.remove} />
+            <InputGroupTextarea
+              ref={textarea}
+              aria-label='Thread prompt'
+              placeholder={placeholder}
+              value={value}
+              onChange={(event) => onValueChange(event.target.value)}
+              onPaste={(event) => {
+                if (event.clipboardData.files.length === 0) return
                 event.preventDefault()
-                submit()
-              }
-            }}
-            rows={rows}
-            style={{ minHeight: `calc(${rows}lh + 1rem)` }}
-            className='scroll-fade-y scrollbar-subtle max-h-60 min-h-0'
-          />
-          <InputGroupAddon align='block-end' className='justify-between'>
-            <div className='flex items-center gap-0'>
-              <ComposerAttach onAttach={attachments.add} />
-              {loadout}
-              <ComposerAccessMode value={accessMode} model={model} onChange={onAccessModeChange} />
-            </div>
-            <div className='flex items-center gap-1'>
-              <ComposerEnvironment />
-              {stop ? (
-                <InputGroupButton
-                  variant='default'
-                  size='icon-sm'
-                  aria-label='Stop'
-                  onClick={onInterrupt}
-                >
-                  <StopIcon weight='fill' />
-                </InputGroupButton>
-              ) : (
-                <Tooltip disabled={!sendHint}>
-                  <TooltipTrigger
-                    render={<span className={sendHint ? 'flex cursor-not-allowed' : 'flex'} />}
+                attachments.add(event.clipboardData.files)
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter' &&
+                  !event.shiftKey &&
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault()
+                  submit()
+                }
+              }}
+              rows={rows}
+              style={{ minHeight: `calc(${rows}lh + 1rem)` }}
+              className='scroll-fade-y scrollbar-subtle max-h-60 min-h-0'
+            />
+            <InputGroupAddon align='block-end' className='justify-between'>
+              <div className='flex items-center gap-0'>
+                <ComposerAttach onAttach={attachments.add} />
+                {loadout}
+                <ComposerAccessMode
+                  value={accessMode}
+                  model={model}
+                  onChange={onAccessModeChange}
+                />
+              </div>
+              <div className='flex items-center gap-1'>
+                <ComposerEnvironment />
+                {stop ? (
+                  <InputGroupButton
+                    variant='default'
+                    size='icon-sm'
+                    aria-label='Stop'
+                    onClick={onInterrupt}
                   >
-                    <InputGroupButton
-                      variant='default'
-                      size='icon-sm'
-                      aria-label='Send'
-                      onClick={submit}
-                      disabled={!canSend}
-                      className={sendHint ? 'pointer-events-none' : undefined}
+                    <StopIcon weight='fill' />
+                  </InputGroupButton>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={<span className={canSend ? 'flex' : 'flex cursor-not-allowed'} />}
                     >
-                      <ArrowUpIcon />
-                    </InputGroupButton>
-                  </TooltipTrigger>
-                  <TooltipContent>{sendHint}</TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </InputGroupAddon>
-        </InputGroup>
+                      <InputGroupButton
+                        variant='default'
+                        size='icon-sm'
+                        aria-label={sendLabel}
+                        onClick={submit}
+                        disabled={!canSend}
+                        className={canSend ? undefined : 'pointer-events-none'}
+                      >
+                        <ArrowUpIcon />
+                      </InputGroupButton>
+                    </TooltipTrigger>
+                    <TooltipContent>{sendHint ?? sendLabel}</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </InputGroupAddon>
+          </InputGroup>
+        </div>
       </div>
       {attachments.error ? (
         <p className='px-2.5 text-xs text-destructive'>{attachments.error}</p>

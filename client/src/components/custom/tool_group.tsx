@@ -15,12 +15,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         className='activity-header'
         aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
       >
-        <span
-          className={cn(
-            'flex min-w-0 items-baseline gap-1',
-            label.waiting > 0 && 'text-status-attention'
-          )}
-        >
+        <span className='flex min-w-0 items-baseline gap-1'>
           {label.description ? (
             <span
               className={cn(

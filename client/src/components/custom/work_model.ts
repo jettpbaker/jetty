@@ -13,8 +13,6 @@ export type ToolActivity = {
   name: string
   target: string
   description?: string
-  // the subagent title a main-timeline approval came from
-  source?: string
   status: ActivityStatus
   input?: string
   output?: string
@@ -119,12 +117,11 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const failed = count('failed')
   const cancelled = count('cancelled')
   const interrupted = count('interrupted')
-  const waiting = count('waiting')
   const words = vocabulary[first.kind]
-  const active = running.length > 0 && waiting === 0
-  const summarise = (sealed && calls.length > 1 && !active && !waiting) || running.length > 1
+  const active = running.length > 0
+  const summarise = (sealed && calls.length > 1 && !active) || running.length > 1
   const shown = active ? running.length : completed || calls.length
-  const current = calls.find((call) => call.status === 'waiting') ?? running[0] ?? latest
+  const current = running[0] ?? latest
   const description =
     first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
   const target = !summarise
@@ -133,8 +130,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
       ? `${shown} ${first.name} calls`
       : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done
-  if (waiting) verb = 'Awaiting approval for'
-  else if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
+  if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
     if (latest.status === 'failed') verb = 'Failed'
     else if (latest.status === 'cancelled') verb = 'Cancelled'
     else if (latest.status === 'interrupted') verb = 'Stopped'
@@ -159,7 +155,6 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
     complete: completed === calls.length,
     active,
     failed,
-    waiting,
     notices,
   }
 }

@@ -14,11 +14,12 @@ import { modelsAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
 import { loadoutsAtom } from './loadouts'
 import { awaitCreation, clearPatch, setPatch, without, withoutId } from './mutations'
+import { awaitsInput } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
 
 type PendingPrompt = { text: string; priorCount: number; images: readonly Attachment[] }
-type Answers = Readonly<Record<string, string>>
+type Resolution = Readonly<Record<string, unknown>>
 
 const draftKey = ''
 
@@ -28,10 +29,10 @@ const pendingPromptsAtom = Atom.make<ReadonlyMap<string, readonly PendingPrompt[
   Atom.keepAlive
 )
 const pendingTurnsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
-const pendingDecisionsAtom = Atom.make<ReadonlyMap<string, ApprovalDecision>>(new Map()).pipe(
+// Approval and question answers, shown as settled until the server's own patch arrives.
+const pendingResolutionsAtom = Atom.make<ReadonlyMap<string, Resolution>>(new Map()).pipe(
   Atom.keepAlive
 )
-const pendingAnswersAtom = Atom.make<ReadonlyMap<string, Answers>>(new Map()).pipe(Atom.keepAlive)
 
 function withPrompts(
   prompts: ReadonlyMap<string, readonly PendingPrompt[]>,
@@ -63,26 +64,23 @@ function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly Thr
   return left
 }
 
-function overlayItem(
-  item: ThreadItem,
-  decisions: ReadonlyMap<string, ApprovalDecision>,
-  answers: ReadonlyMap<string, Answers>
-): ThreadItem {
-  if (item.kind === 'approval' && !item.decision) {
-    const decision = decisions.get(item.id)
-    if (decision) return { ...item, decision }
-  }
-  if (item.kind === 'question' && !settled(item)) {
-    const picked = answers.get(item.id)
-    if (picked) return { ...item, answers: picked }
-  }
-  return item
+function overlayItem(item: ThreadItem, resolutions: ReadonlyMap<string, Resolution>): ThreadItem {
+  const resolution = awaitsInput(item) && resolutions.get(item.id)
+  return resolution ? ({ ...item, ...resolution } as ThreadItem) : item
 }
 
-function settled(item: ThreadItem) {
-  if (item.kind === 'approval') return Boolean(item.decision)
-  if (item.kind === 'question') return Boolean(item.answers || item.skipped)
-  return false
+function resolve(
+  registry: Registry,
+  itemId: string,
+  resolution: Resolution,
+  request: Parameters<typeof run>[1]
+) {
+  registry.update(pendingResolutionsAtom, (map) => new Map(map).set(itemId, resolution))
+  run(registry, request, () =>
+    registry.update(pendingResolutionsAtom, (map) =>
+      map.get(itemId) === resolution ? without(map, [itemId]) : map
+    )
+  )
 }
 
 function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
@@ -167,16 +165,23 @@ function respondApproval(
   registry: Registry,
   threadId: string,
   itemId: string,
-  decision: ApprovalDecision
+  decision: ApprovalDecision,
+  note?: string,
+  updatedPermissions?: readonly unknown[]
 ) {
-  registry.update(pendingDecisionsAtom, (decisions) => new Map(decisions).set(itemId, decision))
-  run(
+  const message = note?.trim() || undefined
+  resolve(
     registry,
-    (connection) => connection.request('approval.respond', { threadId, itemId, decision }),
-    () =>
-      registry.update(pendingDecisionsAtom, (decisions) =>
-        decisions.get(itemId) === decision ? without(decisions, [itemId]) : decisions
-      )
+    itemId,
+    { decision, ...(decision === 'deny' && message ? { deniedReason: message } : {}) },
+    (connection) =>
+      connection.request('approval.respond', {
+        threadId,
+        itemId,
+        decision,
+        message,
+        updatedPermissions,
+      })
   )
 }
 
@@ -186,14 +191,14 @@ function respondQuestion(
   itemId: string,
   answers: Record<string, string>
 ) {
-  registry.update(pendingAnswersAtom, (pending) => new Map(pending).set(itemId, answers))
-  run(
-    registry,
-    (connection) => connection.request('question.respond', { threadId, itemId, answers }),
-    () =>
-      registry.update(pendingAnswersAtom, (pending) =>
-        pending.get(itemId) === answers ? without(pending, [itemId]) : pending
-      )
+  resolve(registry, itemId, { answers }, (connection) =>
+    connection.request('question.respond', { threadId, itemId, answers })
+  )
+}
+
+function dismissQuestion(registry: Registry, threadId: string, itemId: string) {
+  resolve(registry, itemId, { dismissed: true }, (connection) =>
+    connection.request('question.dismiss', { threadId, itemId })
   )
 }
 
@@ -270,11 +275,14 @@ export function useRespondQuestion() {
   return useAction(respondQuestion)
 }
 
+export function useDismissQuestion() {
+  return useAction(dismissQuestion)
+}
+
 export function useThreadOverlay(threadId: string, thread: ThreadState | undefined) {
   const registry = useContext(RegistryContext)
   const prompts = useAtomValue(pendingPromptsAtom)
-  const decisions = useAtomValue(pendingDecisionsAtom)
-  const answers = useAtomValue(pendingAnswersAtom)
+  const resolutions = useAtomValue(pendingResolutionsAtom)
   const turns = useAtomValue(pendingTurnsAtom)
   const items = useMemo(() => thread?.items ?? [], [thread])
   const pending = useMemo(
@@ -282,8 +290,8 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
     [items, prompts, threadId]
   )
   const overlaid = useMemo(
-    () => items.map((item) => overlayItem(item, decisions, answers)),
-    [answers, decisions, items]
+    () => items.map((item) => overlayItem(item, resolutions)),
+    [items, resolutions]
   )
   const optimistic = turns.has(threadId)
   const promptCount = prompts.get(threadId)?.length ?? 0
@@ -299,11 +307,14 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   }, [items, registry, threadId])
 
   useEffect(() => {
-    if (decisions.size === 0 && answers.size === 0) return
-    const settledIds = items.filter(settled).map((item) => item.id)
-    registry.update(pendingDecisionsAtom, (map) => without(map, settledIds))
-    registry.update(pendingAnswersAtom, (map) => without(map, settledIds))
-  }, [answers, decisions, items, registry])
+    if (resolutions.size === 0) return
+    const settledIds = items
+      .filter(
+        (item) => (item.kind === 'approval' || item.kind === 'question') && !awaitsInput(item)
+      )
+      .map((item) => item.id)
+    registry.update(pendingResolutionsAtom, (map) => without(map, settledIds))
+  }, [items, registry, resolutions])
 
   useEffect(() => {
     if (optimistic && (live || (status && promptCount === 0)))
@@ -312,6 +323,8 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
 
   return {
     items: [...overlaid, ...pendingUserItems(pending)],
+    // the server's items with local answers applied, without optimistic prompts
+    serverItems: overlaid,
     empty: overlaid.length === 0 && pending.length === 0,
     running: optimistic || live,
   }

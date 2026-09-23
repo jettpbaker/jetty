@@ -31,9 +31,9 @@ export type SubagentTab = {
   needsInput: boolean
 }
 
-function awaitsInput(item: ThreadItem) {
+export function awaitsInput(item: ThreadItem) {
   if (item.kind === 'approval') return !item.decision
-  if (item.kind === 'question') return !item.answers && !item.skipped
+  if (item.kind === 'question') return !item.answers && !item.skipped && !item.dismissed
   return false
 }
 
