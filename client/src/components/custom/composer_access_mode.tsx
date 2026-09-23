@@ -35,7 +35,18 @@ export function ComposerAccessMode({
           render={
             <DropdownMenuTrigger
               aria-label={`Access mode: ${label}`}
-              render={<Button variant='ghost' tone='muted' size='icon' />}
+              render={
+                <Button
+                  variant='ghost'
+                  tone='muted'
+                  size='icon'
+                  className={
+                    value === 'full_access'
+                      ? 'text-status-attention enabled:hover:text-status-attention aria-expanded:text-status-attention'
+                      : undefined
+                  }
+                />
+              }
             />
           }
         >
@@ -43,7 +54,7 @@ export function ComposerAccessMode({
         </TooltipTrigger>
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align='start'>
+      <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(next) => {
