@@ -1,11 +1,11 @@
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
 import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, SidebarSimpleIcon } from '@phosphor-icons/react'
-import { DiffIcon, GitPullRequestIcon, ListUnorderedIcon } from '@primer/octicons-react'
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -13,15 +13,11 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 
 import { ThreadChanges } from './thread_changes'
+import { ThreadDetailsTabs } from './thread_details_tabs'
 import './thread_details_layout.css'
-
-const tabs = [
-  { id: 'changes', label: 'Changes', Icon: DiffIcon },
-  { id: 'overview', label: 'Overview', Icon: ListUnorderedIcon, blurb: 'A summary of this thread' },
-  { id: 'pr', label: 'PR', Icon: GitPullRequestIcon, blurb: "This thread's pull request" },
-]
 
 const minWidth = 320
 const narrowWidth = 760
@@ -35,6 +31,13 @@ export function ThreadDetailsLayout({
 }) {
   const root = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; width: number; next: number } | null>(null)
+  const chatHost = useRef<HTMLDivElement>(null)
+  if (!chatHost.current) {
+    chatHost.current = document.createElement('div')
+    chatHost.current.className = 'flex h-full min-h-0 min-w-0 flex-col'
+  }
+  const [leftSlot, setLeftSlot] = useState<HTMLDivElement | null>(null)
+  const [chatSlot, setChatSlot] = useState<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [available, setAvailable] = useState(0)
   const [preferredWidth, setPreferredWidth] = useState<number>()
@@ -87,6 +90,13 @@ export function ThreadDetailsLayout({
     return () => observer.disconnect()
   }, [open])
 
+  const portalTarget = open && full ? chatSlot : leftSlot
+  // Keep the portal container stable: changing it remounts the entire chat,
+  // including markdown, tool disclosures, and the composer.
+  useLayoutEffect(() => {
+    if (portalTarget && chatHost.current) portalTarget.appendChild(chatHost.current)
+  }, [portalTarget])
+
   function start(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return
     event.preventDefault()
@@ -120,6 +130,48 @@ export function ThreadDetailsLayout({
     setPreferredWidth(clamp(next))
   }
 
+  // Width changes should only update the layout, not rerender tab contents.
+  const detailsPane = useMemo(
+    () => (
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          if (typeof value === 'string') setTab(value)
+        }}
+        className='details-pane h-full min-w-0 gap-0'
+      >
+        <header className='flex h-(--app-tab-bar-height) shrink-0 border-b border-border pr-[74px]'>
+          <div className='min-w-0 flex-1 overflow-hidden'>
+            <ThreadDetailsTabs chat={full} value={tab} onValueChange={setTab} />
+          </div>
+        </header>
+        <div className='min-h-0 flex-1 overflow-hidden'>
+          <div className='details-tab-track'>
+            <TabsContent
+              keepMounted
+              value='chat'
+              inert={tab !== 'chat'}
+              aria-hidden={tab !== 'chat'}
+              className='details-tab-panel'
+            >
+              <div ref={setChatSlot} className='flex h-full min-h-0 min-w-0 flex-col' />
+            </TabsContent>
+            <TabsContent
+              keepMounted
+              value='changes'
+              inert={tab !== 'changes'}
+              aria-hidden={tab !== 'changes'}
+              className='details-tab-panel'
+            >
+              {open && <ThreadChanges key={threadId} threadId={threadId} />}
+            </TabsContent>
+          </div>
+        </div>
+      </Tabs>
+    ),
+    [tab, full, open, threadId]
+  )
+
   return (
     <div
       ref={root}
@@ -133,53 +185,16 @@ export function ThreadDetailsLayout({
         inert={open && full}
         aria-hidden={(open && full) || undefined}
       >
-        <div className='flex h-full min-w-[320px] flex-col'>{children}</div>
+        <div ref={setLeftSlot} className='flex h-full min-w-[320px] flex-col' />
       </div>
+      {createPortal(children, chatHost.current)}
       <aside
         aria-label='Thread details'
         inert={!open}
         aria-hidden={!open || undefined}
         className='relative min-h-0 min-w-0 overflow-hidden bg-background'
       >
-        <Tabs
-          value={tab}
-          onValueChange={(value) => {
-            if (typeof value === 'string') setTab(value)
-          }}
-          className='details-pane h-full min-w-0 gap-0'
-        >
-          <header className='flex h-(--app-tab-bar-height) shrink-0 border-b border-border pr-[74px]'>
-            <TabsList
-              variant='line'
-              aria-label='Thread details views'
-              className='h-full! gap-1.5 p-1 px-2'
-            >
-              {tabs.map(({ id, label, Icon }) => (
-                <TabsTrigger
-                  key={id}
-                  value={id}
-                  className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
-                >
-                  <Icon className='size-3' />
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </header>
-          <TabsContent value='changes' className='min-h-0 flex-1 overflow-hidden'>
-            {open && <ThreadChanges key={threadId} threadId={threadId} />}
-          </TabsContent>
-          {tabs.slice(1).map(({ id, blurb }) => (
-            <TabsContent
-              key={id}
-              value={id}
-              className='flex min-h-0 flex-col items-center justify-center gap-1 p-4 text-center'
-            >
-              <p className='text-sm'>Coming soon</p>
-              <p className='text-xs text-muted-foreground'>{blurb} will show here.</p>
-            </TabsContent>
-          ))}
-        </Tabs>
+        {detailsPane}
       </aside>
       <div className='absolute top-0 right-2.5 z-20 flex h-[calc(var(--app-tab-bar-height)-1px)] items-center gap-1'>
         {open && !narrow && (
