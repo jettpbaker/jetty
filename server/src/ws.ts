@@ -2,6 +2,7 @@ import type {
   ModelDiscovery,
   ChromePushData,
   ProviderModel,
+  ProviderUsage,
   RateLimits,
   ThreadMeta,
   WireError,
@@ -79,7 +80,8 @@ export function createRpcHandlers(
     claude: 'loading',
     codex: 'loading',
     grok: 'loading',
-  })
+  }),
+  getProviderUsage: () => Effect.Effect<readonly ProviderUsage[]> = () => Effect.succeed([])
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -242,6 +244,7 @@ export function createRpcHandlers(
           return { services }
         }).pipe(Effect.mapError(wireError)),
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
+      'settings.providerUsage': () => getProviderUsage(),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
       'settings.setUtilityModel': (choice) =>
         mutation(

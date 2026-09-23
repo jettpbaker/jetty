@@ -2,7 +2,7 @@ import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wi
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { MAX_TURN_IMAGE_BYTES, type RateLimits } from '@jetty/shared/wire'
+import { MAX_TURN_IMAGE_BYTES, type ProviderUsage, type RateLimits } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, FileSystem, Layer, ManagedRuntime, Option, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { ChildProcessSpawner } from 'effect/unstable/process'
@@ -29,6 +29,7 @@ import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
+import { readClaudeProviderUsage, readCodexProviderUsage } from './provider-usage'
 import { createAutoLinkPullRequests, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
@@ -378,7 +379,29 @@ function createServer(opts: ServerOptions = {}) {
       refreshModels,
       pullRequests,
       containers,
-      () => modelDiscovery
+      () => modelDiscovery,
+      () =>
+        Effect.gen(function* () {
+          const claude = yield* Effect.promise(() =>
+            readClaudeProviderUsage(() => {
+              if (!lastUsage) return undefined
+              const windows = [
+                { id: 'five-hour', label: '5 hour', ...lastUsage.fiveHour },
+                { id: 'seven-day', label: 'Weekly', ...lastUsage.sevenDay },
+              ].map(({ id, label, pct, resetsAt }) => ({ id, label, pct, resetsAt }))
+              return {
+                provider: 'claude',
+                connected: true,
+                windows,
+                asOf: lastUsage.asOf,
+              } satisfies ProviderUsage
+            })
+          )
+          const codex = yield* readCodexProviderUsage(home, opts.codex).pipe(
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+          )
+          return [claude, codex]
+        })
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

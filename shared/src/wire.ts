@@ -203,7 +203,27 @@ export const Skill = Schema.Struct({
 })
 export type Skill = Schema.Schema.Type<typeof Skill>
 
+export const ProviderUsage = Schema.Struct({
+  provider: Schema.Literals(['claude', 'codex']),
+  connected: Schema.Boolean,
+  plan: Schema.optional(Schema.String),
+  windows: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      label: Schema.String,
+      pct: Schema.Finite,
+      resetsAt: Schema.optional(Schema.Finite),
+    })
+  ),
+  asOf: Schema.optional(Schema.Finite),
+})
+export type ProviderUsage = Schema.Schema.Type<typeof ProviderUsage>
+
 export const methods = {
+  'settings.providerUsage': {
+    params: Schema.Struct({}),
+    result: Schema.Array(ProviderUsage),
+  },
   'models.refresh': {
     params: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),
     result: Schema.Null,

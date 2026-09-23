@@ -38,6 +38,7 @@ function unary<
 }
 
 export const JettyRpcs = RpcGroup.make(
+  unary('settings.providerUsage'),
   unary('models.refresh'),
   unary('settings.setUtilityModel'),
   unary('project.create'),
