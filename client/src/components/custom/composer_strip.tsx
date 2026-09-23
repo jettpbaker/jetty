@@ -92,6 +92,7 @@ function TrayShell({ children }: { children: ReactNode }) {
 export function Pager({
   index,
   total,
+  noun,
   onPrev,
   onNext,
   nextDisabled,
@@ -99,6 +100,7 @@ export function Pager({
 }: {
   index: number
   total: number
+  noun: string
   onPrev: () => void
   onNext: () => void
   nextDisabled?: boolean
@@ -112,7 +114,7 @@ export function Pager({
         variant='ghost'
         tone='muted'
         size='icon'
-        aria-label='Previous'
+        aria-label={`Previous ${noun}`}
         disabled={index === 0}
         onClick={onPrev}
       >
@@ -125,7 +127,7 @@ export function Pager({
         variant='ghost'
         tone='muted'
         size='icon'
-        aria-label='Next'
+        aria-label={`Next ${noun}`}
         disabled={nextDisabled ?? index === total - 1}
         onClick={onNext}
       >
@@ -500,6 +502,7 @@ export function QuestionStrip({
           </StripButton>
           {ctl.total > 1 && (
             <Pager
+              noun='question'
               index={ctl.step}
               total={ctl.total}
               onPrev={() => ctl.go(ctl.step - 1)}
@@ -785,6 +788,7 @@ export function SeveralHeader({
   return (
     <div className='flex min-w-0 items-center gap-2 pt-1 text-xs text-muted-foreground'>
       <Pager
+        noun='request'
         className='-ml-1.5'
         index={index}
         total={total}
