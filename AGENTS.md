@@ -4,11 +4,11 @@
 
 - Active development is on `jetty-v2`. Fetch it and base new work on
   `origin/jetty-v2`, not `main`, unless Jett explicitly asks otherwise.
-- Use short, reviewable PRs targeting `jetty-v2`. For dependent changes, use
-  `gh stack` with `jetty-v2` as the trunk (`gh stack init --base jetty-v2 <branch>`);
-  each later PR targets the layer below it. Independent work can use separate stacks.
+- Commit directly to `jetty-v2` — small, frequent commits, no PRs. Parallel agents
+  work in their own worktrees/branches, then rebase onto `jetty-v2` and land as a
+  fast-forward once typecheck, lint, format, and tests pass.
 - The new backend and frontend ship together in a final `jetty-v2` → `main` PR.
-  Do not merge any PR, including into `jetty-v2`, without Jett's explicit approval.
+  Don't open or merge that one without Jett's explicit approval.
 
 ## project guidance
 
