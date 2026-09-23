@@ -3,6 +3,8 @@ import type { ProviderModel } from '@jetty/shared/wire'
 import { query, type ModelInfo, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { Effect } from 'effect'
 
+import { claudeBin } from './claude-bin'
+
 const DISCOVERY_TIMEOUT_MS = 20_000
 
 // displayName is an unversioned alias ("Opus"); the description leads with the versioned name.
@@ -27,6 +29,7 @@ export function discoverClaudeModels() {
       prompt: { [Symbol.asyncIterator]: () => ({ next: () => idle }) },
       options: {
         abortController,
+        pathToClaudeCodeExecutable: claudeBin,
         persistSession: false,
         settingSources: [],
         mcpServers: {},

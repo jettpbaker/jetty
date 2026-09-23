@@ -12,6 +12,7 @@ import { join, normalize, resolve, sep } from 'node:path'
 import { AgentService, ECHO_MODELS, echoLayer, type Agent } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
+import { claudeBin } from './claude-bin'
 import { discoverClaudeModels } from './claude-models'
 import { createClaudeTitler } from './claude-titler'
 import { codexLayer, type CodexOptions } from './codex'
@@ -285,6 +286,8 @@ if (import.meta.main) {
     Effect.gen(function* () {
       const running = yield* ServerService
       yield* Effect.logInfo(`jetty listening on http://${running.hostname}:${running.port}`)
+      if (!claudeBin)
+        yield* Effect.logWarning("no installed claude found; using the SDK's bundled CLI")
       yield* Effect.never
     }).pipe(Effect.provide(serverLayer()))
   )

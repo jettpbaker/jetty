@@ -1,6 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { Effect } from 'effect'
 
+import { claudeBin } from './claude-bin'
 import { normalizeTitle, TITLE_INSTRUCTIONS, titlePrompt, type Titler } from './titler'
 
 export function createClaudeTitler(): Titler {
@@ -12,6 +13,7 @@ export function createClaudeTitler(): Titler {
           prompt: titlePrompt(text),
           options: {
             model,
+            pathToClaudeCodeExecutable: claudeBin,
             maxTurns: 1,
             allowedTools: [],
             settingSources: [],

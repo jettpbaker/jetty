@@ -37,6 +37,7 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
+import { claudeBin } from './claude-bin'
 import {
   createTranslateCtx,
   translate,
@@ -493,6 +494,7 @@ export function createClaudeAdapter(
                 },
                 options: {
                   cwd: projectPath,
+                  pathToClaudeCodeExecutable: claudeBin,
                   systemPrompt: { type: 'preset', preset: 'claude_code' },
                   settingSources: ['user', 'project', 'local'],
                   model: input.model,
