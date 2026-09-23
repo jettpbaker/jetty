@@ -9,11 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ShieldCheckIcon, ShieldWarningIcon } from '@phosphor-icons/react'
+import { LockIcon, UnlockIcon } from '@primer/octicons-react'
 
-const modes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> = {
-  auto: { label: 'Auto', Icon: ShieldCheckIcon },
-  full_access: { label: 'Full access', Icon: ShieldWarningIcon },
+const modes: Record<PermissionMode, { label: string; Icon: typeof LockIcon }> = {
+  auto: { label: 'Auto', Icon: LockIcon },
+  full_access: { label: 'Full access', Icon: UnlockIcon },
 }
 
 function isMode(value: unknown): value is PermissionMode {
