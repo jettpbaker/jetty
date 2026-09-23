@@ -16,13 +16,13 @@ import { ThreadTab } from './thread_tab'
 import './app_shell.css'
 
 const widthKey = 'jetty.sidebar.width'
+const openKey = 'jetty.sidebar.open'
 
 function subagentTabStatus(tab: SubagentTab): ThreadStatus {
   if (tab.needsInput) return 'needs-attention'
   if (tab.status === 'running') return 'working'
   return tab.status === 'completed' ? 'idle' : 'error'
 }
-const openKey = 'jetty.sidebar.open'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => Number(storage.get(widthKey)) || 250)

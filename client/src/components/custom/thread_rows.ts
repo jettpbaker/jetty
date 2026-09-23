@@ -195,7 +195,7 @@ export function toSubagent(item: SubagentItem, now: number): Subagent {
     status:
       item.status === 'running' ? 'working' : item.status === 'completed' ? 'complete' : 'error',
     elapsedSeconds:
-      item.durationMs != null ? item.durationMs / 1000 : Math.max(0, (now - item.createdAt) / 1000),
+      (item.durationMs ?? Math.max(0, (item.completedAt ?? now) - item.createdAt)) / 1000,
     tokens: item.tokens ?? 0,
   }
 }
