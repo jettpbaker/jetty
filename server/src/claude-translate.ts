@@ -17,7 +17,8 @@ export type TranslateCtx = {
   agents: Map<string, TranslateCtx>
   // the SDK's task id (canUseTool's agentID) → the subagent item id
   tasks: Map<string, string>
-  workflows: Map<string, string>
+  // the SDK's workflow task id → the agents its last snapshot reported
+  workflows: Map<string, readonly WorkflowAgent[]>
   workflowTools: Map<string, string>
   currentAssistantId: string | null
   currentReasoningId: string | null
@@ -205,6 +206,21 @@ function workflowSnapshot(value: unknown) {
   return { phases, agents }
 }
 
+// The SDK sends per-agent snapshots at most every 10s, but the workflow total (the agents'
+// sum) on every update: with one agent running, the unreported rest is that agent's.
+function withLiveTokens(agents: readonly WorkflowAgent[], total: number) {
+  const active = agents.filter((agent) => agent.state === 'active')
+  const [running] = active
+  if (!running || active.length > 1) return undefined
+  const tokens = agents.reduce(
+    (rest, agent) => (agent === running ? rest : rest - agent.tokens),
+    total
+  )
+  return tokens > running.tokens
+    ? agents.map((agent) => (agent === running ? { ...agent, tokens } : agent))
+    : undefined
+}
+
 export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
   return taskId ? ctx.tasks.get(taskId) : undefined
 }
@@ -215,7 +231,7 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
     return []
   }
   if (msg.subtype === 'task_started' && msg.task_type === 'local_workflow' && msg.task_id) {
-    ctx.workflows.set(msg.task_id, msg.task_id)
+    ctx.workflows.set(msg.task_id, [])
     if (msg.tool_use_id) ctx.workflowTools.set(msg.tool_use_id, msg.task_id)
     return [
       {
@@ -237,18 +253,25 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
       },
     ]
   }
-  if (msg.task_id && ctx.workflows.has(msg.task_id)) {
-    const itemId = ctx.workflows.get(msg.task_id)!
+  const agents = msg.task_id ? ctx.workflows.get(msg.task_id) : undefined
+  if (msg.task_id && agents) {
+    const itemId = msg.task_id
     if (msg.subtype === 'task_progress') {
-      const snapshot = workflowSnapshot(msg.workflow_progress)
+      const tokens = natural(msg.usage?.total_tokens) ?? 0
+      const snapshot = Array.isArray(msg.workflow_progress)
+        ? workflowSnapshot(msg.workflow_progress)
+        : undefined
+      if (snapshot) ctx.workflows.set(itemId, snapshot.agents)
+      const live = snapshot ? undefined : withLiveTokens(agents, tokens)
       return [
         {
           type: 'item.updated',
           itemId,
           patch: {
-            tokens: natural(msg.usage?.total_tokens) ?? 0,
+            tokens,
             durationMs: natural(msg.usage?.duration_ms) ?? 0,
-            ...(Array.isArray(msg.workflow_progress) ? snapshot : {}),
+            ...snapshot,
+            ...(live ? { agents: live } : {}),
           },
         },
       ]
