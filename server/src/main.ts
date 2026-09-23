@@ -9,23 +9,24 @@ import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
-import type { Titler } from './titler'
-
 import { AgentService, echoLayer, type Agent } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
 import { createClaudeTitler } from './claude-titler'
 import { codexLayer, type CodexOptions } from './codex'
+import { createCodexTitler } from './codex-titler'
 import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
 import { grokLayer, type GrokOptions } from './grok'
+import { createGrokTitler } from './grok-titler'
 import { createHub } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
+import { chainTitlers, firstLineTitler, type Titler } from './titler'
 import { createRpcHandlers } from './ws'
 
 export type ServerOptions = {
@@ -34,15 +35,26 @@ export type ServerOptions = {
   hostname?: string
   /** Override agent selection (defaults to JETTY_AGENT env, then 'claude'). */
   agent?: 'echo' | 'claude' | 'codex' | 'grok' | Agent
-  /** Override titler (defaults to real titler for claude, null for echo). */
+  /** Override titler (defaults to the selectTitler chain). */
   titler?: Titler | null
   grok?: GrokOptions
   codex?: CodexOptions
 }
 
-function selectTitler(kind: 'echo' | 'claude' | 'codex' | 'grok' | Agent): Titler | null {
-  if (typeof kind !== 'string') return null
-  return kind === 'claude' ? createClaudeTitler() : null
+/** Luna first whatever the provider, then the provider's own model, then the opener's first line. */
+function selectTitler(kind: 'echo' | 'claude' | 'codex' | 'grok' | Agent, opts: ServerOptions) {
+  return Effect.gen(function* () {
+    if (typeof kind !== 'string') return null
+    if (kind === 'echo') return firstLineTitler
+    const luna = yield* createCodexTitler(opts.codex)
+    const own =
+      kind === 'claude'
+        ? [createClaudeTitler()]
+        : kind === 'grok'
+          ? [yield* createGrokTitler(opts.grok)]
+          : []
+    return chainTitlers(luna, ...own, firstLineTitler)
+  })
 }
 
 function reconcileOnStartup(store: Store) {
@@ -144,7 +156,7 @@ function createServer(opts: ServerOptions = {}) {
             : agentKind === 'grok'
               ? grokLayer(store, opts.grok)
               : claudeLayer(store, attachments, hooks)
-    const titler = opts.titler !== undefined ? opts.titler : selectTitler(agentKind)
+    const titler = opts.titler !== undefined ? opts.titler : yield* selectTitler(agentKind, opts)
     const services = yield* Layer.build(
       Layer.merge(
         agentLayer,

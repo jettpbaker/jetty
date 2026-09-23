@@ -15,6 +15,7 @@ test('Grok fixture over backend RPC: disconnect, durable completion, immediate n
     home,
     port: 0,
     agent: 'grok',
+    titler: null,
     grok: {
       command: process.execPath,
       args: [join(import.meta.dir, 'fixtures/grok-peer.ts')],
