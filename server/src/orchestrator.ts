@@ -72,16 +72,27 @@ function toAgentError(error: Error) {
   return new AgentError(error.message)
 }
 
-export function createOrchestrator(
-  store: Store,
-  agent: Agent | AgentRegistry,
-  hub: Hub,
-  titler: ProviderTitler | null = null,
-  attachments: Attachments | null = null,
-  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>,
-  reviewer?: ReviewClassifier,
+type OrchestratorOptions = {
+  store: Store
+  agent: Agent | AgentRegistry
+  hub: Hub
+  titler?: ProviderTitler | null
+  attachments?: Attachments | null
+  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
+  reviewer?: ReviewClassifier
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
-) {
+}
+
+export function createOrchestrator({
+  store,
+  agent,
+  hub,
+  titler = null,
+  attachments = null,
+  onCompletedText,
+  reviewer,
+  modelCatalog,
+}: OrchestratorOptions) {
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
     const scope = yield* Effect.scope
@@ -110,15 +121,18 @@ export function createOrchestrator(
     }
 
     function publish(threadId: string, appended: AppendedEvent) {
-      hub.pushThread(threadId, {
-        type: 'event',
-        seq: appended.seq,
-        ts: appended.ts,
-        event: appended.event,
+      return Effect.gen(function* () {
+        hub.pushThread(threadId, {
+          type: 'event',
+          seq: appended.seq,
+          ts: appended.ts,
+          event: appended.event,
+        })
+        if (appended.state.status !== appended.prevStatus) {
+          const thread = yield* store.requireThread(threadId)
+          hub.pushChrome({ type: 'thread.upserted', thread })
+        }
       })
-      if (appended.state.status !== appended.prevStatus) {
-        hub.pushChrome({ type: 'thread.upserted', thread: appended.thread })
-      }
     }
 
     function append(
@@ -145,14 +159,20 @@ export function createOrchestrator(
                 const appended = yield* store.appendEvent(threadId, event)
                 if (event.type === 'turn.started') state(threadId).turnId = event.turnId
                 yield* onCommit
-                publish(threadId, appended)
+                yield* publish(threadId, appended)
                 if (event.type === 'turn.completed' && reviewer) {
                   const reply = [...appended.state.items]
                     .reverse()
                     .find(
                       (item) => item.turnId === event.turnId && item.kind === 'assistant_message'
                     )
-                  if (reply?.kind === 'assistant_message' && reply.text.trim()) {
+                  if (
+                    reply?.kind === 'assistant_message' &&
+                    reply.text.trim() &&
+                    !appended.state.items.some(
+                      (item) => item.kind === 'workflow' && item.status === 'running'
+                    )
+                  ) {
                     yield* Effect.gen(function* () {
                       if (yield* store.parentGetsNotification(threadId, event.turnId)) return
                       if (!(yield* reviewer(reply.text))) return
@@ -175,7 +195,24 @@ export function createOrchestrator(
                   const item = appended.state.items.find(
                     (candidate) => candidate.id === event.itemId
                   )
-                  if (item?.kind === 'assistant_message' || item?.kind === 'tool_call') {
+                  const input =
+                    item?.kind === 'tool_call' && item.input && typeof item.input === 'object'
+                      ? (item.input as Record<string, unknown>)
+                      : null
+                  const command =
+                    input &&
+                    (typeof input.command === 'string'
+                      ? input.command
+                      : typeof input.cmd === 'string'
+                        ? input.cmd
+                        : null)
+                  const ownGhPr =
+                    item?.kind === 'tool_call' &&
+                    !item.agentId &&
+                    /(?:bash|shell|exec|command)/i.test(item.toolName) &&
+                    command &&
+                    /(?:^|[;&|\n])\s*gh\s+pr\s+(?:create|view)(?:\s|$)/.test(command)
+                  if (item?.kind === 'assistant_message' || ownGhPr) {
                     const text = item.kind === 'assistant_message' ? item.text : item.output
                     if (text.includes('github.com/'))
                       yield* onCompletedText(threadId, text).pipe(
@@ -224,7 +261,7 @@ export function createOrchestrator(
                   })
                 )
                 yield* onCommit
-                for (const event of appended) publish(threadId, event)
+                for (const event of appended) yield* publish(threadId, event)
               })
             )
             .pipe(Effect.uninterruptible)
@@ -824,27 +861,6 @@ export function createOrchestrator(
   })
 }
 
-export function orchestratorLayer(
-  store: Store,
-  hub: Hub,
-  titler: ProviderTitler | null,
-  attachments: Attachments,
-  registry: AgentRegistry,
-  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>,
-  reviewer?: ReviewClassifier,
-  modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
-) {
-  return Layer.effect(
-    OrchestratorService,
-    createOrchestrator(
-      store,
-      registry,
-      hub,
-      titler,
-      attachments,
-      onCompletedText,
-      reviewer,
-      modelCatalog
-    )
-  )
+export function orchestratorLayer(options: OrchestratorOptions) {
+  return Layer.effect(OrchestratorService, createOrchestrator(options))
 }

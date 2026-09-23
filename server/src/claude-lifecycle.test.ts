@@ -172,7 +172,7 @@ async function setup(
           }
         })
       }
-      const orch = yield* createOrchestrator(store, agent, createHub(), null, attachments)
+      const orch = yield* createOrchestrator({ store, agent, hub: createHub(), attachments })
       const sessions = createMcpSessions()
       sessions.setUrl('http://127.0.0.1/mcp')
       const binding = yield* sessions.open({ threadId: thread.id, provider: 'claude' })

@@ -30,7 +30,7 @@ import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
-import { createPullRequests, pullRequestUrls } from './pull-requests'
+import { createAutoLinkPullRequests, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
 import { createReviewClassifier } from './review'
@@ -166,25 +166,6 @@ function originAllowed(origin: string | undefined): boolean {
   }
 }
 
-async function githubConnection(): Promise<{
-  state: 'connected' | 'signed-out' | 'missing' | 'error'
-}> {
-  const gh = Bun.which('gh')
-  if (!gh) return { state: 'missing' }
-  try {
-    const child = Bun.spawn([gh, 'auth', 'status'], {
-      stdout: 'ignore',
-      stderr: 'ignore',
-      signal: AbortSignal.timeout(3000),
-    })
-    const exitCode = await child.exited
-    if (child.signalCode) return { state: 'error' }
-    return { state: exitCode === 0 ? 'connected' : 'signed-out' }
-  } catch {
-    return { state: 'error' }
-  }
-}
-
 function createServer(opts: ServerOptions = {}) {
   return Effect.gen(function* () {
     const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
@@ -308,25 +289,27 @@ function createServer(opts: ServerOptions = {}) {
         ? yield* createReviewClassifier(opts.codex)
         : undefined
     const services = yield* Layer.build(
-      orchestratorLayer(
+      orchestratorLayer({
         store,
         hub,
         titler,
         attachments,
-        registry,
-        (threadId, text) =>
-          Effect.gen(function* () {
-            for (const ref of pullRequestUrls(text)) {
-              yield* hub.upsertThread(store.linkPullRequest(threadId, ref.repo, ref.number))
-              yield* pullRequests.refreshIfStale(ref).pipe(
-                Effect.catchCause((cause) => Effect.logWarning(cause)),
-                Effect.forkIn(discoveryScope)
-              )
-            }
-          }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
+        agent: registry,
+        onCompletedText: (threadId, text) =>
+          createAutoLinkPullRequests(
+            store,
+            hub,
+            pullRequests,
+            discoveryScope
+          )(threadId, text).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
         reviewer,
-        () => refreshModels().pipe(Effect.as(models ?? []))
-      )
+        modelCatalog: () =>
+          Effect.gen(function* () {
+            if (models === null) yield* refreshModels()
+            else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
+            return models ?? []
+          }),
+      })
     )
     const orch = Context.get(services, OrchestratorService)
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
@@ -372,11 +355,6 @@ function createServer(opts: ServerOptions = {}) {
           return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
         }
         return yield* websocket
-      }
-      if (request.method === 'GET' && url.pathname === '/api/integrations/github') {
-        if (!originAllowed(request.headers.origin))
-          return HttpServerResponse.text('Forbidden origin', { status: 403 })
-        return yield* HttpServerResponse.json(yield* Effect.promise(() => githubConnection()))
       }
       if (request.method === 'GET' && url.pathname.startsWith('/attachments/')) {
         const id = url.pathname.slice('/attachments/'.length)

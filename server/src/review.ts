@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Semaphore } from 'effect'
 
 import type { StdioProcessOptions } from './stdio-rpc'
 
@@ -12,12 +12,17 @@ export const REVIEW_INSTRUCTIONS =
 export function createReviewClassifier(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const prompt = yield* createCodexPrompt(options)
+    const slots = Semaphore.makeUnsafe(2)
     const classify: ReviewClassifier = (text) =>
-      prompt(REVIEW_INSTRUCTIONS, `Final assistant reply:\n\n${text.slice(0, 4000)}`).pipe(
-        Effect.timeout('15 seconds'),
-        Effect.map((answer) => answer?.trim().toUpperCase() === 'YES'),
-        Effect.catch(() => Effect.succeed(false))
-      )
+      slots
+        .withPermits(1)(
+          prompt(REVIEW_INSTRUCTIONS, `Final assistant reply:\n\n${text.slice(0, 4000)}`)
+        )
+        .pipe(
+          Effect.timeout('15 seconds'),
+          Effect.map((answer) => answer?.trim().toUpperCase() === 'YES'),
+          Effect.catch(() => Effect.succeed(false))
+        )
     return classify
   })
 }

@@ -71,7 +71,7 @@ for (const replay of [false, true]) {
             respondToQuestion: () => Effect.succeed(false),
           }
           const hub = createHub()
-          const orch = yield* createOrchestrator(store, agent, hub)
+          const orch = yield* createOrchestrator({ store, agent, hub })
           const { turnId } = yield* orch.startTurnEffect({ threadId: thread.id, text: 'hello' })
           return { store, base, hub, orch, thread, turnId }
         })

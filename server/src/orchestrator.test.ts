@@ -95,7 +95,12 @@ for (const kind of ['image', 'video'] as const) {
               emit = publish
               return startTurn(input, publish)
             })
-          const orch = yield* createOrchestrator(store, f.agent, f.hub, null, f.attachments)
+          const orch = yield* createOrchestrator({
+            store,
+            agent: f.agent,
+            hub: f.hub,
+            attachments: f.attachments,
+          })
           const { turnId } = yield* orch.startTurnEffect({ threadId: f.thread.id, text: 'first' })
           const file = kind === 'image' ? 'image.png' : 'video.mp4'
           yield* f.fs.writeFileString(f.home + '/' + file, 'media')
@@ -159,7 +164,12 @@ for (const admission of ['initial', 'steered'] as const) {
       await runUploadTest(
         Effect.gen(function* () {
           const f = yield* makeUploadFixture()
-          const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+          const orch = yield* createOrchestrator({
+            store: f.store,
+            agent: f.agent,
+            hub: f.hub,
+            attachments: f.attachments,
+          })
           if (admission === 'steered') {
             yield* orch.startTurnEffect({
               threadId: f.thread.id,
@@ -200,7 +210,12 @@ test('late steering rejection removes the new upload but retains the active turn
     Effect.gen(function* () {
       const f = yield* makeUploadFixture()
       f.agent.steer = () => Effect.succeed(false)
-      const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
       yield* orch.startTurnEffect({ threadId: f.thread.id, text: 'first', attachments: [upload] })
       const existing = yield* f.fs.readDirectory(f.attachments.dir)
       const before = yield* f.store.getEventsAfter(f.thread.id, 0)
@@ -220,7 +235,12 @@ test('cancelling uploaded steering before durable admission reclaims its file', 
       const f = yield* makeUploadFixture()
       const entered = yield* Deferred.make<void>()
       f.agent.steer = () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))
-      const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
       yield* orch.startTurnEffect({ threadId: f.thread.id, text: 'first' })
       const before = yield* f.store.getEventsAfter(f.thread.id, 0)
       const pending = yield* orch
@@ -249,7 +269,12 @@ test('cancellation while waiting for admission never persists the queued upload'
           return persist(uploads)
         })
       f.agent.steer = () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))
-      const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
       yield* orch.startTurnEffect({ threadId: f.thread.id, text: 'first' })
       const holder = yield* orch
         .startTurnEffect({ threadId: f.thread.id, text: 'holding', attachments: [upload] })
@@ -283,7 +308,12 @@ test('cancelling an initial upload while waiting to publish reclaims its file wi
       const persist = f.attachments.persist
       f.attachments.persist = (uploads) =>
         persist(uploads).pipe(Effect.tap(() => Deferred.succeed(persisted, undefined)))
-      const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
       const holder = yield* orch
         .withPublication(
           f.thread.id,
@@ -315,7 +345,12 @@ test('agent startup failure after a durable user batch retains its referenced at
     Effect.gen(function* () {
       const f = yield* makeUploadFixture()
       f.agent.startTurn = () => Effect.fail(new AgentError('start failed'))
-      const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
       const result = yield* Effect.exit(
         orch.startTurnEffect({ threadId: f.thread.id, text: 'durable', attachments: [upload] })
       )
@@ -344,7 +379,12 @@ test('publication failure after the durable user batch retains its referenced at
       f.hub.pushThread = () => {
         throw new Error('publication failed')
       }
-      const orch = yield* createOrchestrator(f.store, f.agent, f.hub, null, f.attachments)
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
       const result = yield* Effect.exit(
         orch.startTurnEffect({ threadId: f.thread.id, text: 'durable', attachments: [upload] })
       )
@@ -372,8 +412,8 @@ test('failed initial and cleanup appends release orchestrator admission for retr
           const thread = yield* store.createThread(project.id, newId())
           let failWrites = true
           const attempts: string[] = []
-          const orch = yield* createOrchestrator(
-            {
+          const orch = yield* createOrchestrator({
+            store: {
               ...store,
               appendEvents(threadId, events) {
                 return Effect.suspend(() => {
@@ -390,9 +430,9 @@ test('failed initial and cleanup appends release orchestrator admission for retr
                 })
               },
             },
-            yield* createEchoAdapter(),
-            createHub()
-          )
+            agent: yield* createEchoAdapter(),
+            hub: createHub(),
+          })
           const failed = yield* Effect.exit(
             orch.startTurnEffect({ threadId: thread.id, text: 'first' })
           )
