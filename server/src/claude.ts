@@ -115,6 +115,9 @@ type WarmSession = {
   grace: Fiber.Fiber<void> | null
   ctx: TranslateCtx
   runningAgents: Set<string>
+  runningWorkflows: Set<string>
+  stoppedWorkflows: Set<string>
+  backgroundTasks: Set<string>
   emit: Emit
   closed: boolean
   queryClosed: boolean
@@ -293,6 +296,15 @@ export function createClaudeAdapter(
             .emit({ type: 'item.completed', itemId, patch: { status: 'stopped' } })
             .pipe(Effect.ignore)
         session.runningAgents.clear()
+        for (const itemId of session.runningWorkflows)
+          yield* session
+            .emit({
+              type: 'item.completed',
+              itemId,
+              patch: { status: 'stopped', stopReason: 'crash' },
+            })
+            .pipe(Effect.ignore)
+        session.runningWorkflows.clear()
         if (session.awaitingResult) {
           session.awaitingResult = false
           yield* session
@@ -356,6 +368,14 @@ export function createClaudeAdapter(
 
     function armIdle(session: WarmSession) {
       return Effect.gen(function* () {
+        if (
+          session.awaitingResult ||
+          session.runningAgents.size ||
+          session.runningWorkflows.size ||
+          session.backgroundTasks.size ||
+          session.idle
+        )
+          return
         const turnId = session.activeTurnId
         session.idle = yield* Effect.sleep(ttlMs).pipe(
           Effect.andThen(retire(session, 'idle ttl', { turnId, awaitingResult: false })),
@@ -392,6 +412,30 @@ export function createClaudeAdapter(
             }
             // Background subagents keep working after the turn that spawned them ends.
             const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
+            if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
+              session.backgroundTasks = new Set(
+                message.tasks.filter((task) => !task.ambient).map((task) => task.task_id)
+              )
+              if (session.backgroundTasks.size && session.idle) {
+                yield* Fiber.interrupt(session.idle)
+                session.idle = null
+              }
+            }
+            if (
+              !session.awaitingResult &&
+              !fromSubagent &&
+              (message.type === 'assistant' || message.type === 'stream_event')
+            ) {
+              const turnId = newId()
+              session.activeTurnId = turnId
+              session.ctx = createTranslateCtx(turnId, session.ctx)
+              session.awaitingResult = true
+              session.accepting = true
+              session.done = yield* Deferred.make<void, AgentError>()
+              if (session.idle) yield* Fiber.interrupt(session.idle)
+              session.idle = null
+              yield* publish(session, { type: 'turn.started', turnId })
+            }
             if (!session.awaitingResult && message.type !== 'system' && !fromSubagent) return
             if (message.type === 'result') {
               yield* session.publication.withPermit(
@@ -400,10 +444,25 @@ export function createClaudeAdapter(
                 })
               )
             }
-            const events = yield* Effect.try({
+            const translated = yield* Effect.try({
               try: () => translate(message as SdkLikeMessage, session.ctx),
               catch: (error) => new AgentError(String(error)),
             })
+            const events: ThreadEvent[] = []
+            for (const original of translated) {
+              const event =
+                original.type === 'item.completed' && session.stoppedWorkflows.has(original.itemId)
+                  ? { ...original, patch: { ...original.patch, stopReason: 'you' } }
+                  : original
+              events.push(event)
+              if (event.type === 'item.started' && event.item.kind === 'workflow')
+                session.runningWorkflows.add(event.item.id)
+              if (event.type === 'item.completed' && session.runningWorkflows.has(event.itemId))
+                session.runningWorkflows.delete(event.itemId)
+              if (event.type === 'item.completed' && session.stoppedWorkflows.has(event.itemId)) {
+                session.stoppedWorkflows.delete(event.itemId)
+              }
+            }
             if (session.ctx.sessionId) {
               yield* store
                 .setThreadSessionId(session.threadId, session.ctx.sessionId)
@@ -412,8 +471,7 @@ export function createClaudeAdapter(
             }
             for (const event of events) yield* publish(session, event)
             // Background subagents outlive their turn; the session stays warm until they settle.
-            if (!session.awaitingResult && session.runningAgents.size === 0 && !session.idle)
-              yield* armIdle(session)
+            if (!session.awaitingResult) yield* armIdle(session)
             if (message.type === 'result') {
               yield* requestUsage(session)
               yield* session.contextPoller.poll(true)
@@ -601,6 +659,7 @@ export function createClaudeAdapter(
                   allowDangerouslySkipPermissions: true,
                   includePartialMessages: true,
                   forwardSubagentText: true,
+                  perTaskStopAffordance: true,
                   canUseTool,
                   hooks: {
                     PreToolUse: [
@@ -663,6 +722,9 @@ export function createClaudeAdapter(
           grace: null,
           ctx: createTranslateCtx(input.turnId),
           runningAgents: new Set(),
+          runningWorkflows: new Set(),
+          stoppedWorkflows: new Set(),
+          backgroundTasks: new Set(),
           emit,
           closed: false,
           queryClosed: false,
@@ -778,6 +840,18 @@ export function createClaudeAdapter(
             Effect.andThen(retire(session, reason, { turnId, awaitingResult: true })),
             Effect.forkIn(session.scope)
           )
+        })
+      },
+      stopWorkflow(threadId, taskId) {
+        return Effect.gen(function* () {
+          const session = sessions.get(threadId)
+          if (!session || !current(session) || !session.runningWorkflows.has(taskId)) return false
+          session.stoppedWorkflows.add(taskId)
+          yield* Effect.tryPromise({
+            try: () => session.query.stopTask(taskId),
+            catch: (error) => new AgentError(String(error)),
+          }).pipe(Effect.onError(() => Effect.sync(() => session.stoppedWorkflows.delete(taskId))))
+          return true
         })
       },
       respondToApproval(threadId, itemId, decision, message) {

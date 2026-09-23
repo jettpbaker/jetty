@@ -193,6 +193,10 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'turn.interrupt': (params) =>
         orch.interrupt(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
+      'workflow.stop': (params) =>
+        orch
+          .stopWorkflow(params.threadId, params.taskId)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'approval.respond': (params) =>
         orch
           .respondApproval(params.threadId, params.itemId, params.decision, params.message)

@@ -44,6 +44,7 @@ export type Turn = { await: Effect.Effect<void, AgentError> }
 export type Agent = {
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
+  stopWorkflow?: (threadId: string, taskId: string) => Effect.Effect<boolean, AgentError>
   steer(
     threadId: string,
     text: string,

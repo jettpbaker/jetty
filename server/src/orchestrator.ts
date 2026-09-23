@@ -114,9 +114,16 @@ export function createOrchestrator(
               Effect.gen(function* () {
                 if (expectedTurnId && state(threadId).turnId !== expectedTurnId)
                   return yield* Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
+                if (
+                  event.type === 'turn.started' &&
+                  state(threadId).turnId &&
+                  state(threadId).turnId !== event.turnId
+                )
+                  return yield* Effect.fail(new StoreError('conflict', 'Another turn is active'))
                 const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
                 if (terminal && state(threadId).turnId !== event.turnId) return
                 const appended = yield* store.appendEvent(threadId, event)
+                if (event.type === 'turn.started') state(threadId).turnId = event.turnId
                 yield* onCommit
                 publish(threadId, appended)
                 if (terminal) state(threadId).turnId = null
@@ -575,6 +582,14 @@ export function createOrchestrator(
       },
       interrupt(threadId: string) {
         return agentForThread(threadId).pipe(Effect.flatMap((agent) => agent.interrupt(threadId)))
+      },
+      stopWorkflow(threadId: string, taskId: string) {
+        return Effect.gen(function* () {
+          yield* store.requireThread(threadId)
+          const agent = yield* agentForThread(threadId)
+          if (!agent.stopWorkflow || !(yield* agent.stopWorkflow(threadId, taskId)))
+            return yield* Effect.fail(new StoreError('not_found', 'Running workflow not found'))
+        })
       },
       respondApproval(
         threadId: string,

@@ -78,11 +78,14 @@ function reconcileOnStartup(store: Store) {
     for (const thread of yield* store.listThreads()) {
       const state = yield* store.getThreadState(thread.id)
       for (const item of state.items)
-        if (item.kind === 'subagent' && item.status === 'running')
+        if ((item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running')
           yield* store.appendEvent(thread.id, {
             type: 'item.completed',
             itemId: item.id,
-            patch: { status: 'stopped' },
+            patch:
+              item.kind === 'workflow'
+                ? { status: 'stopped', stopReason: 'crash' }
+                : { status: 'stopped' },
           })
       if (!state.activeTurnId) continue
       yield* store.appendEvent(

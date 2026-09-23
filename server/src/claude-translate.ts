@@ -1,12 +1,12 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { ThreadItem, WorkflowAgent } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
 
 import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 
-const HIDDEN_TOOLS: ReadonlySet<string> = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL])
+const HIDDEN_TOOLS: ReadonlySet<string> = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL, 'Workflow'])
 // `Task` is the Agent tool's name in older Claude Code releases.
 const AGENT_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task'])
 
@@ -17,6 +17,8 @@ export type TranslateCtx = {
   agents: Map<string, TranslateCtx>
   // the SDK's task id (canUseTool's agentID) → the subagent item id
   tasks: Map<string, string>
+  workflows: Map<string, string>
+  workflowTools: Map<string, string>
   currentAssistantId: string | null
   currentReasoningId: string | null
   toolUseToItemId: Map<string, string>
@@ -37,6 +39,8 @@ export function createTranslateCtx(
     agentId,
     agents: shared?.agents ?? new Map(),
     tasks: shared?.tasks ?? new Map(),
+    workflows: shared?.workflows ?? new Map(),
+    workflowTools: shared?.workflowTools ?? new Map(),
     currentAssistantId: null,
     currentReasoningId: null,
     toolUseToItemId: new Map(),
@@ -72,6 +76,13 @@ export type SdkLikeMessage = {
   errors?: string[]
   is_error?: boolean
   result?: string
+  description?: string
+  workflow_name?: string
+  task_type?: string
+  summary?: string
+  workflow_progress?: unknown
+  tool_use_result?: unknown
+  tasks?: { task_id: string; task_type: string; ambient?: boolean }[]
 }
 
 type StreamEvent = {
@@ -143,6 +154,56 @@ function natural(value: number | undefined) {
   return value != null && Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+}
+
+function word(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function workflowSnapshot(value: unknown) {
+  const phases: { index: number; title: string }[] = []
+  const agents: WorkflowAgent[] = []
+  if (!Array.isArray(value)) return { phases, agents }
+  for (const entry of value) {
+    const part = record(entry)
+    if (part.type === 'workflow_phase') {
+      phases.push({ index: Number(part.index) || 0, title: word(part.title) ?? '' })
+    } else if (part.type === 'workflow_agent') {
+      const state = part.state
+      agents.push({
+        id: word(part.agentId) ?? String(part.index ?? agents.length),
+        label: word(part.label) ?? 'Agent',
+        phase: Number(part.phaseIndex) || 0,
+        ...(word(part.model) ? { model: word(part.model) } : {}),
+        state:
+          state === 'active' || state === 'running'
+            ? 'active'
+            : state === 'waiting'
+              ? 'waiting'
+              : state === 'done' || state === 'completed'
+                ? 'done'
+                : state === 'error' || state === 'failed'
+                  ? 'error'
+                  : typeof part.startedAt === 'number'
+                    ? 'active'
+                    : 'queued',
+        tokens: natural(Number(part.tokens)) ?? 0,
+        toolCalls: natural(Number(part.toolCalls)) ?? 0,
+        ...(word(part.lastToolName) ? { lastTool: word(part.lastToolName) } : {}),
+        ...(word(part.lastToolSummary) ? { lastSummary: word(part.lastToolSummary) } : {}),
+        ...(word(part.promptPreview) ? { prompt: word(part.promptPreview) } : {}),
+        ...(word(part.resultPreview) ? { result: word(part.resultPreview) } : {}),
+        ...(natural(Number(part.durationMs)) != null
+          ? { durationMs: natural(Number(part.durationMs)) }
+          : {}),
+      })
+    }
+  }
+  return { phases, agents }
+}
+
 export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
   return taskId ? ctx.tasks.get(taskId) : undefined
 }
@@ -151,6 +212,68 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
   if (msg.subtype === 'init' && typeof msg.session_id === 'string') {
     ctx.sessionId = msg.session_id
     return []
+  }
+  if (msg.subtype === 'task_started' && msg.task_type === 'local_workflow' && msg.task_id) {
+    ctx.workflows.set(msg.task_id, msg.task_id)
+    if (msg.tool_use_id) ctx.workflowTools.set(msg.tool_use_id, msg.task_id)
+    return [
+      {
+        type: 'item.started',
+        item: {
+          id: msg.task_id,
+          ...itemBase(ctx),
+          kind: 'workflow',
+          taskId: msg.task_id,
+          name: msg.workflow_name ?? 'Workflow',
+          description: msg.description ?? '',
+          provider: 'claude',
+          status: 'running',
+          phases: [],
+          agents: [],
+          tokens: 0,
+          durationMs: 0,
+        },
+      },
+    ]
+  }
+  if (msg.task_id && ctx.workflows.has(msg.task_id)) {
+    const itemId = ctx.workflows.get(msg.task_id)!
+    if (msg.subtype === 'task_progress') {
+      const snapshot = workflowSnapshot(msg.workflow_progress)
+      return [
+        {
+          type: 'item.updated',
+          itemId,
+          patch: {
+            tokens: natural(msg.usage?.total_tokens) ?? 0,
+            durationMs: natural(msg.usage?.duration_ms) ?? 0,
+            ...(Array.isArray(msg.workflow_progress) ? snapshot : {}),
+          },
+        },
+      ]
+    }
+    if (
+      msg.subtype === 'task_notification' &&
+      msg.status &&
+      SETTLED_TASK_STATUSES.has(msg.status)
+    ) {
+      return [
+        {
+          type: 'item.completed',
+          itemId,
+          patch: {
+            status: msg.status,
+            ...(msg.summary ? { summary: msg.summary } : {}),
+            ...(natural(msg.usage?.total_tokens) != null
+              ? { tokens: natural(msg.usage?.total_tokens) }
+              : {}),
+            ...(natural(msg.usage?.duration_ms) != null
+              ? { durationMs: natural(msg.usage?.duration_ms) }
+              : {}),
+          },
+        },
+      ]
+    }
   }
   const itemId = msg.tool_use_id
   if (!itemId || !ctx.agents.has(itemId)) return []
@@ -407,6 +530,7 @@ function translateUser(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
   if (!Array.isArray(content)) return []
 
   const out: ThreadEvent[] = []
+  const workflowResult = record(msg.tool_use_result)
   for (const block of content) {
     if (!block || typeof block !== 'object') continue
     const b = block as {
@@ -416,6 +540,21 @@ function translateUser(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
       is_error?: boolean
     }
     if (b.type !== 'tool_result' || !b.tool_use_id) continue
+    const workflowId = ctx.workflowTools.get(b.tool_use_id) ?? word(workflowResult.taskId)
+    if (workflowId && ctx.workflows.has(workflowId)) {
+      out.push({
+        type: 'item.updated',
+        itemId: workflowId,
+        patch: {
+          ...(word(workflowResult.runId) ? { runId: workflowResult.runId } : {}),
+          ...(word(workflowResult.scriptPath) ? { scriptPath: workflowResult.scriptPath } : {}),
+          ...(word(workflowResult.transcriptDir)
+            ? { transcriptDir: workflowResult.transcriptDir }
+            : {}),
+        },
+      })
+      continue
+    }
     // A subagent settles via its task_notification: a backgrounded one's tool_result is only a placeholder.
     if (ctx.agents.has(b.tool_use_id)) {
       if (b.is_error)
