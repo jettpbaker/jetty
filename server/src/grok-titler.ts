@@ -23,6 +23,7 @@ export function createGrokTitler(options: StdioProcessOptions = {}, model = DEFA
           const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
           const sessionId = string(session.sessionId)
           yield* connection.request('session/set_model', { sessionId, modelId: model })
+          yield* Queue.takeAll(connection.messages)
           const promptId = yield* connection.startRequest('session/prompt', {
             sessionId,
             prompt: [{ type: 'text', text: `${TITLE_INSTRUCTIONS}\n\n${titlePrompt(text)}` }],
