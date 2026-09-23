@@ -183,8 +183,8 @@ function modelLabel(model: string | undefined) {
 }
 
 // Before the subagent's first reply its model is unknown; its type stands in.
-export function subagentLabel({ model, agentType }: { model?: string; agentType?: string }) {
-  return modelLabel(model) || agentType || 'Subagent'
+export function subagentLabel({ model }: { model?: string }) {
+  return modelLabel(model)
 }
 
 export function toSubagent(item: SubagentItem, now: number): Subagent {
