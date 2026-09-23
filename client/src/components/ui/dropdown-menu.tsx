@@ -93,22 +93,48 @@ function DropdownMenuItem({
   )
 }
 
-function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
-  return <MenuPrimitive.SubmenuRoot data-slot='dropdown-menu-sub' {...props} />
+// Base UI ignores mouse clicks on hover-opening submenu triggers; a click should open them too.
+const OpenSubmenuContext = React.createContext(() => {})
+
+function DropdownMenuSub({
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: MenuPrimitive.SubmenuRoot.Props) {
+  const [open, setOpen] = React.useState(defaultOpen)
+  return (
+    <OpenSubmenuContext value={() => setOpen(true)}>
+      <MenuPrimitive.SubmenuRoot
+        data-slot='dropdown-menu-sub'
+        open={open}
+        onOpenChange={(next, details) => {
+          setOpen(next)
+          onOpenChange?.(next, details)
+        }}
+        {...props}
+      />
+    </OpenSubmenuContext>
+  )
 }
 
 function DropdownMenuSubTrigger({
   className,
   inset,
   children,
+  onClick,
   ...props
 }: MenuPrimitive.SubmenuTrigger.Props & {
   inset?: boolean
 }) {
+  const openSubmenu = React.useContext(OpenSubmenuContext)
   return (
     <MenuPrimitive.SubmenuTrigger
       data-slot='dropdown-menu-sub-trigger'
       data-inset={inset}
+      onClick={(event) => {
+        onClick?.(event)
+        if (!props.disabled) openSubmenu()
+      }}
       className={cn(
         "flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
