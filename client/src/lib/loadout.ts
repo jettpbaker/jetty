@@ -1,4 +1,5 @@
-import type { EffortLevel, ProviderId, ProviderModel } from '@jetty/shared/wire'
+import { EffortLevel, ProviderId, type ProviderModel } from '@jetty/shared/wire'
+import { Schema } from 'effect'
 
 export type Loadout = {
   provider: ProviderId
@@ -10,6 +11,8 @@ export type Loadout = {
 export type LoadoutSlot = Omit<Loadout, 'model'> & { id: string; model: string | null }
 
 const slotCount = 5
+const isProvider = Schema.is(ProviderId)
+const isEffort = Schema.is(EffortLevel)
 
 export const effortLabels: Record<EffortLevel, string> = {
   low: 'Low',
@@ -94,7 +97,11 @@ export function restoreLoadouts(value: unknown, catalog: readonly ProviderModel[
     const model = catalog.find(
       (entry) => entry.provider === item.provider && entry.id === item.model
     )
-    if (!model) return { ...slot, id }
+    if (!model) {
+      if (!isProvider(item.provider) || typeof item.model !== 'string') return { ...slot, id }
+      const effort = isEffort(item.effort) ? item.effort : undefined
+      return { id, provider: item.provider, model: item.model, effort, fast: item.fast === true }
+    }
     const effort = model.efforts.find((level) => level === item.effort)
     return equipModel({ id, effort, fast: item.fast === true }, model)
   })
