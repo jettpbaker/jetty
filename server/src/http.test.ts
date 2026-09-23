@@ -55,6 +55,9 @@ async function closed(path: string) {
 
 test('native HTTP requires an allowed websocket origin and preserves no-upgrade errors', async () => {
   const f = await fixture()
+  const html = await (await fetch(f.url)).text()
+  const secret = html.match(/<meta name="jetty-ws-secret" content="([a-f0-9]+)">/)?.[1]
+  expect(secret).toBeDefined()
   for (const origin of [
     'https://evil.example',
     'null',
@@ -64,7 +67,7 @@ test('native HTTP requires an allowed websocket origin and preserves no-upgrade 
     expect((await fetch(`${f.url}/ws`, { headers: { origin } })).status).toBe(403)
   }
   for (const origin of ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173']) {
-    expect((await fetch(`${f.url}/ws`, { headers: { origin } })).status).toBe(400)
+    expect((await fetch(`${f.url}/ws?secret=${secret}`, { headers: { origin } })).status).toBe(400)
   }
   expect((await fetch(`${f.url}/ws`)).status).toBe(403)
 })

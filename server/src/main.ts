@@ -7,6 +7,7 @@ import { Context, Deferred, Effect, FileSystem, Layer, ManagedRuntime, Scope } f
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
@@ -135,11 +136,12 @@ const MAX_TURN_PAYLOAD_BYTES = Math.ceil((MAX_TURN_IMAGE_BYTES * 4) / 3) + 1024 
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 
-function serveStatic(pathname: string) {
+function serveStatic(pathname: string, wsSecret: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const indexPath = join(distDir, 'index.html')
-    if (!(yield* fs.exists(indexPath))) return HttpServerResponse.text('jetty')
+    const secretTag = `<meta name="jetty-ws-secret" content="${wsSecret}">`
+    if (!(yield* fs.exists(indexPath))) return HttpServerResponse.html(secretTag)
     const requested = pathname === '/' ? '/index.html' : pathname
     const filePath = normalize(join(distDir, requested))
     if (!filePath.startsWith(distDir + sep)) {
@@ -147,6 +149,10 @@ function serveStatic(pathname: string) {
     }
     const stat = yield* fs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(null)))
     const path = stat?.type === 'File' ? filePath : indexPath
+    if (path === indexPath) {
+      const html = yield* fs.readFileString(indexPath)
+      return HttpServerResponse.html(html.replace('</head>', `${secretTag}</head>`))
+    }
     return yield* HttpServerResponse.file(path)
   })
 }
@@ -174,6 +180,7 @@ function createServer(opts: ServerOptions = {}) {
     const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
     const port = opts.port ?? Number(process.env.PORT ?? 8787)
     const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
+    const wsSecret = randomBytes(32).toString('hex')
     const envAgent = process.env.JETTY_AGENT
     const agentKind =
       opts.agent ??
@@ -374,6 +381,13 @@ function createServer(opts: ServerOptions = {}) {
         if (!originAllowed(request.headers.origin)) {
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
         }
+        const supplied = url.searchParams.get('secret')
+        if (
+          !supplied ||
+          supplied.length !== wsSecret.length ||
+          !timingSafeEqual(Buffer.from(supplied), Buffer.from(wsSecret))
+        )
+          return HttpServerResponse.text('Forbidden', { status: 403 })
         if (request.headers.upgrade?.toLowerCase() !== 'websocket') {
           return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
         }
@@ -385,7 +399,7 @@ function createServer(opts: ServerOptions = {}) {
         if (!resolved) return HttpServerResponse.text('Not found', { status: 404 })
         return yield* rangeResponse(resolved.path, resolved.mimeType, request.headers.range ?? null)
       }
-      return yield* serveStatic(url.pathname)
+      return yield* serveStatic(url.pathname, wsSecret)
     }).pipe(
       Effect.catch(() => Effect.succeed(HttpServerResponse.text('Not found', { status: 404 }))),
       Effect.interruptible

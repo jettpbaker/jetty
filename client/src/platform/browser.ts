@@ -12,7 +12,10 @@ function missing(error: unknown) {
 export const browser: Platform = {
   connectionUrl() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${protocol}//${location.host}/ws`
+    const url = new URL(`${protocol}//${location.host}/ws`)
+    const secret = document.querySelector<HTMLMetaElement>('meta[name="jetty-ws-secret"]')?.content
+    if (secret) url.searchParams.set('secret', secret)
+    return url.toString()
   },
   pickFiles({ accept, multiple = true } = {}) {
     const input = document.createElement('input')

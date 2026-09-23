@@ -66,7 +66,10 @@ async function connect(port: number) {
 }
 
 async function connectRaw(port: number) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+  const html = await (await fetch(`http://127.0.0.1:${port}/`)).text()
+  const secret = html.match(/<meta name="jetty-ws-secret" content="([a-f0-9]+)">/)?.[1]
+  if (!secret) throw new Error('Jetty WebSocket secret is unavailable')
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?secret=${secret}`, {
     headers: { Origin: 'http://localhost:5173' },
   })
   rawSockets.push(ws)

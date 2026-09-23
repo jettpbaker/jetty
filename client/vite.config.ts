@@ -7,7 +7,23 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 
-const server = 'http://127.0.0.1:8787'
+const server = `http://127.0.0.1:${process.env.JETTY_SERVER_PORT ?? '8787'}`
+
+function websocketSecret(): Plugin {
+  return {
+    name: 'jetty-websocket-secret',
+    apply: 'serve',
+    async transformIndexHtml(html) {
+      const response = await fetch(server)
+      if (!response.ok) throw new Error('Jetty server is unavailable')
+      const secret = (await response.text()).match(
+        /<meta name="jetty-ws-secret" content="([a-f0-9]+)">/
+      )?.[1]
+      if (!secret) throw new Error('Jetty WebSocket secret is unavailable')
+      return html.replace('</head>', `<meta name="jetty-ws-secret" content="${secret}"></head>`)
+    },
+  }
+}
 
 type IconifyIcon = { body: string; width?: number; height?: number }
 type IconifySet = {
@@ -85,9 +101,10 @@ export default defineConfig({
     react({ compiler: { target: '19' } }),
     tailwindcss(),
     fluentEmoji(),
+    websocketSecret(),
   ],
   server: {
-    port: 5173,
+    port: Number(process.env.JETTY_CLIENT_PORT ?? 5173),
     proxy: {
       '/ws': { target: server, ws: true },
       '/attachments': { target: server },

@@ -73,11 +73,14 @@ export type Subscription<A, Initial extends A = A> = {
 }
 
 export async function connect(port: number) {
+  const html = await (await fetch(`http://127.0.0.1:${port}/`)).text()
+  const secret = html.match(/<meta name="jetty-ws-secret" content="([a-f0-9]+)">/)?.[1]
+  if (!secret) throw new Error('Jetty WebSocket secret is unavailable')
   const scope = Scope.makeUnsafe()
   const protocol = RpcClient.layerProtocolSocket({ retryTransientErrors: false }).pipe(
     Layer.provide(RpcSerialization.layerJson),
     Layer.provide(
-      Socket.layerWebSocket(`ws://127.0.0.1:${port}/ws`).pipe(
+      Socket.layerWebSocket(`ws://127.0.0.1:${port}/ws?secret=${secret}`).pipe(
         Layer.provide(
           Layer.succeed(
             Socket.WebSocketConstructor,
