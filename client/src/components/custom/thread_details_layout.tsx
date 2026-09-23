@@ -167,8 +167,7 @@ export function ThreadDetailsLayout({ children }: { children: ReactNode }) {
       <div className='absolute top-0 right-2.5 z-20 flex h-[calc(var(--app-tab-bar-height)-1px)] items-center gap-1'>
         {open && !narrow && (
           <Button
-            variant='ghost'
-            tone='muted'
+            variant='ghost-text'
             size='icon'
             aria-label={expanded ? 'Restore split view' : 'Expand thread details'}
             title={expanded ? 'Restore split view' : 'Expand thread details'}
@@ -178,9 +177,9 @@ export function ThreadDetailsLayout({ children }: { children: ReactNode }) {
           </Button>
         )}
         <Button
-          variant='ghost'
-          tone='muted'
+          variant='ghost-text'
           size='icon'
+          className='aria-expanded:text-muted-foreground aria-expanded:enabled:hover:text-foreground'
           aria-label={open ? 'Close thread details' : 'Open thread details'}
           aria-expanded={open}
           aria-keyshortcuts='Meta+Alt+B'
