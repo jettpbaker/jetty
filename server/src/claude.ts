@@ -8,7 +8,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { type ThreadEvent } from '@jetty/shared/events'
 import { type ApprovalDecision, QuestionSpec } from '@jetty/shared/items'
-import { newId, type PermissionMode } from '@jetty/shared/wire'
+import { newId } from '@jetty/shared/wire'
 import {
   Cause,
   Deferred,
@@ -53,7 +53,12 @@ const AUTO_ALLOWED_TOOLS = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL])
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
-export type ClaudeOptions = { query?: QueryFactory; ttlMs?: number; interruptGraceMs?: number }
+export type ClaudeOptions = {
+  query?: QueryFactory
+  ttlMs?: number
+  interruptGraceMs?: number
+  supportsAutoMode?: (model: string) => boolean
+}
 
 type PendingApproval = {
   result: Deferred.Deferred<PermissionResult>
@@ -81,14 +86,6 @@ type WarmSession = {
   done: Deferred.Deferred<void, AgentError>
   contextPoller: ContextPoller
   publication: Semaphore.Semaphore
-}
-
-function toSdkPermissionMode(mode: PermissionMode | undefined) {
-  return mode === 'full_access' ? 'bypassPermissions' : 'auto'
-}
-
-function turnOptionsKey(input: TurnInput): string {
-  return `${input.model ?? ''}|${input.effort ?? ''}|${toSdkPermissionMode(input.permissionMode)}`
 }
 
 function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
@@ -128,7 +125,17 @@ export function createClaudeAdapter(
     const sessions = new Map<string, WarmSession>()
     const ttlMs = config.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
     const makeQuery = config.query ?? query
+    const supportsAutoMode = config.supportsAutoMode ?? (() => true)
     let usageInFlight = false
+
+    function toSdkPermissionMode(input: TurnInput) {
+      if (input.permissionMode === 'full_access') return 'bypassPermissions'
+      return !input.model || supportsAutoMode(input.model) ? 'auto' : 'default'
+    }
+
+    function turnOptionsKey(input: TurnInput): string {
+      return `${input.model ?? ''}|${input.effort ?? ''}|${toSdkPermissionMode(input)}`
+    }
 
     function current(session: WarmSession) {
       return !session.closed && sessions.get(session.threadId) === session
@@ -475,7 +482,7 @@ export function createClaudeAdapter(
               )
             }),
         }).pipe(Effect.provideService(Path.Path, path), Effect.provideService(Scope.Scope, scope))
-        const permissionMode = toSdkPermissionMode(input.permissionMode)
+        const permissionMode = toSdkPermissionMode(input)
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))

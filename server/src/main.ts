@@ -153,6 +153,7 @@ function createServer(opts: ServerOptions = {}) {
         hub.pushChrome({ type: 'usage', usage })
       },
     }
+    let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
     const registry =
       typeof agentKind !== 'string'
         ? singleAgentRegistry(agentKind)
@@ -160,13 +161,18 @@ function createServer(opts: ServerOptions = {}) {
           ? singleAgentRegistry(yield* loadAgent(echoLayer(hooks)))
           : agentRegistry(
               {
-                claude: yield* loadAgent(claudeLayer(store, attachments, hooks)),
+                claude: yield* loadAgent(
+                  claudeLayer(store, attachments, hooks, {
+                    supportsAutoMode: (id) =>
+                      models?.find((model) => model.provider === 'claude' && model.id === id)
+                        ?.autoMode !== false,
+                  })
+                ),
                 codex: yield* loadAgent(codexLayer(store, opts.codex)),
                 grok: yield* loadAgent(grokLayer(store, opts.grok)),
               },
               agentKind
             )
-    let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
     if (typeof agentKind === 'string' && agentKind !== 'echo') {
       yield* Effect.all(
         [

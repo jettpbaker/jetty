@@ -22,6 +22,7 @@ function toProviderModel(raw: Record<string, unknown>): ProviderModel {
     efforts: EffortLevel.literals.filter((level) => offered.has(level)),
     ...(isEffort(defaultEffort) ? { defaultEffort } : {}),
     fast: false,
+    autoMode: true,
   }
 }
 

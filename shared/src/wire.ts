@@ -32,6 +32,7 @@ export const ProviderModel = Schema.Struct({
   efforts: Schema.Array(EffortLevel),
   defaultEffort: Schema.optional(EffortLevel),
   fast: Schema.Boolean,
+  autoMode: Schema.Boolean,
 })
 export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>
 

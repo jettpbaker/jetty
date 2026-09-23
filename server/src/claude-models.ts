@@ -55,6 +55,7 @@ export function discoverClaudeModels() {
             name: versionedName(model),
             efforts: model.supportedEffortLevels ?? [],
             fast: false,
+            autoMode: model.supportsAutoMode === true,
           },
         ]
       })

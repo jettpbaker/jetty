@@ -81,9 +81,23 @@ const ECHO_FIXED_SUM = ECHO_FIXED_SLICES.reduce((sum, s) => sum + s.tokens, 0)
 
 const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
 export const ECHO_MODELS: ProviderModel[] = [
-  { provider: 'claude', id: 'opus', name: 'Opus', efforts: ALL_EFFORTS, fast: false },
-  { provider: 'claude', id: 'sonnet', name: 'Sonnet', efforts: ALL_EFFORTS, fast: false },
-  { provider: 'claude', id: 'haiku', name: 'Haiku', efforts: [], fast: false },
+  {
+    provider: 'claude',
+    id: 'opus',
+    name: 'Opus',
+    efforts: ALL_EFFORTS,
+    fast: false,
+    autoMode: true,
+  },
+  {
+    provider: 'claude',
+    id: 'sonnet',
+    name: 'Sonnet',
+    efforts: ALL_EFFORTS,
+    fast: false,
+    autoMode: true,
+  },
+  { provider: 'claude', id: 'haiku', name: 'Haiku', efforts: [], fast: false, autoMode: false },
   {
     provider: 'codex',
     id: 'gpt-echo',
@@ -91,6 +105,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: ['low', 'medium', 'high', 'xhigh'],
     defaultEffort: 'medium',
     fast: true,
+    autoMode: true,
   },
   {
     provider: 'codex',
@@ -99,6 +114,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: ['low', 'medium', 'high'],
     defaultEffort: 'medium',
     fast: false,
+    autoMode: true,
   },
   {
     provider: 'grok',
@@ -107,6 +123,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: ['low', 'medium', 'high', 'xhigh'],
     defaultEffort: 'high',
     fast: true,
+    autoMode: true,
   },
   {
     provider: 'grok',
@@ -115,6 +132,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: ['low', 'medium', 'high'],
     defaultEffort: 'high',
     fast: false,
+    autoMode: true,
   },
 ]
 

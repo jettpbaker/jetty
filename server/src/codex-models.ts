@@ -24,6 +24,7 @@ function toProviderModel(raw: Record<string, unknown>): ProviderModel {
     fast:
       speeds.includes('fast') ||
       tiers.some((tier) => tier.id === 'fast' || string(tier.name).toLowerCase() === 'fast'),
+    autoMode: true,
   }
 }
 
