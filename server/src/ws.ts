@@ -254,29 +254,30 @@ export function createRpcHandlers(
           )
         ),
       'thread.create': (params) =>
-        upsertThread(
-          Effect.gen(function* () {
-            const project = yield* requireProject(params.projectId)
-            let base: string | undefined
-            if (params.environment === 'container') {
-              if (!containers)
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', 'Containers are disabled')
-                )
-              yield* Effect.tryPromise({
-                try: () => containers.registration(project),
-                catch: (error) => new StoreError('invalid_params', String(error)),
-              })
-              base = yield* Effect.tryPromise({
-                try: () => gitCommit(project.path, params.ref),
-                catch: (error) => new StoreError('invalid_params', String(error)),
-              })
-            }
-            yield* store.createThread(params.projectId, params.id)
-            if (base) yield* store.setThreadEnvironment(params.id, 'container', base)
-            return yield* store.requireThread(params.id)
-          })
-        ).pipe(Effect.map((thread) => ({ thread }))),
+        Effect.gen(function* () {
+          const project = yield* requireProject(params.projectId)
+          let base: string | undefined
+          if (params.environment === 'container') {
+            if (!containers)
+              return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
+            yield* Effect.tryPromise({
+              try: () => containers.registration(project),
+              catch: (error) => new StoreError('invalid_params', String(error)),
+            })
+            base = yield* Effect.tryPromise({
+              try: () => gitCommit(project.path, params.ref),
+              catch: (error) => new StoreError('invalid_params', String(error)),
+            })
+          }
+          const thread = yield* upsertThread(
+            Effect.gen(function* () {
+              yield* store.createThread(params.projectId, params.id)
+              if (base) yield* store.setThreadEnvironment(params.id, 'container', base)
+              return yield* store.requireThread(params.id)
+            })
+          )
+          return { thread }
+        }).pipe(Effect.mapError(wireError)),
       'thread.archive': (params) =>
         upsertThread(store.archiveThread(params.threadId, params.archived)).pipe(
           Effect.tap(() =>

@@ -116,9 +116,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
         ) {
           const changes =
             method === 'item/fileChange/requestApproval'
-              ? approvalChanges('fileChange', params).length
-                ? approvalChanges('fileChange', params)
-                : (session.fileChanges.get(string(params.itemId)) ?? [])
+              ? (() => {
+                  const direct = approvalChanges('fileChange', params)
+                  return direct.length
+                    ? direct
+                    : (session.fileChanges.get(string(params.itemId)) ?? [])
+                })()
               : []
           if (method === 'item/fileChange/requestApproval' && !changes.length)
             session.fileChangeApprovals.set(string(params.itemId), itemId)
@@ -321,9 +324,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   raw.type === 'fileChange'
                 ) {
                   const changes = approvalChanges('fileChange', raw)
-                  if (changes.length) {
-                    const providerItemId = string(raw.id)
-                    session.fileChanges.set(providerItemId, changes)
+                  const providerItemId = string(raw.id)
+                  if (message.method === 'item/completed')
+                    session.fileChanges.delete(providerItemId)
+                  if (changes.length && session.input.permissionMode !== 'full_access') {
+                    if (message.method === 'item/started')
+                      session.fileChanges.set(providerItemId, changes)
                     const approvalId = session.fileChangeApprovals.get(providerItemId)
                     if (approvalId) {
                       session.fileChangeApprovals.delete(providerItemId)

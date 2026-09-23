@@ -50,7 +50,15 @@ export const containerDefaults: ContainerSettings = {
 }
 
 async function command(binary: string, args: string[], cwd?: string, signal?: AbortSignal) {
-  const child = Bun.spawn([binary, ...args], { cwd, signal, stdout: 'pipe', stderr: 'pipe' })
+  const bounded = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+    : AbortSignal.timeout(30_000)
+  const child = Bun.spawn([binary, ...args], {
+    cwd,
+    signal: bounded,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   const [stdout, stderr, code] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),

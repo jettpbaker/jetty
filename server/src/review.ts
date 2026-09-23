@@ -16,10 +16,11 @@ export function createReviewClassifier(options: StdioProcessOptions = {}) {
     const classify: ReviewClassifier = (text) =>
       slots
         .withPermits(1)(
-          prompt(REVIEW_INSTRUCTIONS, `Final assistant reply:\n\n${text.slice(0, 4000)}`)
+          prompt(REVIEW_INSTRUCTIONS, `Final assistant reply:\n\n${text.slice(0, 4000)}`).pipe(
+            Effect.timeout('15 seconds')
+          )
         )
         .pipe(
-          Effect.timeout('15 seconds'),
           Effect.map((answer) => answer?.trim().toUpperCase() === 'YES'),
           Effect.catch(() => Effect.succeed(false))
         )
