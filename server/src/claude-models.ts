@@ -7,10 +7,12 @@ import { claudeBin } from './claude-bin'
 
 const DISCOVERY_TIMEOUT_MS = 20_000
 
-// displayName is an unversioned alias ("Opus"); the description leads with the versioned name.
 function versionedName(model: ModelInfo) {
+  if (/\d/.test(model.displayName)) return model.displayName
   const lead = model.description.split(' · ')[0]?.replace(/ with 1M context$/, '')
-  return lead || model.displayName
+  return lead?.startsWith(`${model.displayName} `) && /\d/.test(lead)
+    ? lead
+    : model.displayName || lead || model.value
 }
 
 export function discoverClaudeModels() {
