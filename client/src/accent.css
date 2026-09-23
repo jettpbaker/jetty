@@ -1,0 +1,33 @@
+[data-accent='lilac'] {
+  --accent-primary-light: oklch(0.5 0.18 282.178);
+  --accent-primary-dark: oklch(0.772 0.119 282.178);
+}
+[data-accent='blue'] {
+  --accent-primary-light: oklch(0.5 0.17 255);
+  --accent-primary-dark: oklch(0.772 0.11 255);
+}
+[data-accent='teal'] {
+  --accent-primary-light: oklch(0.49 0.085 185);
+  --accent-primary-dark: oklch(0.772 0.105 185);
+}
+[data-accent='rose'] {
+  --accent-primary-light: oklch(0.5 0.18 355);
+  --accent-primary-dark: oklch(0.772 0.12 355);
+}
+[data-accent='orange'] {
+  --accent-primary-light: oklch(0.49 0.13 50);
+  --accent-primary-dark: oklch(0.772 0.13 60);
+}
+
+:root[data-accent] {
+  --primary: var(--accent-primary-light);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: var(--primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-ring: var(--ring);
+}
+:root.dark[data-accent] {
+  --primary: var(--accent-primary-dark);
+  --primary-foreground: oklch(0.205 0 0);
+}
