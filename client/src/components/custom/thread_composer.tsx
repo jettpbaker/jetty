@@ -15,6 +15,7 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { currentTodos, pendingItems } from '@/components/custom/composer_strip_model'
+import { ContainerSetupDialog } from '@/components/custom/container_setup_dialog'
 import { WorkflowLines } from '@/components/custom/workflow_lines'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { findModel } from '@/lib/loadout'
@@ -34,6 +35,7 @@ import {
   useThreadLoadout,
   useThreadQueue,
 } from '@/state'
+import { useContainerStatus } from '@/state/containers'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -82,8 +84,25 @@ export function ThreadComposer({
   const selectedId = useParams({ strict: false }).threadId
   const [pickedProjectId, setPickedProjectId] = useState<string>()
   const [queueOpen, setQueueOpen] = useState(false)
+  const [environment, setEnvironment] = useState<'local' | 'container'>('local')
+  const [startingRef, setStartingRef] = useState('HEAD')
+  const [setupOpen, setSetupOpen] = useState(false)
+  const { status: containerStatus } = useContainerStatus()
   const projectId =
     !threadId && chrome ? (pickedProjectId ?? newThreadProject(chrome, selectedId)) : undefined
+  const currentProject = chrome?.projects.find(
+    (project) =>
+      project.id ===
+      (projectId ?? chrome.threads.find((thread) => thread.id === threadId)?.projectId)
+  )
+  const threadEnvironment = chrome?.threads.find((thread) => thread.id === threadId)?.environment
+  const selectedEnvironment = threadEnvironment ?? environment
+  const containerAvailable = Boolean(
+    containerStatus?.enabled &&
+    currentProject?.containerReady &&
+    loadout &&
+    currentProject.containerProviders?.[loadout.provider]
+  )
   const needsModel = !threadId && !loadout
 
   const pending = useMemo(
@@ -181,7 +200,8 @@ export function ThreadComposer({
   }
 
   function startTurn(text: string) {
-    const id = threadId ?? (projectId ? createThread(projectId) : undefined)
+    const id =
+      threadId ?? (projectId ? createThread(projectId, environment, startingRef) : undefined)
     if (!id) return
     const prior = priorCount(text)
     setDraft('')
@@ -343,6 +363,12 @@ export function ThreadComposer({
   return (
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
       <Composer
+        environment={selectedEnvironment}
+        containersConfigured={containerAvailable}
+        onEnvironmentChange={threadId ? undefined : setEnvironment}
+        onSetupContainers={() => setSetupOpen(true)}
+        startingRef={startingRef}
+        onStartingRefChange={threadId ? undefined : setStartingRef}
         value={draft}
         onValueChange={setDraft}
         onSubmit={mode.onSubmit}
@@ -353,8 +379,16 @@ export function ThreadComposer({
         strip={mode.strip}
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
-        sendDisabled={mode.sendDisabled}
-        sendHint={needsModel ? 'Choose a model first' : undefined}
+        sendDisabled={
+          mode.sendDisabled || (selectedEnvironment === 'container' && !containerAvailable)
+        }
+        sendHint={
+          needsModel
+            ? 'Choose a model first'
+            : selectedEnvironment === 'container' && !containerAvailable
+              ? 'Set up this provider for containers'
+              : undefined
+        }
         onKeyDown={mode.onKeyDown}
         loadout={
           <ComposerLoadout
@@ -381,6 +415,12 @@ export function ThreadComposer({
         rows={rows}
         ambient={ambient}
         inputRef={input}
+      />
+      <ContainerSetupDialog
+        project={currentProject}
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+        enabled={Boolean(containerStatus?.enabled && containerStatus.docker)}
       />
     </div>
   )

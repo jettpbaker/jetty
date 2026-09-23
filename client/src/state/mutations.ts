@@ -62,12 +62,18 @@ export function awaitCreation(threadId: string) {
   return creation ? Fiber.join(creation) : Effect.void
 }
 
-function createThread(registry: Registry, projectId: string) {
+function createThread(
+  registry: Registry,
+  projectId: string,
+  environment: 'local' | 'container' = 'local',
+  ref = 'HEAD'
+) {
   const id = crypto.randomUUID()
   registry.update(createdThreadsAtom, (threads) =>
     new Map(threads).set(id, {
       id,
       projectId,
+      ...(environment === 'container' ? { environment } : {}),
       title: 'New thread',
       status: 'idle',
       archived: false,
@@ -77,7 +83,12 @@ function createThread(registry: Registry, projectId: string) {
   )
   const creation = run(
     registry,
-    (connection) => connection.request('thread.create', { id, projectId }),
+    (connection) =>
+      connection.request('thread.create', {
+        id,
+        projectId,
+        ...(environment === 'container' ? { environment, ref } : {}),
+      }),
     () => registry.update(createdThreadsAtom, (threads) => without(threads, [id]))
   )
   creations.set(id, creation)

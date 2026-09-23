@@ -46,6 +46,12 @@ export function Composer({
   rows = 2,
   ambient = false,
   inputRef,
+  environment = 'local',
+  containersConfigured = false,
+  onEnvironmentChange,
+  onSetupContainers,
+  startingRef,
+  onStartingRefChange,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -68,6 +74,12 @@ export function Composer({
   rows?: number
   ambient?: boolean
   inputRef?: RefObject<HTMLTextAreaElement | null>
+  environment?: 'local' | 'container'
+  containersConfigured?: boolean
+  onEnvironmentChange?: (value: 'local' | 'container') => void
+  onSetupContainers?: () => void
+  startingRef?: string
+  onStartingRefChange?: (value: string) => void
 }) {
   const root = useRef<HTMLDivElement>(null)
   const ownInput = useRef<HTMLTextAreaElement>(null)
@@ -184,7 +196,14 @@ export function Composer({
                 />
               </div>
               <div className='flex items-center gap-1'>
-                <ComposerEnvironment />
+                <ComposerEnvironment
+                  value={environment}
+                  containersConfigured={containersConfigured}
+                  onValueChange={onEnvironmentChange}
+                  onSetupContainers={onSetupContainers}
+                  startingRef={startingRef}
+                  onStartingRefChange={onStartingRefChange}
+                />
                 {stop ? (
                   <InputGroupButton
                     variant='default'

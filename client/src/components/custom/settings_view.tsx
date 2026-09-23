@@ -14,6 +14,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { SettingsAppearance } from './settings_appearance'
+import { SettingsContainers } from './settings_containers'
 import { SettingsIntegrations } from './settings_integrations'
 import { SettingsLoadout } from './settings_loadout'
 import { SettingsProjects } from './settings_projects'
@@ -128,7 +129,7 @@ export function SettingsView() {
               />
             </Section>
             <Section id='containers' label='Containers' icon={ContainerIcon}>
-              <p className='text-xs text-status-error'>WIP</p>
+              <SettingsContainers />
             </Section>
           </div>
         </div>

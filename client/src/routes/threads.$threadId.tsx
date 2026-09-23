@@ -39,7 +39,7 @@ function Thread() {
     if (meta?.readyForReview || endedInView) markSeen(threadId)
   }, [markSeen, threadId, meta?.turnEndedAt, meta?.readyForReview])
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
-  const projectPath = project?.path
+  const projectPath = meta?.environment === 'container' ? '/workspace' : project?.path
   const [tab, setTab] = useThreadTab(threadId)
   const archiveThread = useArchiveThread()
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
@@ -71,6 +71,9 @@ function Thread() {
         <ThreadDetailsLayout threadId={threadId}>
           <ThreadHeader
             context={thread?.context ?? null}
+            containerThreadId={
+              meta?.environment === 'container' && project?.containerServices ? threadId : undefined
+            }
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           <ThreadList

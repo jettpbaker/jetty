@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { ContainerIcon, DeviceDesktopIcon, TerminalIcon } from '@primer/octicons-react'
 
 import { DisabledTooltip } from './disabled_tooltip'
@@ -20,6 +21,8 @@ type ComposerEnvironmentProps = {
   containersConfigured?: boolean
   onValueChange?: (value: Environment) => void
   onSetupContainers?: () => void
+  startingRef?: string
+  onStartingRefChange?: (value: string) => void
 }
 
 export function ComposerEnvironment({
@@ -27,6 +30,8 @@ export function ComposerEnvironment({
   containersConfigured = false,
   onValueChange,
   onSetupContainers,
+  startingRef = 'HEAD',
+  onStartingRefChange,
 }: ComposerEnvironmentProps) {
   const Icon = value === 'local' ? DeviceDesktopIcon : ContainerIcon
   const label = value === 'local' ? 'Local' : 'Container'
@@ -61,6 +66,20 @@ export function ComposerEnvironment({
             </DropdownMenuRadioItem>
           </DisabledTooltip>
         </DropdownMenuRadioGroup>
+        {value === 'container' && onStartingRefChange && (
+          <div className='px-2 py-1.5'>
+            <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
+              <span>Starting ref</span>
+              <Input
+                value={startingRef}
+                onChange={(event) => onStartingRefChange(event.target.value)}
+                onKeyDown={(event) => event.stopPropagation()}
+                className='h-8 text-xs'
+                aria-label='Starting ref'
+              />
+            </div>
+          </div>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DisabledTooltip reason={onSetupContainers ? undefined : 'Coming soon'} side='right'>

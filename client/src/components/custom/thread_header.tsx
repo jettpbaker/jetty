@@ -1,9 +1,11 @@
 import type { ContextUsage } from '@jetty/shared/events'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressProps } from '@/lib/press'
+import { useStartContainerDev } from '@/state/containers'
 import { BoxArrowUpIcon } from '@phosphor-icons/react'
+import { useState } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 
@@ -13,11 +15,16 @@ const circumference = 2 * Math.PI * radius
 export function ThreadHeader({
   context,
   onUnarchive,
+  containerThreadId,
 }: {
   context: ContextUsage | null
   // set while the thread is archived
   onUnarchive?: () => void
+  containerThreadId?: string
 }) {
+  const startDev = useStartContainerDev()
+  const [services, setServices] = useState<{ name: string; port: number; url?: string }[]>([])
+  const [devStatus, setDevStatus] = useState('')
   const fraction = context ? Math.max(0, Math.min(1, context.usedTokens / context.maxTokens)) : 0
   const label = context
     ? `Context window ${Math.round(fraction * 100)}% full`
@@ -34,6 +41,46 @@ export function ThreadHeader({
         )}
       </div>
       <div className='flex items-center gap-1'>
+        {containerThreadId && (
+          <>
+            <Button
+              variant='ghost-text'
+              size='sm'
+              disabled={devStatus === 'Starting…'}
+              {...pressProps(() => {
+                setDevStatus('Starting…')
+                startDev(
+                  containerThreadId,
+                  (reply) => {
+                    setServices([...reply.services])
+                    setDevStatus('')
+                  },
+                  () => setDevStatus('Failed')
+                )
+              })}
+            >
+              Start dev servers
+            </Button>
+            {services.map((service) =>
+              service.url ? (
+                <a
+                  key={service.name}
+                  className={buttonVariants({ variant: 'ghost-text', size: 'sm' })}
+                  href={service.url}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  Open {service.name} · {service.port}
+                </a>
+              ) : (
+                <span key={service.name} className='text-xs text-muted-foreground'>
+                  Forward port {service.port}
+                </span>
+              )
+            )}
+            {devStatus && <output className='text-xs text-muted-foreground'>{devStatus}</output>}
+          </>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={<Button variant='ghost' tone='muted' size='icon' aria-label={label} />}
