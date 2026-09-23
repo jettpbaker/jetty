@@ -23,6 +23,8 @@ import {
   type LoadoutSlot as Slot,
 } from '@/lib/loadout'
 import { useLoadouts } from '@/state'
+import { useChrome } from '@/state/chrome'
+import { useModelAvailability } from '@/state/loadouts'
 import { KeyboardSensor, PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { DragDropProvider, DragOverlay, useDraggable } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
@@ -37,6 +39,7 @@ import { moveOnKeys } from './composer_loadout'
 import { DisabledTooltip } from './disabled_tooltip'
 import { LightningIcon } from './lightning_icon'
 import './settings_loadout.css'
+import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
 type ClearedConfig = { slot: Slot; model: LoadoutModel; rect: DOMRect }
@@ -105,7 +108,7 @@ function ConfigContent({
       >
         <div className='flex w-full items-center justify-between gap-3'>
           <span data-equip-name className='text-xs font-medium'>
-            {model.name}
+            <ModelLabel model={model} />
           </span>
           {trailing}
         </div>
@@ -131,6 +134,8 @@ export function SettingsLoadout({
   onConnectProvider: (id: ProviderId) => void
 }) {
   const { loadouts: slots, catalog, setLoadouts } = useLoadouts()
+  const { catalog: allModels } = useModelAvailability()
+  const discovery = useChrome()?.modelDiscovery
   const [announcement, setAnnouncement] = useState('')
   const [catalogDragging, setCatalogDragging] = useState(false)
   const [replaced, setReplaced] = useState<Slot | null>(null)
@@ -279,6 +284,17 @@ export function SettingsLoadout({
                       }
                     />
                   ))}
+                {!catalog.some((model) => model.provider === provider.id) && (
+                  <p className='px-2 text-xs text-muted-foreground'>
+                    {discovery?.[provider.id] === 'error'
+                      ? 'Model discovery failed. Refresh to try again.'
+                      : allModels.some((model) => model.provider === provider.id)
+                        ? 'All models hidden in Providers.'
+                        : discovery?.[provider.id] === 'ready'
+                          ? 'No available models'
+                          : 'Checking models…'}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -334,7 +350,9 @@ export function SettingsLoadout({
                   <span data-preview-logo className='flex text-muted-foreground'>
                     <Glyph provider={model.provider} />
                   </span>
-                  <span data-model-name>{model.name}</span>
+                  <span data-model-name>
+                    <ModelLabel model={model} />
+                  </span>
                 </div>
               )
             }}
@@ -722,7 +740,7 @@ function EquipAnimation({
             animate={{ x: 0, y: 0, opacity: 1 }}
             transition={transition}
           >
-            {flight.model.name}
+            <ModelLabel model={flight.model} />
           </motion.span>
           <motion.span
             className='absolute flex items-center text-xs text-muted-foreground'
@@ -779,7 +797,7 @@ function ModelPicker({
             <DropdownMenuRadioGroup value='' onValueChange={(value) => onPick(String(value))}>
               {models.map((model) => (
                 <DropdownMenuRadioItem key={modelKey(model)} value={modelKey(model)}>
-                  {model.name}
+                  <ModelLabel model={model} />
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -806,7 +824,9 @@ function CatalogModel({ model, disabledReason }: { model: LoadoutModel; disabled
           <span className='flex w-6 shrink-0 items-center justify-center text-muted-foreground'>
             <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
           </span>
-          <span className='truncate px-1'>{model.name}</span>
+          <span className='truncate px-1'>
+            <ModelLabel model={model} />
+          </span>
         </button>
       </DisabledTooltip>
     </div>

@@ -1,4 +1,5 @@
 import type {
+  ModelDiscovery,
   ChromePushData,
   ProviderModel,
   RateLimits,
@@ -73,7 +74,12 @@ export function createRpcHandlers(
   getModels: () => readonly ProviderModel[] | null,
   refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void,
   pullRequests = createPullRequests(store, hub),
-  containers?: EnvironmentManager
+  containers?: EnvironmentManager,
+  getModelDiscovery: () => ModelDiscovery = () => ({
+    claude: 'loading',
+    codex: 'loading',
+    grok: 'loading',
+  })
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -254,6 +260,7 @@ export function createRpcHandlers(
               const threads = yield* store.listThreads()
               const usage = getUsage()
               const models = getModels()
+              const modelDiscovery = getModelDiscovery()
               const utilityModel = yield* store.getUtilityModel()
               const queue = yield* hub.subscribeChrome()
               const snapshot: ChromePushData = {
@@ -262,6 +269,7 @@ export function createRpcHandlers(
                 threads,
                 ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
+                modelDiscovery,
                 utilityModel,
               }
               return Stream.concat(Stream.succeed(snapshot), Stream.fromQueue(queue))

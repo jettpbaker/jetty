@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { copilotModels } from '@/lib/loadout'
 import { storage } from '@/platform'
+import { useChrome } from '@/state/chrome'
 import { useModelAvailability } from '@/state/loadouts'
 import { CheckIcon, CopyIcon, ArrowClockwiseIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
+import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import './settings_sections.css'
 
@@ -85,6 +87,7 @@ export function SettingsProviders({
 }) {
   const provider = providerOptions.find((item) => item.id === selected)!
   const { catalog, enabled: modelEnabled, setEnabled: setModelEnabled } = useModelAvailability()
+  const discovery = useChrome()?.modelDiscovery
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const usable = enabled[selected] && provider.ready
@@ -120,9 +123,19 @@ export function SettingsProviders({
                   {item.name}
                 </span>
                 <span
-                  className={`text-xs ${!enabled[item.id] ? 'text-disabled-foreground' : item.ready ? 'text-status-success' : 'text-status-error'}`}
+                  className={`text-xs ${!enabled[item.id] ? 'text-disabled-foreground' : item.ready && discovery?.[item.id] === 'ready' && providerModels(item.id, catalog).length > 0 ? 'text-status-success' : 'text-muted-foreground'}`}
                 >
-                  {!enabled[item.id] ? 'Disabled' : item.ready ? 'Connected' : 'Not connected'}
+                  {!enabled[item.id]
+                    ? 'Disabled'
+                    : !item.ready
+                      ? 'Not connected'
+                      : discovery?.[item.id] === 'error'
+                        ? 'Discovery failed'
+                        : discovery?.[item.id] === 'ready'
+                          ? providerModels(item.id, catalog).length > 0
+                            ? 'Connected'
+                            : 'No models found'
+                          : 'Checking models'}
                 </span>
               </span>
             </button>
@@ -218,7 +231,9 @@ export function SettingsProviders({
                 key={model.id}
                 className={`flex min-h-8 items-center justify-between gap-3 text-13 ${usable ? '' : 'text-disabled-foreground'}`}
               >
-                <span>{model.name}</span>
+                <span>
+                  {model.provider === 'copilot' ? model.name : <ModelLabel model={model} />}
+                </span>
                 <Switch
                   size='sm'
                   aria-label={`Enable ${model.name}`}

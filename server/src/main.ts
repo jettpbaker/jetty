@@ -1,4 +1,4 @@
-import type { ProviderModel } from '@jetty/shared/wire'
+import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
@@ -222,6 +222,7 @@ function createServer(opts: ServerOptions = {}) {
       },
     }
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
+    let modelDiscovery: ModelDiscovery = { claude: 'loading', codex: 'loading', grok: 'loading' }
     const registry =
       typeof agentKind !== 'string'
         ? singleAgentRegistry(agentKind)
@@ -256,9 +257,8 @@ function createServer(opts: ServerOptions = {}) {
           lastDiscovery = Date.now()
           const done = Deferred.makeUnsafe<void>()
           inFlight = done
-          const initial = models === null
-          const lists = new Map(
-            ['claude', 'codex', 'grok'].map((provider) => [
+          const lists = new Map<ProviderId, readonly ProviderModel[]>(
+            (['claude', 'codex', 'grok'] as const).map((provider) => [
               provider,
               models?.filter((model) => model.provider === provider) ?? [],
             ])
@@ -271,33 +271,61 @@ function createServer(opts: ServerOptions = {}) {
               })
             )
           }
+          function publishStatus() {
+            return hub.withChromePublication(
+              Effect.sync(() => hub.pushChrome({ type: 'modelDiscovery', status: modelDiscovery }))
+            )
+          }
+          modelDiscovery = { claude: 'loading', codex: 'loading', grok: 'loading' }
+          function probe<E, R>(
+            provider: ProviderId,
+            discovery: Effect.Effect<readonly ProviderModel[], E, R>
+          ) {
+            return discovery.pipe(
+              Effect.tapError((error) =>
+                Effect.logWarning(`${provider} model discovery failed: ${error}`)
+              ),
+              Effect.match({
+                onFailure: () => ({ provider, models: null }),
+                onSuccess: (models) => ({ provider, models }),
+              })
+            )
+          }
           const probes = [
-            ['claude', discoverClaudeModels().pipe(Effect.orElseSucceed(() => null))],
-            ['codex', discoverCodexModels(home, opts.codex).pipe(Effect.orElseSucceed(() => null))],
-            ['grok', discoverGrokModels(home, opts.grok).pipe(Effect.orElseSucceed(() => null))],
-          ] as const
-          return Effect.all(
-            probes.map(([provider, probe]) =>
-              probe.pipe(
-                Effect.flatMap((next) => {
-                  if (next === null) return Effect.void
-                  lists.set(provider, next)
-                  return initial ? Effect.void : publish()
-                })
+            probe('claude', discoverClaudeModels()),
+            probe('codex', discoverCodexModels(home, opts.codex)),
+            probe('grok', discoverGrokModels(home, opts.grok)),
+          ]
+          return publishStatus()
+            .pipe(
+              Effect.andThen(
+                Effect.all(
+                  probes.map((discovery) =>
+                    discovery.pipe(
+                      Effect.flatMap(({ provider, models: next }) => {
+                        if (next) lists.set(provider, next)
+                        modelDiscovery = {
+                          ...modelDiscovery,
+                          [provider]: next ? 'ready' : 'error',
+                        }
+                        return publish().pipe(Effect.andThen(publishStatus()))
+                      })
+                    )
+                  ),
+                  { concurrency: 'unbounded', discard: true }
+                )
               )
-            ),
-            { concurrency: 'unbounded', discard: true }
-          ).pipe(
-            Effect.andThen(() => (initial ? publish() : Effect.void)),
-            Effect.onExit((exit) => {
-              inFlight = undefined
-              return Deferred.done(done, exit)
-            }),
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-            Effect.interruptible,
-            Effect.forkIn(discoveryScope),
-            Effect.andThen(restore(Deferred.await(done)))
-          )
+            )
+            .pipe(
+              Effect.onExit((exit) => {
+                inFlight = undefined
+                return Deferred.done(done, exit)
+              }),
+              Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+              Effect.interruptible,
+              Effect.forkIn(discoveryScope),
+              Effect.andThen(restore(Deferred.await(done)))
+            )
         })
       )
     }
@@ -349,7 +377,8 @@ function createServer(opts: ServerOptions = {}) {
       () => models,
       refreshModels,
       pullRequests,
-      containers
+      containers,
+      () => modelDiscovery
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

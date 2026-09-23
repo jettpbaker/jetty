@@ -1,5 +1,6 @@
 import type {
   ChromePushData,
+  ModelDiscovery,
   UtilityModel,
   Project,
   ProjectIcon,
@@ -26,6 +27,7 @@ export type Chrome = {
   threads: readonly ThreadMeta[]
   usage?: RateLimits
   models?: readonly ProviderModel[]
+  modelDiscovery?: ModelDiscovery
   utilityModel?: UtilityModel
 }
 
@@ -45,6 +47,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         threads: update.threads,
         usage: update.usage,
         models: update.models,
+        modelDiscovery: update.modelDiscovery,
         utilityModel: update.utilityModel,
       }
     case 'project.upserted':
@@ -60,6 +63,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, usage: update.usage }
     case 'models':
       return { ...chrome, models: update.models }
+    case 'modelDiscovery':
+      return { ...chrome, modelDiscovery: update.status }
     case 'utilityModel':
       return { ...chrome, utilityModel: { model: update.model, effort: update.effort } }
   }
