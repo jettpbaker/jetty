@@ -2,10 +2,10 @@ import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
-import { AssistantMessage } from '@/components/custom/assistant_message'
 import { CreatedThreads } from '@/components/custom/child_threads'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
+import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
@@ -116,7 +116,7 @@ function ThreadItemRow({
           <Bubble variant='ghost' align='start'>
             <BubbleContent>
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
-              <AssistantMessage text={row.item.text} streaming={row.streaming} />
+              <Markdown streaming={row.streaming}>{row.item.text}</Markdown>
             </BubbleContent>
           </Bubble>
         </MessageContent>

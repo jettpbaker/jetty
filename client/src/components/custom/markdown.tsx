@@ -10,7 +10,7 @@ const components = { table: MarkdownTable }
 // Links open in a new tab; streamdown's confirm modal is a speed bump with no focus handling.
 const linkSafety = { enabled: false }
 
-export function AssistantMessage({ text, streaming }: { text: string; streaming?: boolean }) {
+export function Markdown({ children, streaming }: { children: string; streaming?: boolean }) {
   return (
     <Streamdown
       className='text-sm leading-relaxed'
@@ -21,7 +21,7 @@ export function AssistantMessage({ text, streaming }: { text: string; streaming?
       remarkPlugins={remarkPlugins}
       shikiTheme={shikiThemes}
     >
-      {text}
+      {children}
     </Streamdown>
   )
 }
