@@ -66,7 +66,9 @@ async function connect(port: number) {
 }
 
 async function connectRaw(port: number) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`)
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+    headers: { Origin: 'http://localhost:5173' },
+  })
   rawSockets.push(ws)
   await new Promise<void>((resolve, reject) => {
     ws.addEventListener('open', () => resolve(), { once: true })
@@ -1740,7 +1742,7 @@ describe('thread.diff', () => {
 })
 
 describe('ws origin gate', () => {
-  test('browser origins must be loopback; native clients pass', async () => {
+  test('websocket upgrades require an allowed origin', async () => {
     const { port } = await boot()
     const upgrade = (origin?: string) =>
       fetch(`http://127.0.0.1:${port}/ws`, {
@@ -1756,7 +1758,7 @@ describe('ws origin gate', () => {
     expect((await upgrade('https://evil.example')).status).toBe(403)
     expect((await upgrade('http://localhost:5173')).status).not.toBe(403)
     expect((await upgrade('http://127.0.0.1:8787')).status).not.toBe(403)
-    expect((await upgrade()).status).not.toBe(403)
+    expect((await upgrade()).status).toBe(403)
   })
 })
 

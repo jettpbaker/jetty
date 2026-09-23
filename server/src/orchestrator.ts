@@ -508,6 +508,7 @@ export function createOrchestrator({
               const turnId = newId()
               live.turnId = turnId
               live.ready = false
+              let preparedEnvironment = false
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
                 append(input.threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
               const turn = yield* appendUser(
@@ -523,12 +524,14 @@ export function createOrchestrator({
                     const environment =
                       thread.environment === 'container'
                         ? yield* Effect.tryPromise({
-                            try: () => {
+                            try: async () => {
                               if (!environments) throw new Error('Containers are disabled')
-                              return environments.prepare(
+                              const target = await environments.prepare(
                                 input.threadId,
                                 chosen.provider === 'echo' ? undefined : chosen.provider
                               )
+                              preparedEnvironment = true
+                              return target
                             },
                             catch: (error) => new AgentError(String(error)),
                           })
@@ -554,11 +557,16 @@ export function createOrchestrator({
                     type: 'turn.failed',
                     turnId,
                     error:
-                      Cause.squash(cause) instanceof Error
-                        ? (Cause.squash(cause) as Error).message
-                        : String(Cause.squash(cause)),
+                      thread.environment === 'container'
+                        ? String(Cause.squash(cause))
+                        : 'Unable to start turn',
                   }).pipe(
                     Effect.ignore,
+                    Effect.andThen(
+                      preparedEnvironment && environments
+                        ? Effect.promise(() => environments.finish(input.threadId))
+                        : Effect.void
+                    ),
                     Effect.ensuring(
                       Effect.sync(() => {
                         if (live.turnId === turnId) live.turnId = null
@@ -585,7 +593,12 @@ export function createOrchestrator({
                     Effect.andThen(Queue.offer(store.queueChanges, undefined)),
                     Effect.andThen(
                       thread.environment === 'container' && environments
-                        ? Effect.promise(() => environments.finish(input.threadId))
+                        ? Effect.promise(() =>
+                            environments.finish(
+                              input.threadId,
+                              () => agent.busy?.(input.threadId) ?? false
+                            )
+                          )
                         : Effect.void
                     )
                   )
@@ -729,7 +742,7 @@ export function createOrchestrator({
               (queue[0].editingUntil ?? 0) > Date.now()
             )
               continue
-            yield* startTurnEffect({
+            const start = startTurnEffect({
               threadId: thread.id,
               text: queue[0].text,
               queued: queue[0],
@@ -770,9 +783,10 @@ export function createOrchestrator({
                       )
                   )
                   .pipe(Effect.catchCause((failure) => Effect.logError(failure)))
-              ),
-              Effect.forkIn(scope)
+              )
             )
+            if (thread.environment === 'container') yield* start.pipe(Effect.forkIn(scope))
+            else yield* start
           }
         })
         return Effect.forever(
@@ -785,17 +799,20 @@ export function createOrchestrator({
         ).pipe(Effect.forkIn(scope), Effect.asVoid)
       },
       interrupt(threadId: string) {
-        return state(threadId).admission.withPermit(
-          Effect.gen(function* () {
-            const agent = yield* agentForThread(threadId)
-            if (!state(threadId).turnId) return
-            yield* setQueuePaused(threadId, true)
-            yield* agent.interrupt(threadId)
-            const thread = yield* store.requireThread(threadId)
-            if (thread.environment === 'container' && environments)
-              yield* Effect.promise(() => environments.stop(threadId))
-          })
-        )
+        return Effect.suspend(() => {
+          environments?.cancel(threadId)
+          return state(threadId).admission.withPermit(
+            Effect.gen(function* () {
+              const agent = yield* agentForThread(threadId)
+              if (!state(threadId).turnId) return
+              yield* setQueuePaused(threadId, true)
+              yield* agent.interrupt(threadId)
+              const thread = yield* store.requireThread(threadId)
+              if (thread.environment === 'container' && environments)
+                yield* Effect.promise(() => environments.interruptProvider(threadId))
+            })
+          )
+        })
       },
       stopWorkflow(threadId: string, taskId: string) {
         return Effect.gen(function* () {
@@ -858,6 +875,7 @@ export function createOrchestrator({
       },
       deleteThread(threadId: string) {
         return Effect.suspend(() => {
+          environments?.cancel(threadId)
           const live = state(threadId)
           // Same lock order as a turn's writes: admission, publication, chrome.
           return live.admission.withPermit(
@@ -870,7 +888,7 @@ export function createOrchestrator({
                     return yield* Effect.fail(
                       new StoreError('conflict', 'Cannot delete a thread while a turn is running')
                     )
-                  if (environments) yield* Effect.promise(() => environments.stop(threadId))
+                  if (environments) yield* Effect.promise(() => environments.remove(threadId))
                   const attachmentIds = yield* store.deleteThread(threadId)
                   if (attachments)
                     yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {

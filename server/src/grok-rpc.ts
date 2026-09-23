@@ -3,7 +3,11 @@ import { Effect } from 'effect'
 import { AgentError } from './agent'
 import { object, openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
 
-export function openGrokConnection(cwd: string, args: string[], options: StdioProcessOptions = {}) {
+export function openGrokConnection(
+  cwd: string,
+  args: string[],
+  options: StdioProcessOptions & { authMethod?: 'xai.api_key' } = {}
+) {
   return Effect.gen(function* () {
     const connection = yield* openStdioConnection(cwd, {
       ...options,
@@ -22,7 +26,8 @@ export function openGrokConnection(cwd: string, args: string[], options: StdioPr
     })
     const methods = Array.isArray(init.authMethods) ? init.authMethods.map((m) => object(m).id) : []
     const methodId =
-      (options.env?.XAI_API_KEY ?? process.env.XAI_API_KEY) && methods.includes('xai.api_key')
+      (options.authMethod || options.env?.XAI_API_KEY || process.env.XAI_API_KEY) &&
+      methods.includes('xai.api_key')
         ? 'xai.api_key'
         : 'cached_token'
     if (!methods.includes(methodId))

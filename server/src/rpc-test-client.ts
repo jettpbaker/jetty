@@ -78,7 +78,12 @@ export async function connect(port: number) {
     Layer.provide(RpcSerialization.layerJson),
     Layer.provide(
       Socket.layerWebSocket(`ws://127.0.0.1:${port}/ws`).pipe(
-        Layer.provide(Socket.layerWebSocketConstructorGlobal)
+        Layer.provide(
+          Layer.succeed(
+            Socket.WebSocketConstructor,
+            (url) => new WebSocket(url, { headers: { Origin: 'http://localhost:5173' } })
+          )
+        )
       )
     )
   )

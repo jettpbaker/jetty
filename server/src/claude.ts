@@ -670,9 +670,16 @@ export function createClaudeAdapter(
                               '-i',
                               '-w',
                               '/workspace',
+                              ...Object.entries(input.environment!.providerEnv).flatMap(
+                                ([name, value]) => ['-e', `${name}=${value}`]
+                              ),
                               '-e',
                               'JETTY_MCP_TOKEN',
                               input.environment!.containerId,
+                              'sh',
+                              '-c',
+                              'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
+                              'jetty',
                               'claude',
                               ...spawnOptions.args,
                             ],
@@ -904,6 +911,15 @@ export function createClaudeAdapter(
           }).pipe(Effect.onError(() => Effect.sync(() => session.stoppedWorkflows.delete(taskId))))
           return true
         })
+      },
+      busy(threadId) {
+        const session = sessions.get(threadId)
+        return Boolean(
+          session &&
+          (session.runningAgents.size ||
+            session.runningWorkflows.size ||
+            session.backgroundTasks.size)
+        )
       },
       respondToApproval(threadId, itemId, decision, message) {
         const reason = message?.trim() || undefined

@@ -43,16 +43,18 @@ function matchingModels(catalog: readonly ProviderModel[], name: string) {
 
 const text = z.string().trim().min(1).max(32_000)
 const requestId = z.string().min(1).max(200).optional()
-const createInput = z.object({
+const createInputBase = z.object({
   prompt: text,
   title: z.string().trim().min(1).max(200).optional(),
   provider: z.enum(['claude', 'codex', 'grok']).optional(),
   model: z.string().min(1).optional(),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   notify: z.boolean().default(true),
+  requestId,
+})
+const createInput = createInputBase.extend({
   environment: z.enum(['local', 'container']).optional(),
   ref: z.string().min(1).optional(),
-  requestId,
 })
 const sendInput = z.object({
   threadId: z.string(),
@@ -181,11 +183,16 @@ export function createMcpHandler(
           return response
         })
       )
-      if (input.environment !== 'container') return create
       return Effect.gen(function* () {
+        const caller = yield* accessible(identity, identity.threadId)
+        if (caller.environment === 'container' && input.environment === 'local')
+          return yield* Effect.fail(
+            new StoreError('invalid_params', 'Container threads cannot create local threads')
+          )
+        const environment = input.environment ?? caller.environment ?? 'local'
+        if (environment !== 'container') return yield* create
         if (!containers)
           return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
-        const caller = yield* accessible(identity, identity.threadId)
         if (input.requestId) {
           const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
           if (previous) return previous
@@ -381,7 +388,7 @@ export function createMcpHandler(
         {
           description:
             'Delegate work to an independent Jetty agent in this project. The new thread works on its prompt in parallel; its result returns automatically as a ready for review message (notify defaults true). Choose provider/model/effort from list_models; model accepts an ID, display name, or unique short name. Reuse requestId to retry safely.',
-          inputSchema: createInput,
+          inputSchema: containers ? createInput : createInputBase,
         },
         (input) => invoke(createThread(identity, input))
       )

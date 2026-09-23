@@ -156,9 +156,11 @@ const extraOrigins = new Set(
 )
 
 function originAllowed(origin: string | undefined): boolean {
-  if (!origin) return true
+  if (!origin) return false
   try {
-    const host = new URL(origin).hostname
+    const parsed = new URL(origin)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    const host = parsed.hostname
     return (
       host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || extraOrigins.has(origin)
     )
@@ -187,6 +189,10 @@ function createServer(opts: ServerOptions = {}) {
           )
         : undefined
     if (containers) yield* Effect.promise(() => containers.reconcile())
+    if (containers)
+      yield* Effect.addFinalizer(() =>
+        Effect.promise(() => containers.shutdown()).pipe(Effect.catch(() => Effect.void))
+      )
 
     const io = yield* Layer.build(
       Layer.mergeAll(
@@ -397,8 +403,13 @@ function createServer(opts: ServerOptions = {}) {
     )
     if (containers) {
       const mcpPort = Number(process.env.JETTY_CONTAINER_MCP_PORT ?? 8788)
+      const mcpBind =
+        process.env.JETTY_CONTAINER_MCP_BIND ??
+        (process.platform === 'linux'
+          ? (process.env.JETTY_DOCKER_BRIDGE_GATEWAY ?? '172.17.0.1')
+          : '127.0.0.1')
       const listener = Bun.serve({
-        hostname: '0.0.0.0',
+        hostname: mcpBind,
         port: mcpPort,
         fetch(request) {
           if (new URL(request.url).pathname !== '/mcp')

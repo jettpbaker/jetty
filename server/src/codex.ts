@@ -244,8 +244,16 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   '-i',
                   '-w',
                   '/workspace',
+                  ...Object.entries(target.providerEnv).flatMap(([name, value]) => [
+                    '-e',
+                    `${name}=${value}`,
+                  ]),
                   ...(binding ? ['-e', 'JETTY_MCP_TOKEN'] : []),
                   target.containerId,
+                  'sh',
+                  '-c',
+                  'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
+                  'jetty',
                   'codex',
                   ...providerArgs,
                 ]

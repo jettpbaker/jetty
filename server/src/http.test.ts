@@ -53,7 +53,7 @@ async function closed(path: string) {
   )
 }
 
-test('native HTTP rejects non-loopback websocket origins and preserves no-upgrade errors', async () => {
+test('native HTTP requires an allowed websocket origin and preserves no-upgrade errors', async () => {
   const f = await fixture()
   for (const origin of [
     'https://evil.example',
@@ -66,7 +66,7 @@ test('native HTTP rejects non-loopback websocket origins and preserves no-upgrad
   for (const origin of ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173']) {
     expect((await fetch(`${f.url}/ws`, { headers: { origin } })).status).toBe(400)
   }
-  expect((await fetch(`${f.url}/ws`)).status).toBe(400)
+  expect((await fetch(`${f.url}/ws`)).status).toBe(403)
 })
 
 test('native attachment HTTP preserves binary ranges and refuses traversal and escaping symlinks', async () => {

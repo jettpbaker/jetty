@@ -282,11 +282,19 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     '-i',
                     '-w',
                     '/workspace',
+                    ...Object.entries(target.providerEnv).flatMap(([name, value]) => [
+                      '-e',
+                      `${name}=${value}`,
+                    ]),
                     target.containerId,
+                    'sh',
+                    '-c',
+                    'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
+                    'jetty',
                     'grok',
                     ...grokArgs(session.input, Boolean(binding)),
                   ],
-                  env: { ...process.env, ...options.env, XAI_API_KEY: 'container' },
+                  authMethod: 'xai.api_key',
                 }
               : options
           ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
