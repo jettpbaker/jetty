@@ -157,6 +157,12 @@ export function createRpcHandlers(
           if (!project) return { diff: '' }
           return yield* diff.computeThreadDiff(project.path)
         }).pipe(Effect.mapError(wireError)),
+      'thread.diffFile': (params) =>
+        Effect.gen(function* () {
+          const thread = yield* store.requireThread(params.threadId)
+          const project = yield* requireProject(thread.projectId)
+          return yield* diff.readDiffFile(project.path, params.path, params.prevPath)
+        }).pipe(Effect.mapError(wireError)),
       'turn.start': (params) =>
         Effect.gen(function* () {
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)

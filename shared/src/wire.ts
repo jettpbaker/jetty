@@ -156,6 +156,17 @@ export const methods = {
       truncatedPaths: Schema.optional(Schema.Array(Schema.String)),
     }),
   },
+  'thread.diffFile': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      path: Schema.String,
+      prevPath: Schema.optional(Schema.String),
+    }),
+    result: Schema.Union([
+      Schema.Struct({ before: Schema.NullOr(Schema.String), after: Schema.NullOr(Schema.String) }),
+      Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
+    ]),
+  },
   'thread.subscribe': {
     params: Schema.Struct({
       threadId: Schema.String,

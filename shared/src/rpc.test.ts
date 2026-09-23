@@ -70,6 +70,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'thread.pin': () => Effect.succeed(null),
           'thread.delete': () => Effect.succeed(null),
           'thread.diff': () => Effect.succeed({ diff: '' }),
+          'thread.diffFile': () => Effect.succeed({ before: null, after: null }),
           'turn.start': () =>
             Effect.fail({ code: 'not_found' as const, message: 'Thread not found' }),
           'turn.interrupt': () => Effect.succeed(null),

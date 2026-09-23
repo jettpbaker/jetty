@@ -1,7 +1,8 @@
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 
 import { git } from './git-process'
+import { StoreError } from './store'
 
 export type ThreadDiff = { diff: string; truncatedPaths?: string[] }
 
@@ -60,19 +61,92 @@ export function computeThreadDiff(cwd: string) {
   })
 }
 
+type Unavailable = { unavailable: 'tooLarge' | 'binary' }
+export type DiffFile = { before: string | null; after: string | null } | Unavailable
+
+const MAX_CONTENTS_BYTES = 1024 * 1024
+const tooLarge: Unavailable = { unavailable: 'tooLarge' }
+const binary: Unavailable = { unavailable: 'binary' }
+
+function isRepoPath(path: string) {
+  return (
+    !path.includes('\0') &&
+    path.split('/').every((part) => part !== '' && part !== '.' && part !== '..')
+  )
+}
+
+function readHead(root: string, path: string) {
+  return Effect.gen(function* () {
+    const size = yield* git(root, ['cat-file', '-s', `HEAD:${path}`])
+    if (size.code !== 0) return null
+    if (Number(size.out) > MAX_CONTENTS_BYTES) return tooLarge
+    const { out, code } = yield* git(root, ['cat-file', 'blob', `HEAD:${path}`])
+    if (code !== 0) return null
+    return out.includes('\0') ? binary : out
+  })
+}
+
+function readWorkingTree(root: string, repoPath: string) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const file = path.join(root, repoPath)
+    const dir = yield* fs.realPath(path.dirname(file)).pipe(Effect.option)
+    if (Option.isNone(dir)) return null
+    if (dir.value !== root && !dir.value.startsWith(root + path.sep))
+      return yield* Effect.fail(
+        new StoreError('invalid_params', `${repoPath} is outside the repository`)
+      )
+    // Git diffs a symlink's target path, never the file it points at.
+    const link = yield* fs.readLink(file).pipe(Effect.option)
+    if (Option.isSome(link)) return link.value
+    const stat = yield* fs.stat(file).pipe(Effect.option)
+    if (Option.isNone(stat) || stat.value.type !== 'File') return null
+    if (Number(stat.value.size) > MAX_CONTENTS_BYTES) return tooLarge
+    const bytes = yield* fs.readFile(file).pipe(Effect.option)
+    if (Option.isNone(bytes)) return null
+    return bytes.value.includes(0) ? binary : new TextDecoder().decode(bytes.value)
+  })
+}
+
+// Paths are repository-relative, as `git diff` prints them.
+export function readDiffFile(cwd: string, path: string, prevPath = path) {
+  return Effect.gen(function* () {
+    if (!isRepoPath(path) || !isRepoPath(prevPath))
+      return yield* Effect.fail(new StoreError('invalid_params', `Invalid path: ${path}`))
+    const fs = yield* FileSystem.FileSystem
+    const top = yield* git(cwd, ['rev-parse', '--show-toplevel'])
+    const root = yield* fs.realPath(top.out.trim()).pipe(Effect.option)
+    if (top.code !== 0 || Option.isNone(root))
+      return yield* Effect.fail(new StoreError('invalid_params', 'Not a git repository'))
+    const before = yield* readHead(root.value, prevPath)
+    if (typeof before === 'object' && before) return before
+    const after = yield* readWorkingTree(root.value, path)
+    if (typeof after === 'object' && after) return after
+    return { before, after }
+  })
+}
+
 export const GitDiff = Context.Service<{
   computeThreadDiff: (cwd: string) => Effect.Effect<ThreadDiff>
+  readDiffFile: (
+    cwd: string,
+    path: string,
+    prevPath?: string
+  ) => Effect.Effect<DiffFile, StoreError>
 }>('jetty/GitDiff')
 
 export const GitDiffLive = Layer.effect(
   GitDiff,
   Effect.gen(function* () {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const services = yield* Effect.context<
+      ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
+    >()
     return {
       computeThreadDiff: (cwd: string) =>
-        computeThreadDiff(cwd).pipe(
-          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-        ),
+        computeThreadDiff(cwd).pipe(Effect.provideContext(services)),
+      readDiffFile: (cwd: string, path: string, prevPath?: string) =>
+        readDiffFile(cwd, path, prevPath).pipe(Effect.provideContext(services)),
     }
   })
 )
