@@ -23,17 +23,12 @@ import {
   type Chrome,
 } from '@/state'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
-import {
-  ComposeIcon,
-  GitPullRequestIcon,
-  IssueOpenedIcon,
-  PinIcon,
-  RepoIcon,
-} from '@primer/octicons-react'
+import { ComposeIcon, GitPullRequestIcon, IssueOpenedIcon, PinIcon } from '@primer/octicons-react'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 
+import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
   groupSidebarThreads,
@@ -56,7 +51,7 @@ const comingSoon = [
 ] as const
 
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
-  const projects = new Map(chrome.projects.map((project) => [project.id, project.title]))
+  const projects = new Map(chrome.projects.map((project) => [project.id, project]))
   const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
   const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
   return chrome.threads
@@ -64,7 +59,8 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     .map((thread) => ({
       id: thread.id,
       title: thread.title,
-      project: projects.get(thread.projectId) ?? '',
+      project: projects.get(thread.projectId)?.title ?? '',
+      projectIcon: projects.get(thread.projectId)?.icon,
       parent: thread.parentThreadId && titles.get(thread.parentThreadId),
       status: threadStatus(thread.status),
       lastActivity: formatAge(thread.updatedAt, now),
@@ -103,6 +99,7 @@ export function AppSidebar() {
       pinned: group.pinned,
       count: group.threads.length,
       status: !group.pinned && grouping === 'status' ? group.threads[0]?.status : undefined,
+      projectIcon: group.threads[0]?.projectIcon,
     },
     ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
   ])
@@ -196,10 +193,7 @@ export function AppSidebar() {
                     >
                       {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
                       {!item.pinned && grouping === 'project' && (
-                        <RepoIcon
-                          className='icon-optical-down size-3 shrink-0'
-                          aria-hidden='true'
-                        />
+                        <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
                       {item.status === 'idle' ? (
                         <CircleIcon

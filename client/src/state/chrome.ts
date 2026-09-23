@@ -1,6 +1,7 @@
 import type {
   ChromePushData,
   Project,
+  ProjectIcon,
   ProviderModel,
   ThreadMeta,
   RateLimits,
@@ -15,6 +16,7 @@ import {
   archivedThreadsAtom,
   createdThreadsAtom,
   deletedThreadsAtom,
+  projectIconPatchesAtom,
   threadPatchesAtom,
   type ThreadPatch,
 } from './mutations'
@@ -71,9 +73,16 @@ function withPending(
   created: ReadonlyMap<string, ThreadMeta>,
   archived: ReadonlySet<string>,
   patches: ReadonlyMap<string, ThreadPatch>,
-  deleted: ReadonlySet<string>
+  deleted: ReadonlySet<string>,
+  icons: ReadonlyMap<string, ProjectIcon | null>
 ): Chrome {
-  if (created.size === 0 && archived.size === 0 && patches.size === 0 && deleted.size === 0)
+  if (
+    created.size === 0 &&
+    archived.size === 0 &&
+    patches.size === 0 &&
+    deleted.size === 0 &&
+    icons.size === 0
+  )
     return chrome
   const known = new Set(chrome.threads.map((thread) => thread.id))
   const threads = [
@@ -86,7 +95,10 @@ function withPending(
       if (archived.has(thread.id)) return { ...thread, ...patch, archived: true }
       return patch ? { ...thread, ...patch } : thread
     })
-  return { ...chrome, threads }
+  const projects = chrome.projects.map((project) =>
+    icons.has(project.id) ? { ...project, icon: icons.get(project.id) ?? undefined } : project
+  )
+  return { ...chrome, projects, threads }
 }
 
 const chromeAtom = Atom.readable((get) => {
@@ -98,7 +110,8 @@ const chromeAtom = Atom.readable((get) => {
       get(createdThreadsAtom),
       get(archivedThreadsAtom),
       get(threadPatchesAtom),
-      get(deletedThreadsAtom)
+      get(deletedThreadsAtom),
+      get(projectIconPatchesAtom)
     )
   )
 })

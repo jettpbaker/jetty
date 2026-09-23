@@ -13,6 +13,7 @@ export {
   useDeleteThread,
   usePinThread,
   useRenameThread,
+  useSetProjectIcon,
 } from './mutations'
 export { useQueueActions, useThreadQueue } from './queue'
 export {

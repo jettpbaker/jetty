@@ -1,4 +1,4 @@
-import type { ProviderId } from '@jetty/shared/wire'
+import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import type { ThreadPullRequest } from './thread_pull_request'
 import type { ThreadStatus } from './thread_status'
@@ -9,6 +9,7 @@ export type SidebarThread = {
   id: string
   title: string
   project: string
+  projectIcon?: ProjectIcon
   parent?: string
   status: ThreadStatus
   lastActivity: string

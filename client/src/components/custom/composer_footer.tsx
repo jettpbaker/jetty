@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { ComposerBranch } from './composer_branch'
 import { ComposerProject } from './composer_project'
 import { ProjectFolderDialog } from './project_folder_dialog'
+import { ProjectGlyph } from './project_glyph'
 
 export function ComposerFooter({
   projectId,
@@ -38,7 +39,11 @@ export function ComposerFooter({
       ) : (
         <ComposerProject
           value={projectId ?? ''}
-          options={projects.map((entry) => ({ value: entry.id, label: entry.title }))}
+          options={projects.map((entry) => ({
+            value: entry.id,
+            label: entry.title,
+            icon: <ProjectGlyph icon={entry.icon} data-icon='inline-start' className='size-3' />,
+          }))}
           onValueChange={onProjectChange}
           onNewProject={() => setAdding(true)}
           onManageProjects={() => void navigate({ to: '/settings', hash: 'projects' })}

@@ -1,4 +1,4 @@
-import type { Project, ProviderId, ThreadMeta } from '@jetty/shared/wire'
+import type { Project, ProjectIcon, ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect, Fiber } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
@@ -21,6 +21,9 @@ export const threadPatchesAtom = Atom.make<ReadonlyMap<string, ThreadPatch>>(new
 export const deletedThreadsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
   Atom.keepAlive
 )
+export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon | null>>(
+  new Map()
+).pipe(Atom.keepAlive)
 
 export function without<V>(map: ReadonlyMap<string, V>, keys: readonly string[]) {
   if (!keys.some((key) => map.has(key))) return map
@@ -138,6 +141,19 @@ function createProject(registry: Registry, path: string, onCreated?: (project: P
       .request('project.create', { path })
       .pipe(Effect.tap(({ project }) => Effect.sync(() => onCreated?.(project))))
   )
+}
+
+function setProjectIcon(registry: Registry, projectId: string, icon: ProjectIcon | null) {
+  registry.update(projectIconPatchesAtom, (patches) => new Map(patches).set(projectId, icon))
+  run(
+    registry,
+    (connection) => connection.request('project.setIcon', { projectId, icon }),
+    () => registry.update(projectIconPatchesAtom, (patches) => without(patches, [projectId]))
+  )
+}
+
+export function useSetProjectIcon() {
+  return useAction(setProjectIcon)
 }
 
 export function useCreateProject() {

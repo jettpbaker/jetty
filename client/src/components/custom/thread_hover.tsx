@@ -1,10 +1,10 @@
-import type { ProviderId } from '@jetty/shared/wire'
+import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { RepoIcon } from '@primer/octicons-react'
 import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react'
 
 import { OverflowTitle } from './overflow_title'
+import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
 import { prPresentation, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadStatusGlyph, statusPresentation, type ThreadStatus } from './thread_status'
@@ -13,6 +13,7 @@ import './thread_hover.css'
 export type ThreadDetails = {
   title: string
   project: string
+  projectIcon?: ProjectIcon
   provider?: ProviderId
   lastActivity: string
   pullRequest?: ThreadPullRequest
@@ -103,7 +104,7 @@ function ThreadHoverContent({ details, model, effort, status }: ThreadHoverConte
           </span>
         </span>
         <span className='flex min-w-0 items-center gap-1'>
-          <RepoIcon aria-hidden='true' className='icon-optical-down size-3 shrink-0' />
+          <ProjectGlyph icon={details.projectIcon} className='size-3' />
           <span className='truncate'>{details.project}</span>
         </span>
       </div>

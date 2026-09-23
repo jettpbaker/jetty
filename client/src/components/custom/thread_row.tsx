@@ -1,11 +1,11 @@
-import type { ProviderId } from '@jetty/shared/wire'
+import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
-import { RepoIcon } from '@primer/octicons-react'
 
 import { OverflowTitle } from './overflow_title'
+import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
 import { prPresentation, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
@@ -15,6 +15,7 @@ import './thread_row.css'
 export function ThreadRow({
   title,
   project,
+  projectIcon,
   parent,
   status,
   lastActivity,
@@ -28,6 +29,7 @@ export function ThreadRow({
 }: {
   title: string
   project: string
+  projectIcon?: ProjectIcon
   parent?: string
   status: ThreadStatus
   lastActivity: string
@@ -44,7 +46,7 @@ export function ThreadRow({
   return (
     <div className='thread-row' data-selected={selected || undefined}>
       <ThreadHoverCard
-        details={{ title, project, provider, lastActivity, pullRequest }}
+        details={{ title, project, projectIcon, provider, lastActivity, pullRequest }}
         model={model}
         effort={effort}
         status={status}
@@ -75,7 +77,7 @@ export function ThreadRow({
                 </span>
               ) : (
                 <span className='flex min-w-0 items-center gap-1' title={project}>
-                  <RepoIcon aria-hidden='true' className='icon-optical-down size-3' />
+                  <ProjectGlyph icon={projectIcon} className='size-3' />
                   <span className='truncate'>{project}</span>
                 </span>
               )}
