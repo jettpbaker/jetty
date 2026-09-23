@@ -4,9 +4,13 @@ import { describe, expect, test } from 'bun:test'
 
 import { readUsage } from './usage'
 
-type FakeResponse = Awaited<ReturnType<Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']>>
+type FakeResponse = Awaited<
+  ReturnType<Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']>
+>
 
-function fakeQuery(impl: Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']): Query {
+function fakeQuery(
+  impl: Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']
+): Query {
   return { usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: impl } as unknown as Query
 }
 
