@@ -5,14 +5,14 @@ import type { ModelPrompt } from './utility-model'
 
 import { claudeBin } from './claude-bin'
 
-export const claudePrompt: ModelPrompt = (model, instructions, text) =>
+export const claudePrompt: ModelPrompt = (model, effort, instructions, text) =>
   Effect.acquireUseRelease(
     Effect.try(() =>
       query({
         prompt: text,
         options: {
           model: model.id,
-          ...(model.efforts.includes('low') ? { effort: 'low' as const } : {}),
+          ...(effort ? { effort } : {}),
           pathToClaudeCodeExecutable: claudeBin,
           maxTurns: 1,
           allowedTools: [],

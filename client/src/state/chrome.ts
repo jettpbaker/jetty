@@ -1,6 +1,6 @@
 import type {
   ChromePushData,
-  ModelRef,
+  UtilityModel,
   Project,
   ProjectIcon,
   ProviderModel,
@@ -26,7 +26,7 @@ export type Chrome = {
   threads: readonly ThreadMeta[]
   usage?: RateLimits
   models?: readonly ProviderModel[]
-  utilityModel?: ModelRef | null
+  utilityModel?: UtilityModel
 }
 
 const emptyChrome: Chrome = { projects: [], threads: [] }
@@ -61,7 +61,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
     case 'models':
       return { ...chrome, models: update.models }
     case 'utilityModel':
-      return { ...chrome, utilityModel: update.model }
+      return { ...chrome, utilityModel: { model: update.model, effort: update.effort } }
   }
 }
 

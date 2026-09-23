@@ -40,6 +40,12 @@ export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>
 export const ModelRef = Schema.Struct({ provider: ProviderId, id: Schema.String })
 export type ModelRef = Schema.Schema.Type<typeof ModelRef>
 
+export const UtilityModel = Schema.Struct({
+  model: Schema.NullOr(ModelRef),
+  effort: Schema.optional(EffortLevel),
+})
+export type UtilityModel = Schema.Schema.Type<typeof UtilityModel>
+
 // Cheapest first.
 const AUTOMATIC_UTILITY_MODELS: readonly ModelRef[] = [
   { provider: 'codex', id: 'gpt-6-luna' },
@@ -54,6 +60,11 @@ export function resolveUtilityModel(
   const find = (ref: ModelRef) =>
     models.find((model) => model.provider === ref.provider && model.id === ref.id)
   return (choice && find(choice)) || AUTOMATIC_UTILITY_MODELS.map(find).find(Boolean)
+}
+
+export function resolveUtilityEffort(model: ProviderModel, effort: EffortLevel | undefined) {
+  if (effort && model.efforts.includes(effort)) return effort
+  return EffortLevel.literals.find((level) => model.efforts.includes(level))
 }
 
 export const ProjectIcon = Schema.Union([
@@ -191,7 +202,7 @@ export const methods = {
     result: Schema.Null,
   },
   'settings.setUtilityModel': {
-    params: Schema.Struct({ model: Schema.NullOr(ModelRef) }),
+    params: UtilityModel,
     result: Schema.Null,
   },
   'chrome.subscribe': {
@@ -535,13 +546,13 @@ export const ChromePushData = Schema.Union([
     threads: Schema.Array(ThreadMeta),
     usage: Schema.optional(RateLimits),
     models: Schema.optional(Schema.Array(ProviderModel)),
-    utilityModel: Schema.optional(ModelRef),
+    utilityModel: Schema.optional(UtilityModel),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
-  Schema.Struct({ type: Schema.Literal('utilityModel'), model: Schema.NullOr(ModelRef) }),
+  Schema.Struct({ type: Schema.Literal('utilityModel'), ...UtilityModel.fields }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>

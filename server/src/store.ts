@@ -6,6 +6,7 @@ import {
   newId,
   type ErrorCode,
   ModelRef,
+  type UtilityModel,
   type Project,
   ProjectIcon,
   type ProviderId,
@@ -470,22 +471,35 @@ export function createStore() {
       },
       getUtilityModel() {
         return sql<{
+          key: string
           value_json: string
-        }>`SELECT value_json FROM settings WHERE key = 'utility_model'`.pipe(
-          Effect.map((rows) => {
-            const value: unknown = rows[0] && JSON.parse(rows[0].value_json)
-            return isModelRef(value) ? value : null
+        }>`SELECT key, value_json FROM settings WHERE key IN ('utility_model', 'utility_effort')`.pipe(
+          Effect.map((rows): UtilityModel => {
+            const value = (key: string): unknown => {
+              const row = rows.find((candidate) => candidate.key === key)
+              return row && JSON.parse(row.value_json)
+            }
+            const model = value('utility_model')
+            const effort = value('utility_effort')
+            return {
+              model: isModelRef(model) ? model : null,
+              ...(isEffort(effort) ? { effort } : {}),
+            }
           }),
           Effect.mapError(storeError)
         )
       },
-      setUtilityModel(model: ModelRef | null) {
-        return (
-          model
-            ? sql`INSERT INTO settings (key, value_json) VALUES ('utility_model', ${JSON.stringify(model)})
+      setUtilityModel({ model, effort }: UtilityModel) {
+        const write = (key: string, value: unknown) =>
+          value === undefined || value === null
+            ? sql`DELETE FROM settings WHERE key = ${key}`
+            : sql`INSERT INTO settings (key, value_json) VALUES (${key}, ${JSON.stringify(value)})
                 ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`
-            : sql`DELETE FROM settings WHERE key = 'utility_model'`
-        ).pipe(Effect.asVoid, Effect.mapError(storeError))
+        return Effect.all([write('utility_model', model), write('utility_effort', effort)]).pipe(
+          sql.withTransaction,
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
       },
       setQueuePaused(threadId: string, paused: boolean) {
         return sql`UPDATE threads SET queue_paused = ${paused ? 1 : 0} WHERE id = ${threadId}`.pipe(

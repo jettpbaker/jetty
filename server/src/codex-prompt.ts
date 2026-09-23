@@ -10,7 +10,7 @@ import { object, string, type StdioProcessOptions } from './stdio-rpc'
 export function createCodexPrompt(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const prompt: ModelPrompt = (model, instructions, text) =>
+    const prompt: ModelPrompt = (model, effort, instructions, text) =>
       Effect.scoped(
         Effect.gen(function* () {
           const cwd = tmpdir()
@@ -29,7 +29,7 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
           yield* connection.request('turn/start', {
             threadId,
             input: [{ type: 'text', text, text_elements: [] }],
-            effort: 'low',
+            ...(effort ? { effort } : {}),
           })
           let reply = ''
           while (true) {

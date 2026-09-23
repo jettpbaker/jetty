@@ -1,4 +1,4 @@
-import type { ModelRef } from '@jetty/shared/wire'
+import type { UtilityModel } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
@@ -28,10 +28,10 @@ export function useModelRefresh() {
 
 function setUtilityModel(
   registry: AtomRegistry.AtomRegistry,
-  model: ModelRef | null,
+  choice: UtilityModel,
   failed: () => void
 ) {
-  run(registry, (connection) => connection.request('settings.setUtilityModel', { model }), failed)
+  run(registry, (connection) => connection.request('settings.setUtilityModel', choice), failed)
 }
 
 export const useSetUtilityModel = () => useAction(setUtilityModel)

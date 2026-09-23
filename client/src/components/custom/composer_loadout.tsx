@@ -40,7 +40,8 @@ import { useReducedMotion } from 'motion/react'
 import { DisabledTooltip } from './disabled_tooltip'
 import { ProviderGlyph } from './provider_glyph'
 
-const subTriggerClass = 'gap-1 [&>svg:last-child]:ml-0 [&>svg:last-child]:text-muted-foreground'
+export const subTriggerClass =
+  'gap-1 [&>svg:last-child]:ml-0 [&>svg:last-child]:text-muted-foreground'
 const sensors = [
   PointerSensor.configure({
     activationConstraints: [new PointerActivationConstraints.Distance({ value: 6 })],

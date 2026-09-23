@@ -1,8 +1,10 @@
 import {
+  resolveUtilityEffort,
   resolveUtilityModel,
-  type ModelRef,
+  type EffortLevel,
   type ProviderId,
   type ProviderModel,
+  type UtilityModel,
 } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 
@@ -14,6 +16,7 @@ import { createGrokPrompt } from './grok-prompt'
 
 export type ModelPrompt = (
   model: ProviderModel,
+  effort: EffortLevel | undefined,
   instructions: string,
   text: string
 ) => Effect.Effect<string | null>
@@ -24,7 +27,7 @@ export function createUtilityPrompt(options: {
   codex?: StdioProcessOptions
   grok?: StdioProcessOptions
   catalog: () => Effect.Effect<readonly ProviderModel[]>
-  choice: () => Effect.Effect<ModelRef | null>
+  choice: () => Effect.Effect<UtilityModel>
 }) {
   return Effect.gen(function* () {
     const prompts: Record<ProviderId, ModelPrompt> = {
@@ -34,9 +37,11 @@ export function createUtilityPrompt(options: {
     }
     const prompt: UtilityPrompt = (instructions, text) =>
       Effect.gen(function* () {
-        const model = resolveUtilityModel(yield* options.choice(), yield* options.catalog())
+        const choice = yield* options.choice()
+        const model = resolveUtilityModel(choice.model, yield* options.catalog())
         if (!model) return null
-        return yield* prompts[model.provider](model, instructions, text)
+        const effort = resolveUtilityEffort(model, choice.effort)
+        return yield* prompts[model.provider](model, effort, instructions, text)
       })
     return prompt
   })

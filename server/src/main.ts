@@ -313,7 +313,7 @@ function createServer(opts: ServerOptions = {}) {
       codex: opts.codex,
       grok: opts.grok,
       catalog: modelCatalog,
-      choice: () => store.getUtilityModel().pipe(Effect.orElseSucceed(() => null)),
+      choice: () => store.getUtilityModel().pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
     const titler = selectTitler(agentKind, opts, utilityPrompt)
     const reviewer =

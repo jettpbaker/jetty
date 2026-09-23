@@ -237,10 +237,12 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
-      'settings.setUtilityModel': ({ model }) =>
+      'settings.setUtilityModel': (choice) =>
         mutation(
-          store.setUtilityModel(model).pipe(
-            Effect.tap(() => Effect.sync(() => hub.pushChrome({ type: 'utilityModel', model }))),
+          store.setUtilityModel(choice).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => hub.pushChrome({ type: 'utilityModel', ...choice }))
+            ),
             Effect.as(null)
           )
         ),
@@ -260,7 +262,7 @@ export function createRpcHandlers(
                 threads,
                 ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
-                ...(utilityModel ? { utilityModel } : {}),
+                utilityModel,
               }
               return Stream.concat(Stream.succeed(snapshot), Stream.fromQueue(queue))
             }).pipe(Effect.mapError(wireError))
