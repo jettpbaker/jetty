@@ -13,6 +13,7 @@ export const subagentAvatarColor = {
   working: 'var(--primary)',
   complete: 'var(--tick-complete)',
   error: 'var(--status-error-glyph)',
+  stopped: 'var(--muted-foreground)',
 } as const
 
 export type Subagent = {
@@ -20,7 +21,7 @@ export type Subagent = {
   title: string
   model: string
   effort?: string
-  status: 'working' | 'complete' | 'error'
+  status: 'working' | 'complete' | 'error' | 'stopped'
   elapsedSeconds: number
   tokens: number
 }
@@ -56,7 +57,13 @@ export function SubagentRow({
   onSelect: () => void
 }) {
   const status =
-    agent.status === 'working' ? 'Working' : agent.status === 'complete' ? 'Complete' : 'Error'
+    agent.status === 'working'
+      ? 'Working'
+      : agent.status === 'complete'
+        ? 'Complete'
+        : agent.status === 'stopped'
+          ? 'Stopped'
+          : 'Error'
   return (
     <Button
       variant='ghost'
@@ -69,9 +76,9 @@ export function SubagentRow({
         selected && 'bg-accent'
       )}
       style={
-        agent.status === 'working'
+        agent.status === 'working' || agent.status === 'stopped'
           ? undefined
-          : { backgroundImage: statusWash[agent.status === 'complete' ? 'complete' : 'error'] }
+          : { backgroundImage: statusWash[agent.status] }
       }
     >
       <span className='row-span-2 self-center' aria-hidden='true'>
@@ -110,7 +117,9 @@ export function SubagentRow({
           ? formatDuration(agent.elapsedSeconds)
           : agent.status === 'complete'
             ? 'Finished'
-            : 'Failed'}
+            : agent.status === 'stopped'
+              ? 'Stopped'
+              : 'Failed'}
       </span>
       <span className='col-start-2 flex min-w-0 items-baseline gap-1 text-xs text-muted-foreground'>
         <span className='truncate'>{agent.model}</span>

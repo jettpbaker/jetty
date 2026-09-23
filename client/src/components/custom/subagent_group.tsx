@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronRightIcon } from '@primer/octicons-react'
+import { Fragment } from 'react'
 
 import { SubagentRow, formatSubagentTokens, type Subagent } from './subagent_row'
 
@@ -17,6 +18,7 @@ export function SubagentGroup({
 }) {
   const completed = agents.filter((agent) => agent.status === 'complete').length
   const failed = agents.filter((agent) => agent.status === 'error').length
+  const stopped = agents.filter((agent) => agent.status === 'stopped').length
   const totalTokens = agents.reduce((total, agent) => total + agent.tokens, 0)
   return (
     <Collapsible defaultOpen={defaultOpen} className='w-full min-w-0'>
@@ -33,11 +35,20 @@ export function SubagentGroup({
         </span>
         {agents.length > 0 && (
           <span className='ml-auto flex items-center gap-3 text-xs text-muted-foreground'>
-            {(completed > 0 || failed > 0) && (
+            {(completed > 0 || failed > 0 || stopped > 0) && (
               <span>
-                {completed > 0 && `${completed} complete`}
-                {completed > 0 && failed > 0 && ', '}
-                {failed > 0 && <span className='text-status-error'>{failed} failed</span>}
+                {[
+                  completed > 0 && `${completed} complete`,
+                  stopped > 0 && `${stopped} stopped`,
+                  failed > 0 && <span className='text-status-error'>{failed} failed</span>,
+                ]
+                  .filter(Boolean)
+                  .map((part, index) => (
+                    <Fragment key={index}>
+                      {index > 0 && ', '}
+                      {part}
+                    </Fragment>
+                  ))}
               </span>
             )}
             <span

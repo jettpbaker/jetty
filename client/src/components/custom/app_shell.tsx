@@ -21,7 +21,7 @@ const openKey = 'jetty.sidebar.open'
 function subagentTabStatus(tab: SubagentTab): ThreadStatus {
   if (tab.needsInput) return 'needs-attention'
   if (tab.status === 'running') return 'working'
-  return tab.status === 'completed' ? 'idle' : 'error'
+  return tab.status === 'failed' ? 'error' : 'idle'
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
