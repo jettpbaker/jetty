@@ -46,6 +46,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('thread.delete'),
   unary('thread.diff'),
   unary('thread.diffFile'),
+  unary('thread.readFile'),
   unary('pullRequest.link'),
   unary('github.connection'),
   unary('pullRequest.unlink'),

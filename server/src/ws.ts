@@ -109,6 +109,24 @@ export function createRpcHandlers(
         )
     }
 
+    // Where the thread's agent works: its container checkout, or the project folder.
+    function threadRoot(threadId: string) {
+      return Effect.gen(function* () {
+        const thread = yield* store.requireThread(threadId)
+        const project = yield* requireProject(thread.projectId)
+        const record =
+          thread.environment === 'container' && containers
+            ? yield* Effect.promise(() => containers.record(thread.id))
+            : null
+        if (thread.environment === 'container' && !record)
+          return yield* Effect.fail(new StoreError('not_found', 'Container checkout is not ready'))
+        return {
+          path: record?.checkoutPath ?? project.path,
+          baseCommit: record?.baseCommit ?? undefined,
+        }
+      })
+    }
+
     function reference(threadId: string, value: string) {
       return Effect.gen(function* () {
         const thread = yield* store.requireThread(threadId)
@@ -306,24 +324,17 @@ export function createRpcHandlers(
           )
         }).pipe(Effect.mapError(wireError)),
       'thread.diffFile': (params) =>
-        Effect.gen(function* () {
-          const thread = yield* store.requireThread(params.threadId)
-          const project = yield* requireProject(thread.projectId)
-          const record =
-            thread.environment === 'container' && containers
-              ? yield* Effect.promise(() => containers.record(thread.id))
-              : null
-          if (thread.environment === 'container' && !record)
-            return yield* Effect.fail(
-              new StoreError('not_found', 'Container checkout is not ready')
-            )
-          return yield* diff.readDiffFile(
-            record?.checkoutPath ?? project.path,
-            params.path,
-            params.prevPath,
-            record?.baseCommit ?? undefined
-          )
-        }).pipe(Effect.mapError(wireError)),
+        threadRoot(params.threadId).pipe(
+          Effect.flatMap((root) =>
+            diff.readDiffFile(root.path, params.path, params.prevPath, root.baseCommit)
+          ),
+          Effect.mapError(wireError)
+        ),
+      'thread.readFile': (params) =>
+        threadRoot(params.threadId).pipe(
+          Effect.flatMap((root) => diff.readProjectFile(root.path, params.path)),
+          Effect.mapError(wireError)
+        ),
       'pullRequest.link': (params) =>
         Effect.gen(function* () {
           const ref = yield* reference(params.threadId, params.reference)

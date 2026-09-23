@@ -291,6 +291,13 @@ export const methods = {
       Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
     ]),
   },
+  'thread.readFile': {
+    params: Schema.Struct({ threadId: Schema.String, path: Schema.String }),
+    result: Schema.Union([
+      Schema.Struct({ contents: Schema.NullOr(Schema.String) }),
+      Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
+    ]),
+  },
   'pullRequest.link': {
     params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
     result: Schema.Struct({ thread: ThreadMeta }),

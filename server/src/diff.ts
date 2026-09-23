@@ -130,6 +130,31 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
   })
 }
 
+export type ProjectFile = { contents: string | null } | Unavailable
+
+// Paths are relative to the thread's project; symlinks may not lead outside it.
+export function readProjectFile(cwd: string, path: string) {
+  return Effect.gen(function* () {
+    if (!isRepoPath(path))
+      return yield* Effect.fail(new StoreError('invalid_params', `Invalid path: ${path}`))
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const root = yield* fs.realPath(cwd).pipe(Effect.option)
+    if (Option.isNone(root))
+      return yield* Effect.fail(new StoreError('not_found', 'Project folder not found'))
+    const file = yield* fs.realPath(paths.join(root.value, path)).pipe(Effect.option)
+    if (Option.isNone(file)) return { contents: null }
+    if (!file.value.startsWith(root.value + paths.sep))
+      return yield* Effect.fail(new StoreError('invalid_params', `${path} is outside the project`))
+    const stat = yield* fs.stat(file.value).pipe(Effect.option)
+    if (Option.isNone(stat) || stat.value.type !== 'File') return { contents: null }
+    if (Number(stat.value.size) > MAX_CONTENTS_BYTES) return tooLarge
+    const bytes = yield* fs.readFile(file.value).pipe(Effect.option)
+    if (Option.isNone(bytes)) return { contents: null }
+    return bytes.value.includes(0) ? binary : { contents: new TextDecoder().decode(bytes.value) }
+  })
+}
+
 export const GitDiff = Context.Service<{
   computeThreadDiff: (cwd: string, baseCommit?: string) => Effect.Effect<ThreadDiff>
   readDiffFile: (
@@ -138,6 +163,7 @@ export const GitDiff = Context.Service<{
     prevPath?: string,
     baseCommit?: string
   ) => Effect.Effect<DiffFile, StoreError>
+  readProjectFile: (cwd: string, path: string) => Effect.Effect<ProjectFile, StoreError>
 }>('jetty/GitDiff')
 
 export const GitDiffLive = Layer.effect(
@@ -151,6 +177,8 @@ export const GitDiffLive = Layer.effect(
         computeThreadDiff(cwd, baseCommit).pipe(Effect.provideContext(services)),
       readDiffFile: (cwd: string, path: string, prevPath?: string, baseCommit?: string) =>
         readDiffFile(cwd, path, prevPath, baseCommit).pipe(Effect.provideContext(services)),
+      readProjectFile: (cwd: string, path: string) =>
+        readProjectFile(cwd, path).pipe(Effect.provideContext(services)),
     }
   })
 )
