@@ -30,6 +30,7 @@ import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
+import { createPullRequests, pullRequestUrls } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
 import { SkillsLive } from './skills'
@@ -182,6 +183,7 @@ function createServer(opts: ServerOptions = {}) {
     )
     const attachments = Context.get(io, Attachments)
     const hub = createHub()
+    const pullRequests = createPullRequests(store, hub)
     const mcp = createMcpSessions()
     let lastUsage: RateLimits | null = null
     const hooks = {
@@ -273,7 +275,18 @@ function createServer(opts: ServerOptions = {}) {
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
     const titler = yield* selectTitler(agentKind, opts)
     const services = yield* Layer.build(
-      orchestratorLayer(store, hub, titler, attachments, registry)
+      orchestratorLayer(store, hub, titler, attachments, registry, (threadId, text) =>
+        Effect.gen(function* () {
+          for (const ref of pullRequestUrls(text)) {
+            const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
+            hub.pushChrome({ type: 'thread.upserted', thread })
+            yield* pullRequests.refreshIfStale(ref).pipe(
+              Effect.catchCause((cause) => Effect.logWarning(cause)),
+              Effect.forkIn(discoveryScope)
+            )
+          }
+        }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+      )
     )
     const orch = Context.get(services, OrchestratorService)
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
@@ -283,7 +296,8 @@ function createServer(opts: ServerOptions = {}) {
       hub,
       () => lastUsage,
       () => models,
-      refreshModels
+      refreshModels,
+      pullRequests
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

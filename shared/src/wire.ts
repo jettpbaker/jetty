@@ -3,6 +3,7 @@ import { uuidv7 } from 'uuidv7'
 
 import { SessionStatus } from './events'
 import { ApprovalDecision, Attachment } from './items'
+import { PullRequestData } from './pull-request'
 import { ThreadState } from './reducer'
 
 export function newId() {
@@ -57,15 +58,29 @@ export type Project = Schema.Schema.Type<typeof Project>
 export const ThreadGitStatus = Schema.Struct({
   branch: Schema.String,
   dirty: Schema.Boolean,
-  pr: Schema.NullOr(
-    Schema.Struct({
-      number: Schema.Int.check(Schema.isGreaterThan(0)),
-      state: Schema.Literals(['draft', 'open', 'merged', 'closed']),
-      url: Schema.String,
-    })
-  ),
 })
 export type ThreadGitStatus = Schema.Schema.Type<typeof ThreadGitStatus>
+
+export const PullRequestLink = Schema.Struct({
+  repo: Schema.String,
+  number: Schema.Int.check(Schema.isGreaterThan(0)),
+  url: Schema.String,
+  state: Schema.optional(Schema.Literals(['draft', 'open', 'merged', 'closed'])),
+  title: Schema.optional(Schema.String),
+  updatedAt: Schema.optional(Schema.Int),
+  linkedAt: Schema.Int,
+})
+export type PullRequestLink = Schema.Schema.Type<typeof PullRequestLink>
+
+export const PullRequestSnapshot = Schema.Struct({
+  repo: Schema.String,
+  number: Schema.Int,
+  status: Schema.Literals(['loading', 'ready', 'unavailable', 'not_found', 'rate_limited']),
+  error: Schema.optional(Schema.String),
+  refreshedAt: Schema.optional(Schema.Int),
+  data: Schema.optional(PullRequestData),
+})
+export type PullRequestSnapshot = Schema.Schema.Type<typeof PullRequestSnapshot>
 
 export const MessageSource = Schema.Struct({ threadId: Schema.String, title: Schema.String })
 export const QueuedMessage = Schema.Struct({
@@ -93,6 +108,7 @@ export const ThreadMeta = Schema.Struct({
   effort: Schema.optional(EffortLevel),
   fast: Schema.optional(Schema.Boolean),
   git: Schema.optional(ThreadGitStatus),
+  pullRequests: Schema.optional(Schema.Array(PullRequestLink)),
   parentThreadId: Schema.optional(Schema.String),
   createdBy: Schema.optional(Schema.Literals(['user', 'agent'])),
   pendingMessages: Schema.optional(Schema.Array(QueuedMessage)),
@@ -200,6 +216,26 @@ export const methods = {
       Schema.Struct({ before: Schema.NullOr(Schema.String), after: Schema.NullOr(Schema.String) }),
       Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
     ]),
+  },
+  'pullRequest.link': {
+    params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
+    result: Schema.Struct({ thread: ThreadMeta }),
+  },
+  'pullRequest.unlink': {
+    params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
+    result: Schema.Struct({ thread: ThreadMeta }),
+  },
+  'pullRequest.get': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.refresh': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.subscribe': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: PullRequestSnapshot,
   },
   'thread.subscribe': {
     params: Schema.Struct({

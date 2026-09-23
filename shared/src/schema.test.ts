@@ -69,19 +69,11 @@ describe('domain schema constraints', () => {
           })
         )
       ).toBe(true)
-      expect(
-        Result.isFailure(
-          Schema.decodeUnknownResult(ThreadGitStatus)({
-            branch: 'main',
-            dirty: false,
-            pr: { number: value, state: 'open', url: '' },
-          })
-        )
-      ).toBe(true)
     }
-    expect(
-      Schema.decodeUnknownSync(ThreadGitStatus)({ branch: 'main', dirty: false, pr: null }).pr
-    ).toBeNull()
+    expect(Schema.decodeUnknownSync(ThreadGitStatus)({ branch: 'main', dirty: false })).toEqual({
+      branch: 'main',
+      dirty: false,
+    })
   })
 
   test('keeps finite decimal usage values without imposing new percentage bounds', () => {

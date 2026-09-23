@@ -9,7 +9,11 @@ import { methods, type Project, type WireError } from './wire'
 test('RPC operations preserve unary schemas and replace subscription messages with streams', () => {
   expect([...JettyRpcs.requests.keys()].sort()).toEqual(Object.keys(methods).sort())
   for (const [name, rpc] of JettyRpcs.requests) {
-    if (name === 'chrome.subscribe' || name === 'thread.subscribe') {
+    if (
+      name === 'chrome.subscribe' ||
+      name === 'thread.subscribe' ||
+      name === 'pullRequest.subscribe'
+    ) {
       expect(RpcSchema.isStreamSchema(rpc.successSchema)).toBe(true)
     } else {
       expect(rpc.payloadSchema).toBe(methods[name as keyof typeof methods].params)
@@ -73,6 +77,16 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'thread.delete': () => Effect.succeed(null),
           'thread.diff': () => Effect.succeed({ diff: '' }),
           'thread.diffFile': () => Effect.succeed({ before: null, after: null }),
+          'pullRequest.link': () =>
+            Effect.fail({ code: 'not_found' as const, message: 'Not found' }),
+          'pullRequest.unlink': () =>
+            Effect.fail({ code: 'not_found' as const, message: 'Not found' }),
+          'pullRequest.get': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.refresh': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.subscribe': ({ repo, number }) =>
+            Stream.succeed({ repo, number, status: 'loading' as const }),
           'queue.add': () => Effect.succeed(null),
           'queue.edit': () => Effect.succeed(null),
           'queue.remove': () => Effect.succeed(null),

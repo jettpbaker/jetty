@@ -11,6 +11,8 @@ import {
   type ThreadMeta,
   type QueuedMessage,
   type PermissionMode,
+  type PullRequestLink,
+  type PullRequestSnapshot,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
@@ -102,6 +104,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     status: row.status,
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
+    pullRequests: [],
     updatedAt: row.updated_at,
     ...(row.turn_started_at === null ? {} : { turnStartedAt: row.turn_started_at }),
     ...(row.turn_ended_at === null ? {} : { turnEndedAt: row.turn_ended_at }),
@@ -126,11 +129,50 @@ export function createStore() {
     const queueChanges = yield* Queue.sliding<void>(1)
     const signalQueueChange = Queue.offer(queueChanges, undefined)
 
-    function getThread(threadId: string) {
-      return sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`.pipe(
-        Effect.map((rows) => (rows[0] ? rowToThread(rows[0]) : null)),
-        Effect.mapError(storeError)
+    type LinkRow = {
+      thread_id: string
+      repo: string
+      number: number
+      linked_at: number
+      data_json: string | null
+    }
+
+    function rowToLink(row: LinkRow): PullRequestLink {
+      const pull = row.data_json ? JSON.parse(row.data_json).pull : null
+      return {
+        repo: row.repo,
+        number: row.number,
+        url: `https://github.com/${row.repo}/pull/${row.number}`,
+        linkedAt: row.linked_at,
+        ...(pull
+          ? {
+              title: pull.title,
+              state: pull.merged
+                ? ('merged' as const)
+                : pull.state === 'closed'
+                  ? ('closed' as const)
+                  : pull.draft
+                    ? ('draft' as const)
+                    : ('open' as const),
+              updatedAt: Date.parse(pull.updated_at),
+            }
+          : {}),
+      }
+    }
+
+    function getLinks(threadId: string) {
+      return sql<LinkRow>`SELECT l.*, p.data_json FROM thread_pull_requests l
+        JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
+        WHERE l.thread_id = ${threadId} ORDER BY l.linked_at DESC`.pipe(
+        Effect.map((rows) => rows.map(rowToLink))
       )
+    }
+
+    function getThread(threadId: string) {
+      return Effect.gen(function* () {
+        const [row] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
+        return row ? { ...rowToThread(row), pullRequests: yield* getLinks(threadId) } : null
+      }).pipe(Effect.mapError(storeError))
     }
 
     function requireThread(threadId: string) {
@@ -556,6 +598,7 @@ export function createStore() {
           yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
           yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
+          yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
@@ -590,8 +633,73 @@ export function createStore() {
       getThread,
       requireThread,
       listThreads() {
-        return sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`.pipe(
-          Effect.map((rows) => rows.map(rowToThread)),
+        return Effect.gen(function* () {
+          const rows = yield* sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`
+          const links = yield* sql<LinkRow>`SELECT l.*, p.data_json FROM thread_pull_requests l
+            JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number ORDER BY l.linked_at DESC`
+          const byThread = new Map<string, PullRequestLink[]>()
+          for (const link of links) {
+            const list = byThread.get(link.thread_id) ?? []
+            list.push(rowToLink(link))
+            byThread.set(link.thread_id, list)
+          }
+          return rows.map((row) => ({
+            ...rowToThread(row),
+            pullRequests: byThread.get(row.id) ?? [],
+          }))
+        }).pipe(Effect.mapError(storeError))
+      },
+      linkPullRequest(threadId: string, repo: string, number: number) {
+        return Effect.gen(function* () {
+          yield* requireThread(threadId)
+          yield* sql`INSERT OR IGNORE INTO pull_requests (repo, number) VALUES (${repo}, ${number})`
+          yield* sql`INSERT OR IGNORE INTO thread_pull_requests (thread_id, repo, number, linked_at)
+            VALUES (${threadId}, ${repo}, ${number}, ${Date.now()})`
+          return yield* requireThread(threadId)
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      unlinkPullRequest(threadId: string, repo: string, number: number) {
+        return Effect.gen(function* () {
+          yield* requireThread(threadId)
+          yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId} AND repo = ${repo} AND number = ${number}`
+          return yield* requireThread(threadId)
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      getPullRequest(repo: string, number: number) {
+        return sql<{
+          data_json: string | null
+          status: PullRequestSnapshot['status']
+          error: string | null
+          refreshed_at: number | null
+        }>`SELECT data_json, status, error, refreshed_at FROM pull_requests WHERE repo = ${repo} AND number = ${number}`.pipe(
+          Effect.map((rows): PullRequestSnapshot => {
+            const row = rows[0]
+            return {
+              repo,
+              number,
+              status: row?.status ?? 'loading',
+              ...(row?.data_json ? { data: JSON.parse(row.data_json) } : {}),
+              ...(row?.error ? { error: row.error } : {}),
+              ...(row?.refreshed_at ? { refreshedAt: row.refreshed_at } : {}),
+            }
+          }),
+          Effect.mapError(storeError)
+        )
+      },
+      savePullRequest(snapshot: PullRequestSnapshot) {
+        return Effect.gen(function* () {
+          yield* sql`INSERT INTO pull_requests (repo, number, data_json, status, error, refreshed_at)
+            VALUES (${snapshot.repo}, ${snapshot.number}, ${snapshot.data ? JSON.stringify(snapshot.data) : null}, ${snapshot.status}, ${snapshot.error ?? null}, ${snapshot.refreshedAt ?? null})
+            ON CONFLICT(repo, number) DO UPDATE SET data_json = COALESCE(excluded.data_json, pull_requests.data_json),
+              status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at`
+          return snapshot
+        }).pipe(Effect.mapError(storeError))
+      },
+      threadsForPullRequest(repo: string, number: number) {
+        return sql<{
+          thread_id: string
+        }>`SELECT thread_id FROM thread_pull_requests WHERE repo = ${repo} AND number = ${number}`.pipe(
+          Effect.map((rows) => rows.map((row) => row.thread_id)),
           Effect.mapError(storeError)
         )
       },

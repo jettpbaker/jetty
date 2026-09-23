@@ -1,5 +1,5 @@
 import type { ThreadUpdate } from '@jetty/shared/rpc'
-import type { ChromePushData, WireError } from '@jetty/shared/wire'
+import type { ChromePushData, PullRequestSnapshot, WireError } from '@jetty/shared/wire'
 
 import { Effect, Queue, Semaphore } from 'effect'
 
@@ -9,6 +9,7 @@ export function createHub() {
   const chromePublication = Semaphore.makeUnsafe(1)
   const chromeSubs = new Set<Queue.Queue<ChromePushData, WireError>>()
   const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
+  const pullRequestSubs = new Map<string, Set<Queue.Queue<PullRequestSnapshot, WireError>>>()
 
   function pushChrome(data: ChromePushData) {
     for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
@@ -53,12 +54,38 @@ export function createHub() {
     )
   }
 
+  function pushPullRequest(snapshot: PullRequestSnapshot) {
+    for (const queue of pullRequestSubs.get(`${snapshot.repo}#${snapshot.number}`) ?? [])
+      Queue.offerUnsafe(queue, snapshot)
+  }
+
+  function subscribePullRequest(repo: string, number: number) {
+    const key = `${repo}#${number}`
+    return Effect.acquireRelease(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<PullRequestSnapshot, WireError>()
+        const subs = pullRequestSubs.get(key) ?? new Set()
+        subs.add(queue)
+        pullRequestSubs.set(key, subs)
+        return queue
+      }),
+      (queue) =>
+        Effect.sync(() => {
+          const subs = pullRequestSubs.get(key)
+          subs?.delete(queue)
+          if (subs?.size === 0) pullRequestSubs.delete(key)
+        }).pipe(Effect.andThen(Queue.shutdown(queue)))
+    )
+  }
+
   return {
     withChromePublication: chromePublication.withPermit,
     pushChrome,
     pushThread,
     subscribeChrome,
     subscribeThread,
+    pushPullRequest,
+    subscribePullRequest,
     subscriberCount: Effect.sync(
       () => chromeSubs.size + [...threadSubs.values()].reduce((total, subs) => total + subs.size, 0)
     ),

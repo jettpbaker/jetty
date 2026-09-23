@@ -16,6 +16,12 @@ import type { Store } from './store'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
+import {
+  createPullRequests,
+  parsePullRequestUrl,
+  projectRemote,
+  resolvePullRequestReference,
+} from './pull-requests'
 import { Skills } from './skills'
 import { StoreError } from './store'
 
@@ -60,7 +66,8 @@ export function createRpcHandlers(
   hub: Hub,
   getUsage: () => RateLimits | null,
   getModels: () => readonly ProviderModel[] | null,
-  refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void
+  refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void,
+  pullRequests = createPullRequests(store, hub)
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -95,6 +102,24 @@ export function createRpcHandlers(
               : Effect.fail(new StoreError('not_found', `Project ${projectId} not found`))
           )
         )
+    }
+
+    function reference(threadId: string, value: string) {
+      return Effect.gen(function* () {
+        const thread = yield* store.requireThread(threadId)
+        const url = parsePullRequestUrl(value.trim())
+        if (url) return url
+        const project = yield* requireProject(thread.projectId)
+        const remote = yield* Effect.promise(() => projectRemote(project.path))
+        return resolvePullRequestReference(value, remote)
+      })
+    }
+
+    function refreshInBackground(ref: { repo: string; number: number }) {
+      return pullRequests.refreshIfStale(ref).pipe(
+        Effect.catch(() => Effect.void),
+        Effect.forkIn(admissionScope)
+      )
     }
 
     return JettyRpcs.of({
@@ -174,6 +199,50 @@ export function createRpcHandlers(
           const project = yield* requireProject(thread.projectId)
           return yield* diff.readDiffFile(project.path, params.path, params.prevPath)
         }).pipe(Effect.mapError(wireError)),
+      'pullRequest.link': (params) =>
+        Effect.gen(function* () {
+          const ref = yield* reference(params.threadId, params.reference)
+          const thread = yield* store.linkPullRequest(params.threadId, ref.repo, ref.number)
+          hub.pushChrome({ type: 'thread.upserted', thread })
+          yield* refreshInBackground(ref)
+          return { thread }
+        }).pipe(Effect.mapError(wireError)),
+      'pullRequest.unlink': (params) =>
+        Effect.gen(function* () {
+          const ref = yield* reference(params.threadId, params.reference)
+          const thread = yield* store.unlinkPullRequest(params.threadId, ref.repo, ref.number)
+          hub.pushChrome({ type: 'thread.upserted', thread })
+          return { thread }
+        }).pipe(Effect.mapError(wireError)),
+      'pullRequest.get': (ref) =>
+        Effect.gen(function* () {
+          const snapshot = yield* pullRequests.get(ref)
+          const pull = (snapshot.data as { pull?: { state?: string } } | undefined)?.pull
+          if (
+            !snapshot.refreshedAt ||
+            (pull?.state !== 'closed' && Date.now() - snapshot.refreshedAt > 60_000)
+          )
+            yield* refreshInBackground(ref)
+          return snapshot
+        }).pipe(Effect.mapError(wireError)),
+      'pullRequest.refresh': (ref) => pullRequests.refresh(ref).pipe(Effect.mapError(wireError)),
+      'pullRequest.subscribe': (ref) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
+            const snapshot = yield* pullRequests.get(ref)
+            yield* refreshInBackground(ref)
+            const periodic = Stream.tick('60 seconds').pipe(
+              Stream.mapEffect(() =>
+                pullRequests.refreshIfStale(ref).pipe(Effect.catch(() => pullRequests.get(ref)))
+              )
+            )
+            return Stream.concat(
+              Stream.succeed(snapshot),
+              Stream.merge(Stream.fromQueue(queue), periodic)
+            )
+          }).pipe(Effect.mapError(wireError))
+        ),
       'queue.add': (params) =>
         orch
           .enqueue(params.threadId, params.messageId, params.text, params.attachments)

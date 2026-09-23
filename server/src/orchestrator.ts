@@ -61,7 +61,8 @@ export function createOrchestrator(
   agent: Agent | AgentRegistry,
   hub: Hub,
   titler: ProviderTitler | null = null,
-  attachments: Attachments | null = null
+  attachments: Attachments | null = null,
+  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
 ) {
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
@@ -127,6 +128,19 @@ export function createOrchestrator(
                 if (event.type === 'turn.started') state(threadId).turnId = event.turnId
                 yield* onCommit
                 publish(threadId, appended)
+                if (event.type === 'item.completed' && onCompletedText) {
+                  const item = appended.state.items.find(
+                    (candidate) => candidate.id === event.itemId
+                  )
+                  if (item?.kind === 'assistant_message' || item?.kind === 'tool_call') {
+                    const text = item.kind === 'assistant_message' ? item.text : item.output
+                    if (text.includes('github.com/'))
+                      yield* onCompletedText(threadId, text).pipe(
+                        Effect.catchCause((cause) => Effect.logWarning(cause)),
+                        Effect.forkIn(scope)
+                      )
+                  }
+                }
                 if (terminal) state(threadId).turnId = null
               })
             )
@@ -672,10 +686,11 @@ export function orchestratorLayer(
   hub: Hub,
   titler: ProviderTitler | null,
   attachments: Attachments,
-  registry: AgentRegistry
+  registry: AgentRegistry,
+  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
 ) {
   return Layer.effect(
     OrchestratorService,
-    createOrchestrator(store, registry, hub, titler, attachments)
+    createOrchestrator(store, registry, hub, titler, attachments, onCompletedText)
   )
 }

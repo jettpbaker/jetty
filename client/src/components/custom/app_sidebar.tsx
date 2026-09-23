@@ -1,3 +1,5 @@
+import type { PullRequestLink } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -66,7 +68,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
       lastActivity: formatAge(thread.updatedAt, now),
       updatedAt: thread.updatedAt,
       pinned: thread.pinned,
-      pullRequest: thread.git?.pr ?? undefined,
+      pullRequest: latestPullRequest(thread.pullRequests ?? []),
       provider: thread.provider,
       model:
         thread.provider && thread.model
@@ -74,6 +76,15 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
           : undefined,
       effort: thread.effort && effortLabels[thread.effort],
     }))
+}
+
+function latestPullRequest(links: readonly PullRequestLink[]) {
+  const latest = links.reduce<PullRequestLink | undefined>(
+    (best, link) =>
+      !best || (link.updatedAt ?? link.linkedAt) > (best.updatedAt ?? best.linkedAt) ? link : best,
+    undefined
+  )
+  return latest?.state ? { number: latest.number, state: latest.state } : undefined
 }
 
 export function AppSidebar() {

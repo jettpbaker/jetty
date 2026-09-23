@@ -94,6 +94,21 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`ALTER TABLE projects ADD COLUMN icon TEXT`
   }),
   '012_queue_pause': addThreadColumns({ queue_paused: 'INTEGER NOT NULL DEFAULT 0' }),
+  '013_pull_requests': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE pull_requests (
+      repo TEXT NOT NULL, number INTEGER NOT NULL, data_json TEXT,
+      status TEXT NOT NULL DEFAULT 'loading', error TEXT, refreshed_at INTEGER,
+      PRIMARY KEY (repo, number)
+    )`
+    yield* sql`CREATE TABLE thread_pull_requests (
+      thread_id TEXT NOT NULL REFERENCES threads(id), repo TEXT NOT NULL,
+      number INTEGER NOT NULL, linked_at INTEGER NOT NULL,
+      PRIMARY KEY (thread_id, repo, number),
+      FOREIGN KEY (repo, number) REFERENCES pull_requests(repo, number)
+    )`
+    yield* sql`CREATE INDEX thread_pull_requests_by_pr ON thread_pull_requests (repo, number)`
+  }),
 })
 
 export function databaseLayer(home: string) {
