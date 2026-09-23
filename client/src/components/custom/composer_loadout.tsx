@@ -274,7 +274,11 @@ export function ComposerLoadout({
       }}
     >
       <DropdownMenuTrigger
-        aria-label={value ? `Loadout: ${name}, ${describeLoadout(value)}` : 'Choose a model'}
+        aria-label={
+          value
+            ? `Loadout: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
+            : 'Choose a model'
+        }
         render={
           <Button
             variant='ghost'

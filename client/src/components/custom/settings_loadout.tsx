@@ -243,7 +243,7 @@ export function SettingsLoadout({
               onChange={(next) =>
                 save(
                   slots.map((item) => (item.id === slot.id ? next : item)),
-                  `Slot ${index + 1} saved: ${describe(next)}.`
+                  `${[`Slot ${index + 1} saved`, describe(next)].filter(Boolean).join(': ')}.`
                 )
               }
             />
