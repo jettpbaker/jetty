@@ -181,7 +181,7 @@ export function useApproval(
     respond(item, decision, note.trim())
   }
   function deny() {
-    setDraft('')
+    if (draft) setDraft('')
     decide('deny', draft)
   }
   function send() {

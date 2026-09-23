@@ -12,8 +12,10 @@ export type Draft = {
   images: readonly ComposerImage[]
   // the queued message this draft rewrites
   editing?: string
-  // the pending approval or question the text answers, and what was typed for the others
+  // the pending approval or question on show, and what was typed for the others
   pendingId?: string
+  // the pending item the text was started for; absent, the text is a follow-up message
+  typedFor?: string
   parked?: Readonly<Record<string, string>>
   questions?: Readonly<Record<string, QuestionProgress>>
 }

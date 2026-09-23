@@ -1,3 +1,4 @@
+import type { Draft } from '@/state'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
@@ -34,9 +35,12 @@ import {
   useThreadQueue,
 } from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const noItems: readonly ThreadItem[] = []
+
+// How long a request must be on screen before text started in the composer answers it.
+const noticeMs = 1000
 
 export function ThreadComposer({
   threadId,
@@ -61,7 +65,6 @@ export function ThreadComposer({
   const { draft: saved, update } = useDraft(draftKey)
   const draft = saved.text
   const editing = saved.editing
-  const setDraft = (text: string) => update({ text })
   const attachments = useImageAttachments(draftKey)
   const { loadouts, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
@@ -91,18 +94,37 @@ export function ThreadComposer({
     pending.findIndex((entry) => entry.id === saved.pendingId)
   )
   const item = pending[index]
+  const shown = useRef<{ id?: string; at: number }>({ at: 0 })
+  useEffect(() => {
+    if (shown.current.id !== item?.id) shown.current = { id: item?.id, at: performance.now() }
+  }, [item?.id])
+
+  // Text keeps the intent it was started with: a request that shows up mid-message, or just
+  // before it, leaves Enter queueing or sending it rather than answering the request.
+  const typed = draft.trim() !== ''
+  const answering = Boolean(item) && (!typed || saved.typedFor === item?.id)
+  function setDraft(text: string) {
+    if (typed || !text.trim()) return update({ text })
+    const noticed = item && performance.now() - shown.current.at >= noticeMs
+    update({ text, typedFor: noticed ? item.id : undefined })
+  }
+  const stripDraft = answering ? saved : { ...saved, text: '' }
+  function stripUpdate({ text, ...patch }: Partial<Draft>) {
+    update(answering && text !== undefined ? { ...patch, text } : patch)
+  }
+
   // The next item to show brings back whatever was typed for it earlier.
   function settled(entry: { id: string }) {
     const next = pending.find((candidate) => candidate.id !== entry.id)
     const parked = next && saved.parked?.[next.id]
-    if (!next || parked === undefined) return
+    if (!next || parked === undefined || !answering) return
     const { [next.id]: _, ...rest } = saved.parked ?? {}
-    update({ pendingId: next.id, text: parked, parked: rest })
+    update({ pendingId: next.id, text: parked, typedFor: next.id, parked: rest })
   }
 
   const approval = useApproval(
     item?.kind === 'approval' ? item : undefined,
-    draft,
+    stripDraft.text,
     setDraft,
     (entry, decision, note) => {
       if (!threadId) return
@@ -113,8 +135,8 @@ export function ThreadComposer({
   )
   const question = useQuestion(
     item?.kind === 'question' ? item : undefined,
-    saved,
-    update,
+    stripDraft,
+    stripUpdate,
     (entry, answers) => {
       if (!threadId) return
       respondQuestion(threadId, entry.id, answers)
@@ -193,7 +215,7 @@ export function ThreadComposer({
       else if (previous) queueActions.add(threadId, previous, attachments.take())
       queueActions.hold(threadId, entry.id)
       focusEdit.current = true
-      update({ text: entry.text, editing: entry.id })
+      update({ text: entry.text, editing: entry.id, typedFor: undefined })
     },
     remove(entry: QueuedMessage) {
       if (!threadId) return
@@ -206,6 +228,8 @@ export function ThreadComposer({
   function choose(to: number) {
     const target = pending[to]
     if (!target || !item || target === item) return
+    shown.current = { id: target.id, at: 0 }
+    if (!answering) return update({ pendingId: target.id })
     const parked = Object.fromEntries(
       Object.entries(saved.parked ?? {}).filter(([id]) =>
         pending.some((entry) => entry.id === id && entry !== target)
@@ -214,6 +238,7 @@ export function ThreadComposer({
     update({
       pendingId: target.id,
       text: saved.parked?.[target.id] ?? '',
+      typedFor: target.id,
       parked: { ...parked, [item.id]: draft },
     })
   }
@@ -234,15 +259,14 @@ export function ThreadComposer({
     }
   }
 
-  const typed = draft.trim() !== ''
-  const mode =
+  const answer =
     item?.kind === 'approval'
       ? {
           strip: (
             <ApprovalStrip
               item={item}
               ctl={approval}
-              typed={typed}
+              typed={typed && answering}
               header={header}
               hideSource={Boolean(header)}
             />
@@ -271,28 +295,33 @@ export function ThreadComposer({
             onSubmit: question.next,
             onKeyDown: keyHandler(question.onKey),
           }
-        : {
-            strip:
-              queue.length > 0 ? (
-                <QueueTray q={queueControl} />
-              ) : todo ? (
-                <TodoLine list={todos} current={todo} />
-              ) : undefined,
-            placeholder: !threadId
-              ? undefined
-              : running
-                ? 'Queue a follow-up while the agent works'
-                : 'Ask for follow-up changes',
-            sendLabel: running ? 'Queue' : 'Send',
-            sendDisabled: (!threadId && !projectId) || needsModel ? true : undefined,
-            onSubmit: submit,
-            onKeyDown: keyHandler((event) => {
-              if (event.key !== 'Escape' || !editing) return false
-              if (threadId) queueActions.release(threadId, editing)
-              update({ text: '', editing: undefined })
-              return true
-            }),
-          }
+        : undefined
+  const mode =
+    answer && answering
+      ? answer
+      : {
+          strip:
+            answer?.strip ??
+            (queue.length > 0 ? (
+              <QueueTray q={queueControl} />
+            ) : todo ? (
+              <TodoLine list={todos} current={todo} />
+            ) : undefined),
+          placeholder: !threadId
+            ? undefined
+            : running
+              ? 'Queue a follow-up while the agent works'
+              : 'Ask for follow-up changes',
+          sendLabel: running ? 'Queue' : 'Send',
+          sendDisabled: (!threadId && !projectId) || needsModel ? true : undefined,
+          onSubmit: submit,
+          onKeyDown: keyHandler((event) => {
+            if (event.key !== 'Escape' || !editing) return false
+            if (threadId) queueActions.release(threadId, editing)
+            update({ text: '', editing: undefined })
+            return true
+          }),
+        }
 
   return (
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
