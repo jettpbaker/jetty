@@ -205,7 +205,7 @@ export function ThreadComposer({
     if (!id) return
     const prior = priorCount(text)
     setDraft('')
-    sendTurn(id, text, prior, loadout, attachments.take())
+    sendTurn(id, text, prior, loadout, attachments.take(), draftKey)
     if (!threadId) void navigate({ to: '/threads/$threadId', params: { threadId: id } })
   }
 

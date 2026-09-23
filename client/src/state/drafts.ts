@@ -1,4 +1,4 @@
-import type { ComposerImage } from '@/hooks/use-image-attachments'
+import type { ComposerImage, ReadyImage } from '@/hooks/use-image-attachments'
 
 import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
@@ -19,12 +19,16 @@ const QuestionProgress = Schema.Struct({
 })
 export type QuestionProgress = typeof QuestionProgress.Type
 
+// A message that has left the composer but that the server hasn't taken yet.
+type Sending = { text: string; images: readonly ReadyImage[]; editing?: string }
+
 // The unsent composer state of one thread; the new-thread composer uses the key ''.
 export type Draft = {
   text: string
   images: readonly ComposerImage[]
   // the queued message this draft rewrites
   editing?: string
+  sending?: readonly Sending[]
   // the pending approval or question on show, and what was typed for the others
   pendingId?: string
   // the pending item the text was started for; absent, the text is a follow-up message
@@ -36,6 +40,9 @@ export type Draft = {
 const StoredDraft = Schema.Struct({
   text: Schema.String,
   editing: Schema.optional(Schema.String),
+  sending: Schema.optional(
+    Schema.Array(Schema.Struct({ text: Schema.String, editing: Schema.optional(Schema.String) }))
+  ),
   pendingId: Schema.optional(Schema.String),
   typedFor: Schema.optional(Schema.String),
   parked: Schema.optional(Schema.Record(Schema.String, Schema.String)),
@@ -84,7 +91,18 @@ function writeStored(key: string, draftKey: string, value: unknown, stored = rea
 function loadDrafts() {
   const drafts = new Map<string, Draft>()
   for (const [key, stored] of Object.entries(readStored(textsKey)))
-    if (isStoredDraft(stored)) drafts.set(key, { ...stored, images: [] })
+    if (isStoredDraft(stored)) {
+      // Sends still unconfirmed died with the page; they come back to the composer to send again.
+      const { sending = [], ...draft } = stored
+      drafts.set(key, {
+        ...draft,
+        text: [...sending.map((sent) => sent.text), draft.text]
+          .filter((text) => text.trim())
+          .join('\n\n'),
+        editing: draft.editing ?? sending.find((sent) => sent.editing)?.editing,
+        images: [],
+      })
+    }
   for (const [key, stored] of Object.entries(readStored(imagesKey))) {
     if (!Array.isArray(stored)) continue
     // A restored image's data URL is its identity, so a picture attached twice comes back once.
@@ -97,19 +115,35 @@ function loadDrafts() {
   return drafts
 }
 
-function persist(key: string, { images, ...draft }: Draft, previous: Draft) {
+function persist(key: string, current: Draft, previous: Draft) {
+  const { images, sending = [], ...draft } = current
   const kept =
     draft.text !== '' ||
     draft.editing !== undefined ||
+    sending.length > 0 ||
     Object.keys(draft.parked ?? {}).length > 0 ||
     Object.keys(draft.questions ?? {}).length > 0
-  writeStored(textsKey, key, kept ? draft : undefined)
-  if (images === previous.images) return
+  writeStored(
+    textsKey,
+    key,
+    kept
+      ? {
+          ...draft,
+          ...(sending.length > 0 && {
+            sending: sending.map(({ text, editing }) => ({ text, editing })),
+          }),
+        }
+      : undefined
+  )
+  if (images === previous.images && current.sending === previous.sending) return
   const stored = readStored(imagesKey)
   delete stored[key]
   let room = imageBudget - JSON.stringify(stored).length
   const saved = []
-  for (const { name, mimeType, sizeBytes, dataUrl, width, height } of images) {
+  for (const { name, mimeType, sizeBytes, dataUrl, width, height } of [
+    ...images,
+    ...sending.flatMap((sent) => sent.images),
+  ]) {
     if (!dataUrl || dataUrl.length > room) continue
     room -= dataUrl.length
     saved.push({ name, mimeType, sizeBytes, dataUrl, width, height })
@@ -139,11 +173,7 @@ export function editingDrafts(registry: Registry) {
 }
 
 // Puts a message the server refused back in its composer, ahead of anything typed since.
-export function restoreDraft(
-  registry: Registry,
-  key: string,
-  restored: Pick<Draft, 'text' | 'images' | 'editing'>
-) {
+function restoreDraft(registry: Registry, key: string, restored: Sending) {
   change(registry, key, (draft) => ({
     ...draft,
     typedFor: undefined,
@@ -151,6 +181,27 @@ export function restoreDraft(
     images: [...restored.images, ...draft.images],
     editing: draft.editing ?? restored.editing,
   }))
+}
+
+// Keeps a message that left the composer in its draft until the server takes it, so a reload
+// in the meantime brings it back. With no key it's only restored if the server refuses it.
+export function stageSend(registry: Registry, key: string | undefined, message: Sending) {
+  if (key !== undefined)
+    change(registry, key, (draft) => ({ ...draft, sending: [...(draft.sending ?? []), message] }))
+  function sent() {
+    if (key !== undefined)
+      change(registry, key, (draft) => ({
+        ...draft,
+        sending: draft.sending?.filter((entry) => entry !== message),
+      }))
+  }
+  return {
+    sent,
+    failed(into: string) {
+      sent()
+      restoreDraft(registry, into, message)
+    },
+  }
 }
 
 // A thread gone from the server takes its draft with it; one still in its undo window keeps it.

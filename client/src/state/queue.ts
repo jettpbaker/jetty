@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 
 import { chromeAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
-import { editingDrafts, restoreDraft } from './drafts'
+import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -92,6 +92,7 @@ function addQueued(
     })),
   }
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
+  const staged = stageSend(registry, threadId, { text, images })
   track(
     registry,
     threadId,
@@ -117,10 +118,11 @@ function addQueued(
       ),
     {
       onSuccess() {
+        staged.sent()
         for (const image of images) URL.revokeObjectURL(image.url)
       },
       onFailure() {
-        restoreDraft(registry, threadId, { text, images })
+        staged.failed(threadId)
         toast.error("Couldn't queue message")
       },
     }
@@ -134,14 +136,16 @@ function removeQueued(registry: Registry, threadId: string, messageId: string) {
 }
 
 function editQueued(registry: Registry, threadId: string, messageId: string, text: string) {
+  const staged = stageSend(registry, threadId, { text, images: [], editing: messageId })
   track(
     registry,
     threadId,
     { kind: 'edit', id: messageId, text },
     (connection) => connection.request('queue.edit', { threadId, messageId, text }),
     {
+      onSuccess: staged.sent,
       onFailure() {
-        restoreDraft(registry, threadId, { text, images: [], editing: messageId })
+        staged.failed(threadId)
         if (
           editingDrafts(registry).some(([id, editing]) => id === threadId && editing === messageId)
         )

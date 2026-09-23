@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { accessModeAtom } from './access_mode'
 import { chromeAtom, modelsAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
-import { restoreDraft } from './drafts'
+import { stageSend } from './drafts'
 import { loadoutsAtom } from './loadouts'
 import {
   awaitCreation,
@@ -121,8 +121,10 @@ function sendTurn(
   text: string,
   priorCount: number,
   loadout: Loadout | undefined,
-  images: readonly ReadyImage[] = []
+  images: readonly ReadyImage[] = [],
+  fromDraft?: string
 ) {
+  const staged = stageSend(registry, fromDraft, { text, images })
   if (loadout)
     registry.update(loadoutOverridesAtom, (overrides) =>
       new Map(without(overrides, [draftKey])).set(threadId, loadout)
@@ -166,7 +168,8 @@ function sendTurn(
                 }
               : {}),
           })
-        )
+        ),
+        Effect.tap(() => Effect.sync(staged.sent))
       ),
     () => {
       clearPatch(registry, threadId, 'provider')
@@ -176,7 +179,7 @@ function sendTurn(
       })
       registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
       // A thread that failed to create is gone; its message goes back to the new-thread composer.
-      restoreDraft(registry, threadMeta(registry, threadId) ? threadId : draftKey, { text, images })
+      staged.failed(threadMeta(registry, threadId) ? threadId : draftKey)
       toast.error("Couldn't send message")
     }
   )
