@@ -3,11 +3,11 @@ import { layout, prepare, type PreparedText } from '@chenglou/pretext'
 import type { ThreadRow } from './thread_rows'
 
 import {
-  BUBBLE_IMAGE_MAX_HEIGHT,
+  BUBBLE_THUMBNAIL_SIZE,
   fittedSize,
   galleryHeight,
   INLINE_IMAGE_MAX_HEIGHT,
-  VIDEO_CARD_HEIGHT,
+  videoHeight,
 } from './media_layout'
 
 const font = '14px "Geist Variable"'
@@ -37,13 +37,12 @@ function captionHeight(id: string, caption: string | undefined, width: number) {
 export function estimateRow(row: ThreadRow, width: number) {
   switch (row.kind) {
     case 'user': {
-      let height = textHeight(row.id, row.item.text, width * 0.8, true) + 16
-      for (const attachment of row.item.attachments)
-        height += attachment.mimeType.startsWith('image/')
-          ? 8 +
-            (fittedSize(attachment, width * 0.8 - 24, BUBBLE_IMAGE_MAX_HEIGHT)?.height ??
-              BUBBLE_IMAGE_MAX_HEIGHT)
-          : lineHeight
+      const { text, attachments } = row.item
+      const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))
+      let height = 16 + (text ? textHeight(row.id, text, width * 0.8, true) : 0)
+      if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
+      for (const attachment of attachments)
+        if (!attachment.mimeType.startsWith('image/')) height += lineHeight
       return height
     }
     case 'assistant':
@@ -69,7 +68,7 @@ export function estimateRow(row: ThreadRow, width: number) {
         captionHeight(row.id, row.item.caption, width)
       )
     case 'video':
-      return VIDEO_CARD_HEIGHT
+      return videoHeight(row.item.video, width) + captionHeight(row.id, row.item.caption, width)
     case 'subagents':
       return 44 + 50 * row.agents.length
     case 'question': {

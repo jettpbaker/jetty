@@ -1,9 +1,10 @@
 import type { Attachment } from '@jetty/shared/items'
 
-import { BUBBLE_IMAGE_MAX_HEIGHT, fittedStyle, mediaUrl } from '@/components/custom/media_layout'
+import { mediaUrl } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
+import { cn } from '@/lib/utils'
 import { useRef } from 'react'
 
 export function UserMessage({
@@ -25,9 +26,8 @@ export function UserMessage({
             className='rounded-lg'
             style={{ backgroundColor: 'oklch(from var(--primary) l c h / 0.25)' }}
           >
-            {text ? <p className='leading-relaxed whitespace-pre-wrap'>{text}</p> : null}
             {images.length > 0 && (
-              <div className='mt-2 flex flex-col gap-2'>
+              <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
                 {images.map((image, index) => (
                   <button
                     key={image.id}
@@ -36,8 +36,7 @@ export function UserMessage({
                     }}
                     type='button'
                     aria-label={`Open ${image.name}`}
-                    className='block w-fit max-w-full cursor-zoom-in overflow-hidden rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
-                    style={fittedStyle(image, BUBBLE_IMAGE_MAX_HEIGHT)}
+                    className='shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
                     onClick={() =>
                       openMedia({
                         items: images,
@@ -49,15 +48,19 @@ export function UserMessage({
                     <img
                       src={mediaUrl(image)}
                       alt={image.name}
-                      loading='lazy'
                       decoding='async'
                       draggable={false}
-                      className={image.width ? 'size-full' : 'max-h-64 max-w-full'}
+                      className='size-12 rounded-sm object-cover'
                     />
                   </button>
                 ))}
               </div>
             )}
+            {text ? (
+              <p className={cn('leading-relaxed whitespace-pre-wrap', images.length > 0 && 'mt-2')}>
+                {text}
+              </p>
+            ) : null}
             {others.map((attachment) => (
               <span key={attachment.id} className='mt-2 text-xs text-muted-foreground'>
                 {attachment.name}

@@ -11,8 +11,6 @@ import {
   CaretRight,
   Check,
   Copy,
-  DownloadSimple,
-  LinkSimple,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   X,
@@ -68,7 +66,6 @@ const ease = [0.32, 0.72, 0, 1] as const
 const openTransition = { duration: 0.3, ease }
 const closeTransition = { duration: 0.22, ease }
 const zoomTransition = { duration: 0.2, ease }
-const thumbnailRadius = 8
 
 type Size = { width: number; height: number }
 type Box = Size & { scale: number }
@@ -80,21 +77,18 @@ function viewportSize(): Size {
 function naturalSize(attachment: Attachment, origin: HTMLElement | null): Size {
   if (attachment.width && attachment.height)
     return { width: attachment.width, height: attachment.height }
-  const media = origin?.querySelector('img, video') ?? origin
-  if (media instanceof HTMLImageElement && media.naturalWidth)
-    return { width: media.naturalWidth, height: media.naturalHeight }
-  if (media instanceof HTMLVideoElement && media.videoWidth)
-    return { width: media.videoWidth, height: media.videoHeight }
+  const image = origin?.querySelector('img')
+  if (image?.naturalWidth) return { width: image.naturalWidth, height: image.naturalHeight }
   return { width: 1280, height: 720 }
 }
 
-// Images never upscale past their pixels; a video fills the stage.
-function fitBox(natural: Size, viewport: Size, video: boolean): Box {
-  const fit = Math.min(
+// Never upscales past the image's own pixels.
+function fitBox(natural: Size, viewport: Size): Box {
+  const scale = Math.min(
+    1,
     (viewport.width - inset * 2) / natural.width,
     (viewport.height - inset * 2) / natural.height
   )
-  const scale = video ? fit : Math.min(1, fit)
   return { width: natural.width * scale, height: natural.height * scale, scale }
 }
 
@@ -110,6 +104,7 @@ function fromOrigin(origin: HTMLElement | null, box: Box, viewport: Size) {
   )
     return { frame: { opacity: 0, x: 0, y: 0, scale: 0.96 }, clipPath: fullFrame }
   const scale = Math.max(rect.width / box.width, rect.height / box.height)
+  const radius = parseFloat(getComputedStyle(origin!).borderTopLeftRadius) || 0
   return {
     frame: {
       opacity: 1,
@@ -121,7 +116,7 @@ function fromOrigin(origin: HTMLElement | null, box: Box, viewport: Size) {
     clipPath: clip(
       (box.height - rect.height / scale) / 2,
       (box.width - rect.width / scale) / 2,
-      thumbnailRadius / scale
+      radius / scale
     ),
   }
 }
@@ -130,10 +125,6 @@ const fullFrame = clip(0, 0, 0)
 
 function clip(vertical: number, horizontal: number, radius: number) {
   return `inset(${vertical}px ${horizontal}px ${vertical}px ${horizontal}px round ${radius}px)`
-}
-
-function isVideo(attachment: Attachment) {
-  return attachment.mimeType.startsWith('video/')
 }
 
 function MediaLightbox({
@@ -234,15 +225,13 @@ function Lightbox({
 }) {
   const { items, index, origin } = group
   const attachment = items[index]!
-  const video = isVideo(attachment)
   const src = mediaUrl(attachment)
   const reducedMotion = useReducedMotion()
   const [viewport, setViewport] = useState(viewportSize)
   const [natural, setNatural] = useState(() => naturalSize(attachment, origin(index)))
-  const box = fitBox(natural, viewport, video)
+  const box = fitBox(natural, viewport)
   const zoom = useZoom(box, viewport)
   const stage = useRef<HTMLDivElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const popup = useRef<HTMLDivElement>(null)
   const drag = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null)
 
@@ -273,7 +262,7 @@ function Lightbox({
   // Re-subscribes every render so the handlers always see the current box.
   useEffect(() => {
     const element = stage.current
-    if (!element || video) return
+    if (!element) return
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
       // Trackpad pinch arrives as a ctrl+wheel in Chromium and Firefox.
@@ -314,7 +303,6 @@ function Lightbox({
     if (event.metaKey || event.ctrlKey || event.altKey) return
     if (event.key === 'ArrowLeft' && items.length > 1) show(index - 1)
     else if (event.key === 'ArrowRight' && items.length > 1) show(index + 1)
-    else if (video) return
     else if (event.key === '+' || event.key === '=') zoom.zoomTo(zoom.scale.get() * 1.5)
     else if (event.key === '-' || event.key === '_') zoom.zoomTo(zoom.scale.get() / 1.5)
     else if (event.key === '0') zoom.reset()
@@ -354,7 +342,7 @@ function Lightbox({
       <DialogPrimitive.Popup
         ref={popup}
         className='fixed inset-0 z-50 outline-none'
-        initialFocus={video ? videoRef : popup}
+        initialFocus={popup}
         onKeyDown={onKeyDown}
       >
         <DialogPrimitive.Title className='sr-only'>{attachment.name}</DialogPrimitive.Title>
@@ -381,69 +369,48 @@ function Lightbox({
             transition={transition}
           >
             <ZoomLayer zoom={zoom}>
-              {video ? (
-                // oxlint-disable-next-line jsx-a11y/media-has-caption -- agent screen recordings have no caption track
-                <motion.video
-                  ref={videoRef}
-                  variants={crop}
-                  transition={transition}
-                  src={src}
-                  controls
-                  autoPlay
-                  playsInline
-                  className='size-full bg-black'
-                  onLoadedMetadata={({ currentTarget }) => {
-                    if (currentTarget.videoWidth && !attachment.width)
-                      setNatural({
-                        width: currentTarget.videoWidth,
-                        height: currentTarget.videoHeight,
-                      })
-                  }}
-                />
-              ) : (
-                // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- drag-to-pan and double-click zoom; the keyboard zooms with + - 0
-                <motion.img
-                  variants={crop}
-                  transition={transition}
-                  src={src}
-                  alt={attachment.name}
-                  draggable={false}
-                  className='size-full select-none'
-                  style={{ cursor: zoom.zoomed ? 'grab' : undefined }}
-                  onLoad={({ currentTarget }) => {
-                    const { naturalWidth: width, naturalHeight: height } = currentTarget
-                    if (width !== natural.width || height !== natural.height)
-                      setNatural({ width, height })
-                  }}
-                  onDoubleClick={(event) => zoom.toggle(stagePoint(event.clientX, event.clientY))}
-                  onPointerDown={(event) => {
-                    if (event.button !== 0) return
-                    drag.current = {
-                      id: event.pointerId,
-                      x: event.clientX,
-                      y: event.clientY,
-                      moved: false,
-                    }
-                    if (zoom.zoomed) event.currentTarget.setPointerCapture(event.pointerId)
-                  }}
-                  onPointerMove={(event) => {
-                    const current = drag.current
-                    if (!current || current.id !== event.pointerId || !zoom.zoomed) return
-                    const dx = event.clientX - current.x
-                    const dy = event.clientY - current.y
-                    if (!current.moved && Math.hypot(dx, dy) < 3) return
-                    current.moved = true
-                    current.x = event.clientX
-                    current.y = event.clientY
-                    event.currentTarget.style.cursor = 'grabbing'
-                    zoom.panBy(dx, dy)
-                  }}
-                  onPointerUp={(event) => {
-                    event.currentTarget.style.cursor = ''
-                    if (drag.current?.id === event.pointerId) drag.current = null
-                  }}
-                />
-              )}
+              {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- drag-to-pan and double-click zoom; the keyboard zooms with + - 0 */}
+              <motion.img
+                variants={crop}
+                transition={transition}
+                src={src}
+                alt={attachment.name}
+                draggable={false}
+                className='size-full select-none'
+                style={{ cursor: zoom.zoomed ? 'grab' : undefined }}
+                onLoad={({ currentTarget }) => {
+                  const { naturalWidth: width, naturalHeight: height } = currentTarget
+                  if (width !== natural.width || height !== natural.height)
+                    setNatural({ width, height })
+                }}
+                onDoubleClick={(event) => zoom.toggle(stagePoint(event.clientX, event.clientY))}
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return
+                  drag.current = {
+                    id: event.pointerId,
+                    x: event.clientX,
+                    y: event.clientY,
+                    moved: false,
+                  }
+                  if (zoom.zoomed) event.currentTarget.setPointerCapture(event.pointerId)
+                }}
+                onPointerMove={(event) => {
+                  const current = drag.current
+                  if (!current || current.id !== event.pointerId || !zoom.zoomed) return
+                  const dx = event.clientX - current.x
+                  const dy = event.clientY - current.y
+                  if (!current.moved && Math.hypot(dx, dy) < 3) return
+                  current.moved = true
+                  current.x = event.clientX
+                  current.y = event.clientY
+                  event.currentTarget.style.cursor = 'grabbing'
+                  zoom.panBy(dx, dy)
+                }}
+                onPointerUp={(event) => {
+                  event.currentTarget.style.cursor = ''
+                  if (drag.current?.id === event.pointerId) drag.current = null
+                }}
+              />
             </ZoomLayer>
           </motion.div>
         </div>
@@ -460,7 +427,7 @@ function Lightbox({
             />
           </>
         )}
-        <Toolbar attachment={attachment} src={src} video={video} zoom={zoom} onClose={onClose} />
+        <Toolbar src={src} zoom={zoom} onClose={onClose} />
       </DialogPrimitive.Popup>
     </DialogPrimitive.Portal>
   )
@@ -517,81 +484,48 @@ async function pngBlob(src: string) {
   }
 }
 
-function download(src: string, name: string) {
-  const link = document.createElement('a')
-  link.href = src
-  link.download = name
-  link.click()
-}
-
 function Toolbar({
-  attachment,
   src,
-  video,
   zoom,
   onClose,
 }: {
-  attachment: Attachment
   src: string
-  video: boolean
   zoom: ReturnType<typeof useZoom>
   onClose: () => void
 }) {
-  const [done, setDone] = useState<'image' | 'link' | null>(null)
+  const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
 
-  function copied(kind: 'image' | 'link') {
-    setDone(kind)
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => setDone(null), 1500)
-  }
-
   function copyImage() {
     // A pending promise keeps Safari's user-activation window open while the bytes load.
-    void navigator.clipboard
-      .write([new ClipboardItem({ 'image/png': pngBlob(src) })])
-      .then(() => copied('image'))
-  }
-
-  function copyLink() {
-    void navigator.clipboard
-      .writeText(new URL(src, document.baseURI).href)
-      .then(() => copied('link'))
+    void navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob(src) })]).then(() => {
+      setCopied(true)
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopied(false), 1500)
+    })
   }
 
   return (
     <div className='fixed top-3 right-3 flex items-center gap-0.5 rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-foreground/10'>
-      {!video && (
-        <>
-          <ToolbarButton
-            label='Zoom out'
-            shortcut='−'
-            disabled={!zoom.zoomed}
-            onPress={() => zoom.zoomTo(zoom.scale.get() / 1.5)}
-          >
-            <MagnifyingGlassMinus />
-          </ToolbarButton>
-          <ToolbarButton
-            label='Zoom in'
-            shortcut='+'
-            onPress={() => zoom.zoomTo(zoom.scale.get() * 1.5)}
-          >
-            <MagnifyingGlassPlus />
-          </ToolbarButton>
-          <ToolbarButton label={done === 'image' ? 'Copied' : 'Copy image'} onPress={copyImage}>
-            {done === 'image' ? <Check /> : <Copy />}
-          </ToolbarButton>
-        </>
-      )}
-      <ToolbarButton label='Download' onPress={() => download(src, attachment.name)}>
-        <DownloadSimple />
+      <ToolbarButton
+        label='Zoom out'
+        shortcut='−'
+        disabled={!zoom.zoomed}
+        onPress={() => zoom.zoomTo(zoom.scale.get() / 1.5)}
+      >
+        <MagnifyingGlassMinus />
       </ToolbarButton>
-      {!src.startsWith('blob:') && (
-        <ToolbarButton label={done === 'link' ? 'Copied' : 'Copy link'} onPress={copyLink}>
-          {done === 'link' ? <Check /> : <LinkSimple />}
-        </ToolbarButton>
-      )}
+      <ToolbarButton
+        label='Zoom in'
+        shortcut='+'
+        onPress={() => zoom.zoomTo(zoom.scale.get() * 1.5)}
+      >
+        <MagnifyingGlassPlus />
+      </ToolbarButton>
+      <ToolbarButton label={copied ? 'Copied' : 'Copy image'} onPress={copyImage}>
+        {copied ? <Check /> : <Copy />}
+      </ToolbarButton>
       <ToolbarButton label='Close' shortcut='Esc' onPress={onClose}>
         <X />
       </ToolbarButton>

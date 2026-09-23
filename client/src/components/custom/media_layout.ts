@@ -1,9 +1,8 @@
 import type { Attachment } from '@jetty/shared/items'
 
 export const INLINE_IMAGE_MAX_HEIGHT = 480
-export const BUBBLE_IMAGE_MAX_HEIGHT = 256
+export const BUBBLE_THUMBNAIL_SIZE = 48
 export const GALLERY_GAP = 8
-export const VIDEO_CARD_HEIGHT = 98
 
 export function mediaUrl(attachment: Attachment) {
   return attachment.id.startsWith('blob:') ? attachment.id : `/attachments/${attachment.id}`
@@ -25,6 +24,14 @@ export function fittedStyle(attachment: Attachment, maxHeight: number) {
     // Pair with max-w-full: a bare px width keeps the box's intrinsic size inside fit-content bubbles.
     width: `${Math.min(width, (maxHeight * width) / height)}px`,
   }
+}
+
+// Videos carry no recorded dimensions yet; unknown ones get a 16:9 frame and letterbox inside it.
+export function videoHeight(video: Attachment, width: number) {
+  return (
+    fittedSize(video, width, INLINE_IMAGE_MAX_HEIGHT)?.height ??
+    Math.min((width * 9) / 16, INLINE_IMAGE_MAX_HEIGHT)
+  )
 }
 
 export function galleryColumns(count: number) {
