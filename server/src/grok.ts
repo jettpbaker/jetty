@@ -19,6 +19,7 @@ import { approvalChanges } from './approval-changes'
 import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
 import { createGrokTranslator } from './grok-translate'
+import { JETTY_INSTRUCTIONS } from './jetty-instructions'
 import {
   object,
   string,
@@ -75,13 +76,14 @@ function grokInput(text: string, images?: AgentImage[]) {
   ]
 }
 
-export function grokArgs(input: TurnInput) {
+export function grokArgs(input: TurnInput, jettyTools = false) {
   return [
     '--no-plan',
     '--permission-mode',
     input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
     '--sandbox',
     input.permissionMode === 'full_access' ? 'off' : 'workspace',
+    ...(jettyTools ? ['--rules', JETTY_INSTRUCTIONS] : []),
     'agent',
     '--no-leader',
     'stdio',
@@ -266,7 +268,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             : undefined
           const { connection, init } = yield* openGrokConnection(
             cwd,
-            grokArgs(session.input),
+            grokArgs(session.input, Boolean(binding)),
             options
           ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection

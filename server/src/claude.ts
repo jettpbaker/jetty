@@ -48,6 +48,7 @@ import {
   type TranslateCtx,
 } from './claude-translate'
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
+import { JETTY_INSTRUCTIONS } from './jetty-instructions'
 import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 import { readUsage } from './usage'
@@ -654,7 +655,11 @@ export function createClaudeAdapter(
                 options: {
                   cwd: projectPath,
                   pathToClaudeCodeExecutable: claudeBin,
-                  systemPrompt: { type: 'preset', preset: 'claude_code' },
+                  systemPrompt: {
+                    type: 'preset',
+                    preset: 'claude_code',
+                    ...(binding ? { append: JETTY_INSTRUCTIONS } : {}),
+                  },
                   settingSources: ['user', 'project', 'local'],
                   model: options.model,
                   effort: options.effort,

@@ -27,6 +27,7 @@ import {
   type RpcMessage,
 } from './codex-rpc'
 import { createCodexTranslator } from './codex-translate'
+import { JETTY_INSTRUCTIONS } from './jetty-instructions'
 
 export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
 type Pending = { id: RpcId; questions?: { id: string; question: string }[]; mcpTool?: true }
@@ -57,7 +58,7 @@ function codexInput(text: string, images?: AgentImage[]) {
   ]
 }
 
-function threadOptions(input: TurnInput, cwd: string) {
+function threadOptions(input: TurnInput, cwd: string, jettyTools: boolean) {
   const full = input.permissionMode === 'full_access'
   return {
     cwd,
@@ -65,7 +66,7 @@ function threadOptions(input: TurnInput, cwd: string) {
     serviceTier: input.fast ? 'fast' : 'default',
     approvalPolicy: full ? 'never' : 'on-request',
     approvalsReviewer: 'user',
-    developerInstructions: '',
+    developerInstructions: jettyTools ? JETTY_INSTRUCTIONS : '',
     sandbox: full ? 'danger-full-access' : 'workspace-write',
   }
 }
@@ -235,7 +236,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
-            ...threadOptions(session.input, cwd),
+            ...threadOptions(session.input, cwd, Boolean(binding)),
             ...(resume ? { threadId: resume } : { ephemeral: false }),
           })
           const threadId = string(object(result.thread).id)
