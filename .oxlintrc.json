@@ -52,6 +52,11 @@
           { "object": "window", "property": "location", "message": "Go through @/platform." },
           { "object": "document", "property": "location", "message": "Go through @/platform." },
           {
+            "object": "document",
+            "property": "cookie",
+            "message": "Go through @/platform (storage)."
+          },
+          {
             "object": "window",
             "property": "localStorage",
             "message": "Go through @/platform (storage)."
