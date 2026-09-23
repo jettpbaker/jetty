@@ -12,7 +12,7 @@
         "paths": [
           {
             "name": "lucide-react",
-            "message": "Icons are Phosphor (@phosphor-icons/react), never lucide. See AGENTS.md (icons)."
+            "message": "Icons are Phosphor (@phosphor-icons/react) or Octicons (@primer/octicons-react), never lucide. See AGENTS.md (icons)."
           }
         ]
       }
