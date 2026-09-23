@@ -1,3 +1,7 @@
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { useModelRefresh } from '@/state/models'
 import {
   ChartBarIcon,
   IconContext,
@@ -5,8 +9,8 @@ import {
   PlugsIcon,
   PuzzlePieceIcon,
 } from '@phosphor-icons/react'
-import { AppsIcon, ContainerIcon, RepoIcon } from '@primer/octicons-react'
-import { useState, type ComponentType, type ReactNode } from 'react'
+import { AppsIcon, ContainerIcon, RepoIcon, SyncIcon } from '@primer/octicons-react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { SettingsAppearance } from './settings_appearance'
@@ -26,11 +30,13 @@ function Section({
   label,
   icon: Icon,
   children,
+  action,
 }: {
   id: string
   label: string
   icon: ComponentType<{ className?: string }>
   children: ReactNode
+  action?: ReactNode
 }) {
   return (
     <section
@@ -43,6 +49,7 @@ function Section({
         <h2 id={`settings-${id}-heading`} className='text-sm font-medium'>
           {label}
         </h2>
+        {action}
       </div>
       {children}
     </section>
@@ -50,6 +57,10 @@ function Section({
 }
 
 export function SettingsView() {
+  const { refreshing, refresh } = useModelRefresh()
+  useEffect(() => {
+    refresh()
+  }, [refresh])
   const [provider, setProvider] = useState<ProviderId>('claude')
   const [enabled, setEnabled] = useState(loadProviderEnabled)
   function showProvider(id: ProviderId) {
@@ -75,7 +86,28 @@ export function SettingsView() {
                 }}
               />
             </Section>
-            <Section id='loadout' label='Model loadout' icon={AppsIcon}>
+            <Section
+              id='loadout'
+              label='Model loadout'
+              icon={AppsIcon}
+              action={
+                <Tooltip>
+                  <TooltipTrigger render={<span className='inline-flex' />}>
+                    <Button
+                      variant='ghost'
+                      size='icon-sm'
+                      aria-label='Refresh models'
+                      aria-busy={refreshing}
+                      disabled={refreshing}
+                      onClick={() => refresh(true)}
+                    >
+                      <SyncIcon className={cn(refreshing && 'motion-safe:animate-spin')} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Refresh models</TooltipContent>
+                </Tooltip>
+              }
+            >
               <SettingsLoadout enabledProviders={enabled} onConnectProvider={showProvider} />
             </Section>
             <Section id='integrations' label='Integrations' icon={PuzzlePieceIcon}>

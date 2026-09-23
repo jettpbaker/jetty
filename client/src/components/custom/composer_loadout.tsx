@@ -29,6 +29,7 @@ import {
   type LoadoutSlot,
 } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
+import { useModelRefresh } from '@/state/models'
 import { PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -232,6 +233,7 @@ export function ComposerLoadout({
   const model = value && findModel(catalog, value)
   const name = model?.name ?? value?.model
   const efforts = (value && model?.efforts) ?? []
+  const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
     const loadout = slotLoadout(slot)
     return loadout ? [{ slot, loadout }] : []
@@ -257,7 +259,12 @@ export function ComposerLoadout({
   }
 
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu
+      modal={false}
+      onOpenChange={(open) => {
+        if (open) refresh()
+      }}
+    >
       <DropdownMenuTrigger
         aria-label={value ? `Loadout: ${name}, ${describeLoadout(value)}` : 'Choose a model'}
         render={
