@@ -3,6 +3,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { AssistantMessage } from '@/components/custom/assistant_message'
+import { CreatedThreads } from '@/components/custom/child_threads'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
@@ -44,6 +45,8 @@ function rowStamp(row: ThreadRow) {
       return row.item.caption?.length ?? 0
     case 'subagents':
       return row.agents.map((agent) => `${agent.id}:${agent.status}`).join(',')
+    case 'created':
+      return row.threadIds.join(',')
     case 'question':
       return `${row.item.questions.length}:${row.item.skipped ?? ''}:${Object.keys(row.item.answers ?? {}).length}`
     case 'work':
@@ -85,19 +88,23 @@ function SubagentsRow({
 
 function ThreadItemRow({
   row,
+  threadId,
   selectedAgent,
   onSelectAgent,
   onApproval,
   onAnswer,
 }: {
   row: ThreadRow
+  threadId: string
   selectedAgent?: string
   onSelectAgent: (id: string) => void
   onApproval: (itemId: string, approved: boolean) => void
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   if (row.kind === 'user')
-    return <UserMessage text={row.item.text} attachments={row.item.attachments} />
+    return (
+      <UserMessage text={row.item.text} attachments={row.item.attachments} from={row.item.from} />
+    )
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
       <Message align='start'>
@@ -122,6 +129,7 @@ function ThreadItemRow({
     )
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
+  if (row.kind === 'created') return <CreatedThreads parentId={threadId} ids={row.threadIds} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
@@ -131,6 +139,7 @@ function ThreadItemRow({
 }
 
 export function ThreadList({
+  threadId,
   items,
   status,
   running,
@@ -141,6 +150,7 @@ export function ThreadList({
   onApproval,
   onAnswer,
 }: {
+  threadId: string
   items: readonly ThreadItem[]
   status: SessionStatus
   running: boolean
@@ -220,6 +230,7 @@ export function ThreadList({
               <div className='mx-auto w-full max-w-[708px] px-6'>
                 <ThreadItemRow
                   row={rows[virtualRow.index]!}
+                  threadId={threadId}
                   selectedAgent={agentId}
                   onSelectAgent={onSelectAgent}
                   onApproval={onApproval}

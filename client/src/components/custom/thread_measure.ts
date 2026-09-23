@@ -40,6 +40,7 @@ export function estimateRow(row: ThreadRow, width: number) {
       const { text, attachments } = row.item
       const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))
       let height = 16 + (text ? textHeight(row.id, text, width * 0.8, true) : 0)
+      if (row.item.from) height += 22
       if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
       for (const attachment of attachments)
         if (!attachment.mimeType.startsWith('image/')) height += lineHeight
@@ -71,6 +72,8 @@ export function estimateRow(row: ThreadRow, width: number) {
       return videoHeight(row.item.video, width) + captionHeight(row.id, row.item.caption, width)
     case 'subagents':
       return 44 + 50 * row.agents.length
+    case 'created':
+      return 28 * row.threadIds.length
     case 'question': {
       let height = 24
       for (const spec of row.item.questions) {

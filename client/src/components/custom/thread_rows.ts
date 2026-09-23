@@ -31,6 +31,7 @@ export type ThreadRow =
   | { kind: 'video'; id: string; item: VideoItem }
   | { kind: 'question'; id: string; item: QuestionItem }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
+  | { kind: 'created'; id: string; threadIds: string[] }
 
 function toolKind(name: string): ToolKind {
   switch (name.toLowerCase()) {
@@ -169,6 +170,17 @@ function workStatus(
   return 'complete'
 }
 
+function createdThreadId(item: ThreadItem) {
+  if (
+    item.kind !== 'tool_call' ||
+    item.status !== 'succeeded' ||
+    !item.toolName.endsWith('create_thread')
+  )
+    return undefined
+  // Providers wrap the tool's JSON result differently, sometimes re-stringified.
+  return /threadId\\?"\s*:\s*\\?"([^"\\]+)/.exec(item.output)?.[1]
+}
+
 function isWork(item: ThreadItem): item is WorkItem {
   return item.kind === 'reasoning' || item.kind === 'tool_call' || item.kind === 'approval'
 }
@@ -286,12 +298,18 @@ export function threadRows(
       askedTurns.has(item.turnId)
     )
       continue
-    if (isWork(item)) {
+    const created = createdThreadId(item)
+    if (!created && isWork(item)) {
       pending.push(item)
       continue
     }
     flush(item)
     const last = rows.at(-1)
+    if (created) {
+      if (last?.kind === 'created') last.threadIds.push(created)
+      else rows.push({ kind: 'created', id: item.id, threadIds: [created] })
+      continue
+    }
     switch (item.kind) {
       case 'subagent':
         if (last?.kind === 'subagents') last.agents.push(item)

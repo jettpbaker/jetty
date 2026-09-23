@@ -53,6 +53,7 @@ function Thread() {
           <ThreadHeader context={thread?.context ?? null} />
           <ThreadList
             key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
+            threadId={threadId}
             items={overlay.items}
             status={
               agent ? (agent.status === 'running' ? 'running' : 'idle') : (thread?.status ?? 'idle')
