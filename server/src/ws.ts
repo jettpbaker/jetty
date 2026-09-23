@@ -18,9 +18,11 @@ import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
 import {
   createPullRequests,
+  githubConnection,
   parsePullRequestUrl,
   projectRemote,
   resolvePullRequestReference,
+  validPullRequestRef,
 } from './pull-requests'
 import { Skills } from './skills'
 import { StoreError } from './store'
@@ -122,7 +124,14 @@ export function createRpcHandlers(
       )
     }
 
+    function checkedRef(ref: { repo: string; number: number }) {
+      return validPullRequestRef(ref)
+        ? Effect.succeed(ref)
+        : Effect.fail(new StoreError('invalid_params', 'Invalid GitHub pull request reference'))
+    }
+
     return JettyRpcs.of({
+      'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
       'chrome.subscribe': () =>
         Stream.unwrap(
@@ -204,6 +213,8 @@ export function createRpcHandlers(
       'pullRequest.link': (params) =>
         Effect.gen(function* () {
           const ref = yield* reference(params.threadId, params.reference)
+          if (yield* store.hasPullRequestLink(params.threadId, ref.repo, ref.number))
+            return { thread: yield* store.requireThread(params.threadId) }
           const thread = yield* store.linkPullRequest(params.threadId, ref.repo, ref.number)
           hub.pushChrome({ type: 'thread.upserted', thread })
           yield* refreshInBackground(ref)
@@ -218,6 +229,7 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.get': (ref) =>
         Effect.gen(function* () {
+          yield* checkedRef(ref)
           const snapshot = yield* pullRequests.get(ref)
           const pull = (snapshot.data as { pull?: { state?: string } } | undefined)?.pull
           if (
@@ -227,10 +239,12 @@ export function createRpcHandlers(
             yield* refreshInBackground(ref)
           return snapshot
         }).pipe(Effect.mapError(wireError)),
-      'pullRequest.refresh': (ref) => pullRequests.refresh(ref).pipe(Effect.mapError(wireError)),
+      'pullRequest.refresh': (ref) =>
+        checkedRef(ref).pipe(Effect.flatMap(pullRequests.refresh), Effect.mapError(wireError)),
       'pullRequest.subscribe': (ref) =>
         Stream.unwrap(
           Effect.gen(function* () {
+            yield* checkedRef(ref)
             const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
             const snapshot = yield* pullRequests.get(ref)
             yield* refreshInBackground(ref)

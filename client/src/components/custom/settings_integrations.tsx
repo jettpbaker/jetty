@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { run, useAction } from '@/state/connection'
 import { ArrowClockwiseIcon, ArrowUpRightIcon, CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { MarkGithubIcon } from '@primer/octicons-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { Effect } from 'effect'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
 type ConnectionState = 'connected' | 'signed-out' | 'missing' | 'error' | 'checking'
 const details: Record<ConnectionState, string> = {
@@ -15,6 +17,20 @@ const details: Record<ConnectionState, string> = {
 
 const actionClass =
   '-mr-2 inline-flex h-7 items-center justify-end gap-1.5 rounded-sm border border-transparent px-2 text-xs'
+function requestConnection(
+  registry: Parameters<typeof run>[0],
+  onState: (state: ConnectionState) => void
+) {
+  return run(
+    registry,
+    (connection) =>
+      connection
+        .request('github.connection', {})
+        .pipe(Effect.tap(({ state }) => Effect.sync(() => onState(state)))),
+    () => onState('error')
+  )
+}
+
 function ActionIcon({ children }: { children: ReactNode }) {
   return (
     <span
@@ -27,27 +43,18 @@ function ActionIcon({ children }: { children: ReactNode }) {
 }
 
 function GitHubConnection() {
+  const request = useAction(requestConnection)
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const [state, setState] = useState<ConnectionState>('checking')
-  async function checkConnection() {
+  const checkConnection = useCallback(() => {
     setState('checking')
     setMessage('')
-    try {
-      const response = await fetch('/api/integrations/github')
-      if (!response.ok) throw new Error('Connection check failed')
-      const data: unknown = await response.json()
-      const next = (data as { state?: unknown }).state
-      if (next !== 'connected' && next !== 'signed-out' && next !== 'missing')
-        throw new Error('Invalid connection state')
-      setState(next)
-    } catch {
-      setState('error')
-    }
-  }
+    request(setState)
+  }, [request])
   useEffect(() => {
-    void checkConnection()
-  }, [])
+    checkConnection()
+  }, [checkConnection])
   const connected = state === 'connected'
   async function copyCommand() {
     try {

@@ -228,6 +228,12 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
     result: Schema.Struct({ thread: ThreadMeta }),
   },
+  'github.connection': {
+    params: Schema.Struct({}),
+    result: Schema.Struct({
+      state: Schema.Literals(['connected', 'signed-out', 'missing', 'error']),
+    }),
+  },
   'pullRequest.unlink': {
     params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
     result: Schema.Struct({ thread: ThreadMeta }),
