@@ -60,6 +60,7 @@ export function SettingsProjects() {
                   variant='ghost-text'
                   size='sm'
                   className='-ml-2 h-7 gap-1 rounded-sm'
+                  disabled={!status?.enabled}
                   onClick={() => setSetupProjectId(project.id)}
                 >
                   {project.containerReady ? 'Ready' : 'Set up'}

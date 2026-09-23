@@ -366,7 +366,7 @@ export function ThreadComposer({
         environment={selectedEnvironment}
         containersConfigured={containerAvailable}
         onEnvironmentChange={threadId ? undefined : setEnvironment}
-        onSetupContainers={() => setSetupOpen(true)}
+        onSetupContainers={containerStatus?.enabled ? () => setSetupOpen(true) : undefined}
         startingRef={startingRef}
         onStartingRefChange={threadId ? undefined : setStartingRef}
         value={draft}

@@ -6,6 +6,15 @@ import { useEffect, useState } from 'react'
 import { run, useAction } from './connection'
 
 type Status = ResultOf<'containers.status'>
+let cachedStatus: Status | null = null
+let requested = false
+const listeners = new Set<(status: Status | null) => void>()
+
+function publish(status: Status | null) {
+  cachedStatus = status
+  if (!status) requested = false
+  for (const listener of listeners) listener(status)
+}
 
 function readStatus(
   registry: Parameters<typeof run>[0],
@@ -23,11 +32,18 @@ function readStatus(
 
 export function useContainerStatus() {
   const request = useAction(readStatus)
-  const [status, setStatus] = useState<Status | null>(null)
+  const [status, setStatus] = useState<Status | null>(cachedStatus)
   useEffect(() => {
-    request(setStatus)
+    listeners.add(setStatus)
+    if (!requested) {
+      requested = true
+      request(publish)
+    }
+    return () => {
+      listeners.delete(setStatus)
+    }
   }, [request])
-  return { status, refresh: () => request(setStatus) }
+  return { status, refresh: () => request(publish) }
 }
 
 function setMax(
