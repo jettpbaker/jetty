@@ -4,8 +4,21 @@ function size(width: number, height: number): ImageSize | undefined {
   return width > 0 && height > 0 ? { width, height } : undefined
 }
 
+// EXIF orientations 5–8 rotate a quarter turn, so browsers show the image with its sides swapped.
+function exifRotated(view: DataView, start: number) {
+  if (view.getUint32(start) !== 0x45786966) return false
+  const tiff = start + 6
+  const little = view.getUint16(tiff) === 0x4949
+  const ifd = tiff + view.getUint32(tiff + 4, little)
+  const count = view.getUint16(ifd, little)
+  for (let entry = ifd + 2; entry < ifd + 2 + count * 12; entry += 12)
+    if (view.getUint16(entry, little) === 0x0112) return view.getUint16(entry + 8, little) >= 5
+  return false
+}
+
 function jpegSize(view: DataView): ImageSize | undefined {
   let offset = 2
+  let rotated = false
   while (offset + 9 < view.byteLength) {
     if (view.getUint8(offset) !== 0xff) return undefined
     const marker = view.getUint8(offset + 1)
@@ -13,9 +26,13 @@ function jpegSize(view: DataView): ImageSize | undefined {
       offset += 1
       continue
     }
+    if (marker === 0xe1) rotated ||= exifRotated(view, offset + 4)
     // SOF0–SOF15, minus DHT (C4), JPG (C8) and DAC (CC).
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc)
-      return size(view.getUint16(offset + 7), view.getUint16(offset + 5))
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      const width = view.getUint16(offset + 7)
+      const height = view.getUint16(offset + 5)
+      return rotated ? size(height, width) : size(width, height)
+    }
     offset += 2 + view.getUint16(offset + 2)
   }
   return undefined
