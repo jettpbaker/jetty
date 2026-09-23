@@ -33,6 +33,8 @@ const pendingTurnsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
 const pendingResolutionsAtom = Atom.make<ReadonlyMap<string, Resolution>>(new Map()).pipe(
   Atom.keepAlive
 )
+// Workflows shown as stopped until the server settles them.
+const stoppingWorkflowsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
 
 function withPrompts(
   prompts: ReadonlyMap<string, readonly PendingPrompt[]>,
@@ -64,7 +66,13 @@ function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly Thr
   return left
 }
 
-function overlayItem(item: ThreadItem, resolutions: ReadonlyMap<string, Resolution>): ThreadItem {
+function overlayItem(
+  item: ThreadItem,
+  resolutions: ReadonlyMap<string, Resolution>,
+  stopping: ReadonlySet<string>
+): ThreadItem {
+  if (item.kind === 'workflow' && item.status === 'running' && stopping.has(item.id))
+    return { ...item, status: 'stopped', stopReason: 'you' }
   const resolution = awaitsInput(item) && resolutions.get(item.id)
   return resolution ? ({ ...item, ...resolution } as ThreadItem) : item
 }
@@ -159,6 +167,15 @@ function sendTurn(
 
 function interruptTurn(registry: Registry, threadId: string) {
   run(registry, (connection) => connection.request('turn.interrupt', { threadId }))
+}
+
+function stopWorkflow(registry: Registry, threadId: string, taskId: string) {
+  registry.update(stoppingWorkflowsAtom, (ids) => new Set(ids).add(taskId))
+  run(
+    registry,
+    (connection) => connection.request('workflow.stop', { threadId, taskId }),
+    () => registry.update(stoppingWorkflowsAtom, (ids) => withoutId(ids, taskId))
+  )
 }
 
 function respondApproval(
@@ -265,6 +282,10 @@ export function useInterruptTurn() {
   return useAction(interruptTurn)
 }
 
+export function useStopWorkflow() {
+  return useAction(stopWorkflow)
+}
+
 export function useRespondApproval() {
   return useAction(respondApproval)
 }
@@ -282,19 +303,24 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   const prompts = useAtomValue(pendingPromptsAtom)
   const resolutions = useAtomValue(pendingResolutionsAtom)
   const turns = useAtomValue(pendingTurnsAtom)
+  const stopping = useAtomValue(stoppingWorkflowsAtom)
   const items = useMemo(() => thread?.items ?? [], [thread])
   const pending = useMemo(
     () => unmatchedPrompts(prompts.get(threadId) ?? [], items),
     [items, prompts, threadId]
   )
   const overlaid = useMemo(
-    () => items.map((item) => overlayItem(item, resolutions)),
-    [items, resolutions]
+    () => items.map((item) => overlayItem(item, resolutions, stopping)),
+    [items, resolutions, stopping]
   )
   const optimistic = turns.has(threadId)
   const promptCount = prompts.get(threadId)?.length ?? 0
   const status = thread?.status
-  const live = status === 'running' || status === 'starting' || status === 'awaiting_approval'
+  // A running workflow keeps the thread running between turns; only a turn makes the composer queue.
+  const live =
+    (status === 'running' && Boolean(thread?.activeTurnId)) ||
+    status === 'starting' ||
+    status === 'awaiting_approval'
 
   useEffect(() => {
     const current = registry.get(pendingPromptsAtom).get(threadId) ?? []
@@ -313,6 +339,18 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
       .map((item) => item.id)
     registry.update(pendingResolutionsAtom, (map) => without(map, settledIds))
   }, [items, registry, resolutions])
+
+  useEffect(() => {
+    const settled = items
+      .filter((item) => item.kind === 'workflow' && item.status !== 'running')
+      .map((item) => item.id)
+    if (settled.some((id) => stopping.has(id)))
+      registry.update(stoppingWorkflowsAtom, (ids) => {
+        const next = new Set(ids)
+        for (const id of settled) next.delete(id)
+        return next
+      })
+  }, [items, registry, stopping])
 
   useEffect(() => {
     if (optimistic && (live || (status && promptCount === 0)))

@@ -24,6 +24,7 @@ export {
   useRespondApproval,
   useRespondQuestion,
   useSendTurn,
+  useStopWorkflow,
   useThreadLoadout,
   useThreadOverlay,
 } from './turns'
