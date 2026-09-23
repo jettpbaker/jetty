@@ -1,8 +1,11 @@
 import { Effect } from 'effect'
 
 import { openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
+export { object, string, type RpcId, type RpcMessage } from './stdio-rpc'
+export type CodexProcessOptions = StdioProcessOptions
+export type CodexConnection = Effect.Success<ReturnType<typeof openCodexConnection>>
 
-export function openCodexConnection(cwd: string, options: StdioProcessOptions = {}) {
+export function openCodexConnection(cwd: string, options: CodexProcessOptions = {}) {
   return Effect.gen(function* () {
     const connection = yield* openStdioConnection(cwd, {
       ...options,
