@@ -15,6 +15,7 @@ export function ComposerProject({
 }) {
   return (
     <OptionPicker
+      name='Project'
       label='Choose project'
       placeholder='Search projects'
       actions={[

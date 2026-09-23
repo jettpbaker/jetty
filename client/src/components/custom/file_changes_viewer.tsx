@@ -393,7 +393,7 @@ export function FileChangesViewer({
           {layout === 'panel' && (
             <DropdownMenu>
               <DropdownMenuTrigger
-                aria-label='Diff scope'
+                aria-label='Diff scope: Uncommitted'
                 render={
                   <Button variant='ghost' tone='muted' size='sm' className='rounded-sm px-1' />
                 }

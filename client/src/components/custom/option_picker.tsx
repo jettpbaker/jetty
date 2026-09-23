@@ -16,6 +16,7 @@ export type PickerOption = { value: string; label: string; icon?: ReactNode }
 export type PickerAction = { label: string; icon: ReactNode; onSelect?: () => void }
 
 export function OptionPicker({
+  name,
   label,
   placeholder,
   icon,
@@ -27,6 +28,7 @@ export function OptionPicker({
   disabled = false,
   emptyLabel = 'Select',
 }: {
+  name: string
   label: string
   placeholder: string
   icon: ReactNode
@@ -64,7 +66,7 @@ export function OptionPicker({
       }}
     >
       <PopoverTrigger
-        aria-label={label}
+        aria-label={selected ? `${name}: ${selected.label}` : label}
         disabled={disabled}
         render={<Button variant='ghost-text' size='sm' className='gap-1.5 rounded-sm' />}
       >

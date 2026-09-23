@@ -34,6 +34,7 @@ const themes = [
 
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
+  const themeLabel = themes.find((option) => option.value === theme)?.label
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
   const [editing, setEditing] = useState(false)
@@ -100,7 +101,7 @@ export function SettingsAppearance() {
         <span>Theme</span>
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
-            aria-label='Theme'
+            aria-label={`Theme: ${themeLabel}`}
             render={
               <Button
                 variant='ghost'
@@ -109,7 +110,7 @@ export function SettingsAppearance() {
               />
             }
           >
-            {themes.find((option) => option.value === theme)?.label}
+            {themeLabel}
             <CaretDownIcon className='size-3' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>

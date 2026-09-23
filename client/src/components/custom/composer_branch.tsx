@@ -5,6 +5,7 @@ import { OptionPicker } from './option_picker'
 export function ComposerBranch({ branch }: { branch?: string }) {
   return (
     <OptionPicker
+      name='Branch'
       label='Choose branch'
       placeholder='Search branches'
       align='end'

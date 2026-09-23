@@ -27,15 +27,16 @@ export function ComposerEnvironment({
   onSetupContainers,
 }: ComposerEnvironmentProps) {
   const Icon = value === 'local' ? DeviceDesktopIcon : ContainerIcon
+  const label = value === 'local' ? 'Local' : 'Container'
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={<Button variant='ghost' tone='muted' size='sm' className='rounded-sm' />}
-        aria-label='Choose environment'
+        aria-label={`Environment: ${label}`}
       >
         <Icon data-icon='inline-start' />
-        {value === 'local' ? 'Local' : 'Container'}
+        {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent side='bottom' align='start' className='w-max min-w-32'>
         <DropdownMenuRadioGroup

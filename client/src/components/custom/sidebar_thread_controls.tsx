@@ -16,6 +16,12 @@ import type { ThreadGrouping } from './sidebar_thread_groups'
 
 import { GhostInput } from './ghost_input'
 
+const groupings: Record<ThreadGrouping, string> = {
+  project: 'Project',
+  status: 'Status',
+  date: 'Date',
+}
+
 export function SidebarThreadControls({
   query,
   onQueryChange,
@@ -52,7 +58,7 @@ export function SidebarThreadControls({
               tone='muted'
               size='icon-sm'
               className='-mr-1.5 hover:bg-sidebar-accent'
-              aria-label='Thread grouping'
+              aria-label={`Thread grouping: ${groupings[grouping]}`}
             />
           }
         >
@@ -61,9 +67,11 @@ export function SidebarThreadControls({
         <DropdownMenuContent side='right' align='start' className='w-44'>
           <DropdownMenuRadioGroup value={grouping} onValueChange={onGroupingChange}>
             <DropdownMenuLabel>Group by</DropdownMenuLabel>
-            <DropdownMenuRadioItem value='project'>Project</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value='status'>Status</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value='date'>Date</DropdownMenuRadioItem>
+            {Object.entries(groupings).map(([value, label]) => (
+              <DropdownMenuRadioItem key={value} value={value}>
+                {label}
+              </DropdownMenuRadioItem>
+            ))}
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />
           <DropdownMenuCheckboxItem

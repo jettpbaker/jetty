@@ -25,11 +25,15 @@ export function AccentPicker() {
     return () => window.removeEventListener(accentChangeEvent, sync)
   }, [])
 
+  const label = accent
+    ? accentPresets.find((preset) => preset.value === accent)?.label
+    : 'From wallpaper'
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         disabled={autoAccent}
-        aria-label='Accent color'
+        aria-label={`Accent color: ${label}`}
         render={
           <Button
             variant='ghost'
@@ -39,7 +43,7 @@ export function AccentPicker() {
         }
       >
         <span aria-hidden='true' className='size-3 rounded-full bg-primary' />
-        {accent ? accentPresets.find((preset) => preset.value === accent)?.label : 'From wallpaper'}
+        {label}
         {accent && <CaretDownIcon aria-hidden='true' className='size-3' />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
