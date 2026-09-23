@@ -35,7 +35,7 @@ export type ProviderEnabled = Record<ProviderId, boolean>
 const enabledKey = 'jetty.provider-enabled'
 
 export function loadProviderEnabled(): ProviderEnabled {
-  const enabled = { claude: true, codex: true, grok: false, copilot: true }
+  const enabled = { claude: true, codex: true, grok: true, copilot: true }
   try {
     const saved = JSON.parse(storage.get(enabledKey) ?? '{}')
     for (const item of providerOptions)
