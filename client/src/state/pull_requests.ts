@@ -42,6 +42,28 @@ const snapshotAtom = Atom.family((key: string) =>
   })
 )
 
+// A list row reads the cache or asks once; only an open PR view subscribes.
+const fetchedAtom = Atom.family((key: string) =>
+  Atom.make((get) =>
+    get.result(connectionAtom).pipe(
+      Effect.flatMap((connection) => connection.request('pullRequest.get', parseKey(key))),
+      Effect.tap((snapshot) => Effect.sync(() => get.set(cacheAtom(key), snapshot)))
+    )
+  ).pipe(Atom.setIdleTTL('1 minute'))
+)
+
+const summaryAtom = Atom.family((key: string) =>
+  Atom.readable(
+    (get) =>
+      (get(cacheAtom(key)) ?? AsyncResult.getOrElse(get(fetchedAtom(key)), () => undefined))?.data
+        ?.pull
+  )
+)
+
+export function usePullRequestSummary(ref: PullRequestRef) {
+  return useAtomValue(summaryAtom(pullRequestKey(ref)))
+}
+
 const refreshingAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
 
 export function usePullRequest(ref: PullRequestRef) {

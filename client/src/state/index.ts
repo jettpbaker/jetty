@@ -32,6 +32,7 @@ export {
   useLinkPullRequest,
   useOpenPullRequest,
   usePullRequest,
+  usePullRequestSummary,
   usePullRequestTabs,
   useRefreshPullRequest,
   useUnlinkPullRequest,

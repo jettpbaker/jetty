@@ -1,11 +1,8 @@
 import type { ThreadItem } from '@jetty/shared/items'
-import type { PullRequestLink } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
-import { formatAge } from '@/lib/time'
-import { cn } from '@/lib/utils'
 import { storage } from '@/platform'
 import { useChrome, useRequestReveal, useThread, useThreadDiff, useThreadTab } from '@/state'
 import { ChevronRightIcon } from '@primer/octicons-react'
@@ -14,9 +11,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
 import { currentTodos } from './composer_strip_model'
-import { OverflowTitle } from './overflow_title'
+import { PullRequestRow } from './pull_request_row'
 import { SubagentRow } from './subagent_row'
-import { prPresentation } from './thread_pull_request'
 import { threadSubagents, toSubagent } from './thread_rows'
 import { WorkflowLineGrid } from './workflow_lines'
 import { type Workflow } from './workflow_parts'
@@ -180,7 +176,12 @@ export function ThreadOverview({
           <Section label='Pull requests' count={pullRequests.length} {...sectionProps('pulls')}>
             <div className='flex flex-col'>
               {pullRequests.map((link) => (
-                <PullRequestRow key={`${link.repo}#${link.number}`} link={link} now={minuteNow} />
+                <PullRequestRow
+                  key={`${link.repo}#${link.number}`}
+                  threadId={threadId}
+                  link={link}
+                  now={minuteNow}
+                />
               ))}
             </div>
           </Section>
@@ -236,39 +237,6 @@ function Section({
         <div className='pt-1'>{children}</div>
       </CollapsibleContent>
     </Collapsible>
-  )
-}
-
-function PullRequestRow({ link, now }: { link: PullRequestLink; now: number }) {
-  const pr = prPresentation[link.state ?? 'open']
-  const age = formatAge(link.updatedAt ?? link.linkedAt, now)
-  return (
-    <Button
-      variant='ghost'
-      data-overflow-hover
-      onClick={() => window.open(link.url, '_blank', 'noopener')}
-      className='h-auto w-full min-w-0 flex-col items-stretch gap-1.5 rounded-sm px-2.5 py-1.5 text-left font-normal active:translate-y-0'
-    >
-      <span className='flex min-w-0 items-center justify-between gap-3 text-foreground'>
-        <OverflowTitle focusable={false} className='font-normal leading-normal'>
-          {link.title ?? `${link.repo}#${link.number}`}
-        </OverflowTitle>
-        <span className={cn('flex shrink-0 items-center', pr.color)} title={pr.label}>
-          <pr.icon aria-hidden='true' className='size-3.5' />
-          <span className='sr-only'>{pr.label}</span>
-        </span>
-      </span>
-      <span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
-        <span className='truncate'>{link.repo}</span>
-        <span className='shrink-0 font-mono'>#{link.number}</span>
-        <span
-          className='ml-auto mr-px shrink-0 font-mono'
-          aria-label={age === 'now' ? 'Updated just now' : `Updated ${age} ago`}
-        >
-          {age}
-        </span>
-      </span>
-    </Button>
   )
 }
 
