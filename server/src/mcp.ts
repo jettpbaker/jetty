@@ -114,13 +114,13 @@ export function createMcpHandler(
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
-          const mode = yield* store.getPermissionMode(caller.id)
+          const mode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
           yield* store.setPermissionMode(
             id,
             selected?.autoMode === false ||
               models()?.find((m) => m.provider === caller.provider && m.id === caller.model)
                 ?.autoMode === false
-              ? undefined
+              ? 'auto'
               : mode
           )
           if (input.title) yield* store.setThreadTitle(id, input.title)
@@ -183,7 +183,7 @@ export function createMcpHandler(
         if (input.steer && !response.duplicate && response.messageId) {
           const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId).pipe(
             Effect.as(true),
-            Effect.catch(() => Effect.succeed(false))
+            Effect.catchCause(() => Effect.succeed(false))
           )
           if (sent) delivery = 'delivered'
         }
@@ -195,6 +195,13 @@ export function createMcpHandler(
       const identity = sessions.authenticate(request.headers.get('authorization'))
       if (!identity) return new Response('Unauthorized', { status: 401 })
       if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+      const callerExists = await run(
+        accessible(identity, identity.threadId).pipe(
+          Effect.as(true),
+          Effect.catch(() => Effect.succeed(false))
+        )
+      )
+      if (!callerExists) return new Response('Caller thread unavailable', { status: 404 })
       const server = new McpServer({ name: 'jetty', version: '1.0.0' })
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -311,24 +318,8 @@ export function createMcpHandler(
               attachments,
               resolveAttachment: (id: string, kind: 'image' | 'video') =>
                 Effect.gen(function* () {
-                  for (const thread of yield* store.listThreads()) {
-                    if (thread.projectId !== caller.projectId || thread.archived) continue
-                    const state = yield* store.getThreadState(thread.id)
-                    for (const item of state.items) {
-                      const media =
-                        item.kind === 'image_gallery'
-                          ? item.images
-                          : item.kind === 'video'
-                            ? [item.video]
-                            : item.kind === 'user_message'
-                              ? item.attachments
-                              : []
-                      const found = media.find(
-                        (a) => a.id === id && a.mimeType.startsWith(kind + '/')
-                      )
-                      if (found && (yield* attachments.resolve(id))) return found
-                    }
-                  }
+                  const found = yield* store.resolveAttachment(caller.projectId, id, kind)
+                  if (yield* attachments.resolve(id)) return found
                   return yield* Effect.fail(
                     new StoreError('not_found', 'Attachment not found in caller project')
                   )
@@ -357,6 +348,10 @@ export function createMcpHandler(
         )
         await server.connect(transport)
         return await transport.handleRequest(request)
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : 'Thread unavailable', {
+          status: 404,
+        })
       } finally {
         await server.close()
       }

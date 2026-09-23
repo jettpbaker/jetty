@@ -100,6 +100,7 @@ for (const kind of ['image', 'video'] as const) {
           const file = kind === 'image' ? 'image.png' : 'video.mp4'
           yield* f.fs.writeFileString(f.home + '/' + file, 'media')
           const host = {
+            resolveAttachment: () => Effect.fail(new Error('Attachment not found')),
             attachments: f.attachments,
             projectPath: f.home,
             turnId: () => turnId,

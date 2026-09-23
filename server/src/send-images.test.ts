@@ -57,6 +57,7 @@ async function makeHost(
       attachments: await Effect.runPromise(
         createAttachments(home).pipe(Effect.provide(BunServices.layer))
       ),
+      resolveAttachment: () => Effect.fail(new Error('Attachment not found')),
       projectPath,
       turnId: () => 'turn-1',
       emit: (event, _turnId, onCommit) =>

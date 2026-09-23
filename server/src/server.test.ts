@@ -1191,6 +1191,7 @@ describe('image attachments', () => {
           yield* Effect.scoped(
             Effect.gen(function* () {
               const tool = yield* createSendImagesTool({
+                resolveAttachment: () => Effect.fail(new Error('Attachment not found')),
                 attachments: yield* createAttachments(jettyHome),
                 projectPath: projectDir,
                 turnId: () => input.turnId,
@@ -1284,6 +1285,7 @@ describe('image attachments', () => {
           yield* Effect.scoped(
             Effect.gen(function* () {
               const tool = yield* createSendVideoTool({
+                resolveAttachment: () => Effect.fail(new Error('Attachment not found')),
                 attachments: yield* createAttachments(jettyHome),
                 projectPath: projectDir,
                 turnId: () => input.turnId,

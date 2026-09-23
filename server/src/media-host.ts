@@ -11,7 +11,7 @@ import { StoreError } from './store'
 
 export type MediaToolHost = {
   attachments: Attachments
-  resolveAttachment?: (id: string, kind: PersistKind) => Effect.Effect<Attachment, Error>
+  resolveAttachment: (id: string, kind: PersistKind) => Effect.Effect<Attachment, Error>
   projectPath: string
   turnId: () => string
   emit: (
@@ -53,10 +53,6 @@ export function createMediaSender(host: MediaToolHost) {
               )
             )
           for (const id of request.attachmentIds ?? []) {
-            if (!host.resolveAttachment)
-              return yield* Effect.fail(
-                new StoreError('not_found', 'Attachment not found in caller project')
-              )
             media.push(yield* host.resolveAttachment(id, request.kind))
           }
           let committed = false
