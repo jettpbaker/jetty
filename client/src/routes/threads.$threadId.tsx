@@ -31,7 +31,7 @@ function Thread() {
   const markSeen = useMarkThreadSeen()
   useEffect(() => {
     markSeen(threadId)
-  }, [markSeen, threadId, meta?.turnEndedAt])
+  }, [markSeen, threadId, meta?.turnEndedAt, meta?.readyForReview])
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
   const projectPath = project?.path
   const [tab, setTab] = useThreadTab(threadId)
