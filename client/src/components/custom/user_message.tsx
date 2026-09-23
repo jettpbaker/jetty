@@ -36,7 +36,7 @@ export function UserMessage({
                     }}
                     type='button'
                     aria-label={`Open ${image.name}`}
-                    className='shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
+                    className='shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
                     onClick={() =>
                       openMedia({
                         items: images,
