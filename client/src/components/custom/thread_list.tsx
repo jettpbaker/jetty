@@ -91,15 +91,17 @@ function ThreadItemRow({
 export function ThreadList({
   items,
   status,
+  projectPath,
   onApproval,
   onAnswer,
 }: {
   items: readonly ThreadItem[]
   status: SessionStatus
+  projectPath?: string
   onApproval: (itemId: string, approved: boolean) => void
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
-  const rows = useMemo(() => threadRows(items, status), [items, status])
+  const rows = useMemo(() => threadRows(items, status, projectPath), [items, status, projectPath])
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const [width, setWidth] = useState(660)

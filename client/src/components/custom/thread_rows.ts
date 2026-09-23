@@ -53,14 +53,23 @@ function toolKind(name: string): ToolKind {
   }
 }
 
-function toolTarget(name: string, input: unknown) {
+const pathKeys = new Set(['file_path', 'path'])
+
+function toolTarget(name: string, input: unknown, projectPath: string | undefined) {
   if (!input || typeof input !== 'object') return name
   const record = input as Record<string, unknown>
   for (const key of ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'text']) {
     const value = record[key]
-    if (typeof value === 'string' && value) return value
+    if (typeof value !== 'string' || !value) continue
+    return pathKeys.has(key) ? projectRelative(value, projectPath) : value
   }
   return name
+}
+
+function projectRelative(path: string, projectPath: string | undefined) {
+  if (!projectPath) return path
+  const root = projectPath.endsWith('/') ? projectPath : `${projectPath}/`
+  return path.startsWith(root) ? path.slice(root.length) : path
 }
 
 function toolDescription(input: unknown) {
@@ -85,7 +94,8 @@ function toActivity(
   item: WorkItem,
   next: ThreadItem | undefined,
   sessionRunning: boolean,
-  sessionActive: boolean
+  sessionActive: boolean,
+  projectPath: string | undefined
 ): WorkActivity {
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
@@ -123,7 +133,7 @@ function toActivity(
     id: item.id,
     kind: toolKind(item.toolName),
     name: item.toolName,
-    target: toolTarget(item.toolName, item.input),
+    target: toolTarget(item.toolName, item.input, projectPath),
     description: toolDescription(item.input),
     status:
       item.status === 'failed'
@@ -148,7 +158,11 @@ function isWork(item: ThreadItem): item is WorkItem {
   return item.kind === 'reasoning' || item.kind === 'tool_call' || item.kind === 'approval'
 }
 
-export function threadRows(items: readonly ThreadItem[], status: SessionStatus): ThreadRow[] {
+export function threadRows(
+  items: readonly ThreadItem[],
+  status: SessionStatus,
+  projectPath?: string
+): ThreadRow[] {
   const rows: ThreadRow[] = []
   const tailId = items.at(-1)?.id
   const sessionRunning = status === 'running' || status === 'starting'
@@ -160,7 +174,7 @@ export function threadRows(items: readonly ThreadItem[], status: SessionStatus):
   function flush(next: ThreadItem | undefined) {
     if (pending.length === 0) return
     const activities = pending.map((item, index) =>
-      toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive)
+      toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
     )
     rows.push({
       kind: 'work',

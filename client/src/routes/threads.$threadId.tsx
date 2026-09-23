@@ -3,7 +3,13 @@ import { ThreadComposer } from '@/components/custom/thread_composer'
 import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
 import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
-import { useRespondApproval, useRespondQuestion, useThread, useThreadOverlay } from '@/state'
+import {
+  useChrome,
+  useRespondApproval,
+  useRespondQuestion,
+  useThread,
+  useThreadOverlay,
+} from '@/state'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
@@ -12,6 +18,9 @@ function Thread() {
   const { threadId } = Route.useParams()
   const thread = useThread(threadId)
   const overlay = useThreadOverlay(threadId, thread)
+  const chrome = useChrome()
+  const projectId = chrome?.threads.find((item) => item.id === threadId)?.projectId
+  const projectPath = chrome?.projects.find((project) => project.id === projectId)?.path
   const respondApproval = useRespondApproval()
   const respondQuestion = useRespondQuestion()
   const composer = (
@@ -38,6 +47,7 @@ function Thread() {
             key={threadId}
             items={overlay.items}
             status={thread?.status ?? 'idle'}
+            projectPath={projectPath}
             onApproval={(itemId, approved) =>
               respondApproval(threadId, itemId, approved ? 'allow' : 'deny')
             }
