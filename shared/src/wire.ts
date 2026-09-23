@@ -244,6 +244,10 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,
   },
+  'workflow.stop': {
+    params: Schema.Struct({ threadId: Schema.String, taskId: Schema.String }),
+    result: Schema.Null,
+  },
   'approval.respond': {
     params: Schema.Struct({
       threadId: Schema.String,

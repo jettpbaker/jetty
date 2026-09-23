@@ -44,6 +44,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('queue.sendNow'),
   unary('turn.start'),
   unary('turn.interrupt'),
+  unary('workflow.stop'),
   unary('approval.respond'),
   unary('question.respond'),
   unary('question.dismiss'),

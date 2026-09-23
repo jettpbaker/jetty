@@ -46,29 +46,54 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
           [event.turnId]: outcome,
         },
         activeTurnId: null,
-        status: outcome === 'failed' ? 'error' : 'idle',
+        status: state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
+          ? 'running'
+          : outcome === 'failed'
+            ? 'error'
+            : 'idle',
         items: state.items.map((item) => settleStreaming(item, ts)),
       }
     case 'item.started':
-      return { ...state, items: [...state.items, event.item] }
+      return {
+        ...state,
+        items: [...state.items, event.item],
+        status:
+          event.item.kind === 'workflow' && event.item.status === 'running'
+            ? 'running'
+            : state.status,
+      }
     case 'item.delta':
       return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
     case 'item.updated':
-      return updateItem(state, event.itemId, (item) =>
-        Schema.decodeUnknownSync(ThreadItem)({ ...item, ...event.patch })
+      return workflowStatus(
+        updateItem(state, event.itemId, (item) =>
+          Schema.decodeUnknownSync(ThreadItem)({ ...item, ...event.patch })
+        )
       )
     case 'item.completed':
-      return updateItem(state, event.itemId, (item) =>
-        Schema.decodeUnknownSync(ThreadItem)({
-          ...settleStreaming(item, ts),
-          ...event.patch,
-          completedAt: ts,
-        })
+      return workflowStatus(
+        updateItem(state, event.itemId, (item) =>
+          Schema.decodeUnknownSync(ThreadItem)({
+            ...settleStreaming(item, ts),
+            ...event.patch,
+            completedAt: ts,
+          })
+        )
       )
     case 'session.status':
       return { ...state, status: event.status }
     case 'context.updated':
       return { ...state, context: event.usage }
+  }
+}
+
+function workflowStatus(state: ThreadState): ThreadState {
+  if (state.activeTurnId) return state
+  return {
+    ...state,
+    status: state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
+      ? 'running'
+      : 'idle',
   }
 }
 

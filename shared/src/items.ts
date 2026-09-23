@@ -27,6 +27,22 @@ export type QuestionSpec = Schema.Schema.Type<typeof QuestionSpec>
 export const SubagentStatus = Schema.Literals(['running', 'completed', 'failed', 'stopped'])
 export type SubagentStatus = Schema.Schema.Type<typeof SubagentStatus>
 
+export const WorkflowAgent = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  phase: Schema.Int,
+  model: Schema.optional(Schema.String),
+  state: Schema.Literals(['queued', 'active', 'waiting', 'done', 'error']),
+  tokens: Schema.Natural,
+  toolCalls: Schema.Natural,
+  lastTool: Schema.optional(Schema.String),
+  lastSummary: Schema.optional(Schema.String),
+  prompt: Schema.optional(Schema.String),
+  result: Schema.optional(Schema.String),
+  durationMs: Schema.optional(Schema.Natural),
+})
+export type WorkflowAgent = Schema.Schema.Type<typeof WorkflowAgent>
+
 const itemBase = {
   id: Schema.String,
   turnId: Schema.String,
@@ -124,6 +140,24 @@ export const ThreadItem = Schema.Union([
     status: SubagentStatus,
     tokens: Schema.optional(Schema.Natural),
     durationMs: Schema.optional(Schema.Natural),
+  }),
+  Schema.Struct({
+    ...itemBase,
+    kind: Schema.Literal('workflow'),
+    taskId: Schema.String,
+    name: Schema.String,
+    description: Schema.String,
+    provider: Schema.Literals(['claude', 'grok']),
+    status: SubagentStatus,
+    phases: Schema.Array(Schema.Struct({ index: Schema.Int, title: Schema.String })),
+    agents: Schema.Array(WorkflowAgent),
+    tokens: Schema.Natural,
+    durationMs: Schema.Natural,
+    runId: Schema.optional(Schema.String),
+    scriptPath: Schema.optional(Schema.String),
+    transcriptDir: Schema.optional(Schema.String),
+    summary: Schema.optional(Schema.String),
+    stopReason: Schema.optional(Schema.Literals(['you', 'crash'])),
   }),
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
 ])
