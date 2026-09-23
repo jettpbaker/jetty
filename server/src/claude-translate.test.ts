@@ -25,7 +25,7 @@ describe('translate()', () => {
     expect(ctx.sessionId).toBe('sess-abc')
   })
 
-  test('subagent-internal messages (parent_tool_use_id) are dropped', () => {
+  test('subagent-internal messages (parent_tool_use_id) leave the main streaming state alone', () => {
     const ctx = createTranslateCtx('t1')
     const inner: SdkLikeMessage = {
       type: 'stream_event',
@@ -36,7 +36,8 @@ describe('translate()', () => {
         content_block: { type: 'text', text: '' },
       },
     }
-    expect(translate(inner, ctx)).toEqual([])
+    const [started] = translate(inner, ctx)
+    expect(started?.type === 'item.started' && started.item.agentId).toBe('toolu_agent_1')
     expect(ctx.currentAssistantId).toBeNull()
 
     const innerAssistant: SdkLikeMessage = {
@@ -44,7 +45,9 @@ describe('translate()', () => {
       parent_tool_use_id: 'toolu_agent_1',
       message: { content: [{ type: 'text', text: 'subagent text' }] },
     }
-    expect(translate(innerAssistant, ctx)).toEqual([])
+    translate(innerAssistant, ctx)
+    expect(ctx.currentAssistantId).toBeNull()
+    expect(ctx.sawPartials).toBe(false)
   })
 
   test('streaming text via stream_event deltas', () => {

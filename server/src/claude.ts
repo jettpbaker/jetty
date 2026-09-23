@@ -344,7 +344,9 @@ export function createClaudeAdapter(
         Stream.runForEach((message) =>
           Effect.gen(function* () {
             if (!current(session)) return
-            if (!session.awaitingResult && message.type !== 'system') return
+            // Background subagents keep working after the turn that spawned them ends.
+            const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
+            if (!session.awaitingResult && message.type !== 'system' && !fromSubagent) return
             if (message.type === 'result') {
               yield* session.publication.withPermit(
                 Effect.sync(() => {
@@ -554,6 +556,7 @@ export function createClaudeAdapter(
                   // Only permits a later live switch into bypassPermissions.
                   allowDangerouslySkipPermissions: true,
                   includePartialMessages: true,
+                  forwardSubagentText: true,
                   canUseTool,
                   resume: resume ?? undefined,
                   mcpServers: { jetty },
@@ -645,7 +648,7 @@ export function createClaudeAdapter(
           const started = session
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId
-            started.ctx = createTranslateCtx(input.turnId)
+            started.ctx = createTranslateCtx(input.turnId, started.ctx.agents)
             started.emit = emit
             started.awaitingResult = true
             started.accepting = true
