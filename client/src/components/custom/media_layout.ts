@@ -26,7 +26,7 @@ export function fittedStyle(attachment: Attachment, maxHeight: number) {
   }
 }
 
-// Videos carry no recorded dimensions yet; unknown ones get a 16:9 frame and letterbox inside it.
+// Videos with unknown dimensions get a 16:9 frame and letterbox inside it.
 export function videoHeight(video: Attachment, width: number) {
   return (
     fittedSize(video, width, INLINE_IMAGE_MAX_HEIGHT)?.height ??

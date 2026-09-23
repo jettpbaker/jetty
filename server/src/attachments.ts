@@ -13,6 +13,7 @@ import type { AgentImage } from './agent'
 
 import { imageSize } from './image-size'
 import { StoreError } from './store'
+import { videoSize } from './video-size'
 
 const MIME_EXT = {
   'image/png': 'png',
@@ -157,7 +158,9 @@ export function createAttachments(home: string) {
             const copied = yield* fs.stat(temporary)
             yield* checkSize(copied.size)
             const dimensions =
-              kind === 'image' ? imageSize(yield* fs.readFile(temporary)) : undefined
+              kind === 'image'
+                ? imageSize(yield* fs.readFile(temporary))
+                : yield* Effect.promise(() => videoSize(temporary))
             yield* fs.rename(temporary, dest).pipe(Effect.uninterruptible)
             return {
               id,
