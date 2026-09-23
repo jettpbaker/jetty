@@ -34,7 +34,7 @@ import {
   useThreadQueue,
 } from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -111,6 +111,23 @@ export function ThreadComposer({
   // Stays while tasks are open, even once the turn ends.
   const todo = openTodo ?? (running ? todos.at(-1) : undefined)
   const editingEntry = queue.find((entry) => entry.id === editing)
+  const input = useRef<HTMLTextAreaElement>(null)
+  const focusEdit = useRef(false)
+
+  // The Edit button unmounts as its row turns into "Editing"; the loaded draft takes focus.
+  useLayoutEffect(() => {
+    const element = input.current
+    if (!focusEdit.current || !element) return
+    focusEdit.current = false
+    element.focus({ preventScroll: true })
+    element.setSelectionRange(element.value.length, element.value.length)
+  }, [editing])
+
+  // Steer and Remove unmount their row, so a keyboard user would otherwise be dropped on the page.
+  function keepKeyboardFocus() {
+    if (document.activeElement?.matches(':focus-visible'))
+      input.current?.focus({ preventScroll: true })
+  }
 
   function priorCount(text: string) {
     return items.filter((entry) => entry.kind === 'user_message' && entry.text === text).length
@@ -144,7 +161,9 @@ export function ThreadComposer({
     running,
     editing,
     sendNow(entry: QueuedMessage) {
-      if (threadId) queueActions.sendNow(threadId, entry.id)
+      if (!threadId) return
+      keepKeyboardFocus()
+      queueActions.sendNow(threadId, entry.id)
     },
     edit(entry: QueuedMessage) {
       if (!threadId) return
@@ -153,10 +172,13 @@ export function ThreadComposer({
       else if (editingEntry) queueActions.release(threadId, editingEntry.id)
       else if (previous) queueActions.add(threadId, previous, attachments.take())
       queueActions.hold(threadId, entry.id)
+      focusEdit.current = true
       update({ text: entry.text, editing: entry.id })
     },
     remove(entry: QueuedMessage) {
-      if (threadId) queueActions.remove(threadId, entry.id)
+      if (!threadId) return
+      keepKeyboardFocus()
+      queueActions.remove(threadId, entry.id)
     },
   }
 
@@ -276,6 +298,7 @@ export function ThreadComposer({
         }
         rows={rows}
         ambient={ambient}
+        inputRef={input}
       />
     </div>
   )

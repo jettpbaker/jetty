@@ -16,7 +16,14 @@ import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { cn } from '@/lib/utils'
 import { StopIcon } from '@phosphor-icons/react'
 import { ArrowUpIcon } from '@primer/octicons-react'
-import { useEffect, useEffectEvent, useRef, type CSSProperties, type ReactNode } from 'react'
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 
 export function Composer({
   value,
@@ -38,6 +45,7 @@ export function Composer({
   context,
   rows = 2,
   ambient = false,
+  inputRef,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -59,9 +67,11 @@ export function Composer({
   context: ReactNode
   rows?: number
   ambient?: boolean
+  inputRef?: RefObject<HTMLTextAreaElement | null>
 }) {
   const root = useRef<HTMLDivElement>(null)
-  const textarea = useRef<HTMLTextAreaElement>(null)
+  const ownInput = useRef<HTMLTextAreaElement>(null)
+  const textarea = inputRef ?? ownInput
   const empty = !value.trim() && attachments.images.length === 0
   const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stop = running && empty
@@ -111,7 +121,7 @@ export function Composer({
     }
     document.addEventListener('keydown', focusComposer)
     return () => document.removeEventListener('keydown', focusComposer)
-  }, [])
+  }, [textarea])
 
   function submit() {
     if (canSend) onSubmit()
