@@ -26,6 +26,8 @@ import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createGrokTitler } from './grok-titler'
 import { createHub } from './hub'
+import { createMcpHandler } from './mcp'
+import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
@@ -153,6 +155,7 @@ function createServer(opts: ServerOptions = {}) {
     )
     const attachments = Context.get(io, Attachments)
     const hub = createHub()
+    const mcp = createMcpSessions()
     let lastUsage: RateLimits | null = null
     const hooks = {
       onUsage(usage: RateLimits) {
@@ -170,13 +173,14 @@ function createServer(opts: ServerOptions = {}) {
               {
                 claude: yield* loadAgent(
                   claudeLayer(store, attachments, hooks, {
+                    mcp,
                     supportsAutoMode: (id) =>
                       models?.find((model) => model.provider === 'claude' && model.id === id)
                         ?.autoMode !== false,
                   })
                 ),
-                codex: yield* loadAgent(codexLayer(store, opts.codex)),
-                grok: yield* loadAgent(grokLayer(store, opts.grok)),
+                codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp })),
+                grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp })),
               },
               agentKind
             )
@@ -229,9 +233,16 @@ function createServer(opts: ServerOptions = {}) {
       Effect.provide(RpcSerialization.layerJson),
       Effect.provideService(Scope.Scope, transportScope)
     )
+    const handleMcp = yield* createMcpHandler(mcp, store, orch, attachments, () => models)
     const app = Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const url = new URL(request.url, 'http://localhost')
+      if (url.pathname === '/mcp') {
+        if (!originAllowed(request.headers.origin))
+          return HttpServerResponse.text('Forbidden origin', { status: 403 })
+        const web = yield* HttpServerRequest.toWeb(request)
+        return HttpServerResponse.fromWeb(yield* Effect.promise(() => handleMcp(web)))
+      }
       if (url.pathname === '/ws') {
         if (!originAllowed(request.headers.origin)) {
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
@@ -258,6 +269,9 @@ function createServer(opts: ServerOptions = {}) {
     if (server.address._tag !== 'TcpAddress') {
       return yield* Effect.fail(new Error('server failed to bind a TCP port'))
     }
+
+    mcp.setUrl(`http://127.0.0.1:${server.address.port}/mcp`)
+    yield* orch.resumeQueues()
 
     return {
       home,

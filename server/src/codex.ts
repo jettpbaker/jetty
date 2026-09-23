@@ -4,6 +4,7 @@ import { newId } from '@jetty/shared/wire'
 import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 
+import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import {
@@ -25,7 +26,7 @@ import {
 } from './codex-rpc'
 import { createCodexTranslator } from './codex-translate'
 
-export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number }
+export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
 type Pending = { id: RpcId; questions?: { id: string; question: string }[] }
 type Session = {
   input: TurnInput
@@ -161,9 +162,25 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     function run(session: Session, cwd: string) {
       return Effect.scoped(
         Effect.gen(function* () {
-          const connection = yield* openCodexConnection(cwd, options).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
+          const binding = options.mcp
+            ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'codex' })
+            : undefined
+          const connection = yield* openCodexConnection(
+            cwd,
+            binding
+              ? {
+                  ...options,
+                  args: [
+                    ...(options.args ?? ['app-server', '--listen', 'stdio://']),
+                    '-c',
+                    `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
+                    '-c',
+                    'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
+                  ],
+                  env: { ...process.env, ...options.env, JETTY_MCP_TOKEN: binding.token },
+                }
+              : options
+          ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {

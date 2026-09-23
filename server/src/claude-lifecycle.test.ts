@@ -20,6 +20,10 @@ import { AgentError, type AgentHooks, type Emit } from './agent'
 import { createAttachments } from './attachments'
 import { createClaudeAdapter, type ClaudeOptions, type QueryFactory } from './claude'
 import { databaseLayer } from './db'
+import { createHub } from './hub'
+import { createMcpHandler } from './mcp'
+import { createMcpSessions } from './mcp-sessions'
+import { createOrchestrator } from './orchestrator'
 import { Store, storeLayer } from './store'
 
 function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
@@ -168,7 +172,35 @@ async function setup(
           }
         })
       }
-      return { agent, attachments, store, thread, emit, next }
+      const orch = yield* createOrchestrator(store, agent, createHub(), null, attachments)
+      const sessions = createMcpSessions()
+      sessions.setUrl('http://127.0.0.1/mcp')
+      const binding = yield* sessions.open({ threadId: thread.id, provider: 'claude' })
+      const handle = yield* createMcpHandler(sessions, store, orch, attachments, () => null)
+      async function callMedia(name: string, file: string) {
+        const response = await handle(
+          new Request(binding.url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${binding.token}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json, text/event-stream',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/call',
+              params: {
+                name,
+                arguments: name === 'send_images' ? { paths: [file] } : { path: file },
+              },
+            }),
+          })
+        )
+        const body = (await response.json()) as { result: { isError?: boolean } }
+        return body.result
+      }
+      return { agent, attachments, store, thread, emit, next, orch, callMedia }
     })
   }
   const runtime = ManagedRuntime.make(
@@ -523,101 +555,45 @@ describe('scoped Claude sessions', () => {
   })
 
   test.each(['send_images', 'send_video'] as const)(
-    '%s rejects stale publication after waiting behind a result and removes unreferenced media',
+    '%s rejects stale HTTP publication after a terminal event and removes unreferenced media',
     async (name) => {
       const f = await setup()
-      const first = await f.start('first')
-      const entered = Deferred.makeUnsafe<void>()
-      const release = Deferred.makeUnsafe<void>()
-      const observed = Deferred.makeUnsafe<void>()
-      const copied = Deferred.makeUnsafe<void>()
-      const steering = f.runtime.runPromise(
-        f.agent.steer(
-          f.thread.id,
-          'steering',
-          undefined,
-          Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
-        )
+      const first = await f.runtime.runPromise(
+        f.orch.startTurnEffect({ threadId: f.thread.id, text: 'media' })
       )
-      await f.runtime.runPromise(Deferred.await(entered))
-      try {
-        f.queries[0]!.push({
-          get type() {
-            Deferred.doneUnsafe(observed, Effect.void)
-            return 'result'
-          },
-          subtype: 'success',
-        })
-        await f.runtime.runPromise(Deferred.await(observed))
-        const persistFile = f.attachments.persistFile
-        f.attachments.persistFile = (path, kind) =>
-          persistFile(path, kind).pipe(Effect.tap(() => Deferred.succeed(copied, undefined)))
-        const file = name === 'send_images' ? 'image.png' : 'video.mp4'
-        writeFileSync(join(f.home, file), 'media')
-        const server = f.queries[0]!.options.mcpServers?.jetty
-        if (!server || server.type !== 'sdk') throw new Error('Missing SDK media server')
-        const tools = (
-          server.instance as unknown as {
-            _registeredTools: Record<
-              string,
-              { handler: (args: unknown, extra: unknown) => Promise<{ isError?: boolean }> }
-            >
-          }
-        )._registeredTools
-        let settled = false
-        const pending = tools[name]!.handler(
-          name === 'send_images' ? { paths: [file] } : { path: file },
-          {}
-        ).then((result) => {
-          settled = true
-          return result
-        })
-        await f.runtime.runPromise(Deferred.await(copied))
-        await f.runtime.runPromise(Effect.yieldNow)
-        expect(settled).toBe(false)
-        expect(readdirSync(f.attachments.dir)).toHaveLength(1)
-        await f.runtime.runPromise(Deferred.succeed(release, undefined))
-        expect(await steering).toBe(true)
-        expect((await pending).isError).toBe(true)
-        await f.runtime.runPromise(first.await)
-        expect(f.events.map((event) => event.type)).toEqual(['turn.started', 'turn.completed'])
-        expect(readdirSync(f.attachments.dir)).toEqual([])
-        const state = await f.runtime.runPromise(f.store.getThreadState(f.thread.id))
-        expect(state.status).toBe('idle')
-        expect(state.items).toEqual([])
-      } finally {
-        await f.runtime.runPromise(Deferred.succeed(release, undefined))
-      }
+      const copied = Deferred.makeUnsafe<void>()
+      const release = Deferred.makeUnsafe<void>()
+      const persistFile = f.attachments.persistFile
+      f.attachments.persistFile = (path, kind) =>
+        persistFile(path, kind).pipe(
+          Effect.tap(() => Deferred.succeed(copied, undefined)),
+          Effect.tap(() => Deferred.await(release))
+        )
+      const file = name === 'send_images' ? 'image.png' : 'video.mp4'
+      writeFileSync(join(f.home, file), 'media')
+      const pending = f.callMedia(name, file)
+      await f.runtime.runPromise(Deferred.await(copied))
+      expect(readdirSync(f.attachments.dir)).toHaveLength(1)
+      f.queries[0]!.push({ type: 'result', subtype: 'success' })
+      while (f.orch.currentTurn(f.thread.id) === first.turnId) await new Promise(setImmediate)
+      await f.runtime.runPromise(Deferred.succeed(release, undefined))
+      expect((await pending).isError).toBe(true)
+      expect(readdirSync(f.attachments.dir)).toEqual([])
+      const state = await f.runtime.runPromise(f.store.getThreadState(f.thread.id))
+      expect(state.items.some((i) => i.kind === 'image_gallery' || i.kind === 'video')).toBe(false)
     }
   )
 
   test.each(['send_images', 'send_video'] as const)(
-    '%s transfers committed attachment ownership through the Claude emission adapter',
+    '%s transfers committed attachment ownership through HTTP',
     async (name) => {
       const f = await setup()
-      const turn = await f.start('media')
+      await f.runtime.runPromise(f.orch.startTurnEffect({ threadId: f.thread.id, text: 'media' }))
       const file = name === 'send_images' ? 'image.png' : 'video.mp4'
       writeFileSync(join(f.home, file), 'media')
-      const server = f.queries[0]!.options.mcpServers?.jetty
-      if (!server || server.type !== 'sdk') throw new Error('Missing SDK media server')
-      const tools = (
-        server.instance as unknown as {
-          _registeredTools: Record<
-            string,
-            { handler: (args: unknown, extra: unknown) => Promise<{ isError?: boolean }> }
-          >
-        }
-      )._registeredTools
-      expect(
-        (
-          await tools[name]!.handler(
-            name === 'send_images' ? { paths: [file] } : { path: file },
-            {}
-          )
-        ).isError
-      ).toBeFalsy()
+      expect((await f.callMedia(name, file)).isError).toBeFalsy()
       f.queries[0]!.push({ type: 'result', subtype: 'success' })
-      await f.runtime.runPromise(turn.await)
+      while (f.orch.currentTurn(f.thread.id)) await new Promise(setImmediate)
       const state = await f.runtime.runPromise(f.store.getThreadState(f.thread.id))
       const item = state.items.find(
         (item) => item.kind === 'image_gallery' || item.kind === 'video'

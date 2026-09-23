@@ -28,6 +28,7 @@ import {
 } from 'effect'
 
 import type { Attachments } from './attachments'
+import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import {
@@ -48,7 +49,7 @@ import {
   type TranslateCtx,
 } from './claude-translate'
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
-import { createJettyMcpServer, SEND_IMAGES_TOOL } from './send-images'
+import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 import { readUsage } from './usage'
 
@@ -57,6 +58,7 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
 export type ClaudeOptions = {
+  mcp?: McpSessions
   query?: QueryFactory
   ttlMs?: number
   interruptGraceMs?: number
@@ -137,13 +139,12 @@ function trackAgents(running: Set<string>, event: ThreadEvent) {
 
 export function createClaudeAdapter(
   store: Store,
-  attachments: Attachments,
+  _attachments: Attachments,
   hooks: AgentHooks = {},
   config: ClaudeOptions = {}
 ): Effect.Effect<Agent, never, Scope.Scope | Path.Path> {
   return Effect.gen(function* () {
     const owner = yield* Effect.scope
-    const path = yield* Path.Path
     const context = yield* Effect.context<never>()
     const run = Effect.runPromiseWith(context)
     const sessions = new Map<string, WarmSession>()
@@ -357,6 +358,11 @@ export function createClaudeAdapter(
         Stream.runForEach((message) =>
           Effect.gen(function* () {
             if (!current(session)) return
+            if (config.mcp && message.type === 'system' && message.subtype === 'init') {
+              const jetty = message.mcp_servers.find((server) => server.name === 'jetty')
+              if (jetty?.status !== 'connected')
+                return yield* Effect.fail(new AgentError('Jetty MCP failed to connect'))
+            }
             // Background subagents keep working after the turn that spawned them ends.
             const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
             if (!session.awaitingResult && message.type !== 'system' && !fromSubagent) return
@@ -528,24 +534,11 @@ export function createClaudeAdapter(
             { signal: options.signal }
           ).catch(() => ({ behavior: 'deny' as const, message: 'Session closed' }))
 
-        const jetty = yield* createJettyMcpServer({
-          attachments,
-          projectPath,
-          turnId: () => session?.activeTurnId ?? input.turnId,
-          emit: (event, turnId, onCommit) =>
-            Effect.suspend(() => {
-              const target = session
-              if (!target) return Effect.fail(new AgentError('Session closed'))
-              return target.publication.withPermit(
-                Effect.gen(function* () {
-                  if (!current(target) || !target.accepting || target.activeTurnId !== turnId) {
-                    return yield* Effect.fail(new AgentError('Turn is no longer active'))
-                  }
-                  yield* target.emit(event, onCommit)
-                })
-              )
-            }),
-        }).pipe(Effect.provideService(Path.Path, path), Effect.provideService(Scope.Scope, scope))
+        const binding = config.mcp
+          ? yield* config.mcp
+              .open({ threadId: input.threadId, provider: 'claude' })
+              .pipe(Scope.provide(scope))
+          : undefined
         const options = sessionOptions(input)
         const resume = yield* store
           .getThreadSessionId(input.threadId)
@@ -578,7 +571,15 @@ export function createClaudeAdapter(
                   forwardSubagentText: true,
                   canUseTool,
                   resume: resume ?? undefined,
-                  mcpServers: { jetty },
+                  mcpServers: binding
+                    ? {
+                        jetty: {
+                          type: 'http',
+                          url: binding.url,
+                          headers: { Authorization: `Bearer ${binding.token}` },
+                        },
+                      }
+                    : {},
                   allowedTools: [SEND_IMAGES_TOOL, SEND_VIDEO_TOOL],
                 },
               }),
@@ -760,9 +761,9 @@ export function createClaudeAdapter(
 
 export function claudeLayer(
   store: Store,
-  attachments: Attachments,
+  _attachments: Attachments,
   hooks: AgentHooks = {},
   options: ClaudeOptions = {}
 ) {
-  return Layer.effect(AgentService, createClaudeAdapter(store, attachments, hooks, options))
+  return Layer.effect(AgentService, createClaudeAdapter(store, _attachments, hooks, options))
 }

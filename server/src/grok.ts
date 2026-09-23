@@ -4,6 +4,7 @@ import { newId } from '@jetty/shared/wire'
 import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 
+import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import {
@@ -26,7 +27,7 @@ import {
   type RpcMessage,
 } from './stdio-rpc'
 
-export type GrokOptions = StdioProcessOptions & { interruptGraceMs?: number }
+export type GrokOptions = StdioProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
 type Pending = {
   id: RpcId
   options?: Record<string, unknown>[]
@@ -194,6 +195,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
     function run(session: Session, cwd: string) {
       return Effect.scoped(
         Effect.gen(function* () {
+          const binding = options.mcp
+            ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'grok' })
+            : undefined
           const { connection, init } = yield* openGrokConnection(
             cwd,
             grokArgs(session.input),
@@ -207,7 +211,16 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             )
           const result = yield* connection.request(resume ? 'session/load' : 'session/new', {
             cwd,
-            mcpServers: [],
+            mcpServers: binding
+              ? [
+                  {
+                    type: 'http',
+                    name: 'jetty',
+                    url: binding.url,
+                    headers: [{ name: 'Authorization', value: `Bearer ${binding.token}` }],
+                  },
+                ]
+              : [],
             ...(resume ? { sessionId: resume } : {}),
           })
           const sessionId = resume ?? string(result.sessionId)

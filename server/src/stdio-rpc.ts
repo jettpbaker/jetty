@@ -13,7 +13,12 @@ export type StdioConnection = {
   reject(id: RpcId, message: string): Effect.Effect<void, AgentError>
   messages: Queue.Dequeue<RpcMessage, AgentError>
 }
-export type StdioProcessOptions = { command?: string; args?: string[]; requestTimeoutMs?: number }
+export type StdioProcessOptions = {
+  env?: Record<string, string | undefined>
+  command?: string
+  args?: string[]
+  requestTimeoutMs?: number
+}
 
 const Envelope = Schema.Struct({
   id: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
@@ -41,6 +46,7 @@ export function openStdioConnection(
     let failure: AgentError | undefined
     const child = yield* ChildProcess.make(options.command, options.args, {
       cwd,
+      env: options.env,
       stdin: 'pipe',
       stdout: 'pipe',
       stderr: 'pipe',

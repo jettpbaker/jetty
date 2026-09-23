@@ -1,10 +1,9 @@
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
+import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { MAX_GALLERY_IMAGES } from '@jetty/shared/items'
 import { Effect } from 'effect'
 import { z } from 'zod'
 
 import { createMediaSender, type MediaToolHost } from './media-host'
-import { createSendVideoTool } from './send-video'
 
 export const SEND_IMAGES_TOOL = 'mcp__jetty__send_images'
 
@@ -38,13 +37,5 @@ export function createSendImagesTool(host: MediaToolHost) {
           extra
         )
     )
-  })
-}
-
-export function createJettyMcpServer(host: MediaToolHost) {
-  return Effect.gen(function* () {
-    const images = yield* createSendImagesTool(host)
-    const video = yield* createSendVideoTool(host)
-    return createSdkMcpServer({ name: 'jetty', version: '1.0.0', tools: [images, video] })
   })
 }
