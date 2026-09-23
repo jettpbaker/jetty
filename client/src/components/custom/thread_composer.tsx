@@ -84,11 +84,9 @@ export function ThreadComposer({
         onAccessModeChange={setAccessMode}
         attachments={attachments}
         context={
-          <ComposerFooter
-            threadId={threadId}
-            projectId={projectId}
-            onProjectChange={setPickedProjectId}
-          />
+          threadId ? undefined : (
+            <ComposerFooter projectId={projectId} onProjectChange={setPickedProjectId} />
+          )
         }
         rows={rows}
       />
