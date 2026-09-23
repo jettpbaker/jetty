@@ -31,7 +31,6 @@ import {
   CaretRightIcon,
   CheckCircleIcon,
   CheckIcon,
-  CircleIcon,
   GitBranchIcon,
   GitCommitIcon,
   GitPullRequestIcon,
@@ -150,20 +149,27 @@ function failed(run: GitHubCheckRun) {
   return (
     run.conclusion === 'failure' ||
     run.conclusion === 'timed_out' ||
-    run.conclusion === 'action_required'
+    run.conclusion === 'action_required' ||
+    run.conclusion === 'startup_failure'
   )
 }
 
+function checkOrder(run: GitHubCheckRun) {
+  if (failed(run)) return 0
+  if (run.status !== 'completed') return 1
+  if (run.conclusion === 'success') return 2
+  return 3
+}
+
 function checksSummary(runs: readonly GitHubCheckRun[]) {
-  let failing = 0
-  let passing = 0
+  const counts = [0, 0, 0, 0]
   for (const run of runs) {
-    if (failed(run)) failing += 1
-    if (run.status === 'completed' && run.conclusion === 'success') passing += 1
+    const index = checkOrder(run)
+    counts[index] = (counts[index] ?? 0) + 1
   }
-  if (failing > 0) return `${failing} failing`
-  if (passing === runs.length) return `all ${runs.length} passing`
-  return `${passing} of ${runs.length} passing`
+  return ['failing', 'in progress', 'successful', 'skipped']
+    .flatMap((label, index) => (counts[index] ? [`${counts[index]} ${label}`] : []))
+    .join(', ')
 }
 
 type ReviewerState = GitHubReview['state'] | 'AWAITING'
@@ -215,13 +221,10 @@ function checkResult(run: GitHubCheckRun) {
 function CheckStatusIcon({ run }: { run: GitHubCheckRun }) {
   if (run.status === 'in_progress')
     return <InProgressIcon className='shrink-0 text-status-working' />
-  if (run.status === 'queued')
-    return <CircleIcon className='size-4 shrink-0 text-muted-foreground' />
+  if (run.status === 'queued') return <InProgressIcon className='shrink-0 text-status-working' />
   if (run.conclusion === 'success')
     return <CheckCircleIcon weight='fill' className='size-4 shrink-0 text-tick-complete' />
   if (failed(run)) return <XCircleIcon weight='fill' className='size-4 shrink-0 text-pr-closed' />
-  if (run.conclusion === 'cancelled' || run.conclusion === 'skipped')
-    return <MinusCircleIcon className='size-4 shrink-0 text-pr-closed' />
   return <MinusCircleIcon className='size-4 shrink-0 text-muted-foreground' />
 }
 
@@ -781,30 +784,34 @@ export function PullRequestView({
               </h2>
               {checkRuns.length > 0 ? (
                 <ul className='flex flex-col'>
-                  {checkRuns.map((run) => (
-                    <li key={run.id} className='flex h-8 items-center gap-2 text-sm'>
-                      <RowIcon>
-                        <CheckStatusIcon run={run} />
-                      </RowIcon>
-                      <span className='min-w-0 flex-1 truncate'>
-                        {run.name}
-                        <span className='sr-only'>, {checkResult(run)}</span>
-                      </span>
-                      <span className='w-16 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
-                        {checkDuration(run)}
-                      </span>
-                      <Button
-                        variant='ghost-text'
-                        size='sm'
-                        className='px-0'
-                        nativeButton={false}
-                        aria-label={`${run.name} details`}
-                        render={externalLink(run.html_url)}
-                      >
-                        Details
-                      </Button>
-                    </li>
-                  ))}
+                  {[...checkRuns]
+                    .sort((left, right) => checkOrder(left) - checkOrder(right))
+                    .map((run) => (
+                      <li key={run.id} className='flex h-8 items-center gap-2 text-sm'>
+                        <RowIcon>
+                          <CheckStatusIcon run={run} />
+                        </RowIcon>
+                        <span className='min-w-0 flex-1 truncate'>
+                          {run.name}
+                          <span className='sr-only'>, {checkResult(run)}</span>
+                        </span>
+                        <span className='w-16 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
+                          {checkDuration(run)}
+                        </span>
+                        {run.html_url && (
+                          <Button
+                            variant='ghost-text'
+                            size='sm'
+                            className='px-0'
+                            nativeButton={false}
+                            aria-label={`${run.name} details`}
+                            render={externalLink(run.html_url)}
+                          >
+                            Details
+                          </Button>
+                        )}
+                      </li>
+                    ))}
                 </ul>
               ) : (
                 <p className='text-sm text-muted-foreground'>No checks.</p>
