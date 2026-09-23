@@ -329,7 +329,7 @@ export function ThreadComposer({
             : running
               ? 'Queue a follow-up while the agent works'
               : 'Ask for follow-up changes',
-          sendLabel: running ? 'Queue' : 'Send',
+          sendLabel: running ? (item ? 'Queue as a follow-up' : 'Queue') : 'Send',
           sendDisabled: (!threadId && !projectId) || needsModel ? true : undefined,
           onSubmit: submit,
           onKeyDown: keyHandler((event) => {
