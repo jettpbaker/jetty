@@ -1,0 +1,44 @@
+.search-picker [data-slot='command'] {
+  padding: 0;
+  border-radius: 0 !important;
+}
+.search-picker [data-slot='command-input-wrapper'] {
+  padding: 2px 4px;
+}
+.search-picker [data-slot='input-group'] {
+  height: 22px !important;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent;
+  box-shadow: none !important;
+}
+.search-picker [data-slot='command-input'] {
+  font-size: var(--text-xs);
+}
+.search-picker [data-slot='command-list'] {
+  max-height: none;
+  overflow: visible;
+}
+.search-picker .picker-results {
+  max-height: 216px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.search-picker [data-slot='command-item'] {
+  border-radius: var(--radius-menu-item);
+  height: var(--spacing-menu-item-compact);
+  padding-block: 0;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.search-picker [data-slot='command-item'][data-selected='true'] {
+  background: var(--accent);
+}
+.search-picker svg {
+  width: 12px;
+  height: 12px;
+  color: var(--muted-foreground) !important;
+}
+.search-picker [data-slot='input-group-addon'] svg {
+  opacity: 1;
+}

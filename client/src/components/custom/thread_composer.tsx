@@ -1,6 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
 import { Composer } from '@/components/custom/composer'
+import { ComposerFooter } from '@/components/custom/composer_footer'
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { newThreadProject } from '@/lib/thread_project'
@@ -38,7 +39,9 @@ export function ThreadComposer({
   const navigate = useNavigate()
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
-  const projectId = !threadId && chrome ? newThreadProject(chrome, selectedId) : undefined
+  const [pickedProjectId, setPickedProjectId] = useState<string>()
+  const projectId =
+    !threadId && chrome ? (pickedProjectId ?? newThreadProject(chrome, selectedId)) : undefined
 
   function submit() {
     const text = draft.trim()
@@ -79,6 +82,11 @@ export function ThreadComposer({
         onAccessModeChange={setAccessMode}
         attachments={attachments}
         rows={rows}
+      />
+      <ComposerFooter
+        threadId={threadId}
+        projectId={projectId}
+        onProjectChange={setPickedProjectId}
       />
     </div>
   )

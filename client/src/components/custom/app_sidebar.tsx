@@ -10,7 +10,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
-import { newThreadProject } from '@/lib/thread_project'
 import { formatAge } from '@/lib/time'
 import {
   useArchiveThread,
@@ -107,11 +106,9 @@ export function AppSidebar() {
   const renameThread = useRenameThread()
   const pinThread = usePinThread()
   const deleteThread = useDeleteThread()
-  const projectId = chrome && newThreadProject(chrome, selectedId)
   const openSettings = () => navigate({ to: '/settings' })
 
   function newThread() {
-    if (!projectId) return
     bumpDraft()
     void navigate({ to: '/' })
   }
@@ -146,12 +143,7 @@ export function AppSidebar() {
         <nav aria-label='Main navigation'>
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
-              <Button
-                variant='ghost'
-                className={navigationButtonClass}
-                disabled={!projectId}
-                {...pressProps(newThread)}
-              >
+              <Button variant='ghost' className={navigationButtonClass} {...pressProps(newThread)}>
                 <ComposeIcon className='size-3' />
                 New thread
               </Button>
