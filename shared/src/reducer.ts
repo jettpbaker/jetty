@@ -46,11 +46,19 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
           [event.turnId]: outcome,
         },
         activeTurnId: null,
-        status: state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
-          ? 'running'
-          : outcome === 'failed'
-            ? 'error'
-            : 'idle',
+        status: state.items.some(
+          (item) =>
+            item.kind === 'question' &&
+            item.delivery === 'async' &&
+            !item.answers &&
+            !item.dismissed
+        )
+          ? 'awaiting_approval'
+          : state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
+            ? 'running'
+            : outcome === 'failed'
+              ? 'error'
+              : 'idle',
         items: state.items.map((item) => settleStreaming(item, ts)),
       }
     case 'item.started':
@@ -91,11 +99,16 @@ function workflowStatus(state: ThreadState): ThreadState {
   if (state.activeTurnId) return state
   return {
     ...state,
-    status: state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
-      ? 'running'
-      : state.status === 'error'
-        ? 'error'
-        : 'idle',
+    status: state.items.some(
+      (item) =>
+        item.kind === 'question' && item.delivery === 'async' && !item.answers && !item.dismissed
+    )
+      ? 'awaiting_approval'
+      : state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
+        ? 'running'
+        : state.status === 'error'
+          ? 'error'
+          : 'idle',
   }
 }
 

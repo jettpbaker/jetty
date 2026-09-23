@@ -87,8 +87,6 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           })
         }
         session.pending.clear()
-        for (const itemId of session.asyncQuestions.keys())
-          yield* session.emit({ type: 'item.completed', itemId, patch: { skipped: true } })
         session.asyncQuestions.clear()
         for (const event of session.translator.finish()) yield* session.emit(event)
       })
@@ -280,6 +278,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                         turnId: session.input.turnId,
                         createdAt: Date.now(),
                         kind: 'question',
+                        delivery: 'async',
                         questions: questions.map((question) => ({
                           question: string(question.title),
                           header: '',

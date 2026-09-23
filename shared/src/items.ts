@@ -105,6 +105,7 @@ export const ThreadItem = Schema.Union([
     ...itemBase,
     kind: Schema.Literal('question'),
     questions: Schema.Array(QuestionSpec),
+    delivery: Schema.optional(Schema.Literal('async')),
     // multi-select answers are comma-separated
     answers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     // the turn ended unanswered, not a user choice

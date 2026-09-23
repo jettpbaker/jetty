@@ -721,10 +721,39 @@ export function createOrchestrator(
         })
       },
       respondQuestion(threadId: string, itemId: string, answers: Record<string, string> | null) {
-        return agentForThread(threadId).pipe(
-          Effect.flatMap((agent) => agent.respondToQuestion(threadId, itemId, answers)),
-          Effect.flatMap(requireFound(`question ${itemId}`))
-        )
+        return Effect.gen(function* () {
+          const agent = yield* agentForThread(threadId)
+          if (yield* agent.respondToQuestion(threadId, itemId, answers)) return
+          const thread = yield* store.requireThread(threadId)
+          const current = yield* store.getThreadState(threadId)
+          const item = current.items.find((candidate) => candidate.id === itemId)
+          if (
+            thread.provider !== 'codex' ||
+            item?.kind !== 'question' ||
+            item.delivery !== 'async' ||
+            item.answers ||
+            item.dismissed
+          )
+            return yield* Effect.fail(new StoreError('not_found', `No pending question ${itemId}`))
+          if (answers) {
+            const text = `User answered your earlier question:\n${item.questions
+              .map(({ question }) => `${question}: ${answers[question] ?? ''}`)
+              .join('\n')}`
+            yield* startTurnEffect({
+              threadId,
+              text,
+              model: thread.model,
+              effort: thread.effort,
+              fast: thread.fast,
+              permissionMode: yield* store.getPermissionMode(threadId),
+            })
+          }
+          yield* append(threadId, {
+            type: 'item.completed',
+            itemId,
+            patch: answers ? { answers } : { dismissed: true },
+          })
+        })
       },
       deleteThread(threadId: string) {
         return Effect.suspend(() => {
