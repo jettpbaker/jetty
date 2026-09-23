@@ -135,6 +135,25 @@ function originAllowed(origin: string | undefined): boolean {
   }
 }
 
+async function githubConnection(): Promise<{
+  state: 'connected' | 'signed-out' | 'missing' | 'error'
+}> {
+  const gh = Bun.which('gh')
+  if (!gh) return { state: 'missing' }
+  try {
+    const child = Bun.spawn([gh, 'auth', 'status'], {
+      stdout: 'ignore',
+      stderr: 'ignore',
+      signal: AbortSignal.timeout(3000),
+    })
+    const exitCode = await child.exited
+    if (child.signalCode) return { state: 'error' }
+    return { state: exitCode === 0 ? 'connected' : 'signed-out' }
+  } catch {
+    return { state: 'error' }
+  }
+}
+
 function createServer(opts: ServerOptions = {}) {
   return Effect.gen(function* () {
     const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
@@ -296,6 +315,11 @@ function createServer(opts: ServerOptions = {}) {
           return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
         }
         return yield* websocket
+      }
+      if (request.method === 'GET' && url.pathname === '/api/integrations/github') {
+        if (!originAllowed(request.headers.origin))
+          return HttpServerResponse.text('Forbidden origin', { status: 403 })
+        return yield* HttpServerResponse.json(yield* Effect.promise(() => githubConnection()))
       }
       if (request.method === 'GET' && url.pathname.startsWith('/attachments/')) {
         const id = url.pathname.slice('/attachments/'.length)

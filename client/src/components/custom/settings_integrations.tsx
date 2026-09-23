@@ -2,15 +2,16 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ArrowClockwiseIcon, ArrowUpRightIcon, CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { MarkGithubIcon } from '@primer/octicons-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
-type Example = { state: 'connected' | 'signed-out' | 'missing' | 'error'; detail: string }
-const examples: Example[] = [
-  { state: 'connected', detail: 'Connected through GitHub CLI' },
-  { state: 'signed-out', detail: 'Sign in with GitHub CLI' },
-  { state: 'missing', detail: 'GitHub CLI isn’t installed' },
-  { state: 'error', detail: 'Couldn’t check connection' },
-]
+type ConnectionState = 'connected' | 'signed-out' | 'missing' | 'error' | 'checking'
+const details: Record<ConnectionState, string> = {
+  connected: 'Connected through GitHub CLI',
+  'signed-out': 'Sign in with GitHub CLI',
+  missing: 'GitHub CLI isn’t installed',
+  error: 'Couldn’t check connection',
+  checking: 'Checking connection…',
+}
 
 const actionClass =
   '-mr-2 inline-flex h-7 items-center justify-end gap-1.5 rounded-sm border border-transparent px-2 text-xs'
@@ -25,10 +26,29 @@ function ActionIcon({ children }: { children: ReactNode }) {
   )
 }
 
-function GitHubConnection({ example }: { example: Example }) {
+function GitHubConnection() {
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
-  const connected = example.state === 'connected'
+  const [state, setState] = useState<ConnectionState>('checking')
+  async function checkConnection() {
+    setState('checking')
+    setMessage('')
+    try {
+      const response = await fetch('/api/integrations/github')
+      if (!response.ok) throw new Error('Connection check failed')
+      const data: unknown = await response.json()
+      const next = (data as { state?: unknown }).state
+      if (next !== 'connected' && next !== 'signed-out' && next !== 'missing')
+        throw new Error('Invalid connection state')
+      setState(next)
+    } catch {
+      setState('error')
+    }
+  }
+  useEffect(() => {
+    void checkConnection()
+  }, [])
+  const connected = state === 'connected'
   async function copyCommand() {
     try {
       await navigator.clipboard.writeText('gh auth login')
@@ -40,7 +60,7 @@ function GitHubConnection({ example }: { example: Example }) {
   }
   return (
     <section
-      aria-label={`GitHub — ${example.detail}`}
+      aria-label={`GitHub — ${details[state]}`}
       className='flex flex-wrap items-center justify-between gap-x-4 gap-y-3'
     >
       <div className='flex items-center gap-3'>
@@ -48,10 +68,9 @@ function GitHubConnection({ example }: { example: Example }) {
         <div className='flex flex-col gap-1'>
           <div className='flex items-center gap-2'>
             <h3 className='text-13'>GitHub</h3>
-            {connected && <span className='text-xs text-muted-foreground'>@jettb</span>}
           </div>
           <p role='status' className='text-xs text-muted-foreground'>
-            {message || example.detail}
+            {message || details[state]}
           </p>
         </div>
       </div>
@@ -64,7 +83,7 @@ function GitHubConnection({ example }: { example: Example }) {
                 size='sm'
                 className={actionClass}
                 aria-label='Check GitHub connection'
-                onClick={() => setMessage('Preview: connection checked')}
+                onClick={() => void checkConnection()}
               />
             }
           >
@@ -74,7 +93,7 @@ function GitHubConnection({ example }: { example: Example }) {
           </TooltipTrigger>
           <TooltipContent>Check connection</TooltipContent>
         </Tooltip>
-      ) : example.state === 'signed-out' ? (
+      ) : state === 'signed-out' ? (
         <Tooltip>
           <TooltipTrigger
             render={
@@ -92,7 +111,7 @@ function GitHubConnection({ example }: { example: Example }) {
           </TooltipTrigger>
           <TooltipContent>Copy command, run in your terminal, then refresh</TooltipContent>
         </Tooltip>
-      ) : example.state === 'missing' ? (
+      ) : state === 'missing' ? (
         <a
           href='https://cli.github.com/'
           target='_blank'
@@ -104,19 +123,19 @@ function GitHubConnection({ example }: { example: Example }) {
             <ArrowUpRightIcon />
           </ActionIcon>
         </a>
-      ) : (
+      ) : state === 'error' ? (
         <Button
           variant='ghost-text'
           size='sm'
           className={actionClass}
-          onClick={() => setMessage('Preview: connection still unavailable')}
+          onClick={() => void checkConnection()}
         >
           Retry
           <ActionIcon>
             <ArrowClockwiseIcon />
           </ActionIcon>
         </Button>
-      )}
+      ) : null}
     </section>
   )
 }
@@ -124,11 +143,7 @@ function GitHubConnection({ example }: { example: Example }) {
 export function SettingsIntegrations() {
   return (
     <div className='flex flex-col gap-6'>
-      {examples.map((example, index) => (
-        <div key={example.state} className={index ? 'border-t border-border pt-6' : undefined}>
-          <GitHubConnection example={example} />
-        </div>
-      ))}
+      <GitHubConnection />
     </div>
   )
 }
