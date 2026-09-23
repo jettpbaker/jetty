@@ -299,7 +299,6 @@ export function createOrchestrator(
                 )
                   return { turnId: '' }
                 if (
-                  !input.sendNow &&
                   (thread.pendingMessages.find((m) => m.id === input.queued!.id)?.editingUntil ??
                     0) > Date.now()
                 )
