@@ -14,6 +14,30 @@ import { createSendVideoTool } from './send-video'
 import { StoreError } from './store'
 
 const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' }
+const modelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+function modelOptions(catalog: readonly ProviderModel[]) {
+  return catalog
+    .map(
+      (m) =>
+        `${providerNames[m.provider]} ${m.name} (${m.id}; efforts: ${m.efforts.join(', ') || 'none'})`
+    )
+    .join('; ')
+}
+
+function matchingModels(catalog: readonly ProviderModel[], name: string) {
+  const key = modelKey(name)
+  const exact = catalog.filter((m) => modelKey(m.id) === key || modelKey(m.name) === key)
+  if (exact.length) return exact
+  return catalog.filter((m) =>
+    [m.id, m.name].some((label) =>
+      label
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .some((part) => part === name.toLowerCase())
+    )
+  )
+}
 
 const text = z.string().trim().min(1).max(32_000)
 const requestId = z.string().min(1).max(200).optional()
@@ -87,13 +111,14 @@ export function createMcpHandler(
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Maximum 5 threads per turn')
             )
-          const provider = input.provider ?? identity.provider
-          const model = input.model ?? (provider === caller.provider ? caller.model : undefined)
           const catalog = models()
           if (!catalog)
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Provider discovery is still running; retry shortly')
             )
+          const matches = input.model ? matchingModels(catalog, input.model) : []
+          const provider =
+            input.provider ?? (matches.length === 1 ? matches[0]!.provider : identity.provider)
           const available = catalog.filter((m) => m.provider === provider)
           if (!available.length)
             return yield* Effect.fail(
@@ -102,13 +127,24 @@ export function createMcpHandler(
                 `${providerNames[provider]} isn't available here. Available: ${[...new Set(catalog.map((m) => providerNames[m.provider]))].join(', ') || 'none'}`
               )
             )
-          if (model && available?.length && !available.some((m) => m.id === model))
+          const selected = input.model
+            ? matches.filter((m) => m.provider === provider)
+            : available.filter((m) => m.id === caller.model && provider === caller.provider)
+          if (input.model && selected.length !== 1)
             return yield* Effect.fail(
-              new StoreError('invalid_params', 'Unknown model for provider')
+              new StoreError(
+                'invalid_params',
+                `Unknown or ambiguous model ${input.model}. Available: ${modelOptions(catalog)}`
+              )
             )
-          const selected = available?.find((m) => m.id === model)
-          if (input.effort && selected && !selected.efforts.includes(input.effort))
-            return yield* Effect.fail(new StoreError('invalid_params', 'Unsupported model effort'))
+          const model = selected[0]?.id
+          if (input.effort && selected[0] && !selected[0].efforts.includes(input.effort))
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                `Unsupported effort for ${selected[0].name}. Choose: ${selected[0].efforts.join(', ') || 'none'}`
+              )
+            )
           const id = newId()
           yield* store.createThread(caller.projectId, id)
           yield* store.markAgentThread(id, caller.id, input.notify)
@@ -117,7 +153,7 @@ export function createMcpHandler(
           const mode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
           yield* store.setPermissionMode(
             id,
-            selected?.autoMode === false ||
+            selected[0]?.autoMode === false ||
               models()?.find((m) => m.provider === caller.provider && m.id === caller.model)
                 ?.autoMode === false
               ? 'auto'
@@ -151,7 +187,8 @@ export function createMcpHandler(
                 input.requestId,
                 'send_message'
               )
-              if (previous) return { ...previous, title: target.title, duplicate: true }
+              if (previous)
+                return { ...previous, title: target.title, duplicate: true, busy: false }
             }
             const caller = yield* store.requireThread(identity.threadId)
             if (
@@ -176,7 +213,11 @@ export function createMcpHandler(
             const response = { threadId: target.id, title: target.title, messageId }
             if (input.requestId)
               yield* store.saveRequest(caller.id, input.requestId, 'send_message', response)
-            return { ...response, duplicate: false }
+            return {
+              ...response,
+              duplicate: false,
+              busy: ['starting', 'running', 'awaiting_approval'].includes(target.status),
+            }
           })
         )
         let delivery = 'queued'
@@ -192,6 +233,12 @@ export function createMcpHandler(
           title: response.title,
           messageId: response.messageId,
           delivery,
+          detail:
+            delivery === 'delivered'
+              ? response.busy
+                ? 'Steered into the running turn.'
+                : 'Delivered in a new turn.'
+              : 'Queued; the thread will read this when its current turn ends.',
         }
       })
     }
@@ -293,13 +340,19 @@ export function createMcpHandler(
           )
       )
       server.registerTool(
+        'list_models',
+        {
+          description:
+            'List live Jetty providers, model IDs and names, and supported effort levels for create_thread.',
+          inputSchema: {},
+        },
+        () => invoke(Effect.succeed(models() ?? []))
+      )
+      server.registerTool(
         'create_thread',
         {
-          description: `Create and start an independent top-level thread in your project with only this prompt. Optional provider/model can differ from yours. Notify defaults to true: completion is sent back for turns you start. Reuse requestId to retry safely. Available providers and models: ${
-            models()
-              ?.map((m) => `${providerNames[m.provider]}: ${m.id}`)
-              .join(', ') ?? 'discovery in progress'
-          }.`,
+          description:
+            'Delegate work to an independent Jetty agent in this project. The new thread works on its prompt in parallel; its result returns automatically as a ready for review message (notify defaults true). Choose provider/model/effort from list_models; model accepts an ID, display name, or unique short name. Reuse requestId to retry safely.',
           inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
@@ -308,7 +361,7 @@ export function createMcpHandler(
         'send_message',
         {
           description:
-            'Send a message to another thread in your project. Queues in order if busy, starts it if idle. Use steer=true only to redirect its current turn; if steering is unavailable the message stays queued and the call succeeds. Reuse requestId to retry safely.',
+            'Message another Jetty agent thread. Default: queue behind its current turn, so it cannot answer until that turn ends. Use steer=true for urgent corrections or status checks during a running turn; the result says whether it was steered or queued. Reuse requestId to retry safely.',
           inputSchema: sendInput,
         },
         (input) => invoke(sendMessage(identity, input))
