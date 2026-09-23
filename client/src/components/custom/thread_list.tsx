@@ -71,7 +71,15 @@ function ThreadItemRow({
         </MessageContent>
       </Message>
     )
-  if (row.kind === 'work') return <WorkBlock activities={row.activities} onApproval={onApproval} />
+  if (row.kind === 'work')
+    return (
+      <WorkBlock
+        activities={row.activities}
+        status={row.status}
+        elapsedSeconds={row.elapsedSeconds}
+        onApproval={onApproval}
+      />
+    )
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />

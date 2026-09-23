@@ -1,7 +1,7 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 
-import type { ToolKind, WorkActivity } from './work_model'
+import type { ActivityStatus, ToolKind, WorkActivity } from './work_model'
 
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
 type AssistantItem = Extract<ThreadItem, { kind: 'assistant_message' }>
@@ -15,7 +15,13 @@ export type ThreadRow =
   | { kind: 'user'; id: string; item: UserItem }
   | { kind: 'assistant'; id: string; item: AssistantItem; streaming: boolean }
   | { kind: 'plan'; id: string; item: PlanItem; streaming: boolean }
-  | { kind: 'work'; id: string; activities: WorkActivity[] }
+  | {
+      kind: 'work'
+      id: string
+      activities: WorkActivity[]
+      status: ActivityStatus
+      elapsedSeconds?: number
+    }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
@@ -65,16 +71,27 @@ function textRunning(
   return item.streaming ?? (isThreadTail && sessionRunning)
 }
 
-function toActivity(item: WorkItem, isThreadTail: boolean, sessionRunning: boolean): WorkActivity {
+function elapsedSeconds(start: ThreadItem, end: ThreadItem | undefined) {
+  return end?.turnId === start.turnId ? (end.createdAt - start.createdAt) / 1000 : undefined
+}
+
+function toActivity(
+  item: WorkItem,
+  next: ThreadItem | undefined,
+  sessionRunning: boolean,
+  sessionActive: boolean
+): WorkActivity {
   if (item.kind === 'reasoning') {
-    const running = textRunning(item, isThreadTail, sessionRunning)
+    const running = textRunning(item, !next, sessionRunning)
     return {
       type: 'thinking',
       id: item.id,
-      status: running ? 'running' : 'complete',
+      status: !running ? 'complete' : sessionActive ? 'running' : 'interrupted',
       summary: item.text,
       tokens: item.tokens,
-      elapsedSeconds: running ? Math.max(0, (Date.now() - item.createdAt) / 1000) : undefined,
+      elapsedSeconds: running
+        ? Math.max(0, (Date.now() - item.createdAt) / 1000)
+        : elapsedSeconds(item, next),
     }
   }
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
@@ -102,10 +119,22 @@ function toActivity(item: WorkItem, isThreadTail: boolean, sessionRunning: boole
     name: item.toolName,
     target: toolTarget(item.toolName, item.input),
     status:
-      item.status === 'failed' ? 'failed' : item.status === 'succeeded' ? 'complete' : 'running',
+      item.status === 'failed'
+        ? 'failed'
+        : item.status === 'succeeded'
+          ? 'complete'
+          : sessionActive
+            ? 'running'
+            : 'interrupted',
     input,
     output: item.output,
   }
+}
+
+function workStatus(activities: readonly WorkActivity[]): ActivityStatus {
+  for (const status of ['waiting', 'running', 'interrupted', 'failed'] as const)
+    if (activities.some((activity) => activity.status === status)) return status
+  return 'complete'
 }
 
 function isWork(item: ThreadItem): item is WorkItem {
@@ -116,13 +145,19 @@ export function threadRows(items: readonly ThreadItem[], status: SessionStatus):
   const rows: ThreadRow[] = []
   const tailId = items.at(-1)?.id
   const sessionRunning = status === 'running' || status === 'starting'
+  const sessionActive = sessionRunning || status === 'awaiting_approval'
   let pending: WorkItem[] = []
-  function flush() {
+  function flush(next: ThreadItem | undefined) {
     if (pending.length === 0) return
+    const activities = pending.map((item, index) =>
+      toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive)
+    )
     rows.push({
       kind: 'work',
       id: pending[0]!.id,
-      activities: pending.map((item) => toActivity(item, item.id === tailId, sessionRunning)),
+      activities,
+      status: workStatus(activities),
+      elapsedSeconds: elapsedSeconds(pending[0]!, next),
     })
     pending = []
   }
@@ -131,7 +166,7 @@ export function threadRows(items: readonly ThreadItem[], status: SessionStatus):
       pending.push(item)
       continue
     }
-    flush()
+    flush(item)
     switch (item.kind) {
       case 'user_message':
         rows.push({ kind: 'user', id: item.id, item })
@@ -166,6 +201,6 @@ export function threadRows(items: readonly ThreadItem[], status: SessionStatus):
         break
     }
   }
-  flush()
+  flush(undefined)
   return rows
 }

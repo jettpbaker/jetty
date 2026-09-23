@@ -1,4 +1,10 @@
-type ToolStatus = 'running' | 'complete' | 'failed' | 'cancelled' | 'waiting'
+export type ActivityStatus =
+  | 'running'
+  | 'complete'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted'
+  | 'waiting'
 export type ToolKind = 'read' | 'edit' | 'write' | 'search' | 'terminal' | 'web' | 'generic'
 export type ToolActivity = {
   type: 'tool'
@@ -6,14 +12,14 @@ export type ToolActivity = {
   kind: ToolKind
   name: string
   target: string
-  status: ToolStatus
+  status: ActivityStatus
   input?: string
   output?: string
 }
 export type ThinkingActivity = {
   type: 'thinking'
   id: string
-  status: 'running' | 'complete'
+  status: ActivityStatus
   summary: string
   tokens?: number
   elapsedSeconds?: number
@@ -77,6 +83,14 @@ const vocabulary = {
   { active: string; done: string; failed: string; noun: string; singular: string }
 >
 
+export function formatActivityDuration(seconds?: number) {
+  if (seconds === undefined) return undefined
+  const value = Math.max(0, Math.floor(seconds))
+  if (value < 60) return `${value}s`
+  if (value < 3600) return `${Math.floor(value / 60)}m ${value % 60}s`
+  return `${Math.floor(value / 3600)}h ${Math.floor((value % 3600) / 60)}m`
+}
+
 export function groupWorkActivities(activities: readonly WorkActivity[], ended: boolean) {
   const entries: WorkEntry[] = []
   for (const activity of activities) {
@@ -106,11 +120,12 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
 export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const first = calls[0]!
   const latest = calls.at(-1)!
-  const count = (status: ToolStatus) => calls.filter((call) => call.status === status).length
+  const count = (status: ActivityStatus) => calls.filter((call) => call.status === status).length
   const running = calls.filter((call) => call.status === 'running')
   const completed = count('complete')
   const failed = count('failed')
   const cancelled = count('cancelled')
+  const interrupted = count('interrupted')
   const waiting = count('waiting')
   const words = vocabulary[first.kind]
   const active = running.length > 0 && waiting === 0
@@ -124,14 +139,19 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
       : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done
   if (waiting) verb = 'Awaiting approval for'
-  else if (!active && failed + cancelled > 0 && !(summarise && completed)) {
+  else if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
     if (latest.status === 'failed') verb = words.failed
     else if (latest.status === 'cancelled') verb = 'Cancelled'
+    else if (latest.status === 'interrupted') verb = 'Interrupted'
   }
   const notices =
     calls.length === 1
       ? ''
-      : [failed && `${failed} failed`, cancelled && `${cancelled} cancelled`]
+      : [
+          failed && `${failed} failed`,
+          cancelled && `${cancelled} cancelled`,
+          interrupted && `${interrupted} interrupted`,
+        ]
           .filter(Boolean)
           .join(', ')
   return {

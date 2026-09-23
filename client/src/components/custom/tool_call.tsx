@@ -37,7 +37,7 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
               ? 'Waiting for output…'
               : call.status === 'waiting'
                 ? 'Waiting for approval.'
-                : call.status === 'cancelled'
+                : call.status === 'cancelled' || call.status === 'interrupted'
                   ? 'No output received.'
                   : call.output === ''
                     ? 'Completed with no output.'

@@ -2,20 +2,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useCallback, useId, useState } from 'react'
 
-import type { ThinkingActivity } from './work_model'
-
 import { ActivityContent } from './activity_content'
-
-function formatDuration(seconds: number) {
-  const value = Math.max(0, Math.floor(seconds))
-  if (value < 60) return `${value}s`
-  if (value < 3600) return `${Math.floor(value / 60)}m ${value % 60}s`
-  return `${Math.floor(value / 3600)}h ${Math.floor((value % 3600) / 60)}m`
-}
+import { formatActivityDuration, type ThinkingActivity } from './work_model'
 
 export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
-  const active = activity.status === 'running'
-  const ended = !active
+  const ended = ['complete', 'failed', 'cancelled', 'interrupted'].includes(activity.status)
   const [previousEnded, setPreviousEnded] = useState(ended)
   const contentId = useId()
   const [expanded, setExpanded] = useState(false)
@@ -38,17 +29,22 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
     update()
     return () => observer.disconnect()
   }, [])
-  const length =
-    activity.tokens !== undefined
-      ? `${activity.tokens.toLocaleString('en')} tokens`
-      : activity.elapsedSeconds !== undefined
-        ? formatDuration(activity.elapsedSeconds)
-        : undefined
-  const titleSuffix = length ? ` for ${length}` : active ? '…' : ''
+  const active = activity.status === 'running'
+  const tokens =
+    activity.tokens === undefined ? undefined : `${activity.tokens.toLocaleString('en')} tokens`
+  const duration = formatActivityDuration(activity.elapsedSeconds)
+  const state = active
+    ? 'Thinking'
+    : activity.status === 'complete'
+      ? 'Thought'
+      : activity.status === 'waiting'
+        ? 'Thinking paused'
+        : `Thinking ${activity.status}`
+  const titleSuffix = (tokens ?? duration) ? ` for ${tokens ?? duration}` : active ? '…' : ''
   const summary = activity.summary.trim()
   const heading = (
     <span>
-      <span className={cn(active && 'shimmer')}>{active ? 'Thinking' : 'Thought'}</span>
+      <span className={cn(active && 'shimmer')}>{state}</span>
       {titleSuffix}
     </span>
   )
