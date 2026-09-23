@@ -23,6 +23,7 @@ import {
   useChrome,
   useCreateThread,
   useDismissQuestion,
+  useDraft,
   useInterruptTurn,
   useLoadouts,
   useQueueActions,
@@ -56,10 +57,13 @@ export function ThreadComposer({
   projectPath?: string
   projectTitle?: string
 }) {
-  const [draft, setDraft] = useState('')
-  const [editing, setEditing] = useState<string>()
+  const draftKey = threadId ?? ''
+  const { draft: saved, update } = useDraft(draftKey)
+  const draft = saved.text
+  const editing = saved.editing
+  const setDraft = (text: string) => update({ text })
   const [chosen, setChosen] = useState(0)
-  const attachments = useImageAttachments()
+  const attachments = useImageAttachments(draftKey)
   const { loadouts, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
@@ -127,13 +131,11 @@ export function ThreadComposer({
     if (threadId && text && editingEntry) queueActions.edit(threadId, editingEntry.id, text)
     else if (threadId && running) queueActions.add(threadId, text, attachments.take())
     else return startTurn(text)
-    setEditing(undefined)
-    setDraft('')
+    update({ text: '', editing: undefined })
   }
 
   function changeDraft(value: string) {
-    setDraft(value)
-    if (!value.trim()) setEditing(undefined)
+    update(value.trim() ? { text: value } : { text: value, editing: undefined })
   }
 
   const queueControl = {
@@ -148,8 +150,7 @@ export function ThreadComposer({
       const previous = draft.trim()
       if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
       else if (previous) queueActions.add(threadId, previous, attachments.take())
-      setEditing(entry.id)
-      setDraft(entry.text)
+      update({ text: entry.text, editing: entry.id })
     },
     remove(entry: QueuedMessage) {
       if (threadId) queueActions.remove(threadId, entry.id)
@@ -226,8 +227,7 @@ export function ThreadComposer({
             onSubmit: submit,
             onKeyDown: keyHandler((event) => {
               if (event.key !== 'Escape' || !editing) return false
-              setEditing(undefined)
-              setDraft('')
+              update({ text: '', editing: undefined })
               return true
             }),
           }

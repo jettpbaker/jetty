@@ -23,6 +23,7 @@ function Thread() {
   const agent = agents.find((entry) => entry.id === tab)
   const composer = (
     <ThreadComposer
+      key={threadId}
       threadId={threadId}
       items={overlay.serverItems}
       running={overlay.running}

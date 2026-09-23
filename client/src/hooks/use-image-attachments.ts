@@ -1,10 +1,11 @@
+import { useDraft } from '@/state'
 import {
   MAX_IMAGE_BYTES,
   MAX_IMAGES_PER_TURN,
   MAX_TURN_IMAGE_BYTES,
   UploadAttachment,
 } from '@jetty/shared/wire'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 
 type ImageType = UploadAttachment['mimeType']
 
@@ -76,18 +77,18 @@ async function encode(file: File, type: ImageType) {
   }
 }
 
-export function useImageAttachments() {
-  const [images, setImages] = useState<readonly ComposerImage[]>([])
+export function useImageAttachments(key: string) {
+  const { draft, update: updateDraft, read } = useDraft(key)
+  const images = draft.images
   const [error, setError] = useState<string>()
-  const current = useRef(images)
+  const current = () => read().images
 
   function update(next: readonly ComposerImage[]) {
-    current.current = next
-    setImages(next)
+    updateDraft({ images: next })
   }
 
   function patch(url: string, change: (image: ComposerImage) => ComposerImage | undefined) {
-    update(current.current.flatMap((image) => (image.url === url ? (change(image) ?? []) : image)))
+    update(current().flatMap((image) => (image.url === url ? (change(image) ?? []) : image)))
   }
 
   function drop(url: string, problem: string | undefined) {
@@ -98,13 +99,13 @@ export function useImageAttachments() {
 
   async function prepare(url: string, file: File, type: ImageType) {
     const encoded = await encode(file, type).catch(() => undefined)
-    if (!current.current.some((image) => image.url === url)) return
+    if (!current().some((image) => image.url === url)) return
     if (!encoded) return drop(url, `Couldn't read ${file.name}.`)
     const { blob, dataUrl, width, height } = encoded
     if (blob.size > MAX_IMAGE_BYTES) {
       return drop(url, `${file.name} must be under ${megabytes(MAX_IMAGE_BYTES)}.`)
     }
-    const others = current.current.filter((image) => image.url !== url && image.dataUrl)
+    const others = current().filter((image) => image.url !== url && image.dataUrl)
     if (others.reduce((sum, image) => sum + image.sizeBytes, blob.size) > MAX_TURN_IMAGE_BYTES) {
       return drop(url, `Images in one message must total under ${megabytes(MAX_TURN_IMAGE_BYTES)}.`)
     }
@@ -121,7 +122,7 @@ export function useImageAttachments() {
         problems.push(`${file.name} isn't a PNG, JPEG, GIF or WebP image.`)
       } else if (file.size === 0) {
         problems.push(`${file.name} is empty.`)
-      } else if (current.current.length + added.length >= MAX_IMAGES_PER_TURN) {
+      } else if (current().length + added.length >= MAX_IMAGES_PER_TURN) {
         overflow = true
       } else {
         const url = URL.createObjectURL(file)
@@ -131,7 +132,7 @@ export function useImageAttachments() {
     }
     if (overflow) problems.push(`Up to ${MAX_IMAGES_PER_TURN} images per message.`)
     setError(problems.length > 0 ? problems.join(' ') : undefined)
-    if (added.length > 0) update([...current.current, ...added])
+    if (added.length > 0) update([...current(), ...added])
   }
 
   function remove(url: string) {
@@ -139,7 +140,7 @@ export function useImageAttachments() {
   }
 
   function take(): ReadyImage[] {
-    const ready = current.current.flatMap((image) =>
+    const ready = current().flatMap((image) =>
       image.dataUrl ? [{ ...image, dataUrl: image.dataUrl }] : []
     )
     update([])
@@ -155,13 +156,6 @@ export function useImageAttachments() {
       if (dropTarget === receive) dropTarget = undefined
     }
   }, [])
-
-  useEffect(
-    () => () => {
-      for (const image of current.current) URL.revokeObjectURL(image.url)
-    },
-    []
-  )
 
   return {
     images,
