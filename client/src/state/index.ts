@@ -1,6 +1,7 @@
 export { useAccessMode } from './access_mode'
 export { useBrowse } from './browse'
 export { useChrome, type Chrome } from './chrome'
+export { useMarkThreadSeen } from './mutations'
 export { useDiffFileLoader, useThreadDiff } from './diff'
 export { useDraft } from './drafts'
 export { useLoadouts } from './loadouts'

@@ -13,6 +13,7 @@ const subagentGlyphColor: Record<ThreadStatus, string> = {
   working: 'text-primary',
   'needs-attention': 'text-primary',
   idle: 'text-status-success',
+  ready: 'text-status-success',
   error: 'text-pr-closed',
 }
 

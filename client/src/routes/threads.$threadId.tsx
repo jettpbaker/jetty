@@ -11,13 +11,14 @@ import {
   useArchiveThread,
   useBumpDraft,
   useChrome,
+  useMarkThreadSeen,
   useThread,
   useThreadOverlay,
   useThreadTab,
 } from '@/state'
 import { ComposeIcon } from '@primer/octicons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
 
@@ -27,6 +28,10 @@ function Thread() {
   const overlay = useThreadOverlay(threadId, thread)
   const chrome = useChrome()
   const meta = chrome?.threads.find((item) => item.id === threadId)
+  const markSeen = useMarkThreadSeen()
+  useEffect(() => {
+    markSeen(threadId)
+  }, [markSeen, threadId, meta?.turnEndedAt])
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
   const projectPath = project?.path
   const [tab, setTab] = useThreadTab(threadId)

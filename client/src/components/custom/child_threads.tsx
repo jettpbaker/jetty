@@ -17,7 +17,7 @@ import { ProviderGlyph } from './provider_glyph'
 import { formatDuration, renderWorkingTitle } from './subagent_row'
 import { ThreadStatusGlyph } from './thread_status'
 
-export type ChildStatus = 'working' | 'needs-attention' | 'done' | 'error'
+export type ChildStatus = 'working' | 'needs-attention' | 'done' | 'ready' | 'error'
 type Environment = 'container' | 'local'
 
 export type ChildThread = {
@@ -34,9 +34,9 @@ export type ChildThread = {
 
 type Open = (child: ChildThread) => void
 
-const statusOrder: ChildStatus[] = ['needs-attention', 'working', 'error', 'done']
+const statusOrder: ChildStatus[] = ['needs-attention', 'ready', 'working', 'error', 'done']
 
-function childStatus(status: SessionStatus): ChildStatus {
+function childStatus(status: SessionStatus, readyForReview = false): ChildStatus {
   switch (status) {
     case 'starting':
     case 'running':
@@ -46,7 +46,7 @@ function childStatus(status: SessionStatus): ChildStatus {
     case 'error':
       return 'error'
     case 'idle':
-      return 'done'
+      return readyForReview ? 'ready' : 'done'
   }
 }
 
@@ -66,7 +66,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string, now: number)
               thread.model)
             : undefined,
         env: 'local',
-        status: childStatus(thread.status),
+        status: childStatus(thread.status, thread.readyForReview),
         lastActivity: formatAge(thread.updatedAt, now),
         runDuration:
           thread.turnStartedAt === undefined ||
@@ -95,6 +95,7 @@ const statusLabel: Record<ChildStatus, string> = {
   working: 'Working',
   'needs-attention': 'Needs input',
   done: 'Finished',
+  ready: 'Ready for review',
   error: 'Failed',
 }
 

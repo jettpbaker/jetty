@@ -12,7 +12,19 @@ export type ThreadPatch = {
   pinned?: boolean
   archived?: boolean
   provider?: ProviderId
+  readyForReview?: boolean
 }
+
+function markThreadSeen(registry: Registry, threadId: string) {
+  setPatch(registry, threadId, { readyForReview: false })
+  run(registry, (connection) =>
+    connection
+      .request('thread.markSeen', { threadId })
+      .pipe(Effect.ensuring(Effect.sync(() => clearPatch(registry, threadId, 'readyForReview'))))
+  )
+}
+
+export const useMarkThreadSeen = () => useAction(markThreadSeen)
 
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
   Atom.keepAlive

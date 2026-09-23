@@ -24,6 +24,7 @@ export type SidebarThread = {
 
 const statusGroups = [
   { id: 'needs-attention', label: 'Needs input' },
+  { id: 'ready', label: 'Ready for review' },
   { id: 'error', label: 'Error' },
   { id: 'working', label: 'Working' },
   { id: 'idle', label: 'Idle' },

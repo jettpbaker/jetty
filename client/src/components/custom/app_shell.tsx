@@ -131,7 +131,11 @@ function Workspace({
                 <ThreadTab
                   value={MAIN_TAB}
                   title={tabbed.thread?.title ?? 'Thread'}
-                  status={tabbed.thread ? threadStatus(tabbed.thread.status) : 'idle'}
+                  status={
+                    tabbed.thread
+                      ? threadStatus(tabbed.thread.status, tabbed.thread.readyForReview)
+                      : 'idle'
+                  }
                 />
                 {tabbed.agents.map((agent) => (
                   <ThreadTab

@@ -69,7 +69,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     project: projects.get(thread.projectId)?.title ?? '',
     projectIcon: projects.get(thread.projectId)?.icon,
     parent: thread.parentThreadId && titles.get(thread.parentThreadId),
-    status: threadStatus(thread.status),
+    status: threadStatus(thread.status, thread.readyForReview),
     lastActivity: formatAge(thread.updatedAt, now),
     updatedAt: thread.updatedAt,
     pinned: thread.pinned,
