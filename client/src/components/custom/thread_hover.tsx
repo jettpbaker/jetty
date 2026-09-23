@@ -1,12 +1,14 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
+import { Button } from '@/components/ui/button'
+import { pressProps } from '@/lib/press'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
-import { prPresentation, type ThreadPullRequest } from './thread_pull_request'
+import { prPresentation, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadStatusGlyph, statusPresentation, type ThreadStatus } from './thread_status'
 import './thread_hover.css'
 
@@ -21,6 +23,7 @@ export type ThreadDetails = {
 
 type ThreadHoverContentProps = {
   details: ThreadDetails
+  onOpenPullRequest: () => void
   model?: string
   effort?: string
   status: ThreadStatus
@@ -78,9 +81,16 @@ export function ThreadHoverCard({
   )
 }
 
-function ThreadHoverContent({ details, model, effort, status }: ThreadHoverContentProps) {
+function ThreadHoverContent({
+  details,
+  model,
+  effort,
+  status,
+  onOpenPullRequest,
+}: ThreadHoverContentProps) {
   const { pullRequest } = details
   const pr = pullRequest && prPresentation[pullRequest.state]
+  const prLabel = pullRequest && pullRequestLabel(pullRequest)
   return (
     <div
       data-overflow-hover
@@ -117,15 +127,17 @@ function ThreadHoverContent({ details, model, effort, status }: ThreadHoverConte
           {effort && <span className='text-muted-foreground'>{effort}</span>}
         </span>
         <span className='ml-auto shrink-0 pl-2'>
-          {pullRequest && pr ? (
-            <span
-              className='flex items-center gap-1 text-muted-foreground'
-              title={`${pr.label} PR #${pullRequest.number}`}
+          {pr && prLabel ? (
+            <Button
+              variant='ghost-text'
+              className='h-auto gap-1 p-0 text-xs font-normal'
+              title={prLabel.title}
+              {...pressProps(onOpenPullRequest)}
             >
               <pr.icon className={`size-3 ${pr.color}`} aria-hidden='true' />
-              <span className='font-mono'>{`#${pullRequest.number}`}</span>
+              <span className='font-mono'>{prLabel.text}</span>
               <span className='sr-only'>{pr.label}</span>
-            </span>
+            </Button>
           ) : (
             <span className='text-muted-foreground'>No pull requests</span>
           )}

@@ -18,6 +18,7 @@ import {
   useBumpDraft,
   useChrome,
   useDeleteThread,
+  useOpenPullRequest,
   usePinThread,
   useThreadRowPrefetch,
   useRenameThread,
@@ -90,7 +91,9 @@ function latestPullRequest(links: readonly PullRequestLink[]) {
       !best || (link.updatedAt ?? link.linkedAt) > (best.updatedAt ?? best.linkedAt) ? link : best,
     undefined
   )
-  return latest?.state ? { number: latest.number, state: latest.state } : undefined
+  return latest?.state
+    ? { repo: latest.repo, number: latest.number, state: latest.state, count: links.length }
+    : undefined
 }
 
 export function AppSidebar() {
@@ -106,6 +109,7 @@ export function AppSidebar() {
   const [showPinned, setShowPinned] = useState(true)
   const [showArchived, setShowArchived] = useState(false)
   const prefetch = useThreadRowPrefetch()
+  const openPullRequest = useOpenPullRequest()
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query, showPinned, showArchived)
@@ -299,6 +303,9 @@ export function AppSidebar() {
                       }}
                       onSelect={() =>
                         navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
+                      }
+                      onOpenPullRequest={() =>
+                        thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)
                       }
                     />
                   </motion.div>

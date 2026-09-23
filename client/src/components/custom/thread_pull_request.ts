@@ -12,4 +12,19 @@ export const prPresentation = {
   closed: { icon: GitPullRequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
 }
 
-export type ThreadPullRequest = { number: number; state: keyof typeof prPresentation }
+export function pullRequestLabel(pullRequest: ThreadPullRequest) {
+  const pr = prPresentation[pullRequest.state]
+  return pullRequest.count > 1
+    ? {
+        text: `${pullRequest.count} PRs`,
+        title: `${pr.label} PR #${pullRequest.number} · most recently updated`,
+      }
+    : { text: `#${pullRequest.number}`, title: `${pr.label} PR #${pullRequest.number}` }
+}
+
+export type ThreadPullRequest = {
+  repo: string
+  number: number
+  state: keyof typeof prPresentation
+  count: number
+}
