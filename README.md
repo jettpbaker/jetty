@@ -46,9 +46,9 @@ handling is lazy everywhere: a dying stream is its own detection, every store is
 append-as-you-go, and stale state is reconciled at the next boot instead of watched.
 
 Claude runs on your installed Claude Code, so its auto-updates (and new models) reach
-jetty without a dependency bump. `JETTY_CLAUDE_BIN` selects the executable (an
-absolute path; default `claude` on the server's `PATH`); with neither, jetty falls
-back to the Agent SDK's bundled CLI and logs a warning at startup.
+jetty without a dependency bump. `JETTY_CLAUDE_BIN` selects the executable (default
+`claude`, resolved on the server's `PATH`); if it doesn't resolve, jetty falls back to
+the Agent SDK's bundled CLI and logs a warning at startup.
 
 Stack: Bun + bun:sqlite, TypeScript, zod contracts in `shared/`, React 19 + Vite +
 TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.
