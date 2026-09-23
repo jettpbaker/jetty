@@ -1,4 +1,5 @@
-import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
+import type { ReadyImage } from '@/hooks/use-image-attachments'
+import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
@@ -16,7 +17,7 @@ import { awaitCreation, clearPatch, setPatch, without, withoutId } from './mutat
 
 type Registry = AtomRegistry.AtomRegistry
 
-type PendingPrompt = { text: string; priorCount: number }
+type PendingPrompt = { text: string; priorCount: number; images: readonly Attachment[] }
 type Answers = Readonly<Record<string, string>>
 
 const draftKey = ''
@@ -39,6 +40,10 @@ function withPrompts(
 ) {
   if (list.length === 0) return without(prompts, [threadId])
   return new Map(prompts).set(threadId, list)
+}
+
+function releasePrompts(prompts: readonly PendingPrompt[]) {
+  for (const prompt of prompts) for (const image of prompt.images) URL.revokeObjectURL(image.id)
 }
 
 function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly ThreadItem[]) {
@@ -87,7 +92,7 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
     turnId: 'pending',
     createdAt: 0,
     text: prompt.text,
-    attachments: [],
+    attachments: prompt.images,
   }))
 }
 
@@ -96,14 +101,25 @@ function sendTurn(
   threadId: string,
   text: string,
   priorCount: number,
-  loadout: Loadout | undefined
+  loadout: Loadout | undefined,
+  images: readonly ReadyImage[] = []
 ) {
   if (loadout)
     registry.update(loadoutOverridesAtom, (overrides) =>
       new Map(without(overrides, [draftKey])).set(threadId, loadout)
     )
+  const prompt: PendingPrompt = {
+    text,
+    priorCount,
+    images: images.map(({ url, name, mimeType, sizeBytes }) => ({
+      id: url,
+      name,
+      mimeType,
+      sizeBytes,
+    })),
+  }
   registry.update(pendingPromptsAtom, (prompts) =>
-    withPrompts(prompts, threadId, [...(prompts.get(threadId) ?? []), { text, priorCount }])
+    withPrompts(prompts, threadId, [...(prompts.get(threadId) ?? []), prompt])
   )
   registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
   if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
@@ -117,17 +133,23 @@ function sendTurn(
             text,
             ...loadout,
             permissionMode: registry.get(accessModeAtom),
+            ...(images.length > 0
+              ? {
+                  attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                    name,
+                    mimeType,
+                    dataUrl,
+                  })),
+                }
+              : {}),
           })
         )
       ),
     () => {
       clearPatch(registry, threadId, 'provider')
+      releasePrompts([prompt])
       registry.update(pendingPromptsAtom, (prompts) => {
-        const list = [...(prompts.get(threadId) ?? [])]
-        const index = list.findLastIndex(
-          (prompt) => prompt.text === text && prompt.priorCount === priorCount
-        )
-        if (index >= 0) list.splice(index, 1)
+        const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)
         return withPrompts(prompts, threadId, list)
       })
       registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
@@ -267,11 +289,11 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   const live = status === 'running' || status === 'starting'
 
   useEffect(() => {
-    registry.update(pendingPromptsAtom, (map) => {
-      const current = map.get(threadId) ?? []
-      const left = unmatchedPrompts(current, items)
-      return left.length === current.length ? map : withPrompts(map, threadId, left)
-    })
+    const current = registry.get(pendingPromptsAtom).get(threadId) ?? []
+    const left = unmatchedPrompts(current, items)
+    if (left.length === current.length) return
+    releasePrompts(current.filter((prompt) => !left.includes(prompt)))
+    registry.update(pendingPromptsAtom, (map) => withPrompts(map, threadId, left))
   }, [items, registry, threadId])
 
   useEffect(() => {

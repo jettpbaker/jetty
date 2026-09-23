@@ -2,6 +2,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { Composer } from '@/components/custom/composer'
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
+import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { newThreadProject } from '@/lib/thread_project'
 import {
   useAccessMode,
@@ -27,6 +28,7 @@ export function ThreadComposer({
   rows: number
 }) {
   const [draft, setDraft] = useState('')
+  const attachments = useImageAttachments()
   const { loadouts, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
@@ -40,12 +42,12 @@ export function ThreadComposer({
 
   function submit() {
     const text = draft.trim()
-    if (!text) return
+    if (!text && attachments.images.length === 0) return
     const id = threadId ?? (projectId ? createThread(projectId) : undefined)
     if (!id) return
     const prior = items.filter((item) => item.kind === 'user_message' && item.text === text).length
     setDraft('')
-    sendTurn(id, text, prior, loadout)
+    sendTurn(id, text, prior, loadout, attachments.take())
     if (!threadId) void navigate({ to: '/threads/$threadId', params: { threadId: id } })
   }
 
@@ -75,6 +77,7 @@ export function ThreadComposer({
         }
         accessMode={accessMode}
         onAccessModeChange={setAccessMode}
+        attachments={attachments}
         rows={rows}
       />
     </div>

@@ -25,7 +25,11 @@ export function UserMessage({
                   attachment.mimeType.startsWith('image/') ? (
                     <img
                       key={attachment.id}
-                      src={`/attachments/${attachment.id}`}
+                      src={
+                        attachment.id.startsWith('blob:')
+                          ? attachment.id
+                          : `/attachments/${attachment.id}`
+                      }
                       alt={attachment.name}
                       className='max-h-64 rounded-md'
                     />
