@@ -20,6 +20,9 @@ export const ThreadState = Schema.Struct({
   turnOutcomes: Schema.Record(Schema.String, TurnOutcome).pipe(
     Schema.withDecodingDefault(Effect.succeed({}))
   ),
+  lastTurnOutcome: Schema.NullOr(TurnOutcome).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null))
+  ),
 })
 export type ThreadState = Schema.Schema.Type<typeof ThreadState>
 
@@ -30,6 +33,7 @@ export const emptyThread: ThreadState = {
   lastSeq: 0,
   context: null,
   turnOutcomes: {},
+  lastTurnOutcome: null,
 }
 
 export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEvent): ThreadState {
@@ -40,51 +44,35 @@ export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEven
 function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState {
   switch (event.type) {
     case 'turn.started':
-      return { ...state, activeTurnId: event.turnId, status: 'running' }
+      return { ...state, activeTurnId: event.turnId, lastTurnOutcome: null, status: 'running' }
     case 'turn.completed':
     case 'turn.failed':
       const outcome = turnOutcome(event)
-      return {
+      return deriveStatus({
         ...state,
         turnOutcomes: {
           ...state.turnOutcomes,
           [event.turnId]: outcome,
         },
         activeTurnId: null,
-        status: state.items.some(
-          (item) =>
-            item.kind === 'question' &&
-            item.delivery === 'async' &&
-            !item.answers &&
-            !item.dismissed
-        )
-          ? 'awaiting_approval'
-          : state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
-            ? 'running'
-            : outcome === 'failed' || outcome === 'server_restarted'
-              ? 'error'
-              : 'idle',
+        lastTurnOutcome: outcome,
         items: state.items.map((item) => settleStreaming(item, ts)),
-      }
+      })
     case 'item.started':
-      return {
+      return deriveStatus({
         ...state,
         items: [...state.items, event.item],
-        status:
-          event.item.kind === 'workflow' && event.item.status === 'running'
-            ? 'running'
-            : state.status,
-      }
+      })
     case 'item.delta':
       return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
     case 'item.updated':
-      return workflowStatus(
+      return deriveStatus(
         updateItem(state, event.itemId, (item) =>
           Schema.decodeUnknownSync(ThreadItem)({ ...item, ...event.patch })
         )
       )
     case 'item.completed':
-      return workflowStatus(
+      return deriveStatus(
         updateItem(state, event.itemId, (item) =>
           Schema.decodeUnknownSync(ThreadItem)({
             ...settleStreaming(item, ts),
@@ -100,18 +88,19 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
   }
 }
 
-function workflowStatus(state: ThreadState): ThreadState {
+function deriveStatus(state: ThreadState): ThreadState {
   if (state.activeTurnId) return state
   return {
     ...state,
     status: state.items.some(
       (item) =>
-        item.kind === 'question' && item.delivery === 'async' && !item.answers && !item.dismissed
+        (item.kind === 'approval' && !item.decision && !item.completedAt) ||
+        (item.kind === 'question' && item.delivery === 'async' && !item.answers && !item.dismissed)
     )
       ? 'awaiting_approval'
       : state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
         ? 'running'
-        : state.status === 'error'
+        : state.lastTurnOutcome === 'failed' || state.lastTurnOutcome === 'server_restarted'
           ? 'error'
           : 'idle',
   }

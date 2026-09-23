@@ -42,6 +42,7 @@ type ThreadRow = {
   project_id: string
   title: string
   status: SessionStatus
+  queue_paused: number
   archived: number
   pinned: number
   ready_for_review: number
@@ -104,6 +105,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     projectId: row.project_id,
     title: row.title,
     status: row.status,
+    queuePaused: row.queue_paused !== 0,
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
     readyForReview: row.ready_for_review !== 0,
@@ -834,7 +836,7 @@ export function createStore() {
         return Effect.gen(function* () {
           yield* sql`UPDATE threads SET ready_for_review = 1 WHERE id = ${threadId}
             AND turn_ended_at = ${turnEndedAt} AND review_seen_at < ${turnEndedAt}
-            AND status = 'idle'`
+            AND json_extract((SELECT state_json FROM thread_states WHERE thread_id = ${threadId}), '$.activeTurnId') IS NULL`
           const thread = yield* requireThread(threadId)
           return thread.readyForReview ? thread : null
         }).pipe(Effect.mapError(storeError))
