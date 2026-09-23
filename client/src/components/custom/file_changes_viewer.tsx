@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useResolvedTheme } from '@/lib/theme'
 import { CaretDownIcon, CaretRightIcon, SidebarIcon } from '@phosphor-icons/react'
 import { CodeView, type CodeViewHandle } from '@pierre/diffs/react'
@@ -26,6 +25,7 @@ import {
   type ReactNode,
 } from 'react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import {
   diffId,
   loadedFiles,
@@ -402,12 +402,11 @@ export function FileChangesViewer({
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start' className='w-max min-w-32'>
                 <DropdownMenuRadioGroup value='uncommitted'>
-                  <Tooltip>
-                    <TooltipTrigger render={<DropdownMenuRadioItem value='branch' disabled />}>
+                  <DisabledTooltip reason='Coming soon' side='right'>
+                    <DropdownMenuRadioItem value='branch' disabled>
                       Branch
-                    </TooltipTrigger>
-                    <TooltipContent side='right'>Coming soon</TooltipContent>
-                  </Tooltip>
+                    </DropdownMenuRadioItem>
+                  </DisabledTooltip>
                   <DropdownMenuRadioItem value='uncommitted'>Uncommitted</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
@@ -429,19 +428,19 @@ export function FileChangesViewer({
               >
                 Unified
               </TabsTrigger>
-              <Tooltip disabled={wide}>
-                <TooltipTrigger render={<span className='inline-flex' />}>
-                  <TabsTrigger
-                    value='split'
-                    className='details-header-tab h-auto rounded-sm px-2 py-1 text-xs disabled:pointer-events-auto disabled:cursor-not-allowed aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed aria-disabled:hover:text-muted-foreground dark:aria-disabled:hover:text-muted-foreground'
-                    disabled={!wide}
-                    aria-label='Split diff'
-                  >
-                    Split
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Widen the viewer to use split diff</TooltipContent>
-              </Tooltip>
+              <DisabledTooltip
+                reason={wide ? undefined : 'Widen the viewer to use split diff'}
+                wrap='inline-flex'
+              >
+                <TabsTrigger
+                  value='split'
+                  className='details-header-tab h-auto rounded-sm px-2 py-1 text-xs disabled:pointer-events-auto disabled:cursor-not-allowed aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed aria-disabled:hover:text-muted-foreground dark:aria-disabled:hover:text-muted-foreground'
+                  disabled={!wide}
+                  aria-label='Split diff'
+                >
+                  Split
+                </TabsTrigger>
+              </DisabledTooltip>
             </TabsList>
           </Tabs>
           {layout === 'panel' && treeToggle}

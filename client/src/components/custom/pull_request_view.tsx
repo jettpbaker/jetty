@@ -37,6 +37,7 @@ import {
 import { DiffIcon, GitMergeIcon, IssueOpenedIcon, PeopleIcon } from '@primer/octicons-react'
 import { lazy, Suspense, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { Markdown } from './markdown'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -224,17 +225,6 @@ function externalLink(href: string) {
 
 function RowIcon({ children }: { children: ReactNode }) {
   return <span className='flex size-4 shrink-0 items-center justify-center'>{children}</span>
-}
-
-function ComingSoon({ children }: { children: ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span className='flex cursor-not-allowed' />}>
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>Coming soon</TooltipContent>
-    </Tooltip>
-  )
 }
 
 function CommitRow({ commit, inset = false }: { commit: GitHubCommit; inset?: boolean }) {
@@ -448,11 +438,11 @@ function MergeAction({
 
   if (!current) {
     return (
-      <ComingSoon>
+      <DisabledTooltip reason='Coming soon' wrap='flex'>
         <Button size='sm' className='h-7 rounded-sm' disabled>
           Merge
         </Button>
-      </ComingSoon>
+      </DisabledTooltip>
     )
   }
 
@@ -467,11 +457,17 @@ function MergeAction({
     </Button>
   )
 
-  if (options.length === 1) return <ComingSoon>{primary}</ComingSoon>
+  const soon = (
+    <DisabledTooltip reason='Coming soon' wrap='flex'>
+      {primary}
+    </DisabledTooltip>
+  )
+
+  if (options.length === 1) return soon
 
   return (
     <div className='flex'>
-      <ComingSoon>{primary}</ComingSoon>
+      {soon}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -620,12 +616,12 @@ export function PullRequestView({ data, actions }: { data: PullRequestData; acti
                     {presentation.label}
                   </>
                 ) : (
-                  <ComingSoon>
+                  <DisabledTooltip reason='Coming soon'>
                     <span className='flex items-center gap-1.5'>
                       <Icon className={cn('size-3', presentation.color)} />
                       {presentation.label}
                     </span>
-                  </ComingSoon>
+                  </DisabledTooltip>
                 )}
               </dd>
               {closingIssuesReferences.length > 0 && (
@@ -663,7 +659,7 @@ export function PullRequestView({ data, actions }: { data: PullRequestData; acti
                     )}
                   </Badge>
                 ))}
-                <ComingSoon>
+                <DisabledTooltip reason='Coming soon' wrap='flex'>
                   <Button
                     variant='ghost'
                     tone='muted'
@@ -674,7 +670,7 @@ export function PullRequestView({ data, actions }: { data: PullRequestData; acti
                   >
                     <UserPlusIcon />
                   </Button>
-                </ComingSoon>
+                </DisabledTooltip>
               </dd>
             </dl>
 
