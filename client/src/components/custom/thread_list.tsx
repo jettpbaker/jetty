@@ -22,6 +22,7 @@ import { WorkBlock } from '@/components/custom/work_block'
 import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
+import { useNow } from '@/hooks/use-now'
 import { useRevealRow } from '@/state'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -36,7 +37,18 @@ type ScrollPosition = {
   width: number
 }
 
+// Least recently left first; only the most recent views keep their row sizes.
 const positions = new Map<string, ScrollPosition>()
+const keptPositions = 30
+
+function savePosition(view: string, position: ScrollPosition) {
+  positions.delete(view)
+  positions.set(view, position)
+  for (const oldest of positions.keys()) {
+    if (positions.size <= keptPositions) break
+    positions.delete(oldest)
+  }
+}
 
 function anchorAt(virtualizer: Virtualizer<HTMLDivElement, Element>) {
   const offset = virtualizer.scrollOffset ?? 0
@@ -89,13 +101,10 @@ function SubagentsRow({
   selectedId?: string
   onSelect: (id: string) => void
 }) {
-  const running = agents.some((agent) => agent.status === 'running')
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    if (!running) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [running])
+  const now = useNow(
+    1000,
+    agents.some((agent) => agent.status === 'running')
+  )
   return (
     <SubagentGroup
       agents={agents.map((agent) => toSubagent(agent, now))}
@@ -238,7 +247,7 @@ export function ThreadList({
 
   useLayoutEffect(
     () => () => {
-      positions.set(view, {
+      savePosition(view, {
         anchor: pinned.current ? undefined : anchorAt(virtualizer),
         sizes: virtualizer.takeSnapshot(),
         width,
