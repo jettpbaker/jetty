@@ -25,6 +25,7 @@ import {
   type ProviderId,
 } from './settings_providers'
 import { SettingsUsage } from './settings_usage'
+import { SettingsUtilityModel } from './settings_utility_model'
 
 function Section({
   id,
@@ -110,6 +111,7 @@ export function SettingsView() {
               }
             >
               <SettingsLoadout enabledProviders={enabled} onConnectProvider={showProvider} />
+              <SettingsUtilityModel />
             </Section>
             <Section id='integrations' label='Integrations' icon={PuzzlePieceIcon}>
               <SettingsIntegrations />
