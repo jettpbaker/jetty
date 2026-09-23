@@ -29,7 +29,6 @@
   height: var(--spacing-menu-item-compact);
   padding-block: 0;
   font-size: var(--text-xs);
-  cursor: pointer;
 }
 .search-picker [data-slot='command-item'][data-selected='true'] {
   background: var(--accent);
