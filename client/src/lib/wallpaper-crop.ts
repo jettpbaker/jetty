@@ -1,3 +1,14 @@
+export const wallpaperLongEdge = 3840
+export const wallpaperQuality = 0.92
+
+export function wallpaperPixelSize(width: number, height: number) {
+  const scale = Math.min(1, wallpaperLongEdge / Math.max(width, height))
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  }
+}
+
 export type WallpaperCrop = { aspect: number; zoom: number; x: number; y: number }
 export const defaultCrop: WallpaperCrop = { aspect: 16 / 9, zoom: 1, x: 0.5, y: 0.5 }
 export function cropRect(width: number, height: number, crop: WallpaperCrop) {
@@ -41,12 +52,12 @@ export async function renderWallpaperCrop(source: string, crop: WallpaperCrop) {
   image.src = source
   await image.decode()
   const rect = cropRect(image.naturalWidth, image.naturalHeight, crop)
+  const fitted = wallpaperPixelSize(rect.width, rect.height)
   const canvas = document.createElement('canvas')
-  const scale = Math.min(1, 1920 / Math.max(rect.width, rect.height))
-  canvas.width = Math.max(1, Math.round(rect.width * scale))
-  canvas.height = Math.max(1, Math.round(rect.height * scale))
+  canvas.width = fitted.width
+  canvas.height = fitted.height
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Could not crop this image.')
   ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height, 0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL('image/webp', 0.9)
+  return canvas.toDataURL('image/webp', wallpaperQuality)
 }
