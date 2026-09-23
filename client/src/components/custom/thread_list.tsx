@@ -128,6 +128,7 @@ function ThreadItemRow({
         activities={row.activities}
         status={row.status}
         elapsedSeconds={row.elapsedSeconds}
+        restarted={row.restarted}
       />
     )
   if (row.kind === 'subagents')

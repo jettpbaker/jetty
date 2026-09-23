@@ -56,16 +56,19 @@ export function WorkBlock({
   activities,
   status,
   elapsedSeconds,
+  restarted,
 }: {
   activities: readonly WorkActivity[]
   status: ActivityStatus
   elapsedSeconds?: number
+  restarted?: boolean
 }) {
   const ended = ['complete', 'failed', 'cancelled', 'interrupted'].includes(status)
   const entries = groupWorkActivities(activities, ended)
   const duration = formatActivityDuration(elapsedSeconds)
-  const heading =
-    status === 'waiting'
+  const heading = restarted
+    ? 'Interrupted — jetty restarted'
+    : status === 'waiting'
       ? 'Waiting for you'
       : status === 'running'
         ? 'Working'

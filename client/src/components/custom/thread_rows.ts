@@ -29,6 +29,7 @@ export type ThreadRow =
       activities: WorkActivity[]
       status: ActivityStatus
       elapsedSeconds?: number
+      restarted?: boolean
     }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
@@ -235,7 +236,8 @@ function workStatus(
   activities: readonly WorkActivity[],
   outcome: TurnOutcome | undefined
 ): ActivityStatus {
-  if (outcome) return outcome === 'completed' ? 'complete' : outcome
+  if (outcome && outcome !== 'server_restarted')
+    return outcome === 'completed' ? 'complete' : outcome
   for (const status of ['waiting', 'running', 'interrupted'] as const)
     if (activities.some((activity) => activity.status === status)) return status
   return 'complete'
@@ -335,6 +337,24 @@ export function threadRows(
     items.filter((item) => item.kind === 'question').map((item) => item.turnId)
   )
   let pending: WorkItem[] = []
+  let currentTurnId: string | undefined
+  function finishTurn() {
+    if (!currentTurnId || outcomes[currentTurnId] !== 'server_restarted') return
+    const lastRow = rows.at(-1)
+    if (lastRow?.kind === 'work' && lastRow.turnId === currentTurnId) {
+      lastRow.status = 'interrupted'
+      lastRow.restarted = true
+      return
+    }
+    rows.push({
+      kind: 'work',
+      id: `${currentTurnId}:restarted`,
+      turnId: currentTurnId,
+      activities: [],
+      status: 'interrupted',
+      restarted: true,
+    })
+  }
   function flush(next: ThreadItem | undefined) {
     if (pending.length === 0) return
     const activities = pending.map((item, index) =>
@@ -355,6 +375,11 @@ export function threadRows(
     pending = []
   }
   for (const item of items) {
+    if (currentTurnId && currentTurnId !== item.turnId) {
+      flush(item)
+      finishTurn()
+    }
+    currentTurnId = item.turnId
     if (
       item.kind === 'tool_call' &&
       item.toolName === 'AskUserQuestion' &&
@@ -422,6 +447,7 @@ export function threadRows(
     }
   }
   flush(undefined)
+  finishTurn()
   const last = items.at(-1)
   if (running && last?.kind === 'user_message')
     rows.push({
