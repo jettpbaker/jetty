@@ -9,9 +9,16 @@ export type PlatformStorage = {
   remove: (key: string) => void
 }
 
+export type PlatformBlobs = {
+  get: (key: string) => Promise<Blob | undefined>
+  put: (key: string, blob: Blob) => Promise<void>
+  remove: (key: string) => Promise<void>
+}
+
 export type Platform = {
   connectionUrl: () => string
   pickFiles: (options?: PickFilesOptions) => Promise<File[]>
   storage: PlatformStorage
+  blobs: PlatformBlobs
   openExternal: (url: string) => void
 }

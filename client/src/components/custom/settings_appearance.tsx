@@ -57,7 +57,7 @@ export function SettingsAppearance({ compact = false }: { compact?: boolean }) {
     try {
       const wallpaper = await prepareWallpaper(file)
       if (generation !== uploadGeneration.current) return
-      saveAppearance({
+      await saveAppearance({
         ...loadAppearance(),
         wallpaper,
         filename: file.name,
@@ -81,9 +81,9 @@ export function SettingsAppearance({ compact = false }: { compact?: boolean }) {
     const [file] = await pickFiles({ accept: 'image/jpeg,image/png,image/webp', multiple: false })
     await upload(file)
   }
-  function setAuto(autoAccent: boolean) {
+  async function setAuto(autoAccent: boolean) {
     try {
-      saveAppearance({ ...appearance, autoAccent })
+      await saveAppearance({ ...appearance, autoAccent })
       setError('')
     } catch {
       setError('Your appearance preference could not be saved.')
@@ -196,19 +196,21 @@ export function SettingsAppearance({ compact = false }: { compact?: boolean }) {
                       disabled={uploading}
                       aria-label='Remove image'
                       onClick={() => {
-                        try {
-                          saveAppearance({
-                            ...appearance,
-                            wallpaper: '',
-                            filename: null,
-                            autoAccent: false,
-                            source: undefined,
-                            crop: undefined,
-                          })
-                          setError('')
-                        } catch {
-                          setError('Could not remove the wallpaper.')
-                        }
+                        void (async () => {
+                          try {
+                            await saveAppearance({
+                              ...appearance,
+                              wallpaper: '',
+                              filename: null,
+                              autoAccent: false,
+                              source: undefined,
+                              crop: undefined,
+                            })
+                            setError('')
+                          } catch {
+                            setError('Could not remove the wallpaper.')
+                          }
+                        })()
                       }}
                     />
                   }
@@ -436,19 +438,21 @@ export function SettingsAppearance({ compact = false }: { compact?: boolean }) {
                     className='rounded-menu-item text-white/90 enabled:hover:text-white'
                     disabled={uploading}
                     onClick={() => {
-                      try {
-                        saveAppearance({
-                          ...appearance,
-                          wallpaper: '',
-                          filename: null,
-                          autoAccent: false,
-                          source: undefined,
-                          crop: undefined,
-                        })
-                        setError('')
-                      } catch {
-                        setError('Could not remove the wallpaper.')
-                      }
+                      void (async () => {
+                        try {
+                          await saveAppearance({
+                            ...appearance,
+                            wallpaper: '',
+                            filename: null,
+                            autoAccent: false,
+                            source: undefined,
+                            crop: undefined,
+                          })
+                          setError('')
+                        } catch {
+                          setError('Could not remove the wallpaper.')
+                        }
+                      })()
                     }}
                   >
                     <XIcon />

@@ -3,7 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { loadAccent } from './lib/accent'
-import { syncAppearanceAccent } from './lib/appearance'
+import { hydrateAppearance } from './lib/appearance'
 import { applyTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
 import './index.css'
@@ -12,7 +12,7 @@ import './theme-transition.css'
 
 applyTheme()
 document.documentElement.dataset.accent = loadAccent()
-syncAppearanceAccent()
+void hydrateAppearance()
 
 const router = createRouter({ routeTree, defaultPreload: 'intent' })
 

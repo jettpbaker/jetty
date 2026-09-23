@@ -111,7 +111,7 @@ export function WallpaperEditor({
     try {
       const selected = current.current
       const wallpaper = await renderWallpaperCrop(source, selected)
-      saveAppearance({ ...loadAppearance(), wallpaper, source, crop: selected })
+      await saveAppearance({ ...loadAppearance(), wallpaper, source, crop: selected })
       onClose()
     } catch {
       setError('Could not save the crop. Try a smaller image.')
