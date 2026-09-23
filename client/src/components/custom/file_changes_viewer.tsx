@@ -27,7 +27,7 @@ import {
 
 import { DisabledTooltip } from './disabled_tooltip'
 import {
-  diffId,
+  diffItem,
   loadedFiles,
   withoutContext,
   type FileChange,
@@ -180,6 +180,69 @@ const separatorUnsafeCSS = `
   }
 `
 
+export function diffViewOptions(
+  themeType: 'light' | 'dark',
+  {
+    split = false,
+    loadDiffFiles,
+    lineNumbers = true,
+  }: {
+    split?: boolean
+    loadDiffFiles?: CodeViewOptions<undefined, undefined>['loadDiffFiles']
+    lineNumbers?: boolean
+  }
+): CodeViewOptions<undefined, undefined> {
+  return {
+    diffStyle: split ? 'split' : 'unified',
+    theme: { light: 'pierre-light-soft', dark: 'pierre-dark-soft' },
+    themeType,
+    stickyHeaders: true,
+    itemMetrics: {
+      diffHeaderHeight: 36,
+      lineHeight: 20,
+      hunkSeparatorHeight: lineNumbers ? 26 : 4,
+    },
+    layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
+    hunkSeparators: lineNumbers ? 'line-info' : 'simple',
+    disableLineNumbers: !lineNumbers,
+    expansionLineCount: 20,
+    loadDiffFiles,
+    unsafeCSS: `
+      [data-diffs-header] { height: 36px; min-height: 36px; box-sizing: border-box; background-color: var(--background); border-bottom: 1px solid var(--border); }
+      [data-diffs-header]::before {
+        content: ''; position: absolute; inset: -1px 0 auto; height: 1px; pointer-events: none;
+        background: linear-gradient(var(--border), var(--border)), var(--background);
+      }
+      [data-diffs-header] [data-change-icon] { display: none; }
+      [data-diffs-header]:hover { --file-icon-opacity: 0; --file-chevron-opacity: 1; }
+      ${separatorUnsafeCSS}
+    `,
+    overflow: split ? 'wrap' : 'scroll',
+  }
+}
+
+export function useCollapsedFiles(initial: () => Set<string>) {
+  const [collapsedFiles, setCollapsedFiles] = useState(initial)
+  const renderFilePrefix = useCallback(
+    (item: { id: string; collapsed?: boolean }) => (
+      <FileCollapseButton
+        path={item.id}
+        collapsed={item.collapsed ?? false}
+        onToggle={() =>
+          setCollapsedFiles((previous) => {
+            const next = new Set(previous)
+            if (next.has(item.id)) next.delete(item.id)
+            else next.add(item.id)
+            return next
+          })
+        }
+      />
+    ),
+    []
+  )
+  return { collapsedFiles, renderFilePrefix }
+}
+
 function separatorFromEvent(event: PointerEvent) {
   for (const node of event.composedPath()) {
     if (
@@ -207,7 +270,7 @@ export function FileChangesViewer({
   loadFile?: LoadDiffFile
 }) {
   const resolvedTheme = useResolvedTheme()
-  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set())
+  const { collapsedFiles, renderFilePrefix } = useCollapsedFiles(() => new Set())
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
@@ -216,17 +279,9 @@ export function FileChangesViewer({
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
   const items = useMemo(
     () =>
-      changes.map((file) => {
-        const fileDiff = noContext.get(file.diff) ?? file.diff
-        const collapsed = collapsedFiles.has(file.path)
-        return {
-          id: file.path,
-          type: 'diff' as const,
-          fileDiff,
-          collapsed,
-          version: diffId(fileDiff) * 2 + Number(collapsed),
-        }
-      }),
+      changes.map((file) =>
+        diffItem(file.path, noContext.get(file.diff) ?? file.diff, collapsedFiles.has(file.path))
+      ),
     [changes, collapsedFiles, noContext]
   )
   // One request per diff revision, shared by the prefetch and the expand click.
@@ -257,23 +312,6 @@ export function FileChangesViewer({
     setSelected(path)
     viewer.current?.scrollTo({ type: 'item', id: path, align: 'start', behavior: 'instant' })
   }, [])
-  const renderFilePrefix = useCallback(
-    (item: { id: string; collapsed?: boolean }) => (
-      <FileCollapseButton
-        path={item.id}
-        collapsed={item.collapsed ?? false}
-        onToggle={() =>
-          setCollapsedFiles((previous) => {
-            const next = new Set(previous)
-            if (next.has(item.id)) next.delete(item.id)
-            else next.add(item.id)
-            return next
-          })
-        }
-      />
-    ),
-    []
-  )
   const [selected, setSelected] = useState(changes[0]?.path)
   const [treeOpen, setTreeOpen] = useState(layout === 'page')
   const treeId = useId()
@@ -295,29 +333,8 @@ export function FileChangesViewer({
   const root = useRef<HTMLDivElement>(null)
   const file = changes.find((entry) => entry.path === selected) ?? changes[0]
   const split = wide && mode === 'split'
-  const diffOptions = useMemo<CodeViewOptions<undefined, undefined>>(
-    () => ({
-      diffStyle: split ? 'split' : 'unified',
-      theme: { light: 'pierre-light-soft', dark: 'pierre-dark-soft' },
-      themeType: resolvedTheme,
-      stickyHeaders: true,
-      itemMetrics: { diffHeaderHeight: 36, lineHeight: 20, hunkSeparatorHeight: 26 },
-      layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
-      hunkSeparators: 'line-info',
-      expansionLineCount: 20,
-      loadDiffFiles,
-      unsafeCSS: `
-              [data-diffs-header] { height: 36px; min-height: 36px; box-sizing: border-box; background-color: var(--background); border-bottom: 1px solid var(--border); }
-              [data-diffs-header]::before {
-                content: ''; position: absolute; inset: -1px 0 auto; height: 1px; pointer-events: none;
-                background: linear-gradient(var(--border), var(--border)), var(--background);
-              }
-              [data-diffs-header] [data-change-icon] { display: none; }
-              [data-diffs-header]:hover { --file-icon-opacity: 0; --file-chevron-opacity: 1; }
-              ${separatorUnsafeCSS}
-            `,
-      overflow: split ? 'wrap' : 'scroll',
-    }),
+  const diffOptions = useMemo(
+    () => diffViewOptions(resolvedTheme, { split, loadDiffFiles }),
     [split, resolvedTheme, loadDiffFiles]
   )
   useLayoutEffect(() => {

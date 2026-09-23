@@ -37,6 +37,16 @@ export function diffId(diff: FileDiffMetadata) {
   return id
 }
 
+export function diffItem(id: string, fileDiff: FileDiffMetadata, collapsed: boolean) {
+  return {
+    id,
+    type: 'diff' as const,
+    fileDiff,
+    collapsed,
+    version: diffId(fileDiff) * 2 + Number(collapsed),
+  }
+}
+
 export function loadedFiles(
   diff: FileDiffMetadata,
   contents: { before: string | null; after: string | null }
