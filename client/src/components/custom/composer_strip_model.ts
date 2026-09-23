@@ -152,23 +152,45 @@ export function pendingItems(
   return pending
 }
 
-// The main agent's latest task list in the current turn: Claude's TodoWrite or Codex's plan.
+function todoStatus(status: unknown): Todo['status'] {
+  return status === 'completed' ? 'done' : status === 'in_progress' ? 'active' : 'pending'
+}
+
+// The main agent's task list: Claude's TaskCreate/TaskUpdate (or older TodoWrite) calls, or
+// Codex's plan. A whole-list plan only counts in the turn that wrote it.
 export function currentTodos(items: readonly ThreadItem[]): Todo[] {
-  const turnId = items.at(-1)?.turnId
-  const call = items.findLast(
-    (item) =>
-      item.kind === 'tool_call' &&
-      !item.agentId &&
-      item.turnId === turnId &&
-      todoTools.has(item.toolName)
-  )
-  if (call?.kind !== 'tool_call') return []
-  const todos = record(call.input).todos
-  if (!Array.isArray(todos)) return []
-  return todos.map(record).map((todo, index) => ({
-    id: String(index),
-    text: String(todo.content ?? ''),
-    status:
-      todo.status === 'completed' ? 'done' : todo.status === 'in_progress' ? 'active' : 'pending',
-  }))
+  let todos: Todo[] = []
+  let planTurn: string | undefined
+  for (const item of items) {
+    if (item.kind !== 'tool_call' || item.agentId) continue
+    const input = record(item.input)
+    if (todoTools.has(item.toolName)) {
+      const list = Array.isArray(input.todos) ? input.todos.map(record) : []
+      todos = list.map((todo, index) => ({
+        id: String(index + 1),
+        text: String(todo.content ?? ''),
+        status: todoStatus(todo.status),
+      }))
+      planTurn = item.turnId
+    } else if (item.toolName === 'TaskCreate') {
+      const id = /#(\d+)/.exec(item.output)?.[1] ?? String(todos.length + 1)
+      todos = [...todos, { id, text: String(input.subject ?? ''), status: 'pending' }]
+      planTurn = undefined
+    } else if (item.toolName === 'TaskUpdate') {
+      const id = String(input.taskId ?? '')
+      todos =
+        input.status === 'deleted'
+          ? todos.filter((todo) => todo.id !== id)
+          : todos.map((todo) =>
+              todo.id === id
+                ? {
+                    ...todo,
+                    text: typeof input.subject === 'string' ? input.subject : todo.text,
+                    status: input.status === undefined ? todo.status : todoStatus(input.status),
+                  }
+                : todo
+            )
+    }
+  }
+  return planTurn && planTurn !== items.at(-1)?.turnId ? [] : todos
 }
