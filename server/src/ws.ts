@@ -158,18 +158,37 @@ export function createRpcHandlers(
           : Effect.succeed({
               enabled: false,
               docker: false,
+              availableGiB: null,
               ...containerDefaults,
               running: 0,
               retained: [],
               credentials: { codex: false, claude: false, grok: false },
             }),
-      'containers.setMax': ({ maxRunning }) =>
+      'containers.setLimits': (limits) =>
         containers
           ? Effect.tryPromise({
-              try: () => containers.setMaxRunning(maxRunning),
+              try: () => containers.setLimits(limits),
               catch: wireError,
             }).pipe(Effect.as(null))
           : Effect.fail(wireError(new StoreError('invalid_params', 'Containers are disabled'))),
+      'containers.stop': ({ threadId }) =>
+        containers
+          ? Effect.tryPromise({ try: () => containers.stop(threadId), catch: wireError }).pipe(
+              Effect.as(null)
+            )
+          : Effect.fail(wireError(new StoreError('invalid_params', 'Containers are disabled'))),
+      'project.containerSetupStatus': ({ projectId }) =>
+        Effect.gen(function* () {
+          if (!containers)
+            return yield* Effect.fail(
+              wireError(new StoreError('invalid_params', 'Containers are disabled'))
+            )
+          const project = yield* requireProject(projectId)
+          return yield* Effect.tryPromise({
+            try: () => containers.setupStatus(project),
+            catch: wireError,
+          })
+        }),
       'project.containerTest': ({ projectId }) =>
         Effect.gen(function* () {
           if (!containers)

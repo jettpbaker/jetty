@@ -1,7 +1,7 @@
 import type { ResultOf } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { run, useAction } from './connection'
 
@@ -33,35 +33,62 @@ function readStatus(
 export function useContainerStatus() {
   const request = useAction(readStatus)
   const [status, setStatus] = useState<Status | null>(cachedStatus)
+  const refresh = useCallback(() => request(publish), [request])
   useEffect(() => {
     listeners.add(setStatus)
     if (!requested) {
       requested = true
-      request(publish)
+      refresh()
     }
     return () => {
       listeners.delete(setStatus)
     }
-  }, [request])
-  return { status, refresh: () => request(publish) }
+  }, [refresh])
+  return { status, refresh }
 }
 
-function setMax(
+function setLimits(
   registry: Parameters<typeof run>[0],
-  maxRunning: number,
+  limits: { maxRunning: number; cpus: number; memoryGiB: number },
   done: () => void,
-  failed: () => void
+  failed: (error: unknown) => void
 ) {
-  return run(
-    registry,
-    (connection) =>
-      connection
-        .request('containers.setMax', { maxRunning })
-        .pipe(Effect.tap(() => Effect.sync(done))),
-    failed
+  return run(registry, (connection) =>
+    connection.request('containers.setLimits', limits).pipe(
+      Effect.tap(() => Effect.sync(done)),
+      Effect.tapError((error) => Effect.sync(() => failed(error)))
+    )
   )
 }
-export const useSetContainerMax = () => useAction(setMax)
+export const useSetContainerLimits = () => useAction(setLimits)
+
+function stopContainer(
+  registry: Parameters<typeof run>[0],
+  threadId: string,
+  done: () => void,
+  failed: (error: unknown) => void
+) {
+  return run(registry, (connection) =>
+    connection.request('containers.stop', { threadId }).pipe(
+      Effect.tap(() => Effect.sync(done)),
+      Effect.tapError((error) => Effect.sync(() => failed(error)))
+    )
+  )
+}
+export const useStopContainer = () => useAction(stopContainer)
+
+function setupStatus(
+  registry: Parameters<typeof run>[0],
+  projectId: string,
+  done: (result: ResultOf<'project.containerSetupStatus'>) => void
+) {
+  return run(registry, (connection) =>
+    connection
+      .request('project.containerSetupStatus', { projectId })
+      .pipe(Effect.tap((result) => Effect.sync(() => done(result))))
+  )
+}
+export const useContainerSetupStatus = () => useAction(setupStatus)
 
 function testProject(
   registry: Parameters<typeof run>[0],

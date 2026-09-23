@@ -172,6 +172,7 @@ export const methods = {
     result: Schema.Struct({
       enabled: Schema.Boolean,
       docker: Schema.Boolean,
+      availableGiB: Schema.NullOr(Schema.Number),
       maxRunning: Schema.Int,
       cpus: Schema.Number,
       memoryGiB: Schema.Number,
@@ -194,9 +195,24 @@ export const methods = {
       ),
     }),
   },
-  'containers.setMax': {
-    params: Schema.Struct({ maxRunning: Schema.Int.check(Schema.isGreaterThan(0)) }),
+  'containers.setLimits': {
+    params: Schema.Struct({
+      maxRunning: Schema.Int.check(Schema.isGreaterThan(0)),
+      cpus: Schema.Number.check(Schema.isGreaterThan(0)),
+      memoryGiB: Schema.Number.check(Schema.isGreaterThan(0)),
+    }),
     result: Schema.Null,
+  },
+  'containers.stop': {
+    params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Null,
+  },
+  'project.containerSetupStatus': {
+    params: Schema.Struct({ projectId: Schema.String }),
+    result: Schema.Struct({
+      imageReady: Schema.Boolean,
+      capacityError: Schema.NullOr(Schema.String),
+    }),
   },
   'project.containerTest': {
     params: Schema.Struct({ projectId: Schema.String }),

@@ -60,6 +60,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.succeed({
               enabled: false,
               docker: false,
+              availableGiB: null,
               maxRunning: 2,
               cpus: 2,
               memoryGiB: 8,
@@ -69,7 +70,10 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
               retained: [],
               credentials: { codex: false, claude: false, grok: false },
             }),
-          'containers.setMax': () => Effect.succeed(null),
+          'containers.setLimits': () => Effect.succeed(null),
+          'containers.stop': () => Effect.succeed(null),
+          'project.containerSetupStatus': () =>
+            Effect.succeed({ imageReady: false, capacityError: null }),
           'project.containerTest': () =>
             Effect.succeed({
               result: 'Verified',

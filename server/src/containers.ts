@@ -105,11 +105,28 @@ async function loadSettings(home: string): Promise<ContainerSettings> {
   const local = await readFile(join(home, 'containers.json'), 'utf8')
     .then(JSON.parse)
     .catch(() => ({}))
-  const settings = { ...containerDefaults, ...local } as ContainerSettings
+  const maxRunning = local.maxRunning ?? containerDefaults.maxRunning
+  const dockerBytes = Number(
+    await command('docker', ['info', '--format', '{{.MemTotal}}']).catch(() => 0)
+  )
+  const usableGiB = Math.min(
+    local.memoryBudgetGiB ?? containerDefaults.memoryBudgetGiB,
+    Math.max(0, dockerBytes / 2 ** 30 - 1)
+  )
+  const defaultMemory = dockerBytes
+    ? Math.max(1, Math.min(8, Math.floor(usableGiB / maxRunning)))
+    : containerDefaults.memoryGiB
+  const settings = {
+    ...containerDefaults,
+    ...local,
+    memoryGiB: local.memoryGiB ?? defaultMemory,
+  } as ContainerSettings
   if (
     !Number.isInteger(settings.maxRunning) ||
     settings.maxRunning < 1 ||
+    !Number.isFinite(settings.cpus) ||
     settings.cpus <= 0 ||
+    !Number.isFinite(settings.memoryGiB) ||
     settings.memoryGiB <= 0 ||
     settings.memoryBudgetGiB <= 0 ||
     settings.idleMinutes < 0
@@ -217,19 +234,79 @@ export function createEnvironmentManager(
   async function settings() {
     return loadSettings(home)
   }
-  async function setMaxRunning(maxRunning: number) {
-    const next = { ...(await settings()), maxRunning }
+  async function setLimits(limits: Pick<ContainerSettings, 'maxRunning' | 'cpus' | 'memoryGiB'>) {
+    if (
+      !Number.isInteger(limits.maxRunning) ||
+      limits.maxRunning < 1 ||
+      limits.maxRunning > 32 ||
+      !Number.isFinite(limits.cpus) ||
+      limits.cpus <= 0 ||
+      !Number.isFinite(limits.memoryGiB) ||
+      limits.memoryGiB < 1
+    )
+      throw new Error('Invalid container limits')
+    const current = await readFile(join(home, 'containers.json'), 'utf8')
+      .then(JSON.parse)
+      .catch(() => ({}))
+    const next = { ...current, ...limits }
     await writeFile(join(home, 'containers.json'), JSON.stringify(next, null, 2) + '\n', {
       mode: 0o600,
     })
-    wake()
-    return next
+    for (const waiter of waiting.splice(0)) waiter.resolve()
+    return settings()
+  }
+  async function capacity(config: ContainerSettings) {
+    const dockerBytes = Number(await command('docker', ['info', '--format', '{{.MemTotal}}']))
+    const usableGiB = Math.min(config.memoryBudgetGiB, Math.max(0, dockerBytes / 2 ** 30 - 1))
+    if (config.memoryGiB > usableGiB)
+      throw new Error(
+        `Container needs ${config.memoryGiB} GiB; Docker has ${usableGiB.toFixed(1)} GiB usable. Lower memory per container in Settings → Containers.`
+      )
+    return {
+      usableGiB,
+      slots: Math.min(config.maxRunning, Math.floor(usableGiB / config.memoryGiB)),
+    }
+  }
+  async function refreshRunning() {
+    for (const [threadId, entry] of running) {
+      const alive = await command('docker', [
+        'inspect',
+        '--format',
+        '{{.State.Running}}',
+        entry.containerId,
+      ])
+        .then((value) => value === 'true')
+        .catch((error) => {
+          if (String(error).includes('No such object')) return false
+          throw error
+        })
+      if (alive || stopping.has(threadId) || running.get(threadId) !== entry) continue
+      await command('docker', ['rm', '-f', entry.containerId]).catch(() => {})
+      if (entry.idle) clearTimeout(entry.idle)
+      if (entry.busyTimer) clearTimeout(entry.busyTimer)
+      running.delete(threadId)
+      reserved--
+      const record = await runStore<EnvironmentRecord | null>(store.getEnvironment(threadId))
+      if (record)
+        await runStore(store.saveEnvironment({ ...record, containerId: null, state: 'stopped' }))
+      wake()
+    }
   }
   async function status() {
     const config = await settings()
     const docker = await command('docker', ['info', '--format', '{{.ServerVersion}}'])
       .then(() => true)
       .catch(() => false)
+    if (docker) await refreshRunning()
+    const availableGiB = docker
+      ? Math.min(
+          config.memoryBudgetGiB,
+          Math.max(
+            0,
+            Number(await command('docker', ['info', '--format', '{{.MemTotal}}'])) / 2 ** 30 - 1
+          )
+        )
+      : null
     const retained = await runStore<EnvironmentRecord[]>(store.listEnvironments())
     const projects = await runStore<Project[]>(store.listProjects())
     const locals = await Promise.all(
@@ -240,6 +317,7 @@ export function createEnvironmentManager(
     return {
       enabled: true,
       docker,
+      availableGiB,
       ...config,
       credentials: {
         codex: Boolean(await stat(join(homedir(), '.codex', 'auth.json')).catch(() => null)),
@@ -270,6 +348,7 @@ export function createEnvironmentManager(
         .catch(() => false)
       if (exists) throw error
     })
+    if (running.get(threadId) !== current) return
     running.delete(threadId)
     reserved--
     const record = await runStore<EnvironmentRecord | null>(store.getEnvironment(threadId))
@@ -319,14 +398,8 @@ export function createEnvironmentManager(
     while (true) {
       if (threadId) checkCancelled(threadId)
       const limit = await settings()
-      const dockerBytes = Number(await command('docker', ['info', '--format', '{{.MemTotal}}']))
-      const usableGiB = Math.min(limit.memoryBudgetGiB, Math.max(0, dockerBytes / 2 ** 30 - 1))
-      if (limit.memoryGiB > usableGiB)
-        throw new Error(
-          `Container needs ${limit.memoryGiB} GiB; Docker has ${usableGiB.toFixed(1)} GiB usable`
-        )
-      const capacity = Math.min(limit.maxRunning, Math.floor(usableGiB / limit.memoryGiB))
-      if (reserved < capacity) {
+      const available = await capacity(limit)
+      if (reserved < available.slots) {
         reserved++
         return
       }
@@ -355,6 +428,24 @@ export function createEnvironmentManager(
     if (imageId !== saved.imageId)
       throw new Error('Container image changed; test configuration again')
     return { recipe, imageId, providers: saved.providers }
+  }
+  async function setupStatus(project: Project) {
+    let capacityError: string | null = null
+    try {
+      await capacity(await settings())
+    } catch (error) {
+      capacityError = String(error).replace(/^Error: /, '')
+    }
+    let imageReady = false
+    try {
+      const { recipe } = await recipeFor(project)
+      imageReady = await command('docker', ['image', 'inspect', recipe.image])
+        .then(() => true)
+        .catch(() => false)
+    } catch {
+      // The setup thread creates the manifest and image.
+    }
+    return { imageReady, capacityError }
   }
   async function provision(
     threadId: string,
@@ -801,17 +892,35 @@ export function createEnvironmentManager(
         providers: {
           codex:
             Boolean(await stat(join(homedir(), '.codex', 'auth.json')).catch(() => null)) &&
-            (await command('docker', ['exec', record.containerId, 'sh', '-lc', 'command -v codex'])
+            (await command('docker', [
+              'exec',
+              record.containerId,
+              'sh',
+              '-lc',
+              'command -v codex && codex --version',
+            ])
               .then(() => true)
               .catch(() => false)),
           claude:
             (await hasConfiguredEnv(local, 'CLAUDE_CODE_OAUTH_TOKEN')) &&
-            (await command('docker', ['exec', record.containerId, 'sh', '-lc', 'command -v claude'])
+            (await command('docker', [
+              'exec',
+              record.containerId,
+              'sh',
+              '-lc',
+              'command -v claude && claude --version',
+            ])
               .then(() => true)
               .catch(() => false)),
           grok:
             (await hasConfiguredEnv(local, 'XAI_API_KEY')) &&
-            (await command('docker', ['exec', record.containerId, 'sh', '-lc', 'command -v grok'])
+            (await command('docker', [
+              'exec',
+              record.containerId,
+              'sh',
+              '-lc',
+              'command -v grok && grok --version',
+            ])
               .then(() => true)
               .catch(() => false)),
         },
@@ -858,8 +967,9 @@ export function createEnvironmentManager(
   }
   return {
     settings,
-    setMaxRunning,
+    setLimits,
     status,
+    setupStatus,
     registration,
     prepare,
     cancel,

@@ -1,21 +1,35 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useChrome } from '@/state'
-import { useContainerStatus, useSetContainerMax } from '@/state/containers'
+import { useContainerStatus, useSetContainerLimits, useStopContainer } from '@/state/containers'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import './settings_sections.css'
 
 export function SettingsContainers() {
   const { status, refresh } = useContainerStatus()
   const threads = useChrome()?.threads ?? []
-  const setMax = useSetContainerMax()
+  const setLimits = useSetContainerLimits()
+  const stop = useStopContainer()
   const [max, setMaxInput] = useState('2')
+  const [memory, setMemory] = useState('8')
+  const [cpus, setCpus] = useState('2')
   const [saving, setSaving] = useState(false)
+  const [stopping, setStopping] = useState<string>()
   const configuredMax = status?.maxRunning
+  const configuredMemory = status?.memoryGiB
+  const configuredCpus = status?.cpus
   useEffect(() => {
     if (configuredMax) setMaxInput(String(configuredMax))
-  }, [configuredMax])
+    if (configuredMemory) setMemory(String(configuredMemory))
+    if (configuredCpus) setCpus(String(configuredCpus))
+  }, [configuredMax, configuredMemory, configuredCpus])
+  useEffect(() => {
+    refresh()
+    const timer = window.setInterval(refresh, 5000)
+    return () => window.clearInterval(timer)
+  }, [refresh])
   if (!status) return <p className='text-xs text-muted-foreground'>Checking…</p>
   if (!status.enabled)
     return <p className='text-xs text-muted-foreground'>Disabled · JETTY_CONTAINERS=1</p>
@@ -31,15 +45,13 @@ export function SettingsContainers() {
           <p>{status.running}</p>
         </div>
         <div>
-          <span className='text-muted-foreground'>CPU / container</span>
-          <p>{status.cpus}</p>
-        </div>
-        <div>
-          <span className='text-muted-foreground'>Memory / container</span>
-          <p>{status.memoryGiB} GiB</p>
+          <span className='text-muted-foreground'>Usable memory</span>
+          <p>
+            {status.availableGiB === null ? 'Unavailable' : `${status.availableGiB.toFixed(1)} GiB`}
+          </p>
         </div>
       </div>
-      <div className='flex items-end gap-2'>
+      <div className='flex flex-wrap items-end gap-3'>
         <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
           <label htmlFor='containers-max'>Max running containers</label>
           <Input
@@ -52,19 +64,55 @@ export function SettingsContainers() {
             className='w-24'
           />
         </div>
+        <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
+          <label htmlFor='containers-memory'>Memory / container (GiB)</label>
+          <Input
+            id='containers-memory'
+            type='number'
+            min={1}
+            step={1}
+            value={memory}
+            onChange={(event) => setMemory(event.target.value)}
+            className='w-24'
+          />
+        </div>
+        <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
+          <label htmlFor='containers-cpus'>CPUs / container</label>
+          <Input
+            id='containers-cpus'
+            type='number'
+            min={0.5}
+            step={0.5}
+            value={cpus}
+            onChange={(event) => setCpus(event.target.value)}
+            className='w-24'
+          />
+        </div>
         <Button
           size='sm'
           variant='outline'
-          disabled={saving || !Number.isInteger(Number(max)) || Number(max) < 1}
+          disabled={
+            saving ||
+            !Number.isInteger(Number(max)) ||
+            Number(max) < 1 ||
+            Number(max) > 32 ||
+            !Number.isFinite(Number(memory)) ||
+            Number(memory) < 1 ||
+            !Number.isFinite(Number(cpus)) ||
+            Number(cpus) <= 0
+          }
           onClick={() => {
             setSaving(true)
-            setMax(
-              Number(max),
+            setLimits(
+              { maxRunning: Number(max), memoryGiB: Number(memory), cpus: Number(cpus) },
               () => {
                 setSaving(false)
                 refresh()
               },
-              () => setSaving(false)
+              (error) => {
+                setSaving(false)
+                toast.error(`Couldn't save container limits: ${String(error)}`)
+              }
             )
           }}
         >
@@ -96,7 +144,32 @@ export function SettingsContainers() {
               <span className='truncate' title={entry.checkoutPath}>
                 {threads.find((thread) => thread.id === entry.threadId)?.title ?? entry.threadId}
               </span>
-              <span className='shrink-0 text-muted-foreground'>{entry.state}</span>
+              <span className='flex shrink-0 items-center gap-2'>
+                <span className='text-muted-foreground'>{entry.state}</span>
+                {entry.state === 'running' && (
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    disabled={stopping === entry.threadId}
+                    onClick={() => {
+                      setStopping(entry.threadId)
+                      stop(
+                        entry.threadId,
+                        () => {
+                          setStopping(undefined)
+                          refresh()
+                        },
+                        (error) => {
+                          setStopping(undefined)
+                          toast.error(`Couldn't stop container: ${String(error)}`)
+                        }
+                      )
+                    }}
+                  >
+                    Stop
+                  </Button>
+                )}
+              </span>
             </div>
           ))}
         </div>
