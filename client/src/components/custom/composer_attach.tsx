@@ -53,11 +53,12 @@ export function ComposerImages({
       {images.map((image) => (
         <div key={image.url} className='group/image relative shrink-0'>
           <img src={image.url} alt={image.name} className='size-12 rounded-sm object-cover' />
+          <div className='pointer-events-none absolute inset-0 rounded-sm bg-[radial-gradient(circle_at_top_right,rgb(0_0_0/0.6),transparent_55%)] opacity-0 transition-opacity group-focus-within/image:opacity-100 group-hover/image:opacity-100 [@media(hover:none)]:opacity-100' />
           <Button
-            variant='secondary'
+            variant='ghost-text'
             size='icon-xs'
             aria-label={`Remove ${image.name}`}
-            className='absolute top-0.5 right-0.5 rounded-full opacity-0 group-hover/image:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100'
+            className='absolute top-0 right-0 text-white opacity-0 group-focus-within/image:opacity-100 group-hover/image:opacity-100 enabled:hover:text-white [@media(hover:none)]:opacity-100'
             onClick={() => onRemove(image.url)}
           >
             <XIcon />
