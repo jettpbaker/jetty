@@ -1,21 +1,29 @@
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandItem,
-  CommandGroup,
-} from '@/components/ui/command'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { useBrowse } from '@/state'
-import { ArrowBendUpLeftIcon, FolderIcon, FolderPlusIcon } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { cn } from '@/lib/utils'
+import { storage } from '@/platform'
+import { useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react'
 
-function baseName(path: string) {
-  return path.replace(/\/+$/, '').split('/').pop() || path
+import { FolderPickerBreadcrumb } from './project_folder_breadcrumb'
+import { FolderPickerCompact } from './project_folder_compact'
+import { useFolderPicker, type FolderPicker } from './project_folder_picker'
+import { FolderPickerRaycast } from './project_folder_raycast'
+
+// Temporary A/B/C switcher while Jett compares variations; delete with the losers.
+const variants = {
+  A: { label: 'Raycast', View: FolderPickerRaycast },
+  B: { label: 'Compact', View: FolderPickerCompact },
+  C: { label: 'Breadcrumb', View: FolderPickerBreadcrumb },
+} satisfies Record<string, { label: string; View: (props: { picker: FolderPicker }) => unknown }>
+type Variant = keyof typeof variants
+const variantKey = 'jetty.projectPicker.variant'
+
+function pickerInput() {
+  return document.querySelector<HTMLElement>('[data-slot=folder-picker-input]')
 }
 
-function parentDir(path: string) {
-  return path.slice(0, path.lastIndexOf('/')) || '/'
+function loadVariant(): Variant {
+  const saved = storage.get(variantKey)
+  return saved === 'A' || saved === 'B' || saved === 'C' ? saved : 'A'
 }
 
 export function ProjectFolderDialog({
@@ -29,112 +37,84 @@ export function ProjectFolderDialog({
   existingPaths: readonly string[]
   onAdd: (path: string) => void
 }) {
+  const back = useRef<() => boolean>(() => false)
+  const [variant, setVariant] = useState(loadVariant)
+
+  function chooseVariant(next: Variant) {
+    storage.set(variantKey, next)
+    setVariant(next)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next, details) => {
+        if (!next && details.reason === 'escape-key' && back.current()) {
+          details.cancel()
+          return
+        }
+        onOpenChange(next)
+      }}
+    >
       <DialogContent
-        className='gap-0 overflow-hidden rounded-lg p-0 sm:max-w-lg'
+        className={cn(
+          'top-[18%] translate-y-0 gap-0 rounded-xl p-0',
+          variant === 'A' ? 'sm:max-w-2xl' : 'sm:max-w-lg'
+        )}
         showCloseButton={false}
+        initialFocus={pickerInput}
       >
-        <div className='px-4 pt-4 pb-2'>
-          <DialogTitle className='text-sm'>New project</DialogTitle>
-          <DialogDescription className='sr-only'>
-            Browse folders and choose a project directory.
-          </DialogDescription>
+        <DialogTitle className='sr-only'>New project</DialogTitle>
+        <DialogDescription className='sr-only'>
+          Browse folders and choose a project directory.
+        </DialogDescription>
+        <div
+          role='radiogroup'
+          aria-label='Picker variation'
+          className='absolute right-0 bottom-full mb-2 flex gap-0.5 rounded-md bg-popover p-0.5 text-xs ring-1 ring-foreground/10'
+        >
+          {Object.entries(variants).map(([key, { label }]) => (
+            <button
+              key={key}
+              type='button'
+              role='radio'
+              aria-checked={variant === key}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => chooseVariant(key as Variant)}
+              className='rounded-sm px-2 py-0.5 text-muted-foreground hover:text-foreground aria-checked:bg-accent aria-checked:text-foreground'
+            >
+              {key} {label}
+            </button>
+          ))}
         </div>
-        <FolderBrowser
+        <PickerBody
+          variant={variant}
+          back={back}
           existingPaths={existingPaths}
           onAdd={(path) => {
             onAdd(path)
             onOpenChange(false)
           }}
         />
-        <div className='flex min-h-12 items-center justify-end border-t border-border px-4 py-3 text-xs text-muted-foreground'>
-          <span>
-            ↵ Select <span className='ml-3'>Esc Close</span>
-          </span>
-        </div>
       </DialogContent>
     </Dialog>
   )
 }
 
-function FolderBrowser({
+function PickerBody({
+  variant,
+  back,
   existingPaths,
   onAdd,
 }: {
+  variant: Variant
+  back: RefObject<() => boolean>
   existingPaths: readonly string[]
   onAdd: (path: string) => void
 }) {
-  const [query, setQuery] = useState('~/')
-  const result = useBrowse(query)
-  const candidate = query.trim().replace(/\/+$/, '')
-  const siblings = useBrowse(candidate || '/')
-
-  const entries = result?.entries ?? []
-  const parent = result?.parentPath
-  const addPath = candidate
-    ? siblings?.entries.find(
-        (entry) => entry.name.toLowerCase() === baseName(candidate).toLowerCase()
-      )?.fullPath
-    : undefined
-  const exists = addPath !== undefined && existingPaths.includes(addPath)
-
-  function drill(path: string) {
-    setQuery(path.endsWith('/') ? path : `${path}/`)
-  }
-
-  return (
-    <Command shouldFilter={false} className='rounded-none! p-2'>
-      <CommandInput
-        aria-label='Project folder path'
-        value={query}
-        onValueChange={setQuery}
-        placeholder='Enter a project path'
-      />
-      <CommandList className='max-h-[50vh]'>
-        <CommandGroup heading='Folders'>
-          {entries.map((entry) => (
-            <CommandItem
-              key={entry.fullPath}
-              value={entry.fullPath}
-              onSelect={() => drill(entry.fullPath)}
-              className='min-h-[42px] text-xs'
-            >
-              <FolderIcon className='size-4 text-muted-foreground' />
-              <span>{entry.name}</span>
-              <span className='ml-auto truncate pl-4 text-muted-foreground'>{entry.fullPath}</span>
-            </CommandItem>
-          ))}
-          {result && entries.length === 0 && (
-            <p className='px-2 py-6 text-center text-xs text-muted-foreground'>
-              {addPath ? 'No folders inside.' : 'No matching folder.'}
-            </p>
-          )}
-        </CommandGroup>
-        <CommandGroup className='border-t border-border'>
-          {addPath && (
-            <CommandItem
-              value='__add__'
-              disabled={exists}
-              onSelect={() => onAdd(addPath)}
-              className='min-h-[42px] text-xs'
-            >
-              <FolderPlusIcon className='size-4' />
-              <span>{exists ? 'Already added' : `Add ${baseName(addPath)}`}</span>
-            </CommandItem>
-          )}
-          {parent && parent !== '/' && (
-            <CommandItem
-              value='__up__'
-              onSelect={() => drill(parentDir(parent))}
-              className='min-h-[42px] text-xs'
-            >
-              <ArrowBendUpLeftIcon className='size-4' />
-              Go up
-            </CommandItem>
-          )}
-        </CommandGroup>
-      </CommandList>
-    </Command>
-  )
+  const picker = useFolderPicker(existingPaths, onAdd)
+  useImperativeHandle(back, () => picker.back)
+  useEffect(() => pickerInput()?.focus(), [variant])
+  const { View } = variants[variant]
+  return <View picker={picker} />
 }
