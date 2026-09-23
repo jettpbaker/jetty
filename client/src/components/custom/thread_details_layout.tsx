@@ -15,6 +15,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
+import { ChildThreadList, useChildThreads } from './child_threads'
 import { ThreadChanges } from './thread_changes'
 import { ThreadDetailsTabs } from './thread_details_tabs'
 import './thread_details_layout.css'
@@ -43,6 +44,11 @@ export function ThreadDetailsLayout({
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
   const [tab, setTab] = useState('changes')
+  const allChildThreads = useChildThreads(threadId)
+  const childThreads = useMemo(
+    () => allChildThreads.filter((child) => !child.archived),
+    [allChildThreads]
+  )
   const narrow = available < narrowWidth
   const full = narrow || expanded
   const max = Math.max(minWidth, available - 360)
@@ -142,7 +148,12 @@ export function ThreadDetailsLayout({
       >
         <header className='flex h-(--app-tab-bar-height) shrink-0 border-b border-border pr-[74px]'>
           <div className='min-w-0 flex-1 overflow-hidden'>
-            <ThreadDetailsTabs chat={full} value={tab} onValueChange={setTab} />
+            <ThreadDetailsTabs
+              chat={full}
+              threadCount={childThreads.length}
+              value={tab}
+              onValueChange={setTab}
+            />
           </div>
         </header>
         <div className='min-h-0 flex-1 overflow-hidden'>
@@ -165,11 +176,22 @@ export function ThreadDetailsLayout({
             >
               {open && <ThreadChanges key={threadId} threadId={threadId} />}
             </TabsContent>
+            <TabsContent
+              keepMounted
+              value='threads'
+              inert={tab !== 'threads'}
+              aria-hidden={tab !== 'threads'}
+              className='details-tab-panel'
+            >
+              <div className='scrollbar-subtle h-full overflow-auto'>
+                <ChildThreadList threads={childThreads} />
+              </div>
+            </TabsContent>
           </div>
         </div>
       </Tabs>
     ),
-    [tab, full, open, threadId]
+    [tab, full, open, threadId, childThreads]
   )
 
   return (

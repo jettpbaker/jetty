@@ -5,7 +5,7 @@ type StatusIconProps = SVGProps<SVGSVGElement>
 function CircleStatusIcon({
   symbol,
   ...props
-}: StatusIconProps & { symbol: 'attention' | 'error' }) {
+}: StatusIconProps & { symbol: 'attention' | 'error' | 'success' }) {
   const maskId = useId()
   return (
     <svg width={16} height={16} viewBox='0 0 14 14' fill='none' {...props}>
@@ -17,6 +17,14 @@ function CircleStatusIcon({
               <path d='M7 3.5v3.5' stroke='black' strokeWidth={2.2} strokeLinecap='round' />
               <circle cx='7' cy='10' r='1.15' fill='black' />
             </>
+          ) : symbol === 'success' ? (
+            <path
+              d='m4.4 7.2 1.8 1.8 3.4-3.6'
+              stroke='black'
+              strokeWidth={1.75}
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            />
           ) : (
             <path
               d='m4.75 4.75 4.5 4.5m0-4.5-4.5 4.5'
@@ -38,4 +46,8 @@ export function NeedsInputIcon(props: StatusIconProps) {
 
 export function ErrorStatusIcon(props: StatusIconProps) {
   return <CircleStatusIcon symbol='error' {...props} />
+}
+
+export function SuccessStatusIcon(props: StatusIconProps) {
+  return <CircleStatusIcon symbol='success' {...props} />
 }

@@ -11,7 +11,13 @@ import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { CommentDiscussionIcon, DiffIcon, PlusIcon, XIcon } from '@primer/octicons-react'
+import {
+  CommentDiscussionIcon,
+  DiffIcon,
+  PlusIcon,
+  WorkflowIcon,
+  XIcon,
+} from '@primer/octicons-react'
 import { useReducedMotion } from 'motion/react'
 import {
   useEffect,
@@ -25,9 +31,10 @@ import {
 const tabs = {
   chat: { label: 'Chat', Icon: CommentDiscussionIcon },
   changes: { label: 'Changes', Icon: DiffIcon },
+  threads: { label: 'Threads', Icon: WorkflowIcon },
 }
 type TabId = keyof typeof tabs
-const sortableIds: TabId[] = ['changes']
+const sortableIds: TabId[] = ['changes', 'threads']
 const storageKey = 'jetty.details-tabs'
 const sensors = [
   PointerSensor.configure({
@@ -50,11 +57,10 @@ function loadState(): { order: TabId[]; closed: TabId[] } {
       Array.isArray((saved as { closed?: unknown }).closed)
     ) {
       const { order, closed } = saved as { order: unknown[]; closed: unknown[] }
-      if (order.length === sortableIds.length && sortableIds.every((id) => order.includes(id))) {
-        return {
-          order: order as TabId[],
-          closed: closed.filter((id): id is TabId => typeof id === 'string' && id in tabs),
-        }
+      const known = order.filter((id): id is TabId => sortableIds.includes(id as TabId))
+      return {
+        order: [...new Set([...known, ...sortableIds])],
+        closed: closed.filter((id): id is TabId => typeof id === 'string' && id in tabs),
       }
     }
   } catch {
@@ -65,10 +71,12 @@ function loadState(): { order: TabId[]; closed: TabId[] } {
 
 export function ThreadDetailsTabs({
   chat = false,
+  threadCount,
   value,
   onValueChange,
 }: {
   chat?: boolean
+  threadCount: number
   value: string
   onValueChange: (value: string) => void
 }) {
@@ -76,12 +84,14 @@ export function ThreadDetailsTabs({
   const [announcement, setAnnouncement] = useState('')
   const closedSet = new Set(closed)
   const chatOpen = chat && !closedSet.has('chat')
-  const openSortable = order.filter((id) => !closedSet.has(id))
-  const shownSortable = openSortable.length > 0 || chatOpen ? openSortable : [order[0]!]
-  const catalog = [...(chat ? ['chat' as const] : []), ...order]
+  const available = order.filter((id) => id !== 'threads' || threadCount > 0)
+  const openSortable = available.filter((id) => !closedSet.has(id))
+  const shownSortable = openSortable.length > 0 || chatOpen ? openSortable : [available[0]!]
+  const catalog = [...(chat ? ['chat' as const] : []), ...available]
   const visible = [...(chatOpen ? ['chat' as const] : []), ...shownSortable]
   const valueVisible = visible.includes(value as TabId)
   const first = visible[0]!
+  const fallback = available[0]!
   const reopenFirst = shownSortable !== openSortable
   useEffect(() => {
     storage.set(storageKey, JSON.stringify({ order, closed }))
@@ -90,9 +100,9 @@ export function ThreadDetailsTabs({
     if (reopenFirst)
       setState((state) => ({
         ...state,
-        closed: state.closed.filter((id) => id !== state.order[0]),
+        closed: state.closed.filter((id) => id !== fallback),
       }))
-  }, [reopenFirst])
+  }, [reopenFirst, fallback])
   useLayoutEffect(() => {
     if (!valueVisible) onValueChange(first)
   }, [valueVisible, first, onValueChange])
@@ -102,7 +112,7 @@ export function ThreadDetailsTabs({
     const [id] = nextVisible.splice(from, 1)
     nextVisible.splice(to, 0, id!)
     let index = 0
-    const next = order.map((tab) => (closedSet.has(tab) ? tab : nextVisible[index++]!))
+    const next = order.map((tab) => (openSortable.includes(tab) ? nextVisible[index++]! : tab))
     setState((state) => ({ ...state, order: next }))
     setAnnouncement(`${tabs[id!].label} moved to position ${to + 1} of ${nextVisible.length}`)
   }
@@ -151,6 +161,7 @@ export function ThreadDetailsTabs({
             key={id}
             id={id}
             index={index}
+            count={id === 'threads' ? threadCount : undefined}
             canClose={canClose}
             onMove={reorder}
             onClose={closeTab}
@@ -193,12 +204,14 @@ export function ThreadDetailsTabs({
 function SortableTab({
   id,
   index,
+  count,
   canClose,
   onMove,
   onClose,
 }: {
   id: TabId
   index: number
+  count?: number
   canClose: boolean
   onMove: (from: number, to: number) => void
   onClose: (id: TabId) => void
@@ -224,17 +237,19 @@ function SortableTab({
         onMove(index, index + (event.key === 'ArrowLeft' ? -1 : 1))
       }}
     >
-      <TabLabel id={id} canClose={canClose} onClose={onClose} />
+      <TabLabel id={id} count={count} canClose={canClose} onClose={onClose} />
     </TabsTrigger>
   )
 }
 
 function TabLabel({
   id,
+  count,
   canClose,
   onClose,
 }: {
   id: TabId
+  count?: number
   canClose: boolean
   onClose: (id: TabId) => void
 }) {
@@ -270,6 +285,7 @@ function TabLabel({
         )}
       </span>
       {label}
+      {count !== undefined && <span className='font-mono text-muted-foreground'>{count}</span>}
     </>
   )
 }
