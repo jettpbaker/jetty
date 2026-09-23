@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { copilotModels } from '@/lib/loadout'
 import { storage } from '@/platform'
-import { useLoadouts } from '@/state'
+import { useModelAvailability } from '@/state/loadouts'
 import { CheckIcon, CopyIcon, ArrowClockwiseIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
@@ -51,8 +51,8 @@ export function saveProviderEnabled(enabled: ProviderEnabled) {
 }
 
 function providerModels(id: ProviderId, catalog: readonly ProviderModel[]) {
-  if (id === 'copilot') return copilotModels
-  return catalog.filter((model) => model.provider === id).map((model) => model.name)
+  if (id === 'copilot') return copilotModels.map((name) => ({ id: name, name, provider: id }))
+  return catalog.filter((model) => model.provider === id)
 }
 
 const plans: Record<ProviderId, string> = {
@@ -84,8 +84,7 @@ export function SettingsProviders({
   onEnabledChange: (id: ProviderId, value: boolean) => void
 }) {
   const provider = providerOptions.find((item) => item.id === selected)!
-  const { catalog } = useLoadouts()
-  const [modelEnabled, setModelEnabled] = useState<Record<string, boolean>>({})
+  const { catalog, enabled: modelEnabled, setEnabled: setModelEnabled } = useModelAvailability()
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const usable = enabled[selected] && provider.ready
@@ -214,20 +213,18 @@ export function SettingsProviders({
             aria-label={`${provider.name} model availability`}
             tabIndex={0}
           >
-            {providerModels(selected, catalog).map((name) => (
+            {providerModels(selected, catalog).map((model) => (
               <label
-                key={name}
+                key={model.id}
                 className={`flex min-h-8 items-center justify-between gap-3 text-13 ${usable ? '' : 'text-disabled-foreground'}`}
               >
-                <span>{name}</span>
+                <span>{model.name}</span>
                 <Switch
                   size='sm'
-                  aria-label={`Enable ${name}`}
+                  aria-label={`Enable ${model.name}`}
                   disabled={!usable}
-                  checked={modelEnabled[`${selected}:${name}`] ?? true}
-                  onCheckedChange={(checked) =>
-                    setModelEnabled((current) => ({ ...current, [`${selected}:${name}`]: checked }))
-                  }
+                  checked={modelEnabled[`${selected}:${model.id}`] ?? true}
+                  onCheckedChange={(checked) => setModelEnabled(model, checked)}
                 />
               </label>
             ))}
