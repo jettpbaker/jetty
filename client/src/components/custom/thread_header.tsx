@@ -2,6 +2,7 @@ import type { ContextUsage } from '@jetty/shared/events'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { pressProps } from '@/lib/press'
 import { BoxArrowUpIcon } from '@phosphor-icons/react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -26,7 +27,7 @@ export function ThreadHeader({
       <div className='flex min-w-0 items-center gap-2'>
         <PageSidebarTrigger />
         {onUnarchive && (
-          <Button variant='ghost-text' size='sm' onClick={onUnarchive}>
+          <Button variant='ghost-text' size='sm' {...pressProps(onUnarchive)}>
             <BoxArrowUpIcon />
             Unarchive
           </Button>

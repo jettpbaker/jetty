@@ -25,8 +25,6 @@ import { InProgressIcon } from './in_progress_icon'
 import { mediaUrl } from './media_layout'
 import { SourceLabel } from './source_label'
 
-/* Small shared pieces */
-
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <code className={cn('min-w-0 truncate font-mono text-xs text-foreground', className)}>
@@ -156,8 +154,6 @@ function StripToggle({
     </Button>
   )
 }
-
-/* 1a · Approval */
 
 type Decision = 'once' | 'always' | 'deny'
 
@@ -351,8 +347,6 @@ export function ApprovalStrip({
     </FlushShell>
   )
 }
-
-/* 2a · Question */
 
 function freshProgress(item: Question): QuestionProgress {
   return {
@@ -561,8 +555,6 @@ export function QuestionStrip({
   )
 }
 
-/* 3a · Queued messages */
-
 export type QueueControl = {
   queue: readonly QueuedMessage[]
   running: boolean
@@ -712,8 +704,6 @@ export function QueueTray({ q }: { q: QueueControl }) {
   )
 }
 
-/* 4a · Todo progress */
-
 function TodoIcon({ status }: { status: Todo['status'] }) {
   if (status === 'done') return <CheckIcon className='size-3.5 shrink-0 text-muted-foreground' />
   if (status === 'active')
@@ -766,8 +756,6 @@ export function TodoLine({ list, current }: { list: readonly Todo[]; current: To
     </FlushShell>
   )
 }
-
-/* 5a · Several pending at once */
 
 export function SeveralHeader({
   index,

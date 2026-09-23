@@ -48,7 +48,7 @@ export function useThread(threadId: string): ThreadState | undefined {
   return useAtomValue(threadAtom(threadId))
 }
 
-export function usePrefetchThread(threadId: string | undefined) {
+function usePrefetchThread(threadId: string | undefined) {
   return useAtomValue(threadId ? threadAtom(threadId) : unread)
 }
 

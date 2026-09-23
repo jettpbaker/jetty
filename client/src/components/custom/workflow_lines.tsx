@@ -145,7 +145,9 @@ function WorkflowLine({
       <span className='flex min-w-0 gap-3'>
         <span className='truncate text-muted-foreground'>{workflow.description}</span>
         {waiting > 0 && (
-          <span className='shrink-0 text-status-attention'>{waiting} needs approval</span>
+          <span className='shrink-0 text-status-attention'>
+            {waiting} {waiting === 1 ? 'needs' : 'need'} approval
+          </span>
         )}
       </span>
       <span className='justify-self-end text-muted-foreground tabular-nums'>
