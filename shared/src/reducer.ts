@@ -3,7 +3,12 @@ import { Effect, Schema } from 'effect'
 import { ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
 import { ThreadItem } from './items'
 
-export const TurnOutcome = Schema.Literals(['completed', 'failed', 'interrupted'])
+export const TurnOutcome = Schema.Literals([
+  'completed',
+  'failed',
+  'interrupted',
+  'server_restarted',
+])
 export type TurnOutcome = Schema.Schema.Type<typeof TurnOutcome>
 
 export const ThreadState = Schema.Struct({
@@ -56,7 +61,7 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
           ? 'awaiting_approval'
           : state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
             ? 'running'
-            : outcome === 'failed'
+            : outcome === 'failed' || outcome === 'server_restarted'
               ? 'error'
               : 'idle',
         items: state.items.map((item) => settleStreaming(item, ts)),
@@ -116,7 +121,9 @@ function turnOutcome(
   event: Extract<ThreadEvent, { type: 'turn.completed' | 'turn.failed' }>
 ): TurnOutcome {
   if (event.type === 'turn.completed') return 'completed'
-  return event.error === 'interrupted' ? 'interrupted' : 'failed'
+  return event.error === 'interrupted' || event.error === 'server_restarted'
+    ? event.error
+    : 'failed'
 }
 
 function settleStreaming(item: ThreadItem, ts: number): ThreadItem {

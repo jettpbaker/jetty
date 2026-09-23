@@ -803,7 +803,7 @@ describe('server skeleton', () => {
     expect(failed?.event).toMatchObject({
       type: 'turn.failed',
       turnId: 'orphan-turn',
-      error: 'server restarted',
+      error: 'server_restarted',
     })
 
     await c.close()

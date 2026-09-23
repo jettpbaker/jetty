@@ -90,14 +90,40 @@ function reconcileOnStartup(store: Store) {
                 : { status: 'stopped' },
           })
       if (!state.activeTurnId) continue
-      yield* store.appendEvent(
-        thread.id,
-        {
-          type: 'turn.failed',
-          turnId: state.activeTurnId,
-          error: 'server restarted',
-        },
-        false
+      yield* store.transaction(
+        Effect.gen(function* () {
+          yield* store.setQueuePaused(thread.id, true)
+          for (const item of state.items) {
+            if (item.turnId !== state.activeTurnId) continue
+            if (item.kind === 'approval' && !item.decision)
+              yield* store.appendEvent(thread.id, {
+                type: 'item.completed',
+                itemId: item.id,
+                patch: { decision: 'deny', deniedReason: 'Jetty restarted' },
+              })
+            if (
+              item.kind === 'question' &&
+              item.delivery !== 'async' &&
+              !item.answers &&
+              !item.skipped &&
+              !item.dismissed
+            )
+              yield* store.appendEvent(thread.id, {
+                type: 'item.completed',
+                itemId: item.id,
+                patch: { skipped: true },
+              })
+          }
+          yield* store.appendEvent(
+            thread.id,
+            {
+              type: 'turn.failed',
+              turnId: state.activeTurnId!,
+              error: 'server_restarted',
+            },
+            false
+          )
+        })
       )
     }
   })
