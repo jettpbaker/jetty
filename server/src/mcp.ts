@@ -13,6 +13,8 @@ import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { StoreError } from './store'
 
+const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' }
+
 const text = z.string().trim().min(1).max(32_000)
 const requestId = z.string().min(1).max(200).optional()
 const createInput = z.object({
@@ -58,6 +60,16 @@ export function createMcpHandler(
       })
     }
 
+    function accessLevel(thread: { provider?: string; model?: string }, mode?: string) {
+      if (
+        models()?.some(
+          (m) => m.provider === thread.provider && m.id === thread.model && m.autoMode === false
+        )
+      )
+        return 0
+      return mode === 'full_access' ? 2 : 1
+    }
+
     function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
       return store.transaction(
         Effect.gen(function* () {
@@ -77,7 +89,19 @@ export function createMcpHandler(
             )
           const provider = input.provider ?? identity.provider
           const model = input.model ?? (provider === caller.provider ? caller.model : undefined)
-          const available = models()?.filter((m) => m.provider === provider)
+          const catalog = models()
+          if (!catalog)
+            return yield* Effect.fail(
+              new StoreError('invalid_params', 'Provider discovery is still running; retry shortly')
+            )
+          const available = catalog.filter((m) => m.provider === provider)
+          if (!available.length)
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                `${providerNames[provider]} isn't available here. Available: ${[...new Set(catalog.map((m) => providerNames[m.provider]))].join(', ') || 'none'}`
+              )
+            )
           if (model && available?.length && !available.some((m) => m.id === model))
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Unknown model for provider')
@@ -130,6 +154,16 @@ export function createMcpHandler(
               if (previous) return { ...previous, duplicate: true }
             }
             const caller = yield* store.requireThread(identity.threadId)
+            if (
+              accessLevel(target, yield* store.getPermissionMode(target.id)) >
+              accessLevel(caller, yield* store.getPermissionMode(caller.id))
+            )
+              return yield* Effect.fail(
+                new StoreError(
+                  'invalid_params',
+                  'Cannot send_message to a thread with a higher access mode than the sender'
+                )
+              )
             const turn = yield* store.turnContext(caller.id)
             const messageId = newId()
             yield* store.enqueue(target.id, {
@@ -145,9 +179,20 @@ export function createMcpHandler(
             return { ...response, duplicate: false }
           })
         )
-        if (input.steer && !response.duplicate && response.messageId)
-          yield* orch.sendQueuedNow(response.threadId, response.messageId)
-        return { threadId: response.threadId, messageId: response.messageId }
+        let delivery = 'queued'
+        if (input.steer && !response.duplicate && response.messageId) {
+          const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId).pipe(
+            Effect.as(true),
+            Effect.catch((error) =>
+              error.message === 'Active turn is not accepting input' ||
+              error.message === 'Queued message not found'
+                ? Effect.succeed(false)
+                : Effect.fail(error)
+            )
+          )
+          if (sent) delivery = 'delivered'
+        }
+        return { threadId: response.threadId, messageId: response.messageId, delivery }
       })
     }
 
@@ -242,8 +287,11 @@ export function createMcpHandler(
       server.registerTool(
         'create_thread',
         {
-          description:
-            'Create and start an independent top-level thread in your project with only this prompt. Optional provider/model can differ from yours. Notify defaults to true: completion is sent back to this thread. Reuse requestId to retry safely.',
+          description: `Create and start an independent top-level thread in your project with only this prompt. Optional provider/model can differ from yours. Notify defaults to true: completion is sent back for turns you start. Reuse requestId to retry safely. Available providers and models: ${
+            models()
+              ?.map((m) => `${providerNames[m.provider]}: ${m.id}`)
+              .join(', ') ?? 'discovery in progress'
+          }.`,
           inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
