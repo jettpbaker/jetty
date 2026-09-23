@@ -558,6 +558,8 @@ export function QuestionStrip({
 export type QueueControl = {
   queue: readonly QueuedMessage[]
   running: boolean
+  // held after a stop or restart until the user sends or steers one
+  paused: boolean
   editing?: string
   sendNow: (entry: QueuedMessage) => void
   edit: (entry: QueuedMessage) => void
@@ -670,6 +672,7 @@ export function QueueTray({ q }: { q: QueueControl }) {
       <TrayShell>
         <div className='flex min-w-0 items-center gap-2'>
           <ClockIcon className='size-3.5 shrink-0 text-muted-foreground' />
+          {q.paused && <span className='shrink-0 text-xs text-muted-foreground'>Paused</span>}
           <div className='min-w-0 flex-1'>
             <QueueRow entry={head} q={q} />
           </div>
@@ -681,7 +684,9 @@ export function QueueTray({ q }: { q: QueueControl }) {
     <TrayShell>
       <div className='flex min-w-0 items-center gap-2'>
         <ClockIcon className='size-3.5 shrink-0 text-muted-foreground' />
-        <span className='shrink-0 text-xs text-muted-foreground'>{q.queue.length} queued</span>
+        <span className='shrink-0 text-xs text-muted-foreground'>
+          {q.queue.length} queued{q.paused && ' · Paused'}
+        </span>
         {open ? (
           <span className='flex-1' />
         ) : (

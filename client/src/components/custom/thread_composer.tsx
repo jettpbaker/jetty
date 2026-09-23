@@ -178,6 +178,7 @@ export function ThreadComposer({
   const queueControl = {
     queue,
     running,
+    paused: Boolean(chrome?.threads.find((thread) => thread.id === threadId)?.queuePaused),
     editing,
     sendNow(entry: QueuedMessage) {
       if (!threadId) return
