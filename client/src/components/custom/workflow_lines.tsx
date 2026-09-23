@@ -2,6 +2,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
+import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
 import { useState } from 'react'
 
@@ -29,15 +30,38 @@ function pinnedWorkflows(items: readonly ThreadItem[]) {
 export function WorkflowLines({
   threadId,
   items,
-  limit = 3,
 }: {
   threadId: string
   items: readonly ThreadItem[]
+}) {
+  return (
+    <WorkflowLineGrid
+      threadId={threadId}
+      workflows={pinnedWorkflows(items)}
+      limit={3}
+      className='px-2.5'
+      lineClassName='pr-2.25 pl-1.75'
+    />
+  )
+}
+
+export function WorkflowLineGrid({
+  threadId,
+  workflows,
+  limit = Infinity,
+  onOpen,
+  className,
+  lineClassName,
+}: {
+  threadId: string
+  workflows: readonly Workflow[]
   limit?: number
+  onOpen?: (workflow: Workflow) => void
+  className?: string
+  lineClassName?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const stopWorkflow = useStopWorkflow()
-  const workflows = pinnedWorkflows(items)
   const now = useNow(
     1000,
     workflows.some((workflow) => workflow.status === 'running')
@@ -45,12 +69,19 @@ export function WorkflowLines({
   if (workflows.length === 0) return null
   const shown = expanded ? workflows : workflows.slice(0, limit)
   return (
-    <div className='grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-x-3 px-2.5 text-xs'>
+    <div
+      className={cn(
+        'grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-x-3 text-xs',
+        className
+      )}
+    >
       {shown.map((workflow) => (
         <WorkflowLine
           key={workflow.id}
           workflow={workflow}
           now={now}
+          className={lineClassName}
+          onOpen={onOpen && (() => onOpen(workflow))}
           onStop={() => stopWorkflow(threadId, workflow.taskId)}
         />
       ))}
@@ -68,20 +99,39 @@ export function WorkflowLines({
   )
 }
 
+const settledLabel = { completed: 'Finished', failed: 'Failed', stopped: 'Stopped' } as const
+
 function WorkflowLine({
   workflow,
   now,
+  className,
+  onOpen,
   onStop,
 }: {
   workflow: Workflow
   now: number
+  className?: string
+  onOpen?: () => void
   onStop: () => void
 }) {
   const running = workflow.status === 'running'
   const { done, total } = tally(workflow.agents)
   const waiting = waitingCount(workflow)
   return (
-    <div className='group/line relative col-span-full grid h-7 min-w-0 grid-cols-subgrid items-center rounded-sm pr-2.25 pl-1.75 hover:bg-accent/40'>
+    <div
+      className={cn(
+        'group/line relative col-span-full grid h-7 min-w-0 grid-cols-subgrid items-center rounded-sm hover:bg-accent/40',
+        className
+      )}
+    >
+      {onOpen && (
+        <button
+          type='button'
+          aria-label={`Show ${workflow.name} in chat`}
+          className='absolute inset-0 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
+          onClick={onOpen}
+        />
+      )}
       <span className='flex items-center gap-1.5'>
         <WorkflowGlyph workflow={workflow} className='size-3' />
         <span className='text-foreground'>{workflow.name}</span>
@@ -116,8 +166,17 @@ function WorkflowLine({
         </>
       ) : (
         <>
-          <span className='justify-self-end text-muted-foreground'>Stopped</span>
-          <span />
+          <span
+            className={cn(
+              'justify-self-end',
+              workflow.status === 'failed' ? 'text-status-error' : 'text-muted-foreground'
+            )}
+          >
+            {settledLabel[workflow.status]}
+          </span>
+          <span className='justify-self-end text-muted-foreground tabular-nums'>
+            {formatSubagentTokens(workflow.tokens)}
+          </span>
         </>
       )}
     </div>

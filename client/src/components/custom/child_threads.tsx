@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { modelKey } from '@/lib/loadout'
 import { formatAge } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
 import { ContainerIcon, DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
@@ -156,14 +157,20 @@ function LastActivity({ child }: { child: ChildThread }) {
   )
 }
 
-export function ChildThreadList({ threads }: { threads: readonly ChildThread[] }) {
+export function ChildThreadList({
+  threads,
+  className,
+}: {
+  threads: readonly ChildThread[]
+  className?: string
+}) {
   const open = useOpenThread()
   const prefetch = useThreadRowPrefetch()
   const sorted = threads.toSorted(
     (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
   )
   return (
-    <div className='flex flex-col p-2'>
+    <div className={cn('flex flex-col p-2', className)}>
       {sorted.map((child) => (
         <OwnedThreadRow key={child.id} child={child} open={open} prefetch={prefetch} />
       ))}

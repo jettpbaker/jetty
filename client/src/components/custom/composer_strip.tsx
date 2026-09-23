@@ -704,7 +704,7 @@ function TodoIcon({ status }: { status: Todo['status'] }) {
   return <CircleIcon className='size-3.5 shrink-0 text-muted-foreground' />
 }
 
-function TodoList({ list }: { list: readonly Todo[] }) {
+export function TodoList({ list }: { list: readonly Todo[] }) {
   return (
     <ol className='flex flex-col gap-1.5'>
       {list.map((todo) => (
