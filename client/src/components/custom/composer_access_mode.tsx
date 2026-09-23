@@ -29,10 +29,25 @@ export function ComposerAccessMode({
   model?: ProviderModel
   onChange: (value: PermissionMode) => void
 }) {
-  const noAuto = model?.autoMode === false ? model.name : undefined
-  const askFirst = value === 'auto' && noAuto !== undefined
-  const { label, Icon } = askFirst ? { label: 'Asks first', Icon: CommentIcon } : modes[value]
-  const tooltip = askFirst ? `Asks first — ${noAuto} doesn't support Auto` : label
+  if (model?.autoMode === false)
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span className='flex' />}>
+          <Button
+            variant='ghost'
+            tone='muted'
+            size='icon'
+            disabled
+            aria-label='Access mode: Asks first'
+            className='pointer-events-none'
+          >
+            <CommentIcon className='size-3.5' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{model.name} only supports asking first</TooltipContent>
+      </Tooltip>
+    )
+  const { label, Icon } = modes[value]
   return (
     <DropdownMenu modal={false}>
       <Tooltip>
@@ -57,26 +72,19 @@ export function ComposerAccessMode({
         >
           <Icon className='size-3.5' />
         </TooltipTrigger>
-        <TooltipContent>{tooltip}</TooltipContent>
+        <TooltipContent>{label}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuRadioGroup
-          value={askFirst ? null : value}
+          value={value}
           onValueChange={(next) => {
             if (isMode(next)) onChange(next)
           }}
         >
           {Object.entries(modes).map(([id, mode]) => (
-            <DropdownMenuRadioItem
-              key={id}
-              value={id}
-              disabled={id === 'auto' && noAuto !== undefined}
-            >
+            <DropdownMenuRadioItem key={id} value={id}>
               <mode.Icon className='text-muted-foreground' />
               {mode.label}
-              {id === 'auto' && noAuto !== undefined ? (
-                <span className='text-muted-foreground'>Not supported by {noAuto}</span>
-              ) : null}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

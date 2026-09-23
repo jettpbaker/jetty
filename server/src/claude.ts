@@ -129,8 +129,8 @@ export function createClaudeAdapter(
     let usageInFlight = false
 
     function toSdkPermissionMode(input: TurnInput) {
-      if (input.permissionMode === 'full_access') return 'bypassPermissions'
-      return !input.model || supportsAutoMode(input.model) ? 'auto' : 'default'
+      if (input.model && !supportsAutoMode(input.model)) return 'default'
+      return input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto'
     }
 
     function turnOptionsKey(input: TurnInput): string {
