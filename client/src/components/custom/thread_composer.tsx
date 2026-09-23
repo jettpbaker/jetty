@@ -1,10 +1,17 @@
 import type { ThreadItem } from '@jetty/shared/items'
+import type { ProviderId } from '@jetty/shared/wire'
 
 import { Composer } from '@/components/custom/composer'
 import { newThreadProject } from '@/lib/thread_project'
 import { useChrome, useCreateThread, useInterruptTurn, useLoadout, useSendTurn } from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
+
+const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' } as const
+
+function providerName(provider: ProviderId) {
+  return providerNames[provider]
+}
 
 export function ThreadComposer({
   threadId,
@@ -26,6 +33,10 @@ export function ThreadComposer({
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
   const projectId = !threadId && chrome ? newThreadProject(chrome, selectedId) : undefined
+  const provider = threadId
+    ? chrome?.threads.find((thread) => thread.id === threadId)?.provider
+    : undefined
+  const providerLabel = provider ? providerName(provider) : 'Session'
 
   function submit() {
     const text = draft.trim()
@@ -51,6 +62,7 @@ export function ThreadComposer({
         sendDisabled={!threadId && !projectId}
         loadout={loadout}
         onLoadoutChange={setLoadout}
+        providerLabel={providerLabel}
         rows={rows}
       />
     </div>

@@ -16,6 +16,7 @@ export function Composer({
   sendDisabled = false,
   loadout,
   onLoadoutChange,
+  providerLabel,
   rows = 2,
 }: {
   value: string
@@ -26,6 +27,7 @@ export function Composer({
   sendDisabled?: boolean
   loadout: Loadout
   onLoadoutChange: (loadout: Loadout) => void
+  providerLabel: string
   rows?: number
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -92,7 +94,11 @@ export function Composer({
           }}
         />
         <div className='flex items-center justify-between px-2.5 pb-2'>
-          <ComposerLoadout loadout={loadout} onChange={onLoadoutChange} />
+          <ComposerLoadout
+            loadout={loadout}
+            onChange={onLoadoutChange}
+            providerLabel={providerLabel}
+          />
           {stop ? (
             <Button variant='default' size='icon-sm' aria-label='Stop' onClick={onInterrupt}>
               <StopIcon weight='fill' />

@@ -64,19 +64,21 @@ function isPermission(value: string): value is PermissionMode {
 export function ComposerLoadout({
   loadout,
   onChange,
+  providerLabel,
 }: {
   loadout: Loadout
   onChange: (loadout: Loadout) => void
+  providerLabel: string
 }) {
   const modelId = loadout.model ?? 'default'
   const modelLabel =
     models.find((model) => model.id === modelId)?.label ?? loadout.model ?? 'Default'
   return (
     <div className='flex items-center gap-1.5'>
-      <span className='px-2 text-xs text-muted-foreground'>Session</span>
+      <span className='px-2 text-xs text-muted-foreground'>{providerLabel}</span>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          aria-label={`Loadout: Session, ${modelLabel}, ${effortLabels[loadout.effort]}, ${permissionLabels[loadout.permissionMode]}`}
+          aria-label={`Loadout: ${providerLabel}, ${modelLabel}, ${effortLabels[loadout.effort]}, ${permissionLabels[loadout.permissionMode]}`}
           render={
             <Button
               variant='ghost'
@@ -94,7 +96,9 @@ export function ComposerLoadout({
           <DropdownMenuGroup>
             <DropdownMenuLabel className='flex items-center'>
               Provider
-              <span className='ml-auto pl-4 font-normal text-muted-foreground'>Session</span>
+              <span className='ml-auto pl-4 font-normal text-muted-foreground'>
+                {providerLabel}
+              </span>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
