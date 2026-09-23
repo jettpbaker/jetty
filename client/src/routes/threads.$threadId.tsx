@@ -47,6 +47,7 @@ function Thread() {
             key={threadId}
             items={overlay.items}
             status={thread?.status ?? 'idle'}
+            running={overlay.running}
             outcomes={thread?.turnOutcomes}
             projectPath={projectPath}
             onApproval={(itemId, approved) =>

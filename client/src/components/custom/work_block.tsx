@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
@@ -83,12 +84,16 @@ export function WorkBlock({
             : status === 'cancelled'
               ? 'Work cancelled'
               : 'Stopped'
-  const timing = duration ? ` ${ended && status !== 'complete' ? 'after' : 'for'} ${duration}` : ''
+  const timing = duration
+    ? ` ${ended && status !== 'complete' ? 'after' : 'for'} ${duration}`
+    : status === 'running'
+      ? '…'
+      : ''
   const recentStart = Math.max(0, entries.length - previewCount)
   return (
     <ActivityDisclosure
       flushHeader
-      title={heading}
+      title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
       titleSuffix={timing}
       ended={ended}
       hasContent={entries.length > 0}

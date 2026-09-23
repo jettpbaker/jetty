@@ -17,7 +17,7 @@ export function ActivityDisclosure({
   hasPreview = false,
   flushHeader = false,
 }: {
-  title: string
+  title: ReactNode
   titleSuffix?: ReactNode
   defaultView?: ActivityView
   ended?: boolean

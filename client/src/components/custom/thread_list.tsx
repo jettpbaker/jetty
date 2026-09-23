@@ -58,7 +58,9 @@ function ThreadItemRow({
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   if (row.kind === 'user')
-    return <UserMessage text={row.item.text} attachments={row.item.attachments} />
+    return (
+      <UserMessage text={row.item.text} attachments={row.item.attachments} unsent={row.unsent} />
+    )
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
       <Message align='start'>
@@ -92,6 +94,7 @@ function ThreadItemRow({
 export function ThreadList({
   items,
   status,
+  running,
   outcomes,
   projectPath,
   onApproval,
@@ -99,14 +102,15 @@ export function ThreadList({
 }: {
   items: readonly ThreadItem[]
   status: SessionStatus
+  running: boolean
   outcomes?: Readonly<Record<string, TurnOutcome>>
   projectPath?: string
   onApproval: (itemId: string, approved: boolean) => void
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   const rows = useMemo(
-    () => threadRows(items, status, outcomes, projectPath),
-    [items, status, outcomes, projectPath]
+    () => threadRows(items, { status, running, outcomes, projectPath }),
+    [items, status, running, outcomes, projectPath]
   )
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
