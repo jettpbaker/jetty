@@ -39,7 +39,7 @@ export function ComposerAccessMode({
             />
           }
         >
-          <Icon />
+          <Icon className='size-3.5' />
         </TooltipTrigger>
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
