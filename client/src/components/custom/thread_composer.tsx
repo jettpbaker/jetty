@@ -2,7 +2,14 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { Composer } from '@/components/custom/composer'
 import { newThreadProject } from '@/lib/thread_project'
-import { useChrome, useCreateThread, useInterruptTurn, useLoadout, useSendTurn } from '@/state'
+import {
+  useAccessMode,
+  useChrome,
+  useCreateThread,
+  useInterruptTurn,
+  useLoadout,
+  useSendTurn,
+} from '@/state'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 
@@ -19,6 +26,7 @@ export function ThreadComposer({
 }) {
   const [draft, setDraft] = useState('')
   const { loadout, setLoadout } = useLoadout()
+  const { accessMode, setAccessMode } = useAccessMode()
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
   const createThread = useCreateThread()
@@ -58,6 +66,8 @@ export function ThreadComposer({
         onLoadoutChange={setLoadout}
         provider={provider}
         providerDisabled={providerDisabled}
+        accessMode={accessMode}
+        onAccessModeChange={setAccessMode}
         rows={rows}
       />
     </div>

@@ -1,12 +1,13 @@
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
-import type { EffortLevel, PermissionMode, ProviderId } from '@jetty/shared/wire'
+import type { EffortLevel, ProviderId } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
 
+import { accessModeAtom } from './access_mode'
 import { run, useAction } from './connection'
 import { awaitCreation, clearPatch, setPatch, without, withoutId } from './mutations'
 
@@ -15,7 +16,6 @@ type Registry = AtomRegistry.AtomRegistry
 export type Loadout = {
   model?: string
   effort: EffortLevel
-  permissionMode: PermissionMode
   provider: ProviderId
 }
 
@@ -26,7 +26,6 @@ const draftProvider: ProviderId = 'grok'
 
 const loadoutAtom = Atom.make<Loadout>({
   effort: 'high',
-  permissionMode: 'auto',
   provider: draftProvider,
 }).pipe(Atom.keepAlive)
 const draftEpochAtom = Atom.make(0).pipe(Atom.keepAlive)
@@ -121,7 +120,7 @@ function sendTurn(
             text,
             provider,
             effort: loadout.effort,
-            permissionMode: loadout.permissionMode,
+            permissionMode: registry.get(accessModeAtom),
             ...(loadout.model ? { model: loadout.model } : {}),
           })
         )

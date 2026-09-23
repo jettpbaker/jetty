@@ -1,5 +1,5 @@
 import type { Loadout } from '@/state'
-import type { EffortLevel, PermissionMode, ProviderId } from '@jetty/shared/wire'
+import type { EffortLevel, ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -37,11 +37,6 @@ const efforts: Record<EffortLevel, string> = {
   high: 'High',
   xhigh: 'Extra high',
   max: 'Max',
-}
-
-const permissions: Record<PermissionMode, string> = {
-  auto: 'Auto',
-  full_access: 'Full access',
 }
 
 function LoadoutMenu<K extends string>({
@@ -97,12 +92,11 @@ export function ComposerLoadout({
   const modelLabel = models[modelId] ?? modelId
   const providerLabel = providers[provider]
   const effortLabel = efforts[loadout.effort]
-  const permissionLabel = permissions[loadout.permissionMode]
   return (
     <div className='flex items-center gap-1.5'>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          aria-label={`Loadout: ${providerLabel}, ${modelLabel}, ${effortLabel}, ${permissionLabel}`}
+          aria-label={`Loadout: ${providerLabel}, ${modelLabel}, ${effortLabel}`}
           render={
             <Button
               variant='ghost'
@@ -155,13 +149,6 @@ export function ComposerLoadout({
               value={loadout.effort}
               options={efforts}
               onSelect={(effort) => onChange({ ...loadout, effort })}
-            />
-            <LoadoutMenu
-              label='Permission'
-              valueLabel={permissionLabel}
-              value={loadout.permissionMode}
-              options={permissions}
-              onSelect={(permissionMode) => onChange({ ...loadout, permissionMode })}
             />
           </DropdownMenuGroup>
         </DropdownMenuContent>

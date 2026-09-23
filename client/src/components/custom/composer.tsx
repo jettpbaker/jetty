@@ -1,6 +1,7 @@
 import type { Loadout } from '@/state'
-import type { ProviderId } from '@jetty/shared/wire'
+import type { PermissionMode, ProviderId } from '@jetty/shared/wire'
 
+import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +20,8 @@ export function Composer({
   onLoadoutChange,
   provider,
   providerDisabled,
+  accessMode,
+  onAccessModeChange,
   rows = 2,
 }: {
   value: string
@@ -31,6 +34,8 @@ export function Composer({
   onLoadoutChange: (loadout: Loadout) => void
   provider: ProviderId
   providerDisabled: boolean
+  accessMode: PermissionMode
+  onAccessModeChange: (accessMode: PermissionMode) => void
   rows?: number
 }) {
   const textarea = useRef<HTMLTextAreaElement>(null)
@@ -96,12 +101,15 @@ export function Composer({
           }}
         />
         <div className='flex items-center justify-between px-2.5 pb-2'>
-          <ComposerLoadout
-            loadout={loadout}
-            onChange={onLoadoutChange}
-            provider={provider}
-            providerDisabled={providerDisabled}
-          />
+          <div className='flex items-center gap-1.5'>
+            <ComposerLoadout
+              loadout={loadout}
+              onChange={onLoadoutChange}
+              provider={provider}
+              providerDisabled={providerDisabled}
+            />
+            <ComposerAccessMode value={accessMode} onChange={onAccessModeChange} />
+          </div>
           {stop ? (
             <Button variant='default' size='icon-sm' aria-label='Stop' onClick={onInterrupt}>
               <StopIcon weight='fill' />
