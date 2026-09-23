@@ -16,6 +16,7 @@ type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
+type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 
 export type ThreadRow =
   | { kind: 'user'; id: string; item: UserItem }
@@ -35,6 +36,7 @@ export type ThreadRow =
   // a settled approval or question; pending ones live in the composer strip
   | { kind: 'marker'; id: string; item: ApprovalItem | QuestionItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
+  | { kind: 'workflow'; id: string; item: WorkflowItem }
   | { kind: 'created'; id: string; threadIds: string[] }
 
 function toolKind(name: string): ToolKind {
@@ -292,6 +294,9 @@ export function threadRows(
       case 'subagent':
         if (last?.kind === 'subagents') last.agents.push(item)
         else rows.push({ kind: 'subagents', id: item.id, agents: [item] })
+        break
+      case 'workflow':
+        rows.push({ kind: 'workflow', id: item.id, item })
         break
       case 'user_message':
         rows.push({ kind: 'user', id: item.id, item })

@@ -19,6 +19,7 @@ import { TranscriptMarker } from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
+import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -45,6 +46,8 @@ function rowStamp(row: ThreadRow) {
       return row.item.caption?.length ?? 0
     case 'subagents':
       return row.agents.map((agent) => `${agent.id}:${agent.status}`).join(',')
+    case 'workflow':
+      return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'created':
       return row.threadIds.join(',')
     case 'marker':
@@ -128,6 +131,7 @@ function ThreadItemRow({
     )
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
+  if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
   if (row.kind === 'created') return <CreatedThreads parentId={threadId} ids={row.threadIds} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')

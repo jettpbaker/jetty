@@ -72,6 +72,10 @@ export function estimateRow(row: ThreadRow, width: number) {
       return videoHeight(row.item.video, width) + captionHeight(row.id, row.item.caption, width)
     case 'subagents':
       return 44 + 50 * row.agents.length
+    case 'workflow':
+      return row.item.status === 'running'
+        ? 72 + 32 * row.item.phases.length + 28 * row.item.agents.length
+        : 36
     case 'created':
       return 28 * row.threadIds.length
     case 'marker':
