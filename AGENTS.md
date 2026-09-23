@@ -1,14 +1,11 @@
 # working in this repo
 
-## jetty-v2 branch strategy
+## branch strategy
 
-- Active development is on `jetty-v2`. Fetch it and base new work on
-  `origin/jetty-v2`, not `main`, unless Jett explicitly asks otherwise.
-- Commit directly to `jetty-v2` — small, frequent commits, no PRs. Parallel agents
-  work in their own worktrees/branches, then rebase onto `jetty-v2` and land as a
+- Active development is on `main`. Fetch it and base new work on `origin/main`.
+- Commit directly to `main` — small, frequent commits, no PRs. Parallel agents
+  work in their own worktrees/branches, then rebase onto `main` and land as a
   fast-forward once typecheck, lint, format, and tests pass.
-- The new backend and frontend ship together in a final `jetty-v2` → `main` PR.
-  Don't open or merge that one without Jett's explicit approval.
 
 ## project guidance
 
