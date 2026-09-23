@@ -30,6 +30,7 @@ export type StartTurnInput = {
   attachments?: readonly UploadAttachment[]
   model?: string
   effort?: EffortLevel
+  fast?: boolean
   permissionMode?: PermissionMode
   provider?: ProviderId
 }
@@ -196,13 +197,20 @@ export function createOrchestrator(
         const written = yield* store.setThreadProviderIfAbsent(threadId, provider)
         yield* agentFor(written)
         if (written !== provider) return yield* Effect.fail(providerConflict(written, provider))
-        yield* hub.withChromePublication(
-          Effect.gen(function* () {
-            const thread = yield* store.getThread(threadId)
-            if (thread?.provider) hub.pushChrome({ type: 'thread.upserted', thread })
-          })
-        )
       })
+    }
+
+    function saveLoadout(input: StartTurnInput) {
+      return hub.withChromePublication(
+        Effect.gen(function* () {
+          const thread = yield* store.setThreadLoadout(input.threadId, {
+            model: input.model,
+            effort: input.effort,
+            fast: input.fast,
+          })
+          hub.pushChrome({ type: 'thread.upserted', thread })
+        }).pipe(Effect.uninterruptible)
+      )
     }
 
     function agentForThread(threadId: string) {
@@ -250,6 +258,7 @@ export function createOrchestrator(
                   )
                 : EMPTY_ATTACHMENTS
               if (!chosen.stored) yield* commitProvider(input.threadId, chosen.provider)
+              yield* saveLoadout(input)
               const { agent } = chosen
               if (yield* store.needsGeneratedTitle(input.threadId))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
@@ -291,6 +300,7 @@ export function createOrchestrator(
                       images: saved.images,
                       model: input.model,
                       effort: input.effort,
+                      fast: input.fast,
                       permissionMode: input.permissionMode,
                     },
                     emit

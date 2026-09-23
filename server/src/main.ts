@@ -1,24 +1,28 @@
-import type { RateLimits } from '@jetty/shared/wire'
+import type { ProviderModel, RateLimits } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
+import { ProviderId } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
-import { AgentService, echoLayer, type Agent } from './agent'
+import { AgentService, ECHO_MODELS, echoLayer, type Agent } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
+import { discoverClaudeModels } from './claude-models'
 import { createClaudeTitler } from './claude-titler'
 import { codexLayer, type CodexOptions } from './codex'
+import { discoverCodexModels } from './codex-models'
 import { createCodexTitler } from './codex-titler'
 import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
 import { grokLayer, type GrokOptions } from './grok'
+import { discoverGrokModels } from './grok-models'
 import { createGrokTitler } from './grok-titler'
 import { createHub } from './hub'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -158,16 +162,45 @@ function createServer(opts: ServerOptions = {}) {
               },
               agentKind
             )
+    let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
+    const discovered: Partial<Record<ProviderId, readonly ProviderModel[]>> = {}
+    function publishModels(provider: ProviderId, list: readonly ProviderModel[]) {
+      return hub.withChromePublication(
+        Effect.sync(() => {
+          discovered[provider] = list
+          const next = ProviderId.literals.flatMap((id) => discovered[id] ?? [])
+          models = next
+          hub.pushChrome({ type: 'models', models: next })
+        })
+      )
+    }
+    if (typeof agentKind === 'string' && agentKind !== 'echo') {
+      yield* Effect.all(
+        [
+          discoverClaudeModels().pipe(Effect.flatMap((list) => publishModels('claude', list))),
+          discoverCodexModels(home, opts.codex).pipe(
+            Effect.flatMap((list) => publishModels('codex', list))
+          ),
+          discoverGrokModels(home, opts.grok).pipe(
+            Effect.flatMap((list) => publishModels('grok', list))
+          ),
+        ],
+        { concurrency: 'unbounded', discard: true }
+      ).pipe(Effect.forkIn(yield* Effect.scope))
+    }
     const titler = yield* selectTitler(agentKind, opts)
     const services = yield* Layer.build(
       orchestratorLayer(store, hub, titler, attachments, registry)
     )
     const orch = Context.get(services, OrchestratorService)
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
-    const handlers = yield* createRpcHandlers(store, orch, hub, () => lastUsage).pipe(
-      Effect.provideService(Scope.Scope, admissionScope),
-      Effect.provideContext(io)
-    )
+    const handlers = yield* createRpcHandlers(
+      store,
+      orch,
+      hub,
+      () => lastUsage,
+      () => models
+    ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(
       BunHttpServer.layer({ port, hostname, disablePreemptiveShutdown: true })

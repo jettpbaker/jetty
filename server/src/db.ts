@@ -47,6 +47,7 @@ const migrations = SqliteMigrator.fromRecord({
     title_locked: 'INTEGER NOT NULL DEFAULT 0',
   }),
   '005_thread_provider': addThreadColumns({ provider: 'TEXT' }),
+  '006_thread_loadout': addThreadColumns({ model: 'TEXT', effort: 'TEXT', fast: 'INTEGER' }),
 })
 
 export function databaseLayer(home: string) {

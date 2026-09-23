@@ -14,6 +14,7 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
+import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
 import { createGrokTranslator } from './grok-translate'
 import {
@@ -214,11 +215,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           session.providerThreadId = sessionId
           yield* store.setProviderSessionId(session.input.threadId, 'grok', sessionId)
           const requestedModel = session.input.model ?? process.env.JETTY_GROK_MODEL
-          const modelId =
-            requestedModel && requestedModel !== 'grok-build'
-              ? requestedModel
-              : string(object(result.models).currentModelId)
-          if ((requestedModel && requestedModel !== 'grok-build') || session.input.effort) {
+          const explicit = requestedModel && requestedModel !== 'grok-build'
+          const baseId = explicit ? requestedModel : string(object(result.models).currentModelId)
+          const { fastIds } = foldGrokModels(object(result.models).availableModels)
+          const modelId = session.input.fast ? (fastIds.get(baseId) ?? baseId) : baseId
+          if (explicit || modelId !== baseId || session.input.effort) {
             if (!modelId)
               return yield* Effect.fail(new AgentError('Grok did not advertise a current model'))
             yield* connection.request('session/set_model', {

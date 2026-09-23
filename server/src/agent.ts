@@ -1,6 +1,12 @@
 import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
-import type { EffortLevel, PermissionMode, UploadAttachment, RateLimits } from '@jetty/shared/wire'
+import type {
+  EffortLevel,
+  PermissionMode,
+  ProviderModel,
+  UploadAttachment,
+  RateLimits,
+} from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
@@ -17,6 +23,7 @@ export type TurnInput = {
   images?: AgentImage[]
   model?: string
   effort?: EffortLevel
+  fast?: boolean
   permissionMode?: PermissionMode
 }
 
@@ -71,6 +78,45 @@ const ECHO_FIXED_SLICES = [
   { label: 'MCP tools', tokens: 6_090 },
 ] as const
 const ECHO_FIXED_SUM = ECHO_FIXED_SLICES.reduce((sum, s) => sum + s.tokens, 0)
+
+const ALL_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
+export const ECHO_MODELS: ProviderModel[] = [
+  { provider: 'claude', id: 'opus', name: 'Opus', efforts: ALL_EFFORTS, fast: false },
+  { provider: 'claude', id: 'sonnet', name: 'Sonnet', efforts: ALL_EFFORTS, fast: false },
+  { provider: 'claude', id: 'haiku', name: 'Haiku', efforts: [], fast: false },
+  {
+    provider: 'codex',
+    id: 'gpt-echo',
+    name: 'GPT-Echo',
+    efforts: ['low', 'medium', 'high', 'xhigh'],
+    defaultEffort: 'medium',
+    fast: true,
+  },
+  {
+    provider: 'codex',
+    id: 'gpt-echo-mini',
+    name: 'GPT-Echo-Mini',
+    efforts: ['low', 'medium', 'high'],
+    defaultEffort: 'medium',
+    fast: false,
+  },
+  {
+    provider: 'grok',
+    id: 'grok-echo',
+    name: 'Grok Echo',
+    efforts: ['low', 'medium', 'high', 'xhigh'],
+    defaultEffort: 'high',
+    fast: true,
+  },
+  {
+    provider: 'grok',
+    id: 'grok-echo-lite',
+    name: 'Grok Echo Lite',
+    efforts: ['low', 'medium', 'high'],
+    defaultEffort: 'high',
+    fast: false,
+  },
+]
 
 type EchoSession = {
   fiber: Fiber.Fiber<void, AgentError>

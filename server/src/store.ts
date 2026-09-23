@@ -1,6 +1,7 @@
 import { ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
+  EffortLevel,
   newId,
   type ErrorCode,
   type Project,
@@ -33,7 +34,14 @@ type ThreadRow = {
   pinned: number
   updated_at: number
   provider: string | null
+  model: string | null
+  effort: string | null
+  fast: number | null
 }
+
+export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
+
+const isEffort = Schema.is(EffortLevel)
 
 export class StoreError extends Error {
   readonly _tag = 'StoreError'
@@ -73,6 +81,9 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     pinned: row.pinned !== 0,
     updatedAt: row.updated_at,
     ...(provider ? { provider } : {}),
+    ...(row.model ? { model: row.model } : {}),
+    ...(isEffort(row.effort) ? { effort: row.effort } : {}),
+    ...(row.fast === null ? {} : { fast: row.fast !== 0 }),
   }
 }
 
@@ -314,6 +325,14 @@ export function createStore() {
           if (!stored)
             return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
           return stored
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      setThreadLoadout(threadId: string, loadout: ThreadLoadout) {
+        const fast = loadout.fast === undefined ? null : loadout.fast ? 1 : 0
+        return Effect.gen(function* () {
+          yield* sql`UPDATE threads SET model = ${loadout.model ?? null},
+            effort = ${loadout.effort ?? null}, fast = ${fast} WHERE id = ${threadId}`
+          return yield* requireThread(threadId)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getProviderSessionId(threadId: string, provider: string) {

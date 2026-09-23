@@ -23,6 +23,16 @@ export type EffortLevel = Schema.Schema.Type<typeof EffortLevel>
 export const ProviderId = Schema.Literals(['claude', 'codex', 'grok'])
 export type ProviderId = Schema.Schema.Type<typeof ProviderId>
 
+export const ProviderModel = Schema.Struct({
+  provider: ProviderId,
+  id: Schema.String,
+  name: Schema.String,
+  efforts: Schema.Array(EffortLevel),
+  defaultEffort: Schema.optional(EffortLevel),
+  fast: Schema.Boolean,
+})
+export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>
+
 export const Project = Schema.Struct({
   id: Schema.String,
   path: Schema.String,
@@ -53,6 +63,9 @@ export const ThreadMeta = Schema.Struct({
   pinned: Schema.Boolean,
   updatedAt: Schema.Int,
   provider: Schema.optional(ProviderId),
+  model: Schema.optional(Schema.String),
+  effort: Schema.optional(EffortLevel),
+  fast: Schema.optional(Schema.Boolean),
   git: Schema.optional(ThreadGitStatus),
 })
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
@@ -157,6 +170,7 @@ export const methods = {
       ),
       model: Schema.optional(Schema.String),
       effort: Schema.optional(EffortLevel),
+      fast: Schema.optional(Schema.Boolean),
       permissionMode: Schema.optional(PermissionMode),
       // Locks the thread on the first turn; omitted turns use the server default.
       provider: Schema.optional(ProviderId),
@@ -234,10 +248,12 @@ export const ChromePushData = Schema.Union([
     projects: Schema.Array(Project),
     threads: Schema.Array(ThreadMeta),
     usage: Schema.optional(RateLimits),
+    models: Schema.optional(Schema.Array(ProviderModel)),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
+  Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>

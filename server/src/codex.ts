@@ -57,7 +57,7 @@ function threadOptions(input: TurnInput, cwd: string) {
   return {
     cwd,
     model: input.model ?? process.env.JETTY_CODEX_MODEL,
-    serviceTier: 'default',
+    serviceTier: input.fast ? 'fast' : 'default',
     approvalPolicy: full ? 'never' : 'on-request',
     approvalsReviewer: 'user',
     developerInstructions: '',
