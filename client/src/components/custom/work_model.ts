@@ -12,6 +12,7 @@ export type ToolActivity = {
   kind: ToolKind
   name: string
   target: string
+  description?: string
   status: ActivityStatus
   input?: string
   output?: string
@@ -132,6 +133,8 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const summarise = (sealed && calls.length > 1 && !active && !waiting) || running.length > 1
   const shown = active ? running.length : completed || calls.length
   const current = calls.find((call) => call.status === 'waiting') ?? running[0] ?? latest
+  const description =
+    first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
   const target = !summarise
     ? current.target
     : first.kind === 'generic'
@@ -156,6 +159,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
           .join(', ')
   return {
     verb,
+    description,
     target,
     complete: completed === calls.length,
     active,

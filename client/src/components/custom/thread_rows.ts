@@ -63,6 +63,12 @@ function toolTarget(name: string, input: unknown) {
   return name
 }
 
+function toolDescription(input: unknown) {
+  if (!input || typeof input !== 'object') return undefined
+  const { description } = input as Record<string, unknown>
+  return typeof description === 'string' ? description : undefined
+}
+
 function textRunning(
   item: { streaming?: boolean },
   isThreadTail: boolean,
@@ -118,6 +124,7 @@ function toActivity(
     kind: toolKind(item.toolName),
     name: item.toolName,
     target: toolTarget(item.toolName, item.input),
+    description: toolDescription(item.input),
     status:
       item.status === 'failed'
         ? 'failed'

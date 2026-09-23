@@ -13,7 +13,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
-        aria-label={`${label.verb} ${label.target}${label.notices ? `, ${label.notices}` : ''}`}
+        aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
       >
         <span
           className={cn(
@@ -21,18 +21,32 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             label.waiting > 0 && 'text-status-attention'
           )}
         >
-          <span
-            className={cn(
-              'shrink-0',
-              label.active && 'shimmer',
-              label.complete && 'text-foreground'
-            )}
-          >
-            {label.verb}
-          </span>
-          <RollingText key={label.verb} className='font-mono'>
-            {label.target}
-          </RollingText>
+          {label.description ? (
+            <span
+              className={cn(
+                'truncate',
+                label.active && 'shimmer',
+                label.failed && 'text-status-error'
+              )}
+            >
+              {label.description}
+            </span>
+          ) : (
+            <>
+              <span
+                className={cn(
+                  'shrink-0',
+                  label.active && 'shimmer',
+                  label.complete && 'text-foreground'
+                )}
+              >
+                {label.verb}
+              </span>
+              <RollingText key={label.verb} className='font-mono'>
+                {label.target}
+              </RollingText>
+            </>
+          )}
         </span>
         {label.notices && (
           <span
