@@ -4,11 +4,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 ## sketchpad designs not ported yet (needs Jett's call)
 
-- New-thread backdrop isn't ported — the Settings wallpaper only sets the accent,
-  it's never shown. Design: `new_thread_backdrop.tsx` + ambient `ComposerShadow`.
-- Thread hover card (sidebar row preview) dropped. Design: `thread_hover.tsx`.
-- Details panel tabs are a plain TabsList. Design: `thread_details_tabs.tsx` —
-  `+` open-tab menu, close ✕, drag reorder, Chat tab when full width.
 - Design rebuilt Settings (sidebar nav, merged Models page) after our port.
   Ignoring until Jett says otherwise.
 
