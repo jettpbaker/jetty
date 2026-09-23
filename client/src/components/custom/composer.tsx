@@ -89,19 +89,7 @@ export function Composer({
   }
 
   return (
-    <div
-      className='mx-auto flex w-full max-w-[660px] flex-col gap-1'
-      onDragOver={(event) => {
-        if (!event.dataTransfer.types.includes('Files')) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'copy'
-      }}
-      onDrop={(event) => {
-        if (event.dataTransfer.files.length === 0) return
-        event.preventDefault()
-        attachments.add(event.dataTransfer.files)
-      }}
-    >
+    <div className='mx-auto flex w-full max-w-[660px] flex-col gap-1'>
       <div className='relative'>
         <InputGroup className='relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0'>
           <ComposerImages images={attachments.images} onRemove={attachments.remove} />

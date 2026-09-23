@@ -6,6 +6,7 @@ import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
+import { FileDropOverlay } from './file_drop_overlay'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
@@ -128,6 +129,7 @@ function Workspace({
           >
             <div className='relative flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] bg-background'>
               {children}
+              <FileDropOverlay />
             </div>
           </SidebarInset>
         </div>

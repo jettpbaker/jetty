@@ -1,5 +1,5 @@
 import { MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, UploadAttachment } from '@jetty/shared/wire'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 
 type ImageType = UploadAttachment['mimeType']
 
@@ -16,8 +16,18 @@ export type ImageAttachments = ReturnType<typeof useImageAttachments>
 const imageTypes: readonly string[] = UploadAttachment.fields.mimeType.literals
 export const imageAccept = imageTypes.join(',')
 
-function isImageType(type: string): type is ImageType {
+export function isImageType(type: string): type is ImageType {
   return imageTypes.includes(type)
+}
+
+let dropTarget: ((files: Iterable<File>) => void) | undefined
+
+export function canDropImages() {
+  return dropTarget !== undefined
+}
+
+export function dropImages(files: Iterable<File>) {
+  dropTarget?.(files)
 }
 
 function readDataUrl(file: File) {
@@ -86,6 +96,15 @@ export function useImageAttachments() {
     setError(undefined)
     return ready
   }
+
+  const receive = useEffectEvent((files: Iterable<File>) => add(files))
+
+  useEffect(() => {
+    dropTarget = receive
+    return () => {
+      if (dropTarget === receive) dropTarget = undefined
+    }
+  }, [])
 
   useEffect(
     () => () => {
