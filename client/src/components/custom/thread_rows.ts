@@ -12,12 +12,8 @@ type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' | 'approval' }>
 
-// Prototype switch for what shows between sending and the first activity: 'working' adds an
-// optimistic "Working…" row at once; 'fade' dims the message until the server has it.
-const optimisticSend: 'working' | 'fade' = 'working'
-
 export type ThreadRow =
-  | { kind: 'user'; id: string; item: UserItem; unsent: boolean }
+  | { kind: 'user'; id: string; item: UserItem }
   | { kind: 'assistant'; id: string; item: AssistantItem; streaming: boolean }
   | { kind: 'plan'; id: string; item: PlanItem; streaming: boolean }
   | {
@@ -227,12 +223,7 @@ export function threadRows(
     flush(item)
     switch (item.kind) {
       case 'user_message':
-        rows.push({
-          kind: 'user',
-          id: item.id,
-          item,
-          unsent: optimisticSend === 'fade' && item.turnId === 'pending',
-        })
+        rows.push({ kind: 'user', id: item.id, item })
         break
       case 'assistant_message':
         rows.push({
@@ -266,11 +257,7 @@ export function threadRows(
   }
   flush(undefined)
   const last = items.at(-1)
-  if (
-    running &&
-    last?.kind === 'user_message' &&
-    (optimisticSend === 'working' || last.turnId !== 'pending')
-  )
+  if (running && last?.kind === 'user_message')
     rows.push({
       kind: 'work',
       id: 'working',

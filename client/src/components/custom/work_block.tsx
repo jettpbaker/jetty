@@ -77,18 +77,16 @@ export function WorkBlock({
       ? 'Waiting for you'
       : status === 'running'
         ? 'Working'
-        : status === 'complete'
+        : status === 'complete' || status === 'failed'
           ? 'Worked'
-          : status === 'failed'
-            ? 'Work failed'
-            : status === 'cancelled'
-              ? 'Work cancelled'
-              : 'Stopped'
+          : status === 'cancelled'
+            ? 'Work cancelled'
+            : duration
+              ? 'You stopped'
+              : 'You stopped this response'
   const timing = duration
-    ? ` ${ended && status !== 'complete' ? 'after' : 'for'} ${duration}`
-    : status === 'running'
-      ? '…'
-      : ''
+    ? ` ${status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} ${duration}`
+    : ''
   const recentStart = Math.max(0, entries.length - previewCount)
   return (
     <ActivityDisclosure

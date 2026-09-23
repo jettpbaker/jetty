@@ -34,7 +34,7 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
         ) : (
           <p className='text-muted-foreground'>
             {call.status === 'running'
-              ? 'Waiting for output…'
+              ? 'Waiting for output'
               : call.status === 'waiting'
                 ? 'Waiting for approval.'
                 : call.status === 'cancelled' || call.status === 'interrupted'

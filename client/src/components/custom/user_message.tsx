@@ -2,19 +2,16 @@ import type { Attachment } from '@jetty/shared/items'
 
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
-import { cn } from '@/lib/utils'
 
 export function UserMessage({
   text,
   attachments,
-  unsent = false,
 }: {
   text: string
   attachments: readonly Attachment[]
-  unsent?: boolean
 }) {
   return (
-    <Message align='end' className={cn('transition-opacity', unsent && 'opacity-50')}>
+    <Message align='end'>
       <MessageContent>
         <Bubble variant='secondary' align='end'>
           <BubbleContent

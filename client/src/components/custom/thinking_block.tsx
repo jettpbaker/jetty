@@ -42,7 +42,7 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
         : activity.status === 'interrupted'
           ? 'Thinking stopped'
           : `Thinking ${activity.status}`
-  const titleSuffix = (tokens ?? duration) ? ` for ${tokens ?? duration}` : active ? '…' : ''
+  const titleSuffix = (tokens ?? duration) ? ` for ${tokens ?? duration}` : ''
   const summary = activity.summary.trim()
   const heading = (
     <span>

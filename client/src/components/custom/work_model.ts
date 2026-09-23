@@ -33,56 +33,46 @@ const vocabulary = {
   read: {
     active: 'Reading',
     done: 'Read',
-    failed: 'Failed to read',
     noun: 'files',
     singular: 'file',
   },
   edit: {
     active: 'Editing',
     done: 'Edited',
-    failed: 'Failed to edit',
     noun: 'files',
     singular: 'file',
   },
   write: {
     active: 'Writing',
     done: 'Wrote',
-    failed: 'Failed to write',
     noun: 'files',
     singular: 'file',
   },
   search: {
     active: 'Searching',
     done: 'Searched',
-    failed: 'Failed to search',
     noun: 'queries',
     singular: 'query',
   },
   terminal: {
     active: 'Running',
     done: 'Ran',
-    failed: 'Failed to run',
     noun: 'commands',
     singular: 'command',
   },
   web: {
     active: 'Searching the web',
     done: 'Searched the web',
-    failed: 'Failed to search for',
     noun: 'queries',
     singular: 'query',
   },
   generic: {
     active: 'Calling',
     done: 'Called',
-    failed: 'Failed to call',
     noun: 'calls',
     singular: 'call',
   },
-} satisfies Record<
-  ToolKind,
-  { active: string; done: string; failed: string; noun: string; singular: string }
->
+} satisfies Record<ToolKind, { active: string; done: string; noun: string; singular: string }>
 
 export function formatActivityDuration(seconds?: number) {
   if (seconds === undefined) return undefined
@@ -143,7 +133,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   let verb = active ? words.active : words.done
   if (waiting) verb = 'Awaiting approval for'
   else if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
-    if (latest.status === 'failed') verb = words.failed
+    if (latest.status === 'failed') verb = 'Failed'
     else if (latest.status === 'cancelled') verb = 'Cancelled'
     else if (latest.status === 'interrupted') verb = 'Stopped'
   }
@@ -159,7 +149,10 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
           .join(', ')
   return {
     verb,
-    description,
+    description:
+      description && (current.status === 'failed' || current.status === 'interrupted')
+        ? `${current.status === 'failed' ? 'Failed' : 'Stopped'} ${description}`
+        : description,
     target,
     complete: completed === calls.length,
     active,

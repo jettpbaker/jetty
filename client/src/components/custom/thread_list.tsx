@@ -58,9 +58,7 @@ function ThreadItemRow({
   onAnswer: (itemId: string, answers: Record<string, string>) => void
 }) {
   if (row.kind === 'user')
-    return (
-      <UserMessage text={row.item.text} attachments={row.item.attachments} unsent={row.unsent} />
-    )
+    return <UserMessage text={row.item.text} attachments={row.item.attachments} />
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
       <Message align='start'>
