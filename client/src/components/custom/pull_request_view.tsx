@@ -10,7 +10,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
@@ -553,6 +553,7 @@ export function PullRequestView({
 }) {
   const { pull, reviews, reviewComments, checkRuns, commits, files, closingIssuesReferences } = data
   const [pane, setPane] = useState<PrPane>('info')
+  const [diffSeen, setDiffSeen] = useState(false)
   const state = pullRequestState(pull)
   const presentation = prPresentation[state]
   const Icon = presentation.icon
@@ -561,8 +562,16 @@ export function PullRequestView({
   const body = pull.body.trim()
 
   return (
-    <section aria-label={pull.title} className='relative flex h-full min-h-0 w-full flex-col'>
-      <div className='flex shrink-0 items-center justify-between px-6 pt-4'>
+    <Tabs
+      value={pane}
+      onValueChange={(value) => {
+        if (value === 'info' || value === 'diff') setPane(value)
+        if (value === 'diff') setDiffSeen(true)
+      }}
+      render={<section aria-label={pull.title} />}
+      className='relative h-full min-h-0 w-full gap-0'
+    >
+      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 pt-4'>
         <div className='flex min-w-0 items-center gap-2'>
           <PageSidebarTrigger />
           {repo && (
@@ -576,31 +585,28 @@ export function PullRequestView({
               </span>
             </p>
           )}
-          <Tabs
-            value={pane}
-            onValueChange={(value) => {
-              if (value === 'info' || value === 'diff') setPane(value)
-            }}
+          <TabsList
+            variant='line'
+            aria-label='Pull request view'
+            className='h-7 shrink-0 gap-1 p-0'
           >
-            <TabsList variant='line' aria-label='Pull request view' className='h-7 gap-1 p-0'>
-              <TabsTrigger
-                value='info'
-                className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
-              >
-                <InfoIcon data-icon='inline-start' />
-                Info
-              </TabsTrigger>
-              <TabsTrigger
-                value='diff'
-                className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
-              >
-                <DiffIcon data-icon='inline-start' />
-                Diff
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+            <TabsTrigger
+              value='info'
+              className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
+            >
+              <InfoIcon data-icon='inline-start' />
+              Info
+            </TabsTrigger>
+            <TabsTrigger
+              value='diff'
+              className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
+            >
+              <DiffIcon data-icon='inline-start' />
+              Diff
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className='flex shrink-0 items-center gap-2'>
+        <div className='ml-auto flex shrink-0 items-center gap-2'>
           <MergeAction key={pull.number} data={data} state={state} />
           <div className='flex items-center'>
             {actions}
@@ -625,16 +631,8 @@ export function PullRequestView({
           </div>
         </div>
       </div>
-      {pane === 'diff' ? (
-        <div className='min-h-0 flex-1 overflow-hidden pt-4'>
-          <Suspense
-            fallback={<p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>}
-          >
-            <PullRequestDiff files={files} />
-          </Suspense>
-        </div>
-      ) : (
-        <div className='scroll-fade-y scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain'>
+      <TabsContent keepMounted value='info' className='min-h-0'>
+        <div className='scroll-fade-y scrollbar-subtle [scrollbar-gutter:stable_both-edges] h-full overflow-y-auto overscroll-contain'>
           <h1 className='mx-auto w-full max-w-[708px] shrink-0 px-6 pt-4 text-base font-medium leading-normal'>
             {pull.title}
           </h1>
@@ -814,8 +812,17 @@ export function PullRequestView({
             </section>
           </div>
         </div>
-      )}
-    </section>
+      </TabsContent>
+      <TabsContent keepMounted value='diff' className='min-h-0 overflow-hidden pt-4'>
+        {diffSeen && (
+          <Suspense
+            fallback={<p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>}
+          >
+            <PullRequestDiff files={files} />
+          </Suspense>
+        )}
+      </TabsContent>
+    </Tabs>
   )
 }
 
