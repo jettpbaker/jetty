@@ -10,7 +10,11 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
-  plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react(), tailwindcss()],
+  plugins: [
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    react({ compiler: { target: '19' } }),
+    tailwindcss(),
+  ],
   server: {
     port: 5173,
     proxy: {
