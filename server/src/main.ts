@@ -297,7 +297,8 @@ function createServer(opts: ServerOptions = {}) {
               )
             }
           }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
-        reviewer
+        reviewer,
+        () => refreshModels().pipe(Effect.as(models ?? []))
       )
     )
     const orch = Context.get(services, OrchestratorService)

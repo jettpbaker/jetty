@@ -282,7 +282,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           if (!sessionId) return yield* Effect.fail(new AgentError('Grok returned no session id'))
           session.providerThreadId = sessionId
           yield* store.setProviderSessionId(session.input.threadId, 'grok', sessionId)
-          const requestedModel = session.input.model ?? process.env.JETTY_GROK_MODEL
+          const requestedModel = session.input.model
           const currentId = string(object(result.models).currentModelId)
           const { fastIds } = foldGrokModels(object(result.models).availableModels)
           session.fastIds = fastIds
@@ -292,15 +292,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               ? requestedModel
               : (baseOf.get(currentId) ?? currentId)
           const modelId = session.input.fast ? (fastIds.get(baseId) ?? baseId) : baseId
-          if (modelId !== currentId || session.input.effort) {
-            if (!modelId)
-              return yield* Effect.fail(new AgentError('Grok did not advertise a current model'))
-            yield* connection.request('session/set_model', {
-              sessionId,
-              modelId,
-              ...(session.input.effort ? { _meta: { reasoningEffort: session.input.effort } } : {}),
-            })
-          }
+          if (!modelId)
+            return yield* Effect.fail(new AgentError('Grok did not advertise a current model'))
+          yield* connection.request('session/set_model', {
+            sessionId,
+            modelId,
+            ...(session.input.effort ? { _meta: { reasoningEffort: session.input.effort } } : {}),
+          })
           session.modelId = modelId
           session.effort = session.input.effort
           // Loading replays history; the ledger already owns those messages.
@@ -462,7 +460,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 }
                 const currentId = existing!.modelId ?? ''
                 const baseOf = new Map([...existing!.fastIds].map(([base, fast]) => [fast, base]))
-                const requestedModel = input.model ?? process.env.JETTY_GROK_MODEL
+                const requestedModel = input.model
                 const baseId =
                   requestedModel && requestedModel !== 'grok-build'
                     ? requestedModel

@@ -29,7 +29,12 @@ test('Codex fixture over backend RPC: disconnect, durable completion, immediate 
     await client.request('thread.create', { id: threadId, projectId: project.id })
     let subscription = client.subscribeThread({ threadId })
     await subscription.ready
-    await client.request('turn.start', { threadId, text: 'hold' })
+    await client.request('turn.start', {
+      threadId,
+      text: 'hold',
+      model: 'fixture-model',
+      effort: 'low',
+    })
     await subscription.waitFor(
       (message) =>
         message.type === 'event' &&

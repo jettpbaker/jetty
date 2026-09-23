@@ -5,6 +5,7 @@ import type {
   PermissionMode,
   ProviderId,
   QueuedMessage,
+  ProviderModel,
   UploadAttachment,
 } from '@jetty/shared/wire'
 
@@ -64,7 +65,8 @@ export function createOrchestrator(
   titler: ProviderTitler | null = null,
   attachments: Attachments | null = null,
   onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>,
-  reviewer?: ReviewClassifier
+  reviewer?: ReviewClassifier,
+  modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
 ) {
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
@@ -351,6 +353,35 @@ export function createOrchestrator(
               if (!state(input.threadId).turnId)
                 yield* store.setPermissionMode(input.threadId, input.permissionMode)
               const chosen = yield* chooseProvider(input.threadId, input.provider)
+              if (chosen.provider !== 'echo') {
+                const model = input.model ?? thread.model
+                const savedEffort = model && model === thread.model ? thread.effort : undefined
+                const catalog =
+                  modelCatalog && (!model || !(input.effort ?? savedEffort))
+                    ? yield* modelCatalog()
+                    : []
+                const discovered = catalog.find(
+                  (candidate) => candidate.provider === chosen.provider && candidate.id === model
+                )
+                const selected = model
+                  ? discovered
+                  : catalog.find((candidate) => candidate.provider === chosen.provider)
+                if (!model && modelCatalog && !selected && chosen.provider !== 'grok')
+                  return yield* Effect.fail(
+                    new StoreError('internal', `No model available for ${chosen.provider}`)
+                  )
+                input = {
+                  ...input,
+                  model: model ?? selected?.id,
+                  effort:
+                    input.effort ??
+                    savedEffort ??
+                    selected?.defaultEffort ??
+                    (selected?.efforts.includes('high') ? 'high' : selected?.efforts.at(-1)),
+                  fast:
+                    input.fast ?? (model && model === thread.model ? thread.fast : false) ?? false,
+                }
+              }
               let committed = false
               const onCommit = Effect.sync(() => {
                 committed = true
@@ -733,10 +764,20 @@ export function orchestratorLayer(
   attachments: Attachments,
   registry: AgentRegistry,
   onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>,
-  reviewer?: ReviewClassifier
+  reviewer?: ReviewClassifier,
+  modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
 ) {
   return Layer.effect(
     OrchestratorService,
-    createOrchestrator(store, registry, hub, titler, attachments, onCompletedText, reviewer)
+    createOrchestrator(
+      store,
+      registry,
+      hub,
+      titler,
+      attachments,
+      onCompletedText,
+      reviewer,
+      modelCatalog
+    )
   )
 }
