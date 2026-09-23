@@ -61,7 +61,9 @@ function VideoPlayer({ video }: { video: Attachment }) {
       document.removeEventListener('fullscreenchange', onFullscreen)
       clearTimeout(idleTimer.current)
       if (!element) return
-      if (element.currentTime > 0) positions.set(video.id, element.currentTime)
+      // Not currentTime > 0: the #t= poster fragment leaves an unplayed video at 0.001.
+      if (element.played.length > 0 || positions.has(video.id))
+        positions.set(video.id, element.currentTime)
       if (playing === element) playing = null
     }
   }, [video.id])
