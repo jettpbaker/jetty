@@ -11,6 +11,20 @@ index 6aae1c5ac2d1feeff9d76bf2994d4bf60193c8b9..6a76479401927ed2bf135b2d56c1b4c8
    return Server.make({
      address: {
        _tag: "TcpAddress",
+@@ -105,7 +105,12 @@
+         server.reload({
+           fetch: handlerStack[handlerStack.length - 1]
+         });
+-        return handlerStack.length === 1 ? preemptiveShutdown : Effect.void;
++        if (handlerStack.length !== 1) return Effect.void;
++        // Bun never settles server.stop() after a server-side ws.close():
++        // pendingWebSockets stays elevated. This finalizer runs before
++        // in-flight request fibers are interrupted and close their sockets.
++        if (options.disablePreemptiveShutdown) return Effect.promise(() => server.stop(true));
++        return preemptiveShutdown;
+       });
+       handlerStack.push(handler);
+       server.reload({
 diff --git a/src/BunHttpServer.ts b/src/BunHttpServer.ts
 index 4ce02e91b12852ff869f92d0911b7e6caf353c9f..81a1901d88577f3c15dbccd79a5c8cdc22316cc7 100644
 --- a/src/BunHttpServer.ts
@@ -24,3 +38,17 @@ index 4ce02e91b12852ff869f92d0911b7e6caf353c9f..81a1901d88577f3c15dbccd79a5c8cdc
  
      return Server.make({
        address: { _tag: "TcpAddress", port: server.port!, hostname: server.hostname! },
+@@ -189,7 +189,12 @@
+           const index = handlerStack.indexOf(handler)
+           if (index !== -1) handlerStack.splice(index, 1)
+           server.reload({ fetch: handlerStack[handlerStack.length - 1] })
+-          return handlerStack.length === 1 ? preemptiveShutdown : Effect.void
++          if (handlerStack.length !== 1) return Effect.void
++          // Bun never settles server.stop() after a server-side ws.close():
++          // pendingWebSockets stays elevated. This finalizer runs before
++          // in-flight request fibers are interrupted and close their sockets.
++          if (options.disablePreemptiveShutdown) return Effect.promise(() => server.stop(true))
++          return preemptiveShutdown
+         })
+         handlerStack.push(handler)
+         server.reload({ fetch: handler })
