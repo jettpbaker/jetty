@@ -27,8 +27,8 @@ export type ChildThread = {
   model?: string
   env: Environment
   status: ChildStatus
-  lastActivity: string
-  runDuration?: string
+  updatedAt: number
+  run?: { startedAt: number; endedAt?: number }
   archived: boolean
 }
 
@@ -50,7 +50,7 @@ function childStatus(status: SessionStatus, readyForReview = false): ChildStatus
   }
 }
 
-function childThreads(chrome: Chrome | undefined, parentId: string, now: number) {
+function childThreads(chrome: Chrome | undefined, parentId: string) {
   if (!chrome) return []
   const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
   return chrome.threads
@@ -67,14 +67,12 @@ function childThreads(chrome: Chrome | undefined, parentId: string, now: number)
             : undefined,
         env: 'local',
         status: childStatus(thread.status, thread.readyForReview),
-        lastActivity: formatAge(thread.updatedAt, now),
-        runDuration:
+        updatedAt: thread.updatedAt,
+        run:
           thread.turnStartedAt === undefined ||
           (thread.status === 'starting' && thread.turnEndedAt !== undefined)
             ? undefined
-            : formatDuration(
-                Math.max(0, ((thread.turnEndedAt ?? now) - thread.turnStartedAt) / 1000)
-              ),
+            : { startedAt: thread.turnStartedAt, endedAt: thread.turnEndedAt },
         archived: thread.archived,
       })
     )
@@ -82,8 +80,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string, now: number)
 
 export function useChildThreads(parentId: string) {
   const chrome = useChrome()
-  const now = useNow(1000)
-  return useMemo(() => childThreads(chrome, parentId, now), [chrome, parentId, now])
+  return useMemo(() => childThreads(chrome, parentId), [chrome, parentId])
 }
 
 function useOpenThread(): Open {
@@ -143,17 +140,22 @@ function AgentMeta({ child }: { child: ChildThread }) {
 
 function LastActivity({ child }: { child: ChildThread }) {
   const running = child.status === 'working' || child.status === 'needs-attention'
-  const label = child.runDuration
-    ? `${running ? 'running for' : 'last run'} ${child.runDuration}`
-    : child.lastActivity === 'now'
+  const now = useNow(child.run && child.run.endedAt === undefined ? 1000 : 60_000)
+  const runDuration =
+    child.run &&
+    formatDuration(Math.max(0, ((child.run.endedAt ?? now) - child.run.startedAt) / 1000))
+  const lastActivity = formatAge(child.updatedAt, now)
+  const label = runDuration
+    ? `${running ? 'running for' : 'last run'} ${runDuration}`
+    : lastActivity === 'now'
       ? 'last activity just now'
-      : `last activity ${child.lastActivity} ago`
+      : `last activity ${lastActivity} ago`
   return (
     <span
       className='shrink-0 font-mono text-xs text-muted-foreground'
       aria-label={`${statusLabel[child.status]}, ${label}`}
     >
-      {child.runDuration ?? child.lastActivity}
+      {runDuration ?? lastActivity}
     </span>
   )
 }
