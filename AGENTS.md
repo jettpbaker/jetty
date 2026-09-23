@@ -14,8 +14,15 @@
 
 - taste decisions — tech choices, UX, naming, API shapes — get checked with Jett
   first, every time. When in doubt, ask.
-- UI rides default shadcn styles until a dedicated design pass at the end. Don't
-  hand-tweak styles before then.
+- `~/code/scratch/jetty-design` is the visual source of truth. If design has a
+  component, port it verbatim — same markup, classes, primitives, and icons — and
+  change only the data wiring. Never re-create a component design already has, and
+  never ship "unstyled for now" for something design has already styled. Any
+  visual deviation from design is named in the commit message.
+- Before calling UI work done, compare it against the design side by side
+  (screenshots of both), not just "it works".
+- Only UI that design doesn't have yet rides default shadcn styles until design
+  catches up.
 
 ## code
 
@@ -37,9 +44,9 @@
 - Performance is the #1 UX value. Interactions render synchronously from local
   state; the network is never on the critical path of a click. Thread switching
   must be instant — cached state first, catch-up patches after.
-- Components come from a strict ladder: use a shadcn/ui or AI Elements component
-  if one fits; else compose one from shadcn primitives; truly custom only when
-  both fail, and say so in the PR.
+- Components come from a strict ladder: the jetty-design component if one exists;
+  else a shadcn/ui or AI Elements component if one fits; else compose one from
+  shadcn primitives; truly custom only when all fail, and say so in the commit.
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue", the branch picker) — never hidden. They're reminders of
   what's still wanted, not clutter.
