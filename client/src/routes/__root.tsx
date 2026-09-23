@@ -1,3 +1,4 @@
+import { StateProvider } from '@/state'
 import { IconContext, type IconProps } from '@phosphor-icons/react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 
@@ -7,8 +8,10 @@ export const Route = createRootRoute({ component: Root })
 
 function Root() {
   return (
-    <IconContext.Provider value={icons}>
-      <Outlet />
-    </IconContext.Provider>
+    <StateProvider>
+      <IconContext.Provider value={icons}>
+        <Outlet />
+      </IconContext.Provider>
+    </StateProvider>
   )
 }
