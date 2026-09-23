@@ -1,15 +1,11 @@
 import { useBrowse } from '@/state'
-import { useEffect, useId, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 
 export const UP = '..'
 
 const START = '~/'
 
-export type FolderEntry = { name: string; fullPath: string; isGitRepo: boolean; added: boolean }
-
-export type FolderPicker = ReturnType<typeof useFolderPicker>
-
-export function baseName(path: string) {
+function baseName(path: string) {
   return path.replace(/\/+$/, '').split('/').pop() || path
 }
 
@@ -25,6 +21,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
   const [query, setQuery] = useState(START)
   const [highlight, setHighlight] = useState('')
   const listId = useId()
+  const opened = useRef<{ path: string; at: number }>(undefined)
   const home = useBrowse(START)?.parentPath
   const result = useBrowse(query)
 
@@ -33,7 +30,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
   const filter = query.slice(slash + 1)
   const dir = result?.parentPath
   const canGoUp = dir !== undefined && dir !== '/'
-  const entries: FolderEntry[] = (result?.entries ?? []).map((entry) => ({
+  const entries = (result?.entries ?? []).map((entry) => ({
     ...entry,
     added: existingPaths.includes(entry.fullPath),
   }))
@@ -76,6 +73,18 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
     if (target && !target.added) onAdd(target.path)
   }
 
+  function onRowClick(event: MouseEvent, value: string) {
+    if (event.detail > 1) return
+    opened.current = value === UP ? undefined : { path: value, at: event.timeStamp }
+    select(value)
+  }
+
+  function onListClick(event: MouseEvent) {
+    const last = opened.current
+    if (event.detail !== 2 || !last || event.timeStamp - last.at > 500) return
+    if (!existingPaths.includes(last.path)) onAdd(last.path)
+  }
+
   function back() {
     if (filter) {
       setFilter('')
@@ -116,7 +125,8 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
       role: 'option',
       'aria-selected': selected,
       'data-selected': selected,
-      onClick: () => select(value),
+      onMouseDown: (event: MouseEvent) => event.preventDefault(),
+      onClick: (event: MouseEvent) => onRowClick(event, value),
     } as const
   }
 
@@ -127,16 +137,11 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
       setHighlight('')
     },
     filter,
-    setFilter,
-    dir,
-    dirLabel: dir ? tildify(dir) : '',
-    home,
-    tildify,
     canGoUp,
     entries,
     loaded: result !== undefined,
     row,
-    list: { id: listId, role: 'listbox' } as const,
+    list: { id: listId, role: 'listbox', onClick: onListClick } as const,
     input: {
       'data-slot': 'folder-picker-input',
       role: 'combobox',
@@ -148,11 +153,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
     } as const,
     activeIsUp: active === UP,
     target,
-    goTo,
-    goUp,
-    select,
     add,
     back,
-    onKeyDown,
   }
 }
