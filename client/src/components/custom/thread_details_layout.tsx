@@ -14,10 +14,11 @@ import {
   type ReactNode,
 } from 'react'
 
+import { ThreadChanges } from './thread_changes'
 import './thread_details_layout.css'
 
 const tabs = [
-  { id: 'changes', label: 'Changes', Icon: DiffIcon, blurb: "This thread's file changes" },
+  { id: 'changes', label: 'Changes', Icon: DiffIcon },
   { id: 'overview', label: 'Overview', Icon: ListUnorderedIcon, blurb: 'A summary of this thread' },
   { id: 'pr', label: 'PR', Icon: GitPullRequestIcon, blurb: "This thread's pull request" },
 ]
@@ -25,13 +26,20 @@ const tabs = [
 const minWidth = 320
 const narrowWidth = 760
 
-export function ThreadDetailsLayout({ children }: { children: ReactNode }) {
+export function ThreadDetailsLayout({
+  threadId,
+  children,
+}: {
+  threadId: string
+  children: ReactNode
+}) {
   const root = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; width: number; next: number } | null>(null)
   const [open, setOpen] = useState(false)
   const [available, setAvailable] = useState(0)
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
+  const [tab, setTab] = useState('changes')
   const narrow = available < narrowWidth
   const full = narrow || expanded
   const max = Math.max(minWidth, available - 360)
@@ -133,7 +141,13 @@ export function ThreadDetailsLayout({ children }: { children: ReactNode }) {
         aria-hidden={!open || undefined}
         className='relative min-h-0 min-w-0 overflow-hidden bg-background'
       >
-        <Tabs defaultValue='changes' className='details-pane h-full min-w-0 gap-0'>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => {
+            if (typeof value === 'string') setTab(value)
+          }}
+          className='details-pane h-full min-w-0 gap-0'
+        >
           <header className='flex h-(--app-tab-bar-height) shrink-0 border-b border-border pr-[74px]'>
             <TabsList
               variant='line'
@@ -152,7 +166,10 @@ export function ThreadDetailsLayout({ children }: { children: ReactNode }) {
               ))}
             </TabsList>
           </header>
-          {tabs.map(({ id, blurb }) => (
+          <TabsContent value='changes' className='min-h-0 flex-1 overflow-hidden'>
+            {open && <ThreadChanges key={threadId} threadId={threadId} />}
+          </TabsContent>
+          {tabs.slice(1).map(({ id, blurb }) => (
             <TabsContent
               key={id}
               value={id}

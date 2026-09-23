@@ -1,0 +1,237 @@
+.file-changes-viewer {
+  container-type: inline-size;
+  --diff-add: var(--status-success);
+  --file-tree-width: 280px;
+}
+.file-changes-viewer[data-layout='page'] {
+  --file-tree-width: 240px;
+}
+.file-changes-body {
+  position: relative;
+  display: grid;
+  grid-template-areas: 'diff tree';
+  grid-template-columns: minmax(0, 1fr) var(--tree-width);
+  grid-template-rows: minmax(0, 1fr);
+  --tree-width: var(--file-tree-width);
+  height: 560px;
+  transition: grid-template-columns var(--motion-sidebar-open-duration) var(--motion-sidebar-ease);
+}
+.file-changes-body[data-tree-open='false'] {
+  --tree-width: 0px;
+  transition-duration: var(--motion-sidebar-close-duration);
+}
+.file-changes-body > section {
+  grid-area: diff;
+}
+.file-changes-list {
+  grid-area: tree;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid transparent;
+  transition: border-color 0s;
+}
+.file-changes-body[data-tree-open='true'] .file-changes-list {
+  border-left-color: var(--border);
+  transition-delay: 50ms;
+}
+.file-changes-list-pane {
+  width: var(--file-tree-width);
+  height: 100%;
+  overflow: hidden;
+  margin-inline-start: auto;
+}
+.file-changes-viewer[data-layout='page'] .file-changes-list-pane {
+  margin-inline-start: 0;
+}
+.file-changes-viewer[data-layout='page'] .file-changes-body {
+  grid-template-areas: 'tree diff';
+  grid-template-columns: var(--tree-width) minmax(0, 1fr);
+}
+.file-changes-viewer[data-layout='page'] .file-changes-list {
+  border-left: 0;
+  border-right: 1px solid transparent;
+  position: static;
+  inset: auto;
+  width: auto;
+}
+.file-changes-viewer[data-layout='page']
+  .file-changes-body[data-tree-open='true']
+  .file-changes-list {
+  border-right-color: var(--border);
+  transition-delay: 50ms;
+}
+.diff-added-count {
+  color: var(--diff-add);
+}
+@container (max-width: 699px) {
+  .file-changes-viewer:not([data-layout='page']) .file-changes-body {
+    grid-template-areas: 'diff';
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .file-changes-viewer:not([data-layout='page']) .file-changes-list {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 1;
+    width: min(var(--file-tree-width), 85%);
+    background: var(--background);
+    transition:
+      width var(--motion-sidebar-open-duration) var(--motion-sidebar-ease),
+      border-color 0s;
+  }
+  .file-changes-viewer:not([data-layout='page'])
+    .file-changes-body[data-tree-open='true']
+    .file-changes-list {
+    transition-delay: 0s, 50ms;
+  }
+  .file-changes-viewer:not([data-layout='page'])
+    .file-changes-body[data-tree-open='false']
+    .file-changes-list {
+    width: 0;
+    transition-duration: var(--motion-sidebar-close-duration), 0s;
+    transition-delay: 0s, 0s;
+  }
+}
+
+.changed-files-tree {
+  --trees-font-family-override: var(--font-sans);
+  --trees-font-size-override: var(--text-xs);
+  --trees-font-weight-regular-override: 400;
+  --trees-font-weight-semibold-override: 500;
+  --trees-border-radius-override: var(--radius-sm);
+  --trees-icon-width-override: 16px;
+  --trees-icon-nudge-override: 0px;
+  --trees-level-gap-override: 4px;
+  --trees-gap-override: 2px;
+  --trees-item-padding-x-override: 8px;
+  --trees-item-margin-x-override: 0px;
+  --trees-item-row-gap-override: 6px;
+  --trees-git-lane-width-override: 16px;
+  --trees-focus-ring-width-override: 1px;
+  --trees-focus-ring-offset-override: -1px;
+  --trees-accent-override: var(--primary);
+  --trees-input-bg-override: var(--background);
+  --trees-search-bg-override: var(--background);
+  --trees-search-fg-override: var(--foreground);
+  --trees-search-font-weight-override: 400;
+  --trees-focus-ring-color-override: var(--ring);
+  --trees-selected-focused-border-color-override: var(--ring);
+  --trees-indent-guide-bg-override: var(--border);
+  --trees-status-added-override: var(--status-success);
+  --trees-status-untracked-override: var(--status-success);
+  --trees-status-deleted-override: var(--status-error);
+  --trees-status-modified-override: var(--muted-foreground);
+  --trees-status-renamed-override: var(--muted-foreground);
+  --trees-status-ignored-override: var(--muted-foreground);
+  --trees-padding-inline-override: 6px;
+  --trees-bg-override: var(--background);
+  --trees-fg-override: var(--foreground);
+  --trees-fg-muted-override: var(--muted-foreground);
+  --trees-bg-muted-override: var(--accent);
+  --trees-selected-bg-override: var(--accent);
+  --trees-selected-fg-override: var(--foreground);
+  --trees-border-color-override: var(--border);
+  --trees-scrollbar-thumb-override: var(--scrollbar-thumb);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-changes-body,
+  .file-changes-list {
+    transition: none;
+  }
+  .file-changes-body[data-tree-open='true'] .file-changes-list {
+    transition-delay: 0s;
+  }
+}
+
+.file-changes-viewer diffs-container {
+  --diffs-font-size: 12px;
+}
+
+.file-changes-viewer [slot='header-prefix'] {
+  display: flex;
+  align-items: center;
+}
+
+.file-language-icon {
+  opacity: var(--file-icon-opacity, 1);
+}
+.file-language-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+.file-collapse-chevron {
+  opacity: var(--file-chevron-opacity, 0);
+}
+.file-collapse-button:is(:hover, :focus-visible) {
+  --file-icon-opacity: 0;
+  --file-chevron-opacity: 1;
+}
+
+.file-language-icon[data-language='typescript'] {
+  color: #1a85d4;
+}
+.file-language-icon[data-language='react'] {
+  color: #1ca1c7;
+}
+.dark .file-language-icon[data-language='typescript'] {
+  color: #69b1ff;
+}
+.dark .file-language-icon[data-language='react'] {
+  color: #68cdf2;
+}
+
+.diff-scroll-viewport {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+.diff-scroll-viewport::-webkit-scrollbar {
+  display: none;
+}
+.diff-scroll-track {
+  position: absolute;
+  inset: 3px 1px 3px auto;
+  width: 12px;
+  z-index: 3;
+  visibility: hidden;
+}
+.diff-scroll-thumb {
+  position: absolute;
+  top: 0;
+  width: 12px;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+.diff-scroll-thumb::before {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+.diff-scroll-thumb:is(:hover, :focus-visible)::before {
+  background: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+.diff-scroll-thumb:focus-visible {
+  outline: 1px solid var(--ring);
+  border-radius: 999px;
+}
+
+@container (max-width: 499px) {
+  .diff-scope-counts {
+    display: none;
+  }
+}
+
+.file-changes-viewer[data-embedded='true'] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 0;
+}
+.file-changes-viewer[data-embedded='true'] .file-changes-body {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+}

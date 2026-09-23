@@ -1,5 +1,5 @@
 import { storage } from '@/platform'
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 
 type ThemeChoice = 'light' | 'dark' | 'system'
@@ -64,4 +64,18 @@ export function useAnimatedTheme() {
   }
 
   return { theme, setTheme }
+}
+
+function subscribeToThemeClass(onChange: () => void) {
+  const observer = new MutationObserver(onChange)
+  observer.observe(document.documentElement, { attributeFilter: ['class'] })
+  return () => observer.disconnect()
+}
+
+function themeClass() {
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
+export function useResolvedTheme() {
+  return useSyncExternalStore(subscribeToThemeClass, themeClass)
 }
