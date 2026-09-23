@@ -91,6 +91,16 @@ export const ThreadItem = Schema.Union([
     toolName: Schema.String,
     input: Schema.Unknown,
     suggestions: Schema.Array(Schema.Unknown),
+    changes: Schema.optional(
+      Schema.Array(
+        Schema.Struct({
+          path: Schema.String,
+          diff: Schema.optional(Schema.String),
+          before: Schema.optional(Schema.String),
+          after: Schema.optional(Schema.String),
+        })
+      )
+    ),
     // what "Allow always" would permit; absent when the provider can't remember a choice
     always: Schema.optional(
       Schema.Struct({

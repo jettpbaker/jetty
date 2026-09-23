@@ -38,6 +38,7 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
+import { approvalChanges } from './approval-changes'
 import { claudeBin } from './claude-bin'
 import {
   createTranslateCtx,
@@ -56,6 +57,7 @@ const AUTO_ALLOWED_TOOLS = new Set([
   SEND_VIDEO_TOOL,
   'mcp__jetty__list_threads',
   'mcp__jetty__read_thread',
+  'mcp__jetty__list_models',
 ])
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
@@ -558,6 +560,9 @@ export function createClaudeAdapter(
                   toolName,
                   input: toolInput,
                   suggestions: options.suggestions ?? [],
+                  ...(approvalChanges(toolName, toolInput).length
+                    ? { changes: approvalChanges(toolName, toolInput) }
+                    : {}),
                   ...alwaysFrom(options.suggestions),
                 },
               })

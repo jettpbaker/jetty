@@ -15,6 +15,7 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
+import { approvalChanges, type ApprovalChange } from './approval-changes'
 import {
   DEFAULT_CODEX_ARGS,
   object,
@@ -41,6 +42,7 @@ type Session = {
   reason: string | null
   pending: Map<string, Pending>
   asyncQuestions: Map<string, string[]>
+  fileChanges: Map<string, ApprovalChange[]>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
 }
@@ -110,6 +112,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           method === 'item/commandExecution/requestApproval' ||
           method === 'item/fileChange/requestApproval'
         ) {
+          const changes =
+            method === 'item/fileChange/requestApproval'
+              ? approvalChanges('fileChange', params).length
+                ? approvalChanges('fileChange', params)
+                : (session.fileChanges.get(string(params.itemId)) ?? [])
+              : []
           session.pending.set(itemId, { id })
           yield* session.emit({
             type: 'item.started',
@@ -121,6 +129,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 method === 'item/fileChange/requestApproval' ? 'fileChange' : 'commandExecution',
               input: params,
               suggestions: [],
+              ...(changes.length ? { changes } : {}),
               always: { scope: 'session', patterns: [] },
             },
           })
@@ -208,9 +217,16 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     'mcp_servers.jetty.tools.send_images.approval_mode="approve"',
                     '-c',
                     'mcp_servers.jetty.tools.send_video.approval_mode="approve"',
-                    ...['list_threads', 'read_thread', 'create_thread', 'send_message'].flatMap(
-                      (name) => ['-c', `mcp_servers.jetty.tools.${name}.approval_mode="approve"`]
-                    ),
+                    ...[
+                      'list_threads',
+                      'read_thread',
+                      'list_models',
+                      'create_thread',
+                      'send_message',
+                    ].flatMap((name) => [
+                      '-c',
+                      `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,
+                    ]),
                   ],
                   env: { ...process.env, ...options.env, JETTY_MCP_TOKEN: binding.token },
                 }
@@ -268,6 +284,10 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                       } satisfies ThreadEvent)
                 }
                 const raw = object(message.params.item)
+                if (message.method === 'item/started' && raw.type === 'fileChange') {
+                  const changes = approvalChanges('fileChange', raw)
+                  if (changes.length) session.fileChanges.set(string(raw.id), changes)
+                }
                 if (
                   (message.method === 'item/started' || message.method === 'item/completed') &&
                   raw.type === 'agentMessage' &&
@@ -348,6 +368,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             reason: null,
             pending: new Map(),
             asyncQuestions: new Map(),
+            fileChanges: new Map(),
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
