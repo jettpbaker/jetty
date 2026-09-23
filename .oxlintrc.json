@@ -66,7 +66,26 @@
             "property": "indexedDB",
             "message": "Go through @/platform (storage)."
           }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "lucide-react",
+                "message": "Icons are Phosphor (@phosphor-icons/react) or Octicons (@primer/octicons-react), never lucide. See AGENTS.md (icons)."
+              },
+              { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
+              { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
+            ]
+          }
         ]
+      }
+    },
+    {
+      "files": ["client/src/state/**"],
+      "rules": {
+        "no-restricted-imports": "off"
       }
     },
     {
