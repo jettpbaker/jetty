@@ -6,6 +6,7 @@ import { copilotModels } from '@/lib/loadout'
 import { storage } from '@/platform'
 import { useChrome } from '@/state/chrome'
 import { useModelAvailability } from '@/state/loadouts'
+import { useProviderUsage } from '@/state/provider-usage'
 import { CheckIcon, CopyIcon, ArrowClockwiseIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
@@ -57,13 +58,6 @@ function providerModels(id: ProviderId, catalog: readonly ProviderModel[]) {
   return catalog.filter((model) => model.provider === id)
 }
 
-const plans: Record<ProviderId, string> = {
-  claude: 'Max 5×',
-  codex: 'Pro 5×',
-  grok: 'SuperGrok',
-  copilot: 'Pro',
-}
-
 const cliSetup: Record<ProviderId, { name: string; url: string }> = {
   claude: { name: 'Claude Code CLI', url: 'https://code.claude.com/docs/en/overview' },
   codex: { name: 'Codex CLI', url: 'https://developers.openai.com/codex/cli' },
@@ -88,6 +82,8 @@ export function SettingsProviders({
   const provider = providerOptions.find((item) => item.id === selected)!
   const { catalog, enabled: modelEnabled, setEnabled: setModelEnabled } = useModelAvailability()
   const discovery = useChrome()?.modelDiscovery
+  const { usage } = useProviderUsage()
+  const plan = usage.find((item) => item.provider === selected)?.plan
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const usable = enabled[selected] && provider.ready
@@ -161,7 +157,7 @@ export function SettingsProviders({
           <div className='flex flex-col gap-1'>
             <h3 className='text-13 font-medium'>{provider.product}</h3>
             <p className='text-xs text-muted-foreground'>
-              {provider.ready ? `Authenticated · ${plans[selected]}` : 'Not authenticated'}
+              {provider.ready ? `Authenticated${plan ? ` · ${plan}` : ''}` : 'Not authenticated'}
             </p>
           </div>
         </div>

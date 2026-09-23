@@ -1,24 +1,29 @@
-import { Button } from '@/components/ui/button'
+import type { ProviderUsage } from '@jetty/shared/wire'
+
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createUsagePreview, usageResetLabel, type UsageWindow } from '@/lib/provider-usage'
-import { ArrowCounterClockwiseIcon, ArrowUpRightIcon } from '@phosphor-icons/react'
+import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
+
+import type { ProviderEnabled } from './settings_providers'
 
 import { ProviderGlyph } from './provider_glyph'
 import './settings_sections.css'
 import './settings_usage.css'
 
-function Allowance({
-  usage,
-  provider,
-  now,
-}: {
-  usage: UsageWindow
-  provider: string
-  now: number
-}) {
-  const percent = usage.usedPercent
-  const reset = usageResetLabel(usage.resetsAt, now)
+type Window = ProviderUsage['windows'][number]
+
+function usageResetLabel(resetsAt: number, now: number): string {
+  const minutes = Math.ceil((resetsAt - now) / 60_000)
+  if (minutes <= 0) return 'Reset pending'
+  if (minutes >= 1440)
+    return `Resets in ${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
+  if (minutes >= 60) return `Resets in ${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  return `Resets in ${minutes}m`
+}
+
+function Allowance({ usage, provider, now }: { usage: Window; provider: string; now: number }) {
+  const percent = Math.round(usage.pct)
+  const reset = usage.resetsAt && usageResetLabel(usage.resetsAt, now)
   return (
     <Tooltip>
       <TooltipTrigger
@@ -32,10 +37,12 @@ function Allowance({
         <div className='flex items-center justify-between gap-3 text-xs'>
           <span className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground'>
             <span className='min-w-12'>{usage.label}</span>
-            <span className='inline-flex items-center gap-1 tabular-nums' aria-label={reset}>
-              <ArrowCounterClockwiseIcon aria-hidden='true' className='size-3' />
-              {reset.replace(/^Resets in /, '')}
-            </span>
+            {reset && (
+              <span className='inline-flex items-center gap-1 tabular-nums' aria-label={reset}>
+                <ArrowCounterClockwiseIcon aria-hidden='true' className='size-3' />
+                {reset.replace(/^Resets in /, '')}
+              </span>
+            )}
           </span>
           <span className='tabular-nums'>{percent}% used</span>
         </div>
@@ -48,80 +55,80 @@ function Allowance({
           aria-valuetext={`${percent}% used`}
           className='mt-2 h-1 overflow-hidden rounded-full bg-accent'
         >
-          <div className='h-full rounded-full bg-primary' style={{ width: `${percent}%` }} />
+          <div
+            className='h-full rounded-full bg-primary'
+            style={{ width: `${Math.min(100, Math.max(0, usage.pct))}%` }}
+          />
         </div>
       </TooltipTrigger>
       <TooltipContent className='flex-col items-start gap-1'>
-        <span>{usage.scope}</span>
-        <span>
-          Resets{' '}
-          {new Date(usage.resetsAt).toLocaleString(undefined, {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            timeZoneName: 'short',
-          })}
-        </span>
+        <span>{usage.label} allowance</span>
+        {usage.resetsAt && (
+          <span>
+            Resets{' '}
+            {new Date(usage.resetsAt).toLocaleString(undefined, {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZoneName: 'short',
+            })}
+          </span>
+        )}
       </TooltipContent>
     </Tooltip>
   )
 }
 
-export function SettingsUsage({ onConnectCopilot }: { onConnectCopilot: () => void }) {
+export function SettingsUsage({
+  enabled,
+  usage,
+  failed,
+}: {
+  enabled: ProviderEnabled
+  usage: readonly ProviderUsage[]
+  failed: boolean
+}) {
   const [now, setNow] = useState(Date.now)
-  const [providers] = useState(() => createUsagePreview(Date.now()))
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
+  const visible = usage.filter((item) => enabled[item.provider] && item.connected)
+  if (visible.length === 0)
+    return (
+      <p className='text-xs text-muted-foreground'>
+        {failed ? 'Usage unavailable.' : 'Loading usage…'}
+      </p>
+    )
   return (
     <div className='settings-usage'>
-      {providers.map((provider) => (
+      {failed && <p className='text-xs text-muted-foreground'>Unable to refresh usage.</p>}
+      {visible.map((item) => (
         <div
-          key={provider.id}
+          key={item.provider}
           className='settings-usage-provider'
           role='group'
-          aria-label={`${provider.name} usage`}
+          aria-label={`${item.provider} usage`}
         >
           <div className='flex items-center gap-2.5'>
-            <ProviderGlyph
-              provider={provider.id}
-              className={`size-5 ${provider.id === 'copilot' ? 'text-disabled-foreground' : 'text-muted-foreground'}`}
-            />
+            <ProviderGlyph provider={item.provider} className='size-5 text-muted-foreground' />
             <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
-              <h3
-                className={`text-13 ${provider.id === 'copilot' ? 'text-disabled-foreground' : 'text-muted-foreground'}`}
-              >
-                {provider.name}
+              <h3 className='text-13 text-muted-foreground'>
+                {item.provider === 'claude' ? 'Claude' : 'Codex'}
               </h3>
-              {provider.id === 'copilot' ? (
-                <Button
-                  variant='ghost-text'
-                  size='sm'
-                  className='-mr-2 h-7 gap-1 rounded-sm px-2 text-xs'
-                  aria-label='Connect Copilot to view usage'
-                  onClick={onConnectCopilot}
-                >
-                  Connect
-                  <ArrowUpRightIcon className='size-3' />
-                </Button>
-              ) : (
-                <span className='text-xs text-muted-foreground'>{provider.plan}</span>
-              )}
+              {item.plan && <span className='text-xs text-muted-foreground'>{item.plan}</span>}
             </div>
           </div>
-          {provider.id === 'copilot' ? (
-            <p className='text-xs text-muted-foreground'>
-              Connect Copilot to see your usage and limits.
-            </p>
-          ) : (
+          {item.windows.length ? (
             <div className='settings-usage-windows'>
-              {provider.windows.map((usage) => (
-                <Allowance key={usage.id} usage={usage} provider={provider.name} now={now} />
+              {item.windows.map((window) => (
+                <Allowance key={window.id} usage={window} provider={item.provider} now={now} />
               ))}
             </div>
+          ) : (
+            <p className='text-xs text-muted-foreground'>Usage unavailable.</p>
           )}
         </div>
       ))}

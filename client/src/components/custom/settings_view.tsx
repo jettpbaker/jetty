@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useModelRefresh } from '@/state/models'
+import { useProviderUsage } from '@/state/provider-usage'
 import {
   ChartBarIcon,
   IconContext,
@@ -60,9 +61,15 @@ function Section({
 
 export function SettingsView() {
   const { refreshing, refresh } = useModelRefresh()
+  const { usage, loaded, failed, refresh: refreshUsage } = useProviderUsage()
   useEffect(() => {
     refresh()
   }, [refresh])
+  useEffect(() => {
+    refreshUsage()
+    const timer = window.setInterval(refreshUsage, 60_000)
+    return () => window.clearInterval(timer)
+  }, [refreshUsage])
   const [provider, setProvider] = useState<ProviderId>('claude')
   const [enabled, setEnabled] = useState(loadProviderEnabled)
   function showProvider(id: ProviderId) {
@@ -122,14 +129,14 @@ export function SettingsView() {
             <Section id='appearance' label='Appearance' icon={PaintBrushIcon}>
               <SettingsAppearance />
             </Section>
-            <Section id='usage' label='Usage' icon={ChartBarIcon}>
-              <SettingsUsage
-                onConnectCopilot={() => {
-                  document.getElementById('provider-tab-copilot')?.focus()
-                  showProvider('copilot')
-                }}
-              />
-            </Section>
+            {(enabled.claude || enabled.codex) &&
+              (!loaded ||
+                failed ||
+                usage.some((item) => enabled[item.provider] && item.connected)) && (
+                <Section id='usage' label='Usage' icon={ChartBarIcon}>
+                  <SettingsUsage enabled={enabled} usage={usage} failed={failed} />
+                </Section>
+              )}
             <Section id='containers' label='Containers' icon={ContainerIcon}>
               <SettingsContainers />
             </Section>
