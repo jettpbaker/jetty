@@ -28,6 +28,7 @@ import {
   type Loadout,
   type LoadoutSlot,
 } from '@/lib/loadout'
+import { cn } from '@/lib/utils'
 import { PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -212,7 +213,11 @@ export function ComposerLoadout({
           <Button
             variant='ghost'
             size='sm'
-            className='group/chip gap-1.5 rounded-sm text-primary enabled:hover:text-primary aria-expanded:text-primary'
+            tone={value ? 'default' : 'muted'}
+            className={cn(
+              'group/chip gap-1.5 rounded-sm',
+              value && 'text-primary enabled:hover:text-primary aria-expanded:text-primary'
+            )}
           />
         }
       >

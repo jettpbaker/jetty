@@ -16,7 +16,6 @@ type Environment = 'local' | 'container'
 type ComposerEnvironmentProps = {
   value?: Environment
   containersConfigured?: boolean
-  disabled?: boolean
   onValueChange?: (value: Environment) => void
   onSetupContainers?: () => void
 }
@@ -24,7 +23,6 @@ type ComposerEnvironmentProps = {
 export function ComposerEnvironment({
   value = 'local',
   containersConfigured = false,
-  disabled = false,
   onValueChange,
   onSetupContainers,
 }: ComposerEnvironmentProps) {
@@ -35,7 +33,6 @@ export function ComposerEnvironment({
       <DropdownMenuTrigger
         render={<Button variant='ghost' tone='muted' size='sm' className='rounded-sm' />}
         aria-label='Choose environment'
-        disabled={disabled}
       >
         <Icon data-icon='inline-start' />
         {value === 'local' ? 'Local' : 'Container'}
@@ -58,7 +55,7 @@ export function ComposerEnvironment({
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={onSetupContainers}>
+          <DropdownMenuItem disabled={!onSetupContainers} onClick={onSetupContainers}>
             <TerminalIcon className='text-muted-foreground' />
             Set up containers
           </DropdownMenuItem>

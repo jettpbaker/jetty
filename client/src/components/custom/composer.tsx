@@ -121,7 +121,7 @@ export function Composer({
               <ComposerAccessMode value={accessMode} onChange={onAccessModeChange} />
             </div>
             <div className='flex items-center gap-1'>
-              <ComposerEnvironment disabled />
+              <ComposerEnvironment />
               {stop ? (
                 <InputGroupButton
                   variant='default'
