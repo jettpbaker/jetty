@@ -40,6 +40,9 @@
 - Components come from a strict ladder: use a shadcn/ui or AI Elements component
   if one fits; else compose one from shadcn primitives; truly custom only when
   both fail, and say so in the PR.
+- Features the design has but the app can't do yet stay visible but disabled
+  (e.g. "Link issue", the branch picker) — never hidden. They're reminders of
+  what's still wanted, not clutter.
 - Icons are Phosphor (`@phosphor-icons/react`) or Octicons (`@primer/octicons-react`),
   never lucide. Both packs are intentional — keep each icon in the pack the design
   uses; never convert between them. Registry components
