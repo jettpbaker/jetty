@@ -13,13 +13,13 @@ function websocketSecret(): Plugin {
   return {
     name: 'jetty-websocket-secret',
     apply: 'serve',
+    // Without a server the page still loads; the client fetches the secret once it's back.
     async transformIndexHtml(html) {
-      const response = await fetch(server)
-      if (!response.ok) throw new Error('Jetty server is unavailable')
-      const secret = (await response.text()).match(
-        /<meta name="jetty-ws-secret" content="([a-f0-9]+)">/
-      )?.[1]
-      if (!secret) throw new Error('Jetty WebSocket secret is unavailable')
+      const page = await fetch(server)
+        .then((response) => (response.ok ? response.text() : ''))
+        .catch(() => '')
+      const secret = page.match(/<meta name="jetty-ws-secret" content="([a-f0-9]+)">/)?.[1]
+      if (!secret) return html
       return html.replace('</head>', `<meta name="jetty-ws-secret" content="${secret}"></head>`)
     },
   }
