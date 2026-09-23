@@ -212,6 +212,7 @@ function DropdownMenuRadioItem({
   className,
   children,
   inset,
+  closeOnClick = true,
   ...props
 }: MenuPrimitive.RadioItem.Props & {
   inset?: boolean
@@ -220,6 +221,7 @@ function DropdownMenuRadioItem({
     <MenuPrimitive.RadioItem
       data-slot='dropdown-menu-radio-item'
       data-inset={inset}
+      closeOnClick={closeOnClick}
       className={cn(
         "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
