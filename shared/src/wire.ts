@@ -99,6 +99,7 @@ export const ThreadMeta = Schema.Struct({
   projectId: Schema.String,
   title: Schema.String,
   status: SessionStatus,
+  queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
   readyForReview: Schema.optional(Schema.Boolean),

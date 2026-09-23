@@ -57,8 +57,15 @@ function providerConflict(bound: string, requested: string) {
 // Agents otherwise read a relayed message as the user's own words.
 function agentText({ text, queued }: StartTurnInput) {
   return queued?.from
-    ? `[Sent via Jetty from thread "${queued.from.title}" (${queued.from.threadId})]\n\n${text}`
+    ? `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${JSON.stringify(text)}\n</relayed-message>`
     : text
+}
+
+function escapeAttribute(value: string) {
+  return value.replace(
+    /[&"<>]/g,
+    (char) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[char]!
+  )
 }
 
 function toAgentError(error: Error) {
@@ -315,6 +322,20 @@ export function createOrchestrator(
         : Effect.void
     }
 
+    function setQueuePaused(threadId: string, paused: boolean) {
+      return hub.withChromePublication(
+        Effect.gen(function* () {
+          const thread = yield* store.requireThread(threadId)
+          if (thread.queuePaused === paused) return
+          yield* store.setQueuePaused(threadId, paused)
+          hub.pushChrome({
+            type: 'thread.upserted',
+            thread: { ...thread, queuePaused: paused },
+          })
+        })
+      )
+    }
+
     function requireFound(what: string) {
       return (found: boolean) =>
         found ? Effect.void : Effect.fail(new StoreError('not_found', `No pending ${what}`))
@@ -326,8 +347,7 @@ export function createOrchestrator(
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
               const thread = yield* store.requireThread(input.threadId)
-              if (!input.queued || (input.sendNow && input.resumeQueue !== false))
-                yield* store.setQueuePaused(input.threadId, false)
+              const resumeQueue = !input.queued || (input.sendNow && input.resumeQueue !== false)
               if (input.queued) {
                 if (
                   thread.archived ||
@@ -442,6 +462,7 @@ export function createOrchestrator(
                     new StoreError('internal', 'Active turn is not accepting input')
                   )
                 }
+                if (resumeQueue) yield* setQueuePaused(input.threadId, false)
                 return { turnId }
               }
               const turnId = newId()
@@ -488,6 +509,7 @@ export function createOrchestrator(
                   )
                 )
               )
+              if (resumeQueue) yield* setQueuePaused(input.threadId, false)
               yield* turn.await.pipe(
                 Effect.catch((error) =>
                   emit({ type: 'turn.failed', turnId, error: error.message })
@@ -653,9 +675,12 @@ export function createOrchestrator(
                       .transaction(
                         Effect.gen(function* () {
                           const current = yield* store.getThread(thread.id)
-                          if (!current?.pendingMessages?.some((m) => m.id === queue[0]!.id)) return
+                          const pending = current?.pendingMessages?.find(
+                            (m) => m.id === queue[0]!.id
+                          )
+                          if (!pending) return
                           yield* store.editQueued(thread.id, queue[0]!.id)
-                          return yield* store.appendEvent(thread.id, {
+                          const appended = yield* store.appendEvent(thread.id, {
                             type: 'item.started',
                             item: {
                               id: newId(),
@@ -665,12 +690,15 @@ export function createOrchestrator(
                               message: String(cause),
                             },
                           })
+                          return { appended, attachments: pending.attachments ?? [] }
                         })
                       )
                       .pipe(
-                        Effect.tap((appended) =>
-                          Effect.sync(() => {
-                            if (appended) publish(thread.id, appended)
+                        Effect.tap((result) =>
+                          Effect.gen(function* () {
+                            if (!result) return
+                            publish(thread.id, result.appended)
+                            yield* removeAttachments(result.attachments)
                           })
                         )
                       )
@@ -690,10 +718,13 @@ export function createOrchestrator(
         ).pipe(Effect.forkIn(scope), Effect.asVoid)
       },
       interrupt(threadId: string) {
-        return agentForThread(threadId).pipe(
-          Effect.flatMap((agent) =>
-            store.setQueuePaused(threadId, true).pipe(Effect.andThen(agent.interrupt(threadId)))
-          )
+        return state(threadId).admission.withPermit(
+          Effect.gen(function* () {
+            const agent = yield* agentForThread(threadId)
+            if (!state(threadId).turnId) return
+            yield* setQueuePaused(threadId, true)
+            yield* agent.interrupt(threadId)
+          })
         )
       },
       stopWorkflow(threadId: string, taskId: string) {
