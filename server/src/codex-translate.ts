@@ -22,10 +22,15 @@ export function createCodexTranslator(turnId: string) {
       case 'hookPrompt':
         return undefined
       default:
+        const server = string(raw.server)
+        const tool = string(raw.tool)
         return {
           ...base,
           kind: 'tool_call',
-          toolName: string(raw.tool) || string(raw.type),
+          toolName:
+            raw.type === 'mcpToolCall' && server && tool
+              ? `mcp__${server}__${tool}`
+              : tool || string(raw.type),
           input: raw.arguments ?? raw.command ?? raw.changes ?? raw,
           output: '',
           status: 'running',

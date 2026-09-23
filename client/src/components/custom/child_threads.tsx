@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { modelKey } from '@/lib/loadout'
 import { formatAge } from '@/lib/time'
-import { useChrome, type Chrome } from '@/state'
+import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
 import { ContainerIcon, DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -13,7 +13,7 @@ import { useMemo } from 'react'
 import { SuccessStatusIcon } from './circle_status_icon'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
-import { renderWorkingTitle } from './subagent_row'
+import { formatDuration, renderWorkingTitle } from './subagent_row'
 import { ThreadStatusGlyph } from './thread_status'
 
 export type ChildStatus = 'working' | 'needs-attention' | 'done' | 'error'
@@ -27,6 +27,7 @@ export type ChildThread = {
   env: Environment
   status: ChildStatus
   lastActivity: string
+  runDuration?: string
   archived: boolean
 }
 
@@ -66,6 +67,13 @@ function childThreads(chrome: Chrome | undefined, parentId: string, now: number)
         env: 'local',
         status: childStatus(thread.status),
         lastActivity: formatAge(thread.updatedAt, now),
+        runDuration:
+          thread.turnStartedAt === undefined ||
+          (thread.status === 'starting' && thread.turnEndedAt !== undefined)
+            ? undefined
+            : formatDuration(
+                Math.max(0, ((thread.turnEndedAt ?? now) - thread.turnStartedAt) / 1000)
+              ),
         archived: thread.archived,
       })
     )
@@ -73,7 +81,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string, now: number)
 
 export function useChildThreads(parentId: string) {
   const chrome = useChrome()
-  const now = useNow(60_000)
+  const now = useNow(1000)
   return useMemo(() => childThreads(chrome, parentId, now), [chrome, parentId, now])
 }
 
@@ -132,40 +140,53 @@ function AgentMeta({ child }: { child: ChildThread }) {
 }
 
 function LastActivity({ child }: { child: ChildThread }) {
+  const running = child.status === 'working' || child.status === 'needs-attention'
+  const label = child.runDuration
+    ? `${running ? 'running for' : 'last run'} ${child.runDuration}`
+    : child.lastActivity === 'now'
+      ? 'last activity just now'
+      : `last activity ${child.lastActivity} ago`
   return (
     <span
       className='shrink-0 font-mono text-xs text-muted-foreground'
-      aria-label={`${statusLabel[child.status]}, ${
-        child.lastActivity === 'now'
-          ? 'last activity just now'
-          : `last activity ${child.lastActivity} ago`
-      }`}
+      aria-label={`${statusLabel[child.status]}, ${label}`}
     >
-      {child.lastActivity}
+      {child.runDuration ?? child.lastActivity}
     </span>
   )
 }
 
 export function ChildThreadList({ threads }: { threads: readonly ChildThread[] }) {
   const open = useOpenThread()
+  const prefetch = useThreadRowPrefetch()
   const sorted = threads.toSorted(
     (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
   )
   return (
     <div className='flex flex-col p-2'>
       {sorted.map((child) => (
-        <OwnedThreadRow key={child.id} child={child} open={open} />
+        <OwnedThreadRow key={child.id} child={child} open={open} prefetch={prefetch} />
       ))}
     </div>
   )
 }
 
-function OwnedThreadRow({ child, open }: { child: ChildThread; open: Open }) {
+function OwnedThreadRow({
+  child,
+  open,
+  prefetch,
+}: {
+  child: ChildThread
+  open: Open
+  prefetch: ReturnType<typeof useThreadRowPrefetch>
+}) {
   return (
     <Button
       variant='ghost'
       data-overflow-hover
       onClick={() => open(child)}
+      onPointerEnter={() => prefetch.enter(child.id)}
+      onPointerLeave={() => prefetch.leave(child.id)}
       className='h-auto w-full min-w-0 flex-col items-stretch gap-1.5 rounded-sm px-2.5 py-1.5 text-left font-normal active:translate-y-0'
     >
       <span className='flex min-w-0 items-center justify-between gap-3 text-foreground'>
@@ -183,12 +204,22 @@ function OwnedThreadRow({ child, open }: { child: ChildThread; open: Open }) {
   )
 }
 
-function CreatedRow({ child, open }: { child: ChildThread; open: Open }) {
+function CreatedRow({
+  child,
+  open,
+  prefetch,
+}: {
+  child: ChildThread
+  open: Open
+  prefetch: ReturnType<typeof useThreadRowPrefetch>
+}) {
   return (
     <Button
       variant='ghost-text'
       data-overflow-hover
       onClick={() => open(child)}
+      onPointerEnter={() => prefetch.enter(child.id)}
+      onPointerLeave={() => prefetch.leave(child.id)}
       className='flex h-7 w-full min-w-0 items-center gap-2 rounded-sm px-2.5 text-left text-sm font-normal active:translate-y-0'
     >
       <span className='flex shrink-0 items-center gap-1.5 text-muted-foreground'>
@@ -212,12 +243,13 @@ function CreatedRow({ child, open }: { child: ChildThread; open: Open }) {
 
 export function CreatedThreads({ parentId, ids }: { parentId: string; ids: readonly string[] }) {
   const open = useOpenThread()
+  const prefetch = useThreadRowPrefetch()
   const byId = new Map(useChildThreads(parentId).map((child) => [child.id, child]))
   return (
     <div className='flex flex-col'>
       {ids.map((id) => {
         const child = byId.get(id)
-        return child && <CreatedRow key={id} child={child} open={open} />
+        return child && <CreatedRow key={id} child={child} open={open} prefetch={prefetch} />
       })}
     </div>
   )

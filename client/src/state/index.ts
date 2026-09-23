@@ -4,7 +4,7 @@ export { useChrome, type Chrome } from './chrome'
 export { useDiffFileLoader, useThreadDiff } from './diff'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
-export { usePrefetchThread, useThread } from './threads'
+export { useThread, useThreadRowPrefetch } from './threads'
 export { MAIN_TAB, useSubagentTabs, useThreadTab, type SubagentTab } from './thread_tab'
 export {
   useArchiveThread,

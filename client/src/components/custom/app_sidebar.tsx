@@ -18,7 +18,7 @@ import {
   useChrome,
   useDeleteThread,
   usePinThread,
-  usePrefetchThread,
+  useThreadRowPrefetch,
   useRenameThread,
   type Chrome,
 } from '@/state'
@@ -32,7 +32,7 @@ import {
 } from '@primer/octicons-react'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
@@ -90,13 +90,7 @@ export function AppSidebar() {
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<ThreadGrouping>('date')
   const [showPinned, setShowPinned] = useState(true)
-  const [warmId, setWarmId] = useState<string | undefined>()
-  const hovering = useRef<string | undefined>(undefined)
-  const warmed = usePrefetchThread(warmId)
-
-  useEffect(() => {
-    if (warmed && hovering.current !== warmId) setWarmId(undefined)
-  }, [warmed, warmId])
+  const prefetch = useThreadRowPrefetch()
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query, showPinned)
@@ -242,14 +236,9 @@ export function AppSidebar() {
                     transition={{ layout: rowLayoutTransition }}
                     onPointerEnter={() => {
                       if (thread.id === selectedId) return
-                      hovering.current = thread.id
-                      setWarmId(thread.id)
+                      prefetch.enter(thread.id)
                     }}
-                    onPointerLeave={() => {
-                      if (hovering.current !== thread.id) return
-                      hovering.current = undefined
-                      if (warmId === thread.id && warmed) setWarmId(undefined)
-                    }}
+                    onPointerLeave={() => prefetch.leave(thread.id)}
                   >
                     <ThreadRow
                       {...thread}

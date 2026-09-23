@@ -4,6 +4,7 @@ import { useAtomValue } from '@effect/atom-react'
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom } from 'effect/unstable/reactivity'
+import { useEffect, useRef, useState } from 'react'
 
 import { subscribe } from './connection'
 import { awaitCreation } from './mutations'
@@ -49,4 +50,26 @@ export function useThread(threadId: string): ThreadState | undefined {
 
 export function usePrefetchThread(threadId: string | undefined) {
   return useAtomValue(threadId ? threadAtom(threadId) : unread)
+}
+
+export function useThreadRowPrefetch() {
+  const [warmId, setWarmId] = useState<string | undefined>()
+  const hovering = useRef<string | undefined>(undefined)
+  const warmed = usePrefetchThread(warmId)
+
+  useEffect(() => {
+    if (warmed && hovering.current !== warmId) setWarmId(undefined)
+  }, [warmed, warmId])
+
+  return {
+    enter(id: string) {
+      hovering.current = id
+      setWarmId(id)
+    },
+    leave(id: string) {
+      if (hovering.current !== id) return
+      hovering.current = undefined
+      if (warmId === id && warmed) setWarmId(undefined)
+    },
+  }
 }

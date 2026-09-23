@@ -159,7 +159,7 @@ function createdThreadId(item: ThreadItem) {
   if (
     item.kind !== 'tool_call' ||
     item.status !== 'succeeded' ||
-    !item.toolName.endsWith('create_thread')
+    !/^(?:mcp__jetty__|jetty[.:/\s-]+)create_thread$/i.test(item.toolName.trim())
   )
     return undefined
   // Providers wrap the tool's JSON result differently, sometimes re-stringified.

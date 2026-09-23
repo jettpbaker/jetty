@@ -35,7 +35,7 @@ export function formatSubagentTokens(tokens: number) {
   return tokenFormatter.format(tokens).toLowerCase()
 }
 
-function formatDuration(seconds: number) {
+export function formatDuration(seconds: number) {
   const total = Math.floor(seconds)
   if (total < 60) return `${total}s`
   const minutes = Math.floor(total / 60)
