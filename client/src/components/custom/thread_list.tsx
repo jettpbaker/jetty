@@ -2,9 +2,13 @@ import type { SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 
 import { AssistantMessage } from '@/components/custom/assistant_message'
+import { ErrorMessage } from '@/components/custom/error_message'
+import { GalleryMessage } from '@/components/custom/gallery_message'
+import { QuestionMessage } from '@/components/custom/question_message'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
 import { threadRows, type ThreadRow } from '@/components/custom/thread_rows'
 import { UserMessage } from '@/components/custom/user_message'
+import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
@@ -26,6 +30,12 @@ function rowStamp(row: ThreadRow) {
       return row.item.text.length
     case 'error':
       return row.message.length
+    case 'gallery':
+      return `${row.item.images.length}:${row.item.caption?.length ?? 0}`
+    case 'video':
+      return row.item.caption?.length ?? 0
+    case 'question':
+      return `${row.item.questions.length}:${row.item.skipped ?? ''}:${Object.keys(row.item.answers ?? {}).length}`
     case 'work':
       return row.activities
         .map((activity) =>
@@ -34,8 +44,6 @@ function rowStamp(row: ThreadRow) {
             : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
         .join(',')
-    default:
-      return row.kind
   }
 }
 
@@ -56,8 +64,12 @@ function ThreadItemRow({ row }: { row: ThreadRow }) {
       </Message>
     )
   if (row.kind === 'work') return <WorkBlock activities={row.activities} status={row.status} />
-  if (row.kind === 'error') return <p className='text-sm text-destructive'>{row.message}</p>
-  return <p className='text-xs text-muted-foreground'>{row.kind}</p>
+  if (row.kind === 'error') return <ErrorMessage message={row.message} />
+  if (row.kind === 'gallery')
+    return <GalleryMessage images={row.item.images} caption={row.item.caption} />
+  if (row.kind === 'video')
+    return <VideoMessage video={row.item.video} caption={row.item.caption} />
+  return <QuestionMessage item={row.item} />
 }
 
 export function ThreadList({

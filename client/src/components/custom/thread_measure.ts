@@ -48,8 +48,28 @@ export function estimateRow(row: ThreadRow, columnWidth: number, epoch: number) 
     case 'work':
       return estimateWork(row, width, epoch)
     case 'error':
-      return textHeight(row.id, row.message, width, true, epoch) + 16
-    default:
-      return 36
+      return textHeight(row.id, row.message, width * 0.8, true, epoch) + 24
+    case 'gallery':
+      return (
+        160 * Math.ceil(row.item.images.length / 2) +
+        (row.item.caption
+          ? textHeight(`${row.id}:caption`, row.item.caption, width * 0.8, false, epoch) + 8
+          : 0)
+      )
+    case 'video':
+      return (
+        180 +
+        (row.item.caption
+          ? textHeight(`${row.id}:caption`, row.item.caption, width * 0.8, false, epoch) + 8
+          : 0)
+      )
+    case 'question': {
+      let height = 24
+      for (const spec of row.item.questions) {
+        height += textHeight(`${row.id}:${spec.question}`, spec.question, width * 0.8, false, epoch)
+        height += 20 * spec.options.length + 16
+      }
+      return height
+    }
   }
 }

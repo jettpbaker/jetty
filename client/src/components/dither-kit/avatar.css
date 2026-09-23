@@ -1,0 +1,15 @@
+@keyframes dither-avatar-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dither-avatar-pulse {
+    animation: dither-avatar-breathe 3s ease-in-out infinite;
+  }
+}
