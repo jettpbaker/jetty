@@ -249,6 +249,14 @@ export function createOrchestrator(
       )
     }
 
+    function removeAttachments(meta: readonly Attachment[]) {
+      return attachments
+        ? Effect.forEach(meta, (attachment) => attachments.remove(attachment.id), {
+            discard: true,
+          })
+        : Effect.void
+    }
+
     function requireFound(what: string) {
       return (found: boolean) =>
         found ? Effect.void : Effect.fail(new StoreError('not_found', `No pending ${what}`))
@@ -266,7 +274,7 @@ export function createOrchestrator(
                   !thread.pendingMessages?.some((m) => m.id === input.queued!.id)
                 )
                   return { turnId: '' }
-                if (input.sendNow && !state(input.threadId).turnId)
+                if (input.sendNow && !state(input.threadId).turnId && !state(input.threadId).ready)
                   return yield* Effect.fail(new StoreError('conflict', 'No accepting turn'))
                 if (
                   (!state(input.threadId).turnId && !state(input.threadId).ready) ||
@@ -291,26 +299,29 @@ export function createOrchestrator(
               const onCommit = Effect.sync(() => {
                 committed = true
               })
-              const saved = attachments
-                ? yield* Effect.acquireRelease(
-                    attachments.persist(input.attachments),
-                    (saved) =>
-                      committed
-                        ? Effect.void
-                        : Effect.forEach(
-                            saved.meta,
-                            (attachment) => attachments.remove(attachment.id),
-                            { discard: true }
-                          ),
-                    { interruptible: true }
-                  ).pipe(
-                    Effect.mapError((error) =>
-                      error instanceof StoreError
-                        ? error
-                        : new StoreError('internal', String(error))
+              const queuedMeta = input.queued?.attachments ?? []
+              const saved = !attachments
+                ? EMPTY_ATTACHMENTS
+                : queuedMeta.length
+                  ? { meta: [...queuedMeta], images: yield* attachments.load(queuedMeta) }
+                  : yield* Effect.acquireRelease(
+                      attachments.persist(input.attachments),
+                      (saved) =>
+                        committed
+                          ? Effect.void
+                          : Effect.forEach(
+                              saved.meta,
+                              (attachment) => attachments.remove(attachment.id),
+                              { discard: true }
+                            ),
+                      { interruptible: true }
+                    ).pipe(
+                      Effect.mapError((error) =>
+                        error instanceof StoreError
+                          ? error
+                          : new StoreError('internal', String(error))
+                      )
                     )
-                  )
-                : EMPTY_ATTACHMENTS
               if (!chosen.stored) yield* commitProvider(input.threadId, chosen.provider)
               yield* saveLoadout(input)
               const { agent } = chosen
@@ -426,25 +437,48 @@ export function createOrchestrator(
             : Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
         )
       },
-      enqueue(threadId: string, messageId: string, text: string) {
-        return hub.withChromePublication(
-          store.enqueue(threadId, { id: messageId, text, createdAt: Date.now(), hop: 0 }).pipe(
-            Effect.tap((thread) =>
-              Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
-            ),
-            Effect.uninterruptible
-          )
-        )
+      enqueue(
+        threadId: string,
+        messageId: string,
+        text: string,
+        uploads?: readonly UploadAttachment[]
+      ) {
+        return Effect.gen(function* () {
+          if (!text && !uploads?.length)
+            return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
+          const saved = attachments ? yield* attachments.persist(uploads) : EMPTY_ATTACHMENTS
+          yield* hub
+            .withChromePublication(
+              store
+                .enqueue(threadId, {
+                  id: messageId,
+                  text,
+                  createdAt: Date.now(),
+                  hop: 0,
+                  ...(saved.meta.length ? { attachments: saved.meta } : {}),
+                })
+                .pipe(
+                  Effect.tap((thread) =>
+                    Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+                  ),
+                  Effect.uninterruptible
+                )
+            )
+            .pipe(Effect.onError(() => removeAttachments(saved.meta)))
+        })
       },
       editQueued(threadId: string, messageId: string, text?: string) {
         return state(threadId).admission.withPermit(
           hub.withChromePublication(
-            store.editQueued(threadId, messageId, text).pipe(
-              Effect.tap((thread) =>
-                Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
-              ),
-              Effect.uninterruptible
-            )
+            Effect.gen(function* () {
+              const before = yield* store.requireThread(threadId)
+              const thread = yield* store.editQueued(threadId, messageId, text)
+              hub.pushChrome({ type: 'thread.upserted', thread })
+              if (text === undefined)
+                yield* removeAttachments(
+                  before.pendingMessages?.find((m) => m.id === messageId)?.attachments ?? []
+                )
+            }).pipe(Effect.uninterruptible)
           )
         )
       },

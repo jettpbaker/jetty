@@ -491,7 +491,7 @@ export function createStore() {
       },
       deleteThread(threadId: string) {
         return Effect.gen(function* () {
-          yield* requireThread(threadId)
+          const thread = yield* requireThread(threadId)
           const refs = yield* sql<{
             attachment_id: string
           }>`SELECT attachment_id FROM attachment_refs WHERE thread_id = ${threadId}`
@@ -502,7 +502,8 @@ export function createStore() {
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
-          const unused: string[] = []
+          const queued = (thread.pendingMessages ?? []).flatMap((m) => m.attachments ?? [])
+          const unused = queued.map((attachment) => attachment.id)
           for (const { attachment_id: id } of refs) {
             const shared =
               yield* sql`SELECT 1 FROM attachment_refs WHERE attachment_id = ${id} LIMIT 1`

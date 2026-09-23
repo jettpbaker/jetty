@@ -105,7 +105,6 @@ export function ThreadComposer({
     (todos.find((entry) => entry.status === 'active') ??
       todos.find((entry) => entry.status === 'pending'))
   const editingEntry = queue.find((entry) => entry.id === editing)
-  const steering = attachments.images.length > 0
 
   function priorCount(text: string) {
     return items.filter((entry) => entry.kind === 'user_message' && entry.text === text).length
@@ -124,7 +123,7 @@ export function ThreadComposer({
     const text = draft.trim()
     if (!text && attachments.images.length === 0) return
     if (threadId && text && editingEntry) queueActions.edit(threadId, editingEntry.id, text)
-    else if (threadId && text && running && !steering) queueActions.add(threadId, text)
+    else if (threadId && running) queueActions.add(threadId, text, attachments.take())
     else return startTurn(text)
     setEditing(undefined)
     setDraft('')
@@ -140,16 +139,13 @@ export function ThreadComposer({
     running,
     editing,
     sendNow(entry: QueuedMessage) {
-      if (!threadId) return
-      if (running) return queueActions.steer(threadId, entry.id)
-      queueActions.remove(threadId, entry.id)
-      sendTurn(threadId, entry.text, priorCount(entry.text), loadout)
+      if (threadId) queueActions.sendNow(threadId, entry.id)
     },
     edit(entry: QueuedMessage) {
       if (!threadId) return
       const previous = draft.trim()
       if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
-      else if (previous) queueActions.add(threadId, previous)
+      else if (previous) queueActions.add(threadId, previous, attachments.take())
       setEditing(entry.id)
       setDraft(entry.text)
     },
@@ -223,7 +219,7 @@ export function ThreadComposer({
               : running
                 ? 'Queue a follow-up while the agent works'
                 : 'Ask for follow-up changes',
-            sendLabel: running ? (steering ? 'Steer' : 'Queue') : 'Send',
+            sendLabel: running ? 'Queue' : 'Send',
             sendDisabled: (!threadId && !projectId) || needsModel ? true : undefined,
             onSubmit: submit,
             onKeyDown: keyHandler((event) => {

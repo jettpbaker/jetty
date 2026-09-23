@@ -1,3 +1,4 @@
+import type { ReadyImage } from '@/hooks/use-image-attachments'
 import type { Connection } from '@/net/connection'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
@@ -42,24 +43,64 @@ function track(
   registry: Registry,
   threadId: string,
   op: QueueOp,
-  request: (connection: Connection) => Effect.Effect<unknown, unknown>
+  request: (connection: Connection) => Effect.Effect<unknown, unknown>,
+  onSettle?: () => void
 ) {
   registry.update(queueOpsAtom, (ops) =>
     new Map(ops).set(threadId, [...(ops.get(threadId) ?? []), op])
   )
-  const settle = Effect.sync(() =>
+  const settle = Effect.sync(() => {
     registry.update(queueOpsAtom, (ops) => {
       const left = (ops.get(threadId) ?? []).filter((entry) => entry !== op)
       return left.length ? new Map(ops).set(threadId, left) : without(ops, [threadId])
     })
-  )
+    onSettle?.()
+  })
   run(registry, (connection) => request(connection).pipe(Effect.ensuring(settle)))
 }
 
-function addQueued(registry: Registry, threadId: string, text: string) {
-  const message = { id: newId(), text, createdAt: Date.now(), hop: 0 }
-  track(registry, threadId, { kind: 'add', message }, (connection) =>
-    connection.request('queue.add', { threadId, messageId: message.id, text })
+function addQueued(
+  registry: Registry,
+  threadId: string,
+  text: string,
+  images: readonly ReadyImage[] = []
+) {
+  const message = {
+    id: newId(),
+    text,
+    createdAt: Date.now(),
+    hop: 0,
+    attachments: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
+      id: url,
+      name,
+      mimeType,
+      sizeBytes,
+      width,
+      height,
+    })),
+  }
+  track(
+    registry,
+    threadId,
+    { kind: 'add', message },
+    (connection) =>
+      connection.request('queue.add', {
+        threadId,
+        messageId: message.id,
+        text,
+        ...(images.length > 0
+          ? {
+              attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                name,
+                mimeType,
+                dataUrl,
+              })),
+            }
+          : {}),
+      }),
+    () => {
+      for (const image of images) URL.revokeObjectURL(image.url)
+    }
   )
 }
 
@@ -75,7 +116,7 @@ function editQueued(registry: Registry, threadId: string, messageId: string, tex
   )
 }
 
-function steerQueued(registry: Registry, threadId: string, messageId: string) {
+function sendQueuedNow(registry: Registry, threadId: string, messageId: string) {
   track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
     connection.request('queue.sendNow', { threadId, messageId })
   )
@@ -92,6 +133,6 @@ export function useQueueActions() {
     add: useAction(addQueued),
     remove: useAction(removeQueued),
     edit: useAction(editQueued),
-    steer: useAction(steerQueued),
+    sendNow: useAction(sendQueuedNow),
   }
 }

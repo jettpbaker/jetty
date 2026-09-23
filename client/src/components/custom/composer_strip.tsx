@@ -20,6 +20,7 @@ import type { Approval, Question, Source, Todo } from './composer_strip_model'
 
 import { NeedsInputIcon } from './circle_status_icon'
 import { InProgressIcon } from './in_progress_icon'
+import { mediaUrl } from './media_layout'
 import { ProviderGlyph } from './provider_glyph'
 
 /* Small shared pieces */
@@ -602,16 +603,39 @@ function QueueActions({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
   )
 }
 
+function QueuedImages({ entry }: { entry: QueuedMessage }) {
+  const images = (entry.attachments ?? []).filter((attachment) =>
+    attachment.mimeType.startsWith('image/')
+  )
+  if (images.length === 0) return null
+  return (
+    <span className='flex shrink-0 gap-1'>
+      {images.map((image) => (
+        <img
+          key={image.id}
+          src={mediaUrl(image)}
+          alt={image.name}
+          decoding='async'
+          draggable={false}
+          className='size-5 rounded-xs object-cover'
+        />
+      ))}
+    </span>
+  )
+}
+
 function QueueRow({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
   if (entry.id === q.editing)
     return (
       <div className='flex h-7 min-w-0 items-center gap-2 text-muted-foreground'>
+        <QueuedImages entry={entry} />
         <span className='min-w-0 flex-1 truncate'>{firstLine(entry.text)}</span>
         <span className='shrink-0 text-xs'>Editing</span>
       </div>
     )
   return (
     <div className='group/row flex h-7 min-w-0 items-center gap-2'>
+      <QueuedImages entry={entry} />
       <span className='min-w-0 flex-1 truncate'>{firstLine(entry.text)}</span>
       <span className='-mr-1.5 flex opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100'>
         <QueueActions entry={entry} q={q} />

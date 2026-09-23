@@ -167,7 +167,7 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'queue.add': (params) =>
         orch
-          .enqueue(params.threadId, params.messageId, params.text)
+          .enqueue(params.threadId, params.messageId, params.text, params.attachments)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
       'queue.remove': (params) =>
         orch

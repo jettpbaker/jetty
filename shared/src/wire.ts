@@ -2,7 +2,7 @@ import { Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { SessionStatus } from './events'
-import { ApprovalDecision } from './items'
+import { ApprovalDecision, Attachment } from './items'
 import { ThreadState } from './reducer'
 
 export function newId() {
@@ -64,6 +64,7 @@ export const QueuedMessage = Schema.Struct({
   createdAt: Schema.Int,
   from: Schema.optional(MessageSource),
   hop: Schema.Natural,
+  attachments: Schema.optional(Schema.Array(Attachment)),
 })
 export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 
@@ -198,7 +199,10 @@ export const methods = {
     params: Schema.Struct({
       threadId: Schema.String,
       messageId: Schema.String.check(Schema.isMinLength(1)),
-      text: Schema.String.check(Schema.isMinLength(1)),
+      text: Schema.String,
+      attachments: Schema.optional(
+        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+      ),
     }),
     result: Schema.Null,
   },

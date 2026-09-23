@@ -198,6 +198,26 @@ export function createAttachments(home: string) {
       })
     }
 
+    // Reads persisted images back for delivery, e.g. a queued message's attachments.
+    function load(meta: readonly Attachment[]) {
+      return Effect.forEach(meta, (attachment) =>
+        Effect.gen(function* () {
+          const found = yield* resolve(attachment.id)
+          if (!found)
+            return yield* Effect.fail(new StoreError('not_found', 'Attachment is missing'))
+          const bytes = yield* fs.readFile(found.path)
+          return {
+            mimeType: attachment.mimeType as UploadAttachment['mimeType'],
+            base64data: Buffer.from(bytes).toString('base64'),
+          }
+        })
+      ).pipe(
+        Effect.mapError((error) =>
+          error instanceof StoreError ? error : new StoreError('internal', String(error))
+        )
+      )
+    }
+
     function remove(id: string) {
       return Effect.gen(function* () {
         const found = yield* resolve(id)
@@ -206,7 +226,7 @@ export function createAttachments(home: string) {
       }).pipe(Effect.ignore)
     }
 
-    return { dir, persist, persistFile, resolve, remove }
+    return { dir, persist, persistFile, resolve, load, remove }
   })
 }
 
