@@ -15,6 +15,7 @@ test('Codex fixture over backend RPC: disconnect, durable completion, immediate 
     home,
     port: 0,
     agent: 'codex',
+    titler: null,
     codex: {
       command: process.execPath,
       args: [join(import.meta.dir, 'fixtures/codex-peer.ts')],
