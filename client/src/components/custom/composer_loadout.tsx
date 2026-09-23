@@ -365,7 +365,7 @@ export function ComposerLoadout({
             <DropdownMenuSubTrigger
               className={cn(
                 subTriggerClass,
-                'data-disabled:cursor-not-allowed data-disabled:opacity-50'
+                'data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground'
               )}
               disabled={efforts.length === 0}
             >

@@ -9,8 +9,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Thread hover card (sidebar row preview) dropped. Design: `thread_hover.tsx`.
 - Details panel tabs are a plain TabsList. Design: `thread_details_tabs.tsx` —
   `+` open-tab menu, close ✕, drag reorder, Chat tab when full width.
-- Disabled-but-visible items dim to 50% (branch chip, Link issue, sidebar
-  Issues/PRs). Keep standard dimming or a subtler disabled look?
 - Design rebuilt Settings (sidebar nav, merged Models page) after our port.
   Ignoring until Jett says otherwise.
 
@@ -18,6 +16,11 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 - Branches: branch picker is disabled and always reads "Branch" — nothing on the
   server fills `ThreadMeta.git`. Real switching probably wants a worktree per thread.
+  From t3code: create the worktree on first send, store an explicit cwd per thread,
+  reuse existing worktrees, recreate a missing one; never switch a checkout under a
+  running agent; key worktree paths per repo; make branch deletion explicit.
+- Project icons: pick an emoji (one pinned emoji style, not the OS default) or an
+  icon from a curated Phosphor list, per project.
 - Grok doesn't report context usage, so its ring stays empty.
 - Model discovery runs once at server start; logging in to a provider later
   needs a restart.

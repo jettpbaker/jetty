@@ -85,7 +85,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 data-[variant=destructive]:*:[svg]:text-destructive",
+        "group/dropdown-menu-item relative flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 data-[variant=destructive]:*:[svg]:text-destructive",
         className
       )}
       {...props}
@@ -159,7 +159,7 @@ function DropdownMenuCheckboxItem({
       data-slot='dropdown-menu-checkbox-item'
       data-inset={inset}
       className={cn(
-        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
       )}
       checked={checked}
@@ -195,7 +195,7 @@ function DropdownMenuRadioItem({
       data-slot='dropdown-menu-radio-item'
       data-inset={inset}
       className={cn(
-        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
       )}
       {...props}
