@@ -4,6 +4,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 import { newId } from '@jetty/shared/wire'
 import { Effect, Fiber, Path, Scope } from 'effect'
+import { realpath } from 'node:fs/promises'
+import { isAbsolute, relative, resolve } from 'node:path'
 
 import type { Attachments, PersistKind } from './attachments'
 
@@ -13,6 +15,7 @@ export type MediaToolHost = {
   attachments: Attachments
   resolveAttachment: (id: string, kind: PersistKind) => Effect.Effect<Attachment, Error>
   projectPath: string
+  containerPaths?: { checkout: string; artifacts: string }
   turnId: () => string
   emit: (
     event: ThreadEvent,
@@ -57,9 +60,39 @@ export function createMediaSender(host: MediaToolHost) {
           }
           let committed = false
           for (const src of request.paths) {
+            let source = path.resolve(host.projectPath, src)
+            if (host.containerPaths) {
+              const root =
+                src === '/artifacts' || src.startsWith('/artifacts/')
+                  ? host.containerPaths.artifacts
+                  : host.containerPaths.checkout
+              const suffix =
+                src === '/workspace' || src === '/artifacts'
+                  ? ''
+                  : src.startsWith('/workspace/')
+                    ? src.slice('/workspace/'.length)
+                    : src.startsWith('/artifacts/')
+                      ? src.slice('/artifacts/'.length)
+                      : src
+              if (isAbsolute(suffix))
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Media path is outside the environment')
+                )
+              source = resolve(root, suffix)
+              const real = yield* Effect.tryPromise({
+                try: () => realpath(source),
+                catch: () => new StoreError('invalid_params', 'Media file not found'),
+              })
+              const rel = relative(root, real)
+              if (rel === '..' || rel.startsWith('../') || isAbsolute(rel))
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Media path is outside the environment')
+                )
+              source = real
+            }
             media.push(
               yield* Effect.acquireRelease(
-                host.attachments.persistFile(path.resolve(host.projectPath, src), request.kind),
+                host.attachments.persistFile(source, request.kind),
                 (attachment) => (committed ? Effect.void : host.attachments.remove(attachment.id)),
                 { interruptible: true }
               )

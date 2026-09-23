@@ -5,10 +5,12 @@ import { Effect, Path, Scope } from 'effect'
 import { z } from 'zod'
 
 import type { Attachments } from './attachments'
+import type { EnvironmentManager } from './containers'
 import type { McpIdentity, McpSessions } from './mcp-sessions'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
+import { gitCommit } from './containers'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { StoreError } from './store'
@@ -48,6 +50,8 @@ const createInput = z.object({
   model: z.string().min(1).optional(),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   notify: z.boolean().default(true),
+  environment: z.enum(['local', 'container']).optional(),
+  ref: z.string().min(1).optional(),
   requestId,
 })
 const sendInput = z.object({
@@ -66,7 +70,8 @@ export function createMcpHandler(
   store: Store,
   orch: Orchestrator,
   attachments: Attachments,
-  models: () => readonly ProviderModel[] | null
+  models: () => readonly ProviderModel[] | null,
+  containers?: EnvironmentManager
 ) {
   return Effect.gen(function* () {
     const context = yield* Effect.context<Path.Path | Scope.Scope>()
@@ -95,7 +100,8 @@ export function createMcpHandler(
     }
 
     function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
-      return store.transaction(
+      let base: string | undefined
+      const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
           if (input.requestId) {
@@ -147,6 +153,7 @@ export function createMcpHandler(
             )
           const id = newId()
           yield* store.createThread(caller.projectId, id)
+          if (base) yield* store.setThreadEnvironment(id, 'container', base)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
@@ -174,6 +181,27 @@ export function createMcpHandler(
           return response
         })
       )
+      if (input.environment !== 'container') return create
+      return Effect.gen(function* () {
+        if (!containers)
+          return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
+        const caller = yield* accessible(identity, identity.threadId)
+        if (input.requestId) {
+          const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
+          if (previous) return previous
+        }
+        const project = yield* store.getProject(caller.projectId)
+        if (!project) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+        yield* Effect.tryPromise({
+          try: () => containers.registration(project),
+          catch: (error) => new StoreError('invalid_params', String(error)),
+        })
+        base = yield* Effect.tryPromise({
+          try: () => gitCommit(project.path, input.ref),
+          catch: (error) => new StoreError('invalid_params', String(error)),
+        })
+        return yield* create
+      })
     }
 
     function sendMessage(identity: McpIdentity, input: z.infer<typeof sendInput>) {
@@ -373,6 +401,14 @@ export function createMcpHandler(
             const project = yield* store.getProject(caller.projectId)
             if (!project)
               return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+            const record =
+              caller.environment === 'container' && containers
+                ? yield* Effect.promise(() => containers.record(caller.id))
+                : null
+            if (caller.environment === 'container' && !record)
+              return yield* Effect.fail(
+                new StoreError('not_found', 'Container checkout is not ready')
+              )
             const host = {
               attachments,
               resolveAttachment: (id: string, kind: 'image' | 'video') =>
@@ -383,7 +419,15 @@ export function createMcpHandler(
                     new StoreError('not_found', 'Attachment not found in caller project')
                   )
                 }),
-              projectPath: project.path,
+              projectPath: record?.checkoutPath ?? project.path,
+              ...(record
+                ? {
+                    containerPaths: {
+                      checkout: record.checkoutPath,
+                      artifacts: record.artifactsPath,
+                    },
+                  }
+                : {}),
               turnId: () => orch.currentTurn(caller.id) ?? '',
               emit: (
                 event: Parameters<typeof orch.emitMedia>[2],

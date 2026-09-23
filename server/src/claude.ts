@@ -25,6 +25,7 @@ import {
   Semaphore,
   Stream,
 } from 'effect'
+import { spawn } from 'node:child_process'
 
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
@@ -632,7 +633,7 @@ export function createClaudeAdapter(
 
         const binding = config.mcp
           ? yield* config.mcp
-              .open({ threadId: input.threadId, provider: 'claude' })
+              .open({ threadId: input.threadId, provider: 'claude' }, Boolean(input.environment))
               .pipe(Scope.provide(scope))
           : undefined
         const options = sessionOptions(input)
@@ -653,8 +654,37 @@ export function createClaudeAdapter(
                   },
                 },
                 options: {
-                  cwd: projectPath,
-                  pathToClaudeCodeExecutable: claudeBin,
+                  cwd: input.environment?.agentCwd ?? projectPath,
+                  pathToClaudeCodeExecutable: input.environment ? 'claude' : claudeBin,
+                  ...(input.environment
+                    ? {
+                        spawnClaudeCodeProcess: (spawnOptions: {
+                          args: string[]
+                          env: Record<string, string | undefined>
+                          signal?: AbortSignal
+                        }) =>
+                          spawn(
+                            'docker',
+                            [
+                              'exec',
+                              '-i',
+                              '-w',
+                              '/workspace',
+                              '-e',
+                              'JETTY_MCP_TOKEN',
+                              input.environment!.containerId,
+                              'claude',
+                              ...spawnOptions.args,
+                            ],
+                            {
+                              cwd: projectPath,
+                              env: { ...process.env, ...spawnOptions.env },
+                              signal: spawnOptions.signal,
+                              stdio: ['pipe', 'pipe', 'pipe'],
+                            }
+                          ),
+                      }
+                    : {}),
                   systemPrompt: {
                     type: 'preset',
                     preset: 'claude_code',
@@ -795,7 +825,11 @@ export function createClaudeAdapter(
             }
           }
           const fresh = !session
-          session ??= yield* spawnSession(input, emit, projectPath)
+          session ??= yield* spawnSession(
+            input,
+            emit,
+            input.environment?.hostCheckout ?? projectPath
+          )
           const started = session
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId

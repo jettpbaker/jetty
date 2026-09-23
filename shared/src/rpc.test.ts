@@ -56,6 +56,26 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
               project: { id: 'project', path, title: 'Project', createdAt: 0 },
             }),
           'project.setIcon': () => Effect.succeed(null),
+          'containers.status': () =>
+            Effect.succeed({
+              enabled: false,
+              docker: false,
+              maxRunning: 2,
+              cpus: 2,
+              memoryGiB: 8,
+              memoryBudgetGiB: 16,
+              idleMinutes: 10,
+              running: 0,
+              retained: [],
+              credentials: { codex: false, claude: false, grok: false },
+            }),
+          'containers.setMax': () => Effect.succeed(null),
+          'project.containerTest': () =>
+            Effect.succeed({
+              result: 'Verified',
+              providers: { codex: true, claude: false, grok: false },
+            }),
+          'thread.startDev': () => Effect.succeed({ services: [] }),
           'fs.browse': ({ partialPath }) =>
             Effect.succeed({ parentPath: partialPath, entries: [] }),
           'fs.search': () => Effect.succeed({ files: [] }),

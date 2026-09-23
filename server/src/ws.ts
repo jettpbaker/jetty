@@ -9,10 +9,12 @@ import type {
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { Effect, Fiber, Stream } from 'effect'
 
+import type { EnvironmentManager } from './containers'
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 
+import { gitCommit } from './containers'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
@@ -69,7 +71,8 @@ export function createRpcHandlers(
   getUsage: () => RateLimits | null,
   getModels: () => readonly ProviderModel[] | null,
   refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void,
-  pullRequests = createPullRequests(store, hub)
+  pullRequests = createPullRequests(store, hub),
+  containers?: EnvironmentManager
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -131,6 +134,71 @@ export function createRpcHandlers(
     }
 
     return JettyRpcs.of({
+      'containers.status': () =>
+        containers
+          ? Effect.tryPromise({ try: () => containers.status(), catch: wireError })
+          : Effect.succeed({
+              enabled: false,
+              docker: false,
+              maxRunning: 2,
+              cpus: 2,
+              memoryGiB: 8,
+              memoryBudgetGiB: 16,
+              idleMinutes: 10,
+              running: 0,
+              retained: [],
+              credentials: { codex: false, claude: false, grok: false },
+            }),
+      'containers.setMax': ({ maxRunning }) =>
+        containers
+          ? Effect.tryPromise({
+              try: () => containers.setMaxRunning(maxRunning),
+              catch: wireError,
+            }).pipe(Effect.as(null))
+          : Effect.fail(wireError(new StoreError('invalid_params', 'Containers are disabled'))),
+      'project.containerTest': ({ projectId }) =>
+        Effect.gen(function* () {
+          if (!containers)
+            return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
+          const project = yield* requireProject(projectId)
+          const registration = yield* Effect.tryPromise({
+            try: () => containers.test(project),
+            catch: (error) => new StoreError('invalid_params', String(error)),
+          }).pipe(
+            Effect.catch((error) =>
+              Effect.gen(function* () {
+                yield* store.setContainerRegistration(projectId, {
+                  valid: false,
+                  manifestHash: '',
+                  imageId: '',
+                  validatedAt: Date.now(),
+                  providers: { codex: false, claude: false, grok: false },
+                  result: error.message,
+                })
+                hub.pushChrome({
+                  type: 'project.upserted',
+                  project: yield* requireProject(projectId),
+                })
+                return yield* Effect.fail(error)
+              })
+            )
+          )
+          hub.pushChrome({ type: 'project.upserted', project: yield* requireProject(projectId) })
+          return { result: registration.result, providers: registration.providers }
+        }).pipe(Effect.mapError(wireError)),
+      'thread.startDev': ({ threadId }) =>
+        Effect.gen(function* () {
+          if (!containers)
+            return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
+          const thread = yield* store.requireThread(threadId)
+          if (thread.environment !== 'container')
+            return yield* Effect.fail(new StoreError('invalid_params', 'Thread is local'))
+          const services = yield* Effect.tryPromise({
+            try: () => containers.startDev(threadId),
+            catch: (error) => new StoreError('internal', String(error)),
+          })
+          return { services }
+        }).pipe(Effect.mapError(wireError)),
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
       'chrome.subscribe': () =>
@@ -172,11 +240,38 @@ export function createRpcHandlers(
           )
         ),
       'thread.create': (params) =>
-        upsertThread(store.createThread(params.projectId, params.id)).pipe(
-          Effect.map((thread) => ({ thread }))
-        ),
+        upsertThread(
+          Effect.gen(function* () {
+            const project = yield* requireProject(params.projectId)
+            let base: string | undefined
+            if (params.environment === 'container') {
+              if (!containers)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Containers are disabled')
+                )
+              yield* Effect.tryPromise({
+                try: () => containers.registration(project),
+                catch: (error) => new StoreError('invalid_params', String(error)),
+              })
+              base = yield* Effect.tryPromise({
+                try: () => gitCommit(project.path, params.ref),
+                catch: (error) => new StoreError('invalid_params', String(error)),
+              })
+            }
+            yield* store.createThread(params.projectId, params.id)
+            if (base) yield* store.setThreadEnvironment(params.id, 'container', base)
+            return yield* store.requireThread(params.id)
+          })
+        ).pipe(Effect.map((thread) => ({ thread }))),
       'thread.archive': (params) =>
-        upsertThread(store.archiveThread(params.threadId, params.archived)).pipe(Effect.as(null)),
+        upsertThread(store.archiveThread(params.threadId, params.archived)).pipe(
+          Effect.tap(() =>
+            params.archived && containers
+              ? Effect.promise(() => containers.stop(params.threadId))
+              : Effect.void
+          ),
+          Effect.as(null)
+        ),
       'thread.rename': (params) =>
         upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>
@@ -189,7 +284,24 @@ export function createRpcHandlers(
       'fs.search': (params) =>
         Effect.gen(function* () {
           const project = yield* requireProject(params.projectId)
-          return { files: yield* search.searchFiles(project.path, params.query, params.limit) }
+          const thread = params.threadId ? yield* store.requireThread(params.threadId) : null
+          if (thread && thread.projectId !== project.id)
+            return yield* Effect.fail(new StoreError('invalid_params', 'Thread is outside project'))
+          const record =
+            thread?.environment === 'container' && containers
+              ? yield* Effect.promise(() => containers.record(thread.id))
+              : null
+          if (thread?.environment === 'container' && !record)
+            return yield* Effect.fail(
+              new StoreError('not_found', 'Container checkout is not ready')
+            )
+          return {
+            files: yield* search.searchFiles(
+              record?.checkoutPath ?? project.path,
+              params.query,
+              params.limit
+            ),
+          }
         }).pipe(Effect.mapError(wireError)),
       'skills.list': (params) =>
         Effect.gen(function* () {
@@ -202,13 +314,34 @@ export function createRpcHandlers(
           const thread = yield* store.getThread(params.threadId)
           const project = thread && (yield* store.getProject(thread.projectId))
           if (!project) return { diff: '' }
-          return yield* diff.computeThreadDiff(project.path)
+          const record =
+            thread.environment === 'container' && containers
+              ? yield* Effect.promise(() => containers.record(thread.id))
+              : null
+          if (thread.environment === 'container' && !record) return { diff: '' }
+          return yield* diff.computeThreadDiff(
+            record?.checkoutPath ?? project.path,
+            record?.baseCommit ?? undefined
+          )
         }).pipe(Effect.mapError(wireError)),
       'thread.diffFile': (params) =>
         Effect.gen(function* () {
           const thread = yield* store.requireThread(params.threadId)
           const project = yield* requireProject(thread.projectId)
-          return yield* diff.readDiffFile(project.path, params.path, params.prevPath)
+          const record =
+            thread.environment === 'container' && containers
+              ? yield* Effect.promise(() => containers.record(thread.id))
+              : null
+          if (thread.environment === 'container' && !record)
+            return yield* Effect.fail(
+              new StoreError('not_found', 'Container checkout is not ready')
+            )
+          return yield* diff.readDiffFile(
+            record?.checkoutPath ?? project.path,
+            params.path,
+            params.prevPath,
+            record?.baseCommit ?? undefined
+          )
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.link': (params) =>
         Effect.gen(function* () {

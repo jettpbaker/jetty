@@ -19,6 +19,7 @@ import { createClaudeTitler } from './claude-titler'
 import { codexLayer, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
 import { createCodexTitler } from './codex-titler'
+import { createEnvironmentManager } from './containers'
 import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
@@ -179,6 +180,13 @@ function createServer(opts: ServerOptions = {}) {
     const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)
+    const containers =
+      process.env.JETTY_CONTAINERS === '1'
+        ? createEnvironmentManager(store, home, <A, E>(effect: Effect.Effect<A, E>) =>
+            Effect.runPromise(effect)
+          )
+        : undefined
+    if (containers) yield* Effect.promise(() => containers.reconcile())
 
     const io = yield* Layer.build(
       Layer.mergeAll(
@@ -309,6 +317,7 @@ function createServer(opts: ServerOptions = {}) {
             else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
             return models ?? []
           }),
+        environments: containers,
       })
     )
     const orch = Context.get(services, OrchestratorService)
@@ -320,7 +329,8 @@ function createServer(opts: ServerOptions = {}) {
       () => lastUsage,
       () => models,
       refreshModels,
-      pullRequests
+      pullRequests,
+      containers
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(
@@ -337,7 +347,14 @@ function createServer(opts: ServerOptions = {}) {
       Effect.provide(RpcSerialization.layerJson),
       Effect.provideService(Scope.Scope, transportScope)
     )
-    const handleMcp = yield* createMcpHandler(mcp, store, orch, attachments, () => models)
+    const handleMcp = yield* createMcpHandler(
+      mcp,
+      store,
+      orch,
+      attachments,
+      () => models,
+      containers
+    )
     const app = Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const url = new URL(request.url, 'http://localhost')
@@ -378,6 +395,22 @@ function createServer(opts: ServerOptions = {}) {
     mcp.setUrl(
       `http://${mcpHostname.includes(':') ? `[${mcpHostname}]` : mcpHostname}:${server.address.port}/mcp`
     )
+    if (containers) {
+      const mcpPort = Number(process.env.JETTY_CONTAINER_MCP_PORT ?? 8788)
+      const listener = Bun.serve({
+        hostname: '0.0.0.0',
+        port: mcpPort,
+        fetch(request) {
+          if (new URL(request.url).pathname !== '/mcp')
+            return new Response('Not found', { status: 404 })
+          return handleMcp(request)
+        },
+      })
+      mcp.setContainerUrl(
+        process.env.JETTY_CONTAINER_MCP_URL ?? `http://host.docker.internal:${listener.port}/mcp`
+      )
+      yield* Effect.addFinalizer(() => Effect.sync(() => listener.stop(true)))
+    }
     yield* orch.resumeQueues()
 
     return {

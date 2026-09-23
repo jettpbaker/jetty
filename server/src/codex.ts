@@ -204,42 +204,62 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       return Effect.scoped(
         Effect.gen(function* () {
           const binding = options.mcp
-            ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'codex' })
+            ? yield* options.mcp.open(
+                { threadId: session.input.threadId, provider: 'codex' },
+                Boolean(session.input.environment)
+              )
             : undefined
-          const connection = yield* openCodexConnection(
-            cwd,
-            binding
-              ? {
-                  ...options,
-                  args: [
-                    ...(options.args ?? DEFAULT_CODEX_ARGS),
+          const target = session.input.environment
+          const providerArgs = [
+            ...(options.args ?? DEFAULT_CODEX_ARGS),
+            ...(binding
+              ? [
+                  '-c',
+                  `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
+                  '-c',
+                  'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
+                  '-c',
+                  'mcp_servers.jetty.tools.send_images.approval_mode="approve"',
+                  '-c',
+                  'mcp_servers.jetty.tools.send_video.approval_mode="approve"',
+                  ...[
+                    'list_threads',
+                    'read_thread',
+                    'list_models',
+                    'create_thread',
+                    'send_message',
+                  ].flatMap((name) => [
                     '-c',
-                    `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
-                    '-c',
-                    'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
-                    '-c',
-                    'mcp_servers.jetty.tools.send_images.approval_mode="approve"',
-                    '-c',
-                    'mcp_servers.jetty.tools.send_video.approval_mode="approve"',
-                    ...[
-                      'list_threads',
-                      'read_thread',
-                      'list_models',
-                      'create_thread',
-                      'send_message',
-                    ].flatMap((name) => [
-                      '-c',
-                      `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,
-                    ]),
-                  ],
-                  env: { ...process.env, ...options.env, JETTY_MCP_TOKEN: binding.token },
-                }
-              : options
-          ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
+                    `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,
+                  ]),
+                ]
+              : []),
+          ]
+          const connection = yield* openCodexConnection(cwd, {
+            ...options,
+            command: target ? 'docker' : options.command,
+            args: target
+              ? [
+                  'exec',
+                  '-i',
+                  '-w',
+                  '/workspace',
+                  ...(binding ? ['-e', 'JETTY_MCP_TOKEN'] : []),
+                  target.containerId,
+                  'codex',
+                  ...providerArgs,
+                ]
+              : providerArgs,
+            env: {
+              ...process.env,
+              ...options.env,
+              ...(binding ? { JETTY_MCP_TOKEN: binding.token } : {}),
+            },
+          }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
-            ...threadOptions(session.input, cwd, Boolean(binding)),
+            ...threadOptions(session.input, target?.agentCwd ?? cwd, Boolean(binding)),
             ...(resume ? { threadId: resume } : { ephemeral: false }),
           })
           const threadId = string(object(result.thread).id)
@@ -392,7 +412,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
-          const lifecycle = run(session, project.path).pipe(
+          const lifecycle = run(session, input.environment?.hostCheckout ?? project.path).pipe(
             Effect.onInterrupt(() =>
               session.publication
                 .withPermit(

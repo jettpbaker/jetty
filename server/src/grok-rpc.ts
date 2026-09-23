@@ -22,7 +22,9 @@ export function openGrokConnection(cwd: string, args: string[], options: StdioPr
     })
     const methods = Array.isArray(init.authMethods) ? init.authMethods.map((m) => object(m).id) : []
     const methodId =
-      process.env.XAI_API_KEY && methods.includes('xai.api_key') ? 'xai.api_key' : 'cached_token'
+      (options.env?.XAI_API_KEY ?? process.env.XAI_API_KEY) && methods.includes('xai.api_key')
+        ? 'xai.api_key'
+        : 'cached_token'
     if (!methods.includes(methodId))
       return yield* Effect.fail(new AgentError('Run grok login first, or configure XAI_API_KEY'))
     yield* connection.request('authenticate', { methodId, _meta: { headless: true } })

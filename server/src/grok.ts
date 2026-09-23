@@ -264,12 +264,31 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       return Effect.scoped(
         Effect.gen(function* () {
           const binding = options.mcp
-            ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'grok' })
+            ? yield* options.mcp.open(
+                { threadId: session.input.threadId, provider: 'grok' },
+                Boolean(session.input.environment)
+              )
             : undefined
+          const target = session.input.environment
           const { connection, init } = yield* openGrokConnection(
-            cwd,
+            target?.hostCheckout ?? cwd,
             grokArgs(session.input, Boolean(binding)),
-            options
+            target
+              ? {
+                  ...options,
+                  command: 'docker',
+                  args: [
+                    'exec',
+                    '-i',
+                    '-w',
+                    '/workspace',
+                    target.containerId,
+                    'grok',
+                    ...grokArgs(session.input, Boolean(binding)),
+                  ],
+                  env: { ...process.env, ...options.env, XAI_API_KEY: 'container' },
+                }
+              : options
           ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'grok')
@@ -278,7 +297,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               new AgentError('Grok does not support loading the saved session')
             )
           const result = yield* connection.request(resume ? 'session/load' : 'session/new', {
-            cwd,
+            cwd: target?.agentCwd ?? cwd,
             mcpServers: binding
               ? [
                   {

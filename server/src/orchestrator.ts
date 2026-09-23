@@ -10,9 +10,10 @@ import type {
 } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
-import { Context, Effect, Layer, Queue, Semaphore } from 'effect'
+import { Cause, Context, Effect, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
+import type { EnvironmentManager } from './containers'
 import type { Hub } from './hub'
 import type { ReviewClassifier } from './review'
 import type { AppendedEvent, Store } from './store'
@@ -81,6 +82,7 @@ type OrchestratorOptions = {
   onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
   reviewer?: ReviewClassifier
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
+  environments?: EnvironmentManager
 }
 
 export function createOrchestrator({
@@ -92,6 +94,7 @@ export function createOrchestrator({
   onCompletedText,
   reviewer,
   modelCatalog,
+  environments,
 }: OrchestratorOptions) {
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
@@ -516,25 +519,44 @@ export function createOrchestrator({
                 input.queued
               ).pipe(
                 Effect.andThen(
-                  agent.startTurn(
-                    {
-                      threadId: input.threadId,
-                      turnId,
-                      text: agentText(input),
-                      images: saved.images,
-                      model: input.model,
-                      effort: input.effort,
-                      fast: input.fast,
-                      permissionMode: input.permissionMode,
-                    },
-                    emit
-                  )
+                  Effect.gen(function* () {
+                    const environment =
+                      thread.environment === 'container'
+                        ? yield* Effect.tryPromise({
+                            try: () => {
+                              if (!environments) throw new Error('Containers are disabled')
+                              return environments.prepare(
+                                input.threadId,
+                                chosen.provider === 'echo' ? undefined : chosen.provider
+                              )
+                            },
+                            catch: (error) => new AgentError(String(error)),
+                          })
+                        : undefined
+                    return yield* agent.startTurn(
+                      {
+                        threadId: input.threadId,
+                        turnId,
+                        text: agentText(input),
+                        images: saved.images,
+                        model: input.model,
+                        effort: input.effort,
+                        fast: input.fast,
+                        permissionMode: input.permissionMode,
+                        environment,
+                      },
+                      emit
+                    )
+                  })
                 ),
-                Effect.onError(() =>
+                Effect.onError((cause) =>
                   append(input.threadId, {
                     type: 'turn.failed',
                     turnId,
-                    error: 'Unable to start turn',
+                    error:
+                      Cause.squash(cause) instanceof Error
+                        ? (Cause.squash(cause) as Error).message
+                        : String(Cause.squash(cause)),
                   }).pipe(
                     Effect.ignore,
                     Effect.ensuring(
@@ -559,7 +581,14 @@ export function createOrchestrator({
                 Effect.ensuring(
                   Effect.sync(() => {
                     live.ready = true
-                  }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
+                  }).pipe(
+                    Effect.andThen(Queue.offer(store.queueChanges, undefined)),
+                    Effect.andThen(
+                      thread.environment === 'container' && environments
+                        ? Effect.promise(() => environments.finish(input.threadId))
+                        : Effect.void
+                    )
+                  )
                 ),
                 Effect.forkIn(scope, { startImmediately: true })
               )
@@ -741,7 +770,8 @@ export function createOrchestrator({
                       )
                   )
                   .pipe(Effect.catchCause((failure) => Effect.logError(failure)))
-              )
+              ),
+              Effect.forkIn(scope)
             )
           }
         })
@@ -761,6 +791,9 @@ export function createOrchestrator({
             if (!state(threadId).turnId) return
             yield* setQueuePaused(threadId, true)
             yield* agent.interrupt(threadId)
+            const thread = yield* store.requireThread(threadId)
+            if (thread.environment === 'container' && environments)
+              yield* Effect.promise(() => environments.stop(threadId))
           })
         )
       },
@@ -837,6 +870,7 @@ export function createOrchestrator({
                     return yield* Effect.fail(
                       new StoreError('conflict', 'Cannot delete a thread while a turn is running')
                     )
+                  if (environments) yield* Effect.promise(() => environments.stop(threadId))
                   const attachmentIds = yield* store.deleteThread(threadId)
                   if (attachments)
                     yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {

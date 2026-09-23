@@ -45,10 +45,13 @@ const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 // Keeps non-ASCII paths readable in diff headers instead of octal-escaped.
 const diffArgs = ['-c', 'core.quotePath=false', 'diff']
 
-export function computeThreadDiff(cwd: string) {
+export function computeThreadDiff(cwd: string, baseCommit?: string) {
   return Effect.gen(function* () {
     const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
-    const tracked = yield* git(cwd, [...diffArgs, head.code === 0 ? 'HEAD' : EMPTY_TREE])
+    const tracked = yield* git(cwd, [
+      ...diffArgs,
+      head.code === 0 ? (baseCommit ?? 'HEAD') : EMPTY_TREE,
+    ])
     if (tracked.code !== 0) return { diff: '' }
     const untracked = yield* git(cwd, ['ls-files', '-z', '--others', '--exclude-standard'])
     const parts = [tracked.out]
@@ -75,12 +78,12 @@ function isRepoPath(path: string) {
   )
 }
 
-function readHead(root: string, path: string) {
+function readHead(root: string, path: string, baseCommit = 'HEAD') {
   return Effect.gen(function* () {
-    const size = yield* git(root, ['cat-file', '-s', `HEAD:${path}`])
+    const size = yield* git(root, ['cat-file', '-s', `${baseCommit}:${path}`])
     if (size.code !== 0) return null
     if (Number(size.out) > MAX_CONTENTS_BYTES) return tooLarge
-    const { out, code } = yield* git(root, ['cat-file', 'blob', `HEAD:${path}`])
+    const { out, code } = yield* git(root, ['cat-file', 'blob', `${baseCommit}:${path}`])
     if (code !== 0) return null
     return out.includes('\0') ? binary : out
   })
@@ -110,7 +113,7 @@ function readWorkingTree(root: string, repoPath: string) {
 }
 
 // Paths are repository-relative, as `git diff` prints them.
-export function readDiffFile(cwd: string, path: string, prevPath = path) {
+export function readDiffFile(cwd: string, path: string, prevPath = path, baseCommit?: string) {
   return Effect.gen(function* () {
     if (!isRepoPath(path) || !isRepoPath(prevPath))
       return yield* Effect.fail(new StoreError('invalid_params', `Invalid path: ${path}`))
@@ -119,7 +122,7 @@ export function readDiffFile(cwd: string, path: string, prevPath = path) {
     const root = yield* fs.realPath(top.out.trim()).pipe(Effect.option)
     if (top.code !== 0 || Option.isNone(root))
       return yield* Effect.fail(new StoreError('invalid_params', 'Not a git repository'))
-    const before = yield* readHead(root.value, prevPath)
+    const before = yield* readHead(root.value, prevPath, baseCommit)
     if (typeof before === 'object' && before) return before
     const after = yield* readWorkingTree(root.value, path)
     if (typeof after === 'object' && after) return after
@@ -128,11 +131,12 @@ export function readDiffFile(cwd: string, path: string, prevPath = path) {
 }
 
 export const GitDiff = Context.Service<{
-  computeThreadDiff: (cwd: string) => Effect.Effect<ThreadDiff>
+  computeThreadDiff: (cwd: string, baseCommit?: string) => Effect.Effect<ThreadDiff>
   readDiffFile: (
     cwd: string,
     path: string,
-    prevPath?: string
+    prevPath?: string,
+    baseCommit?: string
   ) => Effect.Effect<DiffFile, StoreError>
 }>('jetty/GitDiff')
 
@@ -143,10 +147,10 @@ export const GitDiffLive = Layer.effect(
       ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
     >()
     return {
-      computeThreadDiff: (cwd: string) =>
-        computeThreadDiff(cwd).pipe(Effect.provideContext(services)),
-      readDiffFile: (cwd: string, path: string, prevPath?: string) =>
-        readDiffFile(cwd, path, prevPath).pipe(Effect.provideContext(services)),
+      computeThreadDiff: (cwd: string, baseCommit?: string) =>
+        computeThreadDiff(cwd, baseCommit).pipe(Effect.provideContext(services)),
+      readDiffFile: (cwd: string, path: string, prevPath?: string, baseCommit?: string) =>
+        readDiffFile(cwd, path, prevPath, baseCommit).pipe(Effect.provideContext(services)),
     }
   })
 )
