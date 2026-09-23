@@ -9,10 +9,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { LockIcon, UnlockIcon } from '@primer/octicons-react'
+import { SearchIcon, UnlockIcon } from '@primer/octicons-react'
 
-const modes: Record<PermissionMode, { label: string; Icon: typeof LockIcon }> = {
-  auto: { label: 'Auto', Icon: LockIcon },
+const modes: Record<PermissionMode, { label: string; Icon: typeof SearchIcon }> = {
+  auto: { label: 'Auto', Icon: SearchIcon },
   full_access: { label: 'Full access', Icon: UnlockIcon },
 }
 
