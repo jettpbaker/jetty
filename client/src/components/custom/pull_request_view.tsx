@@ -438,10 +438,10 @@ function MergeAction({
   )
   const current = options.find((option) => option.method === selected) ?? options[0]
 
-  if (state === 'merged') {
+  if (state === 'merged' || state === 'closed') {
     return (
       <Button size='sm' variant='outline' className='rounded-sm' disabled>
-        Merged
+        {prPresentation[state].label}
       </Button>
     )
   }
@@ -835,7 +835,11 @@ export function ThreadPullRequestView({
     <div className='flex h-full flex-col items-center justify-center gap-3 p-4 text-center'>
       <div className='flex flex-col gap-1'>
         <p className='text-sm'>{unavailableTitle[snapshot.status]}</p>
-        {snapshot.error && <p className='text-xs text-muted-foreground'>{snapshot.error}</p>}
+        <p className='text-xs text-muted-foreground'>
+          {snapshot.status === 'unavailable' && snapshot.error
+            ? snapshot.error
+            : `${link.repo}#${link.number}`}
+        </p>
       </div>
       <div className='flex items-center gap-1'>
         <Button variant='outline' size='sm' disabled={refreshing} onClick={() => refresh(link)}>

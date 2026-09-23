@@ -220,7 +220,7 @@ export function useLinkPullRequest() {
             },
           })
         )
-      ),
+      ).catch(() => "Couldn't link the pull request"),
     [registry]
   )
 }

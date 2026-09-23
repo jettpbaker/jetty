@@ -38,7 +38,7 @@ import {
 } from 'react'
 
 import { LinkPullRequestDialog } from './pull_request_link'
-import { prPresentation } from './thread_pull_request'
+import { linkPresentation } from './thread_pull_request'
 
 const tabs = {
   chat: { label: 'Chat', Icon: CommentDiscussionIcon },
@@ -214,7 +214,7 @@ export function ThreadDetailsTabs({
           />
         ))}
         {pullRequests.visible.map((link) => {
-          const pr = prPresentation[link.state ?? 'open']
+          const pr = linkPresentation(link.state)
           return (
             <TabsTrigger
               key={pullRequestTabId(link)}
@@ -240,7 +240,10 @@ export function ThreadDetailsTabs({
           >
             <PlusIcon className='size-3' />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align='start' className='max-w-72 min-w-36'>
+          <DropdownMenuContent
+            align='start'
+            className={cn('min-w-36', pullRequests.links.length > 0 && 'w-72')}
+          >
             {catalog.map((id) => {
               const { label, Icon } = tabs[id]
               const open = visible.includes(id)
@@ -259,7 +262,7 @@ export function ThreadDetailsTabs({
             })}
             <DropdownMenuSeparator />
             {pullRequests.links.map((link) => {
-              const pr = prPresentation[link.state ?? 'open']
+              const pr = linkPresentation(link.state)
               const open = pullRequests.visible.includes(link)
               return (
                 <DropdownMenuCheckboxItem

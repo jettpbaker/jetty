@@ -28,3 +28,10 @@ export type ThreadPullRequest = {
   state: keyof typeof prPresentation
   count: number
 }
+
+// A link's state is unknown until GitHub has been read once.
+export function linkPresentation(state?: keyof typeof prPresentation) {
+  return state
+    ? prPresentation[state]
+    : { ...prPresentation.open, label: 'Pull request', color: 'text-muted-foreground' }
+}

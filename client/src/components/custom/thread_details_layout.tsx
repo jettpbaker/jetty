@@ -80,9 +80,11 @@ export function ThreadDetailsLayout({
     setOpen((value) => !value)
   }
 
+  // A just-linked PR's tab can be requested before the thread's links include it.
+  const requestShown = pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab)
   const openingTab = useRef<string>(undefined)
   useLayoutEffect(() => {
-    if (!requestedTab) return
+    if (!requestedTab || !requestShown) return
     consume()
     if (open) {
       setTab(requestedTab)
@@ -91,7 +93,7 @@ export function ThreadDetailsLayout({
     openingTab.current = requestedTab
     if (root.current) setAvailable(root.current.clientWidth)
     setOpen(true)
-  }, [requestedTab, consume, open])
+  }, [requestedTab, requestShown, consume, open])
 
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {

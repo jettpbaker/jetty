@@ -8,7 +8,7 @@ import { CaretLeftIcon } from '@phosphor-icons/react'
 
 import { OverflowTitle } from './overflow_title'
 import { pullRequestState } from './pull_request_model'
-import { prPresentation } from './thread_pull_request'
+import { linkPresentation } from './thread_pull_request'
 
 export function PullRequestRow({
   threadId,
@@ -21,7 +21,7 @@ export function PullRequestRow({
 }) {
   const open = useOpenPullRequest()
   const pull = usePullRequestSummary(link)
-  const pr = prPresentation[pull ? pullRequestState(pull) : (link.state ?? 'open')]
+  const pr = linkPresentation(pull ? pullRequestState(pull) : link.state)
   const age = formatAge(link.updatedAt ?? link.linkedAt, now)
   return (
     <Button
