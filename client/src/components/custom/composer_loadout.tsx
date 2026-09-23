@@ -231,6 +231,7 @@ export function ComposerLoadout({
 }) {
   const model = value && findModel(catalog, value)
   const name = model?.name ?? value?.model
+  const efforts = (value && model?.efforts) ?? []
   const equipped = loadouts.flatMap((slot) => {
     const loadout = slotLoadout(slot)
     return loadout ? [{ slot, loadout }] : []
@@ -360,49 +361,52 @@ export function ComposerLoadout({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          {value && model && model.efforts.length > 0 && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className={subTriggerClass}>
-                Effort
-                <span className='ml-auto pl-4 text-muted-foreground'>
-                  {value.effort && effortLabels[value.effort]}
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup
-                  value={value.effort ?? ''}
-                  onValueChange={(next) => {
-                    const effort = model.efforts.find((level) => level === next)
-                    if (effort) onChange({ ...value, effort })
-                  }}
-                >
-                  {model.efforts.map((effort) => (
-                    <DropdownMenuRadioItem key={effort} value={effort}>
-                      {effortLabels[effort]}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-          {value && model?.fast && (
-            <DropdownMenuCheckboxItem
-              className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-              checked={value.fast}
-              closeOnClick={false}
-              onCheckedChange={(fast) => onChange({ ...value, fast })}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger
+              className={cn(
+                subTriggerClass,
+                'data-disabled:cursor-not-allowed data-disabled:opacity-50'
+              )}
+              disabled={efforts.length === 0}
             >
-              Fast
-              <Switch
-                render={<span />}
-                size='sm'
-                checked={value.fast}
-                tabIndex={-1}
-                aria-hidden='true'
-                className='pointer-events-none ml-auto'
-              />
-            </DropdownMenuCheckboxItem>
-          )}
+              Effort
+              <span className='ml-auto pl-4 text-muted-foreground'>
+                {value?.effort && effortLabels[value.effort]}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={value?.effort ?? ''}
+                onValueChange={(next) => {
+                  const effort = efforts.find((level) => level === next)
+                  if (value && effort) onChange({ ...value, effort })
+                }}
+              >
+                {efforts.map((effort) => (
+                  <DropdownMenuRadioItem key={effort} value={effort}>
+                    {effortLabels[effort]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuCheckboxItem
+            className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+            disabled={!value || !model?.fast}
+            checked={value?.fast ?? false}
+            closeOnClick={false}
+            onCheckedChange={(fast) => value && onChange({ ...value, fast })}
+          >
+            Fast
+            <Switch
+              render={<span />}
+              size='sm'
+              checked={value?.fast ?? false}
+              tabIndex={-1}
+              aria-hidden='true'
+              className='pointer-events-none ml-auto'
+            />
+          </DropdownMenuCheckboxItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
