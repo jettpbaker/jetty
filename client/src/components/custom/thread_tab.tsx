@@ -46,6 +46,7 @@ export function ThreadTab({
       {isSubagent ? (
         <span className={cn('flex shrink-0 items-center', subagentGlyphColor[status])}>
           <DitherAvatar
+            key={status}
             name={String(props.value)}
             mirror='horizontal'
             animate={false}
