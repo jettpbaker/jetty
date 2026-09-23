@@ -1,6 +1,7 @@
 .app-workspace {
   --motion-thread-tabs-open-duration: 150ms;
   --motion-thread-tabs-close-duration: 100ms;
+  --page-header-inset: 16px;
 }
 
 .app-thread-tabs {
@@ -42,7 +43,7 @@
   transition-property: width, translate;
 }
 .app-workspace[data-thread-tabs='false'] .app-shell-navigation[data-sidebar-open='false'] {
-  translate: 8px 8.5px;
+  translate: calc(var(--page-header-inset) + 2px) 8.5px;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-thread-bar,

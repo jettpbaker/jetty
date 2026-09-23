@@ -14,7 +14,9 @@ function CollapsedSidebarSlot({ standalone }: { standalone: boolean }) {
   if (isMobile ? openMobile : open) return null
   const slot = <div aria-hidden='true' className='size-7 shrink-0' />
   return standalone ? (
-    <header className='flex h-(--app-tab-bar-height) shrink-0 items-center px-1.5'>{slot}</header>
+    <header className='flex h-(--app-tab-bar-height) shrink-0 items-center pl-(--page-header-inset)'>
+      {slot}
+    </header>
   ) : (
     slot
   )
