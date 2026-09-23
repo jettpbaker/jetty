@@ -311,34 +311,6 @@ test('invalid persisted event JSON and mismatched snapshot sequences are surface
   })
 })
 
-for (const hasSessionColumn of [false, true]) {
-  test(`migrations preserve existing schema with session column ${hasSessionColumn}`, async () => {
-    const home = mkdtempSync(join(tmpdir(), 'jetty-existing-sql-'))
-    cleanup.push(async () => {
-      rmSync(home, { recursive: true, force: true })
-    })
-    const old = new Database(join(home, 'jetty.db'))
-    old.run(
-      `CREATE TABLE projects (id TEXT PRIMARY KEY, path TEXT NOT NULL, title TEXT NOT NULL, created_at INTEGER NOT NULL)`
-    )
-    old.run(`INSERT INTO projects VALUES ('existing', '/existing', 'Existing', 1)`)
-    old.run(
-      `CREATE TABLE threads (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), title TEXT NOT NULL, status TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL${hasSessionColumn ? ', agent_session_id TEXT' : ''})`
-    )
-    old.close()
-    const fixture = await openTestStore(home)
-    cleanup.push(fixture.close)
-    expect(await fixture.runtime.runPromise(fixture.store.listProjects())).toEqual([
-      { id: 'existing', path: '/existing', title: 'Existing', createdAt: 1 },
-    ])
-    await fixture.runtime.runPromise(fixture.store.createThread('existing', 'thread'))
-    await fixture.runtime.runPromise(fixture.store.setThreadSessionId('thread', 'saved'))
-    expect(await fixture.runtime.runPromise(fixture.store.getThreadSessionId('thread'))).toBe(
-      'saved'
-    )
-  })
-}
-
 test('migration errors fail honestly and roll back the migration ledger', async () => {
   const home = mkdtempSync(join(tmpdir(), 'jetty-invalid-migration-'))
   cleanup.push(async () => {

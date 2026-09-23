@@ -7,9 +7,7 @@ import { join } from 'node:path'
 function addThreadColumns(columns: Record<string, string>) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    const existing = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
     for (const [name, definition] of Object.entries(columns)) {
-      if (existing.some((column) => column.name === name)) continue
       yield* sql.unsafe(`ALTER TABLE threads ADD COLUMN ${name} ${definition}`)
     }
   })
@@ -18,19 +16,19 @@ function addThreadColumns(columns: Record<string, string>) {
 const migrations = SqliteMigrator.fromRecord({
   '001_initial': Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    yield* sql`CREATE TABLE IF NOT EXISTS projects (
+    yield* sql`CREATE TABLE projects (
       id TEXT PRIMARY KEY, path TEXT NOT NULL, title TEXT NOT NULL, created_at INTEGER NOT NULL
     )`
-    yield* sql`CREATE TABLE IF NOT EXISTS threads (
+    yield* sql`CREATE TABLE threads (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
       title TEXT NOT NULL, status TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL
     )`
-    yield* sql`CREATE TABLE IF NOT EXISTS thread_events (
+    yield* sql`CREATE TABLE thread_events (
       thread_id TEXT NOT NULL, seq INTEGER NOT NULL, ts INTEGER NOT NULL,
       payload_json TEXT NOT NULL, PRIMARY KEY (thread_id, seq)
     )`
-    yield* sql`CREATE TABLE IF NOT EXISTS thread_states (
+    yield* sql`CREATE TABLE thread_states (
       thread_id TEXT PRIMARY KEY, state_json TEXT NOT NULL, last_seq INTEGER NOT NULL
     )`
   }),
