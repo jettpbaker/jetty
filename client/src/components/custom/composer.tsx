@@ -84,7 +84,8 @@ export function Composer({
     const element = root.current
     if (!element) return
     function listener(event: KeyboardEvent) {
-      handleKey(event)
+      // Esc and ⌘Enter mid-composition belong to the IME, not to the strip's irreversible actions.
+      if (!event.isComposing) handleKey(event)
     }
     element.addEventListener('keydown', listener)
     return () => element.removeEventListener('keydown', listener)
