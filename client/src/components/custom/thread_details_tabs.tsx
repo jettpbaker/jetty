@@ -20,6 +20,7 @@ import { isSortable, useSortable } from '@dnd-kit/react/sortable'
 import {
   CommentDiscussionIcon,
   DiffIcon,
+  FileIcon,
   ListUnorderedIcon,
   LinkIcon,
   PlusIcon,
@@ -29,12 +30,14 @@ import {
 import { useReducedMotion } from 'motion/react'
 import {
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useState,
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type Ref,
 } from 'react'
 
 import { LinkPullRequestDialog } from './pull_request_link'
@@ -47,6 +50,8 @@ const tabs = {
   threads: { label: 'Threads', Icon: WorkflowIcon },
 }
 type TabId = keyof typeof tabs
+// Selects a tab, reopening it first if the user had closed it.
+export type DetailsTabsHandle = { show: (id: TabId) => void }
 const sortableIds: TabId[] = ['overview', 'changes', 'threads']
 const storageKey = 'jetty.details-tabs'
 const sensors = [
@@ -90,17 +95,21 @@ export type PullRequestTabs = {
 }
 
 export function ThreadDetailsTabs({
+  ref,
   chat = false,
   threadId,
   threadCount,
   pullRequests,
+  file,
   value,
   onValueChange,
 }: {
+  ref?: Ref<DetailsTabsHandle>
   chat?: boolean
   threadId: string
   threadCount: number
   pullRequests: PullRequestTabs
+  file?: { path: string; onClose: () => void }
   value: string
   onValueChange: (value: string) => void
 }) {
@@ -112,7 +121,7 @@ export function ThreadDetailsTabs({
   const available = order.filter((id) => id !== 'threads' || threadCount > 0)
   const openSortable = available.filter((id) => !closedSet.has(id))
   const shownSortable =
-    openSortable.length > 0 || chatOpen || pullRequests.visible.length > 0
+    openSortable.length > 0 || chatOpen || pullRequests.visible.length > 0 || file
       ? openSortable
       : [available[0]!]
   const catalog = [...(chat ? ['chat' as const] : []), ...available]
@@ -120,7 +129,9 @@ export function ThreadDetailsTabs({
     ...(chatOpen ? ['chat' as const] : []),
     ...shownSortable,
     ...pullRequests.visible.map(pullRequestTabId),
+    ...(file ? ['file'] : []),
   ]
+  const fileName = file?.path.split('/').at(-1)
   const valueVisible = visible.includes(value)
   const first = visible[0]!
   const fallback = available[0]!
@@ -165,6 +176,13 @@ export function ThreadDetailsTabs({
     setState((state) => ({ ...state, closed: state.closed.filter((tab) => tab !== id) }))
     setAnnouncement(`${tabs[id].label} opened`)
     onValueChange(id)
+  }
+  useImperativeHandle(ref, () => ({ show: openTab }))
+  function closeFile() {
+    if (!file || visible.length < 2) return
+    file.onClose()
+    setAnnouncement(`${fileName} closed`)
+    leave('file')
   }
   function closePullRequest(link: PullRequestLink) {
     if (visible.length < 2) return
@@ -231,6 +249,20 @@ export function ThreadDetailsTabs({
             </TabsTrigger>
           )
         })}
+        {file && (
+          <TabsTrigger
+            value='file'
+            className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+            title={file.path}
+          >
+            <TabLabel
+              label={fileName!}
+              icon={<FileIcon className='details-tab-kind size-3' />}
+              canClose={canClose}
+              onClose={closeFile}
+            />
+          </TabsTrigger>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

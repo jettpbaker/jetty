@@ -1,5 +1,10 @@
 import { useDiffFileLoader, useThreadDiff } from '@/state'
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, Suspense, useLayoutEffect, useMemo, useState } from 'react'
+
+import type { FileTarget } from './file_link'
+
+// A file link lands here first; `found` says whether it's among the changed files.
+type OnTarget = (target: FileTarget, found: boolean) => void
 
 const PatchViewer = lazy(async () => {
   const [{ FileChangesViewer }, { parseFileChanges }, { preloadHighlighter }] = await Promise.all([
@@ -15,18 +20,30 @@ const PatchViewer = lazy(async () => {
     threadId,
     patch,
     notShown,
+    target,
+    onTarget,
   }: {
     threadId: string
     patch: string
     notShown: readonly string[]
+    target?: FileTarget
+    onTarget: OnTarget
   }) {
     const files = useMemo(() => parseFileChanges(patch), [patch])
     const loadFile = useDiffFileLoader(threadId)
+    const [reveal, setReveal] = useState<FileTarget>()
+    useLayoutEffect(() => {
+      if (!target) return
+      const found = files.some((file) => file.path === target.path)
+      if (found) setReveal(target)
+      onTarget(target, found)
+    }, [target, files, onTarget])
     return (
       <FileChangesViewer
         embedded
         files={files}
         loadFile={loadFile}
+        reveal={reveal}
         footer={notShown.length > 0 && <NotShown paths={notShown} />}
       />
     )
@@ -36,8 +53,20 @@ const PatchViewer = lazy(async () => {
 
 const loading = <p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>
 
-export function ThreadChanges({ threadId }: { threadId: string }) {
+export function ThreadChanges({
+  threadId,
+  target,
+  onTarget,
+}: {
+  threadId: string
+  target?: FileTarget
+  onTarget: OnTarget
+}) {
   const { diff, failed } = useThreadDiff(threadId)
+  const nothingChanged = failed || diff?.diff === ''
+  useLayoutEffect(() => {
+    if (target && nothingChanged) onTarget(target, false)
+  }, [target, nothingChanged, onTarget])
   if (!diff) {
     if (failed) return <p className='p-4 text-xs text-destructive'>Couldn&apos;t load changes.</p>
     return loading
@@ -57,7 +86,13 @@ export function ThreadChanges({ threadId }: { threadId: string }) {
     )
   return (
     <Suspense fallback={loading}>
-      <PatchViewer threadId={threadId} patch={diff.diff} notShown={notShown} />
+      <PatchViewer
+        threadId={threadId}
+        patch={diff.diff}
+        notShown={notShown}
+        target={target}
+        onTarget={onTarget}
+      />
     </Suspense>
   )
 }

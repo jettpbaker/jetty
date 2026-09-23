@@ -240,7 +240,17 @@ export function useCollapsedFiles(initial: () => Set<string>) {
     ),
     []
   )
-  return { collapsedFiles, renderFilePrefix }
+  const expand = useCallback(
+    (path: string) =>
+      setCollapsedFiles((previous) => {
+        if (!previous.has(path)) return previous
+        const next = new Set(previous)
+        next.delete(path)
+        return next
+      }),
+    []
+  )
+  return { collapsedFiles, renderFilePrefix, expand }
 }
 
 function separatorFromEvent(event: PointerEvent) {
@@ -262,15 +272,17 @@ export function FileChangesViewer({
   embedded = false,
   layout = 'panel',
   loadFile,
+  reveal,
 }: {
   files: FileChange[]
   footer?: ReactNode
   embedded?: boolean
   layout?: 'panel' | 'page'
   loadFile?: LoadDiffFile
+  reveal?: { path: string }
 }) {
   const resolvedTheme = useResolvedTheme()
-  const { collapsedFiles, renderFilePrefix } = useCollapsedFiles(() => new Set())
+  const { collapsedFiles, renderFilePrefix, expand } = useCollapsedFiles(() => new Set())
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
@@ -313,6 +325,11 @@ export function FileChangesViewer({
     viewer.current?.scrollTo({ type: 'item', id: path, align: 'start', behavior: 'instant' })
   }, [])
   const [selected, setSelected] = useState(changes[0]?.path)
+  useEffect(() => {
+    if (!reveal) return
+    expand(reveal.path)
+    selectFile(reveal.path)
+  }, [reveal, expand, selectFile])
   const [treeOpen, setTreeOpen] = useState(layout === 'page')
   const treeId = useId()
   const treeToggle = (

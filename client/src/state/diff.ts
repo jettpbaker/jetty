@@ -59,3 +59,31 @@ export function useDiffFileLoader(threadId: string) {
     [registry, threadId]
   )
 }
+
+const projectFileAtom = Atom.family((key: string) => {
+  const split = key.indexOf('\0')
+  const threadId = key.slice(0, split)
+  const path = key.slice(split + 1)
+  return Atom.make((get) =>
+    get
+      .result(connectionAtom)
+      .pipe(
+        Effect.flatMap((connection) => connection.request('thread.readFile', { threadId, path }))
+      )
+  ).pipe(Atom.setIdleTTL('10 minutes'))
+})
+
+// A reopened file renders from cache at once and is re-read behind it.
+export function useProjectFile(threadId: string, path: string) {
+  const atom = projectFileAtom(`${threadId}\0${path}`)
+  const result = useAtomValue(atom)
+  const refresh = useAtomRefresh(atom)
+  const cachedOnMount = useRef(!AsyncResult.isInitial(result))
+  useEffect(() => {
+    if (cachedOnMount.current) refresh()
+  }, [refresh])
+  return {
+    file: AsyncResult.getOrElse(result, () => undefined),
+    failed: AsyncResult.isFailure(result),
+  }
+}

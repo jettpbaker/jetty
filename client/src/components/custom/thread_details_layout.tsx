@@ -10,6 +10,7 @@ import {
 import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, SidebarSimpleIcon } from '@phosphor-icons/react'
 import {
   Activity,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -23,21 +24,27 @@ import {
 import { createPortal } from 'react-dom'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
+import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ThreadPullRequestView } from './pull_request_view'
 import { ThreadChanges } from './thread_changes'
-import { ThreadDetailsTabs } from './thread_details_tabs'
+import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
+import { ThreadFile } from './thread_file'
 import { ThreadOverview, useHasOverview } from './thread_overview'
 import './thread_details_layout.css'
 
 const minWidth = 320
 const narrowWidth = 760
 
+type ThreadFileTarget = { threadId: string; target: FileTarget }
+
 export function ThreadDetailsLayout({
   threadId,
+  projectPath,
   children,
 }: {
   threadId: string
+  projectPath?: string
   children: ReactNode
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -54,6 +61,12 @@ export function ThreadDetailsLayout({
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
   const [tab, setTab] = useState('changes')
+  const tabs = useRef<DetailsTabsHandle>(null)
+  // A file link goes to Changes first, and on to its own tab if it isn't a changed file.
+  const [fileRequest, setFileRequest] = useState<ThreadFileTarget>()
+  const [fileView, setFileView] = useState<ThreadFileTarget>()
+  const requestedFile = fileRequest?.threadId === threadId ? fileRequest.target : undefined
+  const viewedFile = fileView?.threadId === threadId ? fileView.target : undefined
   const allChildThreads = useChildThreads(threadId)
   const childThreads = useMemo(
     () => allChildThreads.filter((child) => !child.archived),
@@ -79,6 +92,32 @@ export function ThreadDetailsLayout({
     if (root.current) setAvailable(root.current.clientWidth)
     setOpen((value) => !value)
   }
+
+  const openFile = useCallback(
+    (target: FileTarget) => {
+      const path = projectPath && projectRelativePath(target.path, projectPath)
+      if (!path) return false
+      setFileRequest({ threadId, target: { ...target, path } })
+      tabs.current?.show('changes')
+      if (!open) {
+        openingTab.current = 'changes'
+        if (root.current) setAvailable(root.current.clientWidth)
+        setOpen(true)
+      }
+      return true
+    },
+    [projectPath, threadId, open]
+  )
+
+  const settleFile = useCallback(
+    (target: FileTarget, changed: boolean) => {
+      setFileRequest(undefined)
+      if (changed) return
+      setFileView({ threadId, target })
+      setTab('file')
+    },
+    [threadId]
+  )
 
   // A just-linked PR's tab can be requested before the thread's links include it.
   const requestShown = pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab)
@@ -195,10 +234,12 @@ export function ThreadDetailsLayout({
           )}
           <div className='min-w-0 flex-1 overflow-hidden'>
             <ThreadDetailsTabs
+              ref={tabs}
               chat={full}
               threadId={threadId}
               threadCount={childThreads.length}
               pullRequests={pullRequests}
+              file={viewedFile && { path: viewedFile.path, onClose: () => setFileView(undefined) }}
               value={tab}
               onValueChange={setTab}
             />
@@ -240,7 +281,14 @@ export function ThreadDetailsLayout({
               aria-hidden={tab !== 'changes'}
               className='details-tab-panel'
             >
-              {open && <ThreadChanges key={threadId} threadId={threadId} />}
+              {open && (
+                <ThreadChanges
+                  key={threadId}
+                  threadId={threadId}
+                  target={requestedFile}
+                  onTarget={settleFile}
+                />
+              )}
             </TabsContent>
             <TabsContent
               keepMounted
@@ -272,11 +320,35 @@ export function ThreadDetailsLayout({
                 </TabsContent>
               )
             })}
+            {viewedFile && (
+              <TabsContent
+                keepMounted
+                value='file'
+                inert={tab !== 'file'}
+                aria-hidden={tab !== 'file'}
+                className='details-tab-panel'
+              >
+                {open && (
+                  <ThreadFile key={viewedFile.path} threadId={threadId} target={viewedFile} />
+                )}
+              </TabsContent>
+            )}
           </div>
         </div>
       </Tabs>
     ),
-    [tab, full, open, threadId, childThreads, pullRequests, pullRequestLinks]
+    [
+      tab,
+      full,
+      open,
+      threadId,
+      childThreads,
+      pullRequests,
+      pullRequestLinks,
+      requestedFile,
+      viewedFile,
+      settleFile,
+    ]
   )
 
   return (
@@ -294,15 +366,17 @@ export function ThreadDetailsLayout({
       >
         <div ref={setLeftSlot} className='flex h-full min-w-[320px] flex-col' />
       </div>
-      {createPortal(children, chatHost.current)}
-      <aside
-        aria-label='Thread details'
-        inert={!open}
-        aria-hidden={!open || undefined}
-        className='relative min-h-0 min-w-0 overflow-hidden bg-background'
-      >
-        {detailsPane}
-      </aside>
+      <OpenFileLink value={openFile}>
+        {createPortal(children, chatHost.current)}
+        <aside
+          aria-label='Thread details'
+          inert={!open}
+          aria-hidden={!open || undefined}
+          className='relative min-h-0 min-w-0 overflow-hidden bg-background'
+        >
+          {detailsPane}
+        </aside>
+      </OpenFileLink>
       <div className='absolute top-0 right-2.5 z-20 flex h-[calc(var(--app-tab-bar-height)-1px)] items-center gap-1'>
         {open && !narrow && (
           <Button

@@ -68,7 +68,7 @@ function Thread() {
           <p className='px-6 py-6 text-sm text-muted-foreground'>Loading…</p>
         )
       ) : (
-        <ThreadDetailsLayout threadId={threadId}>
+        <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             context={thread?.context ?? null}
             containerThreadId={
