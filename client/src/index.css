@@ -7,6 +7,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --shimmer-spread: calc(1.5ch + 20px);
+  --shimmer-duration: 1.5s;
   --motion-control-duration: 150ms;
   --motion-control-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
   --motion-sidebar-open-duration: 200ms;

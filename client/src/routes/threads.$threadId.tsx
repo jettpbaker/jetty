@@ -16,7 +16,7 @@ function Thread() {
       ) : thread.items.length === 0 ? (
         <p className='px-6 py-6 text-sm text-muted-foreground'>No messages yet.</p>
       ) : (
-        <ThreadList key={threadId} items={thread.items} />
+        <ThreadList key={threadId} items={thread.items} status={thread.status} />
       )}
     </section>
   )

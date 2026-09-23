@@ -1,6 +1,6 @@
-import type { ThreadItem } from '@jetty/shared/items'
-
 import { layout, prepare, type PreparedText } from '@chenglou/pretext'
+
+import type { ThreadRow } from './thread_rows'
 
 const font = '14px "Geist Variable"'
 const lineHeight = 23
@@ -23,22 +23,32 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean, e
   return layout(entry.prepared, Math.max(1, width), lineHeight).height
 }
 
-export function estimateItem(item: ThreadItem, columnWidth: number, epoch: number) {
+function estimateWork(row: Extract<ThreadRow, { kind: 'work' }>, width: number, epoch: number) {
+  let height = 32
+  for (const activity of row.activities) {
+    height += 28
+    if (activity.type === 'thinking' && activity.summary && activity.status === 'running')
+      height += Math.min(72, textHeight(activity.id, activity.summary, width, true, epoch))
+  }
+  return height
+}
+
+export function estimateRow(row: ThreadRow, columnWidth: number, epoch: number) {
   const width = Math.max(1, columnWidth)
-  switch (item.kind) {
-    case 'user_message':
+  switch (row.kind) {
+    case 'user':
       return (
-        textHeight(item.id, item.text, width * 0.8, true, epoch) +
+        textHeight(row.id, row.item.text, width * 0.8, true, epoch) +
         16 +
-        (item.attachments.length ? 72 : 0)
+        (row.item.attachments.length ? 72 : 0)
       )
-    case 'assistant_message':
+    case 'assistant':
     case 'plan':
-      return textHeight(item.id, item.text, width, false, epoch) + 8
-    case 'reasoning':
-      return textHeight(item.id, item.text, width, true, epoch) + 28
+      return textHeight(row.id, row.item.text, width, false, epoch) + 8
+    case 'work':
+      return estimateWork(row, width, epoch)
     case 'error':
-      return textHeight(item.id, item.message, width, true, epoch) + 16
+      return textHeight(row.id, row.message, width, true, epoch) + 16
     default:
       return 36
   }

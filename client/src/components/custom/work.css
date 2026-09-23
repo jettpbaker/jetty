@@ -1,0 +1,32 @@
+@reference '../../index.css';
+
+.activity-header {
+  @apply flex h-auto min-h-7 w-full min-w-0 justify-start gap-2 rounded-menu-item px-2 py-1 text-left text-sm font-normal active:translate-y-0;
+}
+.activity-header[data-flush] {
+  padding-inline-start: 0;
+}
+.thinking-text {
+  @apply px-2 pb-1 text-13 leading-relaxed whitespace-pre-wrap text-muted-foreground;
+}
+.thinking-tail {
+  @apply flex max-h-[4.5rem] flex-col justify-end overflow-hidden;
+  mask-image: linear-gradient(to bottom, transparent, black 1rem);
+}
+.thinking-tail > p {
+  flex-shrink: 0;
+}
+.work-recent {
+  mask-image: linear-gradient(to bottom, transparent, black 0.6rem);
+}
+.tool-output {
+  @apply max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed;
+}
+
+.activity-header[data-flush] {
+  @apply text-muted-foreground;
+}
+.activity-header[data-flush]:hover,
+.activity-header[data-flush]:focus-visible {
+  @apply text-foreground;
+}
