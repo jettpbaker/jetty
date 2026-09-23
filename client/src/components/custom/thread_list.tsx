@@ -120,6 +120,7 @@ export function ThreadList({
     estimateSize: (index) => estimateRow(rows[index]!, width),
     overscan: 10,
     gap: 12,
+    paddingStart: 24,
     getItemKey: (index) => rows[index]!.id,
   })
 
