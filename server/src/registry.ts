@@ -18,8 +18,8 @@ export function isAgentProvider(value: string): value is AgentProvider {
 export function singleAgentRegistry(agent: Agent): AgentRegistry {
   return {
     defaultProvider: 'echo',
-    agent(provider) {
-      return provider === 'echo' ? agent : undefined
+    agent() {
+      return agent
     },
   }
 }

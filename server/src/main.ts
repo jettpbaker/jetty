@@ -2,7 +2,6 @@ import type { ProviderModel, RateLimits } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { ProviderId } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
@@ -163,30 +162,26 @@ function createServer(opts: ServerOptions = {}) {
               agentKind
             )
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
-    const discovered: Partial<Record<ProviderId, readonly ProviderModel[]>> = {}
-    function publishModels(provider: ProviderId, list: readonly ProviderModel[]) {
-      return hub.withChromePublication(
-        Effect.sync(() => {
-          discovered[provider] = list
-          const next = ProviderId.literals.flatMap((id) => discovered[id] ?? [])
-          models = next
-          hub.pushChrome({ type: 'models', models: next })
-        })
-      )
-    }
     if (typeof agentKind === 'string' && agentKind !== 'echo') {
       yield* Effect.all(
         [
-          discoverClaudeModels().pipe(Effect.flatMap((list) => publishModels('claude', list))),
-          discoverCodexModels(home, opts.codex).pipe(
-            Effect.flatMap((list) => publishModels('codex', list))
-          ),
-          discoverGrokModels(home, opts.grok).pipe(
-            Effect.flatMap((list) => publishModels('grok', list))
-          ),
+          discoverClaudeModels(),
+          discoverCodexModels(home, opts.codex),
+          discoverGrokModels(home, opts.grok),
         ],
-        { concurrency: 'unbounded', discard: true }
-      ).pipe(Effect.forkIn(yield* Effect.scope))
+        { concurrency: 'unbounded' }
+      ).pipe(
+        Effect.flatMap((lists) =>
+          hub.withChromePublication(
+            Effect.sync(() => {
+              const next = lists.flat()
+              models = next
+              hub.pushChrome({ type: 'models', models: next })
+            })
+          )
+        ),
+        Effect.forkIn(yield* Effect.scope)
+      )
     }
     const titler = yield* selectTitler(agentKind, opts)
     const services = yield* Layer.build(
