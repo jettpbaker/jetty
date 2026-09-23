@@ -44,6 +44,8 @@ type ThreadRow = {
   status: SessionStatus
   archived: number
   pinned: number
+  ready_for_review: number
+  review_seen_at: number
   updated_at: number
   turn_started_at: number | null
   turn_ended_at: number | null
@@ -104,6 +106,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     status: row.status,
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
+    readyForReview: row.ready_for_review !== 0,
     pullRequests: [],
     updatedAt: row.updated_at,
     ...(row.turn_started_at === null ? {} : { turnStartedAt: row.turn_started_at }),
@@ -446,7 +449,7 @@ export function createStore() {
           const current = yield* getThreadState(threadId)
           if (!current.activeTurnId) {
             yield* writeState(threadId, { ...current, activeTurnId: turnId, status: 'starting' })
-            yield* sql`UPDATE threads SET status = 'starting' WHERE id = ${threadId}`
+            yield* sql`UPDATE threads SET status = 'starting', ready_for_review = 0 WHERE id = ${threadId}`
           }
           const thread = yield* requireThread(threadId)
           const initiator =
@@ -809,6 +812,33 @@ export function createStore() {
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThreadState,
+      markThreadSeen(threadId: string) {
+        return Effect.gen(function* () {
+          yield* requireThread(threadId)
+          yield* sql`UPDATE threads SET ready_for_review = 0, review_seen_at = ${Date.now()} WHERE id = ${threadId}`
+          return yield* requireThread(threadId)
+        }).pipe(Effect.mapError(storeError))
+      },
+      parentGetsNotification(threadId: string, turnId: string) {
+        return sql<{ notified: number }>`SELECT 1 AS notified FROM threads child
+          JOIN threads parent ON parent.id = child.parent_thread_id
+          JOIN orchestration_turns turn ON turn.turn_id = ${turnId}
+          WHERE child.id = ${threadId} AND child.notify_parent = 1
+            AND parent.archived = 0 AND turn.initiator_thread_id = parent.id
+            AND turn.hop < 20`.pipe(
+          Effect.map((rows) => rows.length > 0),
+          Effect.mapError(storeError)
+        )
+      },
+      setReadyForReview(threadId: string, turnEndedAt: number) {
+        return Effect.gen(function* () {
+          yield* sql`UPDATE threads SET ready_for_review = 1 WHERE id = ${threadId}
+            AND turn_ended_at = ${turnEndedAt} AND review_seen_at < ${turnEndedAt}
+            AND status = 'idle'`
+          const thread = yield* requireThread(threadId)
+          return thread.readyForReview ? thread : null
+        }).pipe(Effect.mapError(storeError))
+      },
       appendEvent(threadId: string, event: ThreadEvent, notifyParent = true) {
         return append(threadId, event, notifyParent).pipe(
           sql.withTransaction,

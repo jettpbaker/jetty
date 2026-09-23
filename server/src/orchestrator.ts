@@ -13,6 +13,7 @@ import { Context, Effect, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
+import type { ReviewClassifier } from './review'
 import type { AppendedEvent, Store } from './store'
 
 import { AgentError, type Agent } from './agent'
@@ -62,7 +63,8 @@ export function createOrchestrator(
   hub: Hub,
   titler: ProviderTitler | null = null,
   attachments: Attachments | null = null,
-  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
+  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>,
+  reviewer?: ReviewClassifier
 ) {
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
@@ -128,6 +130,31 @@ export function createOrchestrator(
                 if (event.type === 'turn.started') state(threadId).turnId = event.turnId
                 yield* onCommit
                 publish(threadId, appended)
+                if (event.type === 'turn.completed' && reviewer) {
+                  const reply = [...appended.state.items]
+                    .reverse()
+                    .find(
+                      (item) => item.turnId === event.turnId && item.kind === 'assistant_message'
+                    )
+                  if (reply?.kind === 'assistant_message' && reply.text.trim()) {
+                    yield* Effect.gen(function* () {
+                      if (yield* store.parentGetsNotification(threadId, event.turnId)) return
+                      if (!(yield* reviewer(reply.text))) return
+                      yield* hub.withChromePublication(
+                        store.setReadyForReview(threadId, appended.thread.turnEndedAt!).pipe(
+                          Effect.tap((thread) =>
+                            Effect.sync(() => {
+                              if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
+                            })
+                          )
+                        )
+                      )
+                    }).pipe(
+                      Effect.catchCause((cause) => Effect.logWarning(cause)),
+                      Effect.forkIn(scope)
+                    )
+                  }
+                }
                 if (event.type === 'item.completed' && onCompletedText) {
                   const item = appended.state.items.find(
                     (candidate) => candidate.id === event.itemId
@@ -705,10 +732,11 @@ export function orchestratorLayer(
   titler: ProviderTitler | null,
   attachments: Attachments,
   registry: AgentRegistry,
-  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
+  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>,
+  reviewer?: ReviewClassifier
 ) {
   return Layer.effect(
     OrchestratorService,
-    createOrchestrator(store, registry, hub, titler, attachments, onCompletedText)
+    createOrchestrator(store, registry, hub, titler, attachments, onCompletedText, reviewer)
   )
 }

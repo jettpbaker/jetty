@@ -101,6 +101,7 @@ export const ThreadMeta = Schema.Struct({
   status: SessionStatus,
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
+  readyForReview: Schema.optional(Schema.Boolean),
   updatedAt: Schema.Int,
   turnStartedAt: Schema.optional(Schema.Int),
   turnEndedAt: Schema.optional(Schema.Int),
@@ -194,6 +195,10 @@ export const methods = {
   },
   'thread.pin': {
     params: Schema.Struct({ threadId: Schema.String, pinned: Schema.Boolean }),
+    result: Schema.Null,
+  },
+  'thread.markSeen': {
+    params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,
   },
   'thread.delete': {

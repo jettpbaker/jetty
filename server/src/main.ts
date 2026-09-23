@@ -33,6 +33,7 @@ import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { createPullRequests, pullRequestUrls } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
+import { createReviewClassifier } from './review'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { chainTitlers, firstLineTitler, type Titler } from './titler'
@@ -274,18 +275,29 @@ function createServer(opts: ServerOptions = {}) {
     }
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
     const titler = yield* selectTitler(agentKind, opts)
+    const reviewer =
+      typeof agentKind === 'string' && agentKind !== 'echo'
+        ? yield* createReviewClassifier(opts.codex)
+        : undefined
     const services = yield* Layer.build(
-      orchestratorLayer(store, hub, titler, attachments, registry, (threadId, text) =>
-        Effect.gen(function* () {
-          for (const ref of pullRequestUrls(text)) {
-            const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
-            hub.pushChrome({ type: 'thread.upserted', thread })
-            yield* pullRequests.refreshIfStale(ref).pipe(
-              Effect.catchCause((cause) => Effect.logWarning(cause)),
-              Effect.forkIn(discoveryScope)
-            )
-          }
-        }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+      orchestratorLayer(
+        store,
+        hub,
+        titler,
+        attachments,
+        registry,
+        (threadId, text) =>
+          Effect.gen(function* () {
+            for (const ref of pullRequestUrls(text)) {
+              const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
+              hub.pushChrome({ type: 'thread.upserted', thread })
+              yield* pullRequests.refreshIfStale(ref).pipe(
+                Effect.catchCause((cause) => Effect.logWarning(cause)),
+                Effect.forkIn(discoveryScope)
+              )
+            }
+          }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
+        reviewer
       )
     )
     const orch = Context.get(services, OrchestratorService)

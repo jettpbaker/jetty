@@ -109,6 +109,10 @@ const migrations = SqliteMigrator.fromRecord({
     )`
     yield* sql`CREATE INDEX thread_pull_requests_by_pr ON thread_pull_requests (repo, number)`
   }),
+  '014_thread_review': addThreadColumns({
+    ready_for_review: 'INTEGER NOT NULL DEFAULT 0',
+    review_seen_at: 'INTEGER NOT NULL DEFAULT 0',
+  }),
 })
 
 export function databaseLayer(home: string) {

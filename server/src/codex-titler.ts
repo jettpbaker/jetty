@@ -8,10 +8,10 @@ import { normalizeTitle, TITLE_INSTRUCTIONS, titlePrompt, type Titler } from './
 
 const TITLE_MODEL = 'gpt-6-luna'
 
-export function createCodexTitler(options: StdioProcessOptions = {}) {
+export function createCodexPrompt(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const titler: Titler = (text) =>
+    return (instructions: string, prompt: string) =>
       Effect.scoped(
         Effect.gen(function* () {
           const cwd = tmpdir()
@@ -24,32 +24,40 @@ export function createCodexTitler(options: StdioProcessOptions = {}) {
             ephemeral: true,
             approvalPolicy: 'never',
             sandbox: 'read-only',
-            baseInstructions: TITLE_INSTRUCTIONS,
+            baseInstructions: instructions,
           })
           const threadId = string(object(started.thread).id)
           yield* connection.request('turn/start', {
             threadId,
-            input: [{ type: 'text', text: titlePrompt(text), text_elements: [] }],
+            input: [{ type: 'text', text: prompt, text_elements: [] }],
             effort: 'low',
           })
           let reply = ''
           while (true) {
             const message = yield* Queue.take(connection.messages)
             if (message.id !== undefined) {
-              yield* connection.reject(message.id, 'Titling does not use tools')
+              yield* connection.reject(message.id, 'This request does not use tools')
               continue
             }
             if (message.params.threadId !== threadId) continue
             const item = object(message.params.item)
             if (message.method === 'item/completed' && item.type === 'agentMessage')
               reply = string(item.text)
-            if (message.method === 'turn/completed') return normalizeTitle(reply)
+            if (message.method === 'turn/completed') return reply
           }
         })
       ).pipe(
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.catch(() => Effect.succeed(null))
       )
+  })
+}
+
+export function createCodexTitler(options: StdioProcessOptions = {}) {
+  return Effect.gen(function* () {
+    const prompt = yield* createCodexPrompt(options)
+    const titler: Titler = (text) =>
+      prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(Effect.map(normalizeTitle))
     return titler
   })
 }
