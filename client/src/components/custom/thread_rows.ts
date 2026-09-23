@@ -104,7 +104,8 @@ function toActivity(
   next: ThreadItem | undefined,
   sessionRunning: boolean,
   sessionActive: boolean,
-  projectPath: string | undefined
+  projectPath: string | undefined,
+  source: string | undefined
 ): WorkActivity {
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
@@ -127,6 +128,7 @@ function toActivity(
       kind: 'generic',
       name: item.toolName,
       target: item.title || item.toolName,
+      source,
       status:
         item.decision === 'allow' ? 'complete' : item.decision === 'deny' ? 'cancelled' : 'waiting',
       input,
@@ -180,11 +182,16 @@ function modelLabel(model: string | undefined) {
   return numbers.length ? `${label} ${numbers.join('.')}` : label
 }
 
+// Before the subagent's first reply its model is unknown; its type stands in.
+export function subagentLabel({ model, agentType }: { model?: string; agentType?: string }) {
+  return modelLabel(model) || agentType || 'Subagent'
+}
+
 export function toSubagent(item: SubagentItem, now: number): Subagent {
   return {
     id: item.id,
     title: item.title,
-    model: modelLabel(item.model),
+    model: subagentLabel(item),
     status:
       item.status === 'running' ? 'working' : item.status === 'completed' ? 'complete' : 'error',
     elapsedSeconds:
@@ -213,7 +220,15 @@ export function threadRows(
     agentId?: string
   }
 ): ThreadRow[] {
-  const items = allItems.filter((item) => item.agentId === agentId)
+  // A subagent's requests for input also surface on the main timeline, attributed to it.
+  const items = allItems.filter(
+    (item) =>
+      item.agentId === agentId ||
+      (!agentId && (item.kind === 'approval' || item.kind === 'question'))
+  )
+  const agentTitles = new Map(
+    agentId ? [] : threadSubagents(allItems).map((agent) => [agent.id, agent.title])
+  )
   const rows: ThreadRow[] = []
   const agent = agentId && allItems.find((item) => item.id === agentId)
   if (agent && agent.kind === 'subagent' && agent.prompt) {
@@ -235,7 +250,14 @@ export function threadRows(
   function flush(next: ThreadItem | undefined) {
     if (pending.length === 0) return
     const activities = pending.map((item, index) =>
-      toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
+      toActivity(
+        item,
+        pending[index + 1] ?? next,
+        sessionRunning,
+        sessionActive,
+        projectPath,
+        item.agentId && agentTitles.get(item.agentId)
+      )
     )
     const blockStatus = workStatus(activities, outcomes[pending[0]!.turnId])
     rows.push({

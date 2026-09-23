@@ -104,6 +104,11 @@ export function WorkBlock({
           <div className='mx-2 mt-2 flex flex-col gap-2 rounded-sm border border-border bg-card p-3'>
             {waiting.map((call) => (
               <div key={call.id} className='flex flex-col gap-2'>
+                {call.source && (
+                  <p className='text-xs text-muted-foreground'>
+                    From subagent <span className='text-foreground'>{call.source}</span>
+                  </p>
+                )}
                 <p className='text-xs text-muted-foreground'>
                   Allow <span className='font-mono break-all text-foreground'>{call.target}</span>?
                 </p>

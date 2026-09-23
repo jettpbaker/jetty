@@ -13,6 +13,8 @@ export type ToolActivity = {
   name: string
   target: string
   description?: string
+  // the subagent title a main-timeline approval came from
+  source?: string
   status: ActivityStatus
   input?: string
   output?: string
