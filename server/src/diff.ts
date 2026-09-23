@@ -41,16 +41,19 @@ export function truncateDiff(diff: string): ThreadDiff {
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
+// Keeps non-ASCII paths readable in diff headers instead of octal-escaped.
+const diffArgs = ['-c', 'core.quotePath=false', 'diff']
+
 export function computeThreadDiff(cwd: string) {
   return Effect.gen(function* () {
     const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
-    const tracked = yield* git(cwd, ['diff', head.code === 0 ? 'HEAD' : EMPTY_TREE])
+    const tracked = yield* git(cwd, [...diffArgs, head.code === 0 ? 'HEAD' : EMPTY_TREE])
     if (tracked.code !== 0) return { diff: '' }
-    const untracked = yield* git(cwd, ['ls-files', '--others', '--exclude-standard'])
+    const untracked = yield* git(cwd, ['ls-files', '-z', '--others', '--exclude-standard'])
     const parts = [tracked.out]
-    for (const path of untracked.out.split('\n').filter((line) => line.length > 0)) {
+    for (const path of untracked.out.split('\0').filter((line) => line.length > 0)) {
       // --no-index exits 1 when the file has content; that's the success case.
-      const { out } = yield* git(cwd, ['diff', '--no-index', '--', '/dev/null', path])
+      const { out } = yield* git(cwd, [...diffArgs, '--no-index', '--', '/dev/null', path])
       parts.push(out)
     }
     return truncateDiff(parts.join(''))
