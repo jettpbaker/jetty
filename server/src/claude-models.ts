@@ -1,9 +1,15 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
-import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query, type ModelInfo, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { Effect } from 'effect'
 
 const DISCOVERY_TIMEOUT_MS = 20_000
+
+// displayName is an unversioned alias ("Opus"); the description leads with the versioned name.
+function versionedName(model: ModelInfo) {
+  const lead = model.description.split(' · ')[0]?.replace(/ with 1M context$/, '')
+  return lead || model.displayName
+}
 
 export function discoverClaudeModels() {
   return Effect.tryPromise(async (signal) => {
@@ -34,15 +40,21 @@ export function discoverClaudeModels() {
         account.apiKeySource ||
         (account.apiProvider ?? 'firstParty') !== 'firstParty'
       if (!signedIn) return []
-      return (await probe.supportedModels()).map(
-        (model): ProviderModel => ({
-          provider: 'claude',
-          id: model.value,
-          name: model.displayName,
-          efforts: model.supportedEffortLevels ?? [],
-          fast: false,
-        })
-      )
+      const seen = new Set<string>()
+      return (await probe.supportedModels()).flatMap((model): ProviderModel[] => {
+        const resolved = model.resolvedModel ?? model.value
+        if (model.value === 'default' || seen.has(resolved)) return []
+        seen.add(resolved)
+        return [
+          {
+            provider: 'claude',
+            id: model.value,
+            name: versionedName(model),
+            efforts: model.supportedEffortLevels ?? [],
+            fast: false,
+          },
+        ]
+      })
     } finally {
       abortController.abort()
     }
