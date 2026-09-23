@@ -44,6 +44,7 @@ type Session = {
   pending: Map<string, Pending>
   asyncQuestions: Map<string, string[]>
   fileChanges: Map<string, ApprovalChange[]>
+  fileChangeApprovals: Map<string, string>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
 }
@@ -119,6 +120,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 ? approvalChanges('fileChange', params)
                 : (session.fileChanges.get(string(params.itemId)) ?? [])
               : []
+          if (method === 'item/fileChange/requestApproval' && !changes.length)
+            session.fileChangeApprovals.set(string(params.itemId), itemId)
           session.pending.set(itemId, { id })
           yield* session.emit({
             type: 'item.started',
@@ -285,9 +288,24 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                       } satisfies ThreadEvent)
                 }
                 const raw = object(message.params.item)
-                if (message.method === 'item/started' && raw.type === 'fileChange') {
+                if (
+                  (message.method === 'item/started' || message.method === 'item/completed') &&
+                  raw.type === 'fileChange'
+                ) {
                   const changes = approvalChanges('fileChange', raw)
-                  if (changes.length) session.fileChanges.set(string(raw.id), changes)
+                  if (changes.length) {
+                    const providerItemId = string(raw.id)
+                    session.fileChanges.set(providerItemId, changes)
+                    const approvalId = session.fileChangeApprovals.get(providerItemId)
+                    if (approvalId) {
+                      session.fileChangeApprovals.delete(providerItemId)
+                      yield* session.emit({
+                        type: 'item.updated',
+                        itemId: approvalId,
+                        patch: { changes },
+                      })
+                    }
+                  }
                 }
                 if (
                   (message.method === 'item/started' || message.method === 'item/completed') &&
@@ -370,6 +388,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             pending: new Map(),
             asyncQuestions: new Map(),
             fileChanges: new Map(),
+            fileChangeApprovals: new Map(),
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
