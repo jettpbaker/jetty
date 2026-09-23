@@ -39,6 +39,7 @@ type Session = {
   settled: boolean
   reason: string | null
   pending: Map<string, Pending>
+  asyncQuestions: Map<string, string[]>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
 }
@@ -85,6 +86,9 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           })
         }
         session.pending.clear()
+        for (const itemId of session.asyncQuestions.keys())
+          yield* session.emit({ type: 'item.completed', itemId, patch: { skipped: true } })
+        session.asyncQuestions.clear()
         for (const event of session.translator.finish()) yield* session.emit(event)
       })
     }
@@ -256,7 +260,43 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                             'Codex turn failed'),
                       } satisfies ThreadEvent)
                 }
-                for (const event of translator.translate(message)) yield* session.emit(event)
+                const raw = object(message.params.item)
+                if (
+                  (message.method === 'item/started' || message.method === 'item/completed') &&
+                  raw.type === 'agentMessage' &&
+                  raw.delivery === 'async' &&
+                  Array.isArray(raw.questions)
+                ) {
+                  const questions = raw.questions.map(object)
+                  if (message.method === 'item/completed' && questions.length) {
+                    const itemId = newId()
+                    const titles = questions.map((question) => string(question.title))
+                    session.asyncQuestions.set(itemId, titles)
+                    yield* session.emit({
+                      type: 'item.started',
+                      item: {
+                        id: itemId,
+                        turnId: session.input.turnId,
+                        createdAt: Date.now(),
+                        kind: 'question',
+                        questions: questions.map((question) => ({
+                          question: string(question.title),
+                          header: '',
+                          multiSelect: false,
+                          options: Array.isArray(question.options)
+                            ? question.options.map((option) => ({
+                                label: string(option),
+                                description: '',
+                              }))
+                            : [],
+                        })),
+                      },
+                    })
+                    yield* session.emit({ type: 'session.status', status: 'awaiting_approval' })
+                  }
+                } else {
+                  for (const event of translator.translate(message)) yield* session.emit(event)
+                }
                 return null
               })
             )
@@ -299,6 +339,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             settled: false,
             reason: null,
             pending: new Map(),
+            asyncQuestions: new Map(),
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
@@ -408,10 +449,43 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                           ? 'accept'
                           : 'decline',
                   },
-          { decision, ...(message ? { deniedReason: message } : {}) }
+          { decision, ...(message ? { deniedReason: message } : {}) },
+          decision === 'deny' && message?.trim()
+            ? `User's note on the denied approval: ${message.trim()}`
+            : undefined
         )
       },
       respondToQuestion(threadId, itemId, answers) {
+        const session = sessions.get(threadId)
+        if (session?.asyncQuestions.has(itemId))
+          return session.publication.withPermit(
+            Effect.gen(function* () {
+              const titles = session.asyncQuestions.get(itemId)
+              if (!titles || !session.accepting || !session.connection) return false
+              const text = answers
+                ? titles.map((title) => `${title}: ${answers[title] ?? ''}`).join('\n')
+                : 'The user dismissed the questions.'
+              yield* session.connection.request('turn/steer', {
+                threadId: session.providerThreadId,
+                expectedTurnId: session.providerTurnId,
+                input: codexInput(text),
+              })
+              yield* session.emit({
+                type: 'item.completed',
+                itemId,
+                patch: answers ? { answers } : { dismissed: true },
+              })
+              session.asyncQuestions.delete(itemId)
+              yield* session.emit({
+                type: 'session.status',
+                status:
+                  session.pending.size || session.asyncQuestions.size
+                    ? 'awaiting_approval'
+                    : 'running',
+              })
+              return true
+            })
+          )
         return respond(
           threadId,
           itemId,
@@ -435,7 +509,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       threadId: string,
       itemId: string,
       result: (pending: Pending) => unknown,
-      patch: Record<string, unknown>
+      patch: Record<string, unknown>,
+      note?: string
     ) {
       return Effect.suspend(() => {
         const session = sessions.get(threadId)
@@ -454,9 +529,18 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 })
               )
               yield* session.connection.respond(pending.id, response)
+              if (note)
+                yield* session.connection.request('turn/steer', {
+                  threadId: session.providerThreadId,
+                  expectedTurnId: session.providerTurnId,
+                  input: codexInput(note),
+                })
               yield* session.emit({
                 type: 'session.status',
-                status: session.pending.size ? 'awaiting_approval' : 'running',
+                status:
+                  session.pending.size || session.asyncQuestions.size
+                    ? 'awaiting_approval'
+                    : 'running',
               })
               return true
             })
