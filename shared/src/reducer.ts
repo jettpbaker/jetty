@@ -93,7 +93,9 @@ function workflowStatus(state: ThreadState): ThreadState {
     ...state,
     status: state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
       ? 'running'
-      : 'idle',
+      : state.status === 'error'
+        ? 'error'
+        : 'idle',
   }
 }
 
