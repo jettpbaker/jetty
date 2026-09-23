@@ -129,21 +129,29 @@ function pinThread(registry: Registry, threadId: string, pinned: boolean) {
   )
 }
 
+// Deletions still inside their undo window; leaving the page ends the window.
+const pendingDeletions = new Set<() => void>()
+addEventListener('pagehide', () => {
+  for (const commit of pendingDeletions) commit()
+})
+
 // Hides the thread now; the server delete waits for `commit`, so `undo` can bring it back.
 function deleteThread(registry: Registry, threadId: string) {
   registry.update(deletedThreadsAtom, (deleted) => new Set(deleted).add(threadId))
   const restore = () =>
     registry.update(deletedThreadsAtom, (deleted) => withoutId(deleted, threadId))
   let settled = false
-  return {
+  const deletion = {
     undo() {
       if (settled) return
       settled = true
+      pendingDeletions.delete(deletion.commit)
       restore()
     },
     commit() {
       if (settled) return
       settled = true
+      pendingDeletions.delete(deletion.commit)
       run(
         registry,
         (connection) =>
@@ -154,6 +162,8 @@ function deleteThread(registry: Registry, threadId: string) {
       )
     },
   }
+  pendingDeletions.add(deletion.commit)
+  return deletion
 }
 
 // Sending to an archived thread brings it back first; the server won't queue on archived threads.
