@@ -52,7 +52,7 @@ type Session = {
 
 function grokInput(text: string, images?: AgentImage[]) {
   return [
-    { type: 'text', text },
+    ...(text ? [{ type: 'text', text }] : []),
     ...(images ?? []).map((image) => ({
       type: 'image',
       data: image.base64data,

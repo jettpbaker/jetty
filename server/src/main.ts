@@ -1,7 +1,8 @@
-import type { ProviderModel, RateLimits } from '@jetty/shared/wire'
+import type { ProviderModel } from '@jetty/shared/wire'
 
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
+import { MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, type RateLimits } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, ManagedRuntime, Scope } from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
@@ -81,6 +82,10 @@ function reconcileOnStartup(store: Store) {
     }
   })
 }
+
+// base64 inflates by 4/3; the extra MiB covers the rest of the turn.start frame.
+const MAX_TURN_PAYLOAD_BYTES =
+  Math.ceil((MAX_IMAGES_PER_TURN * MAX_IMAGE_BYTES * 4) / 3) + 1024 * 1024
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 
@@ -198,7 +203,12 @@ function createServer(opts: ServerOptions = {}) {
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(
-      BunHttpServer.layer({ port, hostname, disablePreemptiveShutdown: true })
+      BunHttpServer.layer({
+        port,
+        hostname,
+        disablePreemptiveShutdown: true,
+        websocket: { maxPayloadLength: MAX_TURN_PAYLOAD_BYTES },
+      })
     ).pipe(Effect.provideService(Scope.Scope, transportScope))
     const server = Context.get(http, HttpServer.HttpServer)
     const websocket = yield* RpcServer.toHttpEffectWebsocket(JettyRpcs).pipe(

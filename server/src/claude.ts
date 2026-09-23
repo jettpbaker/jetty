@@ -105,7 +105,7 @@ function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
                 data: image.base64data,
               },
             })),
-            { type: 'text' as const, text },
+            ...(text ? [{ type: 'text' as const, text }] : []),
           ]
         : text,
     },

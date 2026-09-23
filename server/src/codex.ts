@@ -44,7 +44,7 @@ type Session = {
 
 function codexInput(text: string, images?: AgentImage[]) {
   return [
-    { type: 'text', text, text_elements: [] },
+    ...(text ? [{ type: 'text', text, text_elements: [] }] : []),
     ...(images ?? []).map((image) => ({
       type: 'image',
       url: `data:${image.mimeType};base64,${image.base64data}`,

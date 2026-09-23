@@ -260,7 +260,7 @@ export function createOrchestrator(
               if (!chosen.stored) yield* commitProvider(input.threadId, chosen.provider)
               yield* saveLoadout(input)
               const { agent } = chosen
-              if (yield* store.needsGeneratedTitle(input.threadId))
+              if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
               const live = state(input.threadId)
               if (live.turnId) {
