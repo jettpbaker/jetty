@@ -22,6 +22,3 @@
   flex-direction: column;
   gap: 16px;
 }
-.settings-usage-window {
-  min-width: 0;
-}

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { StopIcon } from '@phosphor-icons/react'
 import { ArrowUpIcon } from '@primer/octicons-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useEffectEvent, useRef } from 'react'
 
 export function Composer({
   value,
@@ -33,13 +33,11 @@ export function Composer({
   providerDisabled: boolean
   rows?: number
 }) {
-  const root = useRef<HTMLDivElement>(null)
-  const valueRef = useRef(value)
-  const onValueChangeRef = useRef(onValueChange)
-  valueRef.current = value
-  onValueChangeRef.current = onValueChange
+  const textarea = useRef<HTMLTextAreaElement>(null)
   const canSend = !sendDisabled && value.trim().length > 0
   const stop = running && !value.trim()
+
+  const append = useEffectEvent((key: string) => onValueChange(value + key))
 
   useEffect(() => {
     function focusComposer(event: KeyboardEvent) {
@@ -63,10 +61,10 @@ export function Composer({
       )
         return
       if (window.getSelection()?.toString()) return
-      const input = root.current?.querySelector('textarea')
-      if (!input || input.disabled || input.readOnly) return
+      const input = textarea.current
+      if (!input) return
       event.preventDefault()
-      onValueChangeRef.current(valueRef.current + event.key)
+      append(event.key)
       input.focus({ preventScroll: true })
       requestAnimationFrame(() => input.setSelectionRange(input.value.length, input.value.length))
     }
@@ -79,9 +77,10 @@ export function Composer({
   }
 
   return (
-    <div ref={root} className='mx-auto flex w-full max-w-[660px] flex-col'>
+    <div className='mx-auto flex w-full max-w-[660px] flex-col'>
       <div className='rounded-md bg-popover'>
         <Textarea
+          ref={textarea}
           aria-label='Thread prompt'
           placeholder='What would you like to work on?'
           value={value}

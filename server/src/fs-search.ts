@@ -5,10 +5,6 @@ import { git } from './git-process'
 
 const DEFAULT_LIMIT = 20
 
-/**
- * Case-insensitive subsequence match. Higher score is better; null means no match.
- * Prefers basename hits, contiguous runs, then shorter paths.
- */
 export function fuzzyMatch(path: string, query: string): number | null {
   if (query.length === 0) return null
 
@@ -22,17 +18,9 @@ export function fuzzyMatch(path: string, query: string): number | null {
   let basenameHits = 0
 
   for (let qi = 0; qi < q.length; qi++) {
-    const ch = q[qi]!
-    let found = -1
-    for (let j = pi; j < p.length; j++) {
-      if (p[j] === ch) {
-        found = j
-        break
-      }
-    }
+    const found = p.indexOf(q[qi]!, pi)
     if (found < 0) return null
 
-    // consecutive path chars matching consecutive query chars
     if (qi > 0 && found === pi) {
       run++
       score += 5 + run
@@ -45,22 +33,18 @@ export function fuzzyMatch(path: string, query: string): number | null {
     pi = found + 1
   }
 
-  score += basenameHits * 10
-  // light length penalty so shorter paths win ties
-  score -= p.length * 0.001
-  return score
+  return score + basenameHits * 10 - p.length * 0.001
 }
 
-/** Fuzzy-search git-tracked files under cwd. Empty query / non-git / failure → []. */
-export function searchFiles(cwd: string, query: string, limit: number = DEFAULT_LIMIT) {
+export function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT) {
   return Effect.gen(function* () {
     if (query.length === 0) return []
     const { out, code } = yield* git(cwd, ['ls-files'])
-    const files = code === 0 ? out.split('\n').filter((line) => line.length > 0) : []
-    if (files.length === 0) return []
+    if (code !== 0) return []
 
     const scored: { path: string; score: number }[] = []
-    for (const path of files) {
+    for (const path of out.split('\n')) {
+      if (path.length === 0) continue
       const score = fuzzyMatch(path, query)
       if (score !== null) scored.push({ path, score })
     }

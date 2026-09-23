@@ -6,9 +6,9 @@ import { openGrokConnection } from './grok-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
 import { normalizeTitle, TITLE_INSTRUCTIONS, titlePrompt, type Titler } from './titler'
 
-const DEFAULT_TITLE_MODEL = 'grok-4.7'
+const TITLE_MODEL = 'grok-4.7'
 
-export function createGrokTitler(options: StdioProcessOptions = {}, model = DEFAULT_TITLE_MODEL) {
+export function createGrokTitler(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const titler: Titler = (text) =>
@@ -22,7 +22,7 @@ export function createGrokTitler(options: StdioProcessOptions = {}, model = DEFA
           )
           const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
           const sessionId = string(session.sessionId)
-          yield* connection.request('session/set_model', { sessionId, modelId: model })
+          yield* connection.request('session/set_model', { sessionId, modelId: TITLE_MODEL })
           yield* Queue.takeAll(connection.messages)
           const promptId = yield* connection.startRequest('session/prompt', {
             sessionId,

@@ -10,7 +10,7 @@ export function AssistantMessage({ text, streaming }: { text: string; streaming?
       className='text-sm leading-relaxed'
       isAnimating={streaming}
       plugins={{ code: codePlugin }}
-      shikiTheme={[shikiThemes[0], shikiThemes[1]]}
+      shikiTheme={shikiThemes}
     >
       {text}
     </Streamdown>

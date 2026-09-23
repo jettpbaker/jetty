@@ -3,7 +3,7 @@ import { Tabs, TabsList } from '@/components/ui/tabs'
 import { storage } from '@/platform'
 import { useChrome } from '@/state'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
-import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
@@ -16,7 +16,7 @@ import './app_shell.css'
 const widthKey = 'jetty.sidebar.width'
 const openKey = 'jetty.sidebar.open'
 
-// Tabs are per-thread views (main + subagents). They stay hidden until the backend emits subagent events.
+// Per-thread views (main + subagents); hidden until the backend emits subagent events.
 const showThreadTabs = false
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -52,8 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   )
 }
 
-// Sidebar context changes must not rerender every thread and navigation row.
-const Workspace = memo(function Workspace({
+function Workspace({
   sidebarWidth,
   onSidebarWidthChange,
   children,
@@ -135,4 +134,4 @@ const Workspace = memo(function Workspace({
       </Tabs>
     </PageSidebarTriggerContext>
   )
-})
+}

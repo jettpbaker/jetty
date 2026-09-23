@@ -1,227 +1,164 @@
+import { accentChangeEvent } from '@/lib/accent'
 import { cn } from '@/lib/utils'
+import { useEffect, useRef, type CSSProperties } from 'react'
 
-import './avatar.css'
-import { useEffect, useRef } from 'react'
+type Rgb = [number, number, number]
 
-import { rgb, rgbFromCss, type Rgb } from './palette'
-import {
-  bayer4,
-  clamp01,
-  fnv1a,
-  hueFill,
-  type PixelBloom,
-  pixelBloomStyle,
-  pixelPrefersReducedMotion,
-  xorshift32,
-} from './pixel'
-
-// 8×8 cells, mirrored across one axis → 32 free pattern bits. With the mirror
-// axis bit and 180 hues that's 2^33 × 180 ≈ 1.5 trillion distinct avatars.
 const GRID = 8
-const CELL_PX = 4 // backing px per cell → a 32×32 canvas, scaled up pixelated
+const CELL_PX = 4
+const CANVAS_PX = GRID * CELL_PX
+const ENTRANCE_MS = 600
 
-export type AvatarIdleMotion =
-  | 'none'
-  | 'shimmer'
-  | 'ripple'
-  | 'twitch'
-  | 'drift'
-  | 'swirl'
-  | 'materialize'
+const BAYER4 = [
+  [0, 8, 2, 10],
+  [12, 4, 14, 6],
+  [3, 11, 1, 9],
+  [15, 7, 13, 5],
+].map((row) => row.map((v) => (v + 0.5) / 16))
 
-export type AvatarMirror = 'auto' | 'horizontal' | 'vertical'
-
-export type DitherAvatarProps = {
-  /** The seed — same name, same avatar, every time. */
-  name: string
-  /** Hue override (0–360). Derived from the name when omitted. Ignored when `color` is set. */
-  hue?: number
-  /** CSS color for the dither fill (e.g. `var(--primary)`). Overrides `hue`. */
-  color?: string
-  /** Mirror axis. "auto" picks one from the name — half the avatars fold
-   * left/right, half fold top/bottom. */
-  mirror?: AvatarMirror
-  /** Square size in px. Omit to size via className (e.g. `size-12`). */
-  size?: number
-  /** Glow on the dither fill. */
-  bloom?: PixelBloom
-  pulse?: boolean
-  idleMotion?: AvatarIdleMotion
-  /** Play the Bayer-ordered materialize entrance. */
-  animate?: boolean
-  animationDuration?: number
-  /** Bump to replay the entrance. */
-  replayToken?: number
-  className?: string
+const bloomStyle: CSSProperties = {
+  filter: 'blur(1px) brightness(1.35) saturate(1.4)',
+  opacity: 0.7,
+  mixBlendMode: 'plus-lighter',
+  imageRendering: 'auto',
 }
 
-type AvatarModel = {
-  seed: number
-  vertical: boolean
-  on: boolean[] // GRID×GRID, row-major
-  density: number[] // per-cell dither density for on cells
-  fill: [number, number, number]
+function bayer4(row: number, col: number) {
+  return BAYER4[row & 3]?.[col & 3] ?? 0
 }
 
-/**
- * Derive the full 8×8 cell grid from the name: 32 pattern bits + the mirror
- * axis + the hue + per-cell densities, all from one deterministic PRNG stream.
- * Every draw happens unconditionally so overriding `hue` or `mirror` never
- * shifts the pattern.
- */
-function avatarModel(
-  name: string,
-  hueProp: number | undefined,
-  mirrorProp: AvatarMirror
-): AvatarModel {
+const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t)
+
+function fnv1a(str: string) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+function xorshift32(seed: number) {
+  let s = seed || 0x9e3779b9
+  return () => {
+    s ^= s << 13
+    s >>>= 0
+    s ^= s >>> 17
+    s ^= s << 5
+    s >>>= 0
+    return s / 0x100000000
+  }
+}
+
+function hueFill(hue: number): Rgb {
+  const h = ((hue % 360) + 360) % 360
+  const s = 0.85
+  const l = 0.58
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  const [r, g, b] =
+    h < 60
+      ? [c, x, 0]
+      : h < 120
+        ? [x, c, 0]
+        : h < 180
+          ? [0, c, x]
+          : h < 240
+            ? [0, x, c]
+            : h < 300
+              ? [x, 0, c]
+              : [c, 0, x]
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]
+}
+
+let cssProbe: CanvasRenderingContext2D | null | undefined
+
+function rgbFromCss(value: string): Rgb | undefined {
+  cssProbe ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+  if (!cssProbe) return undefined
+  cssProbe.clearRect(0, 0, 1, 1)
+  cssProbe.fillStyle = '#000'
+  cssProbe.fillStyle = value
+  cssProbe.fillRect(0, 0, 1, 1)
+  const [r, g, b, a] = cssProbe.getImageData(0, 0, 1, 1).data
+  if (r === undefined || g === undefined || b === undefined || !a) return undefined
+  return [r, g, b]
+}
+
+type AvatarMirror = 'auto' | 'horizontal' | 'vertical'
+
+type AvatarModel = { on: boolean[]; density: number[]; fill: Rgb }
+
+function avatarModel(name: string, mirror: AvatarMirror): AvatarModel {
   const rand = xorshift32(fnv1a(name))
   const bits = Array.from({ length: 32 }, () => rand() < 0.5)
   const drawnVertical = rand() < 0.5
-  const drawnHue = Math.floor(rand() * 180) * 2
+  const hue = Math.floor(rand() * 180) * 2
   const halfDensity = Array.from({ length: 32 }, () => 0.55 + rand() * 0.45)
+  const vertical = mirror === 'auto' ? drawnVertical : mirror === 'vertical'
 
-  const vertical = mirrorProp === 'auto' ? drawnVertical : mirrorProp === 'vertical'
-  const hue = hueProp ?? drawnHue
-
-  const on = Array.from({ length: GRID * GRID }, () => false)
-  const density = Array.from({ length: GRID * GRID }, () => 1)
+  const on: boolean[] = []
+  const density: number[] = []
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
-      // Fold across the chosen axis: left/right symmetric ("horizontal"
-      // mirror) or top/bottom symmetric ("vertical").
       const i = vertical
         ? Math.min(r, GRID - 1 - r) * GRID + c
         : r * (GRID / 2) + Math.min(c, GRID - 1 - c)
-      on[r * GRID + c] = bits[i] ?? false
-      density[r * GRID + c] = halfDensity[i] ?? 1
+      on.push(bits[i] ?? false)
+      density.push(halfDensity[i] ?? 1)
     }
   }
-  return { on, density, fill: hueFill(hue), vertical, seed: fnv1a(name) }
+  return { on, density, fill: hueFill(hue) }
 }
 
-function swirlThreshold(x: number, y: number, seconds: number, seed: number): number {
-  const time = Math.floor(seconds * 8) / 8
-  const phase = (seed % 628) / 100
-  const cx = x - 15.5 - 2 * Math.sin(time * 0.19 + phase)
-  const cy = y - 15.5 - 2 * Math.cos(time * 0.23 + phase)
-  const radius = Math.hypot(cx, cy)
-  const angle = time * 0.16 + radius * 0.035 * Math.sin(time * 0.13 + phase)
-  const u = Math.floor(cx * Math.cos(angle) - cy * Math.sin(angle) + time * 0.37)
-  const v = Math.floor(cx * Math.sin(angle) + cy * Math.cos(angle) + time * 0.29)
-  let hash = Math.imul(u, 374761393) ^ Math.imul(v, 668265263) ^ seed
-  hash = Math.imul(hash ^ (hash >>> 13), 1274126177)
-  const noise = ((hash ^ (hash >>> 16)) >>> 0) / 4294967296
-  return bayer4(v, u) * 0.65 + noise * 0.35
-}
-
-/**
- * Paint the avatar, optionally sweeping cells in with the Bayer-ordered
- * materialize entrance. Lives outside the component (same shape as the chart
- * canvases). Returns a cleanup that cancels the entrance loop.
- */
 function paintAvatar(
   canvas: HTMLCanvasElement,
   bloomCanvas: HTMLCanvasElement | null,
   model: AvatarModel,
   animate: boolean,
-  duration: number,
-  idleMotion: AvatarIdleMotion,
   getFill?: () => Rgb | undefined
-): { redraw: () => void; stop: () => void } | undefined {
+) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return undefined
-  const px = GRID * CELL_PX
-  canvas.width = px
-  canvas.height = px
-  const bloomCtx = bloomCanvas?.getContext('2d') ?? null
+  canvas.width = CANVAS_PX
+  canvas.height = CANVAS_PX
+  const bloomCtx = bloomCanvas?.getContext('2d')
   if (bloomCanvas) {
-    bloomCanvas.width = px
-    bloomCanvas.height = px
+    bloomCanvas.width = CANVAS_PX
+    bloomCanvas.height = CANVAS_PX
   }
 
-  const activePairs = [
-    ...new Set(
-      model.on.flatMap((on, index) => {
-        if (!on) return []
-        const r = Math.floor(index / GRID)
-        const c = index % GRID
-        return [model.vertical ? Math.min(r, 7 - r) * 8 + c : r * 4 + Math.min(c, 7 - c)]
-      })
-    ),
-  ]
-
-  const materializeOrder = model.on
-    .flatMap((on, index) => (on ? [index] : []))
-    .sort((a, b) => {
-      const rank = (index: number) => bayer4(Math.floor(index / GRID), index)
-      return rank(a) - rank(b) || a - b
-    })
-
-  const draw = (progress: number, seconds = 0) => {
-    const live = getFill?.()
-    if (live) model.fill = live
-    const groupCount = Math.ceil(materializeOrder.length / 3)
-    const group = Math.floor((seconds / 3.6) * groupCount) % groupCount
-    const hiddenBlocks =
-      idleMotion === 'materialize' && seconds > 0
-        ? new Set(materializeOrder.slice(group * 3, group * 3 + 3))
-        : new Set<number>()
-    ctx.clearRect(0, 0, px, px)
-    for (let r = 0; r < GRID; r++) {
-      for (let c = 0; c < GRID; c++) {
-        if (!model.on[r * GRID + c]) continue
-        // Cells materialize in Bayer order — the entrance is made of the same
-        // matrix as the texture.
-        const start = bayer4(r, c) * 0.7
-        const materialize = hiddenBlocks.has(r * GRID + c) ? 0 : 1
-        const cellAlpha = clamp01((progress - start) / 0.3) * materialize
+  const draw = (progress: number) => {
+    model.fill = getFill?.() ?? model.fill
+    const [r, g, b] = model.fill
+    ctx.clearRect(0, 0, CANVAS_PX, CANVAS_PX)
+    for (let row = 0; row < GRID; row++) {
+      for (let col = 0; col < GRID; col++) {
+        const cell = row * GRID + col
+        if (!model.on[cell]) continue
+        const cellAlpha = clamp01((progress - bayer4(row, col) * 0.7) / 0.3)
         if (cellAlpha <= 0) continue
-        const pair = model.vertical ? Math.min(r, 7 - r) * 8 + c : r * 4 + Math.min(c, 7 - c)
-        const cycle = seconds % 4.5
-        const twitch =
-          idleMotion === 'twitch' &&
-          cycle > 3.4 &&
-          cycle < 3.65 &&
-          pair === activePairs[Math.floor(seconds / 4.5) % activePairs.length]
-        const dx = twitch && !model.vertical ? (c < 4 ? 1 : -1) : 0
-        const dy = twitch && model.vertical ? (r < 4 ? 1 : -1) : 0
-        const density = model.density[r * GRID + c] ?? 1
+        const density = model.density[cell] ?? 1
         const base = 0.35 + 0.65 * density
         for (let py = 0; py < CELL_PX; py++) {
-          for (let pxi = 0; pxi < CELL_PX; pxi++) {
-            const gx = c * CELL_PX + pxi
-            const gy = r * CELL_PX + py
-            const drift = idleMotion === 'drift' ? Math.floor(seconds * 5) : 0
-            const threshold =
-              idleMotion === 'swirl'
-                ? swirlThreshold(gx, gy, seconds, model.seed)
-                : bayer4(gy - drift, gx - drift)
-            const shimmerEnvelope = Math.max(0, Math.sin((seconds * Math.PI) / 4)) ** 2
-            const shimmer = 0.12 * shimmerEnvelope * Math.sin(seconds * 2 + gx * 0.8 + gy * 1.3)
-            const waveDistance = gy / px - (((seconds % 5) / 3) * 1.8 - 0.4)
-            const ripple = 0.2 * Math.exp((-waveDistance * waveDistance) / 0.012)
-            const modulation =
-              idleMotion === 'shimmer' ? shimmer : idleMotion === 'ripple' ? ripple : 0
-            const lit =
-              idleMotion === 'shimmer' || idleMotion === 'ripple'
-                ? clamp01((density + modulation - threshold) / 0.08 + 0.5)
-                : Number(density > threshold)
-            // On/off cells modulate alpha tiers of the one fill colour, so the
-            // avatar holds up on light and dark backgrounds alike.
-            const alpha = base * (0.35 + 0.65 * lit) * cellAlpha
-            ctx.fillStyle = rgb(model.fill, 1, alpha)
-            ctx.fillRect(gx + dx, gy + dy, 1, 1)
+          for (let px = 0; px < CELL_PX; px++) {
+            const x = col * CELL_PX + px
+            const y = row * CELL_PX + py
+            const lit = density > bayer4(y, x)
+            ctx.fillStyle = `rgba(${r},${g},${b},${base * (lit ? 1 : 0.35) * cellAlpha})`
+            ctx.fillRect(x, y, 1, 1)
           }
         }
       }
     }
     if (bloomCtx) {
-      bloomCtx.clearRect(0, 0, px, px)
+      bloomCtx.clearRect(0, 0, CANVAS_PX, CANVAS_PX)
       bloomCtx.drawImage(canvas, 0, 0)
     }
   }
 
-  if ((!animate && idleMotion === 'none') || pixelPrefersReducedMotion()) {
+  if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     draw(1)
     return { redraw: () => draw(1), stop() {} }
   }
@@ -229,70 +166,52 @@ function paintAvatar(
   let raf = 0
   const startTime = performance.now()
   const tick = (now: number) => {
-    const elapsed = now - startTime
-    const t = animate ? clamp01(elapsed / Math.max(1, duration)) : 1
-    if (!document.hidden)
-      draw(1 - (1 - t) ** 3, Math.max(0, elapsed - (animate ? duration : 0)) / 1000)
-    if (t < 1 || idleMotion !== 'none') raf = requestAnimationFrame(tick)
+    const t = clamp01((now - startTime) / ENTRANCE_MS)
+    if (!document.hidden) draw(1 - (1 - t) ** 3)
+    if (t < 1) raf = requestAnimationFrame(tick)
   }
   raf = requestAnimationFrame(tick)
   return { redraw: () => draw(1), stop: () => cancelAnimationFrame(raf) }
 }
 
-/**
- * Generative dithered avatar — a mirrored 8×8 pixel glyph derived from a name,
- * rendered with the ordered-dither texture the charts are made of. Same name,
- * same avatar; ~1.5 trillion combinations across pattern, mirror axis, and hue.
- */
 export function DitherAvatar({
   name,
-  hue,
   color,
   mirror = 'auto',
-  size,
   bloom = 'off',
-  pulse = false,
-  idleMotion = 'none',
   animate = true,
-  animationDuration = 600,
-  replayToken = 0,
   className,
-}: DitherAvatarProps) {
+}: {
+  name: string
+  color?: string
+  mirror?: AvatarMirror
+  bloom?: 'off' | 'subtle'
+  animate?: boolean
+  className?: string
+}) {
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const bloomRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
-    const canvas = canvasRef.current
     const root = rootRef.current
-    if (!canvas) return
-    const model = avatarModel(name, hue, mirror)
-    const getFill = color && root ? () => rgbFromCss(getComputedStyle(root).color) : undefined
-    const paint = paintAvatar(
-      canvas,
-      bloomRef.current,
-      model,
-      animate,
-      animationDuration,
-      idleMotion,
-      getFill
-    )
+    const canvas = canvasRef.current
+    if (!root || !canvas) return
+    const getFill = color ? () => rgbFromCss(getComputedStyle(root).color) : undefined
+    const paint = paintAvatar(canvas, bloomRef.current, avatarModel(name, mirror), animate, getFill)
     if (!paint || !getFill) return paint?.stop
-    const onTokenChange = () => paint.redraw()
-    window.addEventListener('jetty-accent', onTokenChange)
-    const observer = new MutationObserver(onTokenChange)
+    window.addEventListener(accentChangeEvent, paint.redraw)
+    const observer = new MutationObserver(paint.redraw)
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['style', 'class', 'data-accent', 'data-accent-from'],
     })
     return () => {
       paint.stop()
-      window.removeEventListener('jetty-accent', onTokenChange)
+      window.removeEventListener(accentChangeEvent, paint.redraw)
       observer.disconnect()
     }
-  }, [name, hue, color, mirror, animate, animationDuration, replayToken, bloom, idleMotion])
-
-  const bloomStyle = pixelBloomStyle(bloom)
+  }, [name, color, mirror, animate, bloom])
 
   return (
     <div
@@ -301,20 +220,13 @@ export function DitherAvatar({
       role='img'
       aria-label={`${name} avatar`}
       className={cn('relative', className)}
-      style={{ color, ...(size != null ? { width: size, height: size } : undefined) }}
+      style={{ color }}
     >
-      <canvas
-        ref={canvasRef}
-        className='block size-full'
-        style={{ imageRendering: 'pixelated', filter: 'var(--avatar-ink-filter, none)' }}
-      />
-      {bloomStyle && (
+      <canvas ref={canvasRef} className='block size-full' style={{ imageRendering: 'pixelated' }} />
+      {bloom === 'subtle' && (
         <canvas
           ref={bloomRef}
-          className={cn(
-            'pointer-events-none absolute inset-0 size-full',
-            pulse && 'dither-avatar-pulse'
-          )}
+          className='pointer-events-none absolute inset-0 size-full'
           style={bloomStyle}
         />
       )}

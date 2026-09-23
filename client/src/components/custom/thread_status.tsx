@@ -1,9 +1,9 @@
 import type { SessionStatus } from '@jetty/shared/events'
 
-import { InProgressIcon } from '@/components/custom/in_progress_icon'
 import { cn } from '@/lib/utils'
 
-import { NeedsInputIcon, ErrorStatusIcon } from './circle_status_icon'
+import { ErrorStatusIcon, NeedsInputIcon } from './circle_status_icon'
+import { InProgressIcon } from './in_progress_icon'
 
 export type ThreadStatus = 'idle' | 'working' | 'needs-attention' | 'error'
 
@@ -21,7 +21,7 @@ export function threadStatus(status: SessionStatus): ThreadStatus {
   }
 }
 
-export const statusPresentation = {
+const statusPresentation = {
   idle: { icon: null, label: 'Idle', color: 'text-muted-foreground' },
   working: { icon: InProgressIcon, label: 'Working', color: 'text-status-working' },
   'needs-attention': { icon: NeedsInputIcon, label: 'Needs input', color: 'text-status-attention' },
@@ -30,17 +30,15 @@ export const statusPresentation = {
 
 export function ThreadStatusGlyph({
   status,
-  className,
   iconClassName,
 }: {
   status: ThreadStatus
-  className?: string
-  iconClassName?: string
+  iconClassName: string
 }) {
   const { icon: Icon, label, color } = statusPresentation[status]
   if (!Icon) return null
   return (
-    <span className={cn('flex shrink-0 items-center', color, className)} title={label}>
+    <span className={cn('flex shrink-0 items-center', color)} title={label}>
       <Icon aria-hidden='true' className={iconClassName} />
       <span className='sr-only'>{label}</span>
     </span>

@@ -1,29 +1,20 @@
-export type ActivityStatus =
-  | 'running'
-  | 'complete'
-  | 'failed'
-  | 'cancelled'
-  | 'interrupted'
-  | 'waiting'
+type ToolStatus = 'running' | 'complete' | 'failed' | 'cancelled' | 'waiting'
 export type ToolKind = 'read' | 'edit' | 'write' | 'search' | 'terminal' | 'web' | 'generic'
 export type ToolActivity = {
   type: 'tool'
   id: string
   kind: ToolKind
-  name?: string
+  name: string
   target: string
-  description?: string
-  status: ActivityStatus
-  elapsedSeconds?: number
+  status: ToolStatus
   input?: string
   output?: string
-  error?: string
 }
 export type ThinkingActivity = {
   type: 'thinking'
   id: string
-  status: ActivityStatus
-  summary?: string
+  status: 'running' | 'complete'
+  summary: string
   tokens?: number
   elapsedSeconds?: number
 }
@@ -32,41 +23,69 @@ export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; seal
 export type WorkEntry = ToolBatch | ThinkingActivity
 
 const vocabulary = {
-  read: { active: 'Reading', done: 'Read', noun: 'files', singular: 'file' },
-  edit: { active: 'Editing', done: 'Edited', noun: 'files', singular: 'file' },
-  write: { active: 'Writing', done: 'Wrote', noun: 'files', singular: 'file' },
-  search: { active: 'Searching', done: 'Searched', noun: 'queries', singular: 'query' },
-  terminal: { active: 'Running', done: 'Ran', noun: 'commands', singular: 'command' },
-  web: {
-    active: 'Searching the web',
-    done: 'Searched the web',
+  read: {
+    active: 'Reading',
+    done: 'Read',
+    failed: 'Failed to read',
+    noun: 'files',
+    singular: 'file',
+  },
+  edit: {
+    active: 'Editing',
+    done: 'Edited',
+    failed: 'Failed to edit',
+    noun: 'files',
+    singular: 'file',
+  },
+  write: {
+    active: 'Writing',
+    done: 'Wrote',
+    failed: 'Failed to write',
+    noun: 'files',
+    singular: 'file',
+  },
+  search: {
+    active: 'Searching',
+    done: 'Searched',
+    failed: 'Failed to search',
     noun: 'queries',
     singular: 'query',
   },
-  generic: { active: 'Calling', done: 'Called', noun: 'calls', singular: 'call' },
-} satisfies Record<ToolKind, { active: string; done: string; noun: string; singular: string }>
+  terminal: {
+    active: 'Running',
+    done: 'Ran',
+    failed: 'Failed to run',
+    noun: 'commands',
+    singular: 'command',
+  },
+  web: {
+    active: 'Searching the web',
+    done: 'Searched the web',
+    failed: 'Failed to search for',
+    noun: 'queries',
+    singular: 'query',
+  },
+  generic: {
+    active: 'Calling',
+    done: 'Called',
+    failed: 'Failed to call',
+    noun: 'calls',
+    singular: 'call',
+  },
+} satisfies Record<
+  ToolKind,
+  { active: string; done: string; failed: string; noun: string; singular: string }
+>
 
-export function formatActivityDuration(seconds?: number) {
-  if (seconds === undefined) return undefined
-  const value = Math.max(0, Math.floor(seconds))
-  if (value < 60) return `${value}s`
-  if (value < 3600) return `${Math.floor(value / 60)}m ${value % 60}s`
-  return `${Math.floor(value / 3600)}h ${Math.floor((value % 3600) / 60)}m`
-}
-
-export function groupWorkActivities(
-  activities: readonly WorkActivity[],
-  ended = false
-): WorkEntry[] {
+export function groupWorkActivities(activities: readonly WorkActivity[], ended: boolean) {
   const entries: WorkEntry[] = []
   for (const activity of activities) {
     const previous = entries.at(-1)
-    const head = previous?.type === 'tools' ? previous.calls[0] : undefined
+    const head = previous?.type === 'tools' ? previous.calls[0]! : undefined
     if (
       activity.type === 'tool' &&
       previous?.type === 'tools' &&
-      head &&
-      head.kind === activity.kind &&
+      head?.kind === activity.kind &&
       (activity.kind !== 'generic' || head.name === activity.name)
     ) {
       previous.calls.push(activity)
@@ -84,81 +103,44 @@ export function groupWorkActivities(
   return entries
 }
 
-export function describeToolBatch(batch: ToolBatch) {
-  const first = batch.calls[0]
-  const latest = batch.calls.at(-1)
-  if (!first || !latest) {
-    return {
-      verb: '',
-      target: '',
-      description: undefined,
-      complete: true,
-      active: false,
-      failed: 0,
-      waiting: 0,
-      notices: '',
-      elapsed: undefined,
-    }
-  }
-  const running = batch.calls.filter((call) => call.status === 'running')
-  const failed = batch.calls.filter((call) => call.status === 'failed').length
-  const waiting = batch.calls.filter((call) => call.status === 'waiting').length
-  const cancelled = batch.calls.filter((call) => call.status === 'cancelled').length
-  const interrupted = batch.calls.filter((call) => call.status === 'interrupted').length
+export function describeToolBatch({ calls, sealed }: ToolBatch) {
+  const first = calls[0]!
+  const latest = calls.at(-1)!
+  const count = (status: ToolStatus) => calls.filter((call) => call.status === status).length
+  const running = calls.filter((call) => call.status === 'running')
+  const completed = count('complete')
+  const failed = count('failed')
+  const cancelled = count('cancelled')
+  const waiting = count('waiting')
   const words = vocabulary[first.kind]
   const active = running.length > 0 && waiting === 0
-  const summarise =
-    (batch.sealed && batch.calls.length > 1 && !active && !waiting) || running.length > 1
-  const completed = batch.calls.filter((call) => call.status === 'complete').length
-  const count = active ? running.length : completed || batch.calls.length
-  const unsuccessful = failed + cancelled + interrupted > 0
+  const summarise = (sealed && calls.length > 1 && !active && !waiting) || running.length > 1
+  const shown = active ? running.length : completed || calls.length
+  const current = calls.find((call) => call.status === 'waiting') ?? running[0] ?? latest
+  const target = !summarise
+    ? current.target
+    : first.kind === 'generic'
+      ? `${shown} ${first.name} calls`
+      : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done
-  const current = batch.calls.find((call) => call.status === 'waiting') ?? running[0] ?? latest
-  const description =
-    first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
-  let target = summarise ? `${count} ${count === 1 ? words.singular : words.noun}` : current.target
-  if (first.kind === 'generic' && summarise) target = `${count} ${first.name ?? 'tool'} calls`
   if (waiting) verb = 'Awaiting approval for'
-  else if (!active && unsuccessful && !(summarise && completed)) {
-    const failedVerbs: Record<ToolKind, string> = {
-      read: 'Failed to read',
-      edit: 'Failed to edit',
-      write: 'Failed to write',
-      search: 'Failed to search',
-      terminal: 'Failed to run',
-      web: 'Failed to search for',
-      generic: 'Failed to call',
-    }
-    verb =
-      latest.status === 'failed'
-        ? failedVerbs[first.kind]
-        : latest.status === 'cancelled'
-          ? 'Cancelled'
-          : latest.status === 'interrupted'
-            ? 'Interrupted'
-            : words.done
+  else if (!active && failed + cancelled > 0 && !(summarise && completed)) {
+    if (latest.status === 'failed') verb = words.failed
+    else if (latest.status === 'cancelled') verb = 'Cancelled'
   }
   const notices =
-    batch.calls.length === 1
+    calls.length === 1
       ? ''
-      : [
-          failed && `${failed} failed`,
-          cancelled && `${cancelled} cancelled`,
-          interrupted && `${interrupted} interrupted`,
-        ]
+      : [failed && `${failed} failed`, cancelled && `${cancelled} cancelled`]
           .filter(Boolean)
           .join(', ')
-  const elapsed =
-    batch.calls.length === 1 ? formatActivityDuration(first.elapsedSeconds) : undefined
   return {
     verb,
     target,
-    description,
-    complete: batch.calls.every((call) => call.status === 'complete'),
+    complete: completed === calls.length,
     active,
     failed,
     waiting,
     notices,
-    elapsed,
   }
 }

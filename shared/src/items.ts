@@ -1,6 +1,5 @@
 import { Schema } from 'effect'
 
-/** Images the agent may send in one `send_images` call — a gallery, not a dump. */
 export const MAX_GALLERY_IMAGES = 4
 
 export const Attachment = Schema.Struct({
@@ -46,7 +45,7 @@ export const ThreadItem = Schema.Union([
     kind: Schema.Literal('reasoning'),
     text: Schema.String,
     streaming: Schema.optional(Schema.Boolean),
-    /** total estimated thinking tokens so far — the only signal models with omitted thinking text give us */
+    // a running total of estimated thinking tokens, unlike item.delta's increment
     tokens: Schema.optional(Schema.Natural),
   }),
   Schema.Struct({
@@ -71,9 +70,9 @@ export const ThreadItem = Schema.Union([
     ...itemBase,
     kind: Schema.Literal('question'),
     questions: Schema.Array(QuestionSpec),
-    /** question text → chosen answer (multi-select comma-separated); set once answered */
+    // multi-select answers are comma-separated
     answers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-    /** true when the turn ended (interrupt/close) before an answer */
+    // the turn ended unanswered, not a user choice
     skipped: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
@@ -99,4 +98,3 @@ export const ThreadItem = Schema.Union([
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
 ])
 export type ThreadItem = Schema.Schema.Type<typeof ThreadItem>
-export type ItemKind = ThreadItem['kind']

@@ -10,63 +10,54 @@ export function clearTextMeasure() {
   cache.clear()
 }
 
-function textHeight(id: string, text: string, width: number, preWrap: boolean, epoch: number) {
-  const key = `${epoch}:${id}:${preWrap ? 'pre' : 'plain'}`
-  let entry = cache.get(key)
+function textHeight(id: string, text: string, width: number, preWrap: boolean) {
+  let entry = cache.get(id)
   if (!entry || entry.text !== text) {
     entry = {
       text,
       prepared: prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined),
     }
-    cache.set(key, entry)
+    cache.set(id, entry)
   }
   return layout(entry.prepared, Math.max(1, width), lineHeight).height
 }
 
-function estimateWork(row: Extract<ThreadRow, { kind: 'work' }>, width: number, epoch: number) {
-  let height = 32
-  for (const activity of row.activities) {
-    height += 28
-    if (activity.type === 'thinking' && activity.summary && activity.status === 'running')
-      height += Math.min(72, textHeight(activity.id, activity.summary, width, true, epoch))
-  }
-  return height
+function captionHeight(id: string, caption: string | undefined, width: number) {
+  return caption ? textHeight(`${id}:caption`, caption, width * 0.8, false) + 8 : 0
 }
 
-export function estimateRow(row: ThreadRow, columnWidth: number, epoch: number) {
-  const width = Math.max(1, columnWidth)
+export function estimateRow(row: ThreadRow, width: number) {
   switch (row.kind) {
     case 'user':
       return (
-        textHeight(row.id, row.item.text, width * 0.8, true, epoch) +
+        textHeight(row.id, row.item.text, width * 0.8, true) +
         16 +
         (row.item.attachments.length ? 72 : 0)
       )
     case 'assistant':
     case 'plan':
-      return textHeight(row.id, row.item.text, width, false, epoch) + 8
-    case 'work':
-      return estimateWork(row, width, epoch)
+      return textHeight(row.id, row.item.text, width, false) + 8
+    case 'work': {
+      let height = 32
+      for (const activity of row.activities) {
+        height += 28
+        if (activity.type === 'thinking' && activity.summary && activity.status === 'running')
+          height += Math.min(72, textHeight(activity.id, activity.summary, width, true))
+      }
+      return height
+    }
     case 'error':
-      return textHeight(row.id, row.message, width * 0.8, true, epoch) + 24
+      return textHeight(row.id, row.message, width * 0.8, true) + 24
     case 'gallery':
       return (
-        160 * Math.ceil(row.item.images.length / 2) +
-        (row.item.caption
-          ? textHeight(`${row.id}:caption`, row.item.caption, width * 0.8, false, epoch) + 8
-          : 0)
+        160 * Math.ceil(row.item.images.length / 2) + captionHeight(row.id, row.item.caption, width)
       )
     case 'video':
-      return (
-        180 +
-        (row.item.caption
-          ? textHeight(`${row.id}:caption`, row.item.caption, width * 0.8, false, epoch) + 8
-          : 0)
-      )
+      return 180 + captionHeight(row.id, row.item.caption, width)
     case 'question': {
       let height = 24
       for (const spec of row.item.questions) {
-        height += textHeight(`${row.id}:${spec.question}`, spec.question, width * 0.8, false, epoch)
+        height += textHeight(`${row.id}:${spec.question}`, spec.question, width * 0.8, false)
         height += 20 * spec.options.length + 16
       }
       return height

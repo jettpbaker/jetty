@@ -5,6 +5,7 @@ import { createUsagePreview, usageResetLabel, type UsageWindow } from '@/lib/pro
 import { ArrowCounterClockwiseIcon, ArrowUpRightIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 
+import './settings_sections.css'
 import './settings_usage.css'
 
 function Allowance({
@@ -16,7 +17,7 @@ function Allowance({
   provider: string
   now: number
 }) {
-  const percent = usage.usedPercent === null ? null : Math.min(100, Math.max(0, usage.usedPercent))
+  const percent = usage.usedPercent
   const reset = usageResetLabel(usage.resetsAt, now)
   return (
     <Tooltip>
@@ -24,7 +25,7 @@ function Allowance({
         render={
           <div
             tabIndex={0}
-            className='settings-usage-window rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            className='rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
           />
         }
       >
@@ -36,39 +37,33 @@ function Allowance({
               {reset.replace(/^Resets in /, '')}
             </span>
           </span>
-          <span className='tabular-nums'>
-            {percent === null ? 'Unavailable' : `${percent}% used`}
-          </span>
+          <span className='tabular-nums'>{percent}% used</span>
         </div>
         <div
           role='meter'
           aria-label={`${provider} ${usage.label} usage`}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={percent ?? undefined}
-          aria-valuetext={percent === null ? 'Usage unavailable' : `${percent}% used`}
+          aria-valuenow={percent}
+          aria-valuetext={`${percent}% used`}
           className='mt-2 h-1 overflow-hidden rounded-full bg-accent'
         >
-          {percent !== null && (
-            <div className='h-full rounded-full bg-primary' style={{ width: `${percent}%` }} />
-          )}
+          <div className='h-full rounded-full bg-primary' style={{ width: `${percent}%` }} />
         </div>
       </TooltipTrigger>
       <TooltipContent className='flex-col items-start gap-1'>
         <span>{usage.scope}</span>
-        {usage.resetsAt !== null && (
-          <span>
-            Resets{' '}
-            {new Date(usage.resetsAt).toLocaleString(undefined, {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              timeZoneName: 'short',
-            })}
-          </span>
-        )}
+        <span>
+          Resets{' '}
+          {new Date(usage.resetsAt).toLocaleString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZoneName: 'short',
+          })}
+        </span>
       </TooltipContent>
     </Tooltip>
   )
@@ -93,13 +88,8 @@ export function SettingsUsage({ onConnectCopilot }: { onConnectCopilot: () => vo
           <div className='flex items-center gap-2.5'>
             <span
               aria-hidden='true'
-              className={`size-5 shrink-0 ${provider.id === 'copilot' ? 'bg-disabled-foreground' : 'bg-muted-foreground'}`}
-              style={{
-                maskImage: `url(${providerLogoPath(provider.id)})`,
-                maskSize: 'contain',
-                maskPosition: 'center',
-                maskRepeat: 'no-repeat',
-              }}
+              className={`provider-icon size-5 ${provider.id === 'copilot' ? 'text-disabled-foreground' : 'text-muted-foreground'}`}
+              style={{ maskImage: `url(${providerLogoPath(provider.id)})` }}
             />
             <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
               <h3

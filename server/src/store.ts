@@ -12,7 +12,7 @@ import { SqlClient } from 'effect/unstable/sql'
 
 import { normalizePath } from './fs-browse'
 
-export const DEFAULT_THREAD_TITLE = 'New thread'
+const DEFAULT_THREAD_TITLE = 'New thread'
 
 export type AppendedEvent = {
   seq: number
@@ -281,6 +281,7 @@ export function createStore() {
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThread,
+      requireThread,
       listThreads() {
         return sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`.pipe(
           Effect.map((rows) => rows.map(rowToThread)),
@@ -344,9 +345,7 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      setThreadTitle(threadId: string, title: string) {
-        return lockTitle(threadId, title)
-      },
+      setThreadTitle: lockTitle,
       needsGeneratedTitle(threadId: string) {
         return sql<{ id: string }>`SELECT id FROM threads
           WHERE id = ${threadId} AND title_locked = 0 AND title = ${DEFAULT_THREAD_TITLE}`.pipe(

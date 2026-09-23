@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { ArrowBendUpLeftIcon, FolderIcon, FolderPlusIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
-// Design fixtures; the production picker uses Jetty v1's fs.browse endpoint.
-const directories: Record<string, string[]> = {
+const previewDirectories: Record<string, string[]> = {
   '~': ['code', 'Desktop', 'Documents', 'Downloads'],
   '~/code': ['jetty', 'scratch', 'wiki'],
   '~/code/scratch': ['jetty-design', 'playground'],
@@ -18,9 +17,8 @@ const directories: Record<string, string[]> = {
   '~/Documents/projects': ['notes'],
 }
 const knownFolders = new Set([
-  '~',
-  ...Object.keys(directories),
-  ...Object.entries(directories).flatMap(([parent, children]) =>
+  ...Object.keys(previewDirectories),
+  ...Object.entries(previewDirectories).flatMap(([parent, children]) =>
     children.map((name) => `${parent}/${name}`)
   ),
 ])
@@ -41,7 +39,7 @@ export function ProjectFolderDialog({
   const browsing = query.endsWith('/')
   const parent = browsing ? trimmed : trimmed.slice(0, trimmed.lastIndexOf('/')) || '~'
   const filter = browsing ? '' : trimmed.slice(trimmed.lastIndexOf('/') + 1).toLowerCase()
-  const entries = (directories[parent] ?? []).filter((name) =>
+  const entries = (previewDirectories[parent] ?? []).filter((name) =>
     name.toLowerCase().startsWith(filter)
   )
   const canAdd = knownFolders.has(trimmed)

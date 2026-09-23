@@ -37,7 +37,12 @@ import {
   type Emit,
   type TurnInput,
 } from './agent'
-import { createTranslateCtx, translate, type TranslateCtx } from './claude-translate'
+import {
+  createTranslateCtx,
+  translate,
+  type SdkLikeMessage,
+  type TranslateCtx,
+} from './claude-translate'
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
 import { createJettyMcpServer, SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
@@ -77,15 +82,8 @@ type WarmSession = {
   publication: Semaphore.Semaphore
 }
 
-function toSdkPermissionMode(
-  mode: PermissionMode | undefined
-): NonNullable<Options['permissionMode']> {
-  switch (mode ?? 'auto') {
-    case 'full_access':
-      return 'bypassPermissions'
-    case 'auto':
-      return 'auto'
-  }
+function toSdkPermissionMode(mode: PermissionMode | undefined) {
+  return mode === 'full_access' ? 'bypassPermissions' : 'auto'
 }
 
 function resolvedModel(input: TurnInput): string {
@@ -167,31 +165,26 @@ export function createClaudeAdapter(
     }
 
     function denyPending(session: WarmSession) {
-      return Effect.gen(function* () {
-        for (const [itemId, pending] of session.pendingApprovals) {
-          yield* session
-            .emit({
-              type: 'item.completed',
-              itemId,
-              patch: { decision: 'deny' satisfies ApprovalDecision },
-            })
-            .pipe(Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error))))
-          session.pendingApprovals.delete(itemId)
-          yield* Deferred.succeed(pending.result, { behavior: 'deny', message: 'Denied by user' })
-        }
-        session.pendingApprovals.clear()
-        for (const [itemId, pending] of session.pendingQuestions) {
-          yield* session
-            .emit({ type: 'item.completed', itemId, patch: { skipped: true } })
-            .pipe(Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error))))
-          session.pendingQuestions.delete(itemId)
-          yield* Deferred.succeed(pending.result, {
-            behavior: 'deny',
-            message: 'The user did not answer the questions',
-          })
-        }
-        session.pendingQuestions.clear()
-      })
+      function deny(
+        pending: Map<string, PendingApproval>,
+        patch: { decision: ApprovalDecision } | { skipped: true },
+        message: string
+      ) {
+        return Effect.gen(function* () {
+          for (const [itemId, { result }] of pending) {
+            yield* session
+              .emit({ type: 'item.completed', itemId, patch })
+              .pipe(Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error))))
+            pending.delete(itemId)
+            yield* Deferred.succeed(result, { behavior: 'deny', message })
+          }
+        })
+      }
+      return deny(session.pendingApprovals, { decision: 'deny' }, 'Denied by user').pipe(
+        Effect.andThen(
+          deny(session.pendingQuestions, { skipped: true }, 'The user did not answer the questions')
+        )
+      )
     }
 
     function closeResources(
@@ -293,9 +286,9 @@ export function createClaudeAdapter(
             next: () => iterator.next(),
             return() {
               closeQuery(session)
-              return iterator.return
-                ? iterator.return()
-                : Promise.resolve({ done: true as const, value: undefined })
+              return (
+                iterator.return?.() ?? Promise.resolve({ done: true as const, value: undefined })
+              )
             },
           }
         },
@@ -313,7 +306,7 @@ export function createClaudeAdapter(
               )
             }
             const events = yield* Effect.try({
-              try: () => translate(message as Parameters<typeof translate>[0], session.ctx),
+              try: () => translate(message as SdkLikeMessage, session.ctx),
               catch: (error) => new AgentError(String(error)),
             })
             if (session.ctx.sessionId) {
@@ -343,6 +336,109 @@ export function createClaudeAdapter(
       )
     }
 
+    function requestPermission(
+      session: WarmSession,
+      toolName: string,
+      toolInput: Record<string, unknown>,
+      options: Parameters<NonNullable<Options['canUseTool']>>[2]
+    ) {
+      return Effect.gen(function* () {
+        const result = yield* Deferred.make<PermissionResult>()
+        yield* session.publication.withPermit(
+          Effect.gen(function* () {
+            if (!current(session) || !session.accepting) {
+              yield* Deferred.succeed(result, {
+                behavior: 'deny',
+                message: 'Session closed',
+              })
+              return
+            }
+            if (AUTO_ALLOWED_TOOLS.has(toolName)) {
+              yield* Deferred.succeed(result, {
+                behavior: 'allow',
+                updatedInput: toolInput,
+              })
+              return
+            }
+            const itemId = newId()
+            if (toolName === 'AskUserQuestion') {
+              const parsed = Schema.decodeUnknownResult(Schema.Array(QuestionSpec))(
+                (toolInput as { questions?: unknown }).questions
+              )
+              if (Result.isFailure(parsed)) {
+                yield* Deferred.succeed(result, {
+                  behavior: 'deny',
+                  message: 'Malformed questions',
+                })
+                return
+              }
+              session.pendingQuestions.set(itemId, { result, input: toolInput })
+              yield* session.emit({
+                type: 'item.started',
+                item: {
+                  id: itemId,
+                  turnId: session.activeTurnId,
+                  createdAt: Date.now(),
+                  kind: 'question',
+                  questions: parsed.success,
+                },
+              })
+            } else {
+              session.pendingApprovals.set(itemId, { result, input: toolInput })
+              yield* session.emit({
+                type: 'item.started',
+                item: {
+                  id: itemId,
+                  turnId: session.activeTurnId,
+                  createdAt: Date.now(),
+                  kind: 'approval',
+                  title: options.title ?? toolName,
+                  toolName,
+                  input: toolInput,
+                  suggestions: options.suggestions ?? [],
+                },
+              })
+            }
+            yield* session.emit({ type: 'session.status', status: 'awaiting_approval' })
+          }).pipe(
+            Effect.onError(() =>
+              Effect.sync(() => {
+                session.accepting = false
+              })
+            )
+          )
+        )
+        return yield* Deferred.await(result)
+      }).pipe(Effect.onError(() => retire(session, 'Unable to complete tool permission')))
+    }
+
+    function resolvePending(
+      threadId: string,
+      itemId: string,
+      pendingOf: (session: WarmSession) => Map<string, PendingApproval>,
+      patch: Record<string, unknown>,
+      result: (pending: PendingApproval) => PermissionResult
+    ) {
+      return Effect.suspend(() => {
+        const session = sessions.get(threadId)
+        if (!session) return Effect.succeed(false)
+        return session.publication
+          .withPermit(
+            Effect.gen(function* () {
+              const pending = pendingOf(session).get(itemId)
+              if (!current(session) || !session.accepting || !pending) return false
+              yield* session.emit({ type: 'item.completed', itemId, patch })
+              pendingOf(session).delete(itemId)
+              yield* session
+                .emit({ type: 'session.status', status: 'running' })
+                .pipe(Effect.ensuring(Deferred.succeed(pending.result, result(pending))))
+              return true
+            })
+          )
+          .pipe(Effect.uninterruptible)
+      })
+    }
+
     function spawnSession(input: TurnInput, emit: Emit, projectPath: string) {
       return Effect.gen(function* () {
         const scope = yield* Scope.fork(owner)
@@ -350,93 +446,18 @@ export function createClaudeAdapter(
         const done = yield* Deferred.make<void, AgentError>()
         let session: WarmSession | undefined
 
-        function callback<A>(effect: Effect.Effect<A, AgentError>, signal?: AbortSignal) {
-          return run(
+        const canUseTool: NonNullable<Options['canUseTool']> = (toolName, toolInput, options) =>
+          run(
             Effect.gen(function* () {
               if (!session || !current(session))
                 return yield* Effect.fail(new AgentError('Session closed'))
-              const fiber = yield* Effect.forkIn(effect, scope)
+              const fiber = yield* Effect.forkIn(
+                requestPermission(session, toolName, toolInput, options),
+                scope
+              )
               return yield* Fiber.join(fiber).pipe(Effect.onInterrupt(() => Fiber.interrupt(fiber)))
             }),
-            { signal }
-          )
-        }
-
-        const canUseTool: NonNullable<Options['canUseTool']> = (toolName, toolInput, options) =>
-          callback(
-            Effect.gen(function* () {
-              if (!session) return { behavior: 'deny' as const, message: 'Session closed' }
-              const target = session
-              return yield* Effect.gen(function* () {
-                const result = yield* Deferred.make<PermissionResult>()
-                yield* target.publication.withPermit(
-                  Effect.gen(function* () {
-                    if (!current(target) || !target.accepting) {
-                      yield* Deferred.succeed(result, {
-                        behavior: 'deny',
-                        message: 'Session closed',
-                      })
-                      return
-                    }
-                    if (AUTO_ALLOWED_TOOLS.has(toolName)) {
-                      yield* Deferred.succeed(result, {
-                        behavior: 'allow',
-                        updatedInput: toolInput,
-                      })
-                      return
-                    }
-                    const itemId = newId()
-                    if (toolName === 'AskUserQuestion') {
-                      const parsed = Schema.decodeUnknownResult(Schema.Array(QuestionSpec))(
-                        (toolInput as { questions?: unknown }).questions
-                      )
-                      if (Result.isFailure(parsed)) {
-                        yield* Deferred.succeed(result, {
-                          behavior: 'deny',
-                          message: 'Malformed questions',
-                        })
-                        return
-                      }
-                      target.pendingQuestions.set(itemId, { result, input: toolInput })
-                      yield* target.emit({
-                        type: 'item.started',
-                        item: {
-                          id: itemId,
-                          turnId: target.activeTurnId,
-                          createdAt: Date.now(),
-                          kind: 'question',
-                          questions: parsed.success,
-                        },
-                      })
-                    } else {
-                      target.pendingApprovals.set(itemId, { result, input: toolInput })
-                      yield* target.emit({
-                        type: 'item.started',
-                        item: {
-                          id: itemId,
-                          turnId: target.activeTurnId,
-                          createdAt: Date.now(),
-                          kind: 'approval',
-                          title: options.title ?? toolName,
-                          toolName,
-                          input: toolInput,
-                          suggestions: options.suggestions ?? [],
-                        },
-                      })
-                    }
-                    yield* target.emit({ type: 'session.status', status: 'awaiting_approval' })
-                  }).pipe(
-                    Effect.onError(() =>
-                      Effect.sync(() => {
-                        target.accepting = false
-                      })
-                    )
-                  )
-                )
-                return yield* Deferred.await(result)
-              }).pipe(Effect.onError(() => retire(target, 'Unable to complete tool permission')))
-            }),
-            options.signal
+            { signal: options.signal }
           ).catch(() => ({ behavior: 'deny' as const, message: 'Session closed' }))
 
         const jetty = yield* createJettyMcpServer({
@@ -630,70 +651,30 @@ export function createClaudeAdapter(
         })
       },
       respondToApproval(threadId, itemId, decision, message, updatedPermissions) {
-        return Effect.suspend(() => {
-          const session = sessions.get(threadId)
-          if (!session) return Effect.succeed(false)
-          return session.publication
-            .withPermit(
-              Effect.gen(function* () {
-                const pending = session.pendingApprovals.get(itemId)
-                if (!current(session) || !session.accepting || !pending) return false
-                const reason = message?.trim() || undefined
-                yield* session.emit({
-                  type: 'item.completed',
-                  itemId,
-                  patch: {
-                    decision,
-                    ...(decision === 'deny' && reason ? { deniedReason: reason } : {}),
-                  },
-                })
-                session.pendingApprovals.delete(itemId)
-                yield* session.emit({ type: 'session.status', status: 'running' }).pipe(
-                  Effect.ensuring(
-                    Deferred.succeed(
-                      pending.result,
-                      decision === 'allow'
-                        ? {
-                            behavior: 'allow',
-                            updatedInput: pending.input,
-                            updatedPermissions: updatedPermissions as
-                              | PermissionUpdate[]
-                              | undefined,
-                          }
-                        : { behavior: 'deny', message: reason ?? 'Denied by user' }
-                    )
-                  )
-                )
-                return true
-              })
-            )
-            .pipe(Effect.uninterruptible)
-        })
+        const reason = message?.trim() || undefined
+        return resolvePending(
+          threadId,
+          itemId,
+          (session) => session.pendingApprovals,
+          { decision, ...(decision === 'deny' && reason ? { deniedReason: reason } : {}) },
+          (pending) =>
+            decision === 'allow'
+              ? {
+                  behavior: 'allow',
+                  updatedInput: pending.input,
+                  updatedPermissions: updatedPermissions as PermissionUpdate[] | undefined,
+                }
+              : { behavior: 'deny', message: reason ?? 'Denied by user' }
+        )
       },
       respondToQuestion(threadId, itemId, answers) {
-        return Effect.suspend(() => {
-          const session = sessions.get(threadId)
-          if (!session) return Effect.succeed(false)
-          return session.publication
-            .withPermit(
-              Effect.gen(function* () {
-                const pending = session.pendingQuestions.get(itemId)
-                if (!current(session) || !session.accepting || !pending) return false
-                yield* session.emit({ type: 'item.completed', itemId, patch: { answers } })
-                session.pendingQuestions.delete(itemId)
-                yield* session.emit({ type: 'session.status', status: 'running' }).pipe(
-                  Effect.ensuring(
-                    Deferred.succeed(pending.result, {
-                      behavior: 'allow',
-                      updatedInput: { ...pending.input, answers },
-                    })
-                  )
-                )
-                return true
-              })
-            )
-            .pipe(Effect.uninterruptible)
-        })
+        return resolvePending(
+          threadId,
+          itemId,
+          (session) => session.pendingQuestions,
+          { answers },
+          (pending) => ({ behavior: 'allow', updatedInput: { ...pending.input, answers } })
+        )
       },
     } satisfies Agent
   })

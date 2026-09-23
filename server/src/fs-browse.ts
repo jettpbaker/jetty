@@ -7,21 +7,16 @@ export type BrowseResult = { parentPath: string; entries: BrowseEntry[] }
 
 const MAX_ENTRIES = 50
 
-/** Expand a leading `~` to the home directory; other paths pass through. */
 export function expandHome(input: string): string {
   if (input === '~') return homedir()
   if (input.startsWith('~/')) return join(homedir(), input.slice(2))
   return input
 }
 
-/** Absolute, symlink-preserving normalization of a user-entered path. */
 export function normalizePath(input: string): string {
   return resolve(expandHome(input))
 }
 
-// A trailing slash means "list this directory"; otherwise the last segment is a
-// case-insensitive prefix filter against its parent. Directories only, dotfiles
-// hidden unless the filter segment itself is dotted. A missing parent lists empty.
 export function browse(partialPath: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem

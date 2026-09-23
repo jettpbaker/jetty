@@ -1,18 +1,10 @@
-/** Included allowances only. Wallet balances / paid overage are deliberately separate.
- * Windows come from the connected account, not a hard-coded plan-to-limit table.
- * References (checked 2026-09-17):
- * Claude: https://support.claude.com/en/articles/11049741-what-is-the-max-plan
- * Codex: https://learn.chatgpt.com/docs/pricing
- * Grok: https://docs.x.ai/grok/faq
- * Copilot: https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing
- */
+// Included allowances only; wallet balances and paid overage are deliberately separate.
 export type UsageWindow = {
   id: string
-  period: 'five-hour' | 'weekly' | 'calendar-month'
   label: string
   scope: string
-  usedPercent: number | null
-  resetsAt: number | null
+  usedPercent: number
+  resetsAt: number
 }
 
 export type ProviderUsage = {
@@ -22,10 +14,8 @@ export type ProviderUsage = {
   windows: UsageWindow[]
 }
 
-// Design fixtures, not live account usage. Include every provider for comparison.
 export function createUsagePreview(now: number): ProviderUsage[] {
   const hours = (value: number) => now + value * 3_600_000
-  const date = new Date(now)
   return [
     {
       id: 'anthropic',
@@ -34,7 +24,6 @@ export function createUsagePreview(now: number): ProviderUsage[] {
       windows: [
         {
           id: 'session',
-          period: 'five-hour',
           label: '5 hour',
           scope: 'Shared across Claude and Claude Code',
           usedPercent: 67,
@@ -42,7 +31,6 @@ export function createUsagePreview(now: number): ProviderUsage[] {
         },
         {
           id: 'weekly',
-          period: 'weekly',
           label: 'Weekly',
           scope: 'All models',
           usedPercent: 19,
@@ -57,7 +45,6 @@ export function createUsagePreview(now: number): ProviderUsage[] {
       windows: [
         {
           id: 'session',
-          period: 'five-hour',
           label: '5 hour',
           scope: 'Shared local and cloud usage',
           usedPercent: 32,
@@ -65,7 +52,6 @@ export function createUsagePreview(now: number): ProviderUsage[] {
         },
         {
           id: 'weekly',
-          period: 'weekly',
           label: 'Weekly',
           scope: 'Account weekly allowance, when applicable',
           usedPercent: 48,
@@ -80,7 +66,6 @@ export function createUsagePreview(now: number): ProviderUsage[] {
       windows: [
         {
           id: 'weekly',
-          period: 'weekly',
           label: 'Weekly',
           scope: 'Shared across Grok products',
           usedPercent: 86,
@@ -92,22 +77,12 @@ export function createUsagePreview(now: number): ProviderUsage[] {
       id: 'copilot',
       name: 'Copilot',
       plan: 'Pro',
-      windows: [
-        {
-          id: 'monthly',
-          period: 'calendar-month',
-          label: 'Monthly',
-          scope: 'Included plan allowance · resets on the 1st at 00:00 UTC',
-          usedPercent: 24,
-          resetsAt: Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1),
-        },
-      ],
+      windows: [],
     },
   ]
 }
 
-export function usageResetLabel(resetsAt: number | null, now: number): string {
-  if (resetsAt === null) return 'Reset time unavailable'
+export function usageResetLabel(resetsAt: number, now: number): string {
   const minutes = Math.ceil((resetsAt - now) / 60_000)
   if (minutes <= 0) return 'Reset pending'
   if (minutes >= 1440)

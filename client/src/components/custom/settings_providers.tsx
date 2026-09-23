@@ -5,6 +5,7 @@ import { storage } from '@/platform'
 import { CheckIcon, CopyIcon, ArrowClockwiseIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
+import { copilotModels, loadoutCatalog } from './settings_loadout_model'
 import './settings_sections.css'
 
 export const providerOptions = [
@@ -12,62 +13,45 @@ export const providerOptions = [
     id: 'anthropic',
     name: 'Claude',
     product: 'Claude Code',
-    command: 'claude',
     login: 'claude auth login',
-    models: 'Fable, Opus, Sonnet, Haiku',
-    auth: 'Claude subscription',
     ready: true,
   },
-  {
-    id: 'openai',
-    name: 'Codex',
-    product: 'OpenAI Codex',
-    command: 'codex',
-    login: 'codex login',
-    models: 'GPT-6 Astra, GPT-5.6 Sol, GPT-5.5',
-    auth: 'ChatGPT subscription',
-    ready: true,
-  },
-  {
-    id: 'xai',
-    name: 'Grok',
-    product: 'Grok',
-    command: 'grok',
-    login: 'grok login',
-    models: 'Grok 4.5, Grok 4.6',
-    auth: 'xAI account',
-    ready: true,
-  },
+  { id: 'openai', name: 'Codex', product: 'OpenAI Codex', login: 'codex login', ready: true },
+  { id: 'xai', name: 'Grok', product: 'Grok', login: 'grok login', ready: true },
   {
     id: 'copilot',
     name: 'Copilot',
     product: 'GitHub Copilot',
-    command: 'copilot',
     login: 'copilot login',
-    models: 'Claude, GPT, Gemini, Grok',
-    auth: 'GitHub account',
     ready: false,
   },
 ] as const
 export type ProviderId = (typeof providerOptions)[number]['id']
 export type ProviderEnabled = Record<ProviderId, boolean>
+
+const enabledKey = 'jetty.provider-enabled'
+
 export function loadProviderEnabled(): ProviderEnabled {
-  const defaults = { anthropic: true, openai: true, xai: false, copilot: true }
+  const enabled = { anthropic: true, openai: true, xai: false, copilot: true }
   try {
-    const saved = JSON.parse(storage.get('jetty.provider-enabled') ?? '{}')
+    const saved = JSON.parse(storage.get(enabledKey) ?? '{}')
     for (const item of providerOptions)
-      if (typeof saved?.[item.id] === 'boolean') defaults[item.id] = saved[item.id]
+      if (typeof saved?.[item.id] === 'boolean') enabled[item.id] = saved[item.id]
   } catch {
-    /* Use the preview defaults. */
+    return enabled
   }
-  return defaults
+  return enabled
 }
-const modelOptions: Record<ProviderId, string[]> = {
-  anthropic: ['Fable 5.1', 'Opus 5', 'Sonnet 5', 'Haiku 5'],
-  openai: ['GPT-6 Astra', 'GPT-5.6 Sol', 'GPT-5.5'],
-  xai: ['Grok 4.5', 'Grok 4.6'],
-  copilot: ['GPT-6 Astra', 'Claude Sonnet 5', 'Gemini 3.8 Flash', 'Grok 4.6'],
+
+export function saveProviderEnabled(enabled: ProviderEnabled) {
+  storage.set(enabledKey, JSON.stringify(enabled))
 }
+
+function providerModels(id: ProviderId) {
+  if (id === 'copilot') return copilotModels
+  return loadoutCatalog.filter((model) => model.provider === id).map((model) => model.name)
+}
+
 const plans: Record<ProviderId, string> = {
   anthropic: 'Max 5×',
   openai: 'Pro 5×',
@@ -85,12 +69,12 @@ const cliSetup: Record<ProviderId, { name: string; url: string }> = {
   },
 }
 
-function ProviderLogo({ id, className = '' }: { id: ProviderId; className?: string }) {
+function ProviderLogo({ id, className }: { id: ProviderId; className: string }) {
   return (
     <span
       aria-hidden='true'
-      className={`provider-icon shrink-0 ${className}`}
-      style={{ maskImage: `url(${providerLogoPath(id)})`, backgroundColor: 'currentColor' }}
+      className={`provider-icon ${className}`}
+      style={{ maskImage: `url(${providerLogoPath(id)})` }}
     />
   )
 }
@@ -110,7 +94,7 @@ export function SettingsProviders({
   const [modelEnabled, setModelEnabled] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
-  const active = enabled[selected]
+  const usable = enabled[selected] && provider.ready
   function select(id: ProviderId) {
     onSelect(id)
     setCopied(false)
@@ -175,7 +159,7 @@ export function SettingsProviders({
             </p>
           </div>
         </div>
-        {(!active || !provider.ready) && (
+        {!usable && (
           <p className='text-xs leading-relaxed text-muted-foreground'>
             Install and sign in to the{' '}
             <a
@@ -189,7 +173,7 @@ export function SettingsProviders({
             to use {provider.name} models.
           </p>
         )}
-        {active && !provider.ready && (
+        {enabled[selected] && !provider.ready && (
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between gap-2 rounded-menu-item border border-border px-3 py-1.5'>
               <code className='text-xs'>{provider.login}</code>
@@ -236,16 +220,16 @@ export function SettingsProviders({
             aria-label={`${provider.name} model availability`}
             tabIndex={0}
           >
-            {modelOptions[selected].map((name) => (
+            {providerModels(selected).map((name) => (
               <label
                 key={name}
-                className={`flex min-h-8 items-center justify-between gap-3 text-13 ${!active || !provider.ready ? 'text-disabled-foreground' : ''}`}
+                className={`flex min-h-8 items-center justify-between gap-3 text-13 ${usable ? '' : 'text-disabled-foreground'}`}
               >
                 <span>{name}</span>
                 <Switch
                   size='sm'
                   aria-label={`Enable ${name}`}
-                  disabled={!active || !provider.ready}
+                  disabled={!usable}
                   checked={modelEnabled[`${selected}:${name}`] ?? true}
                   onCheckedChange={(checked) =>
                     setModelEnabled((current) => ({ ...current, [`${selected}:${name}`]: checked }))

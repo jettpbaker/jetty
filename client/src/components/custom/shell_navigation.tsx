@@ -6,6 +6,9 @@ import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
+const widthTransition =
+  'transition-[width] duration-(--motion-sidebar-open-duration) data-[sidebar-open=false]:duration-(--motion-sidebar-close-duration) ease-(--motion-sidebar-ease) motion-reduce:transition-none'
+
 const indexOf = (history: RouterHistory) => history.location.state.__TSR_index
 
 function useHistoryPosition() {
@@ -50,7 +53,7 @@ export function ShellNavigation() {
       aria-label='Thread navigation'
       data-slot='shell-navigation'
       data-sidebar-open={expanded}
-      className='app-shell-navigation absolute left-1.5 top-1.5 z-30 flex shrink-0 items-center justify-between gap-1 transition-[width] duration-(--motion-sidebar-open-duration) data-[sidebar-open=false]:duration-(--motion-sidebar-close-duration) ease-(--motion-sidebar-ease) motion-reduce:transition-none'
+      className={`app-shell-navigation absolute left-1.5 top-1.5 z-30 flex shrink-0 items-center justify-between gap-1 ${widthTransition}`}
       style={{ width }}
     >
       <SidebarTrigger
@@ -94,7 +97,7 @@ export function ShellNavigationSpace() {
     <div
       aria-hidden='true'
       data-sidebar-open={expanded}
-      className='shrink-0 transition-[width] duration-(--motion-sidebar-open-duration) data-[sidebar-open=false]:duration-(--motion-sidebar-close-duration) ease-(--motion-sidebar-ease) motion-reduce:transition-none'
+      className={`shrink-0 ${widthTransition}`}
       style={{ width }}
     />
   )

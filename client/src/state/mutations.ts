@@ -1,12 +1,11 @@
-import type { Connection } from '@/net/connection'
 import type { ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
-import { RegistryContext } from '@effect/atom-react'
-import { Deferred, Effect, Exit } from 'effect'
-import { Atom, AtomRegistry } from 'effect/unstable/reactivity'
-import { useCallback, useContext } from 'react'
+import { Effect, Fiber } from 'effect'
+import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 
-import { connectionAtom } from './connection'
+import { run, useAction } from './connection'
+
+type Registry = AtomRegistry.AtomRegistry
 
 export type ThreadPatch = { title?: string; pinned?: boolean; provider?: ProviderId }
 
@@ -23,31 +22,30 @@ export const deletedThreadsAtom = Atom.make<ReadonlySet<string>>(new Set<string>
   Atom.keepAlive
 )
 
-const creations = new Map<string, Deferred.Deferred<void, unknown>>()
+export function without<V>(map: ReadonlyMap<string, V>, keys: readonly string[]) {
+  if (!keys.some((key) => map.has(key))) return map
+  const next = new Map(map)
+  for (const key of keys) next.delete(key)
+  return next
+}
 
-/** Resolves once the server knows the thread, so `thread.subscribe` never races `thread.create`. */
+export function withoutId(set: ReadonlySet<string>, id: string) {
+  if (!set.has(id)) return set
+  const next = new Set(set)
+  next.delete(id)
+  return next
+}
+
+const creations = new Map<string, Fiber.Fiber<unknown, unknown>>()
+
+// Resolves once the server knows the thread, so thread.subscribe never races thread.create.
 export function awaitCreation(threadId: string) {
   const creation = creations.get(threadId)
-  return creation ? Deferred.await(creation) : Effect.void
+  return creation ? Fiber.join(creation) : Effect.void
 }
 
-function run<A, E>(
-  registry: AtomRegistry.AtomRegistry,
-  request: (connection: Connection) => Effect.Effect<A, E>,
-  onExit: (exit: Exit.Exit<A, E>) => void
-) {
-  Effect.runFork(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap(request),
-      Effect.onExit((exit) => Effect.sync(() => onExit(exit)))
-    )
-  )
-}
-
-function createThread(registry: AtomRegistry.AtomRegistry, projectId: string) {
+function createThread(registry: Registry, projectId: string) {
   const id = crypto.randomUUID()
-  const creation = Deferred.makeUnsafe<void, unknown>()
-  creations.set(id, creation)
   registry.update(createdThreadsAtom, (threads) =>
     new Map(threads).set(id, {
       id,
@@ -59,50 +57,35 @@ function createThread(registry: AtomRegistry.AtomRegistry, projectId: string) {
       updatedAt: Date.now(),
     })
   )
-  run(
+  const creation = run(
     registry,
     (connection) => connection.request('thread.create', { id, projectId }),
-    (exit) => {
-      creations.delete(id)
-      Deferred.doneUnsafe(creation, Exit.asVoid(exit))
-      if (Exit.isSuccess(exit)) return
-      registry.update(createdThreadsAtom, (threads) => {
-        const next = new Map(threads)
-        next.delete(id)
-        return next
-      })
-    }
+    () => registry.update(createdThreadsAtom, (threads) => without(threads, [id]))
   )
+  creations.set(id, creation)
+  creation.addObserver(() => creations.delete(id))
   return id
 }
 
-function setPatch(registry: AtomRegistry.AtomRegistry, threadId: string, patch: ThreadPatch) {
-  registry.update(threadPatchesAtom, (patches) => {
-    const next = new Map(patches)
-    next.set(threadId, { ...next.get(threadId), ...patch })
-    return next
-  })
+export function setPatch(registry: Registry, threadId: string, patch: ThreadPatch) {
+  registry.update(threadPatchesAtom, (patches) =>
+    new Map(patches).set(threadId, { ...patches.get(threadId), ...patch })
+  )
 }
 
-function clearPatch(registry: AtomRegistry.AtomRegistry, threadId: string, key: keyof ThreadPatch) {
+export function clearPatch(registry: Registry, threadId: string, key: keyof ThreadPatch) {
   registry.update(threadPatchesAtom, (patches) => {
     const current = patches.get(threadId)
-    if (!current || current[key] === undefined) return patches
-    const nextPatch = { ...current }
-    delete nextPatch[key]
-    const next = new Map(patches)
-    if (
-      nextPatch.title === undefined &&
-      nextPatch.pinned === undefined &&
-      nextPatch.provider === undefined
-    )
-      next.delete(threadId)
-    else next.set(threadId, nextPatch)
-    return next
+    if (current?.[key] === undefined) return patches
+    const patch = { ...current }
+    delete patch[key]
+    return Object.keys(patch).length === 0
+      ? without(patches, [threadId])
+      : new Map(patches).set(threadId, patch)
   })
 }
 
-function renameThread(registry: AtomRegistry.AtomRegistry, threadId: string, title: string) {
+function renameThread(registry: Registry, threadId: string, title: string) {
   const trimmed = title.trim()
   if (!trimmed) return
   setPatch(registry, threadId, { title: trimmed })
@@ -112,14 +95,11 @@ function renameThread(registry: AtomRegistry.AtomRegistry, threadId: string, tit
       awaitCreation(threadId).pipe(
         Effect.andThen(connection.request('thread.rename', { threadId, title: trimmed }))
       ),
-    (exit) => {
-      if (Exit.isSuccess(exit)) return
-      clearPatch(registry, threadId, 'title')
-    }
+    () => clearPatch(registry, threadId, 'title')
   )
 }
 
-function pinThread(registry: AtomRegistry.AtomRegistry, threadId: string, pinned: boolean) {
+function pinThread(registry: Registry, threadId: string, pinned: boolean) {
   setPatch(registry, threadId, { pinned })
   run(
     registry,
@@ -127,14 +107,11 @@ function pinThread(registry: AtomRegistry.AtomRegistry, threadId: string, pinned
       awaitCreation(threadId).pipe(
         Effect.andThen(connection.request('thread.pin', { threadId, pinned }))
       ),
-    (exit) => {
-      if (Exit.isSuccess(exit)) return
-      clearPatch(registry, threadId, 'pinned')
-    }
+    () => clearPatch(registry, threadId, 'pinned')
   )
 }
 
-function deleteThread(registry: AtomRegistry.AtomRegistry, threadId: string) {
+function deleteThread(registry: Registry, threadId: string) {
   registry.update(deletedThreadsAtom, (deleted) => new Set(deleted).add(threadId))
   run(
     registry,
@@ -142,61 +119,35 @@ function deleteThread(registry: AtomRegistry.AtomRegistry, threadId: string) {
       awaitCreation(threadId).pipe(
         Effect.andThen(connection.request('thread.delete', { threadId }))
       ),
-    (exit) => {
-      if (Exit.isSuccess(exit)) return
-      registry.update(deletedThreadsAtom, (deleted) => {
-        const next = new Set(deleted)
-        next.delete(threadId)
-        return next
-      })
-    }
+    () => registry.update(deletedThreadsAtom, (deleted) => withoutId(deleted, threadId))
   )
 }
 
-function archiveThread(registry: AtomRegistry.AtomRegistry, threadId: string) {
+function archiveThread(registry: Registry, threadId: string) {
   registry.update(archivedThreadsAtom, (archived) => new Set(archived).add(threadId))
   run(
     registry,
     (connection) => connection.request('thread.archive', { threadId }),
-    (exit) => {
-      if (Exit.isSuccess(exit)) return
-      registry.update(archivedThreadsAtom, (archived) => {
-        const next = new Set(archived)
-        next.delete(threadId)
-        return next
-      })
-    }
+    () => registry.update(archivedThreadsAtom, (archived) => withoutId(archived, threadId))
   )
 }
 
-/** Returns the new thread's id immediately; the server call runs in the background. */
 export function useCreateThread() {
-  const registry = useContext(RegistryContext)
-  return useCallback((projectId: string) => createThread(registry, projectId), [registry])
+  return useAction(createThread)
 }
 
 export function useArchiveThread() {
-  const registry = useContext(RegistryContext)
-  return useCallback((threadId: string) => archiveThread(registry, threadId), [registry])
+  return useAction(archiveThread)
 }
 
 export function useRenameThread() {
-  const registry = useContext(RegistryContext)
-  return useCallback(
-    (threadId: string, title: string) => renameThread(registry, threadId, title),
-    [registry]
-  )
+  return useAction(renameThread)
 }
 
 export function usePinThread() {
-  const registry = useContext(RegistryContext)
-  return useCallback(
-    (threadId: string, pinned: boolean) => pinThread(registry, threadId, pinned),
-    [registry]
-  )
+  return useAction(pinThread)
 }
 
 export function useDeleteThread() {
-  const registry = useContext(RegistryContext)
-  return useCallback((threadId: string) => deleteThread(registry, threadId), [registry])
+  return useAction(deleteThread)
 }

@@ -1,4 +1,3 @@
-/* Only theme switches get these rules; ordinary controls keep their own motion. */
 html[data-theme-transition='off'] *,
 html[data-theme-transition='crossfade'] * {
   transition: none !important;

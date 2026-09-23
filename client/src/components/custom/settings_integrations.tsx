@@ -4,8 +4,8 @@ import { ArrowClockwiseIcon, ArrowUpRightIcon, CheckIcon, CopyIcon } from '@phos
 import { MarkGithubIcon } from '@primer/octicons-react'
 import { useState, type ReactNode } from 'react'
 
-type ConnectionState = 'connected' | 'signed-out' | 'missing' | 'error'
-const examples: { state: ConnectionState; detail: string }[] = [
+type Example = { state: 'connected' | 'signed-out' | 'missing' | 'error'; detail: string }
+const examples: Example[] = [
   { state: 'connected', detail: 'Connected through GitHub CLI' },
   { state: 'signed-out', detail: 'Sign in with GitHub CLI' },
   { state: 'missing', detail: 'GitHub CLI isn’t installed' },
@@ -25,7 +25,7 @@ function ActionIcon({ children }: { children: ReactNode }) {
   )
 }
 
-function GitHubConnection({ example }: { example: (typeof examples)[number] }) {
+function GitHubConnection({ example }: { example: Example }) {
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const connected = example.state === 'connected'
@@ -121,7 +121,6 @@ function GitHubConnection({ example }: { example: (typeof examples)[number] }) {
   )
 }
 
-/** All states shown for design review; no authentication or commands are executed. */
 export function SettingsIntegrations() {
   return (
     <div className='flex flex-col gap-6'>

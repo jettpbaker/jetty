@@ -12,16 +12,17 @@ export function QuestionMessage({
   onAnswer,
 }: {
   item: QuestionItem
-  onAnswer?: (answers: Record<string, string>) => void
+  onAnswer: (answers: Record<string, string>) => void
 }) {
   const [picks, setPicks] = useState<Readonly<Record<string, readonly string[]>>>({})
-  const only = item.questions.length === 1 ? item.questions[0] : undefined
-  const interactive = Boolean(onAnswer) && !item.answers && !item.skipped
-  const singleClick = Boolean(interactive && only && !only.multiSelect)
+  const interactive = !item.answers && !item.skipped
+  const singleClick = interactive && item.questions.length === 1 && !item.questions[0]!.multiSelect
+  const ready =
+    item.questions.length > 0 &&
+    item.questions.every((spec) => (picks[spec.question]?.length ?? 0) > 0)
 
   function choose(question: string, label: string, multi: boolean) {
-    if (!onAnswer) return
-    if (!multi && item.questions.length === 1) {
+    if (singleClick) {
       onAnswer({ [question]: label })
       return
     }
@@ -37,19 +38,12 @@ export function QuestionMessage({
   }
 
   function submit() {
-    if (!onAnswer) return
-    const answers: Record<string, string> = {}
-    for (const spec of item.questions) {
-      const selected = picks[spec.question] ?? []
-      if (selected.length === 0) return
-      answers[spec.question] = selected.join(',')
-    }
-    onAnswer(answers)
+    onAnswer(
+      Object.fromEntries(
+        item.questions.map((spec) => [spec.question, (picks[spec.question] ?? []).join(',')])
+      )
+    )
   }
-
-  const ready =
-    item.questions.length > 0 &&
-    item.questions.every((spec) => (picks[spec.question]?.length ?? 0) > 0)
 
   return (
     <Message align='start'>
@@ -101,11 +95,7 @@ export function QuestionMessage({
                 Submit
               </Button>
             ) : null}
-            {item.skipped ? (
-              <p className='text-xs text-muted-foreground'>Skipped</p>
-            ) : item.answers || interactive ? null : (
-              <p className='text-xs text-muted-foreground'>Waiting for an answer</p>
-            )}
+            {item.skipped ? <p className='text-xs text-muted-foreground'>Skipped</p> : null}
           </BubbleContent>
         </Bubble>
       </MessageContent>

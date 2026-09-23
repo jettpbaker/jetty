@@ -1,65 +1,52 @@
-.loadout-slots {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-menu-item);
-}
-.loadout-catalog {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-.loadout-slot {
-  aspect-ratio: 1;
-  background: var(--background);
-}
-.loadout-slot-target {
-  position: relative;
-  min-width: 0;
-  min-height: 112px;
-  aspect-ratio: 10 / 9;
-}
-.loadout-slots .loadout-slot {
-  height: 100%;
-  aspect-ratio: auto;
-  background: transparent;
-}
-.loadout-slot-target:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--border);
-  pointer-events: none;
-  z-index: 5;
-}
-.loadout-slot-overlay {
-  background: var(--popover);
-  cursor: grabbing;
-}
 .settings-loadout {
   container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
-@container (min-width: 381px) and (max-width: 600px) {
-  .loadout-catalog {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@container (max-width: 380px) {
-  .loadout-catalog {
-    grid-template-columns: 1fr;
-    gap: 12px;
+@container (max-width: 500px) {
+  .settings-loadout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@container (max-width: 600px) {
-  .loadout-slots {
-    grid-template-columns: repeat(5, minmax(104px, 1fr));
-    overflow-x: auto;
-  }
+.loadout-slot-target {
+  position: relative;
+  height: 64px;
+}
+.loadout-slot-target + .loadout-slot-target {
+  border-top: 1px solid var(--border);
+}
+.loadout-slot-target[data-dragging] {
+  z-index: 20;
+  border-radius: 4px;
+  background: var(--popover);
+  box-shadow: 0 4px 12px #0003;
+}
+.loadout-slot {
+  height: 100%;
+}
+.loadout-slot,
+.loadout-ghost {
+  align-items: center;
+  gap: 18px;
+  padding: 10px 12px;
+}
+[data-equip-logo] {
+  flex: 0 0 32px;
+  transform: translateY(-3px);
+}
+
+.loadout-catalog {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 8px;
+  align-items: start;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-right: 4px;
 }
 
 @media (hover: none) {
@@ -67,82 +54,6 @@
     opacity: 1;
   }
 }
-
-/* V2 keeps the original experiment intact, with an independently saved order. */
-.loadout-v2 {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
-}
-.loadout-v2 .loadout-slots {
-  display: flex;
-  flex-direction: column;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-}
-.loadout-v2 .loadout-slot-target {
-  aspect-ratio: auto;
-  height: 64px;
-  min-height: 64px;
-}
-.loadout-v2 .loadout-slot-target::after {
-  display: none;
-}
-.loadout-v2 .loadout-slot-target + .loadout-slot-target {
-  border-top: 1px solid var(--border);
-}
-.loadout-v2 .loadout-slot {
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  padding: 10px 12px;
-}
-.loadout-v2 [data-equip-logo] {
-  flex: 0 0 32px;
-}
-.loadout-v2 [data-dragging] {
-  z-index: 20;
-  border-radius: 4px;
-  background: var(--popover);
-  box-shadow: 0 4px 12px #0003;
-}
-.loadout-v2 .loadout-slot-empty > div {
-  flex-direction: row;
-  gap: 8px;
-}
-.loadout-v2 .loadout-catalog {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 8px;
-  align-items: start;
-  max-height: 320px;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  padding: 0 4px 0 0;
-}
-.loadout-v2 > [role='status'] {
-  position: absolute;
-}
-@container (max-width: 500px) {
-  .loadout-v2 {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .loadout-v2 .loadout-catalog {
-    padding-top: 0;
-  }
-}
-
-.loadout-v2-ghost {
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  padding: 10px 12px;
-}
-.loadout-v2-ghost [data-equip-logo] {
-  flex: 0 0 32px;
-}
-
 @media (hover: hover) {
   .loadout-slot-empty:hover {
     background: var(--accent);
@@ -165,13 +76,4 @@
   .loadout-slot > [data-equip-details] {
     transition: none;
   }
-}
-
-.loadout-v2 .loadout-config-details,
-.loadout-v2-ghost .loadout-config-details {
-  flex: 1;
-}
-.loadout-v2 [data-equip-logo],
-.loadout-v2-ghost [data-equip-logo] {
-  transform: translateY(-3px);
 }

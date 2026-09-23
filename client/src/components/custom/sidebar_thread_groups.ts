@@ -1,6 +1,18 @@
-import type { SidebarThread } from './app_sidebar'
+import type { ThreadPullRequest } from './thread_row'
+import type { ThreadStatus } from './thread_status'
 
 export type ThreadGrouping = 'project' | 'status' | 'date'
+
+export type SidebarThread = {
+  id: string
+  title: string
+  project: string
+  status: ThreadStatus
+  lastActivity: string
+  updatedAt: number
+  pinned: boolean
+  pullRequest?: ThreadPullRequest
+}
 
 const statusGroups = [
   { id: 'needs-attention', label: 'Needs input' },
@@ -58,9 +70,9 @@ export function groupSidebarThreads(
   threads: SidebarThread[],
   grouping: ThreadGrouping,
   query: string,
-  showPinned: boolean,
-  now = new Date()
+  showPinned: boolean
 ) {
+  const now = new Date()
   const search = query.trim().toLowerCase()
   const filtered = threads
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))

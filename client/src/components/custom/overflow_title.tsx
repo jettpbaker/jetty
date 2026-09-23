@@ -17,18 +17,16 @@ export function OverflowTitle({
   const viewport = useRef<HTMLSpanElement>(null)
   const text = useRef<HTMLSpanElement>(null)
   const [metrics, setMetrics] = useState({ overflow: false, width: 0 })
-  const measured = useRef(metrics)
   useLayoutEffect(() => {
     const frame = viewport.current
     const label = text.current
     if (!frame || !label) return
-    function measure() {
-      if (!frame || !label) return
+    const measure = () => {
       const width = label.getBoundingClientRect().width
       const overflow = width > frame.getBoundingClientRect().width + 1
-      if (measured.current.width === width && measured.current.overflow === overflow) return
-      measured.current = { overflow, width }
-      setMetrics(measured.current)
+      setMetrics((current) =>
+        current.width === width && current.overflow === overflow ? current : { overflow, width }
+      )
     }
     const observer = new ResizeObserver(measure)
     observer.observe(frame)
@@ -36,6 +34,8 @@ export function OverflowTitle({
     measure()
     return () => observer.disconnect()
   }, [children])
+  const content = renderText ? renderText(children) : children
+
   return (
     <span
       ref={viewport}
@@ -56,11 +56,11 @@ export function OverflowTitle({
     >
       <span className='overflow-title-track'>
         <span ref={text} className='overflow-title-text'>
-          {renderText ? renderText(children) : children}
+          {content}
         </span>
         {metrics.overflow && (
           <span className='overflow-title-copy' aria-hidden='true'>
-            {renderText ? renderText(children) : children}
+            {content}
           </span>
         )}
       </span>

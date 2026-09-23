@@ -34,10 +34,12 @@ import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-route
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 
-import type { ThreadPullRequest, ThreadStatus } from './thread_row'
-
 import { SidebarThreadControls } from './sidebar_thread_controls'
-import { groupSidebarThreads, type ThreadGrouping } from './sidebar_thread_groups'
+import {
+  groupSidebarThreads,
+  type SidebarThread,
+  type ThreadGrouping,
+} from './sidebar_thread_groups'
 import { ThreadRow } from './thread_row'
 import { ThreadStatusGlyph, threadStatus } from './thread_status'
 
@@ -52,17 +54,6 @@ const comingSoon = [
   { label: 'Pull requests', icon: GitPullRequestIcon },
 ] as const
 
-export type SidebarThread = {
-  id: string
-  title: string
-  project: string
-  status: ThreadStatus
-  lastActivity: string
-  updatedAt: number
-  pinned: boolean
-  pullRequests: ThreadPullRequest[]
-}
-
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project.title]))
   return chrome.threads
@@ -75,15 +66,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
       lastActivity: formatAge(thread.updatedAt, now),
       updatedAt: thread.updatedAt,
       pinned: thread.pinned,
-      pullRequests: thread.git?.pr
-        ? [
-            {
-              number: thread.git.pr.number,
-              status: thread.git.pr.state,
-              updatedAt: thread.updatedAt,
-            },
-          ]
-        : [],
+      pullRequest: thread.git?.pr ?? undefined,
     }))
 }
 

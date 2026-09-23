@@ -16,12 +16,8 @@ export function isAccent(value: unknown): value is Accent {
 }
 
 export function loadAccent(): Accent {
-  try {
-    const saved = storage.get(storageKey)
-    return isAccent(saved) ? saved : 'lilac'
-  } catch {
-    return 'lilac'
-  }
+  const saved = storage.get(storageKey)
+  return isAccent(saved) ? saved : 'lilac'
 }
 
 export const accentChangeEvent = 'jetty-accent'
@@ -36,10 +32,6 @@ export function setAccent(value: Accent) {
   root.style.removeProperty('--accent-primary-dark')
   delete root.dataset.accentFrom
   root.dataset.accent = value
-  try {
-    storage.set(storageKey, value)
-  } catch {
-    /* Storage may be disabled. */
-  }
+  storage.set(storageKey, value)
   notifyAccentChange()
 }

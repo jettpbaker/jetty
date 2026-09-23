@@ -1,40 +1,47 @@
-import { ThreadStatusGlyph, type ThreadStatus } from '@/components/custom/thread_status'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { RepoIcon } from '@primer/octicons-react'
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  RepoIcon,
+} from '@primer/octicons-react'
 
 import { OverflowTitle } from './overflow_title'
-import { latestPullRequest, prPresentation, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
+import { ThreadStatusGlyph, type ThreadStatus } from './thread_status'
 import './thread_row.css'
 
-export type { ThreadPullRequest } from './thread_pull_request'
-export type { ThreadStatus } from '@/components/custom/thread_status'
-
-type ThreadRowProps = {
-  title: string
-  project: string
-  status: ThreadStatus
-  lastActivity: string
-  pullRequests?: readonly ThreadPullRequest[]
-  selected?: boolean
-  actions?: Omit<ThreadRowActionsProps, 'title'>
-  onSelect: () => void
+const prPresentation = {
+  draft: { icon: GitPullRequestDraftIcon, label: 'Draft', color: 'text-pr-draft' },
+  open: { icon: GitPullRequestIcon, label: 'Open', color: 'text-pr-open' },
+  merged: { icon: GitMergeIcon, label: 'Merged', color: 'text-pr-merged' },
+  closed: { icon: GitPullRequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
 }
+
+export type ThreadPullRequest = { number: number; state: keyof typeof prPresentation }
 
 export function ThreadRow({
   title,
   project,
   status,
   lastActivity,
-  pullRequests = [],
-  selected = false,
-  onSelect,
+  pullRequest,
+  selected,
   actions,
-}: ThreadRowProps) {
-  const latestPr = latestPullRequest(pullRequests)
-  const pr = latestPr ? prPresentation[latestPr.status] : undefined
-  const PrIcon = pr?.icon
+  onSelect,
+}: {
+  title: string
+  project: string
+  status: ThreadStatus
+  lastActivity: string
+  pullRequest?: ThreadPullRequest
+  selected: boolean
+  actions: Omit<ThreadRowActionsProps, 'title'>
+  onSelect: () => void
+}) {
+  const pr = pullRequest && prPresentation[pullRequest.state]
 
   return (
     <div className='thread-row' data-selected={selected || undefined}>
@@ -56,19 +63,17 @@ export function ThreadRow({
             <RepoIcon aria-hidden='true' className='icon-optical-down size-3' />
             <span className='truncate'>{project}</span>
           </span>
-          {latestPr && pr && PrIcon && (
+          {pullRequest && pr && (
             <>
               <span aria-hidden='true' className='shrink-0 text-muted-foreground'>
                 ·
               </span>
               <span
                 className='flex shrink-0 items-center gap-1'
-                title={`${pr.label} PR #${latestPr.number}${pullRequests.length > 1 ? ' · most recently updated' : ''}`}
+                title={`${pr.label} PR #${pullRequest.number}`}
               >
-                <PrIcon aria-hidden='true' className={cn('size-3', pr.color)} />
-                <span className='font-mono'>
-                  {pullRequests.length > 1 ? `${pullRequests.length} PRs` : `#${latestPr.number}`}
-                </span>
+                <pr.icon aria-hidden='true' className={cn('size-3', pr.color)} />
+                <span className='font-mono'>{`#${pullRequest.number}`}</span>
                 <span className='sr-only'>{pr.label}</span>
               </span>
             </>
@@ -85,7 +90,7 @@ export function ThreadRow({
           </span>
         </span>
       </Button>
-      {actions && <ThreadRowActions title={title} {...actions} />}
+      <ThreadRowActions title={title} {...actions} />
     </div>
   )
 }

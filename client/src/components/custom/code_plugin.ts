@@ -9,7 +9,7 @@ import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
 type HighlightResult = NonNullable<ReturnType<CodeHighlighterPlugin['highlight']>>
 
-export const shikiThemes = [githubLight, githubDark] as const
+export const shikiThemes: [typeof githubLight, typeof githubDark] = [githubLight, githubDark]
 
 export function createCodePlugin(): CodeHighlighterPlugin {
   let corePromise: Promise<HighlighterCore> | undefined
@@ -19,7 +19,7 @@ export function createCodePlugin(): CodeHighlighterPlugin {
 
   function core() {
     corePromise ??= createHighlighterCore({
-      themes: [githubLight, githubDark],
+      themes: shikiThemes,
       langs: [],
       engine: createJavaScriptRegexEngine({ forgiving: true }),
     })
@@ -31,7 +31,7 @@ export function createCodePlugin(): CodeHighlighterPlugin {
     type: 'code-highlighter',
     supportsLanguage: (language) => resolveLanguage(language) !== 'text',
     getSupportedLanguages: () => Object.keys(languages),
-    getThemes: () => [githubLight, githubDark],
+    getThemes: () => shikiThemes,
     highlight({ code, language }, callback) {
       const lang = resolveLanguage(language)
       const key = `${lang}:${code}`
@@ -52,10 +52,8 @@ export function createCodePlugin(): CodeHighlighterPlugin {
           const result = highlighter.codeToTokens(code, { lang, themes: themeNames })
           if (results.size >= 512) results.clear()
           results.set(key, result)
-          const callbacks = pending.get(key)
+          for (const notify of pending.get(key) ?? []) notify(result)
           pending.delete(key)
-          if (!callbacks) return
-          for (const notify of callbacks) notify(result)
         })
         .catch(() => {
           pending.delete(key)

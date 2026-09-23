@@ -1,21 +1,19 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
 
 import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
 import { describeToolBatch, type ToolBatch } from './work_model'
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
-  const [open, setOpen] = useState(false)
   const label = describeToolBatch(batch)
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible>
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
-        aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
+        aria-label={`${label.verb} ${label.target}${label.notices ? `, ${label.notices}` : ''}`}
       >
         <span
           className={cn(
@@ -23,32 +21,18 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             label.waiting > 0 && 'text-status-attention'
           )}
         >
-          {label.description ? (
-            <span
-              className={cn(
-                'truncate',
-                label.active && 'shimmer',
-                label.failed && 'text-status-error'
-              )}
-            >
-              {label.description}
-            </span>
-          ) : (
-            <>
-              <span
-                className={cn(
-                  'shrink-0',
-                  label.active && 'shimmer',
-                  label.complete && 'text-foreground'
-                )}
-              >
-                {label.verb}
-              </span>
-              <RollingText key={label.verb} className='font-mono'>
-                {label.target}
-              </RollingText>
-            </>
-          )}
+          <span
+            className={cn(
+              'shrink-0',
+              label.active && 'shimmer',
+              label.complete && 'text-foreground'
+            )}
+          >
+            {label.verb}
+          </span>
+          <RollingText key={label.verb} className='font-mono'>
+            {label.target}
+          </RollingText>
         </span>
         {label.notices && (
           <span
@@ -62,8 +46,8 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         )}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {batch.calls.length === 1 && batch.calls[0] ? (
-          <ToolCallDetails call={batch.calls[0]} />
+        {batch.calls.length === 1 ? (
+          <ToolCallDetails call={batch.calls[0]!} />
         ) : (
           <div className='pb-1'>
             {batch.calls.map((call) => (

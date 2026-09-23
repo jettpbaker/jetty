@@ -52,16 +52,6 @@ const liveAtom = Atom.make((get) =>
   )
 ).pipe(Atom.keepAlive)
 
-function applyPatch(thread: ThreadMeta, patch: ThreadPatch | undefined) {
-  if (!patch) return thread
-  return {
-    ...thread,
-    ...(patch.title !== undefined ? { title: patch.title } : {}),
-    ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
-    ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
-  }
-}
-
 function withPending(
   chrome: Chrome,
   created: ReadonlyMap<string, ThreadMeta>,
@@ -77,12 +67,11 @@ function withPending(
     ...[...created.values()].filter((thread) => !known.has(thread.id)),
   ]
     .filter((thread) => !deleted.has(thread.id))
-    .map((thread) =>
-      applyPatch(
-        archived.has(thread.id) ? { ...thread, archived: true } : thread,
-        patches.get(thread.id)
-      )
-    )
+    .map((thread) => {
+      const patch = patches.get(thread.id)
+      if (archived.has(thread.id)) return { ...thread, ...patch, archived: true }
+      return patch ? { ...thread, ...patch } : thread
+    })
   return { ...chrome, threads }
 }
 

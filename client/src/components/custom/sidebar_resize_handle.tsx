@@ -5,20 +5,19 @@ import './sidebar_resize_handle.css'
 
 type Drag = { startX: number; startWidth: number; width: number; wrapper: HTMLElement }
 
+const min = 200
+const max = 300
+const clamp = (value: number) => Math.min(max, Math.max(min, Math.round(value)))
+
 export function SidebarResizeHandle({
   width,
   onWidthChange,
-  min = 200,
-  max = 300,
 }: {
   width: number
   onWidthChange: (width: number) => void
-  min?: number
-  max?: number
 }) {
   const { open, isMobile } = useSidebar()
   const drag = useRef<Drag | null>(null)
-  const clamp = (value: number) => Math.min(max, Math.max(min, Math.round(value)))
 
   function start(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return

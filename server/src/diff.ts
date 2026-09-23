@@ -5,17 +5,8 @@ import { git } from './git-process'
 
 export type ThreadDiff = { diff: string; truncatedPaths?: string[] }
 
-const LOCKFILE_NAMES = new Set([
-  'bun.lock',
-  'bun.lockb',
-  'package-lock.json',
-  'pnpm-lock.yaml',
-  'yarn.lock',
-  'Cargo.lock',
-])
+const LOCKFILE_NAMES = new Set(['bun.lockb', 'package-lock.json', 'pnpm-lock.yaml'])
 
-/** Single-file diffs past this get their hunks stripped — a machine-generated
- *  blob no human wants to scroll, and enough to stall the renderer. */
 const MAX_FILE_DIFF_BYTES = 128 * 1024
 
 function isLockfile(path: string): boolean {
@@ -26,12 +17,10 @@ function isLockfile(path: string): boolean {
 function filePath(section: string): string | null {
   const plus = section.match(/^\+\+\+ b\/(.+)$/m)
   if (plus?.[1] && plus[1] !== '/dev/null') return plus[1]
-  const git = section.match(/^diff --git a\/.+ b\/(.+)$/m)
-  return git?.[1] ?? null
+  const header = section.match(/^diff --git a\/.+ b\/(.+)$/m)
+  return header?.[1] ?? null
 }
 
-/** Drop pathological file sections from a unified patch, listing their paths so
- *  the client can show the truncation without rendering the body. */
 export function truncateDiff(diff: string): ThreadDiff {
   if (diff.trim().length === 0) return { diff: '' }
   const sections = diff.split(/(?=^diff --git )/m).filter((s) => s.length > 0)
@@ -50,7 +39,6 @@ export function truncateDiff(diff: string): ThreadDiff {
     : { diff: kept.join('') }
 }
 
-/** git's well-known empty tree — the diff base for a repo with no commits yet. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 export function computeThreadDiff(cwd: string) {
@@ -61,7 +49,7 @@ export function computeThreadDiff(cwd: string) {
     const untracked = yield* git(cwd, ['ls-files', '--others', '--exclude-standard'])
     const parts = [tracked.out]
     for (const path of untracked.out.split('\n').filter((line) => line.length > 0)) {
-      // --no-index exits 1 when the file has content — that's the success case
+      // --no-index exits 1 when the file has content; that's the success case.
       const { out } = yield* git(cwd, ['diff', '--no-index', '--', '/dev/null', path])
       parts.push(out)
     }

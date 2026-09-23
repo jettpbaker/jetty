@@ -37,7 +37,6 @@
   height: 8px;
   transition-duration: var(--motion-thread-tabs-close-duration);
 }
-/* Page headers own the reopen control when the tab row is absent. */
 .app-workspace[data-thread-tabs='false'] .app-shell-navigation[data-sidebar-open='false'] {
   display: none;
 }

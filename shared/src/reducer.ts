@@ -52,7 +52,6 @@ function reduce(state: ThreadState, event: ThreadEvent): ThreadState {
   }
 }
 
-// turn end also settles: a failed turn must not strand an item mid-stream
 function settleStreaming(item: ThreadItem): ThreadItem {
   if ('streaming' in item && item.streaming) return { ...item, streaming: false }
   return item
@@ -65,7 +64,6 @@ function appendDelta(delta: string, tokens?: number) {
         return {
           ...item,
           text: item.text + delta,
-          // estimated_tokens is a per-delta increment, not a running total
           ...(tokens != null ? { tokens: (item.tokens ?? 0) + tokens } : {}),
         }
       case 'assistant_message':

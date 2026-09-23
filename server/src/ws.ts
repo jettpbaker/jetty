@@ -1,4 +1,4 @@
-import type { ChromePushData, Usage, WireError } from '@jetty/shared/wire'
+import type { ChromePushData, ThreadMeta, Usage, WireError } from '@jetty/shared/wire'
 
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { Effect, Fiber, Stream } from 'effect'
@@ -30,11 +30,7 @@ export function threadSubscription(
     orch.withPublication(
       params.threadId,
       Effect.gen(function* () {
-        const thread = yield* store.getThread(params.threadId)
-        if (!thread)
-          return yield* Effect.fail(
-            new StoreError('not_found', `Thread ${params.threadId} not found`)
-          )
+        yield* store.requireThread(params.threadId)
         const snapshot = yield* store.getThreadState(params.threadId)
         const initial: ThreadUpdate[] = []
         if (params.afterSeq === undefined) {
@@ -56,7 +52,7 @@ export function createRpcHandlers(
   store: Store,
   orch: Orchestrator,
   hub: Hub,
-  getUsage: () => Usage | null = () => null
+  getUsage: () => Usage | null
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -69,6 +65,28 @@ export function createRpcHandlers(
       return hub
         .withChromePublication(effect.pipe(Effect.uninterruptible))
         .pipe(Effect.mapError(wireError))
+    }
+
+    function upsertThread<E>(effect: Effect.Effect<ThreadMeta, E>) {
+      return mutation(
+        effect.pipe(
+          Effect.tap((thread) =>
+            Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+          )
+        )
+      )
+    }
+
+    function requireProject(projectId: string) {
+      return store
+        .getProject(projectId)
+        .pipe(
+          Effect.flatMap((project) =>
+            project
+              ? Effect.succeed(project)
+              : Effect.fail(new StoreError('not_found', `Project ${projectId} not found`))
+          )
+        )
     }
 
     return JettyRpcs.of({
@@ -100,57 +118,27 @@ export function createRpcHandlers(
           })
         ),
       'thread.create': (params) =>
-        mutation(
-          Effect.gen(function* () {
-            const thread = yield* store.createThread(params.projectId, params.id)
-            hub.pushChrome({ type: 'thread.upserted', thread })
-            return { thread }
-          })
+        upsertThread(store.createThread(params.projectId, params.id)).pipe(
+          Effect.map((thread) => ({ thread }))
         ),
       'thread.archive': (params) =>
-        mutation(
-          Effect.gen(function* () {
-            const thread = yield* store.archiveThread(params.threadId)
-            hub.pushChrome({ type: 'thread.upserted', thread })
-            return null
-          })
-        ),
+        upsertThread(store.archiveThread(params.threadId)).pipe(Effect.as(null)),
       'thread.rename': (params) =>
-        mutation(
-          Effect.gen(function* () {
-            const thread = yield* store.renameThread(params.threadId, params.title)
-            hub.pushChrome({ type: 'thread.upserted', thread })
-            return null
-          })
-        ),
+        upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>
-        mutation(
-          Effect.gen(function* () {
-            const thread = yield* store.pinThread(params.threadId, params.pinned)
-            hub.pushChrome({ type: 'thread.upserted', thread })
-            return null
-          })
-        ),
+        upsertThread(store.pinThread(params.threadId, params.pinned)).pipe(Effect.as(null)),
       'thread.delete': (params) =>
         orch.deleteThread(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'fs.browse': (params) => browser.browse(params.partialPath).pipe(Effect.mapError(wireError)),
       'fs.search': (params) =>
         Effect.gen(function* () {
-          const project = yield* store.getProject(params.projectId)
-          if (!project)
-            return yield* Effect.fail(
-              new StoreError('not_found', `Project ${params.projectId} not found`)
-            )
+          const project = yield* requireProject(params.projectId)
           return { files: yield* search.searchFiles(project.path, params.query, params.limit) }
         }).pipe(Effect.mapError(wireError)),
       'skills.list': (params) =>
         Effect.gen(function* () {
           if (!params.projectId) return { skills: yield* skills.listSkills() }
-          const project = yield* store.getProject(params.projectId)
-          if (!project)
-            return yield* Effect.fail(
-              new StoreError('not_found', `Project ${params.projectId} not found`)
-            )
+          const project = yield* requireProject(params.projectId)
           return { skills: yield* skills.listSkills({ projectPath: project.path }) }
         }).pipe(Effect.mapError(wireError)),
       'thread.diff': (params) =>

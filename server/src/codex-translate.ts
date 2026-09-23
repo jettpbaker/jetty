@@ -3,7 +3,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
 
-import { object, string, type RpcMessage } from './codex-rpc'
+import { object, string, type RpcMessage } from './stdio-rpc'
 
 export function createCodexTranslator(turnId: string) {
   const items = new Map<string, ThreadItem>()

@@ -3,7 +3,7 @@ import type { Skill } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 import { homedir } from 'node:os'
 
-const SKIP_DIRS = new Set(['synced'])
+type SkillSources = { projectPath?: string; userHome?: string }
 
 type Frontmatter = {
   description: string
@@ -11,23 +11,21 @@ type Frontmatter = {
 }
 
 export function parseSkillFrontmatter(text: string): Frontmatter {
-  const defaults: Frontmatter = { description: '', userInvocable: true }
-  if (!text.startsWith('---')) return defaults
+  const meta: Frontmatter = { description: '', userInvocable: true }
+  if (!text.startsWith('---')) return meta
   const end = text.indexOf('\n---', 3)
-  if (end === -1) return defaults
+  if (end === -1) return meta
 
-  let description = ''
-  let userInvocable = true
   for (const raw of text.slice(4, end).split('\n')) {
     const line = raw.trimEnd()
     const colon = line.indexOf(':')
     if (colon <= 0) continue
     const key = line.slice(0, colon).trim()
     const value = unquote(line.slice(colon + 1).trim())
-    if (key === 'description') description = value
-    if (key === 'user-invocable') userInvocable = value !== 'false'
+    if (key === 'description') meta.description = value
+    if (key === 'user-invocable') meta.userInvocable = value !== 'false'
   }
-  return { description, userInvocable }
+  return meta
 }
 
 function unquote(value: string): string {
@@ -40,7 +38,6 @@ function unquote(value: string): string {
 
 function addSkill(into: Map<string, Skill>, name: string, filePath: string) {
   return Effect.gen(function* () {
-    if (!name || name.includes('/') || name.includes('\\')) return
     const fs = yield* FileSystem.FileSystem
     const meta = yield* fs.readFileString(filePath).pipe(
       Effect.map(parseSkillFrontmatter),
@@ -57,7 +54,7 @@ function loadSkillDirs(into: Map<string, Skill>, skillsDir: string) {
     const path = yield* Path.Path
     const entries = yield* fs.readDirectory(skillsDir).pipe(Effect.catch(() => Effect.succeed([])))
     for (const name of entries) {
-      if (SKIP_DIRS.has(name.toLowerCase())) continue
+      if (name.toLowerCase() === 'synced') continue
       const dir = path.join(skillsDir, name)
       const directory = yield* fs.stat(dir).pipe(
         Effect.map((stat) => stat.type === 'Directory'),
@@ -77,7 +74,7 @@ function loadCommandFiles(into: Map<string, Skill>, commandsDir: string) {
       .readDirectory(commandsDir)
       .pipe(Effect.catch(() => Effect.succeed([])))
     for (const file of entries) {
-      if (!file.endsWith('.md')) continue
+      if (!file.endsWith('.md') || file === '.md') continue
       const name = path.basename(file, '.md')
       yield* addSkill(into, name, path.join(commandsDir, file))
     }
@@ -92,11 +89,11 @@ function loadClaudeRoot(into: Map<string, Skill>, claudeRoot: string) {
   })
 }
 
-/** Personal + optional project skills. Personal wins on a name clash. */
-export function listSkills(opts: { projectPath?: string; userHome?: string } = {}) {
+export function listSkills(opts: SkillSources = {}) {
   return Effect.gen(function* () {
     const path = yield* Path.Path
     const into = new Map<string, Skill>()
+    // Personal skills load last so they win a name clash.
     if (opts.projectPath) yield* loadClaudeRoot(into, path.join(opts.projectPath, '.claude'))
     yield* loadClaudeRoot(into, path.join(opts.userHome ?? homedir(), '.claude'))
     return [...into.values()].sort((a, b) => a.name.localeCompare(b.name))
@@ -104,7 +101,7 @@ export function listSkills(opts: { projectPath?: string; userHome?: string } = {
 }
 
 export const Skills = Context.Service<{
-  listSkills: (opts?: { projectPath?: string; userHome?: string }) => Effect.Effect<Skill[]>
+  listSkills: (opts?: SkillSources) => Effect.Effect<Skill[]>
 }>('jetty/Skills')
 
 export const SkillsLive = Layer.effect(
@@ -112,8 +109,7 @@ export const SkillsLive = Layer.effect(
   Effect.gen(function* () {
     const services = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
     return {
-      listSkills: (opts?: { projectPath?: string; userHome?: string }) =>
-        listSkills(opts).pipe(Effect.provideContext(services)),
+      listSkills: (opts?: SkillSources) => listSkills(opts).pipe(Effect.provideContext(services)),
     }
   })
 )

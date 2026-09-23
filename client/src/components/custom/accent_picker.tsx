@@ -11,23 +11,16 @@ import { useAppearance } from '@/lib/appearance'
 import { CaretDownIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 
-function accentLabel(accent: string, fromWallpaper: boolean) {
-  if (fromWallpaper) return 'From wallpaper'
-  return accentPresets.find((preset) => preset.value === accent)?.label
+function presetAccent() {
+  return document.documentElement.dataset.accentFrom === 'wallpaper' ? null : loadAccent()
 }
 
 export function AccentPicker() {
   const { autoAccent } = useAppearance()
-  const [accent, updateAccent] = useState(loadAccent)
-  const [fromWallpaper, setFromWallpaper] = useState(
-    () => document.documentElement.dataset.accentFrom === 'wallpaper'
-  )
+  const [accent, setAccentState] = useState(presetAccent)
 
   useEffect(() => {
-    function sync() {
-      updateAccent(loadAccent())
-      setFromWallpaper(document.documentElement.dataset.accentFrom === 'wallpaper')
-    }
+    const sync = () => setAccentState(presetAccent())
     window.addEventListener(accentChangeEvent, sync)
     return () => window.removeEventListener(accentChangeEvent, sync)
   }, [])
@@ -46,17 +39,14 @@ export function AccentPicker() {
         }
       >
         <span aria-hidden='true' className='size-3 rounded-full bg-primary' />
-        {accentLabel(accent, fromWallpaper)}
-        {!fromWallpaper && <CaretDownIcon aria-hidden='true' className='size-3' />}
+        {accent ? accentPresets.find((preset) => preset.value === accent)?.label : 'From wallpaper'}
+        {accent && <CaretDownIcon aria-hidden='true' className='size-3' />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuRadioGroup
-          value={fromWallpaper ? '' : accent}
+          value={accent ?? ''}
           onValueChange={(value) => {
-            if (!isAccent(value)) return
-            setAccent(value)
-            updateAccent(value)
-            setFromWallpaper(false)
+            if (isAccent(value)) setAccent(value)
           }}
         >
           {accentPresets.map((preset) => (

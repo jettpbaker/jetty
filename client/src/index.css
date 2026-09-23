@@ -22,7 +22,6 @@
   --motion-popup-enter-scale: 0.97;
   --motion-popup-enter: menu-enter var(--motion-popup-duration) var(--motion-popup-ease) both;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --duration-enter: 140ms;
   font-family: 'Geist Variable', sans-serif;
   color: var(--foreground);
   background: var(--background);
@@ -49,11 +48,6 @@
   --destructive: oklch(0.577 0.245 27.325);
   --input: oklch(0.82 0 0);
   --ring: var(--primary);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
   --sidebar: oklch(0.94 0 0);
   --sidebar-foreground: var(--foreground);
@@ -79,7 +73,6 @@
 
 .dark {
   color-scheme: dark;
-  --status-working: var(--primary);
   --background: oklch(0.195 0 0);
   --foreground: oklch(0.933 0 0);
   --card: oklch(0.254 0 0);
@@ -100,11 +93,6 @@
   --scrollbar-thumb: oklch(0.3 0 0);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.145 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -142,11 +130,6 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);

@@ -1,18 +1,21 @@
 import { storage } from '@/platform'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { flushSync } from 'react-dom'
 
-export type ThemeChoice = 'light' | 'dark' | 'system'
+type ThemeChoice = 'light' | 'dark' | 'system'
 
 const key = 'jetty.theme'
-const eventName = 'jetty-theme'
 
-export function loadTheme(): ThemeChoice {
-  const saved = storage.get(key)
-  return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'dark'
+function isThemeChoice(value: unknown): value is ThemeChoice {
+  return value === 'light' || value === 'dark' || value === 'system'
 }
 
-export function resolvedTheme(choice: ThemeChoice = loadTheme()): 'light' | 'dark' {
+function loadTheme(): ThemeChoice {
+  const saved = storage.get(key)
+  return isThemeChoice(saved) ? saved : 'dark'
+}
+
+function resolvedTheme(choice: ThemeChoice) {
   if (choice !== 'system') return choice
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -21,38 +24,15 @@ export function applyTheme(choice = loadTheme()) {
   document.documentElement.classList.toggle('dark', resolvedTheme(choice) === 'dark')
 }
 
-function storeTheme(choice: ThemeChoice) {
-  storage.set(key, choice)
-  applyTheme(choice)
-  window.dispatchEvent(new Event(eventName))
-}
-
 let cleanupTimer: ReturnType<typeof setTimeout> | undefined
 let active: ViewTransition | undefined
 let generation = 0
 
 export function useAnimatedTheme() {
   const [theme, setThemeState] = useState(loadTheme)
-  const [resolved, setResolved] = useState(() => resolvedTheme(theme))
 
-  useEffect(() => {
-    function sync() {
-      const next = loadTheme()
-      setThemeState(next)
-      setResolved(resolvedTheme(next))
-    }
-    const media = matchMedia('(prefers-color-scheme: dark)')
-    window.addEventListener(eventName, sync)
-    media.addEventListener('change', sync)
-    return () => {
-      window.removeEventListener(eventName, sync)
-      media.removeEventListener('change', sync)
-    }
-  }, [])
-
-  function setTheme(next: string) {
-    if (next !== 'light' && next !== 'dark' && next !== 'system') return
-    if (next === theme) return
+  function setTheme(next: unknown) {
+    if (!isThemeChoice(next) || next === theme) return
     const current = ++generation
     clearTimeout(cleanupTimer)
     active?.skipTransition()
@@ -60,9 +40,9 @@ export function useAnimatedTheme() {
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
     const apply = () =>
       flushSync(() => {
-        storeTheme(next)
+        storage.set(key, next)
+        applyTheme(next)
         setThemeState(next)
-        setResolved(resolvedTheme(next))
       })
     const cleanup = () => {
       if (current === generation) {
@@ -76,11 +56,12 @@ export function useAnimatedTheme() {
       void active.finished.catch(() => {}).finally(cleanup)
     } else {
       root.dataset.themeTransition = 'off'
+      // Flush styles so transitions are disabled before the theme class flips.
       void getComputedStyle(root).backgroundColor
       apply()
       cleanupTimer = setTimeout(cleanup, 32)
     }
   }
 
-  return { theme, resolvedTheme: resolved, setTheme }
+  return { theme, setTheme }
 }

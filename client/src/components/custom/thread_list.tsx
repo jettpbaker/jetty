@@ -40,7 +40,7 @@ function rowStamp(row: ThreadRow) {
       return row.activities
         .map((activity) =>
           activity.type === 'thinking'
-            ? `${activity.id}:${activity.summary?.length ?? 0}:${activity.status}`
+            ? `${activity.id}:${activity.summary.length}:${activity.status}`
             : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
         .join(',')
@@ -71,8 +71,7 @@ function ThreadItemRow({
         </MessageContent>
       </Message>
     )
-  if (row.kind === 'work')
-    return <WorkBlock activities={row.activities} status={row.status} onApproval={onApproval} />
+  if (row.kind === 'work') return <WorkBlock activities={row.activities} onApproval={onApproval} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
@@ -96,7 +95,7 @@ export function ThreadList({
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const [width, setWidth] = useState(660)
-  const [fontsReady, setFontsReady] = useState(false)
+  const [, setFontsReady] = useState(false)
 
   useEffect(() => {
     const element = scroller.current
@@ -108,21 +107,17 @@ export function ThreadList({
   }, [])
 
   useEffect(() => {
-    let cancelled = false
     void document.fonts.ready.then(() => {
-      if (cancelled) return
       clearTextMeasure()
+      // Re-render so the virtualizer re-estimates unmeasured rows with the loaded font.
       setFontsReady(true)
     })
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: (index) => estimateRow(rows[index]!, width, fontsReady ? 1 : 0),
+    estimateSize: (index) => estimateRow(rows[index]!, width),
     overscan: 10,
     gap: 12,
     getItemKey: (index) => rows[index]!.id,
@@ -142,9 +137,7 @@ export function ThreadList({
       aria-label='Conversation'
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
       tabIndex={0}
-      onScroll={() => {
-        const element = scroller.current
-        if (!element) return
+      onScroll={({ currentTarget: element }) => {
         pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
       }}
     >

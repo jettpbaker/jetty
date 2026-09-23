@@ -9,17 +9,20 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { PencilSimpleIcon, PushPinIcon, TrashIcon } from '@phosphor-icons/react'
+import {
+  DotsThreeVerticalIcon,
+  PencilSimpleIcon,
+  PushPinIcon,
+  TrashIcon,
+} from '@phosphor-icons/react'
 import { ArchiveIcon } from '@primer/octicons-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-
-import { MoreIcon } from './more_icon'
 
 type ActionOverlay = 'closed' | 'menu' | 'edit'
 
 export type ThreadRowActionsProps = {
   title: string
-  pinned?: boolean
+  pinned: boolean
   onArchive: () => void
   onDelete: () => void
   onPin: () => void
@@ -83,7 +86,12 @@ export function ThreadRowActions({
               />
             }
           >
-            <MoreIcon />
+            <DotsThreeVerticalIcon
+              className='size-3.5'
+              stroke='currentColor'
+              strokeWidth={8}
+              aria-hidden='true'
+            />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>

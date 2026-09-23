@@ -1,7 +1,6 @@
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { createContext, useContext } from 'react'
 
-// Standalone component previews do not have shell navigation.
 export const PageSidebarTriggerContext = createContext(false)
 
 export function PageSidebarTrigger({ standalone = false }: { standalone?: boolean }) {

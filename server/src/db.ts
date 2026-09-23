@@ -4,6 +4,17 @@ import { Effect, FileSystem, Layer } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
 import { join } from 'node:path'
 
+function addThreadColumns(columns: Record<string, string>) {
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const existing = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
+    for (const [name, definition] of Object.entries(columns)) {
+      if (existing.some((column) => column.name === name)) continue
+      yield* sql.unsafe(`ALTER TABLE threads ADD COLUMN ${name} ${definition}`)
+    }
+  })
+}
+
 const migrations = SqliteMigrator.fromRecord({
   '001_initial': Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
@@ -23,13 +34,7 @@ const migrations = SqliteMigrator.fromRecord({
       thread_id TEXT PRIMARY KEY, state_json TEXT NOT NULL, last_seq INTEGER NOT NULL
     )`
   }),
-  '002_agent_session': Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient
-    const columns = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
-    if (!columns.some((column) => column.name === 'agent_session_id')) {
-      yield* sql`ALTER TABLE threads ADD COLUMN agent_session_id TEXT`
-    }
-  }),
+  '002_agent_session': addThreadColumns({ agent_session_id: 'TEXT' }),
   '003_provider_sessions': Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE provider_sessions (
@@ -37,23 +42,11 @@ const migrations = SqliteMigrator.fromRecord({
       session_id TEXT NOT NULL, PRIMARY KEY (thread_id, provider)
     )`
   }),
-  '004_thread_pin_title_lock': Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient
-    const columns = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
-    if (!columns.some((column) => column.name === 'pinned')) {
-      yield* sql`ALTER TABLE threads ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`
-    }
-    if (!columns.some((column) => column.name === 'title_locked')) {
-      yield* sql`ALTER TABLE threads ADD COLUMN title_locked INTEGER NOT NULL DEFAULT 0`
-    }
+  '004_thread_pin_title_lock': addThreadColumns({
+    pinned: 'INTEGER NOT NULL DEFAULT 0',
+    title_locked: 'INTEGER NOT NULL DEFAULT 0',
   }),
-  '005_thread_provider': Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient
-    const columns = yield* sql<{ name: string }>`PRAGMA table_info(threads)`
-    if (!columns.some((column) => column.name === 'provider')) {
-      yield* sql`ALTER TABLE threads ADD COLUMN provider TEXT`
-    }
-  }),
+  '005_thread_provider': addThreadColumns({ provider: 'TEXT' }),
 })
 
 export function databaseLayer(home: string) {

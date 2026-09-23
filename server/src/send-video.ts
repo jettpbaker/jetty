@@ -1,12 +1,8 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
-import { newId } from '@jetty/shared/wire'
-import { Effect, Path } from 'effect'
+import { Effect } from 'effect'
 import { z } from 'zod'
 
-import type { MediaToolHost } from './media-host'
-
-import { createMediaToolRunner } from './media-host'
-import { StoreError } from './store'
+import { createMediaSender, type MediaToolHost } from './media-host'
 
 export const SEND_VIDEO_TOOL = 'mcp__jetty__send_video'
 
@@ -15,8 +11,7 @@ const SEND_VIDEO_DESCRIPTION =
 
 export function createSendVideoTool(host: MediaToolHost) {
   return Effect.gen(function* () {
-    const path = yield* Path.Path
-    const run = yield* createMediaToolRunner
+    const send = yield* createMediaSender(host)
     return tool(
       'send_video',
       SEND_VIDEO_DESCRIPTION,
@@ -27,59 +22,14 @@ export function createSendVideoTool(host: MediaToolHost) {
         caption: z.string().optional().describe('Optional caption shown with the video'),
       },
       (args, extra) =>
-        run(
-          Effect.scoped(
-            Effect.gen(function* () {
-              const turnId = host.turnId()
-              let committed = false
-              const video = yield* Effect.acquireRelease(
-                host.attachments.persistFile(path.resolve(host.projectPath, args.path), 'video'),
-                (attachment) => (committed ? Effect.void : host.attachments.remove(attachment.id)),
-                { interruptible: true }
-              )
-              if (host.turnId() !== turnId)
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', 'Turn is no longer active')
-                )
-
-              const caption = args.caption?.trim()
-              const itemId = newId()
-              yield* host.emit(
-                {
-                  type: 'item.started',
-                  item: {
-                    id: itemId,
-                    turnId,
-                    createdAt: Date.now(),
-                    kind: 'video',
-                    video,
-                    ...(caption ? { caption } : {}),
-                  },
-                },
-                turnId,
-                Effect.sync(() => {
-                  committed = true
-                })
-              )
-              yield* host.emit({ type: 'item.completed', itemId }, turnId, Effect.void)
-
-              return {
-                content: [{ type: 'text' as const, text: `Sent video to the chat: ${video.name}` }],
-              }
-            })
-          ).pipe(
-            Effect.catch((error) =>
-              Effect.succeed({
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: error instanceof Error ? error.message : String(error),
-                  },
-                ],
-                isError: true,
-              })
-            )
-          ),
+        send(
+          {
+            kind: 'video',
+            paths: [args.path],
+            caption: args.caption,
+            toItem: ([video]) => ({ kind: 'video', video: video! }),
+            summary: ([video]) => `Sent video to the chat: ${video!.name}`,
+          },
           extra
         )
     )

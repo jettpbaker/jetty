@@ -23,24 +23,13 @@ const EXT_MIME: Record<string, string> = {
   webm: 'video/webm',
 }
 
-const KIND_EXTS = {
-  image: new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']),
-  video: new Set(['mp4', 'webm']),
-} as const
+const KINDS = {
+  image: { noun: 'Image', exts: ['png', 'jpg', 'jpeg', 'gif', 'webp'], maxBytes: MAX_IMAGE_BYTES },
+  video: { noun: 'Video', exts: ['mp4', 'webm'], maxBytes: MAX_VIDEO_BYTES },
+}
 
-const KIND_ACCEPT = {
-  image: 'png, jpg, jpeg, gif, webp',
-  video: 'mp4, webm',
-} as const
+export type PersistKind = keyof typeof KINDS
 
-const KIND_MAX = {
-  image: MAX_IMAGE_BYTES,
-  video: MAX_VIDEO_BYTES,
-} as const
-
-export type PersistKind = keyof typeof KIND_EXTS
-
-/** Matches newId()/uuidv7 output — no slashes, dots, or traversal chars. */
 const ATTACHMENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type PersistedAttachments = {
@@ -63,68 +52,66 @@ export function createAttachments(home: string) {
     yield* fs.makeDirectory(dir, { recursive: true })
 
     function persist(uploads: readonly UploadAttachment[] | undefined) {
-      return Effect.suspend(() => {
-        if (!uploads || uploads.length === 0) {
-          return Effect.succeed({ meta: [], images: [] } satisfies PersistedAttachments)
-        }
+      if (!uploads || uploads.length === 0) {
+        return Effect.succeed({ meta: [], images: [] } satisfies PersistedAttachments)
+      }
 
-        const written: string[] = []
-        const meta: Attachment[] = []
-        const images: AgentImage[] = []
+      const written: string[] = []
+      const meta: Attachment[] = []
+      const images: AgentImage[] = []
 
-        return Effect.scoped(
-          Effect.gen(function* () {
-            const staging = yield* fs.makeTempDirectoryScoped({
-              directory: dir,
-              prefix: '.upload-',
-            })
-            for (const upload of uploads) {
-              const { bytes, base64data } = yield* Effect.try({
-                try: () => decodeDataUrl(upload),
-                catch: (error) => error as StoreError,
-              })
-              if (bytes.byteLength > MAX_IMAGE_BYTES) {
-                return yield* Effect.fail(
-                  new StoreError(
-                    'invalid_params',
-                    `Image exceeds ${MAX_IMAGE_BYTES} bytes (got ${bytes.byteLength})`
-                  )
+      return Effect.scoped(
+        Effect.gen(function* () {
+          const staging = yield* fs.makeTempDirectoryScoped({ directory: dir, prefix: '.upload-' })
+          for (const upload of uploads) {
+            const { bytes, base64data } = yield* decodeDataUrl(upload)
+            if (bytes.byteLength > MAX_IMAGE_BYTES) {
+              return yield* Effect.fail(
+                new StoreError(
+                  'invalid_params',
+                  `Image exceeds ${MAX_IMAGE_BYTES} bytes (got ${bytes.byteLength})`
                 )
-              }
-
-              const id = newId()
-              const ext = MIME_EXT[upload.mimeType]
-              const filename = `${id}.${ext}`
-              const destination = path.join(dir, filename)
-              yield* fs.writeFile(path.join(staging, filename), bytes)
-              yield* Effect.uninterruptible(
-                Effect.gen(function* () {
-                  written.push(destination)
-                  yield* fs.rename(path.join(staging, filename), destination)
-                })
               )
-
-              meta.push({
-                id,
-                name: upload.name,
-                mimeType: upload.mimeType,
-                sizeBytes: bytes.byteLength,
-              })
-              images.push({ mimeType: upload.mimeType, base64data })
             }
-            return { meta, images }
-          })
-        ).pipe(
-          Effect.onError(() =>
-            Effect.forEach(written, (file) => fs.remove(file).pipe(Effect.ignore), {
-              discard: true,
+
+            const id = newId()
+            const filename = `${id}.${MIME_EXT[upload.mimeType]}`
+            const destination = path.join(dir, filename)
+            yield* fs.writeFile(path.join(staging, filename), bytes)
+            yield* Effect.uninterruptible(
+              Effect.gen(function* () {
+                written.push(destination)
+                yield* fs.rename(path.join(staging, filename), destination)
+              })
+            )
+
+            meta.push({
+              id,
+              name: upload.name,
+              mimeType: upload.mimeType,
+              sizeBytes: bytes.byteLength,
             })
-          )
+            images.push({ mimeType: upload.mimeType, base64data })
+          }
+          return { meta, images }
+        })
+      ).pipe(
+        Effect.onError(() =>
+          Effect.forEach(written, (file) => fs.remove(file).pipe(Effect.ignore), { discard: true })
         )
-      })
+      )
     }
 
     function persistFile(srcPath: string, kind: PersistKind) {
+      const { noun, exts, maxBytes } = KINDS[kind]
+      const invalid = (message: string) => Effect.fail(new StoreError('invalid_params', message))
+
+      function checkSize(size: bigint) {
+        if (size === 0n) return invalid(`${noun} is empty: ${srcPath}`)
+        if (size > maxBytes) return invalid(`${noun} exceeds ${maxBytes} bytes (got ${size})`)
+        return Effect.void
+      }
+
       return Effect.scoped(
         Effect.gen(function* () {
           const stat = yield* fs
@@ -134,38 +121,14 @@ export function createAttachments(home: string) {
                 () => new StoreError('invalid_params', `Cannot read ${kind} file: ${srcPath}`)
               )
             )
-          if (stat.type !== 'File') {
-            return yield* Effect.fail(
-              new StoreError('invalid_params', `Not a regular file: ${srcPath}`)
-            )
-          }
+          if (stat.type !== 'File') return yield* invalid(`Not a regular file: ${srcPath}`)
 
           const rawExt = path.extname(srcPath).slice(1).toLowerCase()
-          if (!KIND_EXTS[kind].has(rawExt)) {
-            return yield* Effect.fail(
-              new StoreError(
-                'invalid_params',
-                `Unsupported ${kind} type; accepted types: ${KIND_ACCEPT[kind]}`
-              )
-            )
+          if (!exts.includes(rawExt)) {
+            return yield* invalid(`Unsupported ${kind} type; accepted types: ${exts.join(', ')}`)
           }
           const ext = rawExt === 'jpeg' ? 'jpg' : rawExt
-          const mimeType = EXT_MIME[ext]!
-          const noun = kind === 'image' ? 'Image' : 'Video'
-          const maxBytes = KIND_MAX[kind]
-          if (stat.size === 0n) {
-            return yield* Effect.fail(
-              new StoreError('invalid_params', `${noun} is empty: ${srcPath}`)
-            )
-          }
-          if (stat.size > maxBytes) {
-            return yield* Effect.fail(
-              new StoreError(
-                'invalid_params',
-                `${noun} exceeds ${maxBytes} bytes (got ${stat.size})`
-              )
-            )
-          }
+          yield* checkSize(stat.size)
 
           const id = newId()
           const dest = path.join(dir, `${id}.${ext}`)
@@ -174,21 +137,12 @@ export function createAttachments(home: string) {
           return yield* Effect.gen(function* () {
             yield* fs.copyFile(srcPath, temporary)
             const copied = yield* fs.stat(temporary)
-            if (copied.size === 0n || copied.size > maxBytes) {
-              return yield* Effect.fail(
-                new StoreError(
-                  'invalid_params',
-                  copied.size === 0n
-                    ? `${noun} is empty: ${srcPath}`
-                    : `${noun} exceeds ${maxBytes} bytes (got ${copied.size})`
-                )
-              )
-            }
+            yield* checkSize(copied.size)
             yield* fs.rename(temporary, dest).pipe(Effect.uninterruptible)
             return {
               id,
               name: path.basename(srcPath),
-              mimeType,
+              mimeType: EXT_MIME[ext]!,
               sizeBytes: Number(copied.size),
             } satisfies Attachment
           }).pipe(
@@ -209,8 +163,6 @@ export function createAttachments(home: string) {
 
         for (const [ext, mimeType] of Object.entries(EXT_MIME)) {
           const file = path.join(dir, `${id}.${ext}`)
-          // id is charset-checked; still refuse anything that escapes the attachments dir
-          if (!file.startsWith(dir + path.sep)) continue
           const actual = yield* fs.realPath(file).pipe(Effect.catch(() => Effect.succeed(null)))
           if (!actual) continue
           const root = yield* fs.realPath(dir)
@@ -234,25 +186,16 @@ export function createAttachments(home: string) {
   })
 }
 
-function decodeDataUrl(upload: UploadAttachment): { bytes: Buffer; base64data: string } {
+function decodeDataUrl(upload: UploadAttachment) {
+  const invalid = (message: string) => Effect.fail(new StoreError('invalid_params', message))
   const prefix = `data:${upload.mimeType};base64,`
   if (!upload.dataUrl.startsWith(prefix)) {
-    throw new StoreError(
-      'invalid_params',
-      `dataUrl must start with ${prefix.slice(0, 32)}… matching mimeType`
-    )
+    return invalid(`dataUrl must start with ${prefix.slice(0, 32)}… matching mimeType`)
   }
-
   const base64data = upload.dataUrl.slice(prefix.length)
-  if (!base64data || !/^[A-Za-z0-9+/]+=*$/.test(base64data)) {
-    throw new StoreError('invalid_params', 'dataUrl base64 payload is invalid')
-  }
-
-  // Buffer.from is lenient — it returns empty rather than throwing on junk.
+  if (!/^[A-Za-z0-9+/]+=*$/.test(base64data)) return invalid('dataUrl base64 payload is invalid')
+  // Buffer.from returns empty rather than throwing on junk.
   const bytes = Buffer.from(base64data, 'base64')
-  if (bytes.byteLength === 0) {
-    throw new StoreError('invalid_params', 'dataUrl base64 payload is empty')
-  }
-
-  return { bytes, base64data }
+  if (bytes.byteLength === 0) return invalid('dataUrl base64 payload is empty')
+  return Effect.succeed({ bytes, base64data })
 }

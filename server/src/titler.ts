@@ -1,8 +1,3 @@
-/**
- * The title-generation seam, provider-agnostic like the Agent seam: the
- * orchestrator only knows this shape. Each provider ships its own
- * implementation, composed into a fallback chain in main.ts.
- */
 import { Effect } from 'effect'
 
 export type Titler = (text: string) => Effect.Effect<string | null>
@@ -33,7 +28,6 @@ export function normalizeTitle(raw: string | null | undefined): string | null {
 export const firstLineTitler: Titler = (text) =>
   Effect.succeed(clampTitle(text.split('\n').find((line) => line.trim()) ?? ''))
 
-/** Tries each titler in order; the first non-null title wins. */
 export function chainTitlers(...titlers: Titler[]): Titler {
   return (text) =>
     Effect.gen(function* () {

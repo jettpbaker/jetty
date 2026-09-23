@@ -14,8 +14,6 @@ import { MagnifyingGlassIcon, SlidersHorizontalIcon } from '@phosphor-icons/reac
 
 import type { ThreadGrouping } from './sidebar_thread_groups'
 
-import { GhostInput } from './ghost_input'
-
 export function SidebarThreadControls({
   query,
   onQueryChange,
@@ -33,17 +31,21 @@ export function SidebarThreadControls({
 }) {
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
-      <GhostInput
-        icon={<MagnifyingGlassIcon className='size-3' weight='bold' />}
-        aria-label='Search threads'
-        placeholder='Search threads'
-        className='text-xs text-muted-foreground'
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onQueryChange('')
-        }}
-      />
+      <label className='flex min-w-0 flex-1 items-center gap-1.5 text-muted-foreground'>
+        <span aria-hidden='true' className='flex shrink-0 items-center'>
+          <MagnifyingGlassIcon className='size-3' />
+        </span>
+        <input
+          aria-label='Search threads'
+          placeholder='Search threads'
+          className='h-7 w-full min-w-0 border-0 bg-transparent p-0 text-xs text-muted-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground'
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') onQueryChange('')
+          }}
+        />
+      </label>
       <DropdownMenu key={grouping}>
         <DropdownMenuTrigger
           render={
@@ -59,13 +61,7 @@ export function SidebarThreadControls({
           <SlidersHorizontalIcon className='size-3.5' aria-hidden='true' />
         </DropdownMenuTrigger>
         <DropdownMenuContent side='right' align='start' className='w-44'>
-          <DropdownMenuRadioGroup
-            value={grouping}
-            onValueChange={(value) => {
-              if (value === 'project' || value === 'status' || value === 'date')
-                onGroupingChange(value)
-            }}
-          >
+          <DropdownMenuRadioGroup value={grouping} onValueChange={onGroupingChange}>
             <DropdownMenuLabel>Group by</DropdownMenuLabel>
             <DropdownMenuRadioItem value='project'>Project</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value='status'>Status</DropdownMenuRadioItem>
@@ -75,7 +71,7 @@ export function SidebarThreadControls({
           <DropdownMenuCheckboxItem
             className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
             checked={showPinned}
-            onCheckedChange={(checked) => onShowPinnedChange(checked === true)}
+            onCheckedChange={onShowPinnedChange}
             closeOnClick={false}
           >
             Show pinned

@@ -15,11 +15,10 @@ export type Loadout = {
 
 export type LoadoutSlot = Omit<Loadout, 'model'> & { model: string | null }
 
-export function emptySlot(id: string): LoadoutSlot {
+function emptySlot(id: string): LoadoutSlot {
   return { id, model: null, effort: 'high', fast: false }
 }
 
-// Preview catalog, matching the composer concept's model/config shape.
 export const loadoutCatalog: readonly LoadoutModel[] = [
   {
     id: 'fable-5.1',
@@ -85,6 +84,12 @@ export const loadoutCatalog: readonly LoadoutModel[] = [
     fast: true,
   },
 ]
+export const copilotModels = ['GPT-6 Astra', 'Claude Sonnet 5', 'Gemini 3.8 Flash', 'Grok 4.6']
+
+export function findModel(id: string | null) {
+  return loadoutCatalog.find((model) => model.id === id)
+}
+
 export const defaultLoadouts: Loadout[] = [
   { id: 'slot-1', model: 'opus-5', effort: 'high', fast: false },
   { id: 'slot-2', model: 'gpt-6-astra', effort: 'low', fast: true },
@@ -100,11 +105,7 @@ export const effortLabels: Record<string, string> = {
   max: 'Max',
 }
 export function equipModel(slot: LoadoutSlot, model: LoadoutModel): Loadout {
-  const effort = model.efforts.includes(slot.effort)
-    ? slot.effort
-    : model.efforts.includes('high')
-      ? 'high'
-      : (model.efforts[0] ?? 'high')
+  const effort = model.efforts.includes(slot.effort) ? slot.effort : 'high'
   return { ...slot, model: model.id, effort, fast: model.fast && slot.fast }
 }
 export function restoreLoadouts(value: unknown): LoadoutSlot[] {
@@ -114,7 +115,7 @@ export function restoreLoadouts(value: unknown): LoadoutSlot[] {
     const item = value[index]
     if (!item || typeof item !== 'object') return fallback
     if (item.model === null) return emptySlot(fallback.id)
-    const model = loadoutCatalog.find((model) => model.id === item.model)
+    const model = findModel(item.model)
     if (!model) return fallback
     return equipModel(
       {
@@ -128,23 +129,6 @@ export function restoreLoadouts(value: unknown): LoadoutSlot[] {
   })
 }
 
-// Slot IDs describe positions; only the complete configs move between them.
-export function dropConfig(
-  slots: LoadoutSlot[],
-  sourceId: string,
-  targetId: string | null
-): LoadoutSlot[] {
-  const source = slots.find((slot) => slot.id === sourceId)
-  if (!source?.model || sourceId === targetId) return slots
-  if (targetId === null)
-    return slots.map((slot) => (slot.id === sourceId ? emptySlot(slot.id) : slot))
-  const target = slots.find((slot) => slot.id === targetId)
-  if (!target) return slots
-  return slots.map((slot) =>
-    slot.id === targetId
-      ? { ...source, id: targetId }
-      : slot.id === sourceId
-        ? { ...target, id: sourceId }
-        : slot
-  )
+export function clearSlot(slots: LoadoutSlot[], id: string) {
+  return slots.map((slot) => (slot.id === id ? emptySlot(id) : slot))
 }

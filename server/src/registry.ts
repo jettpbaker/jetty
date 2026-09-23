@@ -2,7 +2,6 @@ import type { Effect } from 'effect'
 
 import type { Agent } from './agent'
 
-/** Echo is the in-process test double. It is never a client-selected provider. */
 export type AgentProvider = 'claude' | 'codex' | 'grok' | 'echo'
 
 export type AgentRegistry = {
@@ -16,11 +15,11 @@ export function isAgentProvider(value: string): value is AgentProvider {
   return value === 'claude' || value === 'codex' || value === 'grok' || value === 'echo'
 }
 
-export function singleAgentRegistry(agent: Agent, provider: AgentProvider = 'echo'): AgentRegistry {
+export function singleAgentRegistry(agent: Agent): AgentRegistry {
   return {
-    defaultProvider: provider,
-    agent(name) {
-      return name === provider ? agent : undefined
+    defaultProvider: 'echo',
+    agent(provider) {
+      return provider === 'echo' ? agent : undefined
     },
   }
 }
@@ -32,8 +31,7 @@ export function agentRegistry(
   return {
     defaultProvider,
     agent(provider) {
-      if (provider === 'echo') return undefined
-      return agents[provider]
+      return provider === 'echo' ? undefined : agents[provider]
     },
   }
 }

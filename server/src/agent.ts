@@ -5,7 +5,6 @@ import type { EffortLevel, PermissionMode, UploadAttachment, Usage } from '@jett
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
-/** Image payload for the agent seam — no SDK types. */
 export type AgentImage = {
   mimeType: UploadAttachment['mimeType']
   base64data: string
@@ -21,7 +20,6 @@ export type TurnInput = {
   permissionMode?: PermissionMode
 }
 
-/** Optional hooks wired at agent construction — agents stay socket-free. */
 export type AgentHooks = {
   onUsage?: (usage: Usage) => void
 }
@@ -106,10 +104,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
         usedTokens: used,
         maxTokens: ECHO_MAX_TOKENS,
         compactAt: ECHO_COMPACT_AT,
-        slices: [
-          ...ECHO_FIXED_SLICES.map((s) => ({ label: s.label, tokens: s.tokens })),
-          { label: 'Messages', tokens: messages },
-        ],
+        slices: [...ECHO_FIXED_SLICES, { label: 'Messages', tokens: messages }],
         model: 'echo-sonnet',
         asOf: Date.now(),
       }
@@ -123,7 +118,6 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
         const from = Math.min(to, Math.max(ECHO_FIXED_SUM, Math.round(to * 0.55)))
         return { from, to }
       }
-      // 6–9% of the window; step keyed off current fill so it's deterministic per thread
       const step = Math.floor(prev / 10_000) % 4
       const growth = Math.round(ECHO_MAX_TOKENS * (0.06 + step * 0.01))
       const to = Math.min(ECHO_MAX_TOKENS, prev + growth)
@@ -179,20 +173,14 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
           const emit: Emit = (event, onCommit) =>
             session.publication.withPermit(publish(event, onCommit))
           const { from, to } = nextContextTarget(input.threadId)
-          const ramp = [
-            Math.round(from + (to - from) * 0.25),
-            Math.round(from + (to - from) * 0.5),
-            Math.round(from + (to - from) * 0.75),
-            to,
-          ]
+          const ramp = [0.25, 0.5, 0.75, 1].map((f) => Math.round(from + (to - from) * f))
+          const itemBase = () => ({ id: newId(), turnId: input.turnId, createdAt: Date.now() })
 
           const lifecycle = Effect.gen(function* () {
             yield* emit({ type: 'turn.started', turnId: input.turnId })
 
             const reasoning: ThreadItem = {
-              id: newId(),
-              turnId: input.turnId,
-              createdAt: Date.now(),
+              ...itemBase(),
               kind: 'reasoning',
               text: '',
             }
@@ -202,9 +190,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             yield* emit({ type: 'context.updated', usage: echoContextUsage(ramp[0]!) })
 
             const tool: ThreadItem = {
-              id: newId(),
-              turnId: input.turnId,
-              createdAt: Date.now(),
+              ...itemBase(),
               kind: 'tool_call',
               toolName: 'echo',
               input: { text: input.text },
@@ -217,9 +203,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             yield* emit({ type: 'context.updated', usage: echoContextUsage(ramp[1]!) })
 
             const assistant: ThreadItem = {
-              id: newId(),
-              turnId: input.turnId,
-              createdAt: Date.now(),
+              ...itemBase(),
               kind: 'assistant_message',
               text: '',
             }
@@ -247,7 +231,6 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
               costUsd: 0,
             })
 
-            // Plausible fixed numbers so home UI is developable without the real agent.
             hooks.onUsage?.({
               fiveHour: { pct: 42, resetsAt: Date.now() + 2 * 60 * 60 * 1000 },
               sevenDay: { pct: 18, resetsAt: Date.now() + 3 * 24 * 60 * 60 * 1000 },

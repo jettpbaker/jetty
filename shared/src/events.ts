@@ -26,7 +26,6 @@ export type ContextSlice = Schema.Schema.Type<typeof ContextSlice>
 export const ContextUsage = Schema.Struct({
   usedTokens: Schema.Natural,
   maxTokens: Schema.Int.check(Schema.isGreaterThan(0)),
-  /** tokens at which auto-compaction fires; absent when auto-compact is off */
   compactAt: Schema.optional(Schema.Int.check(Schema.isGreaterThan(0))),
   slices: Schema.Array(ContextSlice),
   model: Schema.optional(Schema.String),
@@ -52,7 +51,7 @@ export const ThreadEvent = Schema.Union([
     type: Schema.Literal('item.delta'),
     itemId: Schema.String,
     delta: Schema.String,
-    /** estimated thinking tokens in this delta (an increment, not a running total) */
+    // an increment, not a running total
     tokens: Schema.optional(Schema.Natural),
   }),
   Schema.Struct({

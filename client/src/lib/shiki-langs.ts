@@ -1,5 +1,3 @@
-// Grammars the thread view ships. Anything else renders as plain text.
-// Each import is its own chunk, fetched the first time a fence names the language.
 export const languages = {
   astro: () => import('@shikijs/langs/astro'),
   bash: () => import('@shikijs/langs/bash'),
@@ -56,7 +54,7 @@ export const languages = {
   zig: () => import('@shikijs/langs/zig'),
 }
 
-export type Language = keyof typeof languages
+type Language = keyof typeof languages
 
 const aliases: Record<string, Language> = {
   'c#': 'csharp',

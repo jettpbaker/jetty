@@ -5,7 +5,6 @@ import { loadAccent, setAccent } from './accent'
 import { applyWallpaperAccent } from './wallpaper-accent'
 import { wallpaperPixelSize, wallpaperQuality, type WallpaperCrop } from './wallpaper-crop'
 
-export const defaultWallpaperSrc = '/backgrounds/dither_test.jpeg'
 export type Appearance = {
   wallpaper: string
   filename: string | null
@@ -21,12 +20,10 @@ const sourceBlob = 'wallpaper-source'
 const eventName = 'jetty-appearance'
 const dataUrl = /^data:image\/(jpeg|png|webp);base64,/
 
-type WallpaperRef = '' | 'opfs' | typeof defaultWallpaperSrc
-
 type StoredAppearance = {
   autoAccent: boolean
   filename: string | null
-  wallpaper: WallpaperRef
+  wallpaper: '' | 'opfs'
   source?: 'opfs'
   crop?: WallpaperCrop
   legacyWallpaper?: string
@@ -61,18 +58,18 @@ function readStored(): StoredAppearance {
     if (!data || typeof data.autoAccent !== 'boolean') return empty
     const filename = typeof data.filename === 'string' ? data.filename : null
     const crop = cropOf(data.crop)
-    if (data.wallpaper === 'opfs' || data.wallpaper === defaultWallpaperSrc) {
+    if (data.wallpaper === 'opfs') {
       return {
         autoAccent: data.autoAccent,
         filename,
-        wallpaper: data.wallpaper,
+        wallpaper: 'opfs',
         source: data.source === 'opfs' ? 'opfs' : undefined,
         crop,
       }
     }
     if (typeof data.wallpaper === 'string' && dataUrl.test(data.wallpaper)) {
       return {
-        autoAccent: Boolean(data.autoAccent),
+        autoAccent: data.autoAccent,
         filename,
         wallpaper: '',
         crop,
@@ -87,17 +84,8 @@ function readStored(): StoredAppearance {
   }
 }
 
-function writeStored(stored: StoredAppearance) {
-  storage.set(
-    key,
-    JSON.stringify({
-      autoAccent: stored.autoAccent,
-      filename: stored.filename,
-      wallpaper: stored.wallpaper,
-      source: stored.source,
-      crop: stored.crop,
-    })
-  )
+function writeStored({ autoAccent, filename, wallpaper, source, crop }: StoredAppearance) {
+  storage.set(key, JSON.stringify({ autoAccent, filename, wallpaper, source, crop }))
 }
 
 async function dataUrlToBlob(value: string) {
@@ -115,12 +103,7 @@ async function objectUrl(name: string) {
 async function materialize(stored: StoredAppearance): Promise<Appearance> {
   const previous = liveUrls
   liveUrls = []
-  const wallpaper =
-    stored.wallpaper === 'opfs'
-      ? await objectUrl(wallpaperBlob)
-      : stored.wallpaper === defaultWallpaperSrc
-        ? defaultWallpaperSrc
-        : ''
+  const wallpaper = stored.wallpaper === 'opfs' ? await objectUrl(wallpaperBlob) : ''
   const source = stored.source === 'opfs' ? (await objectUrl(sourceBlob)) || undefined : undefined
   requestAnimationFrame(() => {
     for (const url of previous) URL.revokeObjectURL(url)
@@ -170,19 +153,20 @@ export function loadAppearance(): Appearance {
 }
 
 let generation = 0
-export function syncAppearanceAccent() {
+function syncAppearanceAccent() {
   const current = ++generation
   const prefs = loadAppearance()
+  const restorePreset = () => setAccent(loadAccent())
   if (!prefs.autoAccent || !prefs.wallpaper) {
-    setAccent(loadAccent())
+    restorePreset()
     return
   }
   const image = new Image()
   image.onload = () => {
-    if (current === generation && !applyWallpaperAccent(image)) setAccent(loadAccent())
+    if (current === generation && !applyWallpaperAccent(image)) restorePreset()
   }
   image.onerror = () => {
-    if (current === generation) setAccent(loadAccent())
+    if (current === generation) restorePreset()
   }
   image.src = prefs.wallpaper
 }
@@ -221,16 +205,9 @@ export function saveAppearance(next: Appearance) {
       }
       await blobs.put(wallpaperBlob, await dataUrlToBlob(next.wallpaper))
       stored.wallpaper = 'opfs'
-      stored.filename = next.filename
-      stored.crop = next.crop
-    } else if (next.wallpaper === defaultWallpaperSrc) {
-      stored.wallpaper = defaultWallpaperSrc
-      stored.filename = next.filename
-      stored.crop = next.crop
-    } else {
-      stored.filename = next.filename
-      stored.crop = next.crop
     }
+    stored.filename = next.filename
+    stored.crop = next.crop
     stored.autoAccent = next.autoAccent
     writeStored(stored)
     publish(await materialize(stored))
@@ -255,130 +232,95 @@ export function useAppearance() {
   return appearance
 }
 
-// Above this, decoding the bitmap can freeze the tab. File size is not the limit.
+// Decoding a bitmap above this many pixels can freeze the tab, whatever the file size.
 const maxDecodedPixels = 120_000_000
-
-function readU32(bytes: Uint8Array, offset: number) {
-  return (
-    ((bytes[offset] ?? 0) << 24) |
-    ((bytes[offset + 1] ?? 0) << 16) |
-    ((bytes[offset + 2] ?? 0) << 8) |
-    (bytes[offset + 3] ?? 0)
-  )
-}
+const unreadable = 'This image could not be opened. Try another one.'
 
 function positiveSize(width: number, height: number) {
   if (width > 0 && height > 0) return { width, height }
   return undefined
 }
 
-function pngSize(bytes: Uint8Array) {
-  const signature = [137, 80, 78, 71, 13, 10, 26, 10]
-  if (bytes.length < 24) return undefined
-  for (let index = 0; index < signature.length; index += 1)
-    if (bytes[index] !== signature[index]) return undefined
-  if (bytes[12] !== 73 || bytes[13] !== 72 || bytes[14] !== 68 || bytes[15] !== 82) return undefined
-  return positiveSize(readU32(bytes, 16) >>> 0, readU32(bytes, 20) >>> 0)
+function fourCC(view: DataView, offset: number) {
+  return String.fromCharCode(...new Uint8Array(view.buffer, offset, 4))
 }
 
-function jpegSize(bytes: Uint8Array) {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return undefined
+function pngSize(view: DataView) {
+  if (
+    view.byteLength < 24 ||
+    view.getUint32(0) !== 0x89504e47 ||
+    view.getUint32(4) !== 0x0d0a1a0a ||
+    fourCC(view, 12) !== 'IHDR'
+  )
+    return undefined
+  return positiveSize(view.getUint32(16), view.getUint32(20))
+}
+
+function jpegSize(view: DataView) {
+  if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return undefined
   let offset = 2
-  while (offset + 3 < bytes.length) {
-    if (bytes[offset] !== 0xff) return undefined
-    while (bytes[offset] === 0xff) offset += 1
-    const marker = bytes[offset]
+  while (offset + 3 < view.byteLength) {
+    if (view.getUint8(offset) !== 0xff) return undefined
+    while (offset < view.byteLength && view.getUint8(offset) === 0xff) offset += 1
+    if (offset >= view.byteLength) return undefined
+    const marker = view.getUint8(offset)
     offset += 1
-    if (marker === undefined || marker === 0xd9 || marker === 0xda) return undefined
+    if (marker === 0xd9 || marker === 0xda) return undefined
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue
-    const length = ((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0)
-    if (length < 2 || offset + length > bytes.length) return undefined
+    if (offset + 2 > view.byteLength) return undefined
+    const length = view.getUint16(offset)
+    if (length < 2 || offset + length > view.byteLength) return undefined
     const isStartOfFrame =
       marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc
     if (isStartOfFrame) {
       if (length < 7) return undefined
-      return positiveSize(
-        ((bytes[offset + 5] ?? 0) << 8) | (bytes[offset + 6] ?? 0),
-        ((bytes[offset + 3] ?? 0) << 8) | (bytes[offset + 4] ?? 0)
-      )
+      return positiveSize(view.getUint16(offset + 5), view.getUint16(offset + 3))
     }
     offset += length
   }
   return undefined
 }
 
-function webpSize(bytes: Uint8Array) {
-  if (
-    bytes.length < 30 ||
-    bytes[0] !== 82 ||
-    bytes[1] !== 73 ||
-    bytes[2] !== 70 ||
-    bytes[3] !== 70 ||
-    bytes[8] !== 87 ||
-    bytes[9] !== 69 ||
-    bytes[10] !== 66 ||
-    bytes[11] !== 80
-  )
+function webpSize(view: DataView) {
+  if (view.byteLength < 30 || fourCC(view, 0) !== 'RIFF' || fourCC(view, 8) !== 'WEBP')
     return undefined
-  const kind = String.fromCharCode(bytes[12] ?? 0, bytes[13] ?? 0, bytes[14] ?? 0, bytes[15] ?? 0)
-  if (kind === 'VP8X') {
-    return positiveSize(
-      1 + ((bytes[24] ?? 0) | ((bytes[25] ?? 0) << 8) | ((bytes[26] ?? 0) << 16)),
-      1 + ((bytes[27] ?? 0) | ((bytes[28] ?? 0) << 8) | ((bytes[29] ?? 0) << 16))
-    )
-  }
-  if (kind === 'VP8 ' && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
-    return positiveSize(
-      ((bytes[26] ?? 0) | ((bytes[27] ?? 0) << 8)) & 0x3fff,
-      ((bytes[28] ?? 0) | ((bytes[29] ?? 0) << 8)) & 0x3fff
-    )
-  }
-  if (kind === 'VP8L' && bytes[20] === 0x2f) {
-    const bits =
-      (bytes[21] ?? 0) |
-      ((bytes[22] ?? 0) << 8) |
-      ((bytes[23] ?? 0) << 16) |
-      ((bytes[24] ?? 0) << 24)
+  const kind = fourCC(view, 12)
+  const uint24 = (offset: number) =>
+    view.getUint16(offset, true) | (view.getUint8(offset + 2) << 16)
+  if (kind === 'VP8X') return positiveSize(1 + uint24(24), 1 + uint24(27))
+  if (kind === 'VP8 ' && uint24(23) === 0x2a019d)
+    return positiveSize(view.getUint16(26, true) & 0x3fff, view.getUint16(28, true) & 0x3fff)
+  if (kind === 'VP8L' && view.getUint8(20) === 0x2f) {
+    const bits = view.getUint32(21, true)
     return positiveSize((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1)
   }
   return undefined
 }
 
-function imageSize(bytes: Uint8Array, type: string) {
-  if (type === 'image/png') return pngSize(bytes)
-  if (type === 'image/jpeg') return jpegSize(bytes)
-  if (type === 'image/webp') return webpSize(bytes)
-  return undefined
-}
+const sizeReaders: Record<
+  string,
+  (view: DataView) => { width: number; height: number } | undefined
+> = { 'image/jpeg': jpegSize, 'image/png': pngSize, 'image/webp': webpSize }
 
-// The returned data URL is the compressed WebP. saveAppearance stores those bytes, not the file.
 export async function prepareWallpaper(file: File): Promise<string> {
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
-    throw new Error('Choose a JPG, PNG, or WebP image.')
-  const size = imageSize(new Uint8Array(await file.arrayBuffer()), file.type)
-  if (!size) throw new Error('This image could not be opened. Try another one.')
+  const readSize = sizeReaders[file.type]
+  if (!readSize) throw new Error('Choose a JPG, PNG, or WebP image.')
+  const size = readSize(new DataView(await file.arrayBuffer()))
+  if (!size) throw new Error(unreadable)
   if (size.width * size.height > maxDecodedPixels)
     throw new Error('This image is too large to open.')
   const fitted = wallpaperPixelSize(size.width, size.height)
-  try {
-    const bitmap = await createImageBitmap(file, {
-      resizeWidth: fitted.width,
-      resizeHeight: fitted.height,
-      resizeQuality: 'high',
-    })
-    try {
-      const canvas = document.createElement('canvas')
-      canvas.width = bitmap.width
-      canvas.height = bitmap.height
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('This image could not be processed. Try another one.')
-      context.drawImage(bitmap, 0, 0)
-      return canvas.toDataURL('image/webp', wallpaperQuality)
-    } finally {
-      bitmap.close()
-    }
-  } catch (error) {
-    if (error instanceof Error && !(error instanceof DOMException)) throw error
-    throw new Error('This image could not be opened. Try another one.')
-  }
+  const bitmap = await createImageBitmap(file, {
+    resizeWidth: fitted.width,
+    resizeHeight: fitted.height,
+    resizeQuality: 'high',
+  }).catch(() => {
+    throw new Error(unreadable)
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  return canvas.toDataURL('image/webp', wallpaperQuality)
 }

@@ -42,6 +42,10 @@ function providerConflict(bound: string, requested: string) {
   return new StoreError('conflict', `Thread is bound to ${bound} and cannot switch to ${requested}`)
 }
 
+function toAgentError(error: Error) {
+  return new AgentError(error.message)
+}
+
 export function createOrchestrator(
   store: Store,
   agent: Agent | AgentRegistry,
@@ -134,15 +138,6 @@ export function createOrchestrator(
       })
     }
 
-    function checkThread(threadId: string) {
-      return Effect.gen(function* () {
-        const thread = yield* store.getThread(threadId)
-        if (!thread)
-          return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
-        return thread
-      })
-    }
-
     function maybeTitle(threadId: string, provider: AgentProvider, text: string) {
       if (!titler) return Effect.void
       return titler(provider, text).pipe(
@@ -164,10 +159,7 @@ export function createOrchestrator(
 
     function soleInferredProvider(threadId: string) {
       return Effect.gen(function* () {
-        const names = new Set<string>()
-        for (const provider of yield* store.listProviderSessionProviders(threadId)) {
-          names.add(provider)
-        }
+        const names = new Set(yield* store.listProviderSessionProviders(threadId))
         if (yield* store.getThreadSessionId(threadId)) names.add('claude')
         if (names.size > 1) {
           return yield* Effect.fail(
@@ -179,65 +171,51 @@ export function createOrchestrator(
       })
     }
 
+    function agentFor(provider: string) {
+      if (isAgentProvider(provider)) {
+        const agent = registry.agent(provider)
+        if (agent) return Effect.succeed({ provider, agent })
+      }
+      return Effect.fail(new StoreError('invalid_params', `Provider ${provider} is not available`))
+    }
+
     function chooseProvider(threadId: string, requested: ProviderId | undefined) {
       return Effect.gen(function* () {
         const column = yield* store.getThreadProvider(threadId)
-        const inferred = column ? null : yield* soleInferredProvider(threadId)
-        const existing = column ?? inferred
+        const existing = column ?? (yield* soleInferredProvider(threadId))
         if (existing && requested && requested !== existing) {
           return yield* Effect.fail(providerConflict(existing, requested))
         }
-        const provider = existing ?? requested ?? registry.defaultProvider
-        if (!isAgentProvider(provider) || !registry.agent(provider)) {
-          return yield* Effect.fail(
-            new StoreError('invalid_params', `Provider ${provider} is not available`)
-          )
-        }
-        return { provider, stored: column === provider }
+        const chosen = yield* agentFor(existing ?? requested ?? registry.defaultProvider)
+        return { ...chosen, stored: column === chosen.provider }
       })
     }
 
-    function commitProvider(threadId: string, provider: AgentProvider, stored: boolean) {
+    function commitProvider(threadId: string, provider: AgentProvider) {
       return Effect.gen(function* () {
-        if (stored) return false
         const written = yield* store.setThreadProviderIfAbsent(threadId, provider)
-        if (!isAgentProvider(written) || !registry.agent(written)) {
-          return yield* Effect.fail(
-            new StoreError('invalid_params', `Provider ${written} is not available`)
-          )
-        }
+        yield* agentFor(written)
         if (written !== provider) return yield* Effect.fail(providerConflict(written, provider))
-        return true
+        yield* hub.withChromePublication(
+          Effect.gen(function* () {
+            const thread = yield* store.getThread(threadId)
+            if (thread?.provider) hub.pushChrome({ type: 'thread.upserted', thread })
+          })
+        )
       })
-    }
-
-    function publishProvider(threadId: string) {
-      return hub.withChromePublication(
-        Effect.gen(function* () {
-          const thread = yield* store.getThread(threadId)
-          if (thread?.provider) hub.pushChrome({ type: 'thread.upserted', thread })
-        })
-      )
-    }
-
-    function agentFor(provider: AgentProvider) {
-      const found = registry.agent(provider)
-      return found
-        ? Effect.succeed(found)
-        : Effect.fail(new StoreError('invalid_params', `Provider ${provider} is not available`))
     }
 
     function agentForThread(threadId: string) {
-      return Effect.gen(function* () {
-        const column = yield* store.getThreadProvider(threadId)
-        const provider = column ?? registry.defaultProvider
-        if (!isAgentProvider(provider)) {
-          return yield* Effect.fail(
-            new StoreError('invalid_params', `Provider ${provider} is not available`)
-          )
-        }
-        return yield* agentFor(provider)
-      })
+      return store.requireThread(threadId).pipe(
+        Effect.andThen(store.getThreadProvider(threadId)),
+        Effect.flatMap((column) => agentFor(column ?? registry.defaultProvider)),
+        Effect.map(({ agent }) => agent)
+      )
+    }
+
+    function requireFound(what: string) {
+      return (found: boolean) =>
+        found ? Effect.void : Effect.fail(new StoreError('not_found', `No pending ${what}`))
     }
 
     function startTurnEffect(input: StartTurnInput) {
@@ -245,7 +223,7 @@ export function createOrchestrator(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              yield* checkThread(input.threadId)
+              yield* store.requireThread(input.threadId)
               const chosen = yield* chooseProvider(input.threadId, input.provider)
               let committed = false
               const onCommit = Effect.sync(() => {
@@ -271,36 +249,32 @@ export function createOrchestrator(
                     )
                   )
                 : EMPTY_ATTACHMENTS
-              const inserted = yield* commitProvider(input.threadId, chosen.provider, chosen.stored)
-              if (inserted) yield* publishProvider(input.threadId)
-              const agent = yield* agentFor(chosen.provider)
+              if (!chosen.stored) yield* commitProvider(input.threadId, chosen.provider)
+              const { agent } = chosen
               if (yield* store.needsGeneratedTitle(input.threadId))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
               const live = state(input.threadId)
               if (live.turnId) {
-                const existing = live.turnId
-                if (
-                  yield* agent.steer(
-                    input.threadId,
-                    input.text,
-                    saved.images,
-                    appendUser(input.threadId, existing, input.text, saved.meta, onCommit).pipe(
-                      Effect.mapError((error) => new AgentError(error.message))
-                    )
+                const turnId = live.turnId
+                const accepted = yield* agent.steer(
+                  input.threadId,
+                  input.text,
+                  saved.images,
+                  appendUser(input.threadId, turnId, input.text, saved.meta, onCommit).pipe(
+                    Effect.mapError(toAgentError)
                   )
-                ) {
-                  return { turnId: existing }
-                }
-                return yield* Effect.fail(
-                  new StoreError('internal', 'Active turn is not accepting input')
                 )
+                if (!accepted) {
+                  return yield* Effect.fail(
+                    new StoreError('internal', 'Active turn is not accepting input')
+                  )
+                }
+                return { turnId }
               }
               const turnId = newId()
               live.turnId = turnId
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
-                append(input.threadId, event, onCommit).pipe(
-                  Effect.mapError((error) => new AgentError(error.message))
-                )
+                append(input.threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
               const turn = yield* appendUser(
                 input.threadId,
                 turnId,
@@ -361,10 +335,7 @@ export function createOrchestrator(
       },
       startTurnEffect,
       interrupt(threadId: string) {
-        return checkThread(threadId).pipe(
-          Effect.andThen(agentForThread(threadId)),
-          Effect.flatMap((agent) => agent.interrupt(threadId))
-        )
+        return agentForThread(threadId).pipe(Effect.flatMap((agent) => agent.interrupt(threadId)))
       },
       respondApproval(
         threadId: string,
@@ -373,52 +344,36 @@ export function createOrchestrator(
         message?: string,
         updatedPermissions?: unknown[]
       ) {
-        return checkThread(threadId).pipe(
-          Effect.andThen(agentForThread(threadId)),
+        return agentForThread(threadId).pipe(
           Effect.flatMap((agent) =>
             agent.respondToApproval(threadId, itemId, decision, message, updatedPermissions)
           ),
-          Effect.flatMap((found) =>
-            found
-              ? Effect.void
-              : Effect.fail(new StoreError('not_found', `No pending approval ${itemId}`))
-          )
+          Effect.flatMap(requireFound(`approval ${itemId}`))
         )
       },
       respondQuestion(threadId: string, itemId: string, answers: Record<string, string>) {
-        return checkThread(threadId).pipe(
-          Effect.andThen(agentForThread(threadId)),
+        return agentForThread(threadId).pipe(
           Effect.flatMap((agent) => agent.respondToQuestion(threadId, itemId, answers)),
-          Effect.flatMap((found) =>
-            found
-              ? Effect.void
-              : Effect.fail(new StoreError('not_found', `No pending question ${itemId}`))
-          )
+          Effect.flatMap(requireFound(`question ${itemId}`))
         )
       },
       deleteThread(threadId: string) {
         return Effect.suspend(() => {
           const live = state(threadId)
-          // admission, then publication, then chrome — same order as a turn's writes.
+          // Same lock order as a turn's writes: admission, publication, chrome.
           return live.admission.withPermit(
             live.publication.withPermit(
               hub.withChromePublication(
                 Effect.gen(function* () {
-                  const thread = yield* store.getThread(threadId)
-                  if (!thread)
-                    return yield* Effect.fail(
-                      new StoreError('not_found', `Thread ${threadId} not found`)
-                    )
-                  // turnId is the live writer. Persisted activeTurnId survives a crash
-                  // with no agent left, so it must not block delete.
+                  yield* store.requireThread(threadId)
+                  // A persisted activeTurnId can outlive a crash; only a live turn blocks delete.
                   if (live.turnId)
                     return yield* Effect.fail(
                       new StoreError('conflict', 'Cannot delete a thread while a turn is running')
                     )
                   const attachmentIds = yield* store.deleteThread(threadId)
-                  const files = attachments
-                  if (files)
-                    yield* Effect.forEach(attachmentIds, (id) => files.remove(id), {
+                  if (attachments)
+                    yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {
                       discard: true,
                     })
                   hub.pushChrome({ type: 'thread.removed', threadId })

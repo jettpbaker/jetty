@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog'
 import { loadAppearance, saveAppearance, type Appearance } from '@/lib/appearance'
 import {
+  clamp,
   cropRect,
   defaultCrop,
   renderWallpaperCrop,
@@ -18,6 +19,12 @@ import {
 import { ArrowUUpLeftIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+const edges = [
+  ['n', 'inset-x-0 top-0 h-3 -translate-y-1/2 cursor-ns-resize'],
+  ['s', 'inset-x-0 bottom-0 h-3 translate-y-1/2 cursor-ns-resize'],
+  ['e', 'inset-y-0 right-0 w-3 translate-x-1/2 cursor-ew-resize'],
+  ['w', 'inset-y-0 left-0 w-3 -translate-x-1/2 cursor-ew-resize'],
+] as const
 const handles = [
   ['nw', 'left-0 top-0 -translate-x-1/2 -translate-y-1/2', 'nwse-resize'],
   ['n', 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2', 'ns-resize'],
@@ -28,11 +35,17 @@ const handles = [
   ['sw', 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2', 'nesw-resize'],
   ['w', 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2', 'ew-resize'],
 ] as const
+const arrows: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+}
+
 function panelAspect() {
   const box = document.querySelector('[aria-label="Thread workspace"]')?.getBoundingClientRect()
   return box && box.height > 0 ? box.width / box.height : 16 / 9
 }
-const clamp = (value: number) => Math.max(0, Math.min(1, value))
 
 export function WallpaperEditor({
   appearance,
@@ -144,9 +157,8 @@ export function WallpaperEditor({
               src={source}
               alt='Original wallpaper'
               draggable={false}
-              onLoad={() => {
-                if (img.current)
-                  setImageAspect(img.current.naturalWidth / img.current.naturalHeight)
+              onLoad={(event) => {
+                setImageAspect(event.currentTarget.naturalWidth / event.currentTarget.naturalHeight)
                 paint(current.current)
               }}
               className='pointer-events-none absolute inset-0 size-full select-none'
@@ -159,20 +171,13 @@ export function WallpaperEditor({
               className='absolute left-0 top-0 touch-none border border-white outline-none focus-visible:border-primary'
               style={{ cursor: 'grab', boxShadow: '0 0 0 9999px rgb(0 0 0 / 35%)' }}
               onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return
-                const directions: Record<string, [number, number]> = {
-                  ArrowLeft: [-0.02, 0],
-                  ArrowRight: [0.02, 0],
-                  ArrowUp: [0, -0.02],
-                  ArrowDown: [0, 0.02],
-                }
-                const delta = directions[event.key]
-                if (!delta) return
+                const arrow = arrows[event.key]
+                if (event.target !== event.currentTarget || !arrow) return
                 event.preventDefault()
                 setCrop({
                   ...current.current,
-                  x: clamp(current.current.x + delta[0]),
-                  y: clamp(current.current.y + delta[1]),
+                  x: clamp(current.current.x + arrow[0] * 0.02, 0, 1),
+                  y: clamp(current.current.y + arrow[1] * 0.02, 0, 1),
                 })
               }}
               onPointerDown={(event) => {
@@ -223,11 +228,11 @@ export function WallpaperEditor({
                   ...start.crop,
                   x:
                     overflowX > 0
-                      ? clamp(start.crop.x + (event.clientX - start.x) / overflowX)
+                      ? clamp(start.crop.x + (event.clientX - start.x) / overflowX, 0, 1)
                       : 0.5,
                   y:
                     overflowY > 0
-                      ? clamp(start.crop.y + (event.clientY - start.y) / overflowY)
+                      ? clamp(start.crop.y + (event.clientY - start.y) / overflowY, 0, 1)
                       : 0.5,
                 })
               }}
@@ -235,12 +240,12 @@ export function WallpaperEditor({
               onPointerCancel={stopDrag}
               onLostPointerCapture={stopDrag}
             >
-              {(['n', 's', 'e', 'w'] as const).map((edge) => (
+              {edges.map(([edge, position]) => (
                 <span
                   key={edge}
                   data-crop-handle={edge}
                   aria-hidden='true'
-                  className={`absolute ${edge === 'n' ? 'inset-x-0 top-0 h-3 -translate-y-1/2 cursor-ns-resize' : edge === 's' ? 'inset-x-0 bottom-0 h-3 translate-y-1/2 cursor-ns-resize' : edge === 'e' ? 'inset-y-0 right-0 w-3 translate-x-1/2 cursor-ew-resize' : 'inset-y-0 left-0 w-3 -translate-x-1/2 cursor-ew-resize'}`}
+                  className={`absolute ${position}`}
                 />
               ))}
               {handles.map(([handle, position, cursor]) => (
@@ -252,15 +257,9 @@ export function WallpaperEditor({
                   className={`absolute z-10 flex size-6 touch-none items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-primary ${position}`}
                   style={{ cursor }}
                   onKeyDown={(event) => {
-                    const delta: Record<string, [number, number]> = {
-                      ArrowLeft: [-1, 0],
-                      ArrowRight: [1, 0],
-                      ArrowUp: [0, -1],
-                      ArrowDown: [0, 1],
-                    }
-                    const d = delta[event.key]
+                    const arrow = arrows[event.key]
                     const node = img.current
-                    if (!d || !node) return
+                    if (!arrow || !node) return
                     event.preventDefault()
                     event.stopPropagation()
                     const step = node.naturalWidth * (event.shiftKey ? 0.02 : 0.005)
@@ -270,8 +269,8 @@ export function WallpaperEditor({
                         node.naturalHeight,
                         current.current,
                         handle,
-                        d[0] * step,
-                        d[1] * step
+                        arrow[0] * step,
+                        arrow[1] * step
                       )
                     )
                   }}

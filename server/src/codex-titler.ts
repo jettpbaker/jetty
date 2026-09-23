@@ -2,12 +2,13 @@ import { Effect, Queue } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { tmpdir } from 'node:os'
 
-import { object, openCodexConnection, string, type CodexProcessOptions } from './codex-rpc'
+import { openCodexConnection } from './codex-rpc'
+import { object, string, type StdioProcessOptions } from './stdio-rpc'
 import { normalizeTitle, TITLE_INSTRUCTIONS, titlePrompt, type Titler } from './titler'
 
-const DEFAULT_TITLE_MODEL = 'gpt-6-luna'
+const TITLE_MODEL = 'gpt-6-luna'
 
-export function createCodexTitler(options: CodexProcessOptions = {}, model = DEFAULT_TITLE_MODEL) {
+export function createCodexTitler(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const titler: Titler = (text) =>
@@ -19,7 +20,7 @@ export function createCodexTitler(options: CodexProcessOptions = {}, model = DEF
           if (!account) return null
           const started = yield* connection.request('thread/start', {
             cwd,
-            model,
+            model: TITLE_MODEL,
             ephemeral: true,
             approvalPolicy: 'never',
             sandbox: 'read-only',

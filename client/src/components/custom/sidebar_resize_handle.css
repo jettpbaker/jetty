@@ -1,6 +1,6 @@
 .sidebar-resize-handle {
   position: fixed;
-  top: var(--app-tab-bar-height, 0px);
+  top: var(--app-tab-bar-height);
   bottom: 0;
   left: calc(var(--sidebar-width) - 4px);
   width: 8px;

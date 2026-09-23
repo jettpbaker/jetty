@@ -1,13 +1,12 @@
 .provider-icon {
   display: inline-block;
   flex-shrink: 0;
-  background-color: var(--muted-foreground);
+  background-color: currentColor;
   mask-size: contain;
   mask-position: center;
   mask-repeat: no-repeat;
 }
-.provider-icon[data-provider='anthropic'],
-.provider-icon[data-provider='claude'] {
+.provider-icon[data-provider='anthropic'] {
   transform: scale(1.2) translateY(-2.0833%);
 }
 
@@ -25,14 +24,6 @@
   overflow-y: auto;
   border-right: 1px solid var(--border);
 }
-.settings-appearance {
-  container-type: inline-size;
-}
-.appearance-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px;
-}
 @container (max-width: 480px) {
   .provider-panel {
     height: 544px;
@@ -46,13 +37,7 @@
     border-bottom: 1px solid var(--border);
   }
 }
-@container (max-width: 480px) {
-  .appearance-layout {
-    grid-template-columns: 1fr;
-  }
-}
 
-/* Temporary second appearance layout for comparing the hover reveal. */
 .appearance-option-row {
   display: flex;
   align-items: center;
@@ -60,81 +45,4 @@
   gap: 16px;
   min-height: 46px;
   font-size: 13px;
-}
-.theme-reveal {
-  display: flex;
-  flex-shrink: 0;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-menu-item);
-}
-.theme-reveal button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  padding: 0 7px;
-  border-radius: 3px;
-  color: var(--muted-foreground);
-}
-.theme-reveal button[aria-pressed='true'] {
-  background: var(--muted);
-  color: var(--foreground);
-}
-.theme-reveal button:hover {
-  color: var(--foreground);
-}
-.theme-reveal button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-.theme-reveal button > svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-.theme-reveal-label {
-  display: grid;
-  grid-template-columns: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-columns 150ms cubic-bezier(0.25, 1, 0.5, 1),
-    opacity 100ms ease;
-}
-.theme-reveal-label > span {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.theme-reveal-label > span::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-}
-@media (hover: hover) and (pointer: fine) {
-  .theme-reveal button:hover .theme-reveal-label {
-    grid-template-columns: 1fr;
-    opacity: 1;
-    transition-duration: 200ms, 150ms;
-  }
-}
-.theme-reveal button:focus-visible .theme-reveal-label {
-  grid-template-columns: 1fr;
-  opacity: 1;
-  transition: none;
-}
-@media (hover: none), (pointer: coarse) {
-  .theme-reveal-label {
-    grid-template-columns: 1fr;
-    opacity: 1;
-  }
-  .theme-reveal button {
-    min-height: 44px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .theme-reveal-label {
-    transition: none;
-  }
 }

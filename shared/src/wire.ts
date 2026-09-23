@@ -5,7 +5,9 @@ import { SequencedEvent, SessionStatus } from './events'
 import { ApprovalDecision } from './items'
 import { ThreadState } from './reducer'
 
-export const newId = (): string => uuidv7()
+export function newId() {
+  return uuidv7()
+}
 
 export const MAX_IMAGES_PER_TURN = 8
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -14,11 +16,10 @@ export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 export const PermissionMode = Schema.Literals(['auto', 'full_access'])
 export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 
-/** Claude Code reasoning-effort levels (xhigh/max are model-dependent). */
 export const EffortLevel = Schema.Literals(['low', 'medium', 'high', 'xhigh', 'max'])
 export type EffortLevel = Schema.Schema.Type<typeof EffortLevel>
 
-/** A real coding agent. Echo stays off this list; it is the test double, not a choice. */
+// Echo stays off this list: it is the test double, not a choice.
 export const ProviderId = Schema.Literals(['claude', 'codex', 'grok'])
 export type ProviderId = Schema.Schema.Type<typeof ProviderId>
 
@@ -51,7 +52,6 @@ export const ThreadMeta = Schema.Struct({
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
   updatedAt: Schema.Int,
-  /** Set on the first turn for Claude, Codex, or Grok. Omitted until then. */
   provider: Schema.optional(ProviderId),
   git: Schema.optional(ThreadGitStatus),
 })
@@ -64,7 +64,6 @@ export const UploadAttachment = Schema.Struct({
 })
 export type UploadAttachment = Schema.Schema.Type<typeof UploadAttachment>
 
-/** A user-invocable Claude Code skill or slash command. */
 export const Skill = Schema.Struct({
   name: Schema.String,
   description: Schema.String,
@@ -85,8 +84,6 @@ export const methods = {
     result: Schema.Null,
   },
   'project.create': {
-    // title is always derived server-side from the directory basename; the path
-    // must resolve to an existing directory or the server rejects it
     params: Schema.Struct({ path: Schema.String }),
     result: Schema.Struct({ project: Project }),
   },
@@ -98,7 +95,6 @@ export const methods = {
     }),
   },
   'fs.search': {
-    // fuzzy filename search over a project's git-tracked files (for @file mentions)
     params: Schema.Struct({
       projectId: Schema.String,
       query: Schema.String,
@@ -109,11 +105,7 @@ export const methods = {
     result: Schema.Struct({ files: Schema.Array(Schema.String) }),
   },
   'skills.list': {
-    // user-invocable Claude Code skills + .claude/commands for a project
-    // (plus personal ~/.claude ones). omit projectId for personal-only.
-    params: Schema.Struct({
-      projectId: Schema.optional(Schema.String),
-    }),
+    params: Schema.Struct({ projectId: Schema.optional(Schema.String) }),
     result: Schema.Struct({ skills: Schema.Array(Skill) }),
   },
   'thread.create': {
@@ -141,8 +133,6 @@ export const methods = {
   },
   'thread.diff': {
     params: Schema.Struct({ threadId: Schema.String }),
-    // unified `git diff HEAD` patch text, pulled on demand. truncatedPaths lists
-    // files whose hunks were stripped server-side (lockfiles, pathological sizes).
     result: Schema.Struct({
       diff: Schema.String,
       truncatedPaths: Schema.optional(Schema.Array(Schema.String)),
@@ -172,7 +162,7 @@ export const methods = {
       model: Schema.optional(Schema.String),
       effort: Schema.optional(EffortLevel),
       permissionMode: Schema.optional(PermissionMode),
-      /** Locks the thread on the first turn. Omitted turns use the server default. */
+      // Locks the thread on the first turn; omitted turns use the server default.
       provider: Schema.optional(ProviderId),
     }),
     result: Schema.Struct({ turnId: Schema.String }),
@@ -235,14 +225,14 @@ export const ResponseMessage = Schema.Struct({
 })
 export type ResponseMessage = Schema.Schema.Type<typeof ResponseMessage>
 
-/** Claude Code plan rate-limit window (pct used 0–100, resetsAt epoch ms). */
+// pct is 0–100
 export const UsageWindow = Schema.Struct({
   pct: Schema.Finite,
   resetsAt: Schema.Finite,
 })
 export type UsageWindow = Schema.Schema.Type<typeof UsageWindow>
 
-/** Extra usage credits (fallback after the 5h window). Amounts are major currency units. */
+// amounts are in major currency units
 export const ExtraUsage = Schema.Struct({
   used: Schema.Finite,
   limit: Schema.Finite,
@@ -251,7 +241,6 @@ export const ExtraUsage = Schema.Struct({
 })
 export type ExtraUsage = Schema.Schema.Type<typeof ExtraUsage>
 
-/** Account rate-limit usage from Claude Code /usage (not per-turn token counts). */
 export const Usage = Schema.Struct({
   fiveHour: UsageWindow,
   sevenDay: UsageWindow,

@@ -33,16 +33,13 @@ export type ServerOptions = {
   home?: string
   port?: number
   hostname?: string
-  /** Default provider when a turn omits one (JETTY_AGENT, else claude). Echo is exclusive; claude, codex, and grok share the process. */
   agent?: 'echo' | 'claude' | 'codex' | 'grok' | Agent
-  /** Override titler (defaults to the selectTitler chain). */
   titler?: Titler | null
   grok?: GrokOptions
   codex?: CodexOptions
 }
 
-/** Luna first for the thread's provider, then that provider's own model, then the opener's first line. */
-function selectTitler(kind: 'echo' | 'claude' | 'codex' | 'grok' | Agent, opts: ServerOptions) {
+function selectTitler(kind: NonNullable<ServerOptions['agent']>, opts: ServerOptions) {
   return Effect.gen(function* () {
     if (opts.titler !== undefined) {
       const fixed = opts.titler
@@ -121,15 +118,10 @@ function createServer(opts: ServerOptions = {}) {
     const home = opts.home ?? process.env.JETTY_HOME ?? join(homedir(), '.jetty')
     const port = opts.port ?? Number(process.env.PORT ?? 8787)
     const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
+    const envAgent = process.env.JETTY_AGENT
     const agentKind =
       opts.agent ??
-      (process.env.JETTY_AGENT === 'grok'
-        ? 'grok'
-        : process.env.JETTY_AGENT === 'codex'
-          ? 'codex'
-          : process.env.JETTY_AGENT === 'echo'
-            ? 'echo'
-            : 'claude')
+      (envAgent === 'grok' || envAgent === 'codex' || envAgent === 'echo' ? envAgent : 'claude')
 
     const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
     const store = Context.get(database, Store)
@@ -170,8 +162,6 @@ function createServer(opts: ServerOptions = {}) {
     const services = yield* Layer.build(
       orchestratorLayer(store, hub, titler, attachments, registry)
     )
-    const agent = registry.agent(registry.defaultProvider)
-    if (!agent) return yield* Effect.fail(new Error('default provider is not registered'))
     const orch = Context.get(services, OrchestratorService)
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
     const handlers = yield* createRpcHandlers(store, orch, hub, () => lastUsage).pipe(
@@ -219,21 +209,19 @@ function createServer(opts: ServerOptions = {}) {
     }
 
     return {
-      server,
       home,
       port: server.address.port,
       hostname: server.address.hostname,
       store,
-      agent,
       hub,
     }
   })
 }
 
-export const ServerService =
+const ServerService =
   Context.Service<Effect.Success<ReturnType<typeof createServer>>>('jetty/Server')
 
-export function serverLayer(opts: ServerOptions = {}) {
+function serverLayer(opts: ServerOptions = {}) {
   return Layer.effect(ServerService, createServer(opts)).pipe(Layer.provide(BunServices.layer))
 }
 

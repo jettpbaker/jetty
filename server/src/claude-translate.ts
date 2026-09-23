@@ -12,15 +12,9 @@ export type TranslateCtx = {
   turnId: string
   currentAssistantId: string | null
   currentReasoningId: string | null
-  /** tool_use id → tool_call item id */
   toolUseToItemId: Map<string, string>
-  /** item ids built from stream_event partials — skip duplicate final assistant content */
-  partialItemIds: Set<string>
-  /** stream content_block index → block kind */
   blockKinds: Map<number, 'text' | 'thinking' | 'tool_use'>
-  /** stream content_block index → tool_use accumulation */
   toolBlocks: Map<number, { id: string; name: string; json: string }>
-  /** true once any stream_event content was applied this assistant message */
   sawPartials: boolean
   sessionId: string | null
 }
@@ -31,7 +25,6 @@ export function createTranslateCtx(turnId: string): TranslateCtx {
     currentAssistantId: null,
     currentReasoningId: null,
     toolUseToItemId: new Map(),
-    partialItemIds: new Set(),
     blockKinds: new Map(),
     toolBlocks: new Map(),
     sawPartials: false,
@@ -39,7 +32,6 @@ export function createTranslateCtx(turnId: string): TranslateCtx {
   }
 }
 
-/** SDK message shapes we care about — structural so fixtures need no SDK imports. */
 export type SdkLikeMessage = {
   type: string
   subtype?: string
@@ -79,15 +71,8 @@ type StreamEvent = {
   }
 }
 
-function thinkingTokens(delta: { estimated_tokens?: number }): { tokens?: number } {
-  return typeof delta.estimated_tokens === 'number' ? { tokens: delta.estimated_tokens } : {}
-}
-
 export function translate(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
-  // Messages from inside a subagent carry parent_tool_use_id. We don't render
-  // subagent internals yet — dropping them keeps the Agent tool_use + its
-  // result (the SDK's default verbosity) and stops inner messages from
-  // corrupting the main timeline's streaming ctx.
+  // Subagent-internal messages would corrupt the main timeline's streaming state.
   if (msg.parent_tool_use_id != null) return []
 
   switch (msg.type) {
@@ -124,60 +109,18 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       const block = event.content_block
       if (!block) return []
 
-      if (block.type === 'text') {
-        ctx.blockKinds.set(index, 'text')
-        if (!ctx.currentAssistantId) {
-          const id = newId()
-          ctx.currentAssistantId = id
-          ctx.partialItemIds.add(id)
-          out.push({
-            type: 'item.started',
-            item: {
-              id,
-              turnId: ctx.turnId,
-              createdAt: Date.now(),
-              kind: 'assistant_message',
-              text: block.text ?? '',
-              streaming: true,
-            },
-          })
-          ctx.sawPartials = true
-        } else if (block.text) {
-          out.push({ type: 'item.delta', itemId: ctx.currentAssistantId, delta: block.text })
-          ctx.sawPartials = true
-        }
-      } else if (block.type === 'thinking') {
-        ctx.blockKinds.set(index, 'thinking')
-        if (!ctx.currentReasoningId) {
-          const id = newId()
-          ctx.currentReasoningId = id
-          ctx.partialItemIds.add(id)
-          out.push({
-            type: 'item.started',
-            item: {
-              id,
-              turnId: ctx.turnId,
-              createdAt: Date.now(),
-              kind: 'reasoning',
-              text: block.thinking ?? '',
-              streaming: true,
-            },
-          })
-          ctx.sawPartials = true
-        } else if (block.thinking) {
-          out.push({ type: 'item.delta', itemId: ctx.currentReasoningId, delta: block.thinking })
-          ctx.sawPartials = true
-        }
+      if (block.type === 'text' || block.type === 'thinking') {
+        ctx.blockKinds.set(index, block.type)
+        const kind = block.type === 'text' ? 'assistant_message' : 'reasoning'
+        const text = (block.type === 'text' ? block.text : block.thinking) ?? ''
+        const openId = ctx[OPEN_FIELD[kind]]
+        if (!openId) startStreamItem(ctx, out, kind, text)
+        else if (text) out.push({ type: 'item.delta', itemId: openId, delta: text })
+        ctx.sawPartials = true
       } else if (block.type === 'tool_use') {
         ctx.blockKinds.set(index, 'tool_use')
-        const toolUseId = block.id ?? ''
-        // Input streams via input_json_delta; start empty even when the block
-        // carries `{}` so partials don't concatenate onto a pre-stringified object.
-        ctx.toolBlocks.set(index, {
-          id: toolUseId,
-          name: block.name ?? 'tool',
-          json: '',
-        })
+        // block.input is a `{}` placeholder; the real input arrives via input_json_delta.
+        ctx.toolBlocks.set(index, { id: block.id ?? '', name: block.name ?? 'tool', json: '' })
         ctx.sawPartials = true
       }
       return out
@@ -189,25 +132,19 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       if (!delta) return []
       const kind = ctx.blockKinds.get(index)
 
-      if (delta.type === 'text_delta' && typeof delta.text === 'string') {
-        const itemId = ensureStreamItem(ctx, out, 'assistant_message')
-        out.push({ type: 'item.delta', itemId, delta: delta.text })
-        ctx.sawPartials = true
-      } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
-        const itemId = ensureStreamItem(ctx, out, 'reasoning')
-        out.push({ type: 'item.delta', itemId, delta: delta.thinking, ...thinkingTokens(delta) })
-        ctx.sawPartials = true
-      } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+      if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
         const tool = ctx.toolBlocks.get(index)
         if (tool) tool.json += delta.partial_json
-      } else if (kind === 'text' && typeof delta.text === 'string') {
-        const itemId = ensureStreamItem(ctx, out, 'assistant_message')
-        out.push({ type: 'item.delta', itemId, delta: delta.text })
-        ctx.sawPartials = true
-      } else if (kind === 'thinking' && typeof delta.thinking === 'string') {
-        const itemId = ensureStreamItem(ctx, out, 'reasoning')
-        out.push({ type: 'item.delta', itemId, delta: delta.thinking, ...thinkingTokens(delta) })
-        ctx.sawPartials = true
+      } else if (
+        typeof delta.text === 'string' &&
+        (delta.type === 'text_delta' || kind === 'text')
+      ) {
+        streamDelta(ctx, out, 'assistant_message', delta.text)
+      } else if (
+        typeof delta.thinking === 'string' &&
+        (delta.type === 'thinking_delta' || kind === 'thinking')
+      ) {
+        streamDelta(ctx, out, 'reasoning', delta.thinking, delta.estimated_tokens)
       }
       return out
     }
@@ -216,12 +153,10 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       const index = event.index ?? 0
       const kind = ctx.blockKinds.get(index)
 
-      if (kind === 'text' && ctx.currentAssistantId) {
-        out.push({ type: 'item.completed', itemId: ctx.currentAssistantId })
-        ctx.currentAssistantId = null
-      } else if (kind === 'thinking' && ctx.currentReasoningId) {
-        out.push({ type: 'item.completed', itemId: ctx.currentReasoningId })
-        ctx.currentReasoningId = null
+      if (kind === 'text') {
+        out.push(...closeStreamItem(ctx, 'assistant_message'))
+      } else if (kind === 'thinking') {
+        out.push(...closeStreamItem(ctx, 'reasoning'))
       } else if (kind === 'tool_use') {
         const tool = ctx.toolBlocks.get(index)
         if (tool) {
@@ -237,7 +172,6 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
             }
             const itemId = newId()
             if (tool.id) ctx.toolUseToItemId.set(tool.id, itemId)
-            ctx.partialItemIds.add(itemId)
             const item: ThreadItem = {
               id: itemId,
               turnId: ctx.turnId,
@@ -258,62 +192,66 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
     }
 
     case 'message_stop':
-      // close any open text/thinking items that missed content_block_stop
-      if (ctx.currentAssistantId) {
-        out.push({ type: 'item.completed', itemId: ctx.currentAssistantId })
-        ctx.currentAssistantId = null
-      }
-      if (ctx.currentReasoningId) {
-        out.push({ type: 'item.completed', itemId: ctx.currentReasoningId })
-        ctx.currentReasoningId = null
-      }
-      return out
+      return closeStreamItems(ctx)
 
     default:
       return []
   }
 }
 
-function ensureStreamItem(
+type StreamKind = 'assistant_message' | 'reasoning'
+
+const OPEN_FIELD = {
+  assistant_message: 'currentAssistantId',
+  reasoning: 'currentReasoningId',
+} as const
+
+function startStreamItem(
   ctx: TranslateCtx,
   out: ThreadEvent[],
-  kind: 'assistant_message' | 'reasoning'
+  kind: StreamKind,
+  text: string
 ): string {
-  const field = kind === 'assistant_message' ? 'currentAssistantId' : 'currentReasoningId'
-  const existing = ctx[field]
-  if (existing) return existing
   const id = newId()
-  ctx[field] = id
-  ctx.partialItemIds.add(id)
+  ctx[OPEN_FIELD[kind]] = id
   out.push({
     type: 'item.started',
-    item: {
-      id,
-      turnId: ctx.turnId,
-      createdAt: Date.now(),
-      kind,
-      text: '',
-      streaming: true,
-    },
+    item: { id, turnId: ctx.turnId, createdAt: Date.now(), kind, text, streaming: true },
   })
   return id
 }
 
+function streamDelta(
+  ctx: TranslateCtx,
+  out: ThreadEvent[],
+  kind: StreamKind,
+  delta: string,
+  tokens?: number
+) {
+  const itemId = ctx[OPEN_FIELD[kind]] ?? startStreamItem(ctx, out, kind, '')
+  out.push({
+    type: 'item.delta',
+    itemId,
+    delta,
+    ...(typeof tokens === 'number' ? { tokens } : {}),
+  })
+  ctx.sawPartials = true
+}
+
+function closeStreamItem(ctx: TranslateCtx, kind: StreamKind): ThreadEvent[] {
+  const itemId = ctx[OPEN_FIELD[kind]]
+  if (!itemId) return []
+  ctx[OPEN_FIELD[kind]] = null
+  return [{ type: 'item.completed', itemId }]
+}
+
+function closeStreamItems(ctx: TranslateCtx): ThreadEvent[] {
+  return [...closeStreamItem(ctx, 'assistant_message'), ...closeStreamItem(ctx, 'reasoning')]
+}
+
 function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
-  // Final complete assistant message — skip content already streamed via partials.
-  if (ctx.sawPartials) {
-    if (ctx.currentAssistantId) {
-      const events: ThreadEvent[] = [{ type: 'item.completed', itemId: ctx.currentAssistantId }]
-      ctx.currentAssistantId = null
-      return events
-    }
-    if (ctx.currentReasoningId) {
-      const events: ThreadEvent[] = [{ type: 'item.completed', itemId: ctx.currentReasoningId }]
-      ctx.currentReasoningId = null
-      return events
-    }
-    return []
-  }
+  if (ctx.sawPartials)
+    return closeStreamItem(ctx, ctx.currentAssistantId ? 'assistant_message' : 'reasoning')
 
   const content = msg.message?.content
   if (!Array.isArray(content)) return []
@@ -330,34 +268,23 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
       input?: unknown
     }
 
-    if (b.type === 'text' && typeof b.text === 'string') {
+    const text = b.type === 'text' ? b.text : b.type === 'thinking' ? b.thinking : undefined
+    if (typeof text === 'string') {
       const id = newId()
-      out.push({
-        type: 'item.started',
-        item: {
-          id,
-          turnId: ctx.turnId,
-          createdAt: Date.now(),
-          kind: 'assistant_message',
-          text: b.text,
-          streaming: true,
+      out.push(
+        {
+          type: 'item.started',
+          item: {
+            id,
+            turnId: ctx.turnId,
+            createdAt: Date.now(),
+            kind: b.type === 'text' ? 'assistant_message' : 'reasoning',
+            text,
+            streaming: true,
+          },
         },
-      })
-      out.push({ type: 'item.completed', itemId: id })
-    } else if (b.type === 'thinking' && typeof b.thinking === 'string') {
-      const id = newId()
-      out.push({
-        type: 'item.started',
-        item: {
-          id,
-          turnId: ctx.turnId,
-          createdAt: Date.now(),
-          kind: 'reasoning',
-          text: b.thinking,
-          streaming: true,
-        },
-      })
-      out.push({ type: 'item.completed', itemId: id })
+        { type: 'item.completed', itemId: id }
+      )
     } else if (b.type === 'tool_use' && !HIDDEN_TOOLS.has(b.name ?? 'tool')) {
       const itemId = newId()
       if (b.id) ctx.toolUseToItemId.set(b.id, itemId)
@@ -430,18 +357,7 @@ function toolResultToString(content: unknown): string {
 }
 
 function translateResult(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
-  const out: ThreadEvent[] = []
-
-  // Close any still-open items.
-  if (ctx.currentAssistantId) {
-    out.push({ type: 'item.completed', itemId: ctx.currentAssistantId })
-    ctx.currentAssistantId = null
-  }
-  if (ctx.currentReasoningId) {
-    out.push({ type: 'item.completed', itemId: ctx.currentReasoningId })
-    ctx.currentReasoningId = null
-  }
-
+  const out = closeStreamItems(ctx)
   if (msg.subtype === 'success') {
     out.push({
       type: 'turn.completed',
@@ -453,12 +369,7 @@ function translateResult(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
       costUsd: msg.total_cost_usd,
     })
   } else {
-    const error =
-      Array.isArray(msg.errors) && msg.errors.length > 0
-        ? msg.errors.join('; ')
-        : msg.subtype
-          ? String(msg.subtype)
-          : 'turn failed'
+    const error = msg.errors?.length ? msg.errors.join('; ') : msg.subtype || 'turn failed'
     out.push({ type: 'turn.failed', turnId: ctx.turnId, error })
   }
 
