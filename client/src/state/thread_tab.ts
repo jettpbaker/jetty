@@ -72,3 +72,29 @@ const noTabs = Atom.readable<SubagentTab[]>(() => [])
 export function useSubagentTabs(threadId: string | undefined) {
   return useAtomValue(threadId ? subagentTabsAtom(threadId) : noTabs)
 }
+
+// A one-shot request for the chat to scroll a row into view; the list clears it once handled.
+const revealAtom = Atom.family((_threadId: string) =>
+  Atom.make<string | undefined>(undefined).pipe(Atom.keepAlive)
+)
+
+export function useRevealRow(threadId: string) {
+  const registry = useContext(RegistryContext)
+  const rowId = useAtomValue(revealAtom(threadId))
+  const clear = useCallback(
+    () => registry.set(revealAtom(threadId), undefined),
+    [registry, threadId]
+  )
+  return [rowId, clear] as const
+}
+
+export function useRequestReveal() {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (threadId: string, rowId: string) => {
+      registry.set(threadTabAtom(threadId), MAIN_TAB)
+      registry.set(revealAtom(threadId), rowId)
+    },
+    [registry]
+  )
+}

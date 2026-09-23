@@ -22,6 +22,7 @@ import { WorkBlock } from '@/components/custom/work_block'
 import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
+import { useRevealRow } from '@/state'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -212,6 +213,16 @@ export function ThreadList({
     if (!pinned.current || rows.length === 0) return
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [virtualizer, rows.length, stamp, width])
+
+  const [revealId, clearReveal] = useRevealRow(threadId)
+  useEffect(() => {
+    if (!revealId || agentId) return
+    const index = rows.findIndex((row) => row.id === revealId)
+    if (index === -1) return
+    clearReveal()
+    pinned.current = false
+    virtualizer.scrollToIndex(index, { align: 'center' })
+  }, [revealId, agentId, rows, virtualizer, clearReveal])
 
   return (
     <MediaLightboxProvider>

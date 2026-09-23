@@ -6,7 +6,14 @@ export { useDraft } from './drafts'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export { useThread, useThreadRowPrefetch } from './threads'
-export { MAIN_TAB, useSubagentTabs, useThreadTab, type SubagentTab } from './thread_tab'
+export {
+  MAIN_TAB,
+  useRequestReveal,
+  useRevealRow,
+  useSubagentTabs,
+  useThreadTab,
+  type SubagentTab,
+} from './thread_tab'
 export {
   useArchiveThread,
   useCreateProject,
