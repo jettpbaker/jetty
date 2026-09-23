@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@effect/atom-react": "4.0.0-rc.112",
     "@jetty/shared": "workspace:*",
     "@tanstack/react-router": "^1.170.33",
     "effect": "4.0.0-rc.112",
