@@ -121,6 +121,7 @@ export function ThreadList({
     overscan: 10,
     gap: 12,
     paddingStart: 24,
+    paddingEnd: 24,
     getItemKey: (index) => rows[index]!.id,
   })
 
@@ -134,7 +135,7 @@ export function ThreadList({
   return (
     <section
       ref={scroller}
-      className='scrollbar-subtle scroll-fade-y min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
+      className='scrollbar-subtle scroll-fade-y [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
       aria-label='Conversation'
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
       tabIndex={0}
