@@ -5,6 +5,7 @@ import {
   EffortLevel,
   newId,
   type ErrorCode,
+  ModelRef,
   type Project,
   ProjectIcon,
   type ProviderId,
@@ -119,6 +120,7 @@ export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boole
 
 const isEffort = Schema.is(EffortLevel)
 const isProjectIcon = Schema.is(ProjectIcon)
+const isModelRef = Schema.is(ModelRef)
 
 export class StoreError extends Error {
   readonly _tag = 'StoreError'
@@ -463,6 +465,25 @@ export function createStore() {
           Effect.map((rows) => rows[0]?.queue_paused === 1),
           Effect.mapError(storeError)
         )
+      },
+      getUtilityModel() {
+        return sql<{
+          value_json: string
+        }>`SELECT value_json FROM settings WHERE key = 'utility_model'`.pipe(
+          Effect.map((rows) => {
+            const value: unknown = rows[0] && JSON.parse(rows[0].value_json)
+            return isModelRef(value) ? value : null
+          }),
+          Effect.mapError(storeError)
+        )
+      },
+      setUtilityModel(model: ModelRef | null) {
+        return (
+          model
+            ? sql`INSERT INTO settings (key, value_json) VALUES ('utility_model', ${JSON.stringify(model)})
+                ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`
+            : sql`DELETE FROM settings WHERE key = 'utility_model'`
+        ).pipe(Effect.asVoid, Effect.mapError(storeError))
       },
       setQueuePaused(threadId: string, paused: boolean) {
         return sql`UPDATE threads SET queue_paused = ${paused ? 1 : 0} WHERE id = ${threadId}`.pipe(

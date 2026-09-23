@@ -37,6 +37,25 @@ export const ProviderModel = Schema.Struct({
 })
 export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>
 
+export const ModelRef = Schema.Struct({ provider: ProviderId, id: Schema.String })
+export type ModelRef = Schema.Schema.Type<typeof ModelRef>
+
+// Cheapest first.
+const AUTOMATIC_UTILITY_MODELS: readonly ModelRef[] = [
+  { provider: 'codex', id: 'gpt-6-luna' },
+  { provider: 'claude', id: 'haiku' },
+  { provider: 'grok', id: 'grok-4.7' },
+]
+
+export function resolveUtilityModel(
+  choice: ModelRef | null | undefined,
+  models: readonly ProviderModel[]
+): ProviderModel | undefined {
+  const find = (ref: ModelRef) =>
+    models.find((model) => model.provider === ref.provider && model.id === ref.id)
+  return (choice && find(choice)) || AUTOMATIC_UTILITY_MODELS.map(find).find(Boolean)
+}
+
 export const ProjectIcon = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('emoji'),
@@ -145,6 +164,10 @@ export type Skill = Schema.Schema.Type<typeof Skill>
 export const methods = {
   'models.refresh': {
     params: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),
+    result: Schema.Null,
+  },
+  'settings.setUtilityModel': {
+    params: Schema.Struct({ model: Schema.NullOr(ModelRef) }),
     result: Schema.Null,
   },
   'chrome.subscribe': {
@@ -480,11 +503,13 @@ export const ChromePushData = Schema.Union([
     threads: Schema.Array(ThreadMeta),
     usage: Schema.optional(RateLimits),
     models: Schema.optional(Schema.Array(ProviderModel)),
+    utilityModel: Schema.optional(ModelRef),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
+  Schema.Struct({ type: Schema.Literal('utilityModel'), model: Schema.NullOr(ModelRef) }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>

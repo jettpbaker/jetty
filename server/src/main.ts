@@ -16,10 +16,8 @@ import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
 import { claudeBin } from './claude-bin'
 import { discoverClaudeModels } from './claude-models'
-import { createClaudeTitler } from './claude-titler'
 import { codexLayer, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
-import { createCodexTitler } from './codex-titler'
 import { createEnvironmentManager } from './containers'
 import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
@@ -27,7 +25,6 @@ import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
-import { createGrokTitler } from './grok-titler'
 import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
@@ -38,7 +35,8 @@ import { agentRegistry, singleAgentRegistry, type AgentProvider } from './regist
 import { createReviewClassifier } from './review'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
-import { chainTitlers, firstLineTitler, type Titler } from './titler'
+import { chainTitlers, firstLineTitler, utilityTitler, type Titler } from './titler'
+import { createUtilityPrompt, type UtilityPrompt } from './utility-model'
 import { createRpcHandlers } from './ws'
 
 export type ServerOptions = {
@@ -51,24 +49,20 @@ export type ServerOptions = {
   codex?: CodexOptions
 }
 
-function selectTitler(kind: NonNullable<ServerOptions['agent']>, opts: ServerOptions) {
-  return Effect.gen(function* () {
-    if (opts.titler !== undefined) {
-      const fixed = opts.titler
-      if (!fixed) return null
-      return (_provider: AgentProvider, text: string) => fixed(text)
-    }
-    if (typeof kind !== 'string') return null
-    if (kind === 'echo') return (_provider: AgentProvider, text: string) => firstLineTitler(text)
-    const luna = yield* createCodexTitler(opts.codex)
-    const claude = createClaudeTitler()
-    const grok = yield* createGrokTitler(opts.grok)
-    return (provider: AgentProvider, text: string) => {
-      if (provider === 'echo') return firstLineTitler(text)
-      const own = provider === 'claude' ? [claude] : provider === 'grok' ? [grok] : []
-      return chainTitlers(luna, ...own, firstLineTitler)(text)
-    }
-  })
+function selectTitler(
+  kind: NonNullable<ServerOptions['agent']>,
+  opts: ServerOptions,
+  prompt: UtilityPrompt
+) {
+  if (opts.titler !== undefined) {
+    const fixed = opts.titler
+    if (!fixed) return null
+    return (_provider: AgentProvider, text: string) => fixed(text)
+  }
+  if (typeof kind !== 'string') return null
+  const titler = chainTitlers(utilityTitler(prompt), firstLineTitler)
+  return (provider: AgentProvider, text: string) =>
+    provider === 'echo' ? firstLineTitler(text) : titler(text)
 }
 
 function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
@@ -308,10 +302,23 @@ function createServer(opts: ServerOptions = {}) {
       )
     }
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
-    const titler = yield* selectTitler(agentKind, opts)
+    function modelCatalog() {
+      return Effect.gen(function* () {
+        if (models === null) yield* refreshModels()
+        else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
+        return models ?? []
+      })
+    }
+    const utilityPrompt = yield* createUtilityPrompt({
+      codex: opts.codex,
+      grok: opts.grok,
+      catalog: modelCatalog,
+      choice: () => store.getUtilityModel().pipe(Effect.orElseSucceed(() => null)),
+    })
+    const titler = selectTitler(agentKind, opts, utilityPrompt)
     const reviewer =
       typeof agentKind === 'string' && agentKind !== 'echo'
-        ? yield* createReviewClassifier(opts.codex)
+        ? createReviewClassifier(utilityPrompt)
         : undefined
     const services = yield* Layer.build(
       orchestratorLayer({
@@ -328,12 +335,7 @@ function createServer(opts: ServerOptions = {}) {
             discoveryScope
           )(threadId, text).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
         reviewer,
-        modelCatalog: () =>
-          Effect.gen(function* () {
-            if (models === null) yield* refreshModels()
-            else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
-            return models ?? []
-          }),
+        modelCatalog,
         environments: containers,
       })
     )

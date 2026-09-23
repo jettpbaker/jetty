@@ -2,16 +2,15 @@ import { Effect, Queue } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { tmpdir } from 'node:os'
 
+import type { ModelPrompt } from './utility-model'
+
 import { openGrokConnection } from './grok-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
-import { normalizeTitle, TITLE_INSTRUCTIONS, titlePrompt, type Titler } from './titler'
 
-const TITLE_MODEL = 'grok-4.7'
-
-export function createGrokTitler(options: StdioProcessOptions = {}) {
+export function createGrokPrompt(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const titler: Titler = (text) =>
+    const prompt: ModelPrompt = (model, instructions, text) =>
       Effect.scoped(
         Effect.gen(function* () {
           const cwd = tmpdir()
@@ -22,17 +21,17 @@ export function createGrokTitler(options: StdioProcessOptions = {}) {
           )
           const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
           const sessionId = string(session.sessionId)
-          yield* connection.request('session/set_model', { sessionId, modelId: TITLE_MODEL })
+          yield* connection.request('session/set_model', { sessionId, modelId: model.id })
           yield* Queue.takeAll(connection.messages)
           const promptId = yield* connection.startRequest('session/prompt', {
             sessionId,
-            prompt: [{ type: 'text', text: `${TITLE_INSTRUCTIONS}\n\n${titlePrompt(text)}` }],
+            prompt: [{ type: 'text', text: `${instructions}\n\n${text}` }],
           })
           let reply = ''
           while (true) {
             const message = yield* Queue.take(connection.messages)
             if (message.id !== undefined) {
-              yield* connection.reject(message.id, 'Titling does not use tools')
+              yield* connection.reject(message.id, 'This request does not use tools')
               continue
             }
             const update = object(message.params.update)
@@ -49,13 +48,13 @@ export function createGrokTitler(options: StdioProcessOptions = {}) {
               (message.method === '_x.ai/session/prompt_complete' &&
                 message.params.sessionId === sessionId)
             )
-              return normalizeTitle(reply)
+              return reply
           }
         })
       ).pipe(
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.catch(() => Effect.succeed(null))
       )
-    return titler
+    return prompt
   })
 }

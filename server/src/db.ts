@@ -125,6 +125,10 @@ const migrations = SqliteMigrator.fromRecord({
       container_id TEXT, state TEXT NOT NULL, last_error TEXT
     )`
   }),
+  '016_settings': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL)`
+  }),
 })
 
 export function databaseLayer(home: string) {

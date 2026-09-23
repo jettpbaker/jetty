@@ -1,3 +1,5 @@
+import type { ModelRef } from '@jetty/shared/wire'
+
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
@@ -23,3 +25,13 @@ function refreshModels(registry: AtomRegistry.AtomRegistry, force = false) {
 export function useModelRefresh() {
   return { refreshing: useAtomValue(refreshingAtom), refresh: useAction(refreshModels) }
 }
+
+function setUtilityModel(
+  registry: AtomRegistry.AtomRegistry,
+  model: ModelRef | null,
+  failed: () => void
+) {
+  run(registry, (connection) => connection.request('settings.setUtilityModel', { model }), failed)
+}
+
+export const useSetUtilityModel = () => useAction(setUtilityModel)

@@ -2,16 +2,15 @@ import { Effect, Queue } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { tmpdir } from 'node:os'
 
+import type { ModelPrompt } from './utility-model'
+
 import { openCodexConnection } from './codex-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
-import { normalizeTitle, TITLE_INSTRUCTIONS, titlePrompt, type Titler } from './titler'
-
-const TITLE_MODEL = 'gpt-6-luna'
 
 export function createCodexPrompt(options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    return (instructions: string, prompt: string) =>
+    const prompt: ModelPrompt = (model, instructions, text) =>
       Effect.scoped(
         Effect.gen(function* () {
           const cwd = tmpdir()
@@ -20,7 +19,7 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
           if (!account) return null
           const started = yield* connection.request('thread/start', {
             cwd,
-            model: TITLE_MODEL,
+            model: model.id,
             ephemeral: true,
             approvalPolicy: 'never',
             sandbox: 'read-only',
@@ -29,7 +28,7 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
           const threadId = string(object(started.thread).id)
           yield* connection.request('turn/start', {
             threadId,
-            input: [{ type: 'text', text: prompt, text_elements: [] }],
+            input: [{ type: 'text', text, text_elements: [] }],
             effort: 'low',
           })
           let reply = ''
@@ -50,14 +49,6 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.catch(() => Effect.succeed(null))
       )
-  })
-}
-
-export function createCodexTitler(options: StdioProcessOptions = {}) {
-  return Effect.gen(function* () {
-    const prompt = yield* createCodexPrompt(options)
-    const titler: Titler = (text) =>
-      prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(Effect.map(normalizeTitle))
-    return titler
+    return prompt
   })
 }

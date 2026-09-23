@@ -1,5 +1,7 @@
 import { Effect } from 'effect'
 
+import type { UtilityPrompt } from './utility-model'
+
 export type Titler = (text: string) => Effect.Effect<string | null>
 
 const MAX_TITLE_LEN = 60
@@ -23,6 +25,10 @@ export function normalizeTitle(raw: string | null | undefined): string | null {
   }
   if (!title || REPLY_OPENER.test(title) || /^title:/i.test(title)) return null
   return clampTitle(title)
+}
+
+export function utilityTitler(prompt: UtilityPrompt): Titler {
+  return (text) => prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(Effect.map(normalizeTitle))
 }
 
 export const firstLineTitler: Titler = (text) =>
