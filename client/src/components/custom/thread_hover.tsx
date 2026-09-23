@@ -8,7 +8,7 @@ import { createContext, useContext, useState, type ReactElement, type ReactNode 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
-import { prPresentation, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
+import { PullRequestMark, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
 import { StatusGlyph, statusPresentation, type ThreadStatus } from './thread_status'
 import './thread_hover.css'
 
@@ -89,7 +89,6 @@ function ThreadHoverContent({
   onOpenPullRequest,
 }: ThreadHoverContentProps) {
   const { pullRequest } = details
-  const pr = pullRequest && prPresentation[pullRequest.state]
   const prLabel = pullRequest && pullRequestLabel(pullRequest)
   return (
     <div
@@ -127,16 +126,14 @@ function ThreadHoverContent({
           {effort && <span className='text-muted-foreground'>{effort}</span>}
         </span>
         <span className='ml-auto shrink-0 pl-2'>
-          {pr && prLabel ? (
+          {pullRequest && prLabel ? (
             <Button
               variant='ghost-text'
               className='h-auto gap-1 p-0 text-xs font-normal'
               title={prLabel.title}
               {...pressProps(onOpenPullRequest)}
             >
-              <pr.icon className={`size-3 ${pr.color}`} aria-hidden='true' />
-              <span className='font-mono'>{prLabel.text}</span>
-              <span className='sr-only'>{pr.label}</span>
+              <PullRequestMark pullRequest={pullRequest} />
             </Button>
           ) : (
             <span className='text-muted-foreground'>No pull requests</span>

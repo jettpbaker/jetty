@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import {
   GitMergeIcon,
   GitPullRequestClosedIcon,
@@ -34,4 +35,16 @@ export function linkPresentation(state?: keyof typeof prPresentation) {
   return state
     ? prPresentation[state]
     : { ...prPresentation.open, label: 'Pull request', color: 'text-muted-foreground' }
+}
+
+// The thread's pull request as its sidebar row and hover card show it.
+export function PullRequestMark({ pullRequest }: { pullRequest: ThreadPullRequest }) {
+  const pr = prPresentation[pullRequest.state]
+  return (
+    <>
+      <pr.icon aria-hidden='true' className={cn('size-3', pr.color)} />
+      <span className='font-mono'>{pullRequestLabel(pullRequest).text}</span>
+      <span className='sr-only'>{pr.label}</span>
+    </>
+  )
 }

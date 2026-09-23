@@ -23,7 +23,7 @@ import { NeedsInputIcon } from './circle_status_icon'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { mediaUrl } from './media_layout'
-import { ProviderGlyph } from './provider_glyph'
+import { SourceLabel } from './source_label'
 
 /* Small shared pieces */
 
@@ -35,16 +35,13 @@ export function Code({ children, className }: { children: ReactNode; className?:
   )
 }
 
-function SourceLabel({ source, className }: { source: Source; className?: string }) {
+function RequestSource({ source, className }: { source: Source; className?: string }) {
   if (source.kind === 'main') return null
   return (
-    <span
-      className={cn('flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground', className)}
-    >
-      <ProviderGlyph provider={source.provider} className='size-3 shrink-0' />
+    <SourceLabel provider={source.provider} className={className}>
       <span className='shrink-0'>From subagent</span>
       <span className='truncate text-foreground/90'>{source.title}</span>
-    </span>
+    </SourceLabel>
   )
 }
 
@@ -293,7 +290,7 @@ export function ApprovalStrip({
   return (
     <FlushShell>
       {header}
-      {!hideSource && <SourceLabel source={item.source} />}
+      {!hideSource && <RequestSource source={item.source} />}
       <div className='flex min-w-0 items-center gap-2'>
         <Attention />
         {ctl.confirming ? (
@@ -490,7 +487,7 @@ export function QuestionStrip({
         <span className='truncate text-xs font-medium text-muted-foreground'>
           {spec.header || 'Question'}
         </span>
-        {!hideSource && <SourceLabel source={item.source} className='ml-1' />}
+        {!hideSource && <RequestSource source={item.source} className='ml-1' />}
         <span
           className={cn(
             'ml-auto flex shrink-0 items-center gap-1',
@@ -795,7 +792,7 @@ export function SeveralHeader({
         onPrev={() => onChoose(index - 1)}
         onNext={() => onChoose(index + 1)}
       />
-      <SourceLabel source={source} />
+      <RequestSource source={source} />
       <span className='ml-auto'>
         {queued > 0 && (
           <span className='flex shrink-0 items-center gap-1'>

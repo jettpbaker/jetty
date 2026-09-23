@@ -3,12 +3,13 @@ import type { WorkflowAgent } from '@jetty/shared/items'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
+import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
 import { ChevronRightIcon } from '@primer/octicons-react'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { formatDuration, formatSubagentTokens } from './subagent_row'
+import { formatSubagentTokens } from './subagent_row'
 import {
   AgentGlyph,
   FailedCount,

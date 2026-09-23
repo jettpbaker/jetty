@@ -1,5 +1,6 @@
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Button } from '@/components/ui/button'
+import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
 import { OverflowTitle } from './overflow_title'
@@ -33,14 +34,6 @@ const tokenFormatter = new Intl.NumberFormat('en', {
 
 export function formatSubagentTokens(tokens: number) {
   return tokenFormatter.format(tokens).toLowerCase()
-}
-
-export function formatDuration(seconds: number) {
-  const total = Math.floor(seconds)
-  if (total < 60) return `${total}s`
-  const minutes = Math.floor(total / 60)
-  if (minutes < 60) return `${minutes}m ${total % 60}s`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
 export function renderWorkingTitle(title: string) {

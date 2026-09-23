@@ -3,7 +3,7 @@ import type { ProviderId } from '@jetty/shared/wire'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { modelKey } from '@/lib/loadout'
-import { formatAge } from '@/lib/time'
+import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
 import { ContainerIcon, DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
@@ -12,7 +12,7 @@ import { useMemo } from 'react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
-import { formatDuration, renderWorkingTitle } from './subagent_row'
+import { renderWorkingTitle } from './subagent_row'
 import {
   StatusGlyph,
   statusPresentation,
@@ -20,6 +20,7 @@ import {
   type Status,
   type ThreadStatus,
 } from './thread_status'
+import { TwoLineRow } from './two_line_row'
 
 // A child that has gone idle has finished its run.
 type ChildStatus = Exclude<Status, 'idle' | 'stopped' | 'queued'>
@@ -167,26 +168,19 @@ function OwnedThreadRow({
   prefetch: ReturnType<typeof useThreadRowPrefetch>
 }) {
   return (
-    <Button
-      variant='ghost'
-      data-overflow-hover
+    <TwoLineRow
       onClick={() => open(child)}
       onPointerEnter={() => prefetch.enter(child.id)}
       onPointerLeave={() => prefetch.leave(child.id)}
-      className='h-auto w-full min-w-0 flex-col items-stretch gap-1.5 rounded-sm px-2.5 py-1.5 text-left font-normal active:translate-y-0'
+      heading={<ChildTitle child={child} />}
+      glyph={<StatusGlyph status={child.status} />}
     >
-      <span className='flex min-w-0 items-center justify-between gap-3 text-foreground'>
-        <ChildTitle child={child} />
-        <StatusGlyph status={child.status} />
+      <AgentMeta child={child} />
+      <span className='ml-auto mr-px flex shrink-0 items-center gap-2 pl-1.5'>
+        <LastActivity child={child} />
+        <EnvTag env={child.env} />
       </span>
-      <span className='flex min-w-0 items-center gap-3 text-xs text-muted-foreground'>
-        <AgentMeta child={child} />
-        <span className='ml-auto mr-px flex shrink-0 items-center gap-2'>
-          <LastActivity child={child} />
-          <EnvTag env={child.env} />
-        </span>
-      </span>
-    </Button>
+    </TwoLineRow>
   )
 }
 

@@ -9,16 +9,15 @@ import { useChrome } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
 
-import { ProviderGlyph } from './provider_glyph'
+import { SourceLabel } from './source_label'
 
 type MessageSource = { threadId: string; title: string }
 
-function SourceLabel({ from }: { from: MessageSource }) {
+function MessageFrom({ from }: { from: MessageSource }) {
   const navigate = useNavigate()
   const provider = useChrome()?.threads.find((thread) => thread.id === from.threadId)?.provider
   return (
-    <span className='flex items-center gap-1.5 self-end text-xs text-muted-foreground'>
-      {provider && <ProviderGlyph provider={provider} className='size-3' />}
+    <SourceLabel provider={provider} className='self-end'>
       <button
         type='button'
         onClick={() => navigate({ to: '/threads/$threadId', params: { threadId: from.threadId } })}
@@ -26,7 +25,7 @@ function SourceLabel({ from }: { from: MessageSource }) {
       >
         {from.title}
       </button>
-    </span>
+    </SourceLabel>
   )
 }
 
@@ -46,7 +45,7 @@ export function UserMessage({
   return (
     <Message align='end'>
       <MessageContent className={cn(from && 'gap-1.5')}>
-        {from && <SourceLabel from={from} />}
+        {from && <MessageFrom from={from} />}
         <Bubble variant='secondary' align='end'>
           <BubbleContent
             className='rounded-lg'

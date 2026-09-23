@@ -13,7 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
+import { formatAgo, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { usePullRequest, useRefreshPullRequest, useUnlinkPullRequest } from '@/state'
 import {
@@ -118,33 +120,16 @@ function NotShown({ paths }: { paths: readonly string[] }) {
 
 type PrPane = 'info' | 'diff'
 
-function relativeTime(iso: string) {
-  const at = Date.parse(iso)
-  if (Number.isNaN(at)) return ''
-  const minutes = Math.round(Math.max(0, Date.now() - at) / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes === 1) return '1 minute ago'
-  if (minutes < 60) return `${minutes} minutes ago`
-  const hours = Math.round(minutes / 60)
-  if (hours === 1) return '1 hour ago'
-  if (hours < 24) return `${hours} hours ago`
-  const days = Math.round(hours / 24)
-  return days === 1 ? '1 day ago' : `${days} days ago`
-}
-
-function formatDuration(startedAt: string, completedAt: string) {
-  const total = Math.max(0, Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000))
-  if (Number.isNaN(total)) return ''
-  if (total < 60) return `${total}s`
-  const minutes = Math.floor(total / 60)
-  const seconds = total % 60
-  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`
+function TimeAgo({ at }: { at: string }) {
+  const now = useNow(60_000)
+  return formatAgo(Date.parse(at), now)
 }
 
 function checkDuration(run: GitHubCheckRun) {
   if (run.status === 'queued') return 'Queued'
   if (run.status === 'in_progress' || !run.completed_at) return 'Running'
-  return formatDuration(run.started_at, run.completed_at)
+  const seconds = (Date.parse(run.completed_at) - Date.parse(run.started_at)) / 1000
+  return Number.isNaN(seconds) ? '' : formatDuration(Math.max(0, seconds))
 }
 
 function failed(run: GitHubCheckRun) {
@@ -270,7 +255,7 @@ function CommitGroup({ commits }: { commits: GitHubCommit[] }) {
           {author} added {commits.length} commits
         </span>
         <span className='shrink-0 text-right text-xs text-muted-foreground'>
-          {relativeTime(last.commit.author.date)}
+          <TimeAgo at={last.commit.author.date} />
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -299,7 +284,9 @@ function ReviewEvent({ review }: { review: GitHubReview }) {
         <div className='flex min-h-5 items-baseline gap-2 text-xs'>
           <span className='font-medium'>{review.user.login}</span>
           <span className={copy.color}>{copy.label}</span>
-          <span className='text-muted-foreground'>{relativeTime(review.submitted_at)}</span>
+          <span className='text-muted-foreground'>
+            <TimeAgo at={review.submitted_at} />
+          </span>
         </div>
         {body ? <Markdown>{body}</Markdown> : null}
       </div>
@@ -314,7 +301,9 @@ function MergedEvent({ user, at }: { user: GitHubUser; at: string }) {
         <GitMergeIcon className='size-4 text-pr-merged' />
       </RowIcon>
       <span className='min-w-0 flex-1 truncate'>{user.login} merged</span>
-      <span className='shrink-0 text-right text-xs text-muted-foreground'>{relativeTime(at)}</span>
+      <span className='shrink-0 text-right text-xs text-muted-foreground'>
+        <TimeAgo at={at} />
+      </span>
     </div>
   )
 }
@@ -360,7 +349,9 @@ function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
               <div className='flex min-w-0 flex-1 flex-col gap-1'>
                 <div className='flex items-baseline gap-2 text-xs'>
                   <span className='font-medium'>{comment.user.login}</span>
-                  <span className='text-muted-foreground'>{relativeTime(comment.created_at)}</span>
+                  <span className='text-muted-foreground'>
+                    <TimeAgo at={comment.created_at} />
+                  </span>
                 </div>
                 <Markdown>{comment.body}</Markdown>
               </div>
@@ -601,8 +592,8 @@ export function PullRequestView({ data, actions }: { data: PullRequestData; acti
                   <span className='truncate'>{pull.head.ref}</span>
                 </span>
                 <span className='shrink-0 font-mono tabular-nums'>
-                  <span className='text-pr-open'>+{pull.additions}</span>{' '}
-                  <span className='text-pr-closed'>−{pull.deletions}</span>
+                  <span className='text-status-success'>+{pull.additions}</span>{' '}
+                  <span className='text-status-error'>−{pull.deletions}</span>
                 </span>
               </dd>
               <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>

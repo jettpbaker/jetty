@@ -2,12 +2,13 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
+import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
 import { useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { formatDuration, formatSubagentTokens } from './subagent_row'
+import { formatSubagentTokens } from './subagent_row'
 import {
   FailedCount,
   WorkflowGlyph,

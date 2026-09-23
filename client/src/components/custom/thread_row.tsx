@@ -1,15 +1,14 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
-import { prPresentation, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
+import { PullRequestMark, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
 import { StatusGlyph, type ThreadStatus } from './thread_status'
+import { TwoLineRow } from './two_line_row'
 import './thread_row.css'
 
 export function ThreadRow({
@@ -43,7 +42,6 @@ export function ThreadRow({
   onSelect: () => void
   onOpenPullRequest: () => void
 }) {
-  const pr = pullRequest && prPresentation[pullRequest.state]
   const prLabel = pullRequest && pullRequestLabel(pullRequest)
 
   return (
@@ -56,8 +54,7 @@ export function ThreadRow({
         status={status}
       >
         {(trigger) => (
-          <Button
-            data-overflow-hover
+          <TwoLineRow
             render={trigger}
             variant='ghost-text'
             aria-pressed={selected}
@@ -66,57 +63,49 @@ export function ThreadRow({
                 ? onOpenPullRequest()
                 : onSelect()
             }
-            className='h-auto w-full min-w-0 flex-col items-stretch gap-1.5 rounded-sm px-2.5 py-1.5 text-left font-normal active:translate-y-0'
-          >
-            <span className='flex min-w-0 items-center justify-between gap-3'>
-              <OverflowTitle
-                focusable={false}
-                className='font-normal leading-normal text-foreground'
-              >
+            heading={
+              <OverflowTitle focusable={false} className='font-normal leading-normal'>
                 {title}
               </OverflowTitle>
-              <StatusGlyph status={status} />
-            </span>
-            <span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
-              {parent ? (
-                <span className='flex min-w-0 items-center gap-1' title={`Created by ${parent}`}>
-                  <ArrowElbowDownRightIcon aria-hidden='true' className='size-3 shrink-0' />
-                  <span className='truncate'>{parent}</span>
-                </span>
-              ) : (
-                <span className='flex min-w-0 items-center gap-1' title={project}>
-                  <ProjectGlyph icon={projectIcon} className='size-3' />
-                  <span className='truncate'>{project}</span>
-                </span>
-              )}
-              {pr && prLabel && (
-                <>
-                  <span aria-hidden='true' className='shrink-0 text-muted-foreground'>
-                    ·
-                  </span>
-                  <span
-                    data-pull-request
-                    className='flex shrink-0 items-center gap-1 hover:text-foreground'
-                    title={prLabel.title}
-                  >
-                    <pr.icon aria-hidden='true' className={cn('size-3', pr.color)} />
-                    <span className='font-mono'>{prLabel.text}</span>
-                    <span className='sr-only'>{pr.label}</span>
-                  </span>
-                </>
-              )}
-              <span
-                className='ml-auto mr-px shrink-0 font-mono'
-                aria-label={
-                  lastActivity === 'now'
-                    ? 'Last activity just now'
-                    : `Last activity ${lastActivity} ago`
-                }
-              >
-                {lastActivity}
+            }
+            glyph={<StatusGlyph status={status} />}
+          >
+            {parent ? (
+              <span className='flex min-w-0 items-center gap-1' title={`Created by ${parent}`}>
+                <ArrowElbowDownRightIcon aria-hidden='true' className='size-3 shrink-0' />
+                <span className='truncate'>{parent}</span>
               </span>
+            ) : (
+              <span className='flex min-w-0 items-center gap-1' title={project}>
+                <ProjectGlyph icon={projectIcon} className='size-3' />
+                <span className='truncate'>{project}</span>
+              </span>
+            )}
+            {pullRequest && prLabel && (
+              <>
+                <span aria-hidden='true' className='shrink-0 text-muted-foreground'>
+                  ·
+                </span>
+                <span
+                  data-pull-request
+                  className='flex shrink-0 items-center gap-1 hover:text-foreground'
+                  title={prLabel.title}
+                >
+                  <PullRequestMark pullRequest={pullRequest} />
+                </span>
+              </>
+            )}
+            <span
+              className='ml-auto mr-px shrink-0 font-mono'
+              aria-label={
+                lastActivity === 'now'
+                  ? 'Last activity just now'
+                  : `Last activity ${lastActivity} ago`
+              }
+            >
+              {lastActivity}
             </span>
-          </Button>
+          </TwoLineRow>
         )}
       </ThreadHoverCard>
       <ThreadRowActions title={title} {...actions} />

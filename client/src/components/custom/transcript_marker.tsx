@@ -2,7 +2,7 @@ import { CheckIcon, CommentIcon, XIcon } from '@primer/octicons-react'
 
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
-import { ProviderGlyph } from './provider_glyph'
+import { SourceLabel } from './source_label'
 
 type Tone = 'allow' | 'deny' | 'answer' | 'dismiss'
 
@@ -97,8 +97,9 @@ export function TranscriptMarker({
       <Icon className='size-3 shrink-0' />
       {source && (
         <>
-          {provider && <ProviderGlyph provider={provider} className='size-3 shrink-0' />}
-          <span className='max-w-52 shrink-0 truncate'>{source}</span>
+          <SourceLabel provider={provider} className='shrink-0'>
+            <span className='max-w-52 truncate'>{source}</span>
+          </SourceLabel>
           <span aria-hidden='true'>·</span>
         </>
       )}
