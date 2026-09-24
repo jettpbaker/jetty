@@ -17,6 +17,11 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   QA showed the cost: a manager's children working in worktrees the manager made
   show the project checkout in Changes. Containers solve it for container threads.
 - Command palette: removed in the v2 skeleton; no design yet.
+- Slash / skill commands in the composer (`/verify`, `/pr`, …). The server
+  already lists skills (`skills.list` in server/src/skills.ts reads project and
+  user skills, including `user-invocable`), but no client uses it yet. Needs a
+  `/` picker in the composer and a way to pass the invocation to each provider
+  (Claude, Codex and Grok each handle skills differently).
 - Containers preview (JETTY_CONTAINERS=1): unproven on Linux/Coder (port proxy,
   resources, spot recovery) and for Claude/Grok inside containers (Claude needs a
   `claude setup-token` token, Grok an XAI_API_KEY).
