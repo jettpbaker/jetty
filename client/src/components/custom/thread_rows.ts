@@ -237,12 +237,15 @@ function toActivity(
   }
 }
 
+// The latest block of a live turn keeps working through the gaps between its activities.
 function workStatus(
   activities: readonly WorkActivity[],
-  outcome: TurnOutcome | undefined
+  outcome: TurnOutcome | undefined,
+  live: boolean
 ): ActivityStatus {
   if (outcome && outcome !== 'server_restarted')
     return outcome === 'completed' ? 'complete' : outcome
+  if (live) return 'running'
   for (const status of ['waiting', 'running', 'interrupted'] as const)
     if (activities.some((activity) => activity.status === status)) return status
   return 'complete'
@@ -365,7 +368,8 @@ export function threadRows(
     const activities = pending.map((item, index) =>
       toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
     )
-    const blockStatus = workStatus(activities, outcomes[pending[0]!.turnId])
+    const outcome = outcomes[pending[0]!.turnId]
+    const blockStatus = workStatus(activities, outcome, !next && !outcome && sessionRunning)
     rows.push({
       kind: 'work',
       id: pending[0]!.id,
