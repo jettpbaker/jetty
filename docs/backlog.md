@@ -36,9 +36,9 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   4. Agent-visible preview links: an MCP tool (e.g. `dev_urls`) rather than
      env vars, since Docker assigns the host port at start. Mostly moot if 2
      lands.
-     Not Jetty's job: building/refreshing images (use the workspace startup script
-     or a timer; 1 picks up the result). Desktop streaming (jetty-streaming) stays
-     a maybe for seeing several containers at once.
+- Containers, not Jetty's job: building/refreshing images (use the workspace
+  startup script or a timer; hook 1 picks up the result). Desktop streaming
+  (jetty-streaming) stays a maybe for seeing several containers at once.
 - Grok runs commands in its own sandbox: `gh` can't reach the keychain token (401 on
   PR creation) and writes outside the project are blocked even after approval.
 - Queued-message remove has no undo (needs a server-side hold).
