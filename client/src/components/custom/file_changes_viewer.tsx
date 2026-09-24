@@ -62,6 +62,10 @@ const treeUnsafeCSS = [
   '[role="treeitem"][data-item-focused="true"]:not(:focus-visible)::before { outline: none; }',
   '[data-item-git-status] > [data-item-section="content"] { color: inherit; }',
   '[data-item-section="git"] { font-size: var(--text-xs); }',
+  // A flattened directory chain reads as one path truncated at its end, not a truncation per segment.
+  '[data-item-flattened-subitems] { display: inline; white-space: nowrap; }',
+  '[data-item-flattened-subitem] :is([data-truncate-container], [data-truncate-grid], [data-truncate-grid] > :first-child, [data-truncate-content="visible"]) { display: contents; }',
+  '[data-item-flattened-subitem] :is([data-truncate-content="overflow"], [data-truncate-marker-cell]) { display: none; }',
 ].join('\n')
 const separatorUnsafeCSS = `
   [data-separator="line-info"] {
@@ -540,7 +544,19 @@ function ChangedFilesTree({
       if (path) onSelect(path)
     },
   })
-  return <FileTree model={model} className='changed-files-tree h-full w-full' />
+  return (
+    <FileTree
+      model={model}
+      className='changed-files-tree h-full w-full'
+      onPointerMove={(event) => {
+        const row = event.nativeEvent
+          .composedPath()
+          .find((node) => node instanceof HTMLElement && node.dataset.type === 'item')
+        event.currentTarget.title =
+          (row instanceof HTMLElement && row.dataset.itemPath?.replace(/\/$/, '')) || ''
+      }}
+    />
+  )
 }
 
 const fileIconResolver = createFileTreeIconResolver('standard')
