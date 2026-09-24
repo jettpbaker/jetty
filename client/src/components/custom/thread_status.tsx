@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils'
 import { CircleSlashIcon } from '@primer/octicons-react'
 
 import {
-  DoneStatusIcon,
   ErrorStatusIcon,
   NeedsInputIcon,
   QueuedStatusIcon,
@@ -51,7 +50,7 @@ export const statusPresentation: Record<
   'needs-attention': { icon: NeedsInputIcon, label: 'Needs input', color: 'text-status-attention' },
   error: { icon: ErrorStatusIcon, label: 'Error', color: 'text-status-error' },
   ready: { icon: SuccessStatusIcon, label: 'Ready for review', color: 'text-status-success' },
-  done: { icon: DoneStatusIcon, label: 'Finished', color: 'text-status-success' },
+  done: { icon: SuccessStatusIcon, label: 'Finished', color: 'text-status-success' },
   stopped: { icon: CircleSlashIcon, label: 'Stopped', color: 'text-muted-foreground' },
   queued: { icon: QueuedStatusIcon, label: 'Queued', color: 'text-muted-foreground' },
 }
