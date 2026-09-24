@@ -3,7 +3,7 @@ import { uuidv7 } from 'uuidv7'
 
 import { SessionStatus } from './events'
 import { ApprovalDecision, Attachment } from './items'
-import { PullRequestData } from './pull-request'
+import { PullRequestData, ReviewerCandidate } from './pull-request'
 import { ThreadState } from './reducer'
 
 export function newId() {
@@ -423,6 +423,22 @@ export const methods = {
   },
   'pullRequest.refresh': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.reviewerCandidates': {
+    params: Schema.Struct({ repo: Schema.String, query: Schema.String }),
+    result: Schema.Struct({
+      candidates: Schema.Array(ReviewerCandidate),
+      truncated: Schema.Boolean,
+    }),
+  },
+  'pullRequest.setReviewRequest': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      login: Schema.String,
+      requested: Schema.Boolean,
+    }),
     result: PullRequestSnapshot,
   },
   'pullRequest.subscribe': {

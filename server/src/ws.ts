@@ -27,7 +27,9 @@ import {
   parsePullRequestUrl,
   projectRemote,
   resolvePullRequestReference,
+  validLogin,
   validPullRequestRef,
+  validRepo,
 } from './pull-requests'
 import { Skills } from './skills'
 import { StoreError } from './store'
@@ -413,6 +415,21 @@ export function createRpcHandlers(
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
       'pullRequest.refresh': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.refresh), Effect.mapError(wireError)),
+      'pullRequest.reviewerCandidates': ({ repo, query }) =>
+        (validRepo(repo) && query.length <= 100
+          ? Effect.tryPromise({
+              try: () => pullRequests.reviewerCandidates(repo, query.trim()),
+              catch: (error) => new StoreError('internal', (error as Error).message),
+            })
+          : Effect.fail(new StoreError('invalid_params', 'Invalid reviewer search'))
+        ).pipe(Effect.mapError(wireError)),
+      'pullRequest.setReviewRequest': ({ login, requested, ...ref }) =>
+        Effect.gen(function* () {
+          yield* checkedRef(ref)
+          if (!validLogin(login))
+            return yield* Effect.fail(new StoreError('invalid_params', 'Invalid GitHub login'))
+          return yield* pullRequests.setReviewRequest(ref, login, requested)
+        }).pipe(Effect.mapError(wireError)),
       'pullRequest.subscribe': (ref) =>
         Stream.unwrap(
           Effect.gen(function* () {

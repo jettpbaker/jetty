@@ -1,3 +1,4 @@
+import type { ReviewerCandidate } from '@jetty/shared/pull-request'
 import type {
   PullRequestList,
   PullRequestListItem,
@@ -34,14 +35,20 @@ export async function githubConnection(): Promise<{
   }
 }
 
-export function validPullRequestRef(ref: PullRequestRef): boolean {
-  const parts = ref.repo.split('/')
+export function validRepo(repo: string): boolean {
+  const parts = repo.split('/')
   return (
     parts.length === 2 &&
-    parts.every((part) => /^[A-Za-z0-9_.-]+$/.test(part) && part !== '.' && part !== '..') &&
-    Number.isSafeInteger(ref.number) &&
-    ref.number > 0
+    parts.every((part) => /^[A-Za-z0-9_.-]+$/.test(part) && part !== '.' && part !== '..')
   )
+}
+
+export function validPullRequestRef(ref: PullRequestRef): boolean {
+  return validRepo(ref.repo) && Number.isSafeInteger(ref.number) && ref.number > 0
+}
+
+export function validLogin(login: string): boolean {
+  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)
 }
 
 export function parsePullRequestUrl(value: string): PullRequestRef | null {
@@ -145,11 +152,12 @@ class GhFailure extends Error {
   }
 }
 
-async function ghApi(...args: string[]): Promise<unknown> {
-  const gh = Bun.which('gh')
-  if (!gh) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
+async function gh(args: string[], input?: string) {
+  const bin = Bun.which('gh')
+  if (!bin) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
   try {
-    const child = Bun.spawn([gh, 'api', ...args], {
+    const child = Bun.spawn([bin, ...args], {
+      stdin: input === undefined ? 'ignore' : new Blob([input]),
       stdout: 'pipe',
       stderr: 'pipe',
       signal: AbortSignal.timeout(20000),
@@ -159,19 +167,28 @@ async function ghApi(...args: string[]): Promise<unknown> {
       new Response(child.stderr).text(),
       child.exited,
     ])
-    if (code === 0) return JSON.parse(out)
-    const detail = err.trim()
-    if (/rate limit|secondary rate limit|abuse detection/i.test(detail))
-      throw new GhFailure('rate_limited', 'GitHub API rate limit reached')
-    if (/HTTP 404|Not Found|HTTP 403/i.test(detail))
-      throw new GhFailure('not_found', 'Pull request not found or access denied')
-    if (/authentication|not logged|HTTP 401|gh auth login/i.test(detail))
-      throw new GhFailure('unavailable', 'Sign in with gh auth login to view pull requests')
-    throw new GhFailure('unavailable', detail || 'GitHub API is unavailable')
-  } catch (error) {
-    if (error instanceof GhFailure) throw error
+    return { out, detail: err.trim(), code }
+  } catch {
     throw new GhFailure('unavailable', 'GitHub API is unavailable')
   }
+}
+
+function commonFailure(detail: string) {
+  if (/rate limit|secondary rate limit|abuse detection/i.test(detail))
+    return new GhFailure('rate_limited', 'GitHub API rate limit reached')
+  if (/authentication|not logged|HTTP 401|gh auth login/i.test(detail))
+    return new GhFailure('unavailable', 'Sign in with gh auth login to view pull requests')
+  return null
+}
+
+async function ghApi(...args: string[]): Promise<unknown> {
+  const { out, detail, code } = await gh(['api', ...args])
+  if (code === 0) return JSON.parse(out)
+  const failure = commonFailure(detail)
+  if (failure) throw failure
+  if (/HTTP 404|Not Found|HTTP 403/i.test(detail))
+    throw new GhFailure('not_found', 'Pull request not found or access denied')
+  throw new GhFailure('unavailable', detail || 'GitHub API is unavailable')
 }
 
 async function ghGraphql(ref: PullRequestRef): Promise<{
@@ -307,6 +324,15 @@ function enumValue<T extends string>(value: unknown, values: readonly T[], fallb
   return values.find((candidate) => candidate === value) ?? fallback
 }
 
+function user(value: unknown) {
+  const valueRecord = record(value)
+  return {
+    login: string(valueRecord.login, 'ghost'),
+    avatar_url: string(valueRecord.avatar_url),
+    html_url: string(valueRecord.html_url),
+  }
+}
+
 async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
   const base = `repos/${ref.repo}`
   const pull = (await ghApi(`${base}/pulls/${ref.number}`)) as Record<string, unknown>
@@ -321,14 +347,7 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
     ghGraphql(ref),
   ])
   const repository = repo as Record<string, unknown>
-  function user(value: unknown) {
-    const valueRecord = record(value)
-    return {
-      login: string(valueRecord.login, 'ghost'),
-      avatar_url: string(valueRecord.avatar_url),
-      html_url: string(valueRecord.html_url),
-    }
-  }
+  const permissions = record(repository.permissions)
   const state = enumValue(
     pull.mergeable_state,
     ['clean', 'blocked', 'dirty', 'unstable'],
@@ -454,6 +473,11 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       }
     }),
     suggestedReviewers: graph.suggestedReviewers,
+    viewerCanRequestReviews:
+      permissions.admin === true ||
+      permissions.maintain === true ||
+      permissions.push === true ||
+      permissions.triage === true,
     mergeCommitAllowed: repository.allow_merge_commit === true,
     squashMergeAllowed: repository.allow_squash_merge === true,
     rebaseMergeAllowed: repository.allow_rebase_merge === true,
@@ -465,6 +489,73 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
           : 'REBASE',
   }
   return Schema.decodeUnknownSync(PullRequestData)(fixture)
+}
+
+async function fetchReviewerCandidates(repo: string, search: string) {
+  const [owner, name] = repo.split('/')
+  const query = `query($owner:String!,$name:String!,$search:String) {
+    repository(owner:$owner,name:$name) { assignableUsers(first:100,query:$search) {
+      pageInfo { hasNextPage }
+      nodes { login name avatarUrl url }
+    } }
+  }`
+  const response = record(
+    await ghApi(
+      'graphql',
+      '-f',
+      `query=${query}`,
+      '-f',
+      `owner=${owner}`,
+      '-f',
+      `name=${name}`,
+      ...(search ? ['-f', `search=${search}`] : [])
+    )
+  )
+  const users = record(record(record(response.data).repository).assignableUsers)
+  const candidates: ReviewerCandidate[] = []
+  for (const value of (users.nodes as unknown[] | undefined) ?? []) {
+    const node = record(value)
+    const login = string(node.login)
+    if (!login) continue
+    candidates.push({
+      login,
+      avatar_url: string(node.avatarUrl),
+      html_url: string(node.url),
+      ...(string(node.name) ? { name: string(node.name) } : {}),
+    })
+  }
+  return { candidates, truncated: record(users.pageInfo).hasNextPage === true }
+}
+
+function reviewRequestError(error: unknown, ref: PullRequestRef, login: string) {
+  if (error instanceof GhFailure) return new StoreError('internal', error.message)
+  const detail = error instanceof Error ? error.message : String(error)
+  if (/requested from pull request author/i.test(detail))
+    return new StoreError('invalid_params', "Can't request a review from the pull request author")
+  if (/only be requested from collaborators/i.test(detail))
+    return new StoreError('invalid_params', `${login} isn't a collaborator on ${ref.repo}`)
+  if (/HTTP 40[34]|Not Found/i.test(detail))
+    return new StoreError('not_found', `No permission to change reviewers on ${ref.repo}`)
+  return new StoreError(
+    'internal',
+    detail.replace(/^gh: /, '').replace(/ \(HTTP \d+\)$/, '') || 'GitHub API is unavailable'
+  )
+}
+
+async function sendReviewRequest(ref: PullRequestRef, login: string, requested: boolean) {
+  const { out, detail, code } = await gh(
+    [
+      'api',
+      '--method',
+      requested ? 'POST' : 'DELETE',
+      `repos/${ref.repo}/pulls/${ref.number}/requested_reviewers`,
+      '--input',
+      '-',
+    ],
+    JSON.stringify({ reviewers: [login] })
+  )
+  if (code !== 0) throw commonFailure(detail) ?? new Error(detail)
+  return ((record(JSON.parse(out)).requested_reviewers as unknown[]) ?? []).map(user)
 }
 
 export function createPullRequests(store: Store, hub: Hub) {
@@ -615,7 +706,45 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  return { get, refresh, prefetch, refreshIfStale }
+  function setReviewRequest(ref: PullRequestRef, login: string, requested: boolean) {
+    return Effect.gen(function* () {
+      const reviewers = yield* Effect.tryPromise({
+        try: () => sendReviewRequest(ref, login, requested),
+        catch: (error) => reviewRequestError(error, ref, login),
+      })
+      const running = jobs.get(`${ref.repo}#${ref.number}`)
+      // A read that began before this write would land the old reviewers over the new ones.
+      if (running?.started)
+        void running.promise.then(() => Effect.runPromise(refresh(ref)).catch(() => {}))
+      const snapshot = yield* get(ref)
+      if (!snapshot.data) return yield* refresh(ref)
+      const updated = {
+        ...snapshot,
+        data: { ...snapshot.data, pull: { ...snapshot.data.pull, requested_reviewers: reviewers } },
+      }
+      yield* store.savePullRequest(updated)
+      hub.pushPullRequest(updated)
+      return updated
+    })
+  }
+
+  const candidateTtl = 5 * 60_000
+  const candidates = new Map<
+    string,
+    { at: number; promise: ReturnType<typeof fetchReviewerCandidates> }
+  >()
+
+  function reviewerCandidates(repo: string, search: string) {
+    const key = `${repo}\n${search}`
+    const cached = candidates.get(key)
+    if (cached && Date.now() - cached.at < candidateTtl) return cached.promise
+    const promise = fetchReviewerCandidates(repo, search)
+    candidates.set(key, { at: Date.now(), promise })
+    promise.catch(() => candidates.delete(key))
+    return promise
+  }
+
+  return { get, refresh, prefetch, refreshIfStale, setReviewRequest, reviewerCandidates }
 }
 
 const listLimit = 100

@@ -6,6 +6,12 @@ export const GitHubUser = Schema.Struct({
   html_url: Schema.String,
 })
 
+export const ReviewerCandidate = Schema.Struct({
+  ...GitHubUser.fields,
+  name: Schema.optional(Schema.String),
+})
+export type ReviewerCandidate = Schema.Schema.Type<typeof ReviewerCandidate>
+
 export const GitHubPullRequest = Schema.Struct({
   number: Schema.Int,
   title: Schema.String,
@@ -113,6 +119,7 @@ export const PullRequestData = Schema.Struct({
     })
   ),
   suggestedReviewers: Schema.Array(GitHubUser),
+  viewerCanRequestReviews: Schema.optional(Schema.Boolean),
   mergeCommitAllowed: Schema.Boolean,
   squashMergeAllowed: Schema.Boolean,
   rebaseMergeAllowed: Schema.Boolean,
