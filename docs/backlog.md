@@ -42,6 +42,25 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
      must know setup is still running and wait before building/testing/
      installing; a setup failure after the agent started needs a way into the
      thread and to the agent; dev services must wait for setup.
+- Container archive that frees disk but stays resumable (idea, not started).
+  Today archive only stops the container; the ~3 GB environment stays until
+  delete. On archive: snapshot uncommitted + untracked work (respecting
+  .gitignore) as a commit under refs/jetty/wip, `git bundle` the thread's branch
+  and that ref minus the base commit, prove it restores, then delete checkout/
+  and keep home/ (agent session), artifacts/ and the bundle. On the next message:
+  clone at the base, apply the bundle, restore the wip tree, clear the setup
+  marker so setup re-runs, resume the session. Open points:
+  - Prove the bundle by restoring it into a temp clone of the host repo and
+    comparing tree hashes, not just `git bundle verify` (which also checks the
+    base commit still exists in the host repo).
+  - The base commit can vanish from the host repo (amended/rebased local
+    commits, gc). If it isn't on a remote-tracking branch at archive time,
+    bundle without the base exclusion (bigger, but self-contained).
+  - home/ may not be "a few MB": pnpm stores, Playwright browsers and other
+    caches land under HOME. Measure; clearing known caches on archive is fine
+    since setup re-runs.
+  - Gitignored files the agent made are lost (copyFiles are re-copied on
+    restore); staged vs unstaged isn't preserved. Both acceptable, but say so.
 - Containers, not Jetty's job: building/refreshing images (use the workspace
   startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.
