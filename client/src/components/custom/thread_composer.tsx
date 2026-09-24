@@ -78,7 +78,8 @@ export function ThreadComposer({
   const respondQuestion = useRespondQuestion()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
-  const queue = useThreadQueue(threadId)
+  const queued = useThreadQueue(threadId)
+  const queue = useMemo(() => queued.filter((entry) => !entry.from), [queued])
   const navigate = useNavigate()
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
@@ -226,10 +227,12 @@ export function ThreadComposer({
     update({ text: reply, editing: undefined, typedFor: item.id, parked })
   }
 
+  const paused = Boolean(chrome?.threads.find((thread) => thread.id === threadId)?.queuePaused)
   const queueControl = {
     queue,
+    waiting: paused ? queued.length - queue.length : 0,
     running,
-    paused: Boolean(chrome?.threads.find((thread) => thread.id === threadId)?.queuePaused),
+    paused,
     editing,
     sendNow(entry: QueuedMessage) {
       if (!threadId) return
@@ -278,7 +281,7 @@ export function ThreadComposer({
     })
   }
 
-  const header = item && (pending.length > 1 || queue.length > 0) && (
+  const header = item && (pending.length > 1 || queue.length > 0 || queueControl.waiting > 0) && (
     <PendingHeader
       index={index}
       total={pending.length}
@@ -339,7 +342,7 @@ export function ThreadComposer({
       : {
           strip:
             answer?.strip ??
-            (queue.length > 0 ? (
+            (queue.length > 0 || queueControl.waiting > 0 ? (
               <QueueTray q={queueControl} />
             ) : todo ? (
               <TodoLine list={todos} current={todo} />

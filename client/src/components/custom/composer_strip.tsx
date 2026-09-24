@@ -607,7 +607,10 @@ export function QuestionStrip({
 }
 
 export type QueueControl = {
+  // only what the user queued; messages from other threads wait unseen
   queue: readonly QueuedMessage[]
+  // messages from other threads held by a pause
+  waiting: number
   running: boolean
   // held after a stop or restart until the user sends or steers one
   paused: boolean
@@ -722,11 +725,21 @@ function QueueRow({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
   )
 }
 
+function queueSummary(q: QueueControl) {
+  return [
+    q.queue.length > 0 && `${q.queue.length} queued`,
+    q.waiting > 0 && `${q.waiting} waiting`,
+    q.paused && 'Paused',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 export function QueueTray({ q }: { q: QueueControl }) {
   const [open, setOpen] = useState(true)
   const [head] = q.queue
-  if (!head) return null
-  if (q.queue.length === 1)
+  if (!head && !q.waiting) return null
+  if (head && q.queue.length === 1 && !q.waiting)
     return (
       <TrayShell>
         <div className='flex min-w-0 items-center gap-2'>
@@ -738,22 +751,24 @@ export function QueueTray({ q }: { q: QueueControl }) {
         </div>
       </TrayShell>
     )
-  const next = q.queue.find((entry) => entry.id !== q.editing) ?? head
+  const next = q.queue.find((entry) => entry.id !== q.editing)
   return (
     <TrayShell>
-      <div className='flex min-w-0 items-center gap-2'>
+      <div className='flex min-h-5 min-w-0 items-center gap-2'>
         <ClockIcon className='size-3.5 shrink-0 text-muted-foreground' />
-        <span className='shrink-0 text-xs text-muted-foreground'>
-          {q.queue.length} queued{q.paused && ' · Paused'}
-        </span>
-        {open ? <span className='flex-1' /> : <QueuedLine entry={next} />}
-        <StripToggle
-          open={open}
-          onToggle={() => setOpen((value) => !value)}
-          label='queued messages'
-        />
+        <span className='shrink-0 text-xs text-muted-foreground'>{queueSummary(q)}</span>
+        {head && (
+          <>
+            {open ? <span className='flex-1' /> : <QueuedLine entry={next ?? head} />}
+            <StripToggle
+              open={open}
+              onToggle={() => setOpen((value) => !value)}
+              label='queued messages'
+            />
+          </>
+        )}
       </div>
-      {open && (
+      {head && open && (
         <div className='flex flex-col'>
           {q.queue.map((entry) => (
             <QueueRow key={entry.id} entry={entry} q={q} />
@@ -850,6 +865,12 @@ export function PendingHeader({
           />
         )}
         <RequestSource source={source} />
+        {queued === 0 && q.waiting > 0 && (
+          <span className='ml-auto flex shrink-0 items-center gap-1'>
+            <ClockIcon className='size-3' />
+            {queueSummary(q)}
+          </span>
+        )}
         {queued > 0 && (
           <Button
             variant='ghost-text'
@@ -859,7 +880,7 @@ export function PendingHeader({
             {...pressProps(onToggle)}
           >
             <ClockIcon />
-            {queued} queued{q.paused && ' · Paused'}
+            {queueSummary(q)}
             {open ? <CaretDownIcon /> : <CaretUpIcon />}
           </Button>
         )}
