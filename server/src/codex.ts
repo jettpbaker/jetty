@@ -47,6 +47,7 @@ type Session = {
   fileChangeApprovals: Map<string, string>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
+  mcpErrorShown: boolean
 }
 
 function codexInput(text: string, images?: AgentImage[]) {
@@ -293,6 +294,26 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             const message = yield* Queue.take(connection.messages)
             const terminal = yield* session.publication.withPermit(
               Effect.gen(function* () {
+                if (
+                  options.mcp &&
+                  !session.mcpErrorShown &&
+                  message.method === 'mcpServer/startupStatus/updated' &&
+                  message.params.name === 'jetty' &&
+                  message.params.status === 'failed' &&
+                  (!message.params.threadId || message.params.threadId === threadId)
+                ) {
+                  session.mcpErrorShown = true
+                  yield* session.emit({
+                    type: 'item.started',
+                    item: {
+                      id: newId(),
+                      turnId: session.input.turnId,
+                      createdAt: Date.now(),
+                      kind: 'error',
+                      message: `Jetty tools failed to connect: ${string(message.params.error) || 'Codex MCP startup failed'}`,
+                    },
+                  })
+                }
                 if (message.id !== undefined) {
                   yield* handleRequest(session, message)
                   return null
@@ -424,6 +445,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             asyncQuestions: new Map(),
             fileChanges: new Map(),
             fileChangeApprovals: new Map(),
+            mcpErrorShown: false,
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)

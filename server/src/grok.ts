@@ -63,6 +63,7 @@ type Session = {
   pending: Map<string, Pending>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
+  mcpErrorShown: boolean
 }
 
 function grokInput(text: string, images?: AgentImage[]) {
@@ -141,6 +142,37 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           if (session.idle) yield* Fiber.interrupt(session.idle)
           session.idle = null
         } else if (!session.awaitingResult) yield* armIdle(session)
+      })
+    }
+
+    function mcpFailure(session: Session, message: RpcMessage) {
+      if (
+        !options.mcp ||
+        message.method !== '_x.ai/mcp/server_status' ||
+        message.params.sessionId !== session.providerThreadId ||
+        message.params.name !== 'jetty' ||
+        !['unavailable', 'failed'].includes(string(message.params.status))
+      )
+        return null
+      return (
+        string(message.params.reason) || string(message.params.detail) || 'Grok MCP startup failed'
+      )
+    }
+
+    function reportMcpFailure(session: Session, reason: string) {
+      return Effect.gen(function* () {
+        if (session.mcpErrorShown) return
+        session.mcpErrorShown = true
+        yield* publish(session, {
+          type: 'item.started',
+          item: {
+            id: newId(),
+            turnId: session.input.turnId,
+            createdAt: Date.now(),
+            kind: 'error',
+            message: `Jetty tools failed to connect: ${reason}`,
+          },
+        })
       })
     }
 
@@ -349,16 +381,21 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           session.modelId = modelId
           session.effort = session.input.effort
           // Loading replays history; the ledger already owns those messages.
+          let startupMcpFailure: string | null = null
           for (const message of yield* Queue.takeAll(connection.messages)) {
+            startupMcpFailure ??= mcpFailure(session, message)
             if (message.id !== undefined) yield* connection.reject(message.id, 'Session is loading')
           }
           yield* publish(session, { type: 'turn.started', turnId: session.input.turnId })
+          if (startupMcpFailure) yield* reportMcpFailure(session, startupMcpFailure)
           yield* prompt(session, session.input.text, session.input.images)
           session.accepting = true
           while (true) {
             const message = yield* Queue.take(connection.messages)
             yield* session.publication.withPermit(
               Effect.gen(function* () {
+                const failure = mcpFailure(session, message)
+                if (failure) yield* reportMcpFailure(session, failure)
                 if (message.id !== undefined) {
                   yield* handleRequest(session, message)
                   return
@@ -556,6 +593,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             fastIds: new Map(),
             reason: null,
             pending: new Map(),
+            mcpErrorShown: false,
             promptCount: 0,
             publication: yield* Semaphore.make(1),
           }
