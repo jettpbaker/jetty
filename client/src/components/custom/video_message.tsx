@@ -41,7 +41,7 @@ export function VideoMessage({ video, caption }: { video: Attachment; caption?: 
   )
 }
 
-function VideoPlayer({ video }: { video: Attachment }) {
+export function VideoPlayer({ video, onError }: { video: Attachment; onError?: () => void }) {
   const frame = useRef<HTMLDivElement>(null)
   const media = useRef<HTMLVideoElement>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -120,6 +120,7 @@ function VideoPlayer({ video }: { video: Attachment }) {
           wake()
         }}
         onPause={() => setPaused(true)}
+        onError={onError}
         onVolumeChange={({ currentTarget }) => setMuted(currentTarget.muted)}
       />
       <button

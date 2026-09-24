@@ -10,7 +10,7 @@ import {
 import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
-import { useRef } from 'react'
+import { useRef, type Ref } from 'react'
 
 export function GalleryMessage({
   images,
@@ -39,38 +39,21 @@ export function GalleryMessage({
             }
           >
             {images.map((image, index) => (
-              <button
+              <ImageThumbnail
                 key={image.id}
                 ref={(element) => {
                   thumbnails.current[index] = element
                 }}
-                type='button'
-                aria-label={`Open ${image.name}`}
-                className={cn(
-                  'block cursor-zoom-in overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  single ? 'w-fit max-w-full' : 'aspect-[4/3]'
-                )}
-                style={single ? fittedStyle(image, INLINE_IMAGE_MAX_HEIGHT) : undefined}
-                onClick={() =>
+                image={image}
+                cover={!single}
+                onOpen={() =>
                   openMedia({
                     items: images,
                     index,
                     origin: (at) => thumbnails.current[at] ?? null,
                   })
                 }
-              >
-                <img
-                  src={mediaUrl(image)}
-                  alt={image.name}
-                  loading='lazy'
-                  decoding='async'
-                  draggable={false}
-                  className={cn(
-                    single && !image.width ? 'max-h-120 max-w-full' : 'size-full',
-                    single ? 'object-contain' : 'object-cover'
-                  )}
-                />
-              </button>
+              />
             ))}
           </div>
           {caption ? (
@@ -79,5 +62,46 @@ export function GalleryMessage({
         </figure>
       </MessageContent>
     </Message>
+  )
+}
+
+export function ImageThumbnail({
+  image,
+  cover = false,
+  ref,
+  onOpen,
+  onError,
+}: {
+  image: Attachment
+  cover?: boolean
+  ref?: Ref<HTMLButtonElement>
+  onOpen: () => void
+  onError?: () => void
+}) {
+  return (
+    <button
+      ref={ref}
+      type='button'
+      aria-label={`Open ${image.name}`}
+      className={cn(
+        'block cursor-zoom-in overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        cover ? 'aspect-[4/3]' : 'w-fit max-w-full'
+      )}
+      style={cover ? undefined : fittedStyle(image, INLINE_IMAGE_MAX_HEIGHT)}
+      onClick={onOpen}
+    >
+      <img
+        src={mediaUrl(image)}
+        alt={image.name}
+        loading='lazy'
+        decoding='async'
+        draggable={false}
+        className={cn(
+          !cover && !image.width ? 'max-h-120 max-w-full' : 'size-full',
+          cover ? 'object-cover' : 'object-contain'
+        )}
+        onError={onError}
+      />
+    </button>
   )
 }

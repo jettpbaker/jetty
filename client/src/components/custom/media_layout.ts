@@ -5,7 +5,9 @@ export const BUBBLE_THUMBNAIL_SIZE = 48
 export const GALLERY_GAP = 8
 
 export function mediaUrl(attachment: Attachment) {
-  return attachment.id.startsWith('blob:') ? attachment.id : `/attachments/${attachment.id}`
+  return attachment.id.startsWith('blob:') || attachment.id.startsWith('/')
+    ? attachment.id
+    : `/attachments/${attachment.id}`
 }
 
 // The same numbers drive the CSS box and the virtualizer estimate, so a row never jumps on load.
