@@ -142,10 +142,9 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
         </span>
       )}
       {started && (
-        <div className='dark absolute inset-x-0 bottom-0 flex items-center gap-1 bg-linear-to-t from-black/70 to-transparent p-1.5 pt-8 text-foreground opacity-0 transition-opacity group-has-focus-visible/video:opacity-100 group-data-[controls=shown]/video:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100'>
+        <div className='dark absolute inset-x-0 bottom-0 flex items-center gap-1 bg-linear-to-t from-black/85 via-black/55 to-transparent p-1.5 pt-14 text-foreground opacity-0 transition-opacity group-has-focus-visible/video:opacity-100 group-data-[controls=shown]/video:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100'>
           <Button
             variant='ghost'
-            tone='muted'
             size='icon'
             aria-label={paused ? 'Play' : 'Pause'}
             onClick={toggle}
@@ -155,7 +154,6 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
           <Scrubber media={media} duration={duration} />
           <Button
             variant='ghost'
-            tone='muted'
             size='icon'
             aria-label={muted ? 'Unmute' : 'Mute'}
             onClick={() => {
@@ -166,7 +164,6 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
           </Button>
           <Button
             variant='ghost'
-            tone='muted'
             size='icon'
             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
@@ -224,7 +221,7 @@ function Scrubber({
       </span>
       <Slider
         aria-label='Seek'
-        className='mx-2 flex-1'
+        className='mx-2 flex-1 [&_[data-slot=slider-range]]:bg-foreground [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-track]]:bg-foreground/25'
         min={0}
         max={duration ?? 1}
         step={(duration ?? 1) / 100}
