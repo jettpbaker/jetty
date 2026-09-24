@@ -8,7 +8,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { loadAppearance, prepareWallpaper, saveAppearance, useAppearance } from '@/lib/appearance'
+import {
+  checkVideoWallpaper,
+  loadAppearance,
+  prepareWallpaper,
+  saveAppearance,
+  saveVideoWallpaper,
+  useAppearance,
+} from '@/lib/appearance'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import {
@@ -88,9 +95,37 @@ export function SettingsAppearance() {
       setError('Your appearance preference could not be saved.')
     }
   }
+  async function chooseVideo() {
+    const [file] = await pickFiles({ accept: 'video/webm,video/mp4', multiple: false })
+    if (!file) return
+    setUploading(true)
+    setError('')
+    try {
+      await checkVideoWallpaper(file)
+      await saveVideoWallpaper(file)
+    } catch (cause) {
+      setError(
+        cause instanceof DOMException && cause.name === 'QuotaExceededError'
+          ? 'There is not enough browser storage. Try a smaller video.'
+          : cause instanceof Error
+            ? cause.message
+            : 'Could not save this video.'
+      )
+    } finally {
+      setUploading(false)
+    }
+  }
+  async function removeVideo() {
+    try {
+      await saveVideoWallpaper(null)
+      setError('')
+    } catch {
+      setError('Could not remove the video.')
+    }
+  }
   async function removeWallpaper() {
     try {
-      await saveAppearance({ wallpaper: '', filename: null, autoAccent: false })
+      await saveAppearance({ ...appearance, wallpaper: '', filename: null, autoAccent: false })
       setError('')
     } catch {
       setError('Could not remove the wallpaper.')
@@ -206,6 +241,64 @@ export function SettingsAppearance() {
             onClick={() => void chooseImage()}
           >
             {uploading ? 'Preparing…' : 'Add image'}
+          </Button>
+        )}
+      </div>
+      <div className='appearance-option-row'>
+        <span>Video wallpaper</span>
+        {appearance.video ? (
+          <div className='mr-2 flex items-center gap-2'>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    tone='muted'
+                    size='icon'
+                    disabled={uploading}
+                    aria-label='Change video'
+                    onClick={() => void chooseVideo()}
+                  />
+                }
+              >
+                <UploadSimpleIcon className='size-3.5' />
+              </TooltipTrigger>
+              <TooltipContent>Change video</TooltipContent>
+            </Tooltip>
+            <video
+              src={`${appearance.video}#t=1`}
+              muted
+              preload='auto'
+              aria-label={appearance.videoFilename ?? 'Current video wallpaper'}
+              className='h-7 w-12 rounded-sm object-cover'
+            />
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    tone='muted'
+                    size='icon'
+                    disabled={uploading}
+                    aria-label='Remove video'
+                    onClick={() => void removeVideo()}
+                  />
+                }
+              >
+                <TrashIcon className='size-3.5' />
+              </TooltipTrigger>
+              <TooltipContent>Remove video</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : (
+          <Button
+            variant='ghost-text'
+            size='sm'
+            className='h-7 rounded-sm'
+            disabled={uploading}
+            onClick={() => void chooseVideo()}
+          >
+            Add video
           </Button>
         )}
       </div>

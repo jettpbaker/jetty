@@ -11,12 +11,21 @@ export type Appearance = {
   autoAccent: boolean
   source?: string
   crop?: WallpaperCrop
+  video: string
+  videoFilename: string | null
 }
 
-const defaults: Appearance = { wallpaper: '', filename: null, autoAccent: false }
+const defaults: Appearance = {
+  wallpaper: '',
+  filename: null,
+  autoAccent: false,
+  video: '',
+  videoFilename: null,
+}
 const key = 'jetty.appearance'
 const wallpaperBlob = 'wallpaper'
 const sourceBlob = 'wallpaper-source'
+const videoBlob = 'wallpaper-video'
 const eventName = 'jetty-appearance'
 const dataUrl = /^data:image\/(jpeg|png|webp);base64,/
 
@@ -26,10 +35,12 @@ type StoredAppearance = {
   wallpaper: '' | 'opfs'
   source?: 'opfs'
   crop?: WallpaperCrop
+  video?: 'opfs'
+  videoFilename?: string | null
 }
 
 let cache: Appearance | undefined
-let liveUrls: string[] = []
+const urls = new Map<string, string>()
 let pending: Promise<void> = Promise.resolve()
 
 function cropOf(value: unknown): WallpaperCrop | undefined {
@@ -54,53 +65,79 @@ function readStored(): StoredAppearance {
   try {
     const data = JSON.parse(storage.get(key) ?? 'null')
     if (!data || typeof data.autoAccent !== 'boolean') return empty
-    const filename = typeof data.filename === 'string' ? data.filename : null
-    const crop = cropOf(data.crop)
+    const video: Pick<StoredAppearance, 'video' | 'videoFilename'> =
+      data.video === 'opfs'
+        ? {
+            video: 'opfs',
+            videoFilename: typeof data.videoFilename === 'string' ? data.videoFilename : null,
+          }
+        : {}
     if (data.wallpaper === 'opfs') {
       return {
         autoAccent: data.autoAccent,
-        filename,
+        filename: typeof data.filename === 'string' ? data.filename : null,
         wallpaper: 'opfs',
         source: data.source === 'opfs' ? 'opfs' : undefined,
-        crop,
+        crop: cropOf(data.crop),
+        ...video,
       }
     }
-    return empty
+    return { ...empty, ...video }
   } catch {
     return empty
   }
 }
 
-function writeStored({ autoAccent, filename, wallpaper, source, crop }: StoredAppearance) {
-  storage.set(key, JSON.stringify({ autoAccent, filename, wallpaper, source, crop }))
+function writeStored({
+  autoAccent,
+  filename,
+  wallpaper,
+  source,
+  crop,
+  video,
+  videoFilename,
+}: StoredAppearance) {
+  storage.set(
+    key,
+    JSON.stringify({ autoAccent, filename, wallpaper, source, crop, video, videoFilename })
+  )
 }
 
 async function dataUrlToBlob(value: string) {
   return await (await fetch(value)).blob()
 }
 
+// One URL per stored blob, kept until that blob changes: a fresh URL makes an <img> or <video> reload.
 async function objectUrl(name: string) {
-  const blob = await blobs.get(name)
-  if (!blob) return ''
-  const url = URL.createObjectURL(blob)
-  liveUrls.push(url)
+  let url = urls.get(name)
+  if (url === undefined) {
+    const blob = await blobs.get(name)
+    url = blob ? URL.createObjectURL(blob) : ''
+    urls.set(name, url)
+  }
   return url
 }
 
+function forget(...names: string[]) {
+  for (const name of names) {
+    const url = urls.get(name)
+    urls.delete(name)
+    if (url) requestAnimationFrame(() => URL.revokeObjectURL(url))
+  }
+}
+
 async function materialize(stored: StoredAppearance): Promise<Appearance> {
-  const previous = liveUrls
-  liveUrls = []
   const wallpaper = stored.wallpaper === 'opfs' ? await objectUrl(wallpaperBlob) : ''
   const source = stored.source === 'opfs' ? (await objectUrl(sourceBlob)) || undefined : undefined
-  requestAnimationFrame(() => {
-    for (const url of previous) URL.revokeObjectURL(url)
-  })
+  const video = stored.video === 'opfs' ? await objectUrl(videoBlob) : ''
   return {
     wallpaper,
     filename: wallpaper ? stored.filename : null,
     autoAccent: Boolean(wallpaper && stored.autoAccent),
     source,
     crop: wallpaper ? stored.crop : undefined,
+    video,
+    videoFilename: video ? (stored.videoFilename ?? null) : null,
   }
 }
 
@@ -142,10 +179,10 @@ function syncAppearanceAccent() {
   image.src = prefs.wallpaper
 }
 
-export function hydrateAppearance() {
+export function hydrateAppearance({ changedElsewhere = false } = {}) {
   return enqueue(async () => {
-    const stored = readStored()
-    publish(await materialize(stored))
+    if (changedElsewhere) forget(wallpaperBlob, sourceBlob, videoBlob)
+    publish(await materialize(readStored()))
   })
 }
 
@@ -155,8 +192,15 @@ export function saveAppearance(next: Appearance) {
     if (!next.wallpaper) {
       await blobs.remove(wallpaperBlob)
       await blobs.remove(sourceBlob)
-      const cleared: StoredAppearance = { autoAccent: false, filename: null, wallpaper: '' }
+      const cleared: StoredAppearance = {
+        autoAccent: false,
+        filename: null,
+        wallpaper: '',
+        video: stored.video,
+        videoFilename: stored.videoFilename,
+      }
       writeStored(cleared)
+      forget(wallpaperBlob, sourceBlob)
       publish(await materialize(cleared))
       return
     }
@@ -176,10 +220,29 @@ export function saveAppearance(next: Appearance) {
       }
       await blobs.put(wallpaperBlob, await dataUrlToBlob(next.wallpaper))
       stored.wallpaper = 'opfs'
+      forget(wallpaperBlob, sourceBlob)
     }
     stored.filename = next.filename
     stored.crop = next.crop
     stored.autoAccent = next.autoAccent
+    writeStored(stored)
+    publish(await materialize(stored))
+  })
+}
+
+export function saveVideoWallpaper(file: File | null) {
+  return enqueue(async () => {
+    const stored = readStored()
+    if (file) {
+      await blobs.put(videoBlob, file)
+      stored.video = 'opfs'
+      stored.videoFilename = file.name
+    } else {
+      await blobs.remove(videoBlob)
+      stored.video = undefined
+      stored.videoFilename = undefined
+    }
+    forget(videoBlob)
     writeStored(stored)
     publish(await materialize(stored))
   })
@@ -190,7 +253,7 @@ export function useAppearance() {
   useEffect(() => {
     const sync = () => setAppearance(loadAppearance())
     const onStorage = (event: StorageEvent) => {
-      if (event.key === key) void hydrateAppearance()
+      if (event.key === key) void hydrateAppearance({ changedElsewhere: true })
     }
     void hydrateAppearance()
     window.addEventListener(eventName, sync)
@@ -272,6 +335,27 @@ const sizeReaders: Record<
   string,
   (view: DataView) => { width: number; height: number } | undefined
 > = { 'image/jpeg': jpegSize, 'image/png': pngSize, 'image/webp': webpSize }
+
+const videoTypes = new Set(['video/webm', 'video/mp4'])
+
+export async function checkVideoWallpaper(file: File) {
+  if (!videoTypes.has(file.type)) throw new Error('Choose a WebM or MP4 video.')
+  const url = URL.createObjectURL(file)
+  const video = document.createElement('video')
+  video.muted = true
+  video.preload = 'metadata'
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve()
+      video.onerror = () => reject(new Error('This video could not be played. Try another one.'))
+      video.src = url
+    })
+  } finally {
+    video.removeAttribute('src')
+    video.load()
+    URL.revokeObjectURL(url)
+  }
+}
 
 export async function prepareWallpaper(file: File): Promise<string> {
   const readSize = sizeReaders[file.type]

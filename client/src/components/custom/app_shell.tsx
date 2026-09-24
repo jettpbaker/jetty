@@ -176,7 +176,7 @@ function Workspace({
                 data-visible={onNewThreadPage || undefined}
                 aria-hidden={!onNewThreadPage}
               >
-                <NewThreadBackdrop />
+                <NewThreadBackdrop visible={onNewThreadPage} />
               </div>
               {children}
               <FileDropOverlay />
