@@ -220,6 +220,7 @@ async function ghGraphql(ref: PullRequestRef): Promise<{
   resolved: Map<number, boolean>
   closingIssuesReferences: unknown[]
   suggestedReviewers: unknown[]
+  reviewDecision?: unknown
 }> {
   const gh = Bun.which('gh')
   if (!gh) return { resolved: new Map(), closingIssuesReferences: [], suggestedReviewers: [] }
@@ -229,6 +230,7 @@ async function ghGraphql(ref: PullRequestRef): Promise<{
       closingIssuesReferences(first:100) { nodes { number title url repository { nameWithOwner } } }
       reviewThreads(first:100) { nodes { isResolved comments(first:100) { nodes { databaseId } } } }
       suggestedReviewers { reviewer { ... on User { login avatarUrl url } } }
+      reviewDecision
     } }
   }`
   try {
@@ -263,6 +265,7 @@ async function ghGraphql(ref: PullRequestRef): Promise<{
     return {
       resolved,
       closingIssuesReferences: pull?.closingIssuesReferences?.nodes ?? [],
+      reviewDecision: pull?.reviewDecision,
       suggestedReviewers: (pull?.suggestedReviewers ?? []).flatMap(
         (value: { reviewer?: { login?: string; avatarUrl?: string; url?: string } }) =>
           value.reviewer?.login
@@ -498,6 +501,17 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       }
     }),
     suggestedReviewers: graph.suggestedReviewers,
+    requestedTeams: ((pull.requested_teams as unknown[]) ?? []).map((value) => {
+      const team = record(value)
+      return {
+        name: string(team.name),
+        avatar_url: `https://avatars.githubusercontent.com/t/${Number(team.id)}`,
+      }
+    }),
+    reviewDecision:
+      (['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'] as const).find(
+        (decision) => decision === graph.reviewDecision
+      ) ?? null,
     viewerCanRequestReviews:
       permissions.admin === true ||
       permissions.maintain === true ||

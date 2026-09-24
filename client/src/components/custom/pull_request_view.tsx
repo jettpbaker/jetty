@@ -800,6 +800,14 @@ export function PullRequestView({
                     }
                   />
                 ))}
+                {data.requestedTeams?.map((team) => (
+                  <ReviewerBadge
+                    key={`team:${team.name}`}
+                    user={{ login: team.name, avatar_url: team.avatar_url, html_url: '' }}
+                    state='AWAITING'
+                    pending={false}
+                  />
+                ))}
                 <ReviewerPicker
                   repo={link.repo}
                   author={pull.user.login}
@@ -811,6 +819,12 @@ export function PullRequestView({
                   onToggle={toggleReviewer}
                 />
               </dd>
+              {data.reviewDecision === 'REVIEW_REQUIRED' && (
+                <dd className='col-start-2 m-0 text-muted-foreground'>Approving review required</dd>
+              )}
+              {data.reviewDecision === 'CHANGES_REQUESTED' && (
+                <dd className='col-start-2 m-0 text-status-error'>Changes requested</dd>
+              )}
             </dl>
 
             <section className='flex flex-col gap-3 pt-6'>

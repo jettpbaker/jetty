@@ -39,6 +39,3 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   shows a status context's description and "Successful in 18s". Ours is one flat
   list with no Required marker, and a re-run check shows twice (running and
   passed).
-- PR reviewers: automatic team review requests (e.g. CODEOWNERS → a team) don't
-  show; we read only `requested_reviewers`, not `requested_teams`. Nor do we show
-  "approving review required" (review decision).

@@ -119,6 +119,12 @@ export const PullRequestData = Schema.Struct({
     })
   ),
   suggestedReviewers: Schema.Array(GitHubUser),
+  requestedTeams: Schema.optional(
+    Schema.Array(Schema.Struct({ name: Schema.String, avatar_url: Schema.String }))
+  ),
+  reviewDecision: Schema.optional(
+    Schema.NullOr(Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']))
+  ),
   viewerCanRequestReviews: Schema.optional(Schema.Boolean),
   mergeCommitAllowed: Schema.Boolean,
   squashMergeAllowed: Schema.Boolean,
