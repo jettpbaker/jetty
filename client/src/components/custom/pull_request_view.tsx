@@ -54,6 +54,7 @@ import { toast } from 'sonner'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { Markdown } from './markdown'
+import { MediaLightboxProvider } from './media_lightbox'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { PersonAvatar } from './person_avatar'
 import {
@@ -327,7 +328,7 @@ function ReviewEvent({ review }: { review: GitHubReview }) {
             <TimeAgo at={review.submitted_at} />
           </span>
         </div>
-        {body ? <Markdown>{body}</Markdown> : null}
+        {body ? <Markdown githubMedia>{body}</Markdown> : null}
       </div>
     </div>
   )
@@ -392,7 +393,7 @@ function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
                     <TimeAgo at={comment.created_at} />
                   </span>
                 </div>
-                <Markdown>{comment.body}</Markdown>
+                <Markdown githubMedia>{comment.body}</Markdown>
               </div>
             </li>
           ))}
@@ -750,7 +751,7 @@ export function PullRequestView({
                 Description
               </h2>
               {body ? (
-                <Markdown>{body}</Markdown>
+                <Markdown githubMedia>{body}</Markdown>
               ) : (
                 <p className='text-sm text-muted-foreground'>No description.</p>
               )}
@@ -924,17 +925,19 @@ export function LivePullRequestView({
   const failure = snapshot && snapshot.status !== 'ready' && snapshot.status !== 'loading'
   if (snapshot?.data)
     return (
-      <PullRequestView
-        data={snapshot.data}
-        repo={standalone ? link.repo : undefined}
-        threads={threads}
-        actions={
-          <>
-            <RefreshButton link={link} error={failure ? snapshot.error : undefined} />
-            {threadId && <UnlinkButton threadId={threadId} link={link} />}
-          </>
-        }
-      />
+      <MediaLightboxProvider>
+        <PullRequestView
+          data={snapshot.data}
+          repo={standalone ? link.repo : undefined}
+          threads={threads}
+          actions={
+            <>
+              <RefreshButton link={link} error={failure ? snapshot.error : undefined} />
+              {threadId && <UnlinkButton threadId={threadId} link={link} />}
+            </>
+          }
+        />
+      </MediaLightboxProvider>
     )
   if (!failure) return <p className='p-4 text-xs text-muted-foreground'>Loading pull request…</p>
   return (
