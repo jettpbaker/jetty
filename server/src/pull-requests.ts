@@ -216,6 +216,103 @@ async function ghApi(...args: string[]): Promise<unknown> {
   throw new GhFailure('unavailable', detail || 'GitHub API is unavailable')
 }
 
+type DiffContents = string | null | { unavailable: 'tooLarge' | 'binary' }
+
+const maxDiffContentsBytes = 1024 * 1024
+const maxCachedDiffContents = 64
+const diffContentsCache = new Map<string, Promise<DiffContents>>()
+const mergeBaseCache = new Map<string, Promise<string>>()
+
+function validDiffPath(path: string) {
+  return (
+    !path.includes('\0') &&
+    path.split('/').every((part) => part !== '' && part !== '.' && part !== '..')
+  )
+}
+
+async function fetchDiffContents(repo: string, sha: string, path: string): Promise<DiffContents> {
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+  let response: Record<string, unknown>
+  try {
+    response = record(await ghApi(`repos/${repo}/contents/${encodedPath}?ref=${sha}`))
+  } catch (error) {
+    if (error instanceof GhFailure && error.kind === 'not_found') return null
+    throw error
+  }
+  if (response.type !== 'file') return { unavailable: 'binary' }
+  if (Number(response.size) > maxDiffContentsBytes) return { unavailable: 'tooLarge' }
+  if (response.encoding !== 'base64' || typeof response.content !== 'string')
+    return { unavailable: 'binary' }
+  const bytes = Buffer.from(response.content, 'base64')
+  if (bytes.length > maxDiffContentsBytes) return { unavailable: 'tooLarge' }
+  if (bytes.includes(0)) return { unavailable: 'binary' }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return { unavailable: 'binary' }
+  }
+}
+
+function cachedDiffContents(repo: string, sha: string, path: string) {
+  const key = `${repo}\0${sha}\0${path}`
+  const existing = diffContentsCache.get(key)
+  if (existing) return existing
+  const pending = fetchDiffContents(repo, sha, path)
+  diffContentsCache.set(key, pending)
+  if (diffContentsCache.size > maxCachedDiffContents)
+    diffContentsCache.delete(diffContentsCache.keys().next().value!)
+  pending.catch(() => {
+    if (diffContentsCache.get(key) === pending) diffContentsCache.delete(key)
+  })
+  return pending
+}
+
+function cachedMergeBase(repo: string, baseSha: string, headSha: string) {
+  const key = `${repo}\0${baseSha}\0${headSha}`
+  const existing = mergeBaseCache.get(key)
+  if (existing) return existing
+  const pending = ghApi(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`).then(
+    (response) => {
+      const sha = string(record(record(response).merge_base_commit).sha)
+      if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('GitHub merge base unavailable')
+      return sha
+    }
+  )
+  mergeBaseCache.set(key, pending)
+  if (mergeBaseCache.size > 64) mergeBaseCache.delete(mergeBaseCache.keys().next().value!)
+  pending.catch(() => {
+    if (mergeBaseCache.get(key) === pending) mergeBaseCache.delete(key)
+  })
+  return pending
+}
+
+export async function pullRequestDiffFile(params: {
+  repo: string
+  baseSha: string
+  headSha: string
+  path: string
+  prevPath?: string
+}) {
+  const { repo, baseSha, headSha, path, prevPath = path } = params
+  if (
+    !validRepo(repo) ||
+    !/^[a-f0-9]{40,64}$/i.test(baseSha) ||
+    !/^[a-f0-9]{40,64}$/i.test(headSha) ||
+    !validDiffPath(path) ||
+    !validDiffPath(prevPath)
+  )
+    throw new StoreError('invalid_params', 'Invalid pull request diff file')
+  const mergeBaseSha = await cachedMergeBase(repo, baseSha, headSha)
+  const [before, after] = await Promise.all([
+    cachedDiffContents(repo, mergeBaseSha, prevPath),
+    cachedDiffContents(repo, headSha, path),
+  ])
+  if (typeof before === 'object' && before) return before
+  if (typeof after === 'object' && after) return after
+  if (before === null || after === null) return { unavailable: 'missing' as const }
+  return { before, after }
+}
+
 async function ghGraphql(ref: PullRequestRef): Promise<{
   resolved: Map<number, boolean>
   closingIssuesReferences: unknown[]

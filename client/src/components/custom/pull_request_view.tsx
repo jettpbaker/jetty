@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import {
   useLinkPullRequest,
   usePullRequest,
+  usePullRequestDiffFileLoader,
   useRefreshPullRequest,
   useReviewRequestPatches,
   useSetReviewRequest,
@@ -87,14 +88,26 @@ const PullRequestDiff = lazy(async () => {
     themes: ['pierre-dark-soft', 'pierre-light-soft'],
     langs: ['typescript', 'tsx'],
   })
-  function PullRequestDiff({ files }: { files: readonly GitHubFile[] }) {
+  function PullRequestDiff({
+    files,
+    repo,
+    baseSha,
+    headSha,
+  }: {
+    files: readonly GitHubFile[]
+    repo: string
+    baseSha?: string
+    headSha: string
+  }) {
     const changes = useMemo(() => parseFileChanges(filesPatch(files)), [files])
+    const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
     const notShown = files.filter((file) => file.patch === undefined && file.status !== 'renamed')
     return (
       <FileChangesViewer
         embedded
         layout='page'
         files={changes}
+        loadFile={loadFile}
         footer={notShown.length > 0 && <NotShown paths={notShown.map((file) => file.filename)} />}
       />
     )
@@ -910,7 +923,12 @@ export function PullRequestView({
           <Suspense
             fallback={<p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>}
           >
-            <PullRequestDiff files={files} />
+            <PullRequestDiff
+              files={files}
+              repo={link.repo}
+              baseSha={pull.base.sha}
+              headSha={pull.head.sha}
+            />
           </Suspense>
         )}
       </TabsContent>

@@ -28,7 +28,9 @@ import {
 import { DisabledTooltip } from './disabled_tooltip'
 import {
   diffItem,
+  hydratedDiff,
   loadedFiles,
+  patchMatchesContents,
   withoutContext,
   type FileChange,
   type LoadDiffFile,
@@ -38,6 +40,7 @@ import './file_changes_viewer.css'
 
 // Matches menu items (`h-menu-item-compact`).
 const treeRowHeight = 26
+const filePrefetchConcurrency = 4
 // Phosphor CaretDown (bold). trees.software rotates the chevron slot -90deg when collapsed, so one glyph covers both states.
 const treeCaretSprite =
   '<svg aria-hidden="true" width="0" height="0"><symbol id="jetty-caret-down" viewBox="0 0 256 256"><path fill="currentColor" d="M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z"/></symbol><symbol id="jetty-empty" viewBox="0 0 6 6"></symbol></svg>'
@@ -290,15 +293,22 @@ export function FileChangesViewer({
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
+  const [hydrated, setHydrated] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
+    () => new Map()
+  )
   const scrollViewport = useRef<HTMLDivElement>(null)
   const scrollId = useId()
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
   const items = useMemo(
     () =>
       changes.map((file) =>
-        diffItem(file.path, noContext.get(file.diff) ?? file.diff, collapsedFiles.has(file.path))
+        diffItem(
+          file.path,
+          hydrated.get(file.diff) ?? noContext.get(file.diff) ?? file.diff,
+          collapsedFiles.has(file.path)
+        )
       ),
-    [changes, collapsedFiles, noContext]
+    [changes, collapsedFiles, hydrated, noContext]
   )
   // One request per diff revision, shared by the prefetch and the expand click.
   const loadDiffFiles = useMemo(() => {
@@ -307,11 +317,20 @@ export function FileChangesViewer({
     return (diff: FileDiffMetadata) => {
       let request = requests.get(diff)
       if (!request) {
-        request = loadFile(diff.name, diff.prevName).then((contents) => {
-          if (!('unavailable' in contents)) return loadedFiles(diff, contents)
-          setNoContext((previous) => new Map(previous).set(diff, withoutContext(diff)))
-          throw new Error(`No context for ${diff.name}: ${contents.unavailable}`)
-        })
+        request = loadFile(diff.name, diff.prevName)
+          .then((contents) => {
+            if ('unavailable' in contents)
+              throw new Error(`No context for ${diff.name}: ${contents.unavailable}`)
+            if (!patchMatchesContents(diff, contents))
+              throw new Error(`Patch does not match file contents for ${diff.name}`)
+            const files = loadedFiles(diff, contents)
+            setHydrated((previous) => new Map(previous).set(diff, hydratedDiff(diff, files)))
+            return files
+          })
+          .catch((error) => {
+            setNoContext((previous) => new Map(previous).set(diff, withoutContext(diff)))
+            throw error
+          })
         requests.set(diff, request)
         request.catch(() => requests.delete(diff))
       }
@@ -320,9 +339,25 @@ export function FileChangesViewer({
   }, [loadFile])
   useEffect(() => {
     if (!loadDiffFiles) return
-    for (const { diff } of changes)
-      if (diff.type === 'change' || diff.type === 'rename-changed')
-        loadDiffFiles(diff).catch(() => {})
+    const pending = changes
+      .map(({ diff }) => diff)
+      .filter(
+        (diff) => diff.isPartial && (diff.type === 'change' || diff.type === 'rename-changed')
+      )
+    let next = 0
+    let active = true
+    for (let i = 0; i < Math.min(filePrefetchConcurrency, pending.length); i++) {
+      async function prefetch() {
+        while (active && next < pending.length) {
+          const diff = pending[next++]!
+          await loadDiffFiles!(diff).catch(() => {})
+        }
+      }
+      void prefetch()
+    }
+    return () => {
+      active = false
+    }
   }, [changes, loadDiffFiles])
   const selectFile = useCallback((path: string) => {
     setSelected(path)

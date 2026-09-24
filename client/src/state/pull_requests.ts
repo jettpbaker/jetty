@@ -81,6 +81,34 @@ export function usePullRequest(ref: PullRequestRef) {
   return { snapshot, refreshing }
 }
 
+export function usePullRequestDiffFileLoader(
+  repo: string,
+  baseSha: string | undefined,
+  headSha: string
+) {
+  const registry = useContext(RegistryContext)
+  const load = useCallback(
+    (path: string, prevPath?: string) => {
+      if (!baseSha) throw new Error('Base commit unavailable')
+      return Effect.runPromise(
+        AtomRegistry.getResult(registry, connectionAtom).pipe(
+          Effect.flatMap((connection) =>
+            connection.request('pullRequest.diffFile', {
+              repo,
+              baseSha,
+              headSha,
+              path,
+              ...(prevPath === undefined ? {} : { prevPath }),
+            })
+          )
+        )
+      )
+    },
+    [registry, repo, baseSha, headSha]
+  )
+  return baseSha ? load : undefined
+}
+
 function setRefreshing(registry: Registry, key: string, on: boolean) {
   registry.update(refreshingAtom, (keys) => {
     const next = new Set(keys)

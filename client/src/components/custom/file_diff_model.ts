@@ -1,6 +1,11 @@
 import type { ResultOf } from '@jetty/shared/wire'
 
-import { parsePatchFiles, type FileDiffLoadedFiles, type FileDiffMetadata } from '@pierre/diffs'
+import {
+  hydratePartialDiff,
+  parsePatchFiles,
+  type FileDiffLoadedFiles,
+  type FileDiffMetadata,
+} from '@pierre/diffs'
 
 export type FileChange = {
   path: string
@@ -8,7 +13,10 @@ export type FileChange = {
   diff: FileDiffMetadata
 }
 
-export type LoadDiffFile = (path: string, prevPath?: string) => Promise<ResultOf<'thread.diffFile'>>
+export type LoadDiffFile = (
+  path: string,
+  prevPath?: string
+) => Promise<ResultOf<'thread.diffFile'> | { unavailable: 'missing' }>
 
 const statuses = {
   change: 'modified',
@@ -54,6 +62,33 @@ export function loadedFiles(
   const newFile = { name: diff.name, contents: contents.after ?? '' }
   if (diff.type === 'rename-pure') return { oldFile: null, newFile }
   return { oldFile: { name: diff.prevName ?? diff.name, contents: contents.before ?? '' }, newFile }
+}
+
+export function hydratedDiff(diff: FileDiffMetadata, files: FileDiffLoadedFiles) {
+  return diff.isPartial ? hydratePartialDiff('clone', diff, files) : diff
+}
+
+export function patchMatchesContents(
+  diff: FileDiffMetadata,
+  contents: { before: string | null; after: string | null }
+) {
+  if (contents.before === null || contents.after === null) return false
+  const before = contents.before.split(/(?<=\n)/)
+  const after = contents.after.split(/(?<=\n)/)
+  for (const hunk of diff.hunks) {
+    for (let index = 0; index < hunk.deletionCount; index++)
+      if (
+        diff.deletionLines[hunk.deletionLineIndex + index] !==
+        before[hunk.deletionStart - 1 + index]
+      )
+        return false
+    for (let index = 0; index < hunk.additionCount; index++)
+      if (
+        diff.additionLines[hunk.additionLineIndex + index] !== after[hunk.additionStart - 1 + index]
+      )
+        return false
+  }
+  return true
 }
 
 // @pierre/diffs only offers context expansion on `change`/`rename-changed` diffs, so posing as a

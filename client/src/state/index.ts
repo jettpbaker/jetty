@@ -35,6 +35,7 @@ export {
   usePrefetchPullRequest,
   usePrefetchReviewerCandidates,
   usePullRequest,
+  usePullRequestDiffFileLoader,
   usePullRequestList,
   usePullRequestSummary,
   usePullRequestTabs,

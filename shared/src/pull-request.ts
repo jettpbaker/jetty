@@ -25,7 +25,7 @@ export const GitHubPullRequest = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
   head: Schema.Struct({ ref: Schema.String, sha: Schema.String }),
-  base: Schema.Struct({ ref: Schema.String }),
+  base: Schema.Struct({ ref: Schema.String, sha: Schema.optional(Schema.String) }),
   additions: Schema.Int,
   deletions: Schema.Int,
   changed_files: Schema.Int,

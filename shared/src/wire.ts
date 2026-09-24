@@ -429,6 +429,19 @@ export const methods = {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
   },
+  'pullRequest.diffFile': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      baseSha: Schema.String,
+      headSha: Schema.String,
+      path: Schema.String,
+      prevPath: Schema.optional(Schema.String),
+    }),
+    result: Schema.Union([
+      Schema.Struct({ before: Schema.NullOr(Schema.String), after: Schema.NullOr(Schema.String) }),
+      Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary', 'missing']) }),
+    ]),
+  },
   'pullRequest.reviewerCandidates': {
     params: Schema.Struct({ repo: Schema.String, query: Schema.String }),
     result: Schema.Struct({

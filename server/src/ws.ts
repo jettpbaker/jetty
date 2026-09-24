@@ -26,6 +26,7 @@ import {
   createPullRequestLists,
   createPullRequests,
   githubConnection,
+  pullRequestDiffFile,
   validLogin,
   validPullRequestRef,
   validRepo,
@@ -410,6 +411,14 @@ export function createRpcHandlers(
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
       'pullRequest.refresh': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.refresh), Effect.mapError(wireError)),
+      'pullRequest.diffFile': (params) =>
+        Effect.tryPromise({
+          try: () => pullRequestDiffFile(params),
+          catch: (error) =>
+            error instanceof StoreError
+              ? error
+              : new StoreError('internal', (error as Error).message),
+        }).pipe(Effect.mapError(wireError)),
       'pullRequest.reviewerCandidates': ({ repo, query }) =>
         (validRepo(repo) && query.length <= 100
           ? Effect.tryPromise({
