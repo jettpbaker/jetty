@@ -49,10 +49,18 @@ export const containerDefaults: ContainerSettings = {
   idleMinutes: 10,
 }
 
-async function command(binary: string, args: string[], cwd?: string, signal?: AbortSignal) {
-  const bounded = signal
-    ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
-    : AbortSignal.timeout(30_000)
+// Recipe setup and verify run installs and builds.
+const recipeStepTimeoutMs = 15 * 60_000
+
+async function command(
+  binary: string,
+  args: string[],
+  cwd?: string,
+  signal?: AbortSignal,
+  timeoutMs = 30_000
+) {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  const bounded = signal ? AbortSignal.any([signal, timeout]) : timeout
   const child = Bun.spawn([binary, ...args], {
     cwd,
     signal: bounded,
@@ -64,6 +72,11 @@ async function command(binary: string, args: string[], cwd?: string, signal?: Ab
     new Response(child.stderr).text(),
     child.exited,
   ])
+  // A killed `docker exec` client can exit 0 while its command keeps running in the container.
+  if (timeout.aborted)
+    throw new Error(
+      `${binary}: timed out after ${timeoutMs < 60_000 ? `${timeoutMs / 1000}s` : `${timeoutMs / 60_000} min`}`
+    )
   if (code !== 0) throw new Error(`${binary}: ${stderr.trim() || stdout.trim() || `exit ${code}`}`)
   return stdout.trim()
 }
@@ -640,8 +653,14 @@ export function createEnvironmentManager(
       'infinity',
     ]
   }
-  async function exec(record: EnvironmentRecord, script: string) {
-    return command('docker', ['exec', '-w', '/workspace', record.containerId!, 'sh', '-lc', script])
+  async function exec(record: EnvironmentRecord, script: string, timeoutMs?: number) {
+    return command(
+      'docker',
+      ['exec', '-w', '/workspace', record.containerId!, 'sh', '-lc', script],
+      undefined,
+      undefined,
+      timeoutMs
+    )
   }
   async function startDev(threadId: string) {
     const target = await prepare(threadId)
@@ -763,8 +782,11 @@ export function createEnvironmentManager(
               'docker',
               ['exec', '-w', '/workspace', record.containerId!, 'sh', '-lc', recipe.setup],
               undefined,
-              signal
-            )
+              signal,
+              recipeStepTimeoutMs
+            ).catch((error: Error) => {
+              throw new Error(`Setup failed: ${error.message.replace(/^docker: /, '')}`)
+            })
           checkCancelled(threadId)
           await writeFile(join(record.homePath, '.jetty-setup-done'), '')
         }
@@ -921,7 +943,7 @@ export function createEnvironmentManager(
         ['Verify', recipe.verify],
       ] as const)
         if (script)
-          await exec(record, script).catch((error: Error) => {
+          await exec(record, script, recipeStepTimeoutMs).catch((error: Error) => {
             throw new Error(`${step} failed: ${error.message.replace(/^docker: /, '')}`)
           })
       for (const service of recipe.dev) {
