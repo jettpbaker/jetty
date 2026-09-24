@@ -1,5 +1,7 @@
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wire'
 
+import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, type ProviderUsage, type RateLimits } from '@jetty/shared/wire'
@@ -249,6 +251,12 @@ function createServer(opts: ServerOptions = {}) {
     }
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
     let modelDiscovery: ModelDiscovery = { claude: 'loading', codex: 'loading', grok: 'loading' }
+    let registerClaudeMcp:
+      | ((
+          server: McpSdkServerConfigWithInstance['instance'],
+          identity: { threadId: string; provider: 'claude' }
+        ) => Promise<void>)
+      | undefined
     const registry =
       typeof agentKind !== 'string'
         ? singleAgentRegistry(agentKind)
@@ -258,7 +266,12 @@ function createServer(opts: ServerOptions = {}) {
               {
                 claude: yield* loadAgent(
                   claudeLayer(store, hooks, {
-                    mcp,
+                    mcp: async (identity) => {
+                      if (!registerClaudeMcp) throw new Error('Jetty MCP is not ready')
+                      const server = createSdkMcpServer({ name: 'jetty', version: '1.0.0' })
+                      await registerClaudeMcp(server.instance, identity)
+                      return server
+                    },
                     supportsAutoMode: (id) =>
                       models?.find((model) => model.provider === 'claude' && model.id === id)
                         ?.autoMode !== false,
@@ -446,6 +459,7 @@ function createServer(opts: ServerOptions = {}) {
       () => models,
       containers
     )
+    registerClaudeMcp = handleMcp.register
     const app = Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const url = new URL(request.url, 'http://localhost')

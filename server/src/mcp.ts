@@ -278,22 +278,8 @@ export function createMcpHandler(
       })
     }
 
-    return async function handle(request: Request): Promise<Response> {
-      const identity = sessions.authenticate(request.headers.get('authorization'))
-      if (!identity) return new Response('Unauthorized', { status: 401 })
-      if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
-      const callerExists = await run(
-        accessible(identity, identity.threadId).pipe(
-          Effect.as(true),
-          Effect.catch(() => Effect.succeed(false))
-        )
-      )
-      if (!callerExists) return new Response('Caller thread unavailable', { status: 404 })
-      const server = new McpServer({ name: 'jetty', version: '1.0.0' })
-      const transport = new WebStandardStreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-        enableJsonResponse: true,
-      })
+    async function register(server: McpServer, identity: McpIdentity) {
+      await run(accessible(identity, identity.threadId))
       function invoke<A>(effect: Effect.Effect<A, Error>) {
         return run(
           effect.pipe(
@@ -436,61 +422,72 @@ export function createMcpHandler(
               )
           )
       )
+      const media = await run(
+        Effect.gen(function* () {
+          const caller = yield* accessible(identity, identity.threadId)
+          const project = yield* store.getProject(caller.projectId)
+          if (!project) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+          const record =
+            caller.environment === 'container' && containers
+              ? yield* Effect.promise(() => containers.record(caller.id))
+              : null
+          if (caller.environment === 'container' && !record)
+            return yield* Effect.fail(
+              new StoreError('not_found', 'Container checkout is not ready')
+            )
+          const host = {
+            attachments,
+            resolveAttachment: (id: string, kind: 'image' | 'video') =>
+              Effect.gen(function* () {
+                const found = yield* store.resolveAttachment(caller.projectId, id, kind)
+                if (yield* attachments.resolve(id)) return found
+                return yield* Effect.fail(
+                  new StoreError('not_found', 'Attachment not found in caller project')
+                )
+              }),
+            projectPath: record?.checkoutPath ?? project.path,
+            ...(record
+              ? {
+                  containerPaths: {
+                    checkout: record.checkoutPath,
+                    artifacts: record.artifactsPath,
+                  },
+                }
+              : {}),
+            turnId: () => orch.currentTurn(caller.id) ?? '',
+            emit: (
+              event: Parameters<typeof orch.emitMedia>[2],
+              turnId: string,
+              onCommit: Effect.Effect<void>
+            ) => orch.emitMedia(caller.id, turnId, event, onCommit),
+          }
+          return [yield* createSendImagesTool(host), yield* createSendVideoTool(host)] as const
+        })
+      )
+      const [images, video] = media
+      server.registerTool(
+        images.name,
+        { description: images.description, inputSchema: images.inputSchema },
+        images.handler
+      )
+      server.registerTool(
+        video.name,
+        { description: video.description, inputSchema: video.inputSchema },
+        video.handler
+      )
+    }
+
+    async function handle(request: Request): Promise<Response> {
+      const identity = sessions.authenticate(request.headers.get('authorization'))
+      if (!identity) return new Response('Unauthorized', { status: 401 })
+      if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+      const server = new McpServer({ name: 'jetty', version: '1.0.0' })
+      const transport = new WebStandardStreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      })
       try {
-        const media = await run(
-          Effect.gen(function* () {
-            const caller = yield* accessible(identity, identity.threadId)
-            const project = yield* store.getProject(caller.projectId)
-            if (!project)
-              return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-            const record =
-              caller.environment === 'container' && containers
-                ? yield* Effect.promise(() => containers.record(caller.id))
-                : null
-            if (caller.environment === 'container' && !record)
-              return yield* Effect.fail(
-                new StoreError('not_found', 'Container checkout is not ready')
-              )
-            const host = {
-              attachments,
-              resolveAttachment: (id: string, kind: 'image' | 'video') =>
-                Effect.gen(function* () {
-                  const found = yield* store.resolveAttachment(caller.projectId, id, kind)
-                  if (yield* attachments.resolve(id)) return found
-                  return yield* Effect.fail(
-                    new StoreError('not_found', 'Attachment not found in caller project')
-                  )
-                }),
-              projectPath: record?.checkoutPath ?? project.path,
-              ...(record
-                ? {
-                    containerPaths: {
-                      checkout: record.checkoutPath,
-                      artifacts: record.artifactsPath,
-                    },
-                  }
-                : {}),
-              turnId: () => orch.currentTurn(caller.id) ?? '',
-              emit: (
-                event: Parameters<typeof orch.emitMedia>[2],
-                turnId: string,
-                onCommit: Effect.Effect<void>
-              ) => orch.emitMedia(caller.id, turnId, event, onCommit),
-            }
-            return [yield* createSendImagesTool(host), yield* createSendVideoTool(host)] as const
-          })
-        )
-        const [images, video] = media
-        server.registerTool(
-          images.name,
-          { description: images.description, inputSchema: images.inputSchema },
-          images.handler
-        )
-        server.registerTool(
-          video.name,
-          { description: video.description, inputSchema: video.inputSchema },
-          video.handler
-        )
+        await register(server, identity)
         await server.connect(transport)
         return await transport.handleRequest(request)
       } catch (error) {
@@ -501,5 +498,6 @@ export function createMcpHandler(
         await server.close()
       }
     }
+    return Object.assign(handle, { register })
   })
 }

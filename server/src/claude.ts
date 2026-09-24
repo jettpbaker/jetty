@@ -1,5 +1,6 @@
 import {
   query,
+  type McpSdkServerConfigWithInstance,
   type EffortLevel,
   type Options,
   type PermissionMode,
@@ -27,7 +28,6 @@ import {
 } from 'effect'
 import { spawn } from 'node:child_process'
 
-import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import {
@@ -66,7 +66,10 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
 export type ClaudeOptions = {
-  mcp?: McpSessions
+  mcp?: (identity: {
+    threadId: string
+    provider: 'claude'
+  }) => Promise<McpSdkServerConfigWithInstance>
   query?: QueryFactory
   ttlMs?: number
   interruptGraceMs?: number
@@ -410,10 +413,22 @@ export function createClaudeAdapter(
             if (!current(session)) return
             if (config.mcp && message.type === 'system' && message.subtype === 'init') {
               const jetty = message.mcp_servers.find((server) => server.name === 'jetty')
-              if (jetty?.status !== 'connected')
+              if (jetty?.status !== 'connected') {
                 yield* Effect.logWarning(
                   'Jetty MCP failed to connect; orchestration tools unavailable'
                 )
+                yield* publish(session, {
+                  type: 'item.started',
+                  item: {
+                    id: newId(),
+                    turnId: session.activeTurnId,
+                    createdAt: Date.now(),
+                    kind: 'error',
+                    message:
+                      'Jetty tools failed to connect. Delegation and review tools are unavailable in this thread.',
+                  },
+                })
+              }
             }
             // Background subagents keep working after the turn that spawned them ends.
             const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
@@ -631,10 +646,11 @@ export function createClaudeAdapter(
             { signal: options.signal }
           ).catch(() => ({ behavior: 'deny' as const, message: 'Session closed' }))
 
-        const binding = config.mcp
-          ? yield* config.mcp
-              .open({ threadId: input.threadId, provider: 'claude' }, Boolean(input.environment))
-              .pipe(Scope.provide(scope))
+        const sdkMcp = config.mcp
+          ? yield* Effect.tryPromise({
+              try: () => config.mcp!({ threadId: input.threadId, provider: 'claude' }),
+              catch: (error) => new AgentError(`Jetty tools failed to start: ${String(error)}`),
+            })
           : undefined
         const options = sessionOptions(input)
         const resume = yield* store
@@ -673,8 +689,6 @@ export function createClaudeAdapter(
                               ...Object.entries(input.environment!.providerEnv).flatMap(
                                 ([name, value]) => ['-e', `${name}=${value}`]
                               ),
-                              '-e',
-                              'JETTY_MCP_TOKEN',
                               input.environment!.containerId,
                               'sh',
                               '-c',
@@ -695,7 +709,7 @@ export function createClaudeAdapter(
                   systemPrompt: {
                     type: 'preset',
                     preset: 'claude_code',
-                    ...(binding ? { append: JETTY_INSTRUCTIONS } : {}),
+                    ...(sdkMcp ? { append: JETTY_INSTRUCTIONS } : {}),
                   },
                   settingSources: ['user', 'project', 'local'],
                   model: options.model,
@@ -728,16 +742,7 @@ export function createClaudeAdapter(
                     ],
                   },
                   resume: resume ?? undefined,
-                  mcpServers: binding
-                    ? {
-                        jetty: {
-                          type: 'http',
-                          url: binding.url,
-                          headers: { Authorization: 'Bearer ${JETTY_MCP_TOKEN}' },
-                        },
-                      }
-                    : {},
-                  env: binding ? { ...process.env, JETTY_MCP_TOKEN: binding.token } : undefined,
+                  mcpServers: sdkMcp ? { jetty: sdkMcp } : {},
                   allowedTools: [
                     ...AUTO_ALLOWED_TOOLS,
                     'TaskCreate',
