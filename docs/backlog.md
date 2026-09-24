@@ -88,6 +88,18 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
     since setup re-runs.
   - Gitignored files the agent made are lost (copyFiles are re-copied on
     restore); staged vs unstaged isn't preserved. Both acceptable, but say so.
+- Container checkouts on a fast local disk (build after archive; same
+  save/restore). Setup on the work box is ~10× slower than it should be because
+  environments live on the network-attached home disk and pnpm can't hardlink
+  from the image's store across devices, so it copies ~1.6 GB of small files.
+  Admin's `pnpm install` (53,525 files): 94.9s today (copy onto home disk),
+  13.0s hardlinking within the home disk, 5.0s copy / 3.6s hardlink on the
+  ephemeral disk. A shared cache mount can't fix it: Linux refuses hardlinks
+  across separate bind mounts even on one disk (EXDEV), so store and checkout
+  would have to share a mount across threads. Plan: checkout/ on a fast local
+  environments root; home/ (agent session) and artifacts/ stay on the home
+  disk; bundle the thread's code at every turn end and idle stop; on a lost
+  checkout, restore the bundle and re-run setup (~26s).
 - Containers, not Jetty's job: building/refreshing images (use the workspace
   startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.
