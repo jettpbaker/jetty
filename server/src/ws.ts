@@ -21,12 +21,10 @@ import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
 import {
+  createPullRequestLinks,
   createPullRequestLists,
   createPullRequests,
   githubConnection,
-  parsePullRequestUrl,
-  projectRemote,
-  resolvePullRequestReference,
   validLogin,
   validPullRequestRef,
   validRepo,
@@ -138,17 +136,6 @@ export function createRpcHandlers(
       })
     }
 
-    function reference(threadId: string, value: string) {
-      return Effect.gen(function* () {
-        const thread = yield* store.requireThread(threadId)
-        const url = parsePullRequestUrl(value.trim())
-        if (url) return url
-        const project = yield* requireProject(thread.projectId)
-        const remote = yield* Effect.promise(() => projectRemote(project.path))
-        return yield* resolvePullRequestReference(value, remote)
-      })
-    }
-
     function refreshInBackground(ref: { repo: string; number: number }) {
       return pullRequests.refreshIfStale(ref).pipe(
         Effect.catch(() => Effect.void),
@@ -156,6 +143,7 @@ export function createRpcHandlers(
       )
     }
 
+    const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
     const pullRequestLists = createPullRequestLists(store, hub)
 
     function checkedRef(ref: { repo: string; number: number }) {
@@ -383,18 +371,13 @@ export function createRpcHandlers(
           Effect.mapError(wireError)
         ),
       'pullRequest.link': (params) =>
-        Effect.gen(function* () {
-          const ref = yield* reference(params.threadId, params.reference)
-          if (yield* store.hasPullRequestLink(params.threadId, ref.repo, ref.number))
-            return { thread: yield* store.requireThread(params.threadId) }
-          const thread = yield* store.linkPullRequest(params.threadId, ref.repo, ref.number)
-          hub.pushChrome({ type: 'thread.upserted', thread })
-          yield* refreshInBackground(ref)
-          return { thread }
-        }).pipe(Effect.mapError(wireError)),
+        pullRequestLinks.link(params.threadId, params.reference).pipe(
+          Effect.map(({ thread }) => ({ thread })),
+          Effect.mapError(wireError)
+        ),
       'pullRequest.unlink': (params) =>
         Effect.gen(function* () {
-          const ref = yield* reference(params.threadId, params.reference)
+          const ref = yield* pullRequestLinks.resolve(params.threadId, params.reference)
           const thread = yield* store.unlinkPullRequest(params.threadId, ref.repo, ref.number)
           hub.pushChrome({ type: 'thread.upserted', thread })
           return { thread }

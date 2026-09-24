@@ -218,7 +218,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const input = object(tool.rawInput)
           if (
             input.variant === 'UseTool' &&
-            input.tool_name === 'jetty__mark_ready_for_review' &&
+            ['jetty__mark_ready_for_review', 'jetty__link_pull_request'].includes(
+              String(input.tool_name)
+            ) &&
             allow
           ) {
             yield* connection.respond(id, {

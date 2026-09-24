@@ -78,7 +78,7 @@ type OrchestratorOptions = {
   hub: Hub
   titler?: ProviderTitler | null
   attachments?: Attachments | null
-  onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
+  onPullRequestOutput?: (threadId: string, text: string) => Effect.Effect<void, StoreError>
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
   environments?: EnvironmentManager
 }
@@ -89,7 +89,7 @@ export function createOrchestrator({
   hub,
   titler = null,
   attachments = null,
-  onCompletedText,
+  onPullRequestOutput,
   modelCatalog,
   environments,
 }: OrchestratorOptions) {
@@ -160,7 +160,7 @@ export function createOrchestrator({
                 if (event.type === 'turn.started') state(threadId).turnId = event.turnId
                 yield* onCommit
                 yield* publish(threadId, appended)
-                if (event.type === 'item.completed' && onCompletedText) {
+                if (event.type === 'item.completed' && onPullRequestOutput) {
                   const item = appended.state.items.find(
                     (candidate) => candidate.id === event.itemId
                   )
@@ -181,14 +181,11 @@ export function createOrchestrator({
                     /(?:bash|shell|exec|command)/i.test(item.toolName) &&
                     command &&
                     /(?:^|[;&|\n])\s*gh\s+pr\s+(?:create|view)(?:\s|$)/.test(command)
-                  if (item?.kind === 'assistant_message' || ownGhPr) {
-                    const text = item.kind === 'assistant_message' ? item.text : item.output
-                    if (text.includes('github.com/'))
-                      yield* onCompletedText(threadId, text).pipe(
-                        Effect.catchCause((cause) => Effect.logWarning(cause)),
-                        Effect.forkIn(scope)
-                      )
-                  }
+                  if (ownGhPr && item.output.includes('github.com/'))
+                    yield* onPullRequestOutput(threadId, item.output).pipe(
+                      Effect.catchCause((cause) => Effect.logWarning(cause)),
+                      Effect.forkIn(scope)
+                    )
                 }
                 if (terminal) state(threadId).turnId = null
               })

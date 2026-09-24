@@ -122,6 +122,11 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Marking', 'Marked', 'review'),
     target: (input) => (typeof input.summary === 'string' ? input.summary : 'this thread'),
   },
+  link_pull_request: {
+    action: 'Link pull request',
+    words: words('Linking', 'Linked', 'pull request'),
+    target: (input) => (typeof input.pullRequest === 'string' ? input.pullRequest : undefined),
+  },
   send_images: {
     action: 'Share images',
     words: words('Sharing', 'Shared', 'gallery', 'galleries'),

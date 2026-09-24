@@ -24,6 +24,7 @@ import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { createOrchestrator } from './orchestrator'
+import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { Store, storeLayer } from './store'
 
 function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
@@ -172,11 +173,18 @@ async function setup(
           }
         })
       }
-      const orch = yield* createOrchestrator({ store, agent, hub: createHub(), attachments })
+      const hub = createHub()
+      const orch = yield* createOrchestrator({ store, agent, hub, attachments })
       const sessions = createMcpSessions()
       sessions.setUrl('http://127.0.0.1/mcp')
       const binding = yield* sessions.open({ threadId: thread.id, provider: 'claude' })
-      const handle = yield* createMcpHandler(sessions, store, orch, attachments, () => null)
+      const links = createPullRequestLinks(
+        store,
+        hub,
+        createPullRequests(store, hub),
+        yield* Effect.scope
+      )
+      const handle = yield* createMcpHandler(sessions, store, orch, attachments, () => null, links)
       async function callMedia(name: string, file: string) {
         const response = await handle(
           new Request(binding.url, {

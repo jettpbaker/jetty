@@ -33,7 +33,7 @@ import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { readClaudeProviderUsage, readCodexProviderUsage } from './provider-usage'
-import { createAutoLinkPullRequests, createPullRequests } from './pull-requests'
+import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
 import { SkillsLive } from './skills'
@@ -383,6 +383,7 @@ function createServer(opts: ServerOptions = {}) {
       choice: () => store.getTitleModel().pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
     const titler = selectTitler(agentKind, opts, titlePrompt)
+    const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, discoveryScope)
     const services = yield* Layer.build(
       orchestratorLayer({
         store,
@@ -390,13 +391,7 @@ function createServer(opts: ServerOptions = {}) {
         titler,
         attachments,
         agent: registry,
-        onCompletedText: (threadId, text) =>
-          createAutoLinkPullRequests(
-            store,
-            hub,
-            pullRequests,
-            discoveryScope
-          )(threadId, text).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
+        onPullRequestOutput: pullRequestLinks.linkFound,
         modelCatalog,
         environments: containers,
       })
@@ -457,6 +452,7 @@ function createServer(opts: ServerOptions = {}) {
       orch,
       attachments,
       () => models,
+      pullRequestLinks,
       containers
     )
     registerClaudeMcp = handleMcp.register

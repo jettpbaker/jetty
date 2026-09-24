@@ -81,29 +81,54 @@ export function pullRequestUrls(text: string): PullRequestRef[] {
   return [...found.values()]
 }
 
-export function createAutoLinkPullRequests(
+export type PullRequestLinks = ReturnType<typeof createPullRequestLinks>
+
+export function createPullRequestLinks(
   store: Store,
   hub: Hub,
   pulls: ReturnType<typeof createPullRequests>,
   scope: Scope.Scope
 ) {
-  return (threadId: string, text: string) =>
-    Effect.gen(function* () {
-      for (const ref of pullRequestUrls(text)) {
-        if (yield* store.hasPullRequestLink(threadId, ref.repo, ref.number)) continue
-        yield* hub.withChromePublication(
-          Effect.gen(function* () {
-            if (yield* store.hasPullRequestLink(threadId, ref.repo, ref.number)) return
-            const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
-            hub.pushChrome({ type: 'thread.upserted', thread })
-          })
-        )
-        yield* pulls.refreshIfStale(ref).pipe(
-          Effect.catchCause((cause) => Effect.logWarning(cause)),
-          Effect.forkIn(scope)
-        )
-      }
+  function linkRef(threadId: string, ref: PullRequestRef) {
+    return Effect.gen(function* () {
+      const thread = yield* hub.withChromePublication(
+        Effect.gen(function* () {
+          if (yield* store.hasPullRequestLink(threadId, ref.repo, ref.number))
+            return yield* store.requireThread(threadId)
+          const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
+          hub.pushChrome({ type: 'thread.upserted', thread })
+          return thread
+        })
+      )
+      yield* pulls.refreshIfStale(ref).pipe(
+        Effect.catchCause((cause) => Effect.logWarning(cause)),
+        Effect.forkIn(scope)
+      )
+      return thread
     })
+  }
+
+  function resolve(threadId: string, reference: string) {
+    return Effect.gen(function* () {
+      const thread = yield* store.requireThread(threadId)
+      const url = parsePullRequestUrl(reference.trim())
+      if (url) return url
+      const project = yield* store.getProject(thread.projectId)
+      const remote = project ? yield* Effect.promise(() => projectRemote(project.path)) : null
+      return yield* resolvePullRequestReference(reference, remote)
+    })
+  }
+
+  return {
+    resolve,
+    link: (threadId: string, reference: string) =>
+      Effect.gen(function* () {
+        const ref = yield* resolve(threadId, reference)
+        return { ref, thread: yield* linkRef(threadId, ref) }
+      }),
+    linkFound: (threadId: string, text: string) =>
+      Effect.forEach(pullRequestUrls(text), (ref) => linkRef(threadId, ref), { discard: true }),
+  }
 }
 
 export async function projectRemote(path: string): Promise<string | null> {

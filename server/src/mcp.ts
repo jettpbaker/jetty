@@ -8,6 +8,7 @@ import type { Attachments } from './attachments'
 import type { EnvironmentManager } from './containers'
 import type { McpIdentity, McpSessions } from './mcp-sessions'
 import type { Orchestrator } from './orchestrator'
+import type { PullRequestLinks } from './pull-requests'
 import type { Store } from './store'
 
 import { gitCommit } from './containers'
@@ -73,6 +74,7 @@ export function createMcpHandler(
   orch: Orchestrator,
   attachments: Attachments,
   models: () => readonly ProviderModel[] | null,
+  pullRequestLinks: PullRequestLinks,
   containers?: EnvironmentManager
 ) {
   return Effect.gen(function* () {
@@ -420,6 +422,23 @@ export function createMcpHandler(
               .pipe(
                 Effect.map((thread) => ({ threadId: thread.id, readyForReview: true, ...input }))
               )
+          )
+      )
+      server.registerTool(
+        'link_pull_request',
+        {
+          description:
+            "Link a GitHub pull request to this thread so the user can follow it in Jetty. Call when you open a PR for this thread's work or take over an existing one. Accepts a PR URL, or a number in this project's GitHub repo.",
+          inputSchema: { pullRequest: z.string().trim().min(1).max(500) },
+        },
+        ({ pullRequest }) =>
+          invoke(
+            pullRequestLinks.link(identity.threadId, pullRequest).pipe(
+              Effect.map(({ ref }) => ({
+                linked: `${ref.repo}#${ref.number}`,
+                url: `https://github.com/${ref.repo}/pull/${ref.number}`,
+              }))
+            )
           )
       )
       const media = await run(
