@@ -182,7 +182,19 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         if (method === 'session/request_permission') {
           const options = Array.isArray(params.options) ? params.options.map(object) : []
           const tool = object(params.toolCall)
-          if (!options.some((o) => o.kind === 'allow_once' && string(o.optionId))) {
+          const allow = options.find((o) => o.kind === 'allow_once' && string(o.optionId))
+          const input = object(tool.rawInput)
+          if (
+            input.variant === 'UseTool' &&
+            input.tool_name === 'jetty__mark_ready_for_review' &&
+            allow
+          ) {
+            yield* connection.respond(id, {
+              outcome: { outcome: 'selected', optionId: allow.optionId },
+            })
+            return
+          }
+          if (!allow) {
             yield* connection.respond(id, { outcome: { outcome: 'cancelled' } })
             return
           }

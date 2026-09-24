@@ -2,7 +2,7 @@ import { Effect, Queue } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { tmpdir } from 'node:os'
 
-import type { ModelPrompt } from './utility-model'
+import type { ModelPrompt } from './title-model'
 
 import { openGrokConnection } from './grok-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'

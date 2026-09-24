@@ -246,12 +246,10 @@ export function createRpcHandlers(
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'settings.providerUsage': () => getProviderUsage(),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
-      'settings.setUtilityModel': (choice) =>
+      'settings.setTitleModel': (choice) =>
         mutation(
-          store.setUtilityModel(choice).pipe(
-            Effect.tap(() =>
-              Effect.sync(() => hub.pushChrome({ type: 'utilityModel', ...choice }))
-            ),
+          store.setTitleModel(choice).pipe(
+            Effect.tap(() => Effect.sync(() => hub.pushChrome({ type: 'titleModel', ...choice }))),
             Effect.as(null)
           )
         ),
@@ -264,7 +262,7 @@ export function createRpcHandlers(
               const usage = getUsage()
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
-              const utilityModel = yield* store.getUtilityModel()
+              const titleModel = yield* store.getTitleModel()
               const queue = yield* hub.subscribeChrome()
               const snapshot: ChromePushData = {
                 type: 'snapshot',
@@ -273,7 +271,7 @@ export function createRpcHandlers(
                 ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
                 modelDiscovery,
-                utilityModel,
+                titleModel,
               }
               return Stream.concat(Stream.succeed(snapshot), Stream.fromQueue(queue))
             }).pipe(Effect.mapError(wireError))

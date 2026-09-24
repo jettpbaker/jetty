@@ -231,6 +231,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     'list_models',
                     'create_thread',
                     'send_message',
+                    'mark_ready_for_review',
                   ].flatMap((name) => [
                     '-c',
                     `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,

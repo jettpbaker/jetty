@@ -1,7 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { Effect } from 'effect'
 
-import type { ModelPrompt } from './utility-model'
+import type { ModelPrompt } from './title-model'
 
 import { claudeBin } from './claude-bin'
 

@@ -1,4 +1,4 @@
-import type { UtilityModel } from '@jetty/shared/wire'
+import type { TitleModel } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
@@ -26,12 +26,12 @@ export function useModelRefresh() {
   return { refreshing: useAtomValue(refreshingAtom), refresh: useAction(refreshModels) }
 }
 
-function setUtilityModel(
+function setTitleModel(
   registry: AtomRegistry.AtomRegistry,
-  choice: UtilityModel,
+  choice: TitleModel,
   failed: () => void
 ) {
-  run(registry, (connection) => connection.request('settings.setUtilityModel', choice), failed)
+  run(registry, (connection) => connection.request('settings.setTitleModel', choice), failed)
 }
 
-export const useSetUtilityModel = () => useAction(setUtilityModel)
+export const useSetTitleModel = () => useAction(setTitleModel)

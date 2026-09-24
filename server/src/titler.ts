@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 
-import type { UtilityPrompt } from './utility-model'
+import type { TitlePrompt } from './title-model'
 
 export type Titler = (text: string) => Effect.Effect<string | null>
 
@@ -27,7 +27,7 @@ export function normalizeTitle(raw: string | null | undefined): string | null {
   return clampTitle(title)
 }
 
-export function utilityTitler(prompt: UtilityPrompt): Titler {
+export function titleModelTitler(prompt: TitlePrompt): Titler {
   return (text) => prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(Effect.map(normalizeTitle))
 }
 

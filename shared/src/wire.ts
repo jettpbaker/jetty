@@ -47,29 +47,29 @@ export type ModelDiscovery = Schema.Schema.Type<typeof ModelDiscovery>
 export const ModelRef = Schema.Struct({ provider: ProviderId, id: Schema.String })
 export type ModelRef = Schema.Schema.Type<typeof ModelRef>
 
-export const UtilityModel = Schema.Struct({
+export const TitleModel = Schema.Struct({
   model: Schema.NullOr(ModelRef),
   effort: Schema.optional(EffortLevel),
 })
-export type UtilityModel = Schema.Schema.Type<typeof UtilityModel>
+export type TitleModel = Schema.Schema.Type<typeof TitleModel>
 
 // Cheapest first.
-const AUTOMATIC_UTILITY_MODELS: readonly ModelRef[] = [
+const AUTOMATIC_TITLE_MODELS: readonly ModelRef[] = [
   { provider: 'codex', id: 'gpt-6-luna' },
   { provider: 'claude', id: 'haiku' },
   { provider: 'grok', id: 'grok-4.7' },
 ]
 
-export function resolveUtilityModel(
+export function resolveTitleModel(
   choice: ModelRef | null | undefined,
   models: readonly ProviderModel[]
 ): ProviderModel | undefined {
   const find = (ref: ModelRef) =>
     models.find((model) => model.provider === ref.provider && model.id === ref.id)
-  return (choice && find(choice)) || AUTOMATIC_UTILITY_MODELS.map(find).find(Boolean)
+  return (choice && find(choice)) || AUTOMATIC_TITLE_MODELS.map(find).find(Boolean)
 }
 
-export function resolveUtilityEffort(model: ProviderModel, effort: EffortLevel | undefined) {
+export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | undefined) {
   if (effort && model.efforts.includes(effort)) return effort
   return EffortLevel.literals.find((level) => model.efforts.includes(level))
 }
@@ -228,8 +228,8 @@ export const methods = {
     params: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),
     result: Schema.Null,
   },
-  'settings.setUtilityModel': {
-    params: UtilityModel,
+  'settings.setTitleModel': {
+    params: TitleModel,
     result: Schema.Null,
   },
   'chrome.subscribe': {
@@ -578,7 +578,7 @@ export const ChromePushData = Schema.Union([
     usage: Schema.optional(RateLimits),
     models: Schema.optional(Schema.Array(ProviderModel)),
     modelDiscovery: Schema.optional(ModelDiscovery),
-    utilityModel: Schema.optional(UtilityModel),
+    titleModel: Schema.optional(TitleModel),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
@@ -586,6 +586,6 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
   Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
-  Schema.Struct({ type: Schema.Literal('utilityModel'), ...UtilityModel.fields }),
+  Schema.Struct({ type: Schema.Literal('titleModel'), ...TitleModel.fields }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>

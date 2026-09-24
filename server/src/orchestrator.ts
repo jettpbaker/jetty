@@ -15,7 +15,6 @@ import { Cause, Context, Effect, Layer, Queue, Semaphore } from 'effect'
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { EnvironmentManager } from './containers'
 import type { Hub } from './hub'
-import type { ReviewClassifier } from './review'
 import type { AppendedEvent, Store } from './store'
 
 import { AgentError, type Agent } from './agent'
@@ -80,7 +79,6 @@ type OrchestratorOptions = {
   titler?: ProviderTitler | null
   attachments?: Attachments | null
   onCompletedText?: (threadId: string, text: string) => Effect.Effect<void>
-  reviewer?: ReviewClassifier
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
   environments?: EnvironmentManager
 }
@@ -92,7 +90,6 @@ export function createOrchestrator({
   titler = null,
   attachments = null,
   onCompletedText,
-  reviewer,
   modelCatalog,
   environments,
 }: OrchestratorOptions) {
@@ -163,37 +160,6 @@ export function createOrchestrator({
                 if (event.type === 'turn.started') state(threadId).turnId = event.turnId
                 yield* onCommit
                 yield* publish(threadId, appended)
-                if (event.type === 'turn.completed' && reviewer) {
-                  const reply = [...appended.state.items]
-                    .reverse()
-                    .find(
-                      (item) => item.turnId === event.turnId && item.kind === 'assistant_message'
-                    )
-                  if (
-                    reply?.kind === 'assistant_message' &&
-                    reply.text.trim() &&
-                    !appended.state.items.some(
-                      (item) => item.kind === 'workflow' && item.status === 'running'
-                    )
-                  ) {
-                    yield* Effect.gen(function* () {
-                      if (yield* store.parentGetsNotification(threadId, event.turnId)) return
-                      if (!(yield* reviewer(reply.text))) return
-                      yield* hub.withChromePublication(
-                        store.setReadyForReview(threadId, appended.thread.turnEndedAt!).pipe(
-                          Effect.tap((thread) =>
-                            Effect.sync(() => {
-                              if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
-                            })
-                          )
-                        )
-                      )
-                    }).pipe(
-                      Effect.catchCause((cause) => Effect.logWarning(cause)),
-                      Effect.forkIn(scope)
-                    )
-                  }
-                }
                 if (event.type === 'item.completed' && onCompletedText) {
                   const item = appended.state.items.find(
                     (candidate) => candidate.id === event.itemId
@@ -613,6 +579,17 @@ export function createOrchestrator({
     }
 
     return {
+      markReadyForReview(threadId: string) {
+        return hub.withChromePublication(
+          store
+            .markReadyForReview(threadId)
+            .pipe(
+              Effect.tap((thread) =>
+                Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+              )
+            )
+        )
+      },
       withPublication<A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) {
         return Effect.suspend(() => state(threadId).publication.withPermit(effect))
       },

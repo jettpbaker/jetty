@@ -60,6 +60,7 @@ const AUTO_ALLOWED_TOOLS = new Set([
   'mcp__jetty__list_threads',
   'mcp__jetty__read_thread',
   'mcp__jetty__list_models',
+  'mcp__jetty__mark_ready_for_review',
 ])
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 

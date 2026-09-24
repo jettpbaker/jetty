@@ -420,6 +420,22 @@ export function createMcpHandler(
         },
         (input) => invoke(sendMessage(identity, input))
       )
+      server.registerTool(
+        'mark_ready_for_review',
+        {
+          description:
+            'Mark this thread ready for the user to review. Call when you hand completed work back to the user or need their decision, not for trivial replies. Optionally include a short summary.',
+          inputSchema: { summary: z.string().trim().min(1).max(240).optional() },
+        },
+        (input) =>
+          invoke(
+            orch
+              .markReadyForReview(identity.threadId)
+              .pipe(
+                Effect.map((thread) => ({ threadId: thread.id, readyForReview: true, ...input }))
+              )
+          )
+      )
       try {
         const media = await run(
           Effect.gen(function* () {

@@ -34,11 +34,10 @@ import { readClaudeProviderUsage, readCodexProviderUsage } from './provider-usag
 import { createAutoLinkPullRequests, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
-import { createReviewClassifier } from './review'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
-import { chainTitlers, firstLineTitler, utilityTitler, type Titler } from './titler'
-import { createUtilityPrompt, type UtilityPrompt } from './utility-model'
+import { createTitlePrompt, type TitlePrompt } from './title-model'
+import { chainTitlers, firstLineTitler, titleModelTitler, type Titler } from './titler'
 import { createRpcHandlers } from './ws'
 
 export type ServerOptions = {
@@ -54,7 +53,7 @@ export type ServerOptions = {
 function selectTitler(
   kind: NonNullable<ServerOptions['agent']>,
   opts: ServerOptions,
-  prompt: UtilityPrompt
+  prompt: TitlePrompt
 ) {
   if (opts.titler !== undefined) {
     const fixed = opts.titler
@@ -62,7 +61,7 @@ function selectTitler(
     return (_provider: AgentProvider, text: string) => fixed(text)
   }
   if (typeof kind !== 'string') return null
-  const titler = chainTitlers(utilityTitler(prompt), firstLineTitler)
+  const titler = chainTitlers(titleModelTitler(prompt), firstLineTitler)
   return (provider: AgentProvider, text: string) =>
     provider === 'echo' ? firstLineTitler(text) : titler(text)
 }
@@ -364,17 +363,13 @@ function createServer(opts: ServerOptions = {}) {
         return models ?? []
       })
     }
-    const utilityPrompt = yield* createUtilityPrompt({
+    const titlePrompt = yield* createTitlePrompt({
       codex: opts.codex,
       grok: opts.grok,
       catalog: modelCatalog,
-      choice: () => store.getUtilityModel().pipe(Effect.orElseSucceed(() => ({ model: null }))),
+      choice: () => store.getTitleModel().pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
-    const titler = selectTitler(agentKind, opts, utilityPrompt)
-    const reviewer =
-      typeof agentKind === 'string' && agentKind !== 'echo'
-        ? createReviewClassifier(utilityPrompt)
-        : undefined
+    const titler = selectTitler(agentKind, opts, titlePrompt)
     const services = yield* Layer.build(
       orchestratorLayer({
         store,
@@ -389,7 +384,6 @@ function createServer(opts: ServerOptions = {}) {
             pullRequests,
             discoveryScope
           )(threadId, text).pipe(Effect.catchCause((cause) => Effect.logWarning(cause))),
-        reviewer,
         modelCatalog,
         environments: containers,
       })

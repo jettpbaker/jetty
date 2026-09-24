@@ -1,10 +1,10 @@
 import {
-  resolveUtilityEffort,
-  resolveUtilityModel,
+  resolveTitleEffort,
+  resolveTitleModel,
   type EffortLevel,
   type ProviderId,
   type ProviderModel,
-  type UtilityModel,
+  type TitleModel,
 } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 
@@ -21,13 +21,13 @@ export type ModelPrompt = (
   text: string
 ) => Effect.Effect<string | null>
 
-export type UtilityPrompt = (instructions: string, text: string) => Effect.Effect<string | null>
+export type TitlePrompt = (instructions: string, text: string) => Effect.Effect<string | null>
 
-export function createUtilityPrompt(options: {
+export function createTitlePrompt(options: {
   codex?: StdioProcessOptions
   grok?: StdioProcessOptions
   catalog: () => Effect.Effect<readonly ProviderModel[]>
-  choice: () => Effect.Effect<UtilityModel>
+  choice: () => Effect.Effect<TitleModel>
 }) {
   return Effect.gen(function* () {
     const prompts: Record<ProviderId, ModelPrompt> = {
@@ -35,12 +35,12 @@ export function createUtilityPrompt(options: {
       claude: claudePrompt,
       grok: yield* createGrokPrompt(options.grok),
     }
-    const prompt: UtilityPrompt = (instructions, text) =>
+    const prompt: TitlePrompt = (instructions, text) =>
       Effect.gen(function* () {
         const choice = yield* options.choice()
-        const model = resolveUtilityModel(choice.model, yield* options.catalog())
+        const model = resolveTitleModel(choice.model, yield* options.catalog())
         if (!model) return null
-        const effort = resolveUtilityEffort(model, choice.effort)
+        const effort = resolveTitleEffort(model, choice.effort)
         return yield* prompts[model.provider](model, effort, instructions, text)
       })
     return prompt

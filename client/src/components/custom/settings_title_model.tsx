@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { effortLabels, findModel, modelKey } from '@/lib/loadout'
 import { useChrome } from '@/state'
-import { useSetUtilityModel } from '@/state/models'
+import { useSetTitleModel } from '@/state/models'
 import { modelLabelText } from '@jetty/shared/model-name'
-import { resolveUtilityEffort, resolveUtilityModel, type UtilityModel } from '@jetty/shared/wire'
+import { resolveTitleEffort, resolveTitleModel, type TitleModel } from '@jetty/shared/wire'
 import { CaretDownIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
@@ -28,27 +28,27 @@ import { providerOptions } from './settings_providers'
 
 const automaticKey = 'automatic'
 
-export function SettingsUtilityModel() {
+export function SettingsTitleModel() {
   const chrome = useChrome()
-  const setUtilityModel = useSetUtilityModel()
-  const [pending, setPending] = useState<UtilityModel>()
+  const setTitleModel = useSetTitleModel()
+  const [pending, setPending] = useState<TitleModel>()
   const models = chrome?.models ?? []
-  const choice = pending ?? chrome?.utilityModel ?? { model: null }
+  const choice = pending ?? chrome?.titleModel ?? { model: null }
   const chosen =
     choice.model && findModel(models, { provider: choice.model.provider, model: choice.model.id })
-  const automatic = resolveUtilityModel(null, models)
+  const automatic = resolveTitleModel(null, models)
   const resolved = chosen || automatic
   const efforts = resolved?.efforts ?? []
-  const effort = resolved && resolveUtilityEffort(resolved, choice.effort)
+  const effort = resolved && resolveTitleEffort(resolved, choice.effort)
   const groups = providerOptions
     .map((provider) => ({
       provider,
       models: models.filter((model) => model.provider === provider.id),
     }))
     .filter((group) => group.models.length > 0)
-  function save(next: UtilityModel) {
+  function save(next: TitleModel) {
     setPending(next)
-    setUtilityModel(next, () => setPending(undefined))
+    setTitleModel(next, () => setPending(undefined))
   }
   function pickModel(key: string) {
     const model = models.find((candidate) => modelKey(candidate) === key)
@@ -60,14 +60,12 @@ export function SettingsUtilityModel() {
   return (
     <div className='appearance-option-row'>
       <div className='flex flex-col gap-1'>
-        <span>Utility model</span>
-        <p className='text-xs text-muted-foreground'>
-          Names threads and flags replies that are ready for review.
-        </p>
+        <span>Title model</span>
+        <p className='text-xs text-muted-foreground'>Names new threads.</p>
       </div>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          aria-label={`Utility model: ${label}`}
+          aria-label={`Title model: ${label}`}
           render={
             <Button
               variant='ghost'
