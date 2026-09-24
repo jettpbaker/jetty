@@ -1,7 +1,7 @@
 import { useAppearance } from '@/lib/appearance'
 import { initialBlurSettings } from '@/lib/blur-settings'
 import { initialDitherSettings } from '@/lib/dither-settings'
-import { initialFadeSettings } from '@/lib/fade-settings'
+import { initialFadeSettings, videoFadeSettings } from '@/lib/fade-settings'
 import { useResolvedTheme } from '@/lib/theme'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
@@ -35,11 +35,13 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const fadeBackground = resolvedTheme === 'light' ? '#ffffff' : '#000000'
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
-      <OpacityFade settings={initialFadeSettings} background={fadeBackground}>
-        <DownwardBlur settings={initialBlurSettings} curve={curve}>
-          {video ? (
-            <WallpaperVideo src={video} playing={visible && !reducedMotion} />
-          ) : (
+      {video ? (
+        <OpacityFade settings={videoFadeSettings} background={fadeBackground}>
+          <WallpaperVideo src={video} playing={visible && !reducedMotion} />
+        </OpacityFade>
+      ) : (
+        <OpacityFade settings={initialFadeSettings} background={fadeBackground}>
+          <DownwardBlur settings={initialBlurSettings} curve={curve}>
             <DriftingDither
               className='wallpaper'
               image={image}
@@ -48,9 +50,9 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
               offsetY={0}
               drift={0}
             />
-          )}
-        </DownwardBlur>
-      </OpacityFade>
+          </DownwardBlur>
+        </OpacityFade>
+      )}
     </div>
   )
 }
