@@ -23,6 +23,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
+import { cn } from '@/lib/utils'
 import { useRevealRow } from '@/state'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -298,7 +299,12 @@ export function ThreadList({
               className='absolute top-0 left-0 w-full'
               style={{ transform: `translateY(${virtualRow.start}px)` }}
             >
-              <div className='mx-auto w-full max-w-[708px] px-6'>
+              <div
+                className={cn(
+                  'mx-auto w-full max-w-[708px] px-6',
+                  rows[virtualRow.index]!.kind === 'user' && 'py-1.5'
+                )}
+              >
                 <ThreadItemRow
                   row={rows[virtualRow.index]!}
                   threadId={threadId}

@@ -561,11 +561,13 @@ function ReviewerBadge({
   user,
   state,
   pending,
+  team,
   onRemove,
 }: {
   user: GitHubUser
   state: ReviewerState
   pending: boolean
+  team?: boolean
   onRemove?: () => void
 }) {
   return (
@@ -597,7 +599,7 @@ function ReviewerBadge({
           </button>
         )}
       </span>
-      <span className='relative -top-px'>{user.login}</span>
+      <span className={cn(!team && 'relative -top-px')}>{user.login}</span>
       {state === 'APPROVED' && <CheckIcon weight='bold' className='text-status-success' />}
     </Badge>
   )
@@ -806,6 +808,7 @@ export function PullRequestView({
                     user={{ login: team.name, avatar_url: team.avatar_url, html_url: '' }}
                     state='AWAITING'
                     pending={false}
+                    team
                   />
                 ))}
                 <ReviewerPicker
