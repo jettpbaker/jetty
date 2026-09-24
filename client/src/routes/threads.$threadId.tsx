@@ -18,7 +18,7 @@ import {
 } from '@/state'
 import { ComposeIcon } from '@primer/octicons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
 
@@ -29,9 +29,14 @@ function Thread() {
   const chrome = useChrome()
   const meta = chrome?.threads.find((item) => item.id === threadId)
   const markSeen = useMarkThreadSeen()
-  useEffect(() => {
-    if (meta?.readyForReview) markSeen(threadId)
-  }, [markSeen, threadId, meta?.readyForReview])
+  const readyForReview = useRef(false)
+  readyForReview.current = Boolean(meta?.readyForReview)
+  useEffect(
+    () => () => {
+      if (readyForReview.current) markSeen(threadId)
+    },
+    [markSeen, threadId]
+  )
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
   const projectPath = meta?.environment === 'container' ? '/workspace' : project?.path
   const [tab, setTab] = useThreadTab(threadId)
