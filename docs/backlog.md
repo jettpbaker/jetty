@@ -34,8 +34,4 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   installed CLI; the SDK is just the protocol client).
 - Diff syntax highlighting is flaky: within one hunk, some keywords and braces
   lose their colour (e.g. one `await` pink, the next plain).
-- PR checks vs GitHub: GitHub groups checks by result with a summary header
-  ("All checks have passed"), collapses skipped ones, marks Required checks, and
-  shows a status context's description and "Successful in 18s". Ours is one flat
-  list with no Required marker, and a re-run check shows twice (running and
-  passed).
+- PR checks list design pass: jettpbaker/jetty-issues#11.

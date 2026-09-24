@@ -4,7 +4,7 @@ import { Effect } from 'effect'
 import { createHash, randomUUID } from 'node:crypto'
 import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 
 import type { Store, EnvironmentRecord, ContainerRegistration } from './store'
 
@@ -142,6 +142,7 @@ async function localProjectConfig(home: string, projectId: string) {
     .catch(() => ({}))) as {
     envFile?: string
     copyFiles?: string[]
+    homeFiles?: string[]
   }
   return value
 }
@@ -205,6 +206,17 @@ async function populateCheckout(
     const target = resolve(checkoutPath, relative)
     await mkdir(dirname(target), { recursive: true })
     await cp(source, target, { recursive: true, force: false })
+  }
+}
+
+async function populateHome(homePath: string, local: { homeFiles?: string[] }) {
+  const host = homedir()
+  for (const entry of local.homeFiles ?? []) {
+    const source = resolve(host, entry.replace(/^~(?=\/|$)/, host))
+    if (!source.startsWith(host + '/')) throw new Error('Invalid homeFiles path')
+    const target = join(homePath, relative(host, source))
+    await mkdir(dirname(target), { recursive: true })
+    await cp(source, target, { recursive: true, force: false, dereference: true })
   }
 }
 
@@ -491,6 +503,7 @@ export function createEnvironmentManager(
       await Promise.all([mkdir(homePath), mkdir(artifactsPath)])
       const local = await localProjectConfig(home, project.id)
       await populateCheckout(project, checkoutPath, local)
+      await populateHome(homePath, local)
       const record: EnvironmentRecord = {
         id,
         threadId,
@@ -826,6 +839,7 @@ export function createEnvironmentManager(
       await Promise.all([mkdir(homePath), mkdir(artifactsPath)])
       const local = await localProjectConfig(home, project.id)
       await populateCheckout(project, checkoutPath, local)
+      await populateHome(homePath, local)
       record = {
         id: testId,
         threadId: testId,
