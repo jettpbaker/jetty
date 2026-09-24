@@ -12,6 +12,5 @@ export function modelLabelText(model: {
   name: string
   contextWindow?: '1m'
 }): string {
-  const name = model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
-  return model.contextWindow === '1m' || /\[1m\]$/i.test(model.id) ? `${name} · 1M` : name
+  return model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
 }

@@ -15,6 +15,7 @@ import {
 import { effortLabels, findModel, modelKey } from '@/lib/loadout'
 import { useChrome } from '@/state'
 import { useSetUtilityModel } from '@/state/models'
+import { modelLabelText } from '@jetty/shared/model-name'
 import { resolveUtilityEffort, resolveUtilityModel, type UtilityModel } from '@jetty/shared/wire'
 import { CaretDownIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
@@ -53,8 +54,9 @@ export function SettingsUtilityModel() {
     const model = models.find((candidate) => modelKey(candidate) === key)
     save({ ...choice, model: model ? { provider: model.provider, id: model.id } : null })
   }
-  const name = chosen ? chosen.name : 'Automatic'
-  const label = [name, effort && effortLabels[effort]].filter(Boolean).join(' · ')
+  const name = chosen ? modelLabelText(chosen) : 'Automatic'
+  const effortLabel = effort && effortLabels[effort]
+  const label = [name, effortLabel].filter(Boolean).join(' ')
   return (
     <div className='appearance-option-row'>
       <div className='flex flex-col gap-1'>
@@ -74,7 +76,8 @@ export function SettingsUtilityModel() {
             />
           }
         >
-          {label}
+          {name}
+          {effortLabel && <span>{effortLabel}</span>}
           <CaretDownIcon className='size-3' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-max min-w-48'>
