@@ -114,6 +114,11 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Messaging', 'Messaged', 'thread'),
     target: (_, output) => resultField(output, 'title'),
   },
+  mark_ready_for_review: {
+    action: 'Mark ready for review',
+    words: words('Marking', 'Marked', 'review'),
+    target: (input) => (typeof input.summary === 'string' ? input.summary : 'this thread'),
+  },
   send_images: {
     action: 'Share images',
     words: words('Sharing', 'Shared', 'gallery', 'galleries'),

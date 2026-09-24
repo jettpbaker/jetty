@@ -18,7 +18,7 @@ import {
 } from '@/state'
 import { ComposeIcon } from '@primer/octicons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
 
@@ -29,15 +29,9 @@ function Thread() {
   const chrome = useChrome()
   const meta = chrome?.threads.find((item) => item.id === threadId)
   const markSeen = useMarkThreadSeen()
-  // A turn ending in view is seen before the async reviewer can flag it; merely opening a
-  // thread only needs a round trip when it's actually flagged.
-  const seenTurn = useRef<{ threadId: string; endedAt?: number }>(undefined)
   useEffect(() => {
-    const previous = seenTurn.current
-    seenTurn.current = { threadId, endedAt: meta?.turnEndedAt }
-    const endedInView = previous?.threadId === threadId && previous.endedAt !== meta?.turnEndedAt
-    if (meta?.readyForReview || endedInView) markSeen(threadId)
-  }, [markSeen, threadId, meta?.turnEndedAt, meta?.readyForReview])
+    if (meta?.readyForReview) markSeen(threadId)
+  }, [markSeen, threadId, meta?.readyForReview])
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
   const projectPath = meta?.environment === 'container' ? '/workspace' : project?.path
   const [tab, setTab] = useThreadTab(threadId)
