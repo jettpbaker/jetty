@@ -19,9 +19,31 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Command palette: removed in the v2 skeleton; no design yet.
 - Slash / skill commands in the composer (`/verify`, `/pr`, …). The server
   already lists skills (`skills.list` in server/src/skills.ts reads project and
-  user skills, including `user-invocable`), but no client uses it yet. Needs a
-  `/` picker in the composer and a way to pass the invocation to each provider
-  (Claude, Codex and Grok each handle skills differently).
+  user skills, including `user-invocable`), but no client uses it yet.
+  How others do it (~/code/ctx, Sept 2026):
+  - t3code (wraps provider CLIs, like us) puts three kinds in one `/` menu:
+    built-ins applied locally (model, plan…), provider slash commands passed
+    through as text (offered only at the start of the prompt, the only place
+    providers expand them), and skills inserted as a `$name` chip usable
+    anywhere (composerSlashCommandSearch.ts).
+  - t3code discovers skills per provider, not from one scan: Codex app-server
+    `skills/list`, `grok inspect --json` (includes plugin skills, honours
+    disabled ones), and a filesystem scan for Claude (`~/.claude/skills` +
+    `<cwd>/.claude/skills`, user wins on name clashes; the SDK init only gives
+    names). `.agents/skills` is Codex-only.
+  - Dispatch differs per provider (ClaudeSkillDispatch.ts): Codex parses `$name`
+    natively. Claude only expands `/name args` when it opens the last text block,
+    and only one per message, so t3code rewrites the last `$name` into a
+    `/name <rest>` block and earlier ones to inline `/name` (the model runs
+    those via its Skill tool). A `$word` that isn't a known skill stays literal
+    (`$HOME`).
+  - opencode (its own agent) keeps one command registry of custom commands, MCP
+    prompts and skills (badged in the menu); `/name args` at the start calls a
+    `session.command` endpoint that expands the template server-side, adding
+    "Base directory for this skill: <dir>" so relative paths resolve.
+    For us: follow t3code. Ask Codex and Grok for their own catalogs instead of
+    scanning files, keep our scan for Claude, and do the `/name` rewrite for
+    Claude.
 - Containers preview (JETTY_CONTAINERS=1): unproven on Linux/Coder (port proxy,
   resources, spot recovery) and for Claude/Grok inside containers (Claude needs a
   `claude setup-token` token, Grok an XAI_API_KEY).
