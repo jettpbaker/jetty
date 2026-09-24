@@ -154,6 +154,7 @@ function ThreadItemRow({
       <WorkBlock
         activities={row.activities}
         status={row.status}
+        startedAt={row.startedAt}
         elapsedSeconds={row.elapsedSeconds}
         restarted={row.restarted}
       />

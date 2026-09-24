@@ -30,6 +30,7 @@ export type ThreadRow =
       turnId: string
       activities: WorkActivity[]
       status: ActivityStatus
+      startedAt?: number
       elapsedSeconds?: number
       restarted?: boolean
     }
@@ -203,9 +204,7 @@ function toActivity(
       status: !running ? 'complete' : sessionActive ? 'running' : 'interrupted',
       summary: item.text,
       tokens: item.tokens,
-      elapsedSeconds: running
-        ? Math.max(0, (Date.now() - item.createdAt) / 1000)
-        : elapsedSeconds([item], next),
+      elapsedSeconds: running ? undefined : elapsedSeconds([item], next),
     }
   }
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
@@ -491,12 +490,18 @@ export function threadRows(
     row.status = row.restarted
       ? 'interrupted'
       : workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)
-    if (row.status !== 'running' && row.status !== 'waiting' && steps.length > 0)
-      row.elapsedSeconds = elapsedSeconds(steps, next)
+    const answerEnd = next?.turnId === row.turnId ? next.completedAt : undefined
+    if (row.status === 'running') row.startedAt = steps[0]?.createdAt
+    else if (row.status !== 'waiting' && steps.length > 0)
+      row.elapsedSeconds =
+        answerEnd === undefined
+          ? elapsedSeconds(steps, next)
+          : (answerEnd - steps[0]!.createdAt) / 1000
   }
   const lastWork = rows.findLast((row) => row.kind === 'work')
   if (status === 'awaiting_approval' && lastWork && lastWork.turnId === tail?.turnId) {
     lastWork.status = 'waiting'
+    lastWork.startedAt = undefined
     lastWork.elapsedSeconds = undefined
   }
   return rows

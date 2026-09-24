@@ -1,8 +1,10 @@
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useEffect, useState } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
+import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { ToolGroup } from './tool_group'
 import {
@@ -55,17 +57,36 @@ function WorkHistory({
   )
 }
 
+function useRunningSeconds(startedAt?: number) {
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (startedAt === undefined) return
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () => {
+      const current = Date.now()
+      setNow(current)
+      timer = setTimeout(tick, 1000 - ((current - startedAt) % 1000))
+    }
+    tick()
+    return () => clearTimeout(timer)
+  }, [startedAt])
+  return startedAt === undefined ? undefined : Math.max(0, (now - startedAt) / 1000)
+}
+
 export function WorkBlock({
   activities,
   status,
+  startedAt,
   elapsedSeconds,
   restarted,
 }: {
   activities: readonly WorkActivity[]
   status: ActivityStatus
+  startedAt?: number
   elapsedSeconds?: number
   restarted?: boolean
 }) {
+  const runningSeconds = useRunningSeconds(status === 'running' ? startedAt : undefined)
   const ended = workEnded(status)
   const entries = groupWorkActivities(activities, ended)
   const duration = formatActivityDuration(elapsedSeconds)
@@ -82,9 +103,17 @@ export function WorkBlock({
             : duration
               ? 'You stopped'
               : 'You stopped this response'
-  const timing = duration
-    ? ` ${status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} ${duration}`
-    : ''
+  const timing =
+    runningSeconds !== undefined ? (
+      <span className='inline-flex items-baseline whitespace-pre'>
+        {' for '}
+        <RollingDuration seconds={runningSeconds} />
+      </span>
+    ) : duration ? (
+      ` ${status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} ${duration}`
+    ) : (
+      ''
+    )
   const recentStart = Math.max(0, entries.length - previewCount)
   return (
     <ActivityDisclosure
