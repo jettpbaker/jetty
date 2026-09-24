@@ -115,6 +115,4 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Grok doesn't report context usage, so its ring stays empty.
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
-- Diff syntax highlighting is flaky: within one hunk, some keywords and braces
-  lose their colour (e.g. one `await` pink, the next plain).
 - PR checks list design pass: jettpbaker/jetty-issues#11.
