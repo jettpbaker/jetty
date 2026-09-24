@@ -201,7 +201,7 @@ function PullRequestGroups({
       timer: setTimeout(() => {
         hover.current = null
         prefetch(item)
-      }, 150),
+      }, 50),
     }
   }
 
