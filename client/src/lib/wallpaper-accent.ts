@@ -24,8 +24,12 @@ const monoMaxChroma = 0.03
 const monoLightTarget = 0.42
 const monoDarkTarget = 0.96
 
+// Greys take the wallpaper's hue at up to this chroma, scaled by how colourful it is.
+const maxTint = 0.014
+const tintFullColorfulness = 0.12
+
 type OklchSample = { l: number; c: number; h: number }
-type AccentTokens = { light: string; dark: string }
+type AccentTokens = { light: string; dark: string; tint: { c: number; h: number } }
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -96,7 +100,7 @@ function token(lightness: number, chroma: number, hue: number) {
   return formatCss(clampChroma({ mode: 'oklch', l: lightness, c: chroma, h: hue }, 'oklch', 'rgb'))
 }
 
-function hueToTokens(hue: number, samples: OklchSample[]): AccentTokens {
+function hueToTokens(hue: number, samples: OklchSample[]): Omit<AccentTokens, 'tint'> {
   const nearby = samples.filter((sample) => hueDistance(sample.h, hue) <= hueStatsWindow)
   const weight = nearby.reduce((sum, sample) => sum + sample.c, 0)
   const chroma = nearby.reduce((sum, sample) => sum + sample.c * sample.c, 0) / weight
@@ -109,6 +113,13 @@ function hueToTokens(hue: number, samples: OklchSample[]): AccentTokens {
       hue
     ),
   }
+}
+
+function tintFor(hue: number, samples: OklchSample[]) {
+  const colorfulness = samples.reduce((sum, sample) => sum + sample.c, 0) / samples.length
+  // Low-chroma yellows and greens read as dirty rather than tinted.
+  const damping = hue >= 70 && hue <= 160 ? 0.6 : 1
+  return { h: hue, c: clamp(colorfulness / tintFullColorfulness, 0, 1) * maxTint * damping }
 }
 
 function monochromeTint(all: OklchSample[], kept: OklchSample[]) {
@@ -132,11 +143,12 @@ function pickAccent(all: OklchSample[]): AccentTokens | null {
   const tint = monochromeTint(all, kept)
   if (tint)
     return {
+      tint: { h: tint.h, c: Math.min(tint.c, maxTint) * 0.5 },
       light: token(monoLightTarget, tint.c, tint.h),
       dark: token(monoDarkTarget, tint.c, tint.h),
     }
   const hue = pickHue(kept)
-  return hue === null ? null : hueToTokens(hue, kept)
+  return hue === null ? null : { ...hueToTokens(hue, kept), tint: tintFor(hue, all) }
 }
 
 export function applyWallpaperAccent(image: HTMLImageElement) {
@@ -145,6 +157,8 @@ export function applyWallpaperAccent(image: HTMLImageElement) {
   const root = document.documentElement
   root.style.setProperty('--accent-primary-light', tokens.light)
   root.style.setProperty('--accent-primary-dark', tokens.dark)
+  root.style.setProperty('--tint-h', String(tokens.tint.h))
+  root.style.setProperty('--tint-c', String(tokens.tint.c))
   root.dataset.accentFrom = 'wallpaper'
   notifyAccentChange()
   return true
