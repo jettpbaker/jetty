@@ -22,22 +22,18 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   `claude setup-token` token, Grok an XAI_API_KEY).
   Container hooks, in order (Jetty stays toolchain-agnostic; builds, Docker host
   setup and verify stay with the project):
-  1. Image changes re-test themselves: when the tagged image changes, run Test
-     configuration automatically, switch threads over when it passes, and stay
-     on the old image if it fails. Today any rebuild blocks every container
-     thread until someone re-tests (`registration` in containers.ts).
-  2. Focused-thread forwarding: the thread you're looking at owns your real
+  1. Focused-thread forwarding: the thread you're looking at owns your real
      localhost ports (e.g. 5173), and switching threads moves the forward. No
      collisions, and anything configured for localhost (paypa flags) just works.
      Cost: only one container's app is reachable at a time.
-  3. Shared clone from a read-only mirror Jetty maintains (12s → <1s per
+  2. Shared clone from a read-only mirror Jetty maintains (12s → <1s per
      thread). The mirror is mounted at the same path in the container; fetch
      under a lock and never prune/gc objects clones rely on.
-  4. Agent-visible preview links: an MCP tool (e.g. `dev_urls`) rather than
-     env vars, since Docker assigns the host port at start. Mostly moot if 2
+  3. Agent-visible preview links: an MCP tool (e.g. `dev_urls`) rather than
+     env vars, since Docker assigns the host port at start. Mostly moot if 1
      lands.
 - Containers, not Jetty's job: building/refreshing images (use the workspace
-  startup script or a timer; hook 1 picks up the result). Desktop streaming
+  startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.
 - Grok runs commands in its own sandbox: `gh` can't reach the keychain token (401 on
   PR creation) and writes outside the project are blocked even after approval.

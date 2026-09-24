@@ -91,6 +91,10 @@ export const Project = Schema.Struct({
   icon: Schema.optional(ProjectIcon),
   containerReady: Schema.optional(Schema.Boolean),
   containerResult: Schema.optional(Schema.String),
+  containerRetesting: Schema.optional(Schema.Boolean),
+  containerRetestFailure: Schema.optional(
+    Schema.Struct({ imageId: Schema.String, message: Schema.String, at: Schema.Number })
+  ),
   containerProviders: Schema.optional(
     Schema.Struct({
       codex: Schema.Boolean,

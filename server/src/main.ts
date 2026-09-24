@@ -214,13 +214,33 @@ function createServer(opts: ServerOptions = {}) {
     const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)
+    const hub = createHub()
     const containers =
       process.env.JETTY_CONTAINERS === '1'
-        ? createEnvironmentManager(store, home, <A, E>(effect: Effect.Effect<A, E>) =>
-            Effect.runPromise(effect)
+        ? createEnvironmentManager(
+            store,
+            home,
+            <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect),
+            (projectId) =>
+              Effect.runPromise(
+                hub.withChromePublication(
+                  Effect.gen(function* () {
+                    const project = yield* store.getProject(projectId)
+                    if (project)
+                      hub.pushChrome({
+                        type: 'project.upserted',
+                        project: {
+                          ...project,
+                          containerRetesting: containers!.retesting(projectId),
+                        },
+                      })
+                  })
+                )
+              )
           )
         : undefined
     if (containers) yield* Effect.promise(() => containers.reconcile())
+    if (containers) void containers.retestRegisteredProjects().catch(() => {})
     if (containers)
       yield* Effect.addFinalizer(() =>
         Effect.promise(() => containers.shutdown()).pipe(Effect.catch(() => Effect.void))
@@ -236,7 +256,6 @@ function createServer(opts: ServerOptions = {}) {
       )
     )
     const attachments = Context.get(io, Attachments)
-    const hub = createHub()
     const pullRequests = createPullRequests(store, hub)
     const githubMedia = createGithubMedia(home)
     const mcp = createMcpSessions()

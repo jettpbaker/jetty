@@ -1,6 +1,7 @@
 import type {
   ModelDiscovery,
   ChromePushData,
+  Project,
   ProviderModel,
   ProviderUsage,
   RateLimits,
@@ -104,6 +105,12 @@ export function createRpcHandlers(
           )
         )
       )
+    }
+
+    function withContainerState(project: Project) {
+      return containers
+        ? { ...project, containerRetesting: containers.retesting(project.id) }
+        : project
     }
 
     function requireProject(projectId: string) {
@@ -211,13 +218,16 @@ export function createRpcHandlers(
                 })
                 hub.pushChrome({
                   type: 'project.upserted',
-                  project: yield* requireProject(projectId),
+                  project: withContainerState(yield* requireProject(projectId)),
                 })
                 return yield* Effect.fail(error)
               })
             )
           )
-          hub.pushChrome({ type: 'project.upserted', project: yield* requireProject(projectId) })
+          hub.pushChrome({
+            type: 'project.upserted',
+            project: withContainerState(yield* requireProject(projectId)),
+          })
           return { result: registration.result, providers: registration.providers }
         }).pipe(Effect.mapError(wireError)),
       'thread.startDev': ({ threadId }) =>
@@ -247,7 +257,7 @@ export function createRpcHandlers(
         Stream.unwrap(
           hub.withChromePublication(
             Effect.gen(function* () {
-              const projects = yield* store.listProjects()
+              const projects = (yield* store.listProjects()).map(withContainerState)
               const threads = yield* store.listThreads()
               const usage = getUsage()
               const models = getModels()
@@ -272,7 +282,7 @@ export function createRpcHandlers(
         mutation(
           Effect.gen(function* () {
             const project = yield* store.createProject(params.path)
-            hub.pushChrome({ type: 'project.upserted', project })
+            hub.pushChrome({ type: 'project.upserted', project: withContainerState(project) })
             return { project }
           })
         ),
@@ -280,7 +290,9 @@ export function createRpcHandlers(
         mutation(
           store.setProjectIcon(params.projectId, params.icon).pipe(
             Effect.tap((project) =>
-              Effect.sync(() => hub.pushChrome({ type: 'project.upserted', project }))
+              Effect.sync(() =>
+                hub.pushChrome({ type: 'project.upserted', project: withContainerState(project) })
+              )
             ),
             Effect.as(null)
           )

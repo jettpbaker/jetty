@@ -422,6 +422,14 @@ export function ThreadComposer({
         ambient={ambient}
         inputRef={input}
       />
+      {selectedEnvironment === 'container' &&
+        (currentProject?.containerRetesting || currentProject?.containerRetestFailure) && (
+          <p className='mt-1 truncate text-xs text-muted-foreground'>
+            {currentProject.containerRetesting
+              ? 'Testing updated image'
+              : `Updated image failed its test: ${currentProject.containerRetestFailure!.message}. Using the previous image.`}
+          </p>
+        )}
       <ContainerSetupDialog
         project={currentProject}
         open={setupOpen}

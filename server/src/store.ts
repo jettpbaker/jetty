@@ -73,6 +73,7 @@ export type ContainerRegistration = {
   providers: { codex: boolean; claude: boolean; grok: boolean }
   result: string
   devCount?: number
+  retestFailure?: { imageId: string; message: string; at: number }
 }
 
 export type EnvironmentRecord = {
@@ -157,6 +158,7 @@ function rowToProject(row: ProjectRow): Project {
     ...(container ? { containerResult: container.result } : {}),
     ...(container ? { containerProviders: container.providers } : {}),
     ...(container ? { containerServices: container.devCount ?? 0 } : {}),
+    ...(container?.retestFailure ? { containerRetestFailure: container.retestFailure } : {}),
   }
 }
 

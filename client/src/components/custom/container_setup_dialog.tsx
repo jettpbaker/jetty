@@ -137,8 +137,12 @@ export function ContainerSetupDialog({
           />
         </div>
         <div className='flex items-center justify-between gap-3'>
-          <output className='min-w-0 truncate text-xs text-muted-foreground'>
-            {result ?? project.containerResult ?? ''}
+          <output className='min-w-0 break-words text-xs text-muted-foreground'>
+            {project.containerRetesting
+              ? 'Testing updated image'
+              : project.containerRetestFailure
+                ? `Updated image failed its test: ${project.containerRetestFailure.message}. Using the previous image.`
+                : (result ?? project.containerResult ?? '')}
           </output>
           <div className='flex shrink-0 gap-2'>
             <Button

@@ -231,7 +231,8 @@ async function waitReady(name: string, check: () => Promise<boolean>) {
 export function createEnvironmentManager(
   store: Store,
   home: string,
-  runStore: <A, E = unknown>(effect: Effect.Effect<A, E>) => Promise<A>
+  runStore: <A, E = unknown>(effect: Effect.Effect<A, E>) => Promise<A>,
+  onRegistrationChange?: (projectId: string) => Promise<void>
 ) {
   const installation = createHash('sha256').update(resolve(home)).digest('hex').slice(0, 16)
   const running = new Map<string, RunningContainer>()
@@ -242,6 +243,38 @@ export function createEnvironmentManager(
   const controllers = new Map<string, AbortController>()
   let reserved = 0
   let previousTest = Promise.resolve()
+  const retests = new Map<string, Promise<ContainerRegistration>>()
+
+  function retest(project: Project, imageId: string, saved: ContainerRegistration) {
+    if (retests.has(project.id)) return
+    const task = (async () => {
+      try {
+        return await test(project, imageId, saved.manifestHash)
+      } catch (error) {
+        const latest = await runStore<ContainerRegistration | null>(
+          store.getContainerRegistration(project.id)
+        )
+        if (latest?.imageId === saved.imageId && latest.manifestHash === saved.manifestHash)
+          await runStore(
+            store.setContainerRegistration(project.id, {
+              ...latest,
+              retestFailure: {
+                imageId,
+                message: error instanceof Error ? error.message : String(error),
+                at: Date.now(),
+              },
+            })
+          )
+        throw error
+      } finally {
+        retests.delete(project.id)
+        void onRegistrationChange?.(project.id).catch(() => {})
+      }
+    })()
+    retests.set(project.id, task)
+    void onRegistrationChange?.(project.id).catch(() => {})
+    void task.catch(() => {})
+  }
 
   async function settings() {
     return loadSettings(home)
@@ -425,9 +458,9 @@ export function createEnvironmentManager(
   }
   async function registration(project: Project) {
     const { recipe, hash } = await recipeFor(project)
-    const saved = await runStore<ContainerRegistration | null>(
-      store.getContainerRegistration(project.id)
-    )
+    const current = () =>
+      runStore<ContainerRegistration | null>(store.getContainerRegistration(project.id))
+    let saved = await current()
     if (!saved?.valid || saved.manifestHash !== hash)
       throw new Error('Test the project container configuration first')
     const imageId = await command('docker', [
@@ -437,9 +470,27 @@ export function createEnvironmentManager(
       '{{.Id}}',
       recipe.image,
     ])
-    if (imageId !== saved.imageId)
-      throw new Error('Container image changed; test configuration again')
-    return { recipe, imageId, providers: saved.providers }
+    // A re-test may have finished while the tag was being inspected.
+    if (imageId !== saved.imageId) saved = (await current()) ?? saved
+    if (imageId === saved.imageId) return { recipe, imageId, providers: saved.providers }
+    if (saved.retestFailure?.imageId !== imageId) retest(project, imageId, saved)
+    const previousAvailable = await command('docker', ['image', 'inspect', saved.imageId])
+      .then(() => true)
+      .catch(() => false)
+    if (previousAvailable) return { recipe, imageId: saved.imageId, providers: saved.providers }
+    const pending = retests.get(project.id)
+    if (!pending)
+      throw new Error(
+        saved.retestFailure?.message ?? 'Test the project container configuration first'
+      )
+    const tested = await pending
+    return { recipe, imageId: tested.imageId, providers: tested.providers }
+  }
+  async function retestRegisteredProjects() {
+    for (const project of await runStore<Project[]>(store.listProjects())) {
+      if (!project.containerReady) continue
+      void registration(project).catch(() => {})
+    }
   }
   async function setupStatus(project: Project) {
     let capacityError: string | null = null
@@ -802,7 +853,7 @@ export function createEnvironmentManager(
     }, limit.idleMinutes * 60_000)
     wake()
   }
-  async function test(project: Project) {
+  async function test(project: Project, imageId?: string, expectedHash?: string) {
     const previous = previousTest
     let release = () => {}
     previousTest = new Promise<void>((resolve) => {
@@ -810,20 +861,18 @@ export function createEnvironmentManager(
     })
     await previous
     try {
-      return await testNow(project)
+      return await testNow(project, imageId, expectedHash)
     } finally {
       release()
     }
   }
-  async function testNow(project: Project) {
+  async function testNow(project: Project, testedImageId?: string, expectedHash?: string) {
     const { recipe, hash } = await recipeFor(project)
-    const imageId = await command('docker', [
-      'image',
-      'inspect',
-      '--format',
-      '{{.Id}}',
-      recipe.image,
-    ])
+    if (expectedHash && hash !== expectedHash)
+      throw new Error('Test the project container configuration first')
+    const imageId =
+      testedImageId ??
+      (await command('docker', ['image', 'inspect', '--format', '{{.Id}}', recipe.image]))
     const base = await gitCommit(project.path)
     const testId = `test-${randomUUID()}`
     const root = join(home, 'environments', testId)
@@ -867,8 +916,14 @@ export function createEnvironmentManager(
       )
       if ((await readFile(join(artifactsPath, '.jetty-bind-sentinel'), 'utf8')) !== 'jetty-bind-ok')
         throw new Error('Docker bind mounts are not shared with Jetty')
-      if (recipe.setup) await exec(record, recipe.setup)
-      if (recipe.verify) await exec(record, recipe.verify)
+      for (const [step, script] of [
+        ['Setup', recipe.setup],
+        ['Verify', recipe.verify],
+      ] as const)
+        if (script)
+          await exec(record, script).catch((error: Error) => {
+            throw new Error(`${step} failed: ${error.message.replace(/^docker: /, '')}`)
+          })
       for (const service of recipe.dev) {
         await command('docker', [
           'exec',
@@ -941,6 +996,10 @@ export function createEnvironmentManager(
         result: `Verified ${base.slice(0, 12)}`,
         devCount: recipe.dev.length,
       }
+      if (expectedHash && (await recipeFor(project)).hash !== expectedHash)
+        throw new Error('Test the project container configuration first')
+      // Holds the tested image even after its tag moves; some image stores delete untagged images.
+      await command('docker', ['tag', imageId, `jetty-tested/${project.id.toLowerCase()}`])
       await runStore(store.setContainerRegistration(project.id, registration))
       return registration
     } finally {
@@ -993,6 +1052,8 @@ export function createEnvironmentManager(
     remove,
     startDev,
     test,
+    retesting: (projectId: string) => retests.has(projectId),
+    retestRegisteredProjects,
     reconcile,
     shutdown,
     record: (threadId: string) =>
