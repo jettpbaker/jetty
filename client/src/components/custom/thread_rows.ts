@@ -253,7 +253,9 @@ function workStatus(
   if (outcome && outcome !== 'server_restarted')
     return outcome === 'completed' ? 'complete' : outcome
   if (live) return 'running'
-  for (const status of ['waiting', 'running', 'interrupted'] as const)
+  // Only the live block is where the agent works now; an earlier one's lingering step (a
+  // background command, say) keeps its own running state without the block ticking.
+  for (const status of ['waiting', 'interrupted'] as const)
     if (activities.some((activity) => activity.type !== 'text' && activity.status === status))
       return status
   return 'complete'
