@@ -32,6 +32,11 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   3. Agent-visible preview links: an MCP tool (e.g. `dev_urls`) rather than
      env vars, since Docker assigns the host port at start. Mostly moot if 1
      lands.
+  4. Start the agent while setup runs (saves ~18s on a thread's first message
+     only; setup runs once per environment). Settle the edges first: the agent
+     must know setup is still running and wait before building/testing/
+     installing; a setup failure after the agent started needs a way into the
+     thread and to the agent; dev services must wait for setup.
 - Containers, not Jetty's job: building/refreshing images (use the workspace
   startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.
