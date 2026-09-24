@@ -20,6 +20,8 @@ import {
   useLinkPullRequest,
   usePullRequest,
   useRefreshPullRequest,
+  useReviewRequestPatches,
+  useSetReviewRequest,
   useUnlinkPullRequest,
   type PullRequestRef,
 } from '@/state'
@@ -37,8 +39,8 @@ import {
   InfoIcon,
   LinkBreakIcon,
   MinusCircleIcon,
-  UserPlusIcon,
   XCircleIcon,
+  XIcon,
 } from '@phosphor-icons/react'
 import {
   DiffIcon,
@@ -71,6 +73,7 @@ import {
   type PrActivityItem,
   type ReviewThread,
 } from './pull_request_model'
+import { ReviewerPicker } from './reviewer_picker'
 import { prPresentation } from './thread_pull_request'
 import './thread_details_layout.css'
 
@@ -174,6 +177,16 @@ function checksSummary(runs: readonly GitHubCheckRun[]) {
 }
 
 type ReviewerState = GitHubReview['state'] | 'AWAITING'
+
+function patchedRequests(
+  users: readonly GitHubUser[],
+  patches: ReadonlyMap<string, { user: GitHubUser; requested: boolean }>
+) {
+  const requested = users.filter((user) => patches.get(user.login)?.requested !== false)
+  for (const { user, requested: on } of patches.values())
+    if (on && !requested.some((entry) => entry.login === user.login)) requested.push(user)
+  return requested
+}
 
 function reviewerEntries(
   pull: GitHubPullRequest,
@@ -544,13 +557,61 @@ function MergeAction({
 
 type LinkedThread = { id: string; title: string }
 
+function ReviewerBadge({
+  user,
+  state,
+  pending,
+  onRemove,
+}: {
+  user: GitHubUser
+  state: ReviewerState
+  pending: boolean
+  onRemove?: () => void
+}) {
+  return (
+    <Badge
+      variant='outline'
+      aria-busy={pending}
+      className={cn(
+        'group/reviewer h-6 gap-1.5 pl-1 pr-2 font-normal [&>svg]:size-3.5!',
+        pending && 'opacity-60'
+      )}
+    >
+      <span className='grid size-4 place-items-center *:[grid-area:1/1]'>
+        <PersonAvatar
+          login={user.login}
+          src={user.avatar_url}
+          className={cn(
+            'size-4',
+            onRemove && 'group-hover/reviewer:opacity-0 group-has-focus-visible/reviewer:opacity-0'
+          )}
+        />
+        {onRemove && (
+          <button
+            type='button'
+            aria-label={`Remove ${user.login} as reviewer`}
+            className='flex size-4 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/reviewer:opacity-100'
+            onClick={onRemove}
+          >
+            <XIcon className='size-3' />
+          </button>
+        )}
+      </span>
+      <span className='relative -top-px'>{user.login}</span>
+      {state === 'APPROVED' && <CheckIcon weight='bold' className='text-status-success' />}
+    </Badge>
+  )
+}
+
 export function PullRequestView({
   data,
+  link,
   repo,
   actions,
   threads = [],
 }: {
   data: PullRequestData
+  link: PullRequestRef
   repo?: string
   actions?: ReactNode
   threads?: readonly LinkedThread[]
@@ -562,8 +623,19 @@ export function PullRequestView({
   const presentation = prPresentation[state]
   const Icon = presentation.icon
   const activity = prActivity({ pull, reviews, reviewComments, commits })
-  const reviewers = reviewerEntries(pull, reviews)
+  const patches = useReviewRequestPatches(link)
+  const setReviewRequest = useSetReviewRequest()
+  const requested = patchedRequests(pull.requested_reviewers, patches)
+  const reviewers = reviewerEntries({ ...pull, requested_reviewers: requested }, reviews)
   const body = pull.body.trim()
+
+  function toggleReviewer(user: GitHubUser, on: boolean) {
+    setReviewRequest(link, user, on)
+    if (on) return
+    toast('Review request removed', {
+      action: { label: 'Undo', onClick: () => setReviewRequest(link, user, true) },
+    })
+  }
 
   return (
     <Tabs
@@ -715,34 +787,29 @@ export function PullRequestView({
               </dt>
               <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-1.5'>
                 {reviewers.map((entry) => (
-                  <Badge
+                  <ReviewerBadge
                     key={entry.user.login}
-                    variant='outline'
-                    className='h-6 gap-1.5 pl-1 pr-2 font-normal [&>svg]:size-3.5!'
-                  >
-                    <PersonAvatar
-                      login={entry.user.login}
-                      src={entry.user.avatar_url}
-                      className='size-4'
-                    />
-                    <span className='relative -top-px'>{entry.user.login}</span>
-                    {entry.state === 'APPROVED' && (
-                      <CheckIcon weight='bold' className='text-status-success' />
-                    )}
-                  </Badge>
+                    user={entry.user}
+                    state={entry.state}
+                    pending={patches.get(entry.user.login)?.requested === true}
+                    onRemove={
+                      data.viewerCanRequestReviews !== false &&
+                      requested.some((user) => user.login === entry.user.login)
+                        ? () => toggleReviewer(entry.user, false)
+                        : undefined
+                    }
+                  />
                 ))}
-                <DisabledTooltip reason='Coming soon' wrap='flex'>
-                  <Button
-                    variant='ghost'
-                    tone='muted'
-                    size='icon'
-                    className='h-7'
-                    aria-label='Request review'
-                    disabled
-                  >
-                    <UserPlusIcon />
-                  </Button>
-                </DisabledTooltip>
+                <ReviewerPicker
+                  repo={link.repo}
+                  author={pull.user.login}
+                  requested={requested}
+                  suggested={data.suggestedReviewers}
+                  disabledReason={
+                    data.viewerCanRequestReviews === false ? 'Requires write access' : undefined
+                  }
+                  onToggle={toggleReviewer}
+                />
               </dd>
             </dl>
 
@@ -928,6 +995,7 @@ export function LivePullRequestView({
       <MediaLightboxProvider>
         <PullRequestView
           data={snapshot.data}
+          link={link}
           repo={standalone ? link.repo : undefined}
           threads={threads}
           actions={

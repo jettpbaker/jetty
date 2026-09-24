@@ -1,15 +1,18 @@
+import type { PullRequestData } from '@jetty/shared/pull-request'
 import type {
   PullRequestLink,
   PullRequestList,
   PullRequestListTab,
   PullRequestSnapshot,
+  ResultOf,
 } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { useNavigate } from '@tanstack/react-router'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
-import { useCallback, useContext, useMemo } from 'react'
+import { useCallback, useContext, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { useChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
@@ -111,6 +114,115 @@ function prefetchPullRequest(registry: Registry, ref: PullRequestRef) {
 
 export function usePrefetchPullRequest() {
   return useAction(prefetchPullRequest)
+}
+
+type ReviewerCandidates = ResultOf<'pullRequest.reviewerCandidates'>
+
+const candidatesAtom = Atom.family((key: string) =>
+  Atom.make((get) => {
+    const split = key.indexOf('\n')
+    const params = { repo: key.slice(0, split), query: key.slice(split + 1) }
+    return get
+      .result(connectionAtom)
+      .pipe(
+        Effect.flatMap((connection) => connection.request('pullRequest.reviewerCandidates', params))
+      )
+  }).pipe(Atom.setIdleTTL('5 minutes'))
+)
+
+// Holds the last list while a search loads, so typing never blanks the picker.
+export function useReviewerCandidates(repo: string, query: string) {
+  const result = useAtomValue(candidatesAtom(`${repo}\n${query}`))
+  const [shown, setShown] = useState<ReviewerCandidates>()
+  const fresh = AsyncResult.isSuccess(result) ? result.value : undefined
+  if (fresh && fresh !== shown) setShown(fresh)
+  return { list: fresh ?? shown, failed: AsyncResult.isFailure(result) }
+}
+
+function prefetchReviewerCandidates(registry: Registry, repo: string) {
+  registry.get(candidatesAtom(`${repo}\n`))
+}
+
+export function usePrefetchReviewerCandidates() {
+  return useAction(prefetchReviewerCandidates)
+}
+
+type GitHubUser = PullRequestData['pull']['user']
+type ReviewRequestPatch = { user: GitHubUser; requested: boolean }
+
+const reviewRequestPatchesAtom = Atom.family((_key: string) =>
+  Atom.make<ReadonlyMap<string, ReviewRequestPatch>>(new Map()).pipe(Atom.keepAlive)
+)
+
+export function useReviewRequestPatches(ref: PullRequestRef) {
+  return useAtomValue(reviewRequestPatchesAtom(pullRequestKey(ref)))
+}
+
+function isRequested(snapshot: PullRequestSnapshot | undefined, login: string) {
+  return !!snapshot?.data?.pull.requested_reviewers.some((user) => user.login === login)
+}
+
+function setReviewRequest(
+  registry: Registry,
+  ref: PullRequestRef,
+  user: GitHubUser,
+  requested: boolean
+) {
+  const key = pullRequestKey(ref)
+  const patches = reviewRequestPatchesAtom(key)
+  const patch = { user, requested }
+  registry.update(patches, (current) => new Map(current).set(user.login, patch))
+  function clear() {
+    registry.update(patches, (current) => {
+      if (current.get(user.login) !== patch) return current
+      const next = new Map(current)
+      next.delete(user.login)
+      return next
+    })
+  }
+  // The live view gets the new snapshot pushed separately; keep the patch until it shows.
+  function clearWhenShown() {
+    const shown = () => isRequested(registry.get(snapshotAtom(key)), user.login) === requested
+    if (shown()) return clear()
+    const timer = setTimeout(done, 5000)
+    const stop = registry.subscribe(snapshotAtom(key), () => {
+      if (shown()) done()
+    })
+    function done() {
+      clearTimeout(timer)
+      stop()
+      clear()
+    }
+  }
+  Effect.runFork(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(
+      Effect.flatMap((connection) =>
+        connection.request('pullRequest.setReviewRequest', { ...ref, login: user.login, requested })
+      ),
+      Effect.match({
+        onSuccess: (snapshot) => {
+          registry.set(cacheAtom(key), snapshot)
+          clearWhenShown()
+        },
+        onFailure: (error) => {
+          clear()
+          toast.error(
+            requested
+              ? `Couldn't request review from ${user.login}`
+              : `Couldn't remove ${user.login}`,
+            {
+              description:
+                'message' in error && typeof error.message === 'string' ? error.message : undefined,
+            }
+          )
+        },
+      })
+    )
+  )
+}
+
+export function useSetReviewRequest() {
+  return useAction(setReviewRequest)
 }
 
 const listCacheAtom = Atom.family((_tab: PullRequestListTab) =>
