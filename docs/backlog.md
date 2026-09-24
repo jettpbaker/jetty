@@ -28,7 +28,12 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
      Cost: only one container's app is reachable at a time.
   2. Shared clone from a read-only mirror Jetty maintains (12s → <1s per
      thread). The mirror is mounted at the same path in the container; fetch
-     under a lock and never prune/gc objects clones rely on.
+     under a lock and never prune/gc objects clones rely on. Also saves disk:
+     every thread's environment (~/.jetty/environments/<id>) stays on the home
+     disk until the thread is deleted (idle stops don't free it; archiving
+     unchecked), and today each holds its own full git history (~350 MB for
+     paypa-stack) on top of node_modules (est. 2–4 GB per thread in total).
+     Shared objects drop the history copy; node_modules stays per thread.
   3. Agent-visible preview links: an MCP tool (e.g. `dev_urls`) rather than
      env vars, since Docker assigns the host port at start. Mostly moot if 1
      lands.
