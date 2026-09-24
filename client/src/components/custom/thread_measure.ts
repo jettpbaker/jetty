@@ -9,6 +9,7 @@ import {
   INLINE_IMAGE_MAX_HEIGHT,
   videoHeight,
 } from './media_layout'
+import { collapseAfterHeight, collapsedTextHeight, expandedMessages } from './user_message'
 import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
 const font = '14px "Geist Variable"'
@@ -40,7 +41,12 @@ export function estimateRow(row: ThreadRow, width: number) {
     case 'user': {
       const { text, attachments } = row.item
       const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))
-      let height = 28 + (text ? textHeight(row.id, text, width * 0.8, true) : 0)
+      const full = text ? textHeight(row.id, text, width * 0.8, true) : 0
+      let height =
+        28 +
+        (full > collapseAfterHeight
+          ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
+          : full)
       if (row.item.from) height += 22
       if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
       for (const attachment of attachments)

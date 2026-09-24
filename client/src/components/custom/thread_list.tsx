@@ -135,7 +135,12 @@ function ThreadItemRow({
 }) {
   if (row.kind === 'user')
     return (
-      <UserMessage text={row.item.text} attachments={row.item.attachments} from={row.item.from} />
+      <UserMessage
+        id={row.item.id}
+        text={row.item.text}
+        attachments={row.item.attachments}
+        from={row.item.from}
+      />
     )
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
