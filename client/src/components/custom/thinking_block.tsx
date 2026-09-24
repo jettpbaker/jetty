@@ -3,10 +3,10 @@ import { cn } from '@/lib/utils'
 import { useCallback, useId, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
-import { formatActivityDuration, type ThinkingActivity } from './work_model'
+import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
 
 export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
-  const ended = ['complete', 'failed', 'cancelled', 'interrupted'].includes(activity.status)
+  const ended = workEnded(activity.status)
   const [previousEnded, setPreviousEnded] = useState(ended)
   const contentId = useId()
   const [expanded, setExpanded] = useState(false)

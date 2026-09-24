@@ -15,6 +15,8 @@ type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
+type StepItem = WorkItem | AssistantItem
+type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 
@@ -177,7 +179,7 @@ function textRunning(
   return item.streaming ?? (isThreadTail && sessionRunning)
 }
 
-function elapsedSeconds(span: readonly WorkItem[], next: ThreadItem | undefined) {
+function elapsedSeconds(span: readonly StepItem[], next: ThreadItem | undefined) {
   const start = span[0]!
   const ends = span.map((item) => item.completedAt)
   if (ends.every((end): end is number => end !== undefined))
@@ -186,12 +188,13 @@ function elapsedSeconds(span: readonly WorkItem[], next: ThreadItem | undefined)
 }
 
 function toActivity(
-  item: WorkItem,
+  item: StepItem,
   next: ThreadItem | undefined,
   sessionRunning: boolean,
   sessionActive: boolean,
   projectPath: string | undefined
 ): WorkActivity {
+  if (item.kind === 'assistant_message') return { type: 'text', id: item.id, text: item.text }
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
     return {
@@ -237,7 +240,7 @@ function toActivity(
   }
 }
 
-// The latest block of a live turn keeps working through the gaps between its activities.
+// A live turn's block keeps working through the gaps between its activities.
 function workStatus(
   activities: readonly WorkActivity[],
   outcome: TurnOutcome | undefined,
@@ -247,7 +250,8 @@ function workStatus(
     return outcome === 'completed' ? 'complete' : outcome
   if (live) return 'running'
   for (const status of ['waiting', 'running', 'interrupted'] as const)
-    if (activities.some((activity) => activity.status === status)) return status
+    if (activities.some((activity) => activity.type !== 'text' && activity.status === status))
+      return status
   return 'complete'
 }
 
@@ -259,10 +263,6 @@ function createdThreadId(item: ThreadItem) {
   )
     return undefined
   return resultField(item.output, 'threadId')
-}
-
-function isWork(item: ThreadItem): item is WorkItem {
-  return item.kind === 'reasoning' || item.kind === 'tool_call'
 }
 
 // claude-sonnet-5 → Sonnet 5, claude-opus-4-6 → Opus 4.6; aliases like `sonnet` stay a family name.
@@ -338,19 +338,67 @@ export function threadRows(
       item: { id, turnId, createdAt, kind: 'user_message', text: prompt, attachments: [] },
     })
   }
-  const tailId = items.at(-1)?.id
+  const tail = items.at(-1)
   const sessionRunning = status === 'running' || status === 'starting'
   const sessionActive = sessionRunning || status === 'awaiting_approval'
   const askedTurns = new Set(
     items.filter((item) => item.kind === 'question').map((item) => item.turnId)
   )
-  let pending: WorkItem[] = []
+  function isAnsweredQuestionTool(item: ThreadItem) {
+    return (
+      item.kind === 'tool_call' &&
+      item.toolName === 'AskUserQuestion' &&
+      askedTurns.has(item.turnId)
+    )
+  }
+  function isStep(item: ThreadItem): item is WorkItem {
+    return (
+      (item.kind === 'reasoning' || item.kind === 'tool_call') &&
+      !createdThreadId(item) &&
+      !isAnsweredQuestionTool(item)
+    )
+  }
+  // A turn's steps, and the text between them, share one work block; a steering message starts
+  // another. Text after the last step stays outside the block as the answer.
+  const segments: string[] = []
+  const lastStep = new Map<string, number>()
+  for (const [index, item] of items.entries()) {
+    const previous = segments.at(-1)
+    const segment =
+      item.kind === 'user_message'
+        ? item.id
+        : previous !== undefined && items[index - 1]!.turnId === item.turnId
+          ? previous
+          : item.turnId
+    segments.push(segment)
+    if (isStep(item)) lastStep.set(segment, index)
+  }
+  const liveSegment =
+    tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
+      ? segments.at(-1)
+      : undefined
+  const blocks = new Map<string, { row: WorkRow; steps: StepItem[]; next?: ThreadItem }>()
+  function openBlock(segment: string, turnId: string) {
+    let block = blocks.get(segment)
+    if (!block) {
+      const row: WorkRow = {
+        kind: 'work',
+        id: `${segment}:work`,
+        turnId,
+        activities: [],
+        status: 'running',
+      }
+      block = { row, steps: [] }
+      blocks.set(segment, block)
+      rows.push(row)
+    }
+    return block
+  }
   let currentTurnId: string | undefined
   function finishTurn() {
     if (!currentTurnId || outcomes[currentTurnId] !== 'server_restarted') return
     const lastRow = rows.at(-1)
     if (lastRow?.kind === 'work' && lastRow.turnId === currentTurnId) {
-      lastRow.status = 'interrupted'
       lastRow.restarted = true
       return
     }
@@ -363,45 +411,24 @@ export function threadRows(
       restarted: true,
     })
   }
-  function flush(next: ThreadItem | undefined) {
-    if (pending.length === 0) return
-    const activities = pending.map((item, index) =>
-      toActivity(item, pending[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
-    )
-    const outcome = outcomes[pending[0]!.turnId]
-    const blockStatus = workStatus(activities, outcome, !next && !outcome && sessionRunning)
-    rows.push({
-      kind: 'work',
-      id: pending[0]!.id,
-      turnId: pending[0]!.turnId,
-      activities,
-      status: blockStatus,
-      elapsedSeconds:
-        blockStatus === 'running' || blockStatus === 'waiting'
-          ? undefined
-          : elapsedSeconds(pending, next),
-    })
-    pending = []
-  }
-  for (const item of items) {
-    if (currentTurnId && currentTurnId !== item.turnId) {
-      flush(item)
-      finishTurn()
-    }
+  for (const [index, item] of items.entries()) {
+    if (currentTurnId && currentTurnId !== item.turnId) finishTurn()
     currentTurnId = item.turnId
+    if (isAnsweredQuestionTool(item)) continue
+    const segment = segments[index]!
     if (
-      item.kind === 'tool_call' &&
-      item.toolName === 'AskUserQuestion' &&
-      askedTurns.has(item.turnId)
-    )
-      continue
-    const created = createdThreadId(item)
-    if (!created && isWork(item)) {
-      pending.push(item)
+      isStep(item) ||
+      (item.kind === 'assistant_message' && index < (lastStep.get(segment) ?? -1))
+    ) {
+      const block = openBlock(segment, item.turnId)
+      block.steps.push(item)
+      block.next = items[index + 1]
       continue
     }
-    flush(item)
+    if (segment === liveSegment && item.kind === 'assistant_message')
+      openBlock(segment, item.turnId)
     const last = rows.at(-1)
+    const created = createdThreadId(item)
     if (created) {
       if (last?.kind === 'created') last.threadIds.push(created)
       else rows.push({ kind: 'created', id: item.id, threadIds: [created] })
@@ -423,7 +450,7 @@ export function threadRows(
           kind: 'assistant',
           id: item.id,
           item,
-          streaming: textRunning(item, item.id === tailId, sessionRunning),
+          streaming: textRunning(item, item === tail, sessionRunning),
         })
         break
       case 'plan':
@@ -431,7 +458,7 @@ export function threadRows(
           kind: 'plan',
           id: item.id,
           item,
-          streaming: textRunning(item, item.id === tailId, sessionRunning),
+          streaming: textRunning(item, item === tail, sessionRunning),
         })
         break
       case 'error':
@@ -455,19 +482,20 @@ export function threadRows(
         break
     }
   }
-  flush(undefined)
+  if (liveSegment && tail) openBlock(liveSegment, tail.turnId)
   finishTurn()
-  const last = items.at(-1)
-  if (running && last?.kind === 'user_message')
-    rows.push({
-      kind: 'work',
-      id: 'working',
-      turnId: last.turnId,
-      activities: [],
-      status: 'running',
-    })
+  for (const [segment, { row, steps, next }] of blocks) {
+    row.activities = steps.map((item, index) =>
+      toActivity(item, steps[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
+    )
+    row.status = row.restarted
+      ? 'interrupted'
+      : workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)
+    if (row.status !== 'running' && row.status !== 'waiting' && steps.length > 0)
+      row.elapsedSeconds = elapsedSeconds(steps, next)
+  }
   const lastWork = rows.findLast((row) => row.kind === 'work')
-  if (status === 'awaiting_approval' && lastWork && lastWork.turnId === last?.turnId) {
+  if (status === 'awaiting_approval' && lastWork && lastWork.turnId === tail?.turnId) {
     lastWork.status = 'waiting'
     lastWork.elapsedSeconds = undefined
   }

@@ -9,6 +9,7 @@ import {
   INLINE_IMAGE_MAX_HEIGHT,
   videoHeight,
 } from './media_layout'
+import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
 const font = '14px "Geist Variable"'
 const lineHeight = 23
@@ -50,11 +51,13 @@ export function estimateRow(row: ThreadRow, width: number) {
     case 'plan':
       return textHeight(row.id, row.item.text, width, false) + 8
     case 'work': {
+      if (workEnded(row.status)) return 30
       let height = 32
-      for (const activity of row.activities) {
-        height += 28
-        if (activity.type === 'thinking' && activity.summary && activity.status === 'running')
-          height += Math.min(72, textHeight(activity.id, activity.summary, width, true))
+      for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
+        if (entry.type === 'text') height += textHeight(entry.id, entry.text, width - 16, false) + 4
+        else height += 28
+        if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
+          height += Math.min(72, textHeight(entry.id, entry.summary, width, true))
       }
       return height
     }

@@ -82,13 +82,15 @@ function rowStamp(row: ThreadRow) {
     case 'marker':
       return row.item.kind
     case 'work':
-      return row.activities
+      return `${row.status}:${row.activities
         .map((activity) =>
-          activity.type === 'thinking'
-            ? `${activity.id}:${activity.summary.length}:${activity.status}`
-            : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
+          activity.type === 'text'
+            ? `${activity.id}:${activity.text.length}`
+            : activity.type === 'thinking'
+              ? `${activity.id}:${activity.summary.length}:${activity.status}`
+              : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
-        .join(',')
+        .join(',')}`
   }
 }
 

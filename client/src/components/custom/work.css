@@ -14,6 +14,9 @@
 .thinking-text {
   @apply px-2 pb-1 text-13 leading-relaxed whitespace-pre-wrap text-muted-foreground;
 }
+.work-text {
+  @apply px-2 pb-1 text-13 leading-relaxed text-muted-foreground;
+}
 .thinking-tail {
   @apply flex max-h-[4.5rem] flex-col justify-end overflow-hidden;
   mask-image: linear-gradient(to bottom, transparent, black 1rem);

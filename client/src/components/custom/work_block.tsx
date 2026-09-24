@@ -2,17 +2,18 @@ import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
+import { Markdown } from './markdown'
 import { ThinkingBlock } from './thinking_block'
 import { ToolGroup } from './tool_group'
 import {
   formatActivityDuration,
   groupWorkActivities,
+  previewCount,
   type ActivityStatus,
   type WorkActivity,
   type WorkEntry,
+  workEnded,
 } from './work_model'
-
-const previewCount = 3
 
 function WorkHistory({
   entries,
@@ -41,6 +42,8 @@ function WorkHistory({
             >
               {entry.type === 'thinking' ? (
                 <ThinkingBlock activity={entry} />
+              ) : entry.type === 'text' ? (
+                <Markdown className='work-text'>{entry.text}</Markdown>
               ) : (
                 <ToolGroup batch={entry} />
               )}
@@ -63,7 +66,7 @@ export function WorkBlock({
   elapsedSeconds?: number
   restarted?: boolean
 }) {
-  const ended = ['complete', 'failed', 'cancelled', 'interrupted'].includes(status)
+  const ended = workEnded(status)
   const entries = groupWorkActivities(activities, ended)
   const duration = formatActivityDuration(elapsedSeconds)
   const heading = restarted

@@ -27,9 +27,11 @@ export type ThinkingActivity = {
   tokens?: number
   elapsedSeconds?: number
 }
-export type WorkActivity = ToolActivity | ThinkingActivity
+// what the agent said between its steps, as opposed to its answer after the last one
+export type TextActivity = { type: 'text'; id: string; text: string }
+export type WorkActivity = ToolActivity | ThinkingActivity | TextActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
-export type WorkEntry = ToolBatch | ThinkingActivity
+export type WorkEntry = ToolBatch | ThinkingActivity | TextActivity
 
 const vocabulary = {
   read: {
@@ -76,6 +78,13 @@ const vocabulary = {
   },
 } satisfies Record<ToolKind, ToolWords>
 
+// A live block shows only its latest entries.
+export const previewCount = 3
+
+export function workEnded(status: ActivityStatus) {
+  return ['complete', 'failed', 'cancelled', 'interrupted'].includes(status)
+}
+
 export function formatActivityDuration(seconds?: number) {
   if (seconds === undefined) return undefined
   const value = Math.max(0, Math.floor(seconds))
@@ -99,9 +108,9 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
     } else {
       if (previous?.type === 'tools') previous.sealed = true
       entries.push(
-        activity.type === 'thinking'
-          ? activity
-          : { type: 'tools', id: activity.id, calls: [activity], sealed: false }
+        activity.type === 'tool'
+          ? { type: 'tools', id: activity.id, calls: [activity], sealed: false }
+          : activity
       )
     }
   }

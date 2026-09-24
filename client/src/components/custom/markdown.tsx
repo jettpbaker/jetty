@@ -38,14 +38,16 @@ export function Markdown({
   children,
   streaming,
   githubMedia,
+  className = 'text-sm leading-relaxed',
 }: {
   children: string
   streaming?: boolean
   githubMedia?: boolean
+  className?: string
 }) {
   return (
     <Streamdown
-      className='text-sm leading-relaxed'
+      className={className}
       components={components}
       allowedTags={fileLinkTag}
       linkSafety={linkSafety}
