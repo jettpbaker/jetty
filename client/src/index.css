@@ -33,9 +33,8 @@
   color-scheme: light;
   --tint-h: 0;
   --tint-c: 0;
-  --tint-strength: 1;
   /* Pale surfaces show chroma far more than dark ones. */
-  --tint: calc(var(--tint-c) * var(--tint-strength) * 0.5);
+  --tint: calc(var(--tint-c) * 0.5);
   --border: oklch(0.86 var(--tint) var(--tint-h));
   --scrollbar-thumb: oklch(0.86 var(--tint) var(--tint-h));
   --muted: oklch(0.935 var(--tint) var(--tint-h));
@@ -81,7 +80,7 @@
 
 .dark {
   color-scheme: dark;
-  --tint: calc(var(--tint-c) * var(--tint-strength));
+  --tint: var(--tint-c);
   --background: oklch(0.195 var(--tint) var(--tint-h));
   --foreground: oklch(0.933 calc(var(--tint) * 0.3) var(--tint-h));
   --card: oklch(0.254 var(--tint) var(--tint-h));

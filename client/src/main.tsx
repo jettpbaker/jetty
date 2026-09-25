@@ -6,14 +6,12 @@ import { loadAccent } from './lib/accent'
 import { hydrateAppearance } from './lib/appearance'
 import { refreshScrollFadesWhenOverflowEnds } from './lib/scroll-fade'
 import { applyTheme } from './lib/theme'
-import { applyTintStrength } from './lib/tint'
 import { routeTree } from './routeTree.gen'
 import './index.css'
 import './accent.css'
 import './theme-transition.css'
 
 applyTheme()
-applyTintStrength()
 document.documentElement.dataset.accent = loadAccent()
 void hydrateAppearance()
 refreshScrollFadesWhenOverflowEnds()

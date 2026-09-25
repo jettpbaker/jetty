@@ -25,7 +25,7 @@ const monoLightTarget = 0.42
 const monoDarkTarget = 0.96
 
 // Greys take the wallpaper's hue at up to this chroma, scaled by how colourful it is.
-const maxTint = 0.014
+const maxTint = 0.0035
 const tintFullColorfulness = 0.12
 
 type OklchSample = { l: number; c: number; h: number }

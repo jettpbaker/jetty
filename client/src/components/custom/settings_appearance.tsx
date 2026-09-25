@@ -17,7 +17,6 @@ import {
   useAppearance,
 } from '@/lib/appearance'
 import { useAnimatedTheme } from '@/lib/theme'
-import { loadTintStrength, setTintStrength, tintStrengths } from '@/lib/tint'
 import { pickFiles } from '@/platform'
 import {
   MoonIcon,
@@ -35,8 +34,6 @@ import { AccentPicker } from './accent_picker'
 import { DisabledTooltip } from './disabled_tooltip'
 import { WallpaperEditor } from './wallpaper_editor'
 
-const tintLabel = (value: string) => (value === '0' ? 'Off' : value)
-
 const themes = [
   { value: 'light', label: 'Light', Icon: SunIcon },
   { value: 'dark', label: 'Dark', Icon: MoonIcon },
@@ -49,7 +46,6 @@ export function SettingsAppearance() {
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
   const [editing, setEditing] = useState(false)
-  const [tint, setTint] = useState(loadTintStrength)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const uploadGeneration = useRef(0)
@@ -326,46 +322,6 @@ export function SettingsAppearance() {
             onCheckedChange={setAuto}
             className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
           />
-        </div>
-      </DisabledTooltip>
-      <DisabledTooltip
-        reason={appearance.autoAccent ? undefined : 'Turn on Match accent to wallpaper first.'}
-      >
-        <div className='appearance-option-row'>
-          <span className={appearance.autoAccent ? undefined : 'text-disabled-foreground'}>
-            Wallpaper tint
-          </span>
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger
-              aria-label={`Wallpaper tint: ${tintLabel(tint)}`}
-              disabled={!appearance.autoAccent}
-              render={
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
-                />
-              }
-            >
-              {tintLabel(tint)}
-              <CaretDownIcon className='size-3' />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuRadioGroup
-                value={tint}
-                onValueChange={(value: string) => {
-                  setTintStrength(value)
-                  setTint(loadTintStrength())
-                }}
-              >
-                {tintStrengths.map((value) => (
-                  <DropdownMenuRadioItem key={value} value={value}>
-                    {tintLabel(value)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </DisabledTooltip>
       {editing && <WallpaperEditor appearance={appearance} onClose={() => setEditing(false)} />}
