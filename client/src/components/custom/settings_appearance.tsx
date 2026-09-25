@@ -307,13 +307,13 @@ export function SettingsAppearance() {
           className='appearance-option-row'
           tabIndex={appearance.wallpaper ? -1 : 0}
           role='group'
-          aria-label='Wallpaper accent'
+          aria-label='Wallpaper colours'
         >
           <label
             htmlFor={wallpaperAccentId}
             className={appearance.wallpaper ? undefined : 'text-disabled-foreground'}
           >
-            Match accent to wallpaper
+            Match colours to wallpaper
           </label>
           <Switch
             id={wallpaperAccentId}
