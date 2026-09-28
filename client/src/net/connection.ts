@@ -33,9 +33,7 @@ function protocol(
   const socket = Socket.layerWebSocket(url).pipe(
     Layer.provide(Socket.layerWebSocketConstructorGlobal)
   )
-  return Layer.effect(RpcClient.Protocol)(
-    RpcClient.makeProtocolSocket({ retryTransientErrors: true, retryPolicy })
-  ).pipe(
+  return Layer.effect(RpcClient.Protocol)(RpcClient.makeProtocolSocket({ retryPolicy })).pipe(
     Layer.provide([
       socket,
       RpcSerialization.layerJson,
