@@ -577,15 +577,20 @@ export function createOrchestrator({
 
     return {
       markReadyForReview(threadId: string) {
-        return hub.withChromePublication(
-          store
-            .markReadyForReview(threadId)
-            .pipe(
-              Effect.tap((thread) =>
-                Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+        return Effect.gen(function* () {
+          const thread = yield* store.requireThread(threadId)
+          // An agent-created thread reports to its parent, which gets the result when the turn ends.
+          if (thread.parentThreadId) return thread
+          return yield* hub.withChromePublication(
+            store
+              .markReadyForReview(threadId)
+              .pipe(
+                Effect.tap((marked) =>
+                  Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread: marked }))
+                )
               )
-            )
-        )
+          )
+        })
       },
       withPublication<A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) {
         return Effect.suspend(() => state(threadId).publication.withPermit(effect))

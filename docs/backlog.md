@@ -100,6 +100,21 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   environments root; home/ (agent session) and artifacts/ stay on the home
   disk; bundle the thread's code at every turn end and idle stop; on a lost
   checkout, restore the bundle and re-run setup (~26s).
+- From the first real container day (28 Sep), Jetty-side, most important first:
+  1. A thread whose image was pruned can't resume ("No such image"). Recreate
+     its container from the current tested image and re-run setup; the code is
+     safe on the home disk.
+  2. Provisioning's git clone/fetch still has the 30s command limit (setup and
+     verify got 15 min); a big repo times out.
+  3. create_thread `ref` only resolves local branches; fall back to
+     `origin/<ref>` (fetching it) when there's no local one.
+  4. "Wake this thread when…": a thread waiting on something outside it (a
+     Copilot review) stalls, because an in-session poll dies with the turn.
+     Needs a tool the agent can leave behind, or host-side watching.
+  5. The ready-for-review relay to the parent carried the child's progress
+     log clipped mid-sentence instead of its final report.
+  6. Let a parent escalate one child to the user (mark_ready_for_review with
+     a threadId); agent-created threads no longer flag the user themselves.
 - Containers, not Jetty's job: building/refreshing images (use the workspace
   startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.
