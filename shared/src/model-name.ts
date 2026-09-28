@@ -14,3 +14,8 @@ export function modelLabelText(model: {
 }): string {
   return model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
 }
+
+// Providers rename a model's context variant (`opus` ↔ `opus[1m]`), stranding saved IDs.
+export function baseModelId(id: string) {
+  return id.replace(/\[1m\]$/i, '').toLowerCase()
+}

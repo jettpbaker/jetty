@@ -1,3 +1,4 @@
+import { baseModelId } from '@jetty/shared/model-name'
 import { EffortLevel, ProviderId, type ProviderModel } from '@jetty/shared/wire'
 import { Schema } from 'effect'
 
@@ -32,7 +33,11 @@ export function findModel(
   catalog: readonly ProviderModel[],
   loadout: { provider: ProviderId; model: string | null }
 ) {
-  return catalog.find((model) => model.provider === loadout.provider && model.id === loadout.model)
+  const base = loadout.model && baseModelId(loadout.model)
+  return (
+    catalog.find((model) => model.provider === loadout.provider && model.id === loadout.model) ??
+    catalog.find((model) => model.provider === loadout.provider && baseModelId(model.id) === base)
+  )
 }
 
 export function fitEffort(model: ProviderModel, effort?: EffortLevel) {

@@ -1,3 +1,4 @@
+import { baseModelId } from '@jetty/shared/model-name'
 import { newId, type ProviderModel } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
@@ -32,6 +33,8 @@ function matchingModels(catalog: readonly ProviderModel[], name: string) {
   const key = modelKey(name)
   const exact = catalog.filter((m) => modelKey(m.id) === key || modelKey(m.name) === key)
   if (exact.length) return exact
+  const variant = catalog.filter((m) => baseModelId(m.id) === baseModelId(name))
+  if (variant.length) return variant
   return catalog.filter((m) =>
     [m.id, m.name].some((label) =>
       label
