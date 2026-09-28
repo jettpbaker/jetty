@@ -5,7 +5,17 @@ import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, type ProviderUsage, type RateLimits } from '@jetty/shared/wire'
-import { Context, Deferred, Effect, FileSystem, Layer, ManagedRuntime, Option, Scope } from 'effect'
+import {
+  Context,
+  Deferred,
+  Effect,
+  FileSystem,
+  Layer,
+  ManagedRuntime,
+  Option,
+  Schedule,
+  Scope,
+} from 'effect'
 import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { ChildProcessSpawner } from 'effect/unstable/process'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
@@ -388,6 +398,14 @@ function createServer(opts: ServerOptions = {}) {
       )
     }
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
+    // Sidebar PR states follow GitHub while a page is open.
+    yield* Effect.gen(function* () {
+      if ((yield* hub.subscriberCount) > 0) yield* pullRequests.refreshChangedLinks()
+    }).pipe(
+      Effect.catchCause((cause) => Effect.logWarning(cause)),
+      Effect.repeat(Schedule.spaced('1 minute')),
+      Effect.forkIn(discoveryScope)
+    )
     function modelCatalog() {
       return Effect.gen(function* () {
         if (models === null) yield* refreshModels()

@@ -941,6 +941,15 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      openPullRequestLinks() {
+        return sql<{ repo: string; number: number; updated_at: string | null }>`SELECT DISTINCT
+          l.repo, l.number, json_extract(p.data_json, '$.pull.updated_at') AS updated_at
+          FROM thread_pull_requests l
+          JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
+          JOIN threads t ON t.id = l.thread_id
+          WHERE t.archived = 0 AND json_extract(p.data_json, '$.pull.state') = 'open'
+          LIMIT 100`.pipe(Effect.mapError(storeError))
+      },
       getThreadProvider(threadId: string) {
         return sql<{
           provider: string | null

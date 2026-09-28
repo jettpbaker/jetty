@@ -798,10 +798,10 @@ export function createPullRequests(store: Store, hub: Hub) {
     return promise
   }
 
-  function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
+  // Saves a fetch and pushes it to the PR view and to every thread linking it (sidebar marks).
+  function publish(ref: PullRequestRef, fetched: PullRequestSnapshot) {
     return Effect.gen(function* () {
-      const fetched = yield* Effect.promise(() => schedule(ref, 'visible'))
-      yield* store.savePullRequest(fetched!)
+      yield* store.savePullRequest(fetched)
       // The stored snapshot keeps the last good data when this read failed.
       const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
       hub.pushPullRequest(snapshot)
@@ -813,6 +813,12 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
+  function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
+    return Effect.promise(() => schedule(ref, 'visible')).pipe(
+      Effect.flatMap((fetched) => publish(ref, fetched!))
+    )
+  }
+
   function prefetch(ref: PullRequestRef) {
     return Effect.gen(function* () {
       const cached = yield* store.getPullRequest(ref.repo, ref.number)
@@ -821,10 +827,31 @@ export function createPullRequests(store: Store, hub: Hub) {
       if (pull?.state === 'closed') return cached
       const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
       if (!fetched) return yield* store.getPullRequest(ref.repo, ref.number)
-      yield* store.savePullRequest(fetched)
-      const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
-      hub.pushPullRequest(snapshot)
-      return snapshot
+      return yield* publish(ref, fetched)
+    })
+  }
+
+  // One GraphQL call reads updatedAt for every open linked PR; only changed ones get a full
+  // refresh, so sidebar states follow GitHub without the ~7 calls a refresh costs per PR.
+  function refreshChangedLinks() {
+    return Effect.gen(function* () {
+      const links = (yield* store.openPullRequestLinks()).filter((link) => validRepo(link.repo))
+      if (!links.length) return
+      const fields = links.map((link, index) => {
+        const [owner, name] = link.repo.split('/')
+        return `p${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${Number(link.number)}) { updatedAt } }`
+      })
+      const response = yield* Effect.tryPromise(() =>
+        ghApi('graphql', '-f', `query=query { ${fields.join(' ')} }`)
+      ).pipe(Effect.orElseSucceed(() => null))
+      const data = record(record(response).data)
+      for (const [index, link] of links.entries()) {
+        const updatedAt = string(record(record(data[`p${index}`]).pullRequest).updatedAt)
+        if (!updatedAt || updatedAt === link.updated_at) continue
+        const ref = { repo: link.repo, number: link.number }
+        const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
+        if (fetched) yield* publish(ref, fetched)
+      }
     })
   }
 
@@ -880,7 +907,15 @@ export function createPullRequests(store: Store, hub: Hub) {
     return promise
   }
 
-  return { get, refresh, prefetch, refreshIfStale, setReviewRequest, reviewerCandidates }
+  return {
+    get,
+    refresh,
+    prefetch,
+    refreshIfStale,
+    refreshChangedLinks,
+    setReviewRequest,
+    reviewerCandidates,
+  }
 }
 
 const listLimit = 100

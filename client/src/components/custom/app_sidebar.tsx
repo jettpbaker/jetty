@@ -82,14 +82,18 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   }))
 }
 
+const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
+
 // Only links GitHub has resolved count; a pending or not-found one mustn't hide the rest.
+// The PR still in flight represents the thread, newest first within a state.
 function latestPullRequest(links: readonly PullRequestLink[]) {
   const resolved = links.filter((link) => link.state)
-  const latest = resolved.reduce<PullRequestLink | undefined>(
-    (best, link) =>
-      !best || (link.updatedAt ?? link.linkedAt) > (best.updatedAt ?? best.linkedAt) ? link : best,
-    undefined
-  )
+  const latest = resolved.reduce<PullRequestLink | undefined>((best, link) => {
+    if (!best) return link
+    const rank = stateRank[link.state!] - stateRank[best.state!]
+    if (rank !== 0) return rank < 0 ? link : best
+    return (link.updatedAt ?? link.linkedAt) > (best.updatedAt ?? best.linkedAt) ? link : best
+  }, undefined)
   return latest?.state
     ? { repo: latest.repo, number: latest.number, state: latest.state, count: resolved.length }
     : undefined

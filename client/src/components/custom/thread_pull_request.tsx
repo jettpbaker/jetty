@@ -18,7 +18,7 @@ export function pullRequestLabel(pullRequest: ThreadPullRequest) {
   return pullRequest.count > 1
     ? {
         text: `${pullRequest.count} PRs`,
-        title: `${pr.label} PR #${pullRequest.number} · most recently updated`,
+        title: `${pr.label} PR #${pullRequest.number} and ${pullRequest.count - 1} more`,
       }
     : { text: `#${pullRequest.number}`, title: `${pr.label} PR #${pullRequest.number}` }
 }
