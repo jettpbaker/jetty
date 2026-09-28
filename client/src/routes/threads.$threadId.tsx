@@ -30,7 +30,11 @@ function Thread() {
   const meta = chrome?.threads.find((item) => item.id === threadId)
   const markSeen = useMarkThreadSeen()
   const readyForReview = useRef(false)
-  readyForReview.current = Boolean(meta?.readyForReview)
+  // Updated in an effect, not during render: switching threads re-renders with the next
+  // thread's flag before the previous thread's cleanup reads it.
+  useEffect(() => {
+    readyForReview.current = Boolean(meta?.readyForReview)
+  }, [meta?.readyForReview])
   useEffect(
     () => () => {
       if (readyForReview.current) markSeen(threadId)
