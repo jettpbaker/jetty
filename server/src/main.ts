@@ -398,12 +398,12 @@ function createServer(opts: ServerOptions = {}) {
       )
     }
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
-    // Sidebar PR states follow GitHub while a page is open.
+    // Linked PR states and checks follow GitHub while a page is open (~240 GraphQL points/h).
     yield* Effect.gen(function* () {
       if ((yield* hub.subscriberCount) > 0) yield* pullRequests.refreshChangedLinks()
     }).pipe(
       Effect.catchCause((cause) => Effect.logWarning(cause)),
-      Effect.repeat(Schedule.spaced('1 minute')),
+      Effect.repeat(Schedule.spaced('15 seconds')),
       Effect.forkIn(discoveryScope)
     )
     function modelCatalog() {

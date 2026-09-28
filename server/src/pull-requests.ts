@@ -831,23 +831,35 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  // One GraphQL call reads updatedAt for every open linked PR; only changed ones get a full
-  // refresh, so sidebar states follow GitHub without the ~7 calls a refresh costs per PR.
+  // Check runs don't bump a PR's updatedAt, so the rollup is compared separately.
+  const lastChecks = new Map<string, string>()
+
+  // One GraphQL call reads updatedAt and the check rollup for every open linked PR; only
+  // changed ones get a full refresh, so states follow GitHub without the ~7 calls each costs.
   function refreshChangedLinks() {
     return Effect.gen(function* () {
       const links = (yield* store.openPullRequestLinks()).filter((link) => validRepo(link.repo))
       if (!links.length) return
       const fields = links.map((link, index) => {
         const [owner, name] = link.repo.split('/')
-        return `p${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${Number(link.number)}) { updatedAt } }`
+        return `p${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${Number(link.number)}) { updatedAt commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`
       })
       const response = yield* Effect.tryPromise(() =>
         ghApi('graphql', '-f', `query=query { ${fields.join(' ')} }`)
       ).pipe(Effect.orElseSucceed(() => null))
       const data = record(record(response).data)
       for (const [index, link] of links.entries()) {
-        const updatedAt = string(record(record(data[`p${index}`]).pullRequest).updatedAt)
-        if (!updatedAt || updatedAt === link.updated_at) continue
+        const pull = record(record(data[`p${index}`]).pullRequest)
+        const updatedAt = string(pull.updatedAt)
+        if (!updatedAt) continue
+        const key = `${link.repo}#${link.number}`
+        const commit = record(
+          record((record(pull.commits).nodes as unknown[] | undefined)?.[0]).commit
+        )
+        const checks = string(record(commit.statusCheckRollup).state)
+        const checksChanged = lastChecks.has(key) && lastChecks.get(key) !== checks
+        lastChecks.set(key, checks)
+        if (updatedAt === link.updated_at && !checksChanged) continue
         const ref = { repo: link.repo, number: link.number }
         const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
         if (fetched) yield* publish(ref, fetched)
