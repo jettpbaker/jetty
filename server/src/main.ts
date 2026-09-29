@@ -430,6 +430,7 @@ function createServer(opts: ServerOptions = {}) {
         agent: registry,
         onPullRequestOutput: pullRequestLinks.linkFound,
         modelCatalog,
+        knownModels: () => models ?? [],
         environments: containers,
       })
     )

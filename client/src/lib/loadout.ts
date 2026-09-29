@@ -55,10 +55,12 @@ export function equipModel<T extends { fast: boolean; effort?: EffortLevel }>(
   }
 }
 
-export function sameLoadout(a: Loadout, b: Loadout) {
-  return (
-    a.provider === b.provider && a.model === b.model && a.effort === b.effort && a.fast === b.fast
-  )
+// Same loadout, counting a pinned model and the alias that currently resolves to it as one.
+export function sameLoadoutIn(catalog: readonly ProviderModel[], a: Loadout, b: Loadout) {
+  if (a.provider !== b.provider || a.effort !== b.effort || a.fast !== b.fast) return false
+  if (a.model === b.model) return true
+  const model = findModel(catalog, a)
+  return model !== undefined && model === findModel(catalog, b)
 }
 
 export function describeLoadout({ effort, fast }: { effort?: EffortLevel; fast: boolean }) {

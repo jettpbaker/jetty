@@ -23,7 +23,7 @@ import {
   equipModel,
   findModel,
   modelKey,
-  sameLoadout,
+  sameLoadoutIn,
   slotLoadout,
   type Loadout,
   type LoadoutSlot,
@@ -34,7 +34,7 @@ import { PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
-import { modelLabelText } from '@jetty/shared/model-name'
+import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
 import { ArrowUpRightIcon, DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react'
 import { useReducedMotion } from 'motion/react'
 
@@ -236,7 +236,7 @@ export function ComposerLoadout({
   onOpenSettings: () => void
 }) {
   const model = value && findModel(catalog, value)
-  const name = model?.name ?? value?.model
+  const name = value && catalogModelName(catalog, value.provider, value.model)
   const efforts = (value && model?.efforts) ?? []
   const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
@@ -244,7 +244,7 @@ export function ComposerLoadout({
     return loadout ? [{ slot, loadout }] : []
   })
   const checked =
-    (value && equipped.find(({ loadout }) => sameLoadout(loadout, value))?.slot.id) ?? ''
+    (value && equipped.find(({ loadout }) => sameLoadoutIn(catalog, loadout, value))?.slot.id) ?? ''
   const models = lockedProvider
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
@@ -366,7 +366,7 @@ export function ComposerLoadout({
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup
-                value={value ? modelKey({ provider: value.provider, id: value.model }) : ''}
+                value={model ? modelKey(model) : ''}
                 onValueChange={(key) => swapModel(String(key))}
               >
                 {models.map((item) => (

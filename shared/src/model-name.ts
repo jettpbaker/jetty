@@ -42,11 +42,23 @@ export function findProviderModel<T extends CatalogModel>(
   )
 }
 
+// claude-sonnet-5 → Sonnet 5, claude-opus-5-5[1m] → Opus 5.5; aliases like `sonnet` stay a family name.
+export function claudeModelLabel(id: string) {
+  const [family = '', ...version] = baseModelId(id)
+    .replace(/^claude-/, '')
+    .split('-')
+  const label = family.charAt(0).toUpperCase() + family.slice(1)
+  const numbers = version.filter((part) => /^\d{1,2}$/.test(part))
+  return numbers.length ? `${label} ${numbers.join('.')}` : label
+}
+
+// A pinned model the CLI no longer lists still reads as a name rather than an ID.
 export function catalogModelName(
   catalog: readonly (CatalogModel & { name: string; contextWindow?: '1m' })[] | undefined,
   provider: string | undefined,
   id: string | undefined
 ) {
   const model = catalog && findProviderModel(catalog, provider, id)
-  return model ? modelLabelText(model) : id
+  if (model) return modelLabelText(model)
+  return provider === 'claude' && id ? claudeModelLabel(id) : id
 }

@@ -3,6 +3,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { awaitsInput } from '@/state/thread_tab'
+import { claudeModelLabel } from '@jetty/shared/model-name'
 
 import type { Subagent } from './subagent_row'
 import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
@@ -271,18 +272,9 @@ function createdThreadId(item: ThreadItem) {
   return resultField(item.output, 'threadId')
 }
 
-// claude-sonnet-5 → Sonnet 5, claude-opus-4-6 → Opus 4.6; aliases like `sonnet` stay a family name.
-function modelLabel(model: string | undefined) {
-  if (!model) return ''
-  const [family = '', ...version] = model.replace(/^claude-/, '').split('-')
-  const label = family.charAt(0).toUpperCase() + family.slice(1)
-  const numbers = version.filter((part) => /^\d{1,2}$/.test(part))
-  return numbers.length ? `${label} ${numbers.join('.')}` : label
-}
-
 // Before the subagent's first reply its model is unknown; its type stands in.
 export function subagentLabel({ model }: { model?: string }) {
-  return modelLabel(model)
+  return model ? claudeModelLabel(model) : ''
 }
 
 export function toSubagent(item: SubagentItem, now: number): Subagent {

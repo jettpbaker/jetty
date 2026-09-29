@@ -3,7 +3,13 @@ import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/ite
 import type { ThreadState } from '@jetty/shared/reducer'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
-import { equipModel, sameLoadout, slotLoadout, type Loadout, type LoadoutSlot } from '@/lib/loadout'
+import {
+  equipModel,
+  sameLoadoutIn,
+  slotLoadout,
+  type Loadout,
+  type LoadoutSlot,
+} from '@/lib/loadout'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
@@ -272,7 +278,7 @@ export function useThreadLoadout(threadId: string | undefined) {
   const catalog = useAtomValue(modelsAtom)
   const thread = useChrome()?.threads.find((item) => item.id === threadId)
   const saved = useMemo(() => savedLoadout(thread, slots, catalog), [catalog, slots, thread])
-  const settled = Boolean(override && saved && sameLoadout(override, saved))
+  const settled = Boolean(override && saved && sameLoadoutIn(catalog, override, saved))
 
   useEffect(() => {
     if (settled) registry.update(loadoutOverridesAtom, (overrides) => without(overrides, [key]))

@@ -81,6 +81,8 @@ type OrchestratorOptions = {
   attachments?: Attachments | null
   onPullRequestOutput?: (threadId: string, text: string) => Effect.Effect<void, StoreError>
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
+  // The last discovered models, read without re-running discovery.
+  knownModels?: () => readonly ProviderModel[]
   environments?: EnvironmentManager
 }
 
@@ -92,6 +94,7 @@ export function createOrchestrator({
   attachments = null,
   onPullRequestOutput,
   modelCatalog,
+  knownModels,
   environments,
 }: OrchestratorOptions) {
   const registry = registryFrom(agent)
@@ -399,9 +402,13 @@ export function createOrchestrator({
                   return yield* Effect.fail(
                     new StoreError('internal', `No model available for ${chosen.provider}`)
                   )
+                const picked = model ?? selected?.id
+                // An alias (`opus[1m]`) moves when a new model ships; the thread keeps the model
+                // it actually ran, so a conversation never switches underneath the user.
+                const alias = findProviderModel(knownModels?.() ?? catalog, chosen.provider, picked)
                 input = {
                   ...input,
-                  model: model ?? selected?.id,
+                  model: alias?.id === picked && alias?.resolvedId ? alias.resolvedId : picked,
                   effort:
                     input.effort ??
                     savedEffort ??
