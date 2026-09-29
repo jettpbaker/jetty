@@ -3,6 +3,7 @@ import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wi
 
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
+import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, type ProviderUsage, type RateLimits } from '@jetty/shared/wire'
 import {
@@ -302,8 +303,7 @@ function createServer(opts: ServerOptions = {}) {
                       return server
                     },
                     supportsAutoMode: (id) =>
-                      models?.find((model) => model.provider === 'claude' && model.id === id)
-                        ?.autoMode !== false,
+                      findProviderModel(models ?? [], 'claude', id)?.autoMode !== false,
                   })
                 ),
                 codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp })),

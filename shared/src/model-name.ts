@@ -19,3 +19,34 @@ export function modelLabelText(model: {
 export function baseModelId(id: string) {
   return id.replace(/\[1m\]$/i, '').toLowerCase()
 }
+
+type CatalogModel = { provider: string; id: string; resolvedId?: string }
+
+// A saved model ID may be an alias (`opus[1m]`), the model it resolves to (`claude-opus-5-5`),
+// or either with the context suffix flipped; the live catalog lists whichever the CLI reports now.
+export function findProviderModel<T extends CatalogModel>(
+  catalog: readonly T[],
+  provider: string | undefined,
+  id: string | null | undefined
+): T | undefined {
+  if (!provider || !id) return undefined
+  const own = catalog.filter((model) => model.provider === provider)
+  const base = baseModelId(id)
+  return (
+    own.find((model) => model.id === id || model.resolvedId === id) ??
+    own.find(
+      (model) =>
+        baseModelId(model.id) === base ||
+        (model.resolvedId !== undefined && baseModelId(model.resolvedId) === base)
+    )
+  )
+}
+
+export function catalogModelName(
+  catalog: readonly (CatalogModel & { name: string; contextWindow?: '1m' })[] | undefined,
+  provider: string | undefined,
+  id: string | undefined
+) {
+  const model = catalog && findProviderModel(catalog, provider, id)
+  return model ? modelLabelText(model) : id
+}

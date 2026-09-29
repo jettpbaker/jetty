@@ -9,6 +9,7 @@ import type {
   UploadAttachment,
 } from '@jetty/shared/wire'
 
+import { findProviderModel } from '@jetty/shared/model-name'
 import { newId } from '@jetty/shared/wire'
 import { Cause, Context, Effect, Layer, Queue, Semaphore } from 'effect'
 
@@ -390,9 +391,7 @@ export function createOrchestrator({
                   modelCatalog && (!model || !(input.effort ?? savedEffort))
                     ? yield* modelCatalog()
                     : []
-                const discovered = catalog.find(
-                  (candidate) => candidate.provider === chosen.provider && candidate.id === model
-                )
+                const discovered = findProviderModel(catalog, chosen.provider, model)
                 const selected = model
                   ? discovered
                   : catalog.find((candidate) => candidate.provider === chosen.provider)

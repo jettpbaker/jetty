@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useNow } from '@/hooks/use-now'
-import { effortLabels, modelKey } from '@/lib/loadout'
+import { effortLabels } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
 import {
@@ -24,7 +24,7 @@ import {
   useRenameThread,
   type Chrome,
 } from '@/state'
-import { modelLabelText } from '@jetty/shared/model-name'
+import { catalogModelName } from '@jetty/shared/model-name'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
 import {
   ArchiveIcon,
@@ -58,7 +58,6 @@ const navigationButtonClass =
 
 function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project]))
-  const models = new Map(chrome.models?.map((model) => [modelKey(model), modelLabelText(model)]))
   const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
   return chrome.threads.map((thread) => ({
     id: thread.id,
@@ -76,7 +75,7 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     provider: thread.provider,
     model:
       thread.provider && thread.model
-        ? (models.get(modelKey({ provider: thread.provider, id: thread.model })) ?? thread.model)
+        ? catalogModelName(chrome.models, thread.provider, thread.model)
         : undefined,
     effort: thread.effort && effortLabels[thread.effort],
   }))

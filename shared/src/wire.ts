@@ -29,6 +29,8 @@ export type ProviderId = Schema.Schema.Type<typeof ProviderId>
 export const ProviderModel = Schema.Struct({
   provider: ProviderId,
   id: Schema.String,
+  // The concrete model an alias ID resolves to (Claude's `opus[1m]` → `claude-opus-5-5[1m]`).
+  resolvedId: Schema.optional(Schema.String),
   name: Schema.String,
   efforts: Schema.Array(EffortLevel),
   defaultEffort: Schema.optional(EffortLevel),

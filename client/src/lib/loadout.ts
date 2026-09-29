@@ -1,4 +1,4 @@
-import { baseModelId } from '@jetty/shared/model-name'
+import { findProviderModel } from '@jetty/shared/model-name'
 import { EffortLevel, ProviderId, type ProviderModel } from '@jetty/shared/wire'
 import { Schema } from 'effect'
 
@@ -33,11 +33,7 @@ export function findModel(
   catalog: readonly ProviderModel[],
   loadout: { provider: ProviderId; model: string | null }
 ) {
-  const base = loadout.model && baseModelId(loadout.model)
-  return (
-    catalog.find((model) => model.provider === loadout.provider && model.id === loadout.model) ??
-    catalog.find((model) => model.provider === loadout.provider && baseModelId(model.id) === base)
-  )
+  return findProviderModel(catalog, loadout.provider, loadout.model)
 }
 
 export function fitEffort(model: ProviderModel, effort?: EffortLevel) {
@@ -93,9 +89,10 @@ export function restoreLoadouts(value: unknown, catalog: readonly ProviderModel[
     if (!isRecord(item)) return slot
     const id = typeof item.id === 'string' ? item.id : slot.id
     if (item.model === null) return emptySlot(id)
-    const model = catalog.find(
-      (entry) => entry.provider === item.provider && entry.id === item.model
-    )
+    const model =
+      typeof item.provider === 'string' && typeof item.model === 'string'
+        ? findProviderModel(catalog, item.provider, item.model)
+        : undefined
     if (!model) {
       if (!isProvider(item.provider) || typeof item.model !== 'string') return { ...slot, id }
       const effort = isEffort(item.effort) ? item.effort : undefined

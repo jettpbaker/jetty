@@ -2,10 +2,10 @@ import type { ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
-import { modelKey } from '@/lib/loadout'
 import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
+import { catalogModelName } from '@jetty/shared/model-name'
 import { ContainerIcon, DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -48,7 +48,6 @@ const statusOrder: ChildStatus[] = ['needs-attention', 'ready', 'working', 'erro
 
 function childThreads(chrome: Chrome | undefined, parentId: string) {
   if (!chrome) return []
-  const models = new Map(chrome.models?.map((model) => [modelKey(model), model.name]))
   return chrome.threads
     .filter((thread) => thread.parentThreadId === parentId)
     .map(
@@ -58,8 +57,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string) {
         provider: thread.provider,
         model:
           thread.provider && thread.model
-            ? (models.get(modelKey({ provider: thread.provider, id: thread.model })) ??
-              thread.model)
+            ? catalogModelName(chrome.models, thread.provider, thread.model)
             : undefined,
         env: thread.environment ?? 'local',
         status: childStatus(threadStatus(thread.status, thread.readyForReview)),

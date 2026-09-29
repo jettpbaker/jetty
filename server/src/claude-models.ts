@@ -47,6 +47,7 @@ export function discoverClaudeModels() {
           {
             provider: 'claude',
             id: model.value,
+            ...(resolved !== model.value ? { resolvedId: resolved } : {}),
             name: claudeModelName(model.value, model.displayName, model.description),
             ...(/\[1m\]$/i.test(model.value) ? { contextWindow: '1m' as const } : {}),
             efforts: model.supportedEffortLevels ?? [],

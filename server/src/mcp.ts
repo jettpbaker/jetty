@@ -1,4 +1,4 @@
-import { baseModelId } from '@jetty/shared/model-name'
+import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
 import { newId, type ProviderModel } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
@@ -31,9 +31,18 @@ function modelOptions(catalog: readonly ProviderModel[]) {
 
 function matchingModels(catalog: readonly ProviderModel[], name: string) {
   const key = modelKey(name)
-  const exact = catalog.filter((m) => modelKey(m.id) === key || modelKey(m.name) === key)
+  const exact = catalog.filter(
+    (m) =>
+      modelKey(m.id) === key ||
+      modelKey(m.name) === key ||
+      (m.resolvedId !== undefined && modelKey(m.resolvedId) === key)
+  )
   if (exact.length) return exact
-  const variant = catalog.filter((m) => baseModelId(m.id) === baseModelId(name))
+  const variant = catalog.filter(
+    (m) =>
+      baseModelId(m.id) === baseModelId(name) ||
+      (m.resolvedId !== undefined && baseModelId(m.resolvedId) === baseModelId(name))
+  )
   if (variant.length) return variant
   return catalog.filter((m) =>
     [m.id, m.name].some((label) =>
@@ -97,11 +106,7 @@ export function createMcpHandler(
     }
 
     function accessLevel(thread: { provider?: string; model?: string }, mode?: string) {
-      if (
-        models()?.some(
-          (m) => m.provider === thread.provider && m.id === thread.model && m.autoMode === false
-        )
-      )
+      if (findProviderModel(models() ?? [], thread.provider, thread.model)?.autoMode === false)
         return 0
       return mode === 'full_access' ? 2 : 1
     }
@@ -142,7 +147,11 @@ export function createMcpHandler(
             )
           const selected = input.model
             ? matches.filter((m) => m.provider === provider)
-            : available.filter((m) => m.id === caller.model && provider === caller.provider)
+            : provider === caller.provider
+              ? [findProviderModel(available, provider, caller.model)].filter(
+                  (m) => m !== undefined
+                )
+              : []
           if (input.model && selected.length !== 1)
             return yield* Effect.fail(
               new StoreError(
@@ -168,8 +177,7 @@ export function createMcpHandler(
           yield* store.setPermissionMode(
             id,
             selected[0]?.autoMode === false ||
-              models()?.find((m) => m.provider === caller.provider && m.id === caller.model)
-                ?.autoMode === false
+              findProviderModel(models() ?? [], caller.provider, caller.model)?.autoMode === false
               ? 'auto'
               : mode
           )
