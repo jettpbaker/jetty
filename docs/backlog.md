@@ -84,6 +84,7 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
   If JETTY_HOME points somewhere else, swap ~/.jetty for it. Report the output
   (and `ls ~/.jetty/environments | wc -l`) back to Jett.
+
 - Containers preview (JETTY_CONTAINERS=1): unproven on Linux/Coder (port proxy,
   resources, spot recovery) and for Claude/Grok inside containers (Claude needs a
   `claude setup-token` token, Grok an XAI_API_KEY).
