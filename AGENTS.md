@@ -101,9 +101,14 @@
   and worktree base are fixed at first send. The Local branch is read-only.
 - Worktrees live under JETTY_HOME/worktrees/<project-id>/<thread-id>; folders stay
   stable when generated titles rename branches. Branch prefix defaults to jetty.
-- `.worktreeinclude` copies matching gitignored source files before optional
+- `.worktreeinclude` copies matching gitignored source files (without one,
+  gitignored `.env*` files outside node_modules) before optional
   `.jetty/worktree.json` setup (`{ "setup": "pnpm install" }`). Setup gets stable
   JETTY_WORKTREE_NAME and a live-worktree JETTY_WORKTREE_SLOT.
+- An optional `"archive"` script in the same file runs in the worktree, with the
+  same variables, before archive or delete removes it, for cleanup outside the
+  folder. It's read from the project checkout, never the worktree the agent can
+  edit. A failing script refuses archive; delete logs it and carries on.
 - Commit work before creating children that build on it. Archive requires a clean
   worktree and removes its folder while keeping its branch; resume recreates it
   and reruns setup. Delete removes the branch only for a linked merged PR.

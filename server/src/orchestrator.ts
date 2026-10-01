@@ -974,30 +974,37 @@ export function createOrchestrator({
           const live = state(threadId)
           // Same lock order as a turn's writes: admission, publication, chrome.
           return live.admission.withPermit(
-            live.publication.withPermit(
-              hub.withChromePublication(
-                Effect.gen(function* () {
-                  yield* flushDelta(threadId)
-                  yield* store.requireThread(threadId)
-                  // A persisted activeTurnId can outlive a crash; only a live turn blocks delete.
-                  if (live.turnId)
-                    return yield* Effect.fail(
-                      new StoreError('conflict', 'Cannot delete a thread while a turn is running')
-                    )
-                  if (worktrees)
-                    yield* Effect.tryPromise({
-                      try: () => worktrees.remove(threadId, true),
-                      catch: (error) => new StoreError('internal', String(error)),
-                    })
-                  const attachmentIds = yield* store.deleteThread(threadId)
-                  if (attachments)
-                    yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {
-                      discard: true,
-                    })
-                  hub.pushChrome({ type: 'thread.removed', threadId })
-                }).pipe(Effect.uninterruptible)
+            Effect.gen(function* () {
+              // Before the publication and chrome locks, which a slow script would hold up.
+              if (worktrees && !live.turnId)
+                yield* Effect.tryPromise(() => worktrees.cleanUp(threadId)).pipe(
+                  Effect.catch((error) => Effect.logWarning(`Archive script failed: ${error}`))
+                )
+              return yield* live.publication.withPermit(
+                hub.withChromePublication(
+                  Effect.gen(function* () {
+                    yield* flushDelta(threadId)
+                    yield* store.requireThread(threadId)
+                    // A persisted activeTurnId can outlive a crash; only a live turn blocks delete.
+                    if (live.turnId)
+                      return yield* Effect.fail(
+                        new StoreError('conflict', 'Cannot delete a thread while a turn is running')
+                      )
+                    if (worktrees)
+                      yield* Effect.tryPromise({
+                        try: () => worktrees.remove(threadId, true),
+                        catch: (error) => new StoreError('internal', String(error)),
+                      })
+                    const attachmentIds = yield* store.deleteThread(threadId)
+                    if (attachments)
+                      yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {
+                        discard: true,
+                      })
+                    hub.pushChrome({ type: 'thread.removed', threadId })
+                  }).pipe(Effect.uninterruptible)
+                )
               )
-            )
+            })
           )
         })
       },

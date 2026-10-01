@@ -89,17 +89,25 @@ function readJson(path: string) {
   )
 }
 
-async function setupCommand(folder: string) {
-  const config = await readJson(join(folder, '.jetty/worktree.json'))
-  if (config === undefined) return
-  if (
-    !config ||
-    typeof config !== 'object' ||
-    ('setup' in config && typeof config.setup !== 'string')
-  )
-    throw new Error('Invalid .jetty/worktree.json')
-  return 'setup' in config && typeof config.setup === 'string' ? config.setup.trim() : undefined
+type WorktreeScript = 'setup' | 'archive'
+
+async function worktreeScripts(root: string) {
+  const config = await readJson(join(root, '.jetty/worktree.json'))
+  if (config === undefined) return {}
+  if (!config || typeof config !== 'object') throw new Error('Invalid .jetty/worktree.json')
+  const fields = config as Partial<Record<WorktreeScript, unknown>>
+  function script(key: WorktreeScript) {
+    const value = fields[key]
+    if (value === undefined) return undefined
+    if (typeof value !== 'string') throw new Error('Invalid .jetty/worktree.json')
+    return value.trim() || undefined
+  }
+  return { setup: script('setup'), archive: script('archive') }
 }
+
+// Without a .worktreeinclude, env files are what a fresh worktree most often lacks.
+const defaultIncludes = ['--exclude=.env*', '--exclude=!**/node_modules/**']
+const dirtyArchive = 'Commit or discard uncommitted changes before archiving this worktree'
 
 export function createWorktrees(
   store: Store,
@@ -243,13 +251,19 @@ export function createWorktrees(
   // Copies gitignored files that match .worktreeinclude, like Claude Code does.
   async function copyIncluded(source: string, target: string) {
     const patterns = join(source, '.worktreeinclude')
-    if (!(await Bun.file(patterns).exists())) return
+    const custom = await Bun.file(patterns).exists()
     const listIgnored = ['ls-files', '--others', '--ignored', '-z']
     const ignored = await git(source, ...listIgnored, '--exclude-standard')
-    const included = await git(source, ...listIgnored, `--exclude-from=${patterns}`)
+    const included = await git(
+      source,
+      ...listIgnored,
+      ...(custom ? [`--exclude-from=${patterns}`] : defaultIncludes)
+    )
     const wanted = new Set(included.split('\0'))
     for (const file of ignored.split('\0')) {
       if (!file || !wanted.has(file)) continue
+      // The default means env files, not everything inside a `.env/` virtualenv.
+      if (!custom && !basename(file).startsWith('.env')) continue
       const from = join(source, file)
       if (!(await lstat(from)).isFile()) continue
       await mkdir(dirname(join(target, file)), { recursive: true })
@@ -266,13 +280,21 @@ export function createWorktrees(
     }
   }
 
-  async function runSetup(
+  function scriptEnv(folder: string, slot: number | null) {
+    return {
+      JETTY_WORKTREE_NAME: basename(folder),
+      ...(slot === null ? {} : { JETTY_WORKTREE_SLOT: String(slot) }),
+    }
+  }
+
+  async function runScript(
+    name: WorktreeScript,
     script: string,
     cwd: string,
     env: Record<string, string>,
     signal?: AbortSignal
   ) {
-    if (closing) throw new Error('Worktree setup interrupted by shutdown')
+    if (closing) throw new Error(`Worktree ${name} interrupted by shutdown`)
     signal?.throwIfAborted()
     await new Promise<void>((resolve, reject) => {
       const child = spawn('sh', ['-lc', script], {
@@ -311,8 +333,8 @@ export function createWorktrees(
             ? undefined
             : new Error(
                 timedOut
-                  ? 'Worktree setup timed out after 15 minutes'
-                  : `Worktree setup failed: ${output.trim() || `exit ${code}`}`
+                  ? `Worktree ${name} timed out after 15 minutes`
+                  : `Worktree ${name} failed: ${output.trim() || `exit ${code}`}`
               )
         )
       )
@@ -371,14 +393,8 @@ export function createWorktrees(
       if (!(await isFolder(working)))
         throw new Error(`${basename(project.path)} isn't in this worktree's base commit`)
       await copyIncluded(await git(project.path, 'rev-parse', '--show-toplevel'), folder)
-      const setup = await setupCommand(folder)
-      if (setup)
-        await runSetup(
-          setup,
-          folder,
-          { JETTY_WORKTREE_NAME: basename(folder), JETTY_WORKTREE_SLOT: String(record.slot) },
-          signal
-        )
+      const { setup } = await worktreeScripts(folder)
+      if (setup) await runScript('setup', setup, folder, scriptEnv(folder, record.slot), signal)
       record.state = 'ready'
       await save(threadId, record)
     }
@@ -416,20 +432,35 @@ export function createWorktrees(
     return (await exists(folder)) ? changes(folder) : 0
   }
 
+  // Runs the archive script in the thread's worktree, if there is one to clean up after.
+  async function cleanUp(threadId: string) {
+    const { thread, project } = await locate(threadId)
+    const folder = folderOf(project.id, threadId)
+    if (thread.environment !== 'worktree' || !(await exists(folder))) return
+    // From the project checkout, not the worktree: the agent can edit the worktree's copy.
+    const { archive } = await worktreeScripts(
+      await git(project.path, 'rev-parse', '--show-toplevel')
+    )
+    if (!archive) return
+    const record = await run(store.getWorktree(threadId))
+    await runScript('archive', archive, folder, scriptEnv(folder, record?.slot ?? null))
+  }
+
   async function remove(threadId: string, deleting = false) {
     const { thread, project } = await locate(threadId)
     if (thread.environment !== 'worktree') return
     if (preparations.has(threadId)) throw new StoreError('conflict', 'Worktree setup is running')
     const folder = folderOf(project.id, threadId)
+    if (!deleting) {
+      if ((await exists(folder)) && (await changes(folder)))
+        throw new StoreError('conflict', dirtyArchive)
+      await cleanUp(threadId)
+    }
     await serialized(project.path, async () => {
       const record = await run(store.getWorktree(threadId))
       if (!record) return
       if (await exists(folder)) {
-        if (!deleting && (await changes(folder)))
-          throw new StoreError(
-            'conflict',
-            'Commit or discard uncommitted changes before archiving this worktree'
-          )
+        if (!deleting && (await changes(folder))) throw new StoreError('conflict', dirtyArchive)
         await git(
           project.path,
           'worktree',
@@ -521,6 +552,7 @@ export function createWorktrees(
     root,
     prepare,
     dirty,
+    cleanUp,
     remove,
     rename,
     refresh,
