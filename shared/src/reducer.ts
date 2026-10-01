@@ -98,7 +98,10 @@ function deriveStatus(state: ThreadState): ThreadState {
         (item.kind === 'question' && item.delivery === 'async' && !item.answers && !item.dismissed)
     )
       ? 'awaiting_approval'
-      : state.items.some((item) => item.kind === 'workflow' && item.status === 'running')
+      : state.items.some(
+            (item) =>
+              (item.kind === 'workflow' || item.kind === 'subagent') && item.status === 'running'
+          )
         ? 'running'
         : state.lastTurnOutcome === 'failed' || state.lastTurnOutcome === 'server_restarted'
           ? 'error'

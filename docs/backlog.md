@@ -128,10 +128,13 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   Fix options: keep each thread's state in memory and persist it debounced
   (events stay the durable log), coalesce streamed deltas (~50ms) before
   appending, and skip schema-decoding our own stored state on the hot path.
-- A thread whose subagents are still running reads idle in the sidebar: its
-  status follows the main turn, which ends while background subagents keep
-  working (e.g. three Opus explorers mid-run). The thread should read working
-  while any subagent item is running.
+- Grok threads read idle while background subagents run: Grok emits no
+  `subagent` items (its `spawn_subagent` call shows as a tool row that settles
+  at once with "Subagent started in background"), so the reducer's "running
+  subagent keeps the thread working" rule has nothing to see. Fix: translate
+  `subagent_spawned`/`subagent_finished` (those without `workflow_run_id`) into
+  subagent items keyed by `subagent_id`. Open question: their tabs would have
+  no transcript.
 - Containers, not Jetty's job: building/refreshing images (use the workspace
   startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.

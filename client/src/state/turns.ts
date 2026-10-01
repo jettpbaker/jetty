@@ -342,7 +342,8 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   const optimistic = turns.has(threadId)
   const promptCount = prompts.get(threadId)?.length ?? 0
   const status = thread?.status
-  // A running workflow keeps the thread running between turns; only a turn makes the composer queue.
+  // Running workflows and subagents keep the thread running between turns; only a turn makes the
+  // composer queue.
   const live =
     (status === 'running' && Boolean(thread?.activeTurnId)) ||
     status === 'starting' ||
