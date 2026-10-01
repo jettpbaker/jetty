@@ -254,7 +254,6 @@ export const methods = {
   'project.branches': {
     params: Schema.Struct({
       projectId: Schema.String,
-      query: Schema.optional(Schema.String),
       localOnly: Schema.optional(Schema.Boolean),
     }),
     result: Schema.Struct({

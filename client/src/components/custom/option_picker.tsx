@@ -13,7 +13,13 @@ import { useRef, useState, type ReactNode } from 'react'
 
 import './option_picker.css'
 
-export type PickerOption = { value: string; label: string; icon?: ReactNode; pinned?: boolean }
+export type PickerOption = {
+  value: string
+  label: string
+  icon?: ReactNode
+  pinned?: boolean
+  searchOnly?: boolean
+}
 export type PickerAction = { label: string; icon: ReactNode; onSelect?: () => void }
 
 export function OptionPicker({
@@ -28,7 +34,7 @@ export function OptionPicker({
   actions,
   disabled = false,
   emptyLabel = 'Select',
-  onSearch,
+  onOpen,
   labelPrefix,
   'aria-describedby': describedBy,
 }: {
@@ -42,7 +48,7 @@ export function OptionPicker({
   align?: 'start' | 'end'
   actions?: readonly PickerAction[]
   disabled?: boolean
-  onSearch?: (query: string) => void
+  onOpen?: () => void
   labelPrefix?: string
   emptyLabel?: string
   'aria-describedby'?: string
@@ -54,7 +60,9 @@ export function OptionPicker({
   const actionChosen = useRef(false)
   const search = query.trim().toLowerCase()
   const results = options.filter(
-    (option) => option.pinned || option.label.toLowerCase().includes(search)
+    (option) =>
+      option.pinned ||
+      ((search || !option.searchOnly) && option.label.toLowerCase().includes(search))
   )
   const selected = options.find((option) => option.value === value)
 
@@ -70,7 +78,7 @@ export function OptionPicker({
         setOpen(next)
         if (next) {
           setQuery('')
-          onSearch?.('')
+          onOpen?.()
           actionChosen.current = false
         }
       }}
@@ -115,10 +123,7 @@ export function OptionPicker({
             placeholder={placeholder}
             aria-label={placeholder}
             value={query}
-            onValueChange={(next) => {
-              setQuery(next)
-              onSearch?.(next)
-            }}
+            onValueChange={setQuery}
           />
           <Separator />
           <CommandList>

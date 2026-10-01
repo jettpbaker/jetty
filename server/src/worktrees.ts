@@ -139,23 +139,19 @@ export function createWorktrees(
     )
   }
 
-  function branches(cwd: string, query = '', localOnly = false) {
+  function branches(cwd: string, localOnly = false) {
     return serialized(cwd, async () => {
       const currentBranch = await git(cwd, 'branch', '--show-current')
       const base = localOnly ? currentBranch : await defaultRef(cwd)
-      if (!localOnly) await resolveRef(cwd, base)
-      const searching = !localOnly && query.trim() !== ''
-      if (searching) await git(cwd, 'fetch', 'origin', '--prune')
-      const sorted = ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)']
+      if (!localOnly) await git(cwd, 'fetch', 'origin', '--prune')
+      const sorted = ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)']
       const local = await git(cwd, ...sorted, 'refs/heads')
-      const remote = searching ? await git(cwd, ...sorted, 'refs/remotes/origin') : ''
-      const needle = query.toLowerCase()
+      const remote = localOnly ? '' : await git(cwd, ...sorted, 'refs/remotes/origin')
       return {
         defaultRef: base,
         currentBranch,
         branches: [...new Set([base, ...local.split('\n'), ...remote.split('\n')])].filter(
-          (ref) =>
-            ref && ref !== 'origin/HEAD' && (ref === base || ref.toLowerCase().includes(needle))
+          (ref) => ref && ref !== 'origin/HEAD'
         ),
       }
     })

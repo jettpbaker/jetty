@@ -36,12 +36,12 @@ export function ComposerFooter({
   const fetchBranches = useBranches()
   const request = useRef(0)
   const [branchList, setBranchList] = useState<ResultOf<'project.branches'>>()
-  // Only the newest request may land; a stale list would show the wrong project or search.
+  // Only the newest request may land; a stale list would show the wrong project.
   const load = useCallback(
-    (query: string, onLoaded?: (result: ResultOf<'project.branches'>) => void) => {
+    (onLoaded?: (result: ResultOf<'project.branches'>) => void) => {
       if (!projectId) return
       const revision = ++request.current
-      fetchBranches(projectId, query, environment === 'local', (result) => {
+      fetchBranches(projectId, environment === 'local', (result) => {
         if (revision !== request.current) return
         setBranchList(result)
         onLoaded?.(result)
@@ -51,7 +51,7 @@ export function ComposerFooter({
   )
   useEffect(() => {
     setBranchList(undefined)
-    load('', (result) => onStartingRefChange(result.defaultRef))
+    load((result) => onStartingRefChange(result.defaultRef))
   }, [load, onStartingRefChange])
 
   return (
@@ -83,7 +83,7 @@ export function ComposerFooter({
           branch={environment === 'worktree' ? startingRef : branchList?.currentBranch}
           refs={branchList?.branches}
           onChange={environment === 'worktree' ? onStartingRefChange : undefined}
-          onSearch={load}
+          onOpen={() => load()}
         />
       </div>
       <ProjectFolderDialog

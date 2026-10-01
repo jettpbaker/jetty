@@ -7,12 +7,12 @@ export function ComposerBranch({
   branch,
   refs = [],
   onChange,
-  onSearch,
+  onOpen,
 }: {
   branch?: string
   refs?: readonly string[]
   onChange?: (ref: string) => void
-  onSearch?: (query: string) => void
+  onOpen?: () => void
 }) {
   if (!onChange)
     return (
@@ -34,9 +34,10 @@ export function ComposerBranch({
         value: ref,
         label: ref,
         pinned: ref === refs[0],
+        searchOnly: ref.startsWith('origin/'),
       }))}
       onValueChange={onChange}
-      onSearch={onSearch}
+      onOpen={onOpen}
     />
   )
 }

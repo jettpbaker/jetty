@@ -1,32 +1,36 @@
 import { Button } from '@/components/ui/button'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { pressProps } from '@/lib/press'
 import { useChrome } from '@/state'
 import { useSetBranchPrefix } from '@/state/worktrees'
-import { useState } from 'react'
+import { useId, useState } from 'react'
+
+import './settings_sections.css'
 
 export function SettingsWorktrees() {
   const prefix = useChrome()?.branchPrefix ?? 'jetty'
   const [draft, setDraft] = useState<string>()
   const save = useSetBranchPrefix()
+  const id = useId()
   return (
-    <FieldGroup>
-      <Field>
-        <FieldLabel htmlFor='branch-prefix'>Branch prefix</FieldLabel>
+    <div className='appearance-option-row'>
+      <label htmlFor={id}>Branch prefix</label>
+      <div className='flex items-center gap-2'>
         <Input
-          id='branch-prefix'
+          id={id}
+          className='h-7 w-40'
           value={draft ?? prefix}
           onChange={(event) => setDraft(event.target.value)}
         />
         <Button
           variant='outline'
+          size='sm'
           disabled={draft === undefined || draft === prefix}
           {...pressProps(() => save(draft ?? prefix, () => setDraft(undefined)))}
         >
           Save
         </Button>
-      </Field>
-    </FieldGroup>
+      </div>
+    </div>
   )
 }

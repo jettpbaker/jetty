@@ -9,12 +9,11 @@ import { run, useAction } from './connection'
 function branches(
   registry: AtomRegistry.AtomRegistry,
   projectId: string,
-  query: string,
   localOnly: boolean,
   done: (result: ResultOf<'project.branches'>) => void
 ) {
   return run(registry, (connection) =>
-    connection.request('project.branches', { projectId, query, localOnly }).pipe(
+    connection.request('project.branches', { projectId, localOnly }).pipe(
       Effect.tap((result) => Effect.sync(() => done(result))),
       Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
     )

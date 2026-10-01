@@ -158,10 +158,10 @@ export function createRpcHandlers(
             Effect.as(null)
           )
         ),
-      'project.branches': ({ projectId, query, localOnly }) =>
+      'project.branches': ({ projectId, localOnly }) =>
         requireProject(projectId).pipe(
           Effect.flatMap((project) =>
-            fromPromise(() => worktrees.branches(project.path, query, localOnly))
+            fromPromise(() => worktrees.branches(project.path, localOnly))
           ),
           Effect.mapError(wireError)
         ),
@@ -176,7 +176,7 @@ export function createRpcHandlers(
             threadId,
             fromPromise((signal) => worktrees.prepare(threadId, signal)).pipe(
               Effect.interruptible,
-              Effect.andThen(store.setQueuePaused(threadId, false))
+              Effect.andThen(orch.setQueuePaused(threadId, false))
             )
           )
           .pipe(Effect.as(null), Effect.mapError(wireError)),

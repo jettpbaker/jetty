@@ -688,6 +688,7 @@ export function createOrchestrator({
         return Effect.suspend(() => state(threadId).publication.withPermit(effect))
       },
       startTurnEffect,
+      setQueuePaused,
       currentTurn(threadId: string) {
         return state(threadId).turnId
       },
