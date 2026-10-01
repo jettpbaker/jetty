@@ -29,6 +29,7 @@ import { useNow } from '@/hooks/use-now'
 import { effortLabels } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { formatAge, formatElapsed } from '@/lib/time'
+import { storage } from '@/platform'
 import {
   useArchiveThread,
   useBumpDraft,
@@ -58,6 +59,23 @@ import {
 import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
 import { StatusGlyph, threadStatus } from './thread_status'
+
+const viewKey = 'jetty.sidebar.view'
+
+type SidebarView = { grouping: ThreadGrouping; showPinned: boolean; showArchived: boolean }
+
+function storedView(): SidebarView {
+  let saved: Record<string, unknown> = {}
+  try {
+    const parsed: unknown = JSON.parse(storage.get(viewKey) ?? '{}')
+    if (parsed && typeof parsed === 'object') saved = { ...parsed }
+  } catch {}
+  return {
+    grouping: saved.grouping === 'project' || saved.grouping === 'status' ? saved.grouping : 'date',
+    showPinned: saved.showPinned !== false,
+    showArchived: saved.showArchived === true,
+  }
+}
 
 const MotionSidebarContent = motion.create(SidebarContent)
 const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0 }
@@ -126,9 +144,13 @@ export function AppSidebar() {
   const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
   const checkChanges = useWorktreeChanges()
   const [query, setQuery] = useState('')
-  const [grouping, setGrouping] = useState<ThreadGrouping>('date')
-  const [showPinned, setShowPinned] = useState(true)
-  const [showArchived, setShowArchived] = useState(false)
+  const [view, setView] = useState(storedView)
+  const { grouping, showPinned, showArchived } = view
+  function changeView(patch: Partial<SidebarView>) {
+    const next = { ...view, ...patch }
+    setView(next)
+    storage.set(viewKey, JSON.stringify(next))
+  }
   const prefetch = useThreadRowPrefetch()
   const openPullRequest = useOpenPullRequest()
 
@@ -281,11 +303,11 @@ export function AppSidebar() {
           query={query}
           onQueryChange={setQuery}
           grouping={grouping}
-          onGroupingChange={setGrouping}
+          onGroupingChange={(next) => changeView({ grouping: next })}
           showPinned={showPinned}
-          onShowPinnedChange={setShowPinned}
+          onShowPinnedChange={(next) => changeView({ showPinned: next })}
           showArchived={showArchived}
-          onShowArchivedChange={setShowArchived}
+          onShowArchivedChange={(next) => changeView({ showArchived: next })}
         />
       </div>
       <ThreadHoverGroup>
