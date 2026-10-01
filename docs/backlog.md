@@ -115,6 +115,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
      log clipped mid-sentence instead of its final report.
   6. Let a parent escalate one child to the user (mark_ready_for_review with
      a threadId); agent-created threads no longer flag the user themselves.
+- A thread whose subagents are still running reads idle in the sidebar: its
+  status follows the main turn, which ends while background subagents keep
+  working (e.g. three Opus explorers mid-run). The thread should read working
+  while any subagent item is running.
 - Maybe an `archive_thread` Jetty MCP tool, so an agent can archive the
   threads it created once they're done (e.g. warm-up or finished child threads)
   instead of asking the user to do it in the UI. Likely scoped to threads the
