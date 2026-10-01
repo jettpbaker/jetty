@@ -170,7 +170,7 @@ function Workspace({
             aria-label='Thread workspace'
             className='mx-2 mb-2 mt-0 min-h-0 min-w-0 overflow-hidden rounded-none bg-sidebar shadow-none md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:mt-0 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2'
           >
-            <div className='relative flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] bg-background'>
+            <div className='relative flex h-full min-h-0 flex-col overflow-clip rounded-[12px] bg-background'>
               <div
                 className='new-thread-backdrop-shell'
                 data-visible={onNewThreadPage || undefined}
