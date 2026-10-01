@@ -39,6 +39,7 @@ import {
   type Ref,
 } from 'react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { LinkPullRequestDialog } from './pull_request_link'
 import { linkPresentation } from './thread_pull_request'
 
@@ -102,6 +103,7 @@ export function ThreadDetailsTabs({
   file,
   value,
   onValueChange,
+  changesDisabled,
 }: {
   ref?: Ref<DetailsTabsHandle>
   chat?: boolean
@@ -111,6 +113,7 @@ export function ThreadDetailsTabs({
   file?: { path: string; onClose: () => void }
   value: string
   onValueChange: (value: string) => void
+  changesDisabled?: string
 }) {
   const [{ order, closed }, setState] = useState(loadState)
   const [announcement, setAnnouncement] = useState('')
@@ -225,6 +228,7 @@ export function ThreadDetailsTabs({
             id={id}
             index={index}
             count={id === 'threads' ? threadCount : undefined}
+            disabledReason={id === 'changes' ? changesDisabled : undefined}
             canClose={canClose}
             onMove={reorder}
             onClose={closeTab}
@@ -328,6 +332,7 @@ function SortableTab({
   id,
   index,
   count,
+  disabledReason,
   canClose,
   onMove,
   onClose,
@@ -335,6 +340,7 @@ function SortableTab({
   id: TabId
   index: number
   count?: number
+  disabledReason?: string
   canClose: boolean
   onMove: (from: number, to: number) => void
   onClose: (id: TabId) => void
@@ -346,22 +352,26 @@ function SortableTab({
     transition: reducedMotion ? null : { duration: 150, easing: 'ease-out' },
   })
   return (
-    <TabsTrigger
-      ref={ref}
-      value={id}
-      className='details-header-tab h-auto touch-none rounded-sm px-1 py-1 text-xs'
-      title='Drag to reorder · Option+Shift+←/→'
-      aria-keyshortcuts='Alt+Shift+ArrowLeft Alt+Shift+ArrowRight'
-      onKeyDown={(event) => {
-        if (!event.altKey || !event.shiftKey || !['ArrowLeft', 'ArrowRight'].includes(event.key))
-          return
-        event.preventDefault()
-        event.stopPropagation()
-        onMove(index, index + (event.key === 'ArrowLeft' ? -1 : 1))
-      }}
-    >
-      <StaticTabLabel id={id} count={count} canClose={canClose} onClose={onClose} />
-    </TabsTrigger>
+    <DisabledTooltip reason={disabledReason} wrap='inline-flex'>
+      <TabsTrigger
+        ref={ref}
+        value={id}
+        disabled={Boolean(disabledReason)}
+        // dnd-kit overwrites aria-disabled on sortables, so the disabled style keys off data-disabled.
+        className='details-header-tab h-auto touch-none rounded-sm px-1 py-1 text-xs data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground'
+        title='Drag to reorder · Option+Shift+←/→'
+        aria-keyshortcuts='Alt+Shift+ArrowLeft Alt+Shift+ArrowRight'
+        onKeyDown={(event) => {
+          if (!event.altKey || !event.shiftKey || !['ArrowLeft', 'ArrowRight'].includes(event.key))
+            return
+          event.preventDefault()
+          event.stopPropagation()
+          onMove(index, index + (event.key === 'ArrowLeft' ? -1 : 1))
+        }}
+      >
+        <StaticTabLabel id={id} count={count} canClose={canClose} onClose={onClose} />
+      </TabsTrigger>
+    </DisabledTooltip>
   )
 }
 

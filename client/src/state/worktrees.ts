@@ -3,6 +3,7 @@ import type { ResultOf } from '@jetty/shared/wire'
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { run, useAction } from './connection'
@@ -50,6 +51,16 @@ export const useBranches = () => useAction(branches)
 export function useBranchList(projectId: string | undefined, localOnly: boolean) {
   const lists = useAtomValue(branchListsAtom)
   return projectId === undefined ? undefined : lists.get(listKey(projectId, localOnly))
+}
+
+// Loads a project's git state once if nothing has asked for it yet.
+export function useProjectGit(projectId: string | undefined) {
+  const list = useBranchList(projectId, true)
+  const fetchBranches = useBranches()
+  useEffect(() => {
+    if (projectId && !list) fetchBranches(projectId, true)
+  }, [projectId, list, fetchBranches])
+  return list?.git
 }
 
 function setPrefix(registry: AtomRegistry.AtomRegistry, prefix: string, done: () => void) {

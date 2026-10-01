@@ -8,10 +8,12 @@ import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
 import {
   pullRequestTabId,
+  useChrome,
   useDetailsRequest,
   usePullRequestTabs,
   useThreadPullRequests,
 } from '@/state'
+import { useProjectGit } from '@/state/worktrees'
 import {
   Activity,
   useCallback,
@@ -64,7 +66,17 @@ export function ThreadDetailsLayout({
   const [available, setAvailable] = useState(0)
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
-  const [tab, setTab] = useState('changes')
+  const [pickedTab, setTab] = useState('changes')
+  const projectId = useChrome()?.threads.find((thread) => thread.id === threadId)?.projectId
+  const git = useProjectGit(projectId)
+  const changesDisabled =
+    git === 'not-git'
+      ? 'Not a git repository'
+      : git === 'missing'
+        ? 'Project folder not found'
+        : undefined
+  // Changes needs git, so those projects open on Overview.
+  const tab = changesDisabled && pickedTab === 'changes' ? 'overview' : pickedTab
   const tabs = useRef<DetailsTabsHandle>(null)
   // A file link goes to Changes first, and on to its own tab if it isn't a changed file.
   const [fileRequest, setFileRequest] = useState<ThreadFileTarget>()
@@ -101,16 +113,21 @@ export function ThreadDetailsLayout({
     (target: FileTarget) => {
       const path = projectPath && projectRelativePath(target.path, projectPath)
       if (!path) return false
-      setFileRequest({ threadId, target: { ...target, path } })
-      tabs.current?.show('changes')
+      if (changesDisabled) {
+        setFileView({ threadId, target: { ...target, path } })
+        setTab('file')
+      } else {
+        setFileRequest({ threadId, target: { ...target, path } })
+        tabs.current?.show('changes')
+      }
       if (!open) {
-        openingTab.current = 'changes'
+        openingTab.current = changesDisabled ? 'file' : 'changes'
         if (root.current) setAvailable(root.current.clientWidth)
         setOpen(true)
       }
       return true
     },
-    [projectPath, threadId, open]
+    [projectPath, threadId, open, changesDisabled]
   )
 
   const settleFile = useCallback(
@@ -247,6 +264,7 @@ export function ThreadDetailsLayout({
               file={viewedFile && { path: viewedFile.path, onClose: () => setFileView(undefined) }}
               value={tab}
               onValueChange={setTab}
+              changesDisabled={changesDisabled}
             />
           </div>
           {!narrow && (
@@ -368,6 +386,7 @@ export function ThreadDetailsLayout({
       requestedFile,
       viewedFile,
       settleFile,
+      changesDisabled,
     ]
   )
 
