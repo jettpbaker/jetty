@@ -81,12 +81,17 @@ describe('send_video', () => {
     ).handler({ path: 'clip.mp4', caption: '  verification take  ' }, {})
 
     expect(result.isError).toBeFalsy()
-    expect(result.content).toEqual([{ type: 'text', text: 'Sent video to the chat: clip.mp4' }])
     expect(events).toHaveLength(2)
     const started = events[0]
     if (!started || started.type !== 'item.started' || started.item.kind !== 'video') {
       throw new Error('expected video item.started')
     }
+    expect(result.content).toEqual([
+      {
+        type: 'text',
+        text: `Sent video to the chat: clip.mp4 (attachment id ${started.item.video.id})`,
+      },
+    ])
     expect(started.item.caption).toBe('verification take')
     expect(started.item.video.name).toBe('clip.mp4')
     expect(started.item.video.mimeType).toBe('video/mp4')

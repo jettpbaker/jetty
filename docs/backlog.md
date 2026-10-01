@@ -116,8 +116,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   4. "Wake this thread when…": a thread waiting on something outside it (a
      Copilot review) stalls, because an in-session poll dies with the turn.
      Needs a tool the agent can leave behind, or host-side watching.
-  5. The ready-for-review relay to the parent carried the child's progress
-     log clipped mid-sentence instead of its final report.
 - Long threads, after the streaming fix: opening one still sends its whole
   state, and the background save rewrites the whole JSON (~30ms every 2s at
   10MB while streaming). Next step: page snapshots by turns (t3code: last 10

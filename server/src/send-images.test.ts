@@ -81,14 +81,18 @@ describe('send_images', () => {
     ).handler({ paths: ['shot-a.png', 'shot-b.png'], caption: '  verification shots  ' }, {})
 
     expect(result.isError).toBeFalsy()
-    expect(result.content).toEqual([
-      { type: 'text', text: 'Sent 2 images to the chat: shot-a.png, shot-b.png' },
-    ])
     expect(events).toHaveLength(2)
     const started = events[0]
     if (!started || started.type !== 'item.started' || started.item.kind !== 'image_gallery') {
       throw new Error('expected image_gallery item.started')
     }
+    const [a, b] = started.item.images
+    expect(result.content).toEqual([
+      {
+        type: 'text',
+        text: `Sent 2 images to the chat: shot-a.png (attachment id ${a!.id}), shot-b.png (attachment id ${b!.id})`,
+      },
+    ])
     expect(started.item.caption).toBe('verification shots')
     expect(started.item.images).toHaveLength(2)
     for (const img of started.item.images) {
@@ -113,7 +117,7 @@ describe('send_images', () => {
     expect(result.isError).toBeFalsy()
     expect(result.content[0]).toMatchObject({
       type: 'text',
-      text: 'Sent 1 image to the chat: shot-a.png',
+      text: expect.stringMatching(/^Sent 1 image to the chat: shot-a\.png \(attachment id \S+\)$/),
     })
     expect(events[0]).toMatchObject({
       type: 'item.started',

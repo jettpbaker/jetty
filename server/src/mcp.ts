@@ -406,7 +406,7 @@ export function createMcpHandler(
         'create_thread',
         {
           description:
-            'Delegate work to an independent Jetty agent in this project. The new thread works on its prompt in parallel; its result returns automatically as a ready for review message (notify defaults true). Choose provider/model/effort from list_models; model accepts an ID, display name, or unique short name. Reuse requestId to retry safely.',
+            'Delegate work to an independent Jetty agent in this project. The new thread works on its prompt in parallel and reports back to you with send_message when it finishes or needs a decision; Jetty messages you automatically only if one of its turns fails. notify=false (default true) makes it fire-and-forget: no report expected and no failure message. Choose provider/model/effort from list_models; model accepts an ID, display name, or unique short name. Reuse requestId to retry safely.',
           inputSchema: containers ? createInput : createInputBase,
         },
         (input) => invoke(createThread(identity, input))
@@ -424,7 +424,7 @@ export function createMcpHandler(
         'mark_ready_for_review',
         {
           description:
-            "Mark this thread ready for the user to review. Call when you hand completed work back to the user or need their decision, not for trivial replies. Optionally include a short summary. In a thread another agent created, the user isn't flagged: that agent gets your result when your turn ends.",
+            "Mark this thread ready for the user to review. Call when you hand completed work back to the user or need their decision, not for trivial replies. Optionally include a short summary. In a thread another agent created, the user isn't flagged: report to that thread (reportsTo) with send_message instead.",
           inputSchema: { summary: z.string().trim().min(1).max(240).optional() },
         },
         (input) =>

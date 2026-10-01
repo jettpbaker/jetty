@@ -418,6 +418,14 @@ export function createStore() {
       })
     }
 
+    function notifiesParent(threadId: string) {
+      return sql<{
+        notify_parent: number
+      }>`SELECT notify_parent FROM threads WHERE id = ${threadId}`.pipe(
+        Effect.map(([row]) => row?.notify_parent === 1)
+      )
+    }
+
     function append(threadId: string, event: ThreadEvent, notifyParent = true) {
       return Effect.gen(function* () {
         const [threadRow] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
@@ -450,15 +458,8 @@ export function createStore() {
             yield* sql`INSERT OR IGNORE INTO attachment_refs (thread_id, attachment_id, metadata_json)
               VALUES (${threadId}, ${attachment.id}, ${JSON.stringify(attachment)})`
         }
-        if (
-          notifyParent &&
-          (event.type === 'turn.completed' || event.type === 'turn.failed') &&
-          !prev.turnOutcomes[event.turnId]
-        ) {
+        if (notifyParent && event.type === 'turn.failed' && !prev.turnOutcomes[event.turnId]) {
           yield* Effect.gen(function* () {
-            const [settings] = yield* sql<{
-              notify_parent: number
-            }>`SELECT notify_parent FROM threads WHERE id = ${threadId}`
             const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
             const [turn] = yield* sql<{
               hop: number
@@ -466,42 +467,23 @@ export function createStore() {
             }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
             const hop = (turn?.hop ?? 0) + 1
             if (
-              settings?.notify_parent &&
-              parent &&
-              !parent.archived &&
-              turn?.initiator_thread_id === parent.id
-            ) {
-              const reply = state.items
-                .filter((item) => item.turnId === event.turnId && item.kind === 'assistant_message')
-                .map((item) => ('text' in item ? item.text : ''))
-                .join('\n')
-              if (hop > 20) {
-                yield* Effect.logWarning(
-                  `Completion notification from ${threadId} dropped: message hop limit exceeded`
-                )
-              } else {
-                const media = state.items.flatMap((item) =>
-                  item.turnId !== event.turnId
-                    ? []
-                    : item.kind === 'image_gallery'
-                      ? item.images.map((image) => ({
-                          kind: 'image',
-                          ...image,
-                          caption: item.caption,
-                        }))
-                      : item.kind === 'video'
-                        ? [{ kind: 'video', ...item.video, caption: item.caption }]
-                        : []
-                )
-                yield* enqueue(parent.id, {
-                  id: newId(),
-                  createdAt: ts,
-                  hop,
-                  from: { threadId, title: thread.title },
-                  text: `Thread ${thread.title} ${event.type === 'turn.failed' ? 'failed' : 'is ready for review'}: ${(event.type === 'turn.failed' ? event.error : reply).slice(0, 2000)}${media.length ? '\nMedia available to re-post with send_images/send_video by attachment id:\n' + media.map((a) => JSON.stringify({ attachmentId: a.id, kind: a.kind, name: a.name, caption: a.caption })).join('\n') : ''}`,
-                })
-              }
-            }
+              !(yield* notifiesParent(threadId)) ||
+              !parent ||
+              parent.archived ||
+              turn?.initiator_thread_id !== parent.id
+            )
+              return
+            if (hop > 20)
+              return yield* Effect.logWarning(
+                `Failure notification from ${threadId} dropped: message hop limit exceeded`
+              )
+            yield* enqueue(parent.id, {
+              id: newId(),
+              createdAt: ts,
+              hop,
+              from: { threadId, title: thread.title },
+              text: `Thread ${thread.title} failed: ${event.error}`,
+            })
           }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         }
         const turnStartedAt =
@@ -947,6 +929,9 @@ export function createStore() {
       },
       getThread,
       requireThread,
+      notifiesParent(threadId: string) {
+        return notifiesParent(threadId).pipe(Effect.mapError(storeError))
+      },
       listThreads() {
         return Effect.gen(function* () {
           const rows = yield* sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`

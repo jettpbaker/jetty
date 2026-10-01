@@ -42,7 +42,7 @@ export function createSendImagesTool(host: MediaToolHost) {
             caption: args.caption,
             toItem: (images) => ({ kind: 'image_gallery', images }),
             summary: (images) =>
-              `Sent ${images.length} image${images.length === 1 ? '' : 's'} to the chat: ${images.map((image) => image.name).join(', ')}`,
+              `Sent ${images.length} image${images.length === 1 ? '' : 's'} to the chat: ${images.map((image) => `${image.name} (attachment id ${image.id})`).join(', ')}`,
           },
           extra
         ),

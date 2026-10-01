@@ -33,7 +33,8 @@ export function createSendVideoTool(host: MediaToolHost) {
             attachmentIds: args.attachmentId ? [args.attachmentId] : [],
             caption: args.caption,
             toItem: ([video]) => ({ kind: 'video', video: video! }),
-            summary: ([video]) => `Sent video to the chat: ${video!.name}`,
+            summary: ([video]) =>
+              `Sent video to the chat: ${video!.name} (attachment id ${video!.id})`,
           },
           extra
         ),

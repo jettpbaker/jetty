@@ -59,10 +59,12 @@ function providerConflict(bound: string, requested: string) {
 }
 
 // Agents otherwise read a relayed message as the user's own words.
-function agentText({ text, queued }: StartTurnInput) {
-  return queued?.from
-    ? `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${text.replaceAll(/<\/relayed-message/gi, '&lt;/relayed-message')}\n</relayed-message>`
-    : text
+function agentText({ text, queued }: StartTurnInput, fromCreator: boolean) {
+  if (!queued?.from) return text
+  const relayed = `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${text.replaceAll(/<\/relayed-message/gi, '&lt;/relayed-message')}\n</relayed-message>`
+  return fromCreator
+    ? `${relayed}\nThis thread created yours. When you finish or need a decision, report back to it with send_message, including the attachment ids of any images or videos you sent that it may want to re-post. Jetty tells it automatically only if your turn fails.`
+    : relayed
 }
 
 function escapeAttribute(value: string) {
@@ -418,6 +420,7 @@ export function createOrchestrator({
             Effect.gen(function* () {
               const thread = yield* store.requireThread(input.threadId)
               const resumeQueue = !input.queued || (input.sendNow && input.resumeQueue !== false)
+              let fromCreator = false
               if (input.queued) {
                 if (
                   thread.archived ||
@@ -437,6 +440,10 @@ export function createOrchestrator({
                 )
                   return { turnId: '' }
                 const queued = thread.pendingMessages.find((m) => m.id === input.queued!.id)!
+                fromCreator =
+                  queued.from !== undefined &&
+                  queued.from.threadId === thread.parentThreadId &&
+                  (yield* store.notifiesParent(thread.id))
                 input = {
                   ...input,
                   text: queued.text,
@@ -518,7 +525,7 @@ export function createOrchestrator({
                 const turnId = live.turnId
                 const accepted = yield* agent.steer(
                   input.threadId,
-                  agentText(input),
+                  agentText(input, fromCreator),
                   saved.images,
                   appendUser(
                     input.threadId,
@@ -572,7 +579,7 @@ export function createOrchestrator({
                       {
                         threadId: input.threadId,
                         turnId,
-                        text: agentText(input),
+                        text: agentText(input, fromCreator),
                         images: saved.images,
                         model: input.model,
                         effort: input.effort,
@@ -648,7 +655,7 @@ export function createOrchestrator({
       markReadyForReview(threadId: string) {
         return Effect.gen(function* () {
           const thread = yield* store.requireThread(threadId)
-          // An agent-created thread reports to its parent, which gets the result when the turn ends.
+          // An agent-created thread reports to its parent with send_message instead.
           if (thread.parentThreadId) return thread
           return yield* hub.withChromePublication(
             store
