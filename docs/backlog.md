@@ -26,7 +26,8 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   /components/monitoring variation E — the in-progress ring without its
   half-fill, muted foreground, no motion, label "Monitoring"; one collapsed
   line under the composer ("command +N · elapsed · Stop all", expanding to a
-  Stop per task); same ring in the tab and hover card.
+  Stop per task); same ring in the tab, and the hover card shows only
+  "Monitoring · elapsed" (no command line).
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
   plus an optional precheck command Jetty runs host-side; Orca's automations
   --precheck pattern) that survives restarts and works for every provider.
