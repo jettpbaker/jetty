@@ -12,6 +12,7 @@ import {
   InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useAppearance } from '@/lib/appearance'
 import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { cn } from '@/lib/utils'
 import {
@@ -68,6 +69,7 @@ export function Composer({
   inputRef?: RefObject<HTMLTextAreaElement | null>
 }) {
   const root = useRef<HTMLDivElement>(null)
+  const { wallpaper, video } = useAppearance()
   const ownInput = useRef<HTMLTextAreaElement>(null)
   const textarea = inputRef ?? ownInput
   const empty = !value.trim() && attachments.images.length === 0
@@ -140,7 +142,8 @@ export function Composer({
           <InputGroup
             className={cn(
               'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0',
-              ambient && 'composer-lift'
+              // Over a wallpaper the ambient shadow does the lifting.
+              ambient && (wallpaper || video ? 'shadow-none' : 'composer-lift')
             )}
           >
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
