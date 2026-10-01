@@ -17,6 +17,15 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   QA showed the cost: a manager's children working in worktrees the manager made
   show the project checkout in Changes. Containers solve it for container threads.
 - Command palette: removed in the v2 skeleton; no design yet.
+- Per-worktree dev server ports (after worktrees v1, which ignores ports): Jetty
+  gives each live worktree a slot number (JETTY_WORKTREE_SLOT, lowest free) and
+  a project's setup script derives a port block from it (base + slot * 20, one
+  offset per service). Figure out the work repo first: how many services an
+  admin run needs, which ports are hardcoded (vite config, service-to-service
+  URLs), and what's pinned outside the repo (OAuth redirects, CORS, flag
+  setups registered for localhost). If those can't move, focused-thread
+  forwarding (the thread you're viewing owns the default ports) is the
+  fallback. Also: shared backend vs per-worktree, and the Linux inotify limit.
 - Design Jetty's built-in agent instructions (server/src/jetty-instructions.ts)
   so agents understand the process and the ideal workflow: work out of a couple
   of orchestrator threads, children report up to their parent, the parent
