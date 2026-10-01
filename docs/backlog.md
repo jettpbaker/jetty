@@ -17,6 +17,19 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   QA showed the cost: a manager's children working in worktrees the manager made
   show the project checkout in Changes. Containers solve it for container threads.
 - Command palette: removed in the v2 skeleton; no design yet.
+- Monitoring state (next after worktrees and the icon swap; t3code's approach):
+  when a Claude turn ends with background work still running in its session
+  (background shells, Monitor watches), the thread reads Monitoring instead of
+  idle, the session isn't retired by the idle TTL while that work runs, and
+  output Claude emits when it wakes itself shows in the thread. In memory only;
+  a restart clears it (the work is gone too). Design: sketchpad
+  /components/monitoring variation E — the in-progress ring without its
+  half-fill, muted foreground, no motion, label "Monitoring"; one collapsed
+  line under the composer ("command +N · elapsed · Stop all", expanding to a
+  Stop per task); same ring in the tab and hover card.
+- Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
+  plus an optional precheck command Jetty runs host-side; Orca's automations
+  --precheck pattern) that survives restarts and works for every provider.
 - Redesign the agent question card's answer options (composer_strip.tsx):
   multi-select answers use a checkbox and single-select a radio, filled when
   selected. Needs a proper design pass in the sketchpad (they were flagged in
