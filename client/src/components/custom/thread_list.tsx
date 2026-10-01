@@ -326,7 +326,13 @@ export function ThreadList({
             ))}
           </div>
         </section>
-        <div aria-hidden='true' className='conversation-top-blur' />
+        <div aria-hidden='true' className='conversation-top-blur'>
+          <div />
+          <div />
+          <div />
+          <div />
+          <div />
+        </div>
       </div>
     </MediaLightboxProvider>
   )
