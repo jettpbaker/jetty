@@ -217,6 +217,18 @@
   }
 }
 
+/* The new-thread composer's ambient shadow: black in dark mode; fainter, or fainter and tinted
+   with the accent hue, in light mode. */
+:root {
+  --composer-shadow-color: rgb(0 0 0 / 0.18);
+}
+:root[data-composer-shadow='tinted'] {
+  --composer-shadow-color: oklch(from var(--primary) 0.3 calc(c * 0.35) h / 0.2);
+}
+:root.dark {
+  --composer-shadow-color: rgb(0 0 0 / 0.7);
+}
+
 /* The conversation's top edge blurs instead of fading: eight layers, each a little stronger over a
    band nearer the edge, ramping in over the first 4rem of scroll. */
 .conversation-scroll {
