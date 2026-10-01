@@ -1,5 +1,5 @@
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
-import { newId, type ProviderModel } from '@jetty/shared/wire'
+import { newId, type ProviderModel, type WireError } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { Effect, Path, Scope } from 'effect'
@@ -87,6 +87,7 @@ export function createMcpHandler(
   attachments: Attachments,
   models: () => readonly ProviderModel[] | null,
   pullRequestLinks: PullRequestLinks,
+  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>,
   containers?: EnvironmentManager
 ) {
   return Effect.gen(function* () {
@@ -453,6 +454,33 @@ export function createMcpHandler(
                 url: `https://github.com/${ref.repo}/pull/${ref.number}`,
               }))
             )
+          )
+      )
+      server.registerTool(
+        'archive_thread',
+        {
+          description:
+            'Archive a thread you created with create_thread, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar, and a container thread stops its container. The user can still unarchive it.',
+          inputSchema: { threadId: z.string() },
+        },
+        ({ threadId }) =>
+          invoke(
+            Effect.gen(function* () {
+              const caller = yield* accessible(identity, identity.threadId)
+              const target = yield* store.getThread(threadId)
+              if (target?.parentThreadId !== caller.id)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'You can only archive threads you created')
+                )
+              if (target.archived)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Thread is already archived')
+                )
+              yield* archiveThread(threadId).pipe(
+                Effect.mapError((error) => new StoreError(error.code, error.message))
+              )
+              return { threadId, title: target.title, archived: true }
+            })
           )
       )
       const media = await run(

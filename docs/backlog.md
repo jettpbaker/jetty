@@ -132,10 +132,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   status follows the main turn, which ends while background subagents keep
   working (e.g. three Opus explorers mid-run). The thread should read working
   while any subagent item is running.
-- Maybe an `archive_thread` Jetty MCP tool, so an agent can archive the
-  threads it created once they're done (e.g. warm-up or finished child threads)
-  instead of asking the user to do it in the UI. Likely scoped to threads the
-  caller created, and reversible like archiving in the UI.
 - Containers, not Jetty's job: building/refreshing images (use the workspace
   startup script or a timer; the automatic re-test picks up the result). Desktop streaming
   (jetty-streaming) stays a maybe for seeing several containers at once.

@@ -184,7 +184,15 @@ async function setup(
         createPullRequests(store, hub),
         yield* Effect.scope
       )
-      const handle = yield* createMcpHandler(sessions, store, orch, attachments, () => null, links)
+      const handle = yield* createMcpHandler(
+        sessions,
+        store,
+        orch,
+        attachments,
+        () => null,
+        links,
+        () => Effect.void
+      )
       async function callMedia(name: string, file: string) {
         const response = await handle(
           new Request(binding.url, {

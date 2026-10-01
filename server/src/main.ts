@@ -491,6 +491,7 @@ function createServer(opts: ServerOptions = {}) {
       attachments,
       () => models,
       pullRequestLinks,
+      (threadId) => handlers['thread.archive']({ threadId, archived: true }),
       containers
     )
     registerClaudeMcp = handleMcp.register
