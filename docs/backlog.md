@@ -66,24 +66,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
     For us: follow t3code. Ask Codex and Grok for their own catalogs instead of
     scanning files, keep our scan for Claude, and do the `/name` rewrite for
     Claude.
-- Before containers are deleted (worktrees v1 replaces them): check the work
-  box for container threads holding work that isn't anywhere else. Each
-  environment is ~/.jetty/environments/<threadId>/checkout (a clone of the
-  project folder on branch jetty/<threadId>). This lists any with uncommitted
-  changes or commits on no remote-tracking branch; no output means nothing
-  needs saving:
-
-  ```sh
-  for d in ~/.jetty/environments/*/checkout; do
-    [ -e "$d/.git" ] || continue
-    dirty=$(git -C "$d" status --porcelain | wc -l | tr -d ' ')
-    unpushed=$(git -C "$d" log --branches --not --remotes --oneline | wc -l | tr -d ' ')
-    [ "$dirty$unpushed" != "00" ] && echo "$d  uncommitted:$dirty  unpushed:$unpushed  branch:$(git -C "$d" branch --show-current)"
-  done
-  ```
-
-  If JETTY_HOME points somewhere else, swap ~/.jetty for it. Report the output
-  (and `ls ~/.jetty/environments | wc -l`) back to Jett.
 
 - Containers preview (JETTY_CONTAINERS=1): unproven on Linux/Coder (port proxy,
   resources, spot recovery) and for Claude/Grok inside containers (Claude needs a
