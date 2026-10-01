@@ -225,7 +225,7 @@
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 6rem;
+  height: 8rem;
   pointer-events: none;
   backdrop-filter: blur(6px);
   mask-image: linear-gradient(to bottom, #000 30%, transparent);
