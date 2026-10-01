@@ -60,7 +60,12 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
           <WallpaperVideo src={video} playing={visible && !reducedMotion} />
         </OpacityFade>
       ) : (
-        <OpacityFade settings={initialFadeSettings} background={fadeBackground}>
+        <OpacityFade
+          settings={
+            fade === 'jett' ? { ...initialFadeSettings, topOpacity: 1 } : initialFadeSettings
+          }
+          background={fadeBackground}
+        >
           <DownwardBlur settings={initialBlurSettings} curve={curve}>
             {wallpaper}
           </DownwardBlur>

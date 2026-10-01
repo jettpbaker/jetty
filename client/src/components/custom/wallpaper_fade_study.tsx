@@ -4,11 +4,12 @@ import { useSyncExternalStore, type ReactNode } from 'react'
 
 // Temporary: compares how a wallpaper fades out in light mode. Remove once one is chosen.
 
-export const wallpaperFades = ['current', 'clean'] as const
+export const wallpaperFades = ['current', 'jett', 'clean'] as const
 export type WallpaperFade = (typeof wallpaperFades)[number]
 
 const labels: Record<WallpaperFade, string> = {
   current: 'Current',
+  jett: 'Jett',
   clean: 'Clean',
 }
 const storageKey = 'jetty.wallpaper-fade-study'
