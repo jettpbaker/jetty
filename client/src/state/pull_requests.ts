@@ -364,6 +364,14 @@ export function useDetailsRequest(threadId: string) {
   return { tab: request?.threadId === threadId ? request.tab : undefined, consume }
 }
 
+export function useOpenChanges() {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (threadId: string) => registry.set(detailsRequestAtom, { threadId, tab: 'changes' }),
+    [registry]
+  )
+}
+
 function openPullRequest(registry: Registry, threadId: string, ref: PullRequestRef) {
   showTab(registry, threadId, pullRequestKey(ref))
   registry.set(detailsRequestAtom, { threadId, tab: pullRequestTabId(ref) })

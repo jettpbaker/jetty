@@ -124,11 +124,14 @@ export function ThreadDetailsLayout({
   )
 
   // A just-linked PR's tab can be requested before the thread's links include it.
-  const requestShown = pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab)
+  const requestShown =
+    requestedTab === 'changes' ||
+    pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab)
   const openingTab = useRef<string>(undefined)
   useLayoutEffect(() => {
     if (!requestedTab || !requestShown) return
     consume()
+    if (requestedTab === 'changes') tabs.current?.show('changes')
     if (open) {
       setTab(requestedTab)
       return

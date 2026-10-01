@@ -6,7 +6,7 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 import { ThreadSourceLabel, type MessageSource } from './source_label'
 
@@ -22,11 +22,13 @@ export function UserMessage({
   text,
   attachments,
   from,
+  actions,
 }: {
   id: string
   text: string
   attachments: readonly Attachment[]
   from?: MessageSource
+  actions?: ReactNode
 }) {
   const openMedia = useOpenMedia()
   const textRef = useRef<HTMLParagraphElement>(null)
@@ -41,7 +43,7 @@ export function UserMessage({
   const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
   return (
     <Message align='end'>
-      <MessageContent className={cn(from && 'gap-1.5')}>
+      <MessageContent className={cn('group/user', from && 'gap-1.5')}>
         {from && <ThreadSourceLabel from={from} className='self-end' />}
         <Bubble variant={from ? 'tinted' : 'default'} align='end'>
           <BubbleContent className='rounded-lg'>
@@ -129,6 +131,11 @@ export function UserMessage({
             ))}
           </BubbleContent>
         </Bubble>
+        {actions && (
+          <div className='flex justify-end opacity-0 group-hover/user:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100'>
+            {actions}
+          </div>
+        )}
       </MessageContent>
     </Message>
   )

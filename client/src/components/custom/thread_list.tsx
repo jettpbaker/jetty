@@ -1,8 +1,9 @@
-import type { SessionStatus } from '@jetty/shared/events'
+import type { Checkpoint, SessionStatus } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { CreatedThreads } from '@/components/custom/child_threads'
+import { EditFromHere } from '@/components/custom/edit_from_here'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
@@ -21,10 +22,13 @@ import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
 import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
+import { useThread, useChrome } from '@/state'
 import { useRevealRow } from '@/state'
+import { useOpenChanges } from '@/state/pull_requests'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -125,7 +129,9 @@ function ThreadItemRow({
   onSelectAgent,
   provider,
   projectPath,
+  edit,
 }: {
+  edit?: { worktree: boolean; disabled: boolean }
   row: ThreadRow
   threadId: string
   selectedAgent?: string
@@ -140,6 +146,16 @@ function ThreadItemRow({
         text={row.item.text}
         attachments={row.item.attachments}
         from={row.item.from}
+        actions={
+          edit && (
+            <EditFromHere
+              threadId={threadId}
+              messageId={row.item.id}
+              attachments={row.item.attachments}
+              {...edit}
+            />
+          )
+        }
       />
     )
   if (row.kind === 'assistant' || row.kind === 'plan')
@@ -184,6 +200,23 @@ function ThreadItemRow({
   )
 }
 
+function rowTurnId(row: ThreadRow) {
+  return 'item' in row ? row.item.turnId : row.kind === 'work' ? row.turnId : undefined
+}
+
+function TurnChanges({ threadId, checkpoint }: { threadId: string; checkpoint?: Checkpoint }) {
+  const openChanges = useOpenChanges()
+  if (!checkpoint?.files.length) return null
+  const { files } = checkpoint
+  return (
+    <Button variant='ghost-text' size='xs' onClick={() => openChanges(threadId)}>
+      {files.length} {files.length === 1 ? 'file' : 'files'} changed +
+      {files.reduce((sum, file) => sum + file.added, 0)} −
+      {files.reduce((sum, file) => sum + file.deleted, 0)}
+    </Button>
+  )
+}
+
 export function ThreadList({
   threadId,
   items,
@@ -205,10 +238,42 @@ export function ThreadList({
   agentId?: string
   onSelectAgent: (id: string) => void
 }) {
+  const snapshot = useThread(threadId)
+  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const users = items.filter((item) => item.kind === 'user_message' && !item.agentId)
+  const turns = [...new Set(users.map((item) => item.turnId))]
+  function editable(row: ThreadRow) {
+    if (
+      agentId ||
+      row.kind !== 'user' ||
+      !['claude', 'codex', 'echo'].includes(provider ?? '') ||
+      row.item.from
+    )
+      return undefined
+    if (users.find((item) => item.turnId === row.item.turnId)?.id !== row.item.id) return undefined
+    const index = turns.indexOf(row.item.turnId)
+    if (!snapshot?.checkpoints[index === 0 ? '' : turns[index - 1]!]) return undefined
+    if (!snapshot.boundaries[row.item.turnId]) return undefined
+    return { worktree: meta?.environment === 'worktree', disabled: running }
+  }
   const rows = useMemo(
     () => threadRows(items, { status, running, outcomes, projectPath, agentId }),
     [items, status, running, outcomes, projectPath, agentId]
   )
+  const lastRows = useMemo(() => {
+    const last = new Map<string, string>()
+    for (const row of rows) {
+      const turnId = rowTurnId(row)
+      if (turnId) last.set(turnId, row.id)
+    }
+    return last
+  }, [rows])
+  function summary(row: ThreadRow) {
+    const turnId = rowTurnId(row)
+    return !agentId && row.kind !== 'user' && turnId && lastRows.get(turnId) === row.id
+      ? snapshot?.checkpoints[turnId]
+      : undefined
+  }
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {
     const position = positions.get(view)
@@ -265,7 +330,7 @@ export function ThreadList({
     [view, virtualizer, width]
   )
 
-  const stamp = rows.map(rowStamp).join('|')
+  const stamp = rows.map(rowStamp).join('|') + JSON.stringify(snapshot?.checkpoints)
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
   const totalSize = virtualizer.getTotalSize()
 
@@ -320,7 +385,9 @@ export function ThreadList({
                     onSelectAgent={onSelectAgent}
                     provider={provider}
                     projectPath={projectPath}
+                    edit={editable(rows[virtualRow.index]!)}
                   />
+                  <TurnChanges threadId={threadId} checkpoint={summary(rows[virtualRow.index]!)} />
                 </div>
               </div>
             ))}

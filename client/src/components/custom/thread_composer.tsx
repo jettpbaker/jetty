@@ -36,6 +36,7 @@ import {
   useThreadLoadout,
   useThreadQueue,
 } from '@/state'
+import { useIsRewinding } from '@/state/checkpoints'
 import { useRetrySetup } from '@/state/worktrees'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -67,6 +68,7 @@ export function ThreadComposer({
   projectTitle?: string
 }) {
   const draftKey = threadId ?? ''
+  const rewinding = useIsRewinding(draftKey)
   const { draft: saved, update } = useDraft(draftKey)
   const draft = saved.text
   const editing = saved.editing
@@ -206,6 +208,7 @@ export function ThreadComposer({
   }
 
   function submit() {
+    if (rewinding) return
     const text = draft.trim()
     if (!text && attachments.images.length === 0) return
     if (threadId && text && editingEntry) queueActions.edit(threadId, editingEntry.id, text)
@@ -386,7 +389,7 @@ export function ThreadComposer({
         strip={mode.strip}
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
-        sendDisabled={mode.sendDisabled}
+        sendDisabled={rewinding || mode.sendDisabled}
         sendHint={needsModel ? 'Choose a model first' : undefined}
         onKeyDown={mode.onKeyDown}
         loadout={
