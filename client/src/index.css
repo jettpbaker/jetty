@@ -217,14 +217,11 @@
   }
 }
 
-/* The new-thread composer's ambient shadow over a wallpaper: black in dark mode; in light mode
-   a softer tone (composer_shadow.css draws it). */
+/* The new-thread composer's ambient shadow over a wallpaper: black in dark mode, the page colour
+   in light mode (composer_shadow.css draws it). */
 :root {
-  --composer-shadow-color: rgb(0 0 0 / 0.18);
-  --composer-shadow-tone: rgb(0 0 0 / 0.32);
-}
-:root.dark {
   --composer-shadow-color: rgb(0 0 0 / 0.7);
+  --composer-shadow-tone: oklch(from var(--background) l c h / 0.7);
 }
 
 /* The conversation's top edge blurs instead of fading: eight layers, each a little stronger over a
