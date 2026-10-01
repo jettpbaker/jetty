@@ -107,8 +107,9 @@
   JETTY_WORKTREE_NAME and a live-worktree JETTY_WORKTREE_SLOT.
 - An optional `"archive"` script in the same file runs in the worktree, with the
   same variables, before archive or delete removes it, for cleanup outside the
-  folder. It's read from the project checkout, never the worktree the agent can
-  edit. A failing script refuses archive; delete logs it and carries on.
+  folder. A failing script refuses archive; delete logs it and carries on.
+- Both scripts are read from the project checkout, never the worktree, which the
+  agent can edit.
 - Commit work before creating children that build on it. Archive requires a clean
   worktree and removes its folder while keeping its branch; resume recreates it
   and reruns setup. Delete removes the branch only for a linked merged PR.

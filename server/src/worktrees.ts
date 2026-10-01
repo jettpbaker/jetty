@@ -91,6 +91,7 @@ function readJson(path: string) {
 
 type WorktreeScript = 'setup' | 'archive'
 
+// Read from the project checkout, never a worktree: the agent can edit the worktree's copy.
 async function worktreeScripts(root: string) {
   const config = await readJson(join(root, '.jetty/worktree.json'))
   if (config === undefined) return {}
@@ -392,8 +393,9 @@ export function createWorktrees(
       await save(threadId, record)
       if (!(await isFolder(working)))
         throw new Error(`${basename(project.path)} isn't in this worktree's base commit`)
-      await copyIncluded(await git(project.path, 'rev-parse', '--show-toplevel'), folder)
-      const { setup } = await worktreeScripts(folder)
+      const checkout = await git(project.path, 'rev-parse', '--show-toplevel')
+      await copyIncluded(checkout, folder)
+      const { setup } = await worktreeScripts(checkout)
       if (setup) await runScript('setup', setup, folder, scriptEnv(folder, record.slot), signal)
       record.state = 'ready'
       await save(threadId, record)
@@ -437,7 +439,6 @@ export function createWorktrees(
     const { thread, project } = await locate(threadId)
     const folder = folderOf(project.id, threadId)
     if (thread.environment !== 'worktree' || !(await exists(folder))) return
-    // From the project checkout, not the worktree: the agent can edit the worktree's copy.
     const { archive } = await worktreeScripts(
       await git(project.path, 'rev-parse', '--show-toplevel')
     )
