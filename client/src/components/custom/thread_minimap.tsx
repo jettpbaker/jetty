@@ -39,7 +39,10 @@ function turnPreview(rows: readonly ThreadRow[], index: number) {
   for (let next = index + 1; next < rows.length; next++) {
     const row = rows[next]!
     if (row.kind === 'user') break
-    if (row.kind === 'assistant') reply = row.item.text
+    if (row.kind === 'assistant' && compact(row.item.text)) {
+      reply = row.item.text
+      break
+    }
   }
   return {
     title: compact(user?.kind === 'user' ? user.item.text : undefined) ?? 'User message',
