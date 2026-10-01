@@ -12,15 +12,21 @@ export const initialComposerShadowSettings: ComposerShadowSettings = {
   falloffPx: 480,
 }
 
-// Light mode only; the colour itself lives in index.css (--composer-shadow-color).
-export type LightComposerShadow = 'faint' | 'tinted'
-const storageKey = 'jetty.composer-shadow'
+// Temporary comparison for light mode: how the shadow is drawn, and whether it takes the accent hue.
+export type ComposerShadowLook = { technique: 'gradient' | 'blur'; tinted: boolean }
+const storageKey = 'jetty.composer-shadow-look'
 
-export function loadLightComposerShadow(): LightComposerShadow {
-  return storage.get(storageKey) === 'tinted' ? 'tinted' : 'faint'
+export function loadComposerShadowLook(): ComposerShadowLook {
+  const [technique, tint] = (storage.get(storageKey) ?? '').split(':')
+  return { technique: technique === 'blur' ? 'blur' : 'gradient', tinted: tint === 'tinted' }
 }
 
-export function setLightComposerShadow(value: LightComposerShadow) {
-  document.documentElement.dataset.composerShadow = value
-  storage.set(storageKey, value)
+export function applyComposerShadowLook(look: ComposerShadowLook) {
+  document.documentElement.dataset.composerShadow = look.technique
+  document.documentElement.dataset.composerShadowTint = look.tinted ? 'tinted' : 'plain'
+}
+
+export function setComposerShadowLook(look: ComposerShadowLook) {
+  applyComposerShadowLook(look)
+  storage.set(storageKey, `${look.technique}:${look.tinted ? 'tinted' : 'plain'}`)
 }

@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 
 import { loadAccent } from './lib/accent'
 import { hydrateAppearance } from './lib/appearance'
-import { loadLightComposerShadow } from './lib/composer-shadow-settings'
+import { applyComposerShadowLook, loadComposerShadowLook } from './lib/composer-shadow-settings'
 import { refreshScrollFadesWhenOverflowEnds } from './lib/scroll-fade'
 import { applyTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
@@ -14,7 +14,7 @@ import './theme-transition.css'
 
 applyTheme()
 document.documentElement.dataset.accent = loadAccent()
-document.documentElement.dataset.composerShadow = loadLightComposerShadow()
+applyComposerShadowLook(loadComposerShadowLook())
 void hydrateAppearance()
 refreshScrollFadesWhenOverflowEnds()
 

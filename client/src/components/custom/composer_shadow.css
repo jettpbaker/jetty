@@ -3,4 +3,30 @@
   inset: 0;
   border-radius: var(--composer-radius);
   pointer-events: none;
+  box-shadow: var(--composer-box-shadow);
+}
+
+/* Light mode draws without huge box-shadows, which Chrome approximates in visible bands. */
+:root:not(.dark)[data-composer-shadow] .composer-shadow {
+  box-shadow: none;
+}
+:root:not(.dark)[data-composer-shadow='gradient'] .composer-shadow {
+  inset: -22rem -26rem;
+  border-radius: 0;
+  background: radial-gradient(
+    closest-side,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 1)) 30%,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.82)) 40%,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.6)) 50%,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.4)) 60%,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.24)) 70%,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.12)) 80%,
+    oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.04)) 90%,
+    transparent 100%
+  );
+}
+:root:not(.dark)[data-composer-shadow='blur'] .composer-shadow {
+  background: var(--composer-shadow-tone);
+  filter: blur(7rem);
+  transform: scale(1.15, 1.6);
 }

@@ -8,5 +8,11 @@ export function ComposerShadow({ settings }: { settings: ComposerShadowSettings 
   const layer = `0 0 ${settings.falloffPx}px ${-inset}px var(--composer-shadow-color)`
   const boxShadow = Array.from({ length: settings.strength }, () => layer).join(', ')
 
-  return <div className='composer-shadow' aria-hidden='true' style={{ boxShadow }} />
+  return (
+    <div
+      className='composer-shadow'
+      aria-hidden='true'
+      style={{ '--composer-box-shadow': boxShadow } as React.CSSProperties}
+    />
+  )
 }
