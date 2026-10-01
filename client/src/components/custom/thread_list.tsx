@@ -286,45 +286,48 @@ export function ThreadList({
 
   return (
     <MediaLightboxProvider>
-      <section
-        ref={scroller}
-        className='scrollbar-subtle scroll-fade-y [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
-        aria-label='Conversation'
-        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
-        tabIndex={0}
-        onScroll={({ currentTarget: element }) => {
-          pinned.current =
-            element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
-        }}
-      >
-        <div className='relative w-full' style={{ height: totalSize }}>
-          {virtualizer.getVirtualItems().map((virtualRow) => (
-            <div
-              key={virtualRow.key}
-              data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
-              className='absolute top-0 left-0 w-full'
-              style={{ transform: `translateY(${virtualRow.start}px)` }}
-            >
+      <div className='conversation-scroll relative flex min-h-0 flex-1 flex-col'>
+        <section
+          ref={scroller}
+          className='scrollbar-subtle scroll-fade-y [--scroll-fade-t-size:0px] [scroll-timeline:--conversation_y] [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
+          aria-label='Conversation'
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
+          tabIndex={0}
+          onScroll={({ currentTarget: element }) => {
+            pinned.current =
+              element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
+          }}
+        >
+          <div className='relative w-full' style={{ height: totalSize }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => (
               <div
-                className={cn(
-                  'mx-auto w-full max-w-[708px] px-6',
-                  rows[virtualRow.index]!.kind === 'user' && 'py-1.5'
-                )}
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                className='absolute top-0 left-0 w-full'
+                style={{ transform: `translateY(${virtualRow.start}px)` }}
               >
-                <ThreadItemRow
-                  row={rows[virtualRow.index]!}
-                  threadId={threadId}
-                  selectedAgent={agentId}
-                  onSelectAgent={onSelectAgent}
-                  provider={provider}
-                  projectPath={projectPath}
-                />
+                <div
+                  className={cn(
+                    'mx-auto w-full max-w-[708px] px-6',
+                    rows[virtualRow.index]!.kind === 'user' && 'py-1.5'
+                  )}
+                >
+                  <ThreadItemRow
+                    row={rows[virtualRow.index]!}
+                    threadId={threadId}
+                    selectedAgent={agentId}
+                    onSelectAgent={onSelectAgent}
+                    provider={provider}
+                    projectPath={projectPath}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+        <div aria-hidden='true' className='conversation-top-blur' />
+      </div>
     </MediaLightboxProvider>
   )
 }

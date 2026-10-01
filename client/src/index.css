@@ -217,6 +217,29 @@
   }
 }
 
+/* The conversation's top edge blurs instead of fading, ramping in over the first 4rem of scroll. */
+.conversation-scroll {
+  timeline-scope: --conversation;
+}
+.conversation-top-blur {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 6rem;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+  mask-image: linear-gradient(to bottom, #000 30%, transparent);
+  opacity: 0;
+  animation: conversation-top-blur linear both;
+  animation-timeline: --conversation;
+  animation-range: 0 4rem;
+}
+@keyframes conversation-top-blur {
+  to {
+    opacity: 1;
+  }
+}
+
 .icon-optical-down {
   position: relative;
   top: 1px;
