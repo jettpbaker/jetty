@@ -162,7 +162,7 @@ export function BackdropStudy() {
       )}
       {look.field === 'drift' && (
         <Dithering
-          className='backdrop-study-layer backdrop-study-pool'
+          className='backdrop-study-layer'
           colorBack={colors.background}
           colorFront={quiet}
           shape='warp'
