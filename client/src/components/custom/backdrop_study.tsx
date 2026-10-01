@@ -7,7 +7,7 @@ import {
   useBackdropLook,
   type BackdropLook,
 } from '@/lib/backdrop-study'
-import { useResolvedTheme } from '@/lib/theme'
+import { useAnimatedTheme, useResolvedTheme } from '@/lib/theme'
 import { newThreadProject } from '@/lib/thread_project'
 import { useChrome, useDraft } from '@/state'
 import { Dithering, GrainGradient } from '@paper-design/shaders-react'
@@ -323,8 +323,17 @@ function Options<T extends string>({
 
 export function BackdropStudyToggle() {
   const look = useBackdropLook()
+  const { setTheme } = useAnimatedTheme()
+  const theme = useResolvedTheme()
   return (
     <div className='flex flex-col items-end gap-1'>
+      <Options
+        label='Theme'
+        values={['light', 'dark'] as const}
+        labels={{ light: 'Light', dark: 'Dark' }}
+        value={theme}
+        onChange={setTheme}
+      />
       <Options
         label='Field'
         values={backdropFields}
