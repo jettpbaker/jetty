@@ -9,6 +9,7 @@ import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
+import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import {
   threadRows,
   toSubagent,
@@ -26,9 +27,11 @@ import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
 import { useRevealRow } from '@/state'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const pinSlack = 96
+// Keeps a jumped-to message below the conversation's top blur.
+const jumpClearance = 96
 
 // Where each conversation was left, so coming back to it restores the reading position.
 // No anchor means it was at the bottom and should stay stuck there.
@@ -218,14 +221,20 @@ export function ThreadList({
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(!saved || saved.index === -1)
   const [width, setWidth] = useState(saved?.width ?? 660)
+  const [gutter, setGutter] = useState(0)
   const [, setFontsReady] = useState(false)
 
   useEffect(() => {
     const element = scroller.current
     if (!element) return
-    const observer = new ResizeObserver(() => setWidth(contentWidth(element.clientWidth)))
+    const measure = () => {
+      const text = contentWidth(element.clientWidth)
+      setWidth(text)
+      setGutter((element.offsetWidth - text) / 2)
+    }
+    const observer = new ResizeObserver(measure)
     observer.observe(element)
-    setWidth(contentWidth(element.clientWidth))
+    measure()
     return () => observer.disconnect()
   }, [])
 
@@ -284,6 +293,24 @@ export function ThreadList({
     virtualizer.scrollToIndex(index, { align: 'center' })
   }, [revealId, agentId, rows, virtualizer, clearReveal])
 
+  const turns = useTurns(rows)
+  const latestRows = useRef(rows)
+  useLayoutEffect(() => {
+    latestRows.current = rows
+  })
+  const jumpTo = useCallback(
+    (index: number) => {
+      const item = virtualizer.measurementsCache[index]
+      if (!item) return
+      pinned.current = false
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      virtualizer.scrollToOffset(item.start - jumpClearance, {
+        behavior: reduce ? 'auto' : 'smooth',
+      })
+    },
+    [virtualizer]
+  )
+
   return (
     <MediaLightboxProvider>
       <div className='conversation-scroll relative flex min-h-0 flex-1 flex-col'>
@@ -336,6 +363,14 @@ export function ThreadList({
           <div />
           <div />
         </div>
+        <ThreadMinimap
+          turns={turns}
+          rows={latestRows}
+          scroller={scroller}
+          virtualizer={virtualizer}
+          gutter={gutter}
+          onSelect={jumpTo}
+        />
       </div>
     </MediaLightboxProvider>
   )
