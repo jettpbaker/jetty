@@ -17,6 +17,11 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   QA showed the cost: a manager's children working in worktrees the manager made
   show the project checkout in Changes. Containers solve it for container threads.
 - Command palette: removed in the v2 skeleton; no design yet.
+- Design Jetty's built-in agent instructions (server/src/jetty-instructions.ts)
+  so agents understand the process and the ideal workflow: work out of a couple
+  of orchestrator threads, children report up to their parent, the parent
+  reports to the user (mark_ready_for_review), archive finished threads, etc.
+  The optional parts become toggles in Settings → Agent behaviour.
 - Slash / skill commands in the composer (`/verify`, `/pr`, …). The server
   already lists skills (`skills.list` in server/src/skills.ts reads project and
   user skills, including `user-invocable`), but no client uses it yet.
