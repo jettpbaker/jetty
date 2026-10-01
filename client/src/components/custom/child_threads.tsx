@@ -6,7 +6,7 @@ import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
-import { ContainerIcon, DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
+import { DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
@@ -24,7 +24,7 @@ import { TwoLineRow } from './two_line_row'
 
 // A child that has gone idle has finished its run.
 type ChildStatus = Exclude<Status, 'idle' | 'stopped' | 'queued'>
-type Environment = 'container' | 'local'
+type Environment = 'local'
 
 export type ChildThread = {
   id: string
@@ -83,7 +83,6 @@ function useOpenThread(): Open {
 }
 
 const envLabel: Record<Environment, string> = {
-  container: 'Runs in a container',
   local: 'Runs locally',
 }
 
@@ -100,7 +99,7 @@ function ChildTitle({ child }: { child: ChildThread }) {
 }
 
 function EnvTag({ env }: { env: Environment }) {
-  const Icon = env === 'container' ? ContainerIcon : DeviceDesktopIcon
+  const Icon = DeviceDesktopIcon
   return <Icon aria-label={envLabel[env]} className='size-3 shrink-0' />
 }
 

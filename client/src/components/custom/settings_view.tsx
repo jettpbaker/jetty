@@ -11,13 +11,12 @@ import {
   PuzzlePieceIcon,
   RobotIcon,
 } from '@phosphor-icons/react'
-import { AppsIcon, ContainerIcon, RepoIcon, SyncIcon } from '@primer/octicons-react'
+import { AppsIcon, RepoIcon, SyncIcon } from '@primer/octicons-react'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { SettingsAgentBehaviour } from './settings_agent_behaviour'
 import { SettingsAppearance } from './settings_appearance'
-import { SettingsContainers } from './settings_containers'
 import { SettingsIntegrations } from './settings_integrations'
 import { SettingsLoadout } from './settings_loadout'
 import { SettingsProjects } from './settings_projects'
@@ -142,9 +141,6 @@ export function SettingsView() {
                   <SettingsUsage enabled={enabled} usage={usage} failed={failed} />
                 </Section>
               )}
-            <Section id='containers' label='Containers' icon={ContainerIcon}>
-              <SettingsContainers />
-            </Section>
           </div>
         </div>
       </div>

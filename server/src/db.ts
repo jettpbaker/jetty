@@ -140,6 +140,29 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`ALTER TABLE pull_request_lists ADD COLUMN truncated INTEGER NOT NULL DEFAULT 0`
   }),
+  '019_remove_containers': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    for (const [table, key] of [
+      ['attachment_refs', 'thread_id'],
+      ['orchestration_turns', 'thread_id'],
+      ['orchestration_requests', 'caller_id'],
+      ['provider_sessions', 'thread_id'],
+      ['thread_pull_requests', 'thread_id'],
+      ['thread_events', 'thread_id'],
+      ['thread_states', 'thread_id'],
+    ]) {
+      yield* sql.unsafe(
+        `DELETE FROM ${table} WHERE ${key} IN (SELECT id FROM threads WHERE environment = 'container')`
+      )
+    }
+    yield* sql`DROP TABLE environments`
+    yield* sql`DELETE FROM threads WHERE environment = 'container'`
+    yield* sql`DELETE FROM pull_requests WHERE NOT EXISTS (
+      SELECT 1 FROM thread_pull_requests l WHERE l.repo = pull_requests.repo AND l.number = pull_requests.number
+    )`
+    yield* sql`ALTER TABLE projects DROP COLUMN container_registration`
+    yield* sql`ALTER TABLE threads DROP COLUMN base_commit`
+  }),
 })
 
 export function databaseLayer(home: string) {

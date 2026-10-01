@@ -69,7 +69,7 @@ function threadOptions(input: TurnInput, cwd: string, instructions: string) {
     approvalPolicy: full ? 'never' : 'on-request',
     approvalsReviewer: 'user',
     developerInstructions: instructions,
-    sandbox: full || input.environment ? 'danger-full-access' : 'workspace-write',
+    sandbox: full ? 'danger-full-access' : 'workspace-write',
   }
 }
 
@@ -208,12 +208,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       return Effect.scoped(
         Effect.gen(function* () {
           const binding = options.mcp
-            ? yield* options.mcp.open(
-                { threadId: session.input.threadId, provider: 'codex' },
-                Boolean(session.input.environment)
-              )
+            ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'codex' })
             : undefined
-          const target = session.input.environment
           const providerArgs = [
             ...(options.args ?? DEFAULT_CODEX_ARGS),
             ...(binding
@@ -243,27 +239,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           ]
           const connection = yield* openCodexConnection(cwd, {
             ...options,
-            command: target ? 'docker' : options.command,
-            args: target
-              ? [
-                  'exec',
-                  '-i',
-                  '-w',
-                  '/workspace',
-                  ...Object.entries(target.providerEnv).flatMap(([name, value]) => [
-                    '-e',
-                    `${name}=${value}`,
-                  ]),
-                  ...(binding ? ['-e', 'JETTY_MCP_TOKEN'] : []),
-                  target.containerId,
-                  'sh',
-                  '-c',
-                  'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
-                  'jetty',
-                  'codex',
-                  ...providerArgs,
-                ]
-              : providerArgs,
+            args: providerArgs,
             env: {
               ...process.env,
               ...options.env,
@@ -274,7 +250,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
           const instructions = binding ? jettyInstructions(yield* store.getAgentBehaviours()) : ''
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
-            ...threadOptions(session.input, target?.agentCwd ?? cwd, instructions),
+            ...threadOptions(session.input, cwd, instructions),
             ...(resume ? { threadId: resume } : { ephemeral: false }),
           })
           const threadId = string(object(result.thread).id)
@@ -451,7 +427,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
-          const lifecycle = run(session, input.environment?.hostCheckout ?? project.path).pipe(
+          const lifecycle = run(session, project.path).pipe(
             Effect.onInterrupt(() =>
               session.publication
                 .withPermit(

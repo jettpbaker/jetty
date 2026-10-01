@@ -15,7 +15,7 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   reuse existing worktrees, recreate a missing one; never switch a checkout under a
   running agent; key worktree paths per repo; make branch deletion explicit.
   QA showed the cost: a manager's children working in worktrees the manager made
-  show the project checkout in Changes. Containers solve it for container threads.
+  show the project checkout in Changes.
 - Command palette: removed in the v2 skeleton; no design yet.
 - Monitoring state (next after worktrees and the icon swap; t3code's approach):
   when a Claude turn ends with background work still running in its session
@@ -85,73 +85,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
     scanning files, keep our scan for Claude, and do the `/name` rewrite for
     Claude.
 
-- Containers preview (JETTY_CONTAINERS=1): unproven on Linux/Coder (port proxy,
-  resources, spot recovery) and for Claude/Grok inside containers (Claude needs a
-  `claude setup-token` token, Grok an XAI_API_KEY).
-  Container hooks, in order (Jetty stays toolchain-agnostic; builds, Docker host
-  setup and verify stay with the project):
-  1. Focused-thread forwarding: the thread you're looking at owns your real
-     localhost ports (e.g. 5173), and switching threads moves the forward. No
-     collisions, and anything configured for localhost (paypa flags) just works.
-     Cost: only one container's app is reachable at a time.
-  2. Shared clone from a read-only mirror Jetty maintains (12s → <1s per
-     thread). The mirror is mounted at the same path in the container; fetch
-     under a lock and never prune/gc objects clones rely on. Also saves disk:
-     every thread's environment (~/.jetty/environments/<id>) stays on the home
-     disk until the thread is deleted (idle stops don't free it; archiving
-     unchecked), and today each holds its own full git history (~350 MB for
-     paypa-stack) on top of node_modules (est. 2–4 GB per thread in total).
-     Shared objects drop the history copy; node_modules stays per thread.
-  3. Agent-visible preview links: an MCP tool (e.g. `dev_urls`) rather than
-     env vars, since Docker assigns the host port at start. Mostly moot if 1
-     lands.
-  4. Start the agent while setup runs (saves ~18s on a thread's first message
-     only; setup runs once per environment). Settle the edges first: the agent
-     must know setup is still running and wait before building/testing/
-     installing; a setup failure after the agent started needs a way into the
-     thread and to the agent; dev services must wait for setup.
-- Container archive that frees disk but stays resumable (idea, not started).
-  Today archive only stops the container; the ~3 GB environment stays until
-  delete. On archive: snapshot uncommitted + untracked work (respecting
-  .gitignore) as a commit under refs/jetty/wip, `git bundle` the thread's branch
-  and that ref minus the base commit, prove it restores, then delete checkout/
-  and keep home/ (agent session), artifacts/ and the bundle. On the next message:
-  clone at the base, apply the bundle, restore the wip tree, clear the setup
-  marker so setup re-runs, resume the session. Open points:
-  - Prove the bundle by restoring it into a temp clone of the host repo and
-    comparing tree hashes, not just `git bundle verify` (which also checks the
-    base commit still exists in the host repo).
-  - The base commit can vanish from the host repo (amended/rebased local
-    commits, gc). If it isn't on a remote-tracking branch at archive time,
-    bundle without the base exclusion (bigger, but self-contained).
-  - home/ may not be "a few MB": pnpm stores, Playwright browsers and other
-    caches land under HOME. Measure; clearing known caches on archive is fine
-    since setup re-runs.
-  - Gitignored files the agent made are lost (copyFiles are re-copied on
-    restore); staged vs unstaged isn't preserved. Both acceptable, but say so.
-- Container checkouts on a fast local disk (build after archive; same
-  save/restore). Setup on the work box is ~10× slower than it should be because
-  environments live on the network-attached home disk and pnpm can't hardlink
-  from the image's store across devices, so it copies ~1.6 GB of small files.
-  Admin's `pnpm install` (53,525 files): 94.9s today (copy onto home disk),
-  13.0s hardlinking within the home disk, 5.0s copy / 3.6s hardlink on the
-  ephemeral disk. A shared cache mount can't fix it: Linux refuses hardlinks
-  across separate bind mounts even on one disk (EXDEV), so store and checkout
-  would have to share a mount across threads. Plan: checkout/ on a fast local
-  environments root; home/ (agent session) and artifacts/ stay on the home
-  disk; bundle the thread's code at every turn end and idle stop; on a lost
-  checkout, restore the bundle and re-run setup (~26s).
-- From the first real container day (28 Sep), Jetty-side, most important first:
-  1. A thread whose image was pruned can't resume ("No such image"). Recreate
-     its container from the current tested image and re-run setup; the code is
-     safe on the home disk.
-  2. Provisioning's git clone/fetch still has the 30s command limit (setup and
-     verify got 15 min); a big repo times out.
-  3. create_thread `ref` only resolves local branches; fall back to
-     `origin/<ref>` (fetching it) when there's no local one.
-  4. "Wake this thread when…": a thread waiting on something outside it (a
-     Copilot review) stalls, because an in-session poll dies with the turn.
-     Needs a tool the agent can leave behind, or host-side watching.
 - Long threads, after the streaming fix: opening one still sends its whole
   state, and the background save rewrites the whole JSON (~30ms every 2s at
   10MB while streaming). Next step: page snapshots by turns (t3code: last 10
@@ -163,9 +96,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   `subagent_spawned`/`subagent_finished` (those without `workflow_run_id`) into
   subagent items keyed by `subagent_id`. Open question: their tabs would have
   no transcript.
-- Containers, not Jetty's job: building/refreshing images (use the workspace
-  startup script or a timer; the automatic re-test picks up the result). Desktop streaming
-  (jetty-streaming) stays a maybe for seeing several containers at once.
 - Grok runs commands in its own sandbox: `gh` can't reach the keychain token (401 on
   PR creation) and writes outside the project are blocked even after approval.
 - Queued-message remove has no undo (needs a server-side hold).

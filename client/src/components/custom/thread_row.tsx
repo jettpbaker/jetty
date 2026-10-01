@@ -1,7 +1,7 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
-import { ContainerIcon, DeviceDesktopIcon } from '@primer/octicons-react'
+import { DeviceDesktopIcon } from '@primer/octicons-react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -20,7 +20,6 @@ export function ThreadRow({
   status,
   lastActivity,
   pullRequest,
-  environment,
   provider,
   model,
   effort,
@@ -36,7 +35,7 @@ export function ThreadRow({
   status: ThreadStatus
   lastActivity: string
   pullRequest?: ThreadPullRequest
-  environment: 'local' | 'container'
+  environment: 'local'
   provider?: ProviderId
   model?: string
   effort?: string
@@ -109,11 +108,7 @@ export function ThreadRow({
               >
                 {lastActivity}
               </span>
-              {environment === 'container' ? (
-                <ContainerIcon aria-label='Runs in a container' className='size-3' />
-              ) : (
-                <DeviceDesktopIcon aria-label='Runs locally' className='size-3' />
-              )}
+              <DeviceDesktopIcon aria-label='Runs locally' className='size-3' />
             </span>
           </TwoLineRow>
         )}

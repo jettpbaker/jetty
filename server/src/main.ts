@@ -31,7 +31,6 @@ import { claudeBin } from './claude-bin'
 import { discoverClaudeModels } from './claude-models'
 import { codexLayer, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
-import { createEnvironmentManager } from './containers'
 import { databaseLayer } from './db'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
@@ -226,37 +225,6 @@ function createServer(opts: ServerOptions = {}) {
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)
     const hub = createHub()
-    const containers =
-      process.env.JETTY_CONTAINERS === '1'
-        ? createEnvironmentManager(
-            store,
-            home,
-            <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect),
-            (projectId) =>
-              Effect.runPromise(
-                hub.withChromePublication(
-                  Effect.gen(function* () {
-                    const project = yield* store.getProject(projectId)
-                    if (project)
-                      hub.pushChrome({
-                        type: 'project.upserted',
-                        project: {
-                          ...project,
-                          containerRetesting: containers!.retesting(projectId),
-                        },
-                      })
-                  })
-                )
-              )
-          )
-        : undefined
-    if (containers) yield* Effect.promise(() => containers.reconcile())
-    if (containers) void containers.retestRegisteredProjects().catch(() => {})
-    if (containers)
-      yield* Effect.addFinalizer(() =>
-        Effect.promise(() => containers.shutdown()).pipe(Effect.catch(() => Effect.void))
-      )
-
     const io = yield* Layer.build(
       Layer.mergeAll(
         AttachmentsLive(home),
@@ -431,7 +399,6 @@ function createServer(opts: ServerOptions = {}) {
         onPullRequestOutput: pullRequestLinks.linkFound,
         modelCatalog,
         knownModels: () => models ?? [],
-        environments: containers,
       })
     )
     const orch = Context.get(services, OrchestratorService)
@@ -444,7 +411,7 @@ function createServer(opts: ServerOptions = {}) {
       () => models,
       refreshModels,
       pullRequests,
-      containers,
+      undefined,
       () => modelDiscovery,
       () =>
         Effect.gen(function* () {
@@ -491,8 +458,7 @@ function createServer(opts: ServerOptions = {}) {
       attachments,
       () => models,
       pullRequestLinks,
-      (threadId) => handlers['thread.archive']({ threadId, archived: true }),
-      containers
+      (threadId) => handlers['thread.archive']({ threadId, archived: true })
     )
     registerClaudeMcp = handleMcp.register
     const app = Effect.gen(function* () {
@@ -563,27 +529,6 @@ function createServer(opts: ServerOptions = {}) {
     mcp.setUrl(
       `http://${mcpHostname.includes(':') ? `[${mcpHostname}]` : mcpHostname}:${server.address.port}/mcp`
     )
-    if (containers) {
-      const mcpPort = Number(process.env.JETTY_CONTAINER_MCP_PORT ?? 8788)
-      const mcpBind =
-        process.env.JETTY_CONTAINER_MCP_BIND ??
-        (process.platform === 'linux'
-          ? (process.env.JETTY_DOCKER_BRIDGE_GATEWAY ?? '172.17.0.1')
-          : '127.0.0.1')
-      const listener = Bun.serve({
-        hostname: mcpBind,
-        port: mcpPort,
-        fetch(request) {
-          if (new URL(request.url).pathname !== '/mcp')
-            return new Response('Not found', { status: 404 })
-          return handleMcp(request)
-        },
-      })
-      mcp.setContainerUrl(
-        process.env.JETTY_CONTAINER_MCP_URL ?? `http://host.docker.internal:${listener.port}/mcp`
-      )
-      yield* Effect.addFinalizer(() => Effect.sync(() => listener.stop(true)))
-    }
     yield* orch.resumeQueues()
 
     return {

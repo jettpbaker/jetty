@@ -83,7 +83,7 @@ export function grokArgs(input: TurnInput, instructions?: string) {
     '--permission-mode',
     input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
     '--sandbox',
-    input.permissionMode === 'full_access' || input.environment ? 'off' : 'workspace',
+    input.permissionMode === 'full_access' ? 'off' : 'workspace',
     ...(instructions ? ['--rules', instructions] : []),
     'agent',
     '--no-leader',
@@ -311,44 +311,15 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       return Effect.scoped(
         Effect.gen(function* () {
           const binding = options.mcp
-            ? yield* options.mcp.open(
-                { threadId: session.input.threadId, provider: 'grok' },
-                Boolean(session.input.environment)
-              )
+            ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'grok' })
             : undefined
-          const target = session.input.environment
           const args = grokArgs(
             session.input,
             binding && jettyInstructions(yield* store.getAgentBehaviours())
           )
-          const { connection, init } = yield* openGrokConnection(
-            target?.hostCheckout ?? cwd,
-            args,
-            target
-              ? {
-                  ...options,
-                  command: 'docker',
-                  args: [
-                    'exec',
-                    '-i',
-                    '-w',
-                    '/workspace',
-                    ...Object.entries(target.providerEnv).flatMap(([name, value]) => [
-                      '-e',
-                      `${name}=${value}`,
-                    ]),
-                    target.containerId,
-                    'sh',
-                    '-c',
-                    'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
-                    'jetty',
-                    'grok',
-                    ...args,
-                  ],
-                  authMethod: 'xai.api_key',
-                }
-              : options
-          ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
+          const { connection, init } = yield* openGrokConnection(cwd, args, options).pipe(
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+          )
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'grok')
           if (resume && object(init.agentCapabilities).loadSession !== true)
@@ -356,7 +327,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               new AgentError('Grok does not support loading the saved session')
             )
           const result = yield* connection.request(resume ? 'session/load' : 'session/new', {
-            cwd: target?.agentCwd ?? cwd,
+            cwd: cwd,
             mcpServers: binding
               ? [
                   {

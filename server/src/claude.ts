@@ -26,7 +26,6 @@ import {
   Semaphore,
   Stream,
 } from 'effect'
-import { spawn } from 'node:child_process'
 
 import type { Store } from './store'
 
@@ -678,42 +677,8 @@ export function createClaudeAdapter(
                   },
                 },
                 options: {
-                  cwd: input.environment?.agentCwd ?? projectPath,
-                  pathToClaudeCodeExecutable: input.environment ? 'claude' : claudeBin,
-                  ...(input.environment
-                    ? {
-                        spawnClaudeCodeProcess: (spawnOptions: {
-                          args: string[]
-                          env: Record<string, string | undefined>
-                          signal?: AbortSignal
-                        }) =>
-                          spawn(
-                            'docker',
-                            [
-                              'exec',
-                              '-i',
-                              '-w',
-                              '/workspace',
-                              ...Object.entries(input.environment!.providerEnv).flatMap(
-                                ([name, value]) => ['-e', `${name}=${value}`]
-                              ),
-                              input.environment!.containerId,
-                              'sh',
-                              '-c',
-                              'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
-                              'jetty',
-                              'claude',
-                              ...spawnOptions.args,
-                            ],
-                            {
-                              cwd: projectPath,
-                              env: { ...process.env, ...spawnOptions.env },
-                              signal: spawnOptions.signal,
-                              stdio: ['pipe', 'pipe', 'pipe'],
-                            }
-                          ),
-                      }
-                    : {}),
+                  cwd: projectPath,
+                  pathToClaudeCodeExecutable: claudeBin,
                   systemPrompt: {
                     type: 'preset',
                     preset: 'claude_code',
@@ -723,7 +688,6 @@ export function createClaudeAdapter(
                   model: options.model,
                   effort: options.effort,
                   permissionMode: options.permissionMode,
-                  ...(input.environment ? { sandbox: { enabled: false } } : {}),
                   disallowedTools: ['EnterPlanMode', 'ExitPlanMode'],
                   // Only permits a later live switch into bypassPermissions.
                   allowDangerouslySkipPermissions: true,
@@ -846,11 +810,7 @@ export function createClaudeAdapter(
             }
           }
           const fresh = !session
-          session ??= yield* spawnSession(
-            input,
-            emit,
-            input.environment?.hostCheckout ?? projectPath
-          )
+          session ??= yield* spawnSession(input, emit, projectPath)
           const started = session
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId

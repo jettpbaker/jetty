@@ -42,7 +42,7 @@ function Thread() {
     [markSeen, threadId]
   )
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
-  const projectPath = meta?.environment === 'container' ? '/workspace' : project?.path
+  const projectPath = project?.path
   const [tab, setTab] = useThreadTab(threadId)
   const archiveThread = useArchiveThread()
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
@@ -74,9 +74,6 @@ function Thread() {
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             context={thread?.context ?? null}
-            containerThreadId={
-              meta?.environment === 'container' && project?.containerServices ? threadId : undefined
-            }
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           <ThreadList

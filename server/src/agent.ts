@@ -25,14 +25,6 @@ export type TurnInput = {
   effort?: EffortLevel
   fast?: boolean
   permissionMode?: PermissionMode
-  environment?: {
-    containerId: string
-    hostCheckout: string
-    agentCwd: string
-    home: string
-    artifacts: string
-    providerEnv: Record<string, string>
-  }
 }
 
 export type AgentHooks = {

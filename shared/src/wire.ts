@@ -107,20 +107,6 @@ export const Project = Schema.Struct({
   title: Schema.String,
   createdAt: Schema.Int,
   icon: Schema.optional(ProjectIcon),
-  containerReady: Schema.optional(Schema.Boolean),
-  containerResult: Schema.optional(Schema.String),
-  containerRetesting: Schema.optional(Schema.Boolean),
-  containerRetestFailure: Schema.optional(
-    Schema.Struct({ imageId: Schema.String, message: Schema.String, at: Schema.Number })
-  ),
-  containerProviders: Schema.optional(
-    Schema.Struct({
-      codex: Schema.Boolean,
-      claude: Schema.Boolean,
-      grok: Schema.Boolean,
-    })
-  ),
-  containerServices: Schema.optional(Schema.Int),
 })
 export type Project = Schema.Schema.Type<typeof Project>
 
@@ -190,7 +176,7 @@ export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 export const ThreadMeta = Schema.Struct({
   id: Schema.String,
   projectId: Schema.String,
-  environment: Schema.optional(Schema.Literals(['local', 'container'])),
+  environment: Schema.optional(Schema.Literals(['local'])),
   title: Schema.String,
   status: SessionStatus,
   queuePaused: Schema.optional(Schema.Boolean),
@@ -278,76 +264,6 @@ export const methods = {
     params: Schema.Struct({ projectId: Schema.String, icon: Schema.NullOr(ProjectIcon) }),
     result: Schema.Null,
   },
-  'containers.status': {
-    params: Schema.Struct({}),
-    result: Schema.Struct({
-      enabled: Schema.Boolean,
-      docker: Schema.Boolean,
-      availableGiB: Schema.NullOr(Schema.Number),
-      maxRunning: Schema.Int,
-      cpus: Schema.Number,
-      memoryGiB: Schema.Number,
-      memoryBudgetGiB: Schema.Number,
-      idleMinutes: Schema.Number,
-      previewUrlTemplate: Schema.optional(Schema.String),
-      running: Schema.Int,
-      credentials: Schema.Struct({
-        codex: Schema.Boolean,
-        claude: Schema.Boolean,
-        grok: Schema.Boolean,
-      }),
-      retained: Schema.Array(
-        Schema.Struct({
-          threadId: Schema.String,
-          state: Schema.String,
-          checkoutPath: Schema.String,
-          lastError: Schema.NullOr(Schema.String),
-        })
-      ),
-    }),
-  },
-  'containers.setLimits': {
-    params: Schema.Struct({
-      maxRunning: Schema.Int.check(Schema.isGreaterThan(0)),
-      cpus: Schema.Number.check(Schema.isGreaterThan(0)),
-      memoryGiB: Schema.Number.check(Schema.isGreaterThan(0)),
-    }),
-    result: Schema.Null,
-  },
-  'containers.stop': {
-    params: Schema.Struct({ threadId: Schema.String }),
-    result: Schema.Null,
-  },
-  'project.containerSetupStatus': {
-    params: Schema.Struct({ projectId: Schema.String }),
-    result: Schema.Struct({
-      imageReady: Schema.Boolean,
-      capacityError: Schema.NullOr(Schema.String),
-    }),
-  },
-  'project.containerTest': {
-    params: Schema.Struct({ projectId: Schema.String }),
-    result: Schema.Struct({
-      result: Schema.String,
-      providers: Schema.Struct({
-        codex: Schema.Boolean,
-        claude: Schema.Boolean,
-        grok: Schema.Boolean,
-      }),
-    }),
-  },
-  'thread.startDev': {
-    params: Schema.Struct({ threadId: Schema.String }),
-    result: Schema.Struct({
-      services: Schema.Array(
-        Schema.Struct({
-          name: Schema.String,
-          port: Schema.Int,
-          url: Schema.optional(Schema.String),
-        })
-      ),
-    }),
-  },
   'fs.browse': {
     params: Schema.Struct({ partialPath: Schema.String }),
     result: Schema.Struct({
@@ -375,8 +291,6 @@ export const methods = {
     params: Schema.Struct({
       id: Schema.String.check(Schema.isMinLength(1)),
       projectId: Schema.String,
-      environment: Schema.optional(Schema.Literals(['local', 'container'])),
-      ref: Schema.optional(Schema.String),
     }),
     result: Schema.Struct({ thread: ThreadMeta }),
   },

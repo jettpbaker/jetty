@@ -6,13 +6,11 @@ import { Effect, Path, Scope } from 'effect'
 import { z } from 'zod'
 
 import type { Attachments } from './attachments'
-import type { EnvironmentManager } from './containers'
 import type { McpIdentity, McpSessions } from './mcp-sessions'
 import type { Orchestrator } from './orchestrator'
 import type { PullRequestLinks } from './pull-requests'
 import type { Store } from './store'
 
-import { gitCommit } from './containers'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { StoreError } from './store'
@@ -56,7 +54,7 @@ function matchingModels(catalog: readonly ProviderModel[], name: string) {
 
 const text = z.string().trim().min(1).max(32_000)
 const requestId = z.string().min(1).max(200).optional()
-const createInputBase = z.object({
+const createInput = z.object({
   prompt: text,
   title: z.string().trim().min(1).max(200).optional(),
   provider: z.enum(['claude', 'codex', 'grok']).optional(),
@@ -64,10 +62,6 @@ const createInputBase = z.object({
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   notify: z.boolean().default(true),
   requestId,
-})
-const createInput = createInputBase.extend({
-  environment: z.enum(['local', 'container']).optional(),
-  ref: z.string().min(1).optional(),
 })
 const sendInput = z.object({
   threadId: z.string(),
@@ -87,8 +81,7 @@ export function createMcpHandler(
   attachments: Attachments,
   models: () => readonly ProviderModel[] | null,
   pullRequestLinks: PullRequestLinks,
-  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>,
-  containers?: EnvironmentManager
+  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>
 ) {
   return Effect.gen(function* () {
     const context = yield* Effect.context<Path.Path | Scope.Scope>()
@@ -113,7 +106,6 @@ export function createMcpHandler(
     }
 
     function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
-      let base: string | undefined
       const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
@@ -170,7 +162,6 @@ export function createMcpHandler(
             )
           const id = newId()
           yield* store.createThread(caller.projectId, id)
-          if (base) yield* store.setThreadEnvironment(id, 'container', base)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
@@ -197,32 +188,7 @@ export function createMcpHandler(
           return response
         })
       )
-      return Effect.gen(function* () {
-        const caller = yield* accessible(identity, identity.threadId)
-        if (caller.environment === 'container' && input.environment === 'local')
-          return yield* Effect.fail(
-            new StoreError('invalid_params', 'Container threads cannot create local threads')
-          )
-        const environment = input.environment ?? caller.environment ?? 'local'
-        if (environment !== 'container') return yield* create
-        if (!containers)
-          return yield* Effect.fail(new StoreError('invalid_params', 'Containers are disabled'))
-        if (input.requestId) {
-          const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
-          if (previous) return previous
-        }
-        const project = yield* store.getProject(caller.projectId)
-        if (!project) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-        yield* Effect.tryPromise({
-          try: () => containers.registration(project),
-          catch: (error) => new StoreError('invalid_params', String(error)),
-        })
-        base = yield* Effect.tryPromise({
-          try: () => gitCommit(project.path, input.ref),
-          catch: (error) => new StoreError('invalid_params', String(error)),
-        })
-        return yield* create
-      })
+      return create
     }
 
     function sendMessage(identity: McpIdentity, input: z.infer<typeof sendInput>) {
@@ -407,7 +373,7 @@ export function createMcpHandler(
         {
           description:
             'Delegate work to an independent Jetty agent in this project. The new thread works on its prompt in parallel and reports back to you with send_message when it finishes or needs a decision; Jetty messages you automatically only if one of its turns fails. notify=false (default true) makes it fire-and-forget: no report expected and no failure message. Choose provider/model/effort from list_models; model accepts an ID, display name, or unique short name. Reuse requestId to retry safely.',
-          inputSchema: containers ? createInput : createInputBase,
+          inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
       )
@@ -460,7 +426,7 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            'Archive a thread in your project, other than your own, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar, and a container thread stops its container. The user can still unarchive it.',
+            'Archive a thread in your project, other than your own, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar. The user can still unarchive it.',
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
@@ -492,14 +458,6 @@ export function createMcpHandler(
           const caller = yield* accessible(identity, identity.threadId)
           const project = yield* store.getProject(caller.projectId)
           if (!project) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-          const record =
-            caller.environment === 'container' && containers
-              ? yield* Effect.promise(() => containers.record(caller.id))
-              : null
-          if (caller.environment === 'container' && !record)
-            return yield* Effect.fail(
-              new StoreError('not_found', 'Container checkout is not ready')
-            )
           const host = {
             attachments,
             resolveAttachment: (id: string, kind: 'image' | 'video') =>
@@ -510,15 +468,7 @@ export function createMcpHandler(
                   new StoreError('not_found', 'Attachment not found in caller project')
                 )
               }),
-            projectPath: record?.checkoutPath ?? project.path,
-            ...(record
-              ? {
-                  containerPaths: {
-                    checkout: record.checkoutPath,
-                    artifacts: record.artifactsPath,
-                  },
-                }
-              : {}),
+            projectPath: project.path,
             turnId: () => orch.currentTurn(caller.id) ?? '',
             emit: (
               event: Parameters<typeof orch.emitMedia>[2],

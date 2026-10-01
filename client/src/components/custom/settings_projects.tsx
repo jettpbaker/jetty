@@ -1,10 +1,8 @@
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
-import { useContainerStatus } from '@/state/containers'
-import { ArrowUpRightIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react'
+import { PlusIcon, TrashIcon } from '@phosphor-icons/react'
 import { useRef, useState } from 'react'
 
-import { ContainerSetupDialog } from './container_setup_dialog'
 import { DisabledTooltip } from './disabled_tooltip'
 import { ProjectFolderDialog } from './project_folder_dialog'
 import { ProjectIconPicker } from './project_icon_picker'
@@ -13,8 +11,6 @@ export function SettingsProjects() {
   const projects = useChrome()?.projects ?? []
   const createProject = useCreateProject()
   const [adding, setAdding] = useState(false)
-  const [setupProjectId, setSetupProjectId] = useState<string>()
-  const { status } = useContainerStatus()
   const addButton = useRef<HTMLButtonElement>(null)
   function setDialogOpen(open: boolean) {
     setAdding(open)
@@ -30,9 +26,6 @@ export function SettingsProjects() {
             </th>
             <th scope='col' className='px-2 pb-2 font-normal'>
               Path
-            </th>
-            <th scope='col' className='w-28 px-2 pb-2 font-normal'>
-              Containers
             </th>
             <th scope='col' className='w-9 pb-2'>
               <span className='sr-only'>Actions</span>
@@ -55,18 +48,6 @@ export function SettingsProjects() {
                   {project.path}
                 </span>
               </td>
-              <td className='px-2 py-3 text-xs text-muted-foreground'>
-                <Button
-                  variant='ghost-text'
-                  size='sm'
-                  className='-ml-2 h-7 gap-1 rounded-sm'
-                  disabled={!status?.enabled}
-                  onClick={() => setSetupProjectId(project.id)}
-                >
-                  {project.containerReady ? 'Ready' : 'Set up'}
-                  <ArrowUpRightIcon aria-hidden='true' data-icon='inline-end' />
-                </Button>
-              </td>
               <td className='py-3 text-right'>
                 <DisabledTooltip reason='Coming soon' wrap='inline-flex'>
                   <Button
@@ -84,7 +65,7 @@ export function SettingsProjects() {
             </tr>
           ))}
           <tr>
-            <td colSpan={4} className='p-0'>
+            <td colSpan={3} className='p-0'>
               <button
                 ref={addButton}
                 type='button'
@@ -105,14 +86,6 @@ export function SettingsProjects() {
         onOpenChange={setDialogOpen}
         existingPaths={projects.map((project) => project.path)}
         onAdd={(path) => createProject(path)}
-      />
-      <ContainerSetupDialog
-        project={projects.find((project) => project.id === setupProjectId)}
-        open={Boolean(setupProjectId)}
-        onOpenChange={(open) => {
-          if (!open) setSetupProjectId(undefined)
-        }}
-        enabled={Boolean(status?.enabled && status.docker)}
       />
     </div>
   )
