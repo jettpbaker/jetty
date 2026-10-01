@@ -1,5 +1,5 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
+import type { ApprovalDecision, Attachment } from '@jetty/shared/items'
 import type {
   EffortLevel,
   PermissionMode,
@@ -11,7 +11,7 @@ import type {
 
 import { findProviderModel } from '@jetty/shared/model-name'
 import { newId } from '@jetty/shared/wire'
-import { Context, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Context, Deferred, Effect, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
@@ -59,21 +59,6 @@ function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
 function providerConflict(bound: string, requested: string) {
   return new StoreError('conflict', `Thread is bound to ${bound} and cannot switch to ${requested}`)
 }
-
-// The first user message of each turn, in order; steers share their turn's checkpoint.
-function turnStarts(items: readonly ThreadItem[]) {
-  const starts: Extract<ThreadItem, { kind: 'user_message' }>[] = []
-  for (const item of items)
-    if (
-      item.kind === 'user_message' &&
-      !item.agentId &&
-      !starts.some((start) => start.turnId === item.turnId)
-    )
-      starts.push(item)
-  return starts
-}
-
-const turnCount = (items: readonly ThreadItem[]) => turnStarts(items).length
 
 // Agents otherwise read a relayed message as the user's own words.
 function agentText({ text, queued }: StartTurnInput, fromCreator: boolean) {
@@ -130,8 +115,7 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
-        // The capture running after a turn ends; the next turn, a rewind, or a delete waits for it.
-        capture: Fiber.Fiber<void> | null
+        checkpoint: Effect.Effect<void> | null
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -151,7 +135,7 @@ export function createOrchestrator({
           turnId: null,
           ready: true,
           pendingDelta: null,
-          capture: null,
+          checkpoint: null,
         }
         threads.set(threadId, value)
       }
@@ -209,11 +193,19 @@ export function createOrchestrator({
             )
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
-          state(threadId).turnId = null
-          if (worktrees && checkpoints)
-            state(threadId).capture = yield* Effect.gen(function* () {
+          if (checkpoints) {
+            const captured = Deferred.makeUnsafe<void>()
+            state(threadId).checkpoint = Deferred.await(captured)
+            state(threadId).turnId = null
+            const snapshot = appended.state
+            const number = new Set(
+              snapshot.items
+                .filter((item) => item.kind === 'user_message' && !item.agentId)
+                .map((item) => item.turnId)
+            ).size
+            yield* Effect.gen(function* () {
               const checkpoint = yield* Effect.tryPromise(() =>
-                checkpoints.capture(threadId, turnCount(appended.state.items))
+                checkpoints.capture(threadId, number)
               )
               if (checkpoint)
                 yield* append(threadId, {
@@ -221,11 +213,13 @@ export function createOrchestrator({
                   turnId: event.turnId,
                   checkpoint,
                 })
-              yield* Effect.tryPromise(() => worktrees.refresh(threadId))
+              if (worktrees) yield* Effect.tryPromise(() => worktrees.refresh(threadId))
             }).pipe(
               Effect.catchCause((cause) => Effect.logWarning(cause)),
+              Effect.ensuring(Deferred.succeed(captured, undefined)),
               Effect.forkIn(scope)
             )
+          } else state(threadId).turnId = null
         }
       })
     }
@@ -443,13 +437,6 @@ export function createOrchestrator({
         : Effect.void
     }
 
-    function awaitCapture(threadId: string) {
-      return Effect.suspend(() => {
-        const capture = state(threadId).capture
-        return capture ? Effect.asVoid(Fiber.await(capture)) : Effect.void
-      })
-    }
-
     function setQueuePaused(threadId: string, paused: boolean) {
       return hub.withChromePublication(
         Effect.gen(function* () {
@@ -474,7 +461,8 @@ export function createOrchestrator({
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              yield* awaitCapture(input.threadId)
+              const capturing = state(input.threadId).checkpoint
+              if (capturing && !state(input.threadId).turnId) yield* capturing
               let thread = yield* store.requireThread(input.threadId)
               if (thread.archived && !input.queued)
                 thread = yield* store.archiveThread(thread.id, false)
@@ -640,18 +628,21 @@ export function createOrchestrator({
                 if (resumeQueue) yield* setQueuePaused(input.threadId, false)
                 return { turnId }
               }
-              if (checkpoints && !(yield* store.getThreadState(input.threadId)).checkpoints[''])
-                yield* Effect.gen(function* () {
-                  const checkpoint = yield* Effect.tryPromise(() =>
-                    checkpoints.capture(input.threadId, 0)
-                  )
-                  if (checkpoint)
-                    yield* append(input.threadId, {
-                      type: 'checkpoint.captured',
-                      turnId: '',
-                      checkpoint,
-                    })
-                }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+              if (checkpoints) {
+                const snapshot = yield* store.getThreadState(input.threadId)
+                if (!snapshot.items.some((item) => item.kind === 'user_message'))
+                  yield* Effect.gen(function* () {
+                    const checkpoint = yield* Effect.tryPromise(() =>
+                      checkpoints.capture(input.threadId, 0)
+                    )
+                    if (checkpoint)
+                      yield* append(input.threadId, {
+                        type: 'checkpoint.captured',
+                        turnId: '',
+                        checkpoint,
+                      })
+                  }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+              }
               const turnId = newId()
               live.turnId = turnId
               live.ready = false
@@ -1030,27 +1021,34 @@ export function createOrchestrator({
       rewindThread(threadId: string, messageId: string, restoreFiles: boolean) {
         return state(threadId).admission.withPermit(
           Effect.gen(function* () {
+            const thread = yield* store.requireThread(threadId)
             const live = state(threadId)
             if (live.turnId || !live.ready)
               return yield* Effect.fail(
                 new StoreError('conflict', 'Interrupt the current turn before rewinding')
               )
-            yield* awaitCapture(threadId)
-            const thread = yield* store.requireThread(threadId)
+            if (live.checkpoint) yield* live.checkpoint
             const snapshot = yield* store.getThreadState(threadId)
-            const starts = turnStarts(snapshot.items)
-            const index = starts.findIndex((item) => item.id === messageId)
-            if (index < 0)
+            if (snapshot.activeTurnId)
+              return yield* Effect.fail(new StoreError('conflict', 'A turn is running'))
+            const message = snapshot.items.find((item) => item.id === messageId)
+            if (!message || message.kind !== 'user_message' || message.agentId)
               return yield* Effect.fail(
-                new StoreError('invalid_params', 'No turn starts at this message')
+                new StoreError('invalid_params', 'No user message at this point')
               )
-            const message = starts[index]!
-            const target = snapshot.checkpoints[index === 0 ? '' : starts[index - 1]!.turnId]
-            const boundary = snapshot.boundaries[message.turnId]
+            const users = snapshot.items.filter(
+              (item) => item.kind === 'user_message' && !item.agentId
+            )
+            const first = users.find((item) => item.turnId === message.turnId)
+            if (first?.id !== messageId)
+              return yield* Effect.fail(
+                new StoreError('invalid_params', 'Steered messages have no checkpoint')
+              )
+            const turns = [...new Set(users.map((item) => item.turnId))]
+            const index = turns.indexOf(message.turnId)
+            const target = snapshot.checkpoints[index === 0 ? '' : turns[index - 1]!]
             const provider = thread.provider ?? registry.defaultProvider
             const adapter = isAgentProvider(provider) ? registry.agent(provider) : undefined
-            const invalid = (message: string) =>
-              Effect.fail(new StoreError('invalid_params', message))
             const reportError = (error: unknown) =>
               append(threadId, {
                 type: 'item.started',
@@ -1062,34 +1060,48 @@ export function createOrchestrator({
                   message: error instanceof Error ? error.message : String(error),
                 },
               })
-            return yield* Effect.gen(function* () {
-              if (!checkpoints || !worktrees || !target)
-                return yield* invalid('Checkpoint is unavailable')
-              if (!boundary) return yield* invalid('Provider message boundary is unavailable')
-              if (!adapter?.rewind) return yield* invalid('This provider cannot rewind')
+            const rewind = Effect.gen(function* () {
+              if (!checkpoints || !target || !worktrees)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Checkpoint is unavailable')
+                )
+              if (!snapshot.boundaries[message.turnId])
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Provider message boundary is unavailable')
+                )
+              if (!adapter?.rewind)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'This provider cannot rewind')
+                )
               if (restoreFiles && thread.environment !== 'worktree')
-                return yield* invalid('Local checkout files cannot be reverted')
-              yield* Effect.tryPromise(() => checkpoints.verify(threadId, target.oid))
-              const retained: Record<string, string> = {}
-              for (const start of starts.slice(0, index)) {
-                const id = snapshot.boundaries[start.turnId]
-                if (!id) return yield* invalid('Provider message boundary is unavailable')
-                retained[start.turnId] = id
-              }
-              const cwd = yield* Effect.promise(() => worktrees.root(threadId))
-              const boundaries = yield* adapter.rewind(threadId, cwd, boundary, retained)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Local checkout files cannot be reverted')
+                )
+              yield* Effect.tryPromise(() =>
+                checkpoints.requireCheckpoint(threadId, target.number, target.oid)
+              )
+              const boundaries = yield* adapter.rewind(
+                threadId,
+                yield* Effect.promise(() => worktrees.root(threadId)),
+                message.turnId,
+                snapshot.boundaries
+              )
               yield* append(threadId, { type: 'thread.rewound', messageId, boundaries })
               yield* setQueuePaused(threadId, true)
-              // Provider history is already cut; file problems are reported, not fatal.
-              const cleanup = Effect.gen(function* () {
+              // Provider history has committed; a file failure must still return the removed prompt.
+              yield* Effect.gen(function* () {
                 if (restoreFiles)
                   yield* Effect.tryPromise(() => checkpoints.restore(threadId, target.oid))
-                yield* Effect.tryPromise(() => checkpoints.remove(threadId, target.number))
-                yield* Effect.tryPromise(() => worktrees.refresh(threadId))
-              })
-              yield* cleanup.pipe(Effect.catch(reportError))
+              }).pipe(Effect.catch((error) => reportError(error)))
+              yield* Effect.tryPromise(() => checkpoints.remove(threadId, target.number)).pipe(
+                Effect.catch(reportError)
+              )
+              yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(
+                Effect.catch(reportError)
+              )
               return { text: message.text, attachments: message.attachments }
-            }).pipe(
+            })
+            return yield* rewind.pipe(
               Effect.tapError(reportError),
               Effect.mapError((error) =>
                 error instanceof StoreError
@@ -1108,7 +1120,7 @@ export function createOrchestrator({
           const live = state(threadId)
           // Same lock order as a turn's writes: admission, publication, chrome.
           return live.admission.withPermit(
-            awaitCapture(threadId).pipe(
+            (live.checkpoint ?? Effect.void).pipe(
               Effect.andThen(
                 live.publication.withPermit(
                   hub.withChromePublication(
@@ -1123,11 +1135,11 @@ export function createOrchestrator({
                             'Cannot delete a thread while a turn is running'
                           )
                         )
-                      // Leftover refs are harmless; never let them block the delete.
                       if (checkpoints)
-                        yield* Effect.tryPromise(() => checkpoints.remove(threadId)).pipe(
-                          Effect.catchCause((cause) => Effect.logWarning(cause))
-                        )
+                        yield* Effect.tryPromise({
+                          try: () => checkpoints.remove(threadId),
+                          catch: (error) => new StoreError('internal', String(error)),
+                        })
                       if (worktrees)
                         yield* Effect.tryPromise({
                           try: () => worktrees.remove(threadId, true),

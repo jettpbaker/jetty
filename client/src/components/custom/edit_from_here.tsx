@@ -28,9 +28,10 @@ export function EditFromHere({
   disabled: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const { pending, rewind } = useRewindThread(threadId)
-  const confirm = (restoreFiles: boolean) =>
-    rewind(messageId, attachments, restoreFiles, () => setOpen(false))
+  const { pending, rewind: applyRewind } = useRewindThread(threadId)
+  function rewind(restoreFiles: boolean) {
+    applyRewind(messageId, attachments, restoreFiles, () => setOpen(false))
+  }
 
   return (
     <>
@@ -71,14 +72,14 @@ export function EditFromHere({
             <Button variant='outline' disabled={pending} onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={pending || disabled} onClick={() => confirm(false)}>
+            <Button disabled={pending || disabled} onClick={() => rewind(false)}>
               {worktree ? 'Keep file changes' : 'Rewind'}
             </Button>
             {worktree && (
               <Button
                 variant='destructive'
                 disabled={pending || disabled}
-                onClick={() => confirm(true)}
+                onClick={() => rewind(true)}
               >
                 Revert files too
               </Button>

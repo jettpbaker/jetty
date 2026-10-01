@@ -45,13 +45,11 @@ export type Emit = (
 export type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
-  // Drops provider history from the message `boundary` onward; returns the retained turns'
-  // boundaries, re-keyed if the provider assigned them new ids.
   rewind?: (
     threadId: string,
     cwd: string,
-    boundary: string,
-    retained: Readonly<Record<string, string>>
+    turnId: string,
+    boundaries: Readonly<Record<string, string>>
   ) => Effect.Effect<Record<string, string>, AgentError>
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
@@ -204,7 +202,12 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
     }
 
     return {
-      rewind: (_threadId, _cwd, _boundary, retained) => Effect.succeed({ ...retained }),
+      rewind(_threadId, _cwd, turnId, boundaries) {
+        const ids = Object.keys(boundaries)
+        return Effect.succeed(
+          Object.fromEntries(ids.slice(0, ids.indexOf(turnId)).map((id) => [id, boundaries[id]!]))
+        )
+      },
       interrupt(threadId, reason = 'interrupted') {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)

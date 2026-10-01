@@ -26,7 +26,8 @@ import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
-import { useChrome, useRevealRow, useThread } from '@/state'
+import { useThread, useChrome } from '@/state'
+import { useRevealRow } from '@/state'
 import { useOpenChanges } from '@/state/pull_requests'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -199,19 +200,19 @@ function ThreadItemRow({
   )
 }
 
-const REWINDABLE_PROVIDERS = ['claude', 'codex', 'echo']
-
 function rowTurnId(row: ThreadRow) {
   return 'item' in row ? row.item.turnId : row.kind === 'work' ? row.turnId : undefined
 }
 
-function TurnChanges({ threadId, files }: { threadId: string; files: Checkpoint['files'] }) {
+function TurnChanges({ threadId, checkpoint }: { threadId: string; checkpoint?: Checkpoint }) {
   const openChanges = useOpenChanges()
-  const added = files.reduce((sum, file) => sum + file.added, 0)
-  const deleted = files.reduce((sum, file) => sum + file.deleted, 0)
+  if (!checkpoint?.files.length) return null
+  const { files } = checkpoint
   return (
     <Button variant='ghost-text' size='xs' onClick={() => openChanges(threadId)}>
-      {files.length} {files.length === 1 ? 'file' : 'files'} changed +{added} −{deleted}
+      {files.length} {files.length === 1 ? 'file' : 'files'} changed +
+      {files.reduce((sum, file) => sum + file.added, 0)} −
+      {files.reduce((sum, file) => sum + file.deleted, 0)}
     </Button>
   )
 }
@@ -238,42 +239,41 @@ export function ThreadList({
   onSelectAgent: (id: string) => void
 }) {
   const snapshot = useThread(threadId)
-  const checkpoints = snapshot?.checkpoints
-  const boundaries = snapshot?.boundaries
-  const worktree =
-    useChrome()?.threads.find((thread) => thread.id === threadId)?.environment === 'worktree'
+  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const users = items.filter((item) => item.kind === 'user_message' && !item.agentId)
+  const turns = [...new Set(users.map((item) => item.turnId))]
+  function editable(row: ThreadRow) {
+    if (
+      agentId ||
+      row.kind !== 'user' ||
+      !['claude', 'codex', 'echo'].includes(provider ?? '') ||
+      row.item.from
+    )
+      return undefined
+    if (users.find((item) => item.turnId === row.item.turnId)?.id !== row.item.id) return undefined
+    const index = turns.indexOf(row.item.turnId)
+    if (!snapshot?.checkpoints[index === 0 ? '' : turns[index - 1]!]) return undefined
+    if (!snapshot.boundaries[row.item.turnId]) return undefined
+    return { worktree: meta?.environment === 'worktree', disabled: running }
+  }
   const rows = useMemo(
     () => threadRows(items, { status, running, outcomes, projectPath, agentId }),
     [items, status, running, outcomes, projectPath, agentId]
   )
-  // Rewind lands on the first message of a turn, at the checkpoint the previous turn left.
-  const rewindable = useMemo(() => {
-    const ids = new Set<string>()
-    if (agentId || !checkpoints || !boundaries || !REWINDABLE_PROVIDERS.includes(provider ?? ''))
-      return ids
-    let previous = ''
-    for (const item of items) {
-      if (item.kind !== 'user_message' || item.agentId || item.turnId === previous) continue
-      if (!item.from && checkpoints[previous] && boundaries[item.turnId]) ids.add(item.id)
-      previous = item.turnId
-    }
-    return ids
-  }, [items, checkpoints, boundaries, provider, agentId])
-  // The files a turn changed, shown under its last row.
-  const summaries = useMemo(() => {
-    const byRow = new Map<string, Checkpoint['files']>()
-    if (agentId || !checkpoints) return byRow
-    const last = new Map<string, ThreadRow>()
+  const lastRows = useMemo(() => {
+    const last = new Map<string, string>()
     for (const row of rows) {
       const turnId = rowTurnId(row)
-      if (turnId) last.set(turnId, row)
+      if (turnId) last.set(turnId, row.id)
     }
-    for (const [turnId, row] of last) {
-      const files = checkpoints[turnId]?.files
-      if (row.kind !== 'user' && files?.length) byRow.set(row.id, files)
-    }
-    return byRow
-  }, [rows, checkpoints, agentId])
+    return last
+  }, [rows])
+  function summary(row: ThreadRow) {
+    const turnId = rowTurnId(row)
+    return !agentId && row.kind !== 'user' && turnId && lastRows.get(turnId) === row.id
+      ? snapshot?.checkpoints[turnId]
+      : undefined
+  }
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {
     const position = positions.get(view)
@@ -330,7 +330,7 @@ export function ThreadList({
     [view, virtualizer, width]
   )
 
-  const stamp = `${rows.map(rowStamp).join('|')}|${summaries.size}`
+  const stamp = rows.map(rowStamp).join('|') + JSON.stringify(snapshot?.checkpoints)
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
   const totalSize = virtualizer.getTotalSize()
 
@@ -385,18 +385,9 @@ export function ThreadList({
                     onSelectAgent={onSelectAgent}
                     provider={provider}
                     projectPath={projectPath}
-                    edit={
-                      rewindable.has(rows[virtualRow.index]!.id)
-                        ? { worktree, disabled: running }
-                        : undefined
-                    }
+                    edit={editable(rows[virtualRow.index]!)}
                   />
-                  {summaries.has(rows[virtualRow.index]!.id) && (
-                    <TurnChanges
-                      threadId={threadId}
-                      files={summaries.get(rows[virtualRow.index]!.id)!}
-                    />
-                  )}
+                  <TurnChanges threadId={threadId} checkpoint={summary(rows[virtualRow.index]!)} />
                 </div>
               </div>
             ))}

@@ -59,17 +59,19 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
       const index = state.items.findIndex((item) => item.id === event.messageId)
       if (index < 0) return state
       const items = state.items.slice(0, index)
-      // '' keys the baseline checkpoint taken before the first turn.
-      const kept = new Set(['', ...items.map((item) => item.turnId)])
-      const keep = <T>(record: Readonly<Record<string, T>>) =>
-        Object.fromEntries(Object.entries(record).filter(([id]) => kept.has(id)))
-      const turnOutcomes = keep(state.turnOutcomes)
+      const turns = new Set(items.map((item) => item.turnId))
+      const turnOutcomes = Object.fromEntries(
+        Object.entries(state.turnOutcomes).filter(([id]) => turns.has(id))
+      )
       return deriveStatus({
         ...state,
         items,
         turnOutcomes,
-        checkpoints: keep(state.checkpoints),
+        checkpoints: Object.fromEntries(
+          Object.entries(state.checkpoints).filter(([id]) => id === '' || turns.has(id))
+        ),
         boundaries: event.boundaries,
+        activeTurnId: null,
         context: null,
         lastTurnOutcome: Object.values(turnOutcomes).at(-1) ?? null,
       })
