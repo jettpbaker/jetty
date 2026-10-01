@@ -23,7 +23,7 @@ function spawnGit(cwd: string, args: string[], env?: Record<string, string | und
   try {
     return Bun.spawn(['git', ...args], {
       cwd,
-      env: env ? { ...process.env, ...env } : process.env,
+      env: { ...process.env, ...env },
       stdout: 'pipe',
       stderr: 'pipe',
     })

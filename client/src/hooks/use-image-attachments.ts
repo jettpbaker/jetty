@@ -42,7 +42,7 @@ export function dropImages(files: Iterable<File>) {
 const MAX_IMAGE_EDGE = 2576
 const megabytes = (bytes: number) => `${bytes / 1024 / 1024} MB`
 
-function readDataUrl(blob: Blob) {
+export function readDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.addEventListener('load', () => resolve(String(reader.result)))

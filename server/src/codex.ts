@@ -409,32 +409,23 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     }
 
     return {
-      rewind(threadId, cwd, turnId, boundaries) {
+      rewind(threadId, cwd, boundary, retained) {
         return Effect.scoped(
           Effect.gen(function* () {
             if (sessions.has(threadId))
               return yield* Effect.fail(new AgentError('Turn is still settling'))
             const providerThreadId = yield* store.getProviderSessionId(threadId, 'codex')
-            const beforeTurnId = boundaries[turnId]
-            if (!providerThreadId || !beforeTurnId)
-              return yield* Effect.fail(new AgentError('Codex turn boundary is unavailable'))
+            if (!providerThreadId)
+              return yield* Effect.fail(new AgentError('Codex thread is unavailable'))
             const connection = yield* openCodexConnection(cwd, options).pipe(
               Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
             )
-            yield* connection.request('thread/resume', { threadId: providerThreadId, cwd })
-            const snapshot = yield* connection.request('thread/read', {
+            yield* connection.request('thread/resume', { threadId: providerThreadId })
+            yield* connection.request('thread/revert', {
               threadId: providerThreadId,
-              includeTurns: true,
+              beforeTurnId: boundary,
             })
-            const turns = object(snapshot.thread).turns
-            if (!Array.isArray(turns) || !turns.some((turn) => object(turn).id === beforeTurnId))
-              return yield* Effect.fail(new AgentError('Codex retained history is unavailable'))
-            yield* connection.request('thread/revert', { threadId: providerThreadId, beforeTurnId })
-            const retained = Object.keys(boundaries).slice(
-              0,
-              Object.keys(boundaries).indexOf(turnId)
-            )
-            return Object.fromEntries(retained.map((id) => [id, boundaries[id]!]))
+            return { ...retained }
           })
         ).pipe(
           Effect.mapError((error) =>

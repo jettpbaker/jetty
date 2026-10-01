@@ -1,7 +1,7 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import { mediaUrl } from '@/components/custom/media_layout'
-import { isImageType, type ReadyImage } from '@/hooks/use-image-attachments'
+import { isImageType, readDataUrl, type ReadyImage } from '@/hooks/use-image-attachments'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { MAX_IMAGES_PER_TURN, MAX_TURN_IMAGE_BYTES } from '@jetty/shared/wire'
 import { Effect } from 'effect'
@@ -25,13 +25,7 @@ async function restoreImages(attachments: readonly Attachment[]): Promise<ReadyI
         throw new Error(`Cannot restore ${attachment.name} to the composer`)
       const response = await fetch(mediaUrl(attachment))
       if (!response.ok) throw new Error(`Cannot read ${attachment.name}`)
-      const blob = await response.blob()
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result))
-        reader.onerror = () => reject(reader.error)
-        reader.readAsDataURL(blob)
-      })
+      const dataUrl = await readDataUrl(await response.blob())
       return { ...attachment, mimeType: attachment.mimeType, url: dataUrl, dataUrl }
     })
   )

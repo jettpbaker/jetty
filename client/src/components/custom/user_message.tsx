@@ -132,7 +132,7 @@ export function UserMessage({
           </BubbleContent>
         </Bubble>
         {actions && (
-          <div className='flex justify-end opacity-0 group-hover/user:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100'>
+          <div className='flex justify-end opacity-0 group-focus-within/user:opacity-100 group-hover/user:opacity-100 [@media(hover:none)]:opacity-100'>
             {actions}
           </div>
         )}
