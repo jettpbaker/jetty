@@ -20,6 +20,8 @@ const hueStatsWindow = 25
 const imageLightLightnessMax = 0.56
 const imageDarkLightnessMin = 0.64
 const accentChromaMin = 0.12
+// Light mode's accent sits darker, and darker colours need more chroma to look as vivid.
+const lightChromaBoost = 1.4
 const imageChromaMin = 0.1
 const imageChromaMax = 0.2
 const monoColorfulFraction = 0.02
@@ -112,7 +114,7 @@ function hueToTokens(hue: number, samples: OklchSample[]): Omit<AccentTokens, 't
   return {
     light: token(
       lightLightness + depth * (imageLightLightnessMax - lightLightness),
-      accentChroma,
+      accentChroma * lightChromaBoost,
       hue
     ),
     dark: token(darkLightness - depth * (darkLightness - imageDarkLightnessMin), accentChroma, hue),
