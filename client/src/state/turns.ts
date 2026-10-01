@@ -152,6 +152,13 @@ function sendTurn(
   )
   registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
   if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
+  function settle() {
+    registry.update(pendingPromptsAtom, (prompts) => {
+      const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)
+      return withPrompts(prompts, threadId, list)
+    })
+    registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
+  }
   const unarchive = unarchiveFirst(registry, threadId, threadMeta(registry, threadId)?.archived)
   run(
     registry,
@@ -175,15 +182,20 @@ function sendTurn(
               : {}),
           })
         ),
-        Effect.tap(() => Effect.sync(staged.sent))
+        Effect.tap(({ turnId }) =>
+          Effect.sync(() => {
+            staged.sent()
+            // No turn started: the server kept the message in the thread's paused queue.
+            if (!turnId) {
+              settle()
+              releasePrompts([prompt])
+            }
+          })
+        )
       ),
     () => {
       clearPatch(registry, threadId, 'provider')
-      registry.update(pendingPromptsAtom, (prompts) => {
-        const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)
-        return withPrompts(prompts, threadId, list)
-      })
-      registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
+      settle()
       // A thread that failed to create is gone; its message goes back to the new-thread composer.
       staged.failed(threadMeta(registry, threadId) ? threadId : draftKey)
       toast.error("Couldn't send message")
