@@ -48,8 +48,8 @@
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.935 var(--tint) var(--tint-h));
   --secondary-foreground: var(--foreground);
-  --muted-foreground: oklch(0.52 calc(var(--tint) * 0.5) var(--tint-h));
-  --disabled-foreground: oklch(0.52 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
+  --muted-foreground: oklch(0.56 calc(var(--tint) * 0.5) var(--tint-h));
+  --disabled-foreground: oklch(0.56 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
   --accent: oklch(0.91 var(--tint) var(--tint-h));
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.577 0.245 27.325);
@@ -93,8 +93,8 @@
   --secondary: oklch(0.269 var(--tint) var(--tint-h));
   --secondary-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
   --muted: oklch(0.269 var(--tint) var(--tint-h));
-  --muted-foreground: oklch(0.625 calc(var(--tint) * 0.5) var(--tint-h));
-  --disabled-foreground: oklch(0.625 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
+  --muted-foreground: oklch(0.66 calc(var(--tint) * 0.5) var(--tint-h));
+  --disabled-foreground: oklch(0.66 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
   --accent: oklch(0.32 var(--tint) var(--tint-h));
   --accent-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
   --destructive: oklch(0.704 0.191 22.216);

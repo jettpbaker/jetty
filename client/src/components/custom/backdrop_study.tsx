@@ -3,7 +3,6 @@ import { accentChangeEvent } from '@/lib/accent'
 import {
   backdropFields,
   backdropMarks,
-  mutedStudies,
   setBackdropLook,
   useBackdropLook,
   type BackdropLook,
@@ -33,12 +32,6 @@ const markLabels: Record<BackdropLook['mark'], string> = {
   jetty: 'Jetty',
   name: 'Name',
   glyph: 'Glyph',
-}
-const mutedLabels: Record<BackdropLook['muted'], string> = {
-  current: 'Current',
-  light: 'Dim light',
-  dark: 'Bright dark',
-  middle: 'Middle',
 }
 const projectShapes = ['warp', 'simplex', 'wave', 'ripple', 'swirl'] as const
 
@@ -340,13 +333,6 @@ export function BackdropStudyToggle() {
         labels={{ light: 'Light', dark: 'Dark' }}
         value={theme}
         onChange={setTheme}
-      />
-      <Options
-        label='Muted'
-        values={mutedStudies}
-        labels={mutedLabels}
-        value={look.muted}
-        onChange={(muted) => setBackdropLook({ ...look, muted })}
       />
       <Options
         label='Field'
