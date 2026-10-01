@@ -113,8 +113,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
      Needs a tool the agent can leave behind, or host-side watching.
   5. The ready-for-review relay to the parent carried the child's progress
      log clipped mid-sentence instead of its final report.
-  6. Let a parent escalate one child to the user (mark_ready_for_review with
-     a threadId); agent-created threads no longer flag the user themselves.
 - Long threads, after the streaming fix: opening one still sends its whole
   state, and the background save rewrites the whole JSON (~30ms every 2s at
   10MB while streaming). Next step: page snapshots by turns (t3code: last 10
