@@ -1,3 +1,4 @@
+import { BackdropStudyMark, BackdropStudyToggle } from '@/components/custom/backdrop_study'
 import { ComposerShadowToggle } from '@/components/custom/composer_shadow_toggle'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
@@ -11,10 +12,14 @@ function Home() {
   return (
     <section key={epoch} className='relative flex h-full min-h-0 flex-col' aria-label='New thread'>
       <PageSidebarTrigger standalone />
+      <BackdropStudyMark />
       <div className='relative z-10 flex min-h-0 flex-1 flex-col justify-center'>
         <ThreadComposer running={false} rows={2} ambient />
       </div>
-      <ComposerShadowToggle />
+      <div className='absolute right-4 bottom-4 z-20 flex flex-col items-end gap-1'>
+        <BackdropStudyToggle />
+        <ComposerShadowToggle />
+      </div>
     </section>
   )
 }

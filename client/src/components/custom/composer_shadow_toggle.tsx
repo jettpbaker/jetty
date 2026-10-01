@@ -22,7 +22,7 @@ export function ComposerShadowToggle() {
   return (
     <fieldset
       aria-label='Composer shadow in light mode'
-      className='absolute right-4 bottom-4 z-20 m-0 flex items-center gap-1 rounded-md border border-border bg-background p-1 text-xs'
+      className='m-0 flex items-center gap-1 rounded-md border border-border bg-background p-1 text-xs'
     >
       <span className='px-1.5 text-muted-foreground'>Shadow</span>
       {techniques.map((technique) => (
