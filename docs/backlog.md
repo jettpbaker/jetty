@@ -115,19 +115,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
      log clipped mid-sentence instead of its final report.
   6. Let a parent escalate one child to the user (mark_ready_for_review with
      a threadId); agent-created threads no longer flag the user themselves.
-- Long threads freeze the server while a reply streams (work, 1 Oct: first word
-  arrives, then "Reconnecting", and even a page reload hangs until the turn
-  ends; the agent itself finishes fine). Cause, measured locally: every event
-  (each streamed word) reads the thread's whole state JSON, schema-decodes it,
-  applies the event, re-encodes and rewrites it (store.ts append →
-  getThreadState/writeState), so per-event cost grows with thread size: 0.3ms
-  at 0.12MB, 2.4ms at 1.2MB, 14.5ms at 4.6MB, 31.8ms at 11.6MB of state. While
-  a burst of deltas lands, nothing else is served (a page load waited the whole
-  6.4s of 200 deltas at 11.6MB). Claude streams faster than that, so the
-  backlog grows until the turn ends. The work box is slower than this Mac.
-  Fix options: keep each thread's state in memory and persist it debounced
-  (events stay the durable log), coalesce streamed deltas (~50ms) before
-  appending, and skip schema-decoding our own stored state on the hot path.
+- Long threads, after the streaming fix: opening one still sends its whole
+  state, and the background save rewrites the whole JSON (~30ms every 2s at
+  10MB while streaming). Next step: page snapshots by turns (t3code: last 10
+  turns, then 20 per page) and slim tool output on the wire.
 - Grok threads read idle while background subagents run: Grok emits no
   `subagent` items (its `spawn_subagent` call shows as a tool row that settles
   at once with "Subagent started in background"), so the reducer's "running
