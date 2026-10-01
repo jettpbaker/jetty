@@ -17,7 +17,7 @@
               "@phosphor-icons/*",
               "@primer/octicons-react"
             ],
-            "message": "Icons come from git_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+            "message": "Icons come from lucide_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
           }
         ]
       }
@@ -106,7 +106,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from git_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+                "message": "Icons come from lucide_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
               }
             ]
           }
@@ -127,7 +127,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from git_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+                "message": "Icons come from lucide_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
               }
             ]
           }
@@ -143,7 +143,7 @@
     },
     {
       "files": [
-        "client/src/components/custom/git_icons.tsx",
+        "client/src/components/custom/lucide_icons.tsx",
         "client/src/components/custom/huge_icons.tsx"
       ],
       "rules": {

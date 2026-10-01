@@ -3,7 +3,7 @@ import {
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
-} from '@/components/custom/git_icons'
+} from '@/components/custom/lucide_icons'
 import { cn } from '@/lib/utils'
 
 export const prPresentation = {

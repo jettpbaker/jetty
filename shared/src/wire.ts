@@ -269,11 +269,15 @@ export const methods = {
       projectId: Schema.String,
       localOnly: Schema.optional(Schema.Boolean),
     }),
-    result: Schema.Struct({
-      defaultRef: Schema.String,
-      currentBranch: Schema.String,
-      branches: Schema.Array(Schema.String),
-    }),
+    result: Schema.Union([
+      Schema.Struct({
+        git: Schema.Literal('ok'),
+        defaultRef: Schema.String,
+        currentBranch: Schema.String,
+        branches: Schema.Array(Schema.String),
+      }),
+      Schema.Struct({ git: Schema.Literals(['missing', 'not-git']) }),
+    ]),
   },
   'thread.worktreeChanges': {
     params: Schema.Struct({ threadId: Schema.String }),

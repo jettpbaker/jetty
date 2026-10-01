@@ -210,7 +210,11 @@ export function createMcpHandler(
           : project.path
         baseCommit = yield* Effect.tryPromise({
           try: () => worktrees.resolveRef(cwd, input.ref ?? (fromWorktree ? 'HEAD' : undefined)),
-          catch: (error) => new StoreError('invalid_params', String(error)),
+          catch: (error) =>
+            new StoreError(
+              'invalid_params',
+              error instanceof Error ? error.message : String(error)
+            ),
         })
         return yield* create
       })

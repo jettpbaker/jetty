@@ -50,10 +50,11 @@
   what's still wanted, not clutter.
 - Icons are Lucide for git and issue concepts (branches, PRs, commits, diffs, the
   worktree folder) and Hugeicons stroke-rounded for everything else, carets
-  included. Lucide is imported only in `git_icons.tsx`, Hugeicons only in
-  `huge_icons.tsx`, which wraps each glyph; oxlint bans both packs everywhere
-  else, and Phosphor and Octicons outright. Registry components arrive speaking
-  lucide — swap their non-git icons to Hugeicons when adding them.
+  included. Deliberate Lucide exceptions outside git: `Settings2` (the thread
+  list's filter button). Lucide is imported only in `lucide_icons.tsx`, Hugeicons
+  only in `huge_icons.tsx`, which wraps each glyph; oxlint bans both packs
+  everywhere else, and Phosphor and Octicons outright. Registry components arrive
+  speaking lucide — swap their non-git icons to Hugeicons when adding them.
 
 ### icons
 

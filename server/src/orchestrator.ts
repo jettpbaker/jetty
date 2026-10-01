@@ -27,6 +27,7 @@ import {
   type ProviderTitler,
 } from './registry'
 import { StoreError } from './store'
+import { isFolder } from './worktrees'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
 const DELTA_BATCH = '50 millis'
@@ -608,6 +609,22 @@ export function createOrchestrator({
               ).pipe(
                 Effect.andThen(
                   Effect.gen(function* () {
+                    const folder = cwd
+                    if (folder && !(yield* Effect.promise(() => isFolder(folder)))) {
+                      const message = `Project folder not found: ${folder}`
+                      const item = {
+                        id: newId(),
+                        turnId,
+                        createdAt: Date.now(),
+                        kind: 'error' as const,
+                        message,
+                      }
+                      return {
+                        await: emit({ type: 'item.started', item }).pipe(
+                          Effect.andThen(Effect.fail(new AgentError(message)))
+                        ),
+                      }
+                    }
                     return yield* agent.startTurn(
                       {
                         cwd,

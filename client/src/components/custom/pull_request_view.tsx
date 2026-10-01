@@ -2,15 +2,6 @@ import type { PullRequestData } from '@jetty/shared/pull-request'
 
 import { SuccessStatusIcon, ErrorStatusIcon } from '@/components/custom/circle_status_icon'
 import {
-  GitBranchIcon,
-  GitCommitHorizontalIcon,
-  GitPullRequestIcon,
-  DiffIcon,
-  GitMergeIcon,
-  CircleDotIcon,
-  WorkflowIcon,
-} from '@/components/custom/git_icons'
-import {
   RefreshIcon,
   LinkSquare02Icon,
   ArrowDown01Icon,
@@ -23,6 +14,15 @@ import {
   Cancel01Icon,
   UserGroupIcon,
 } from '@/components/custom/huge_icons'
+import {
+  GitBranchIcon,
+  GitCommitHorizontalIcon,
+  GitPullRequestIcon,
+  DiffIcon,
+  GitMergeIcon,
+  CircleDotIcon,
+  WorkflowIcon,
+} from '@/components/custom/lucide_icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

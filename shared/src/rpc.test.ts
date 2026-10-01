@@ -54,7 +54,12 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'models.refresh': () => Effect.succeed(null),
           'settings.setBranchPrefix': () => Effect.succeed(null),
           'project.branches': () =>
-            Effect.succeed({ defaultRef: 'origin/main', currentBranch: 'main', branches: [] }),
+            Effect.succeed({
+              git: 'ok' as const,
+              defaultRef: 'origin/main',
+              currentBranch: 'main',
+              branches: [],
+            }),
           'thread.worktreeChanges': () => Effect.succeed({ count: 0 }),
           'thread.retrySetup': () => Effect.succeed(null),
           'settings.setTitleModel': () => Effect.succeed(null),

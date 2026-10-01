@@ -1,25 +1,30 @@
-import { GitBranchIcon } from '@/components/custom/git_icons'
+import { GitBranchIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { OptionPicker } from './option_picker'
 
 export function ComposerBranch({
   branch,
   refs = [],
+  disabledReason,
   onChange,
   onOpen,
 }: {
   branch?: string
   refs?: readonly string[]
+  disabledReason?: string
   onChange?: (ref: string) => void
   onOpen?: () => void
 }) {
-  if (!onChange)
+  if (!onChange || disabledReason)
     return (
-      <Button variant='ghost-text' size='sm' disabled>
-        <GitBranchIcon />
-        {branch || 'Branch'}
-      </Button>
+      <DisabledTooltip reason={disabledReason} wrap='flex'>
+        <Button variant='ghost-text' size='sm' disabled>
+          <GitBranchIcon />
+          {branch || 'Branch'}
+        </Button>
+      </DisabledTooltip>
     )
   return (
     <OptionPicker
@@ -27,7 +32,7 @@ export function ComposerBranch({
       label='Choose base ref'
       placeholder='Search branches'
       align='end'
-      labelPrefix='From '
+      tooltip={branch && `From ${branch}`}
       icon={<GitBranchIcon />}
       value={branch ?? ''}
       options={[...new Set(branch ? [...refs, branch] : refs)].map((ref) => ({

@@ -2,7 +2,7 @@ import type { ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { cp, lstat, mkdir, readFile, realpath } from 'node:fs/promises'
+import { cp, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 import type { Store, WorktreeRecord } from './store'
@@ -13,8 +13,25 @@ export type Worktrees = ReturnType<typeof createWorktrees>
 
 const SETUP_TIMEOUT = 15 * 60_000
 
+export const isFolder = (path: string) =>
+  stat(path).then(
+    (info) => info.isDirectory(),
+    () => false
+  )
+
+function spawnGit(cwd: string, args: string[]) {
+  try {
+    return Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  } catch (error) {
+    // Bun reports a missing cwd as the git binary itself missing.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      throw new Error(`Project folder not found: ${cwd}`)
+    throw error
+  }
+}
+
 async function git(cwd: string, ...args: string[]) {
-  const process = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  const process = spawnGit(cwd, args)
   const timer = setTimeout(() => process.kill(), 120_000)
   try {
     const [out, error, code] = await Promise.all([
@@ -30,6 +47,21 @@ async function git(cwd: string, ...args: string[]) {
 }
 
 const tryGit = (cwd: string, ...args: string[]) => git(cwd, ...args).catch(() => '')
+
+type GitState = 'ok' | 'missing' | 'not-git'
+
+async function gitState(path: string): Promise<GitState> {
+  if (!(await isFolder(path))) return 'missing'
+  return (await tryGit(path, 'rev-parse', '--is-inside-work-tree')) === 'true' ? 'ok' : 'not-git'
+}
+
+async function requireGit(path: string) {
+  const state = await gitState(path)
+  if (state === 'missing')
+    throw new StoreError('invalid_params', `Project folder not found: ${path}`)
+  if (state === 'not-git')
+    throw new StoreError('invalid_params', `${basename(path)} isn't a git repository`)
+}
 
 function validRef(name: string) {
   if (!name || name.startsWith('-') || name.includes('\0'))
@@ -94,7 +126,11 @@ export function createWorktrees(
     }
   }
 
+  const hasOrigin = async (cwd: string) => Boolean(await tryGit(cwd, 'remote', 'get-url', 'origin'))
+
+  // A repo without origin starts worktrees from its current checkout.
   async function defaultRef(cwd: string) {
+    if (!(await hasOrigin(cwd))) return (await git(cwd, 'branch', '--show-current')) || 'HEAD'
     const head = await tryGit(cwd, 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD')
     if (head) return head.replace(/^refs\/remotes\//, '')
     const remote = await tryGit(cwd, 'ls-remote', '--symref', 'origin', 'HEAD')
@@ -139,22 +175,25 @@ export function createWorktrees(
     )
   }
 
-  function branches(cwd: string, localOnly = false) {
-    return serialized(cwd, async () => {
-      const currentBranch = await git(cwd, 'branch', '--show-current')
-      const base = localOnly ? currentBranch : await defaultRef(cwd)
-      if (!localOnly) await git(cwd, 'fetch', 'origin', '--prune')
-      const sorted = ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)']
-      const local = await git(cwd, ...sorted, 'refs/heads')
-      const remote = localOnly ? '' : await git(cwd, ...sorted, 'refs/remotes/origin')
-      return {
-        defaultRef: base,
-        currentBranch,
-        branches: [...new Set([base, ...local.split('\n'), ...remote.split('\n')])].filter(
-          (ref) => ref && ref !== 'origin/HEAD'
-        ),
-      }
-    })
+  async function branches(cwd: string, localOnly = false) {
+    const state = await gitState(cwd)
+    if (state !== 'ok') return { git: state }
+    // Reads never queue behind another request's fetch; only the fetch itself is serialized.
+    const currentBranch = await git(cwd, 'branch', '--show-current')
+    const remote = !localOnly && (await hasOrigin(cwd))
+    const base = localOnly ? currentBranch : await defaultRef(cwd)
+    if (remote) await serialized(cwd, () => git(cwd, 'fetch', 'origin', '--prune'))
+    const sorted = ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)']
+    const local = await git(cwd, ...sorted, 'refs/heads')
+    const remotes = remote ? await git(cwd, ...sorted, 'refs/remotes/origin') : ''
+    return {
+      git: state,
+      defaultRef: base,
+      currentBranch,
+      branches: [...new Set([base, ...local.split('\n'), ...remotes.split('\n')])].filter(
+        (ref) => ref && ref !== 'origin/HEAD'
+      ),
+    }
   }
 
   async function locate(threadId: string) {
@@ -416,13 +455,10 @@ export function createWorktrees(
         '--format=%(upstream)',
         `refs/heads/${temporary}`
       )
-      const pushed = await git(
-        project.path,
-        'ls-remote',
-        '--heads',
-        'origin',
-        `refs/heads/${temporary}`
-      )
+      const origin = await hasOrigin(project.path)
+      const pushed = origin
+        ? await git(project.path, 'ls-remote', '--heads', 'origin', `refs/heads/${temporary}`)
+        : ''
       if (current !== temporary || upstream || pushed) {
         record.temporaryBranch = null
         await save(threadId, record)
@@ -435,7 +471,7 @@ export function createWorktrees(
         'refs/heads',
         'refs/remotes'
       )
-      const remoteRefs = await git(project.path, 'ls-remote', '--heads', 'origin')
+      const remoteRefs = origin ? await git(project.path, 'ls-remote', '--heads', 'origin') : ''
       const occupied = new Set([
         ...refs.split('\n').map((ref) => ref.replace(/^refs\/heads\/|^refs\/remotes\/[^/]+\//, '')),
         ...remoteRefs.split('\n').map((line) => line.split('\t')[1]?.replace('refs/heads/', '')),
@@ -469,7 +505,10 @@ export function createWorktrees(
 
   return {
     branches,
-    resolveRef: (cwd: string, ref?: string) => serialized(cwd, () => resolveRef(cwd, ref)),
+    resolveRef: async (cwd: string, ref?: string) => {
+      await requireGit(cwd)
+      return serialized(cwd, () => resolveRef(cwd, ref))
+    },
     root,
     prepare,
     dirty,

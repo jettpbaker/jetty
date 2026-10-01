@@ -1,7 +1,7 @@
 import type { ComposerImage } from '@/hooks/use-image-attachments'
 
-import { CircleDotIcon } from '@/components/custom/git_icons'
 import { Cancel01Icon, Attachment01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
+import { CircleDotIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,

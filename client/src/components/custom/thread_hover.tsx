@@ -2,7 +2,7 @@ import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
-import { useBranches } from '@/state/worktrees'
+import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import {
   createContext,
@@ -13,8 +13,8 @@ import {
   type ReactNode,
 } from 'react'
 
-import { FolderGit2Icon } from './git_icons'
 import { Alert02Icon, LaptopIcon } from './huge_icons'
+import { FolderGit2Icon } from './lucide_icons'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
@@ -109,17 +109,15 @@ function EnvironmentLine({ worktree, branch }: { worktree: boolean; branch?: str
   )
 }
 
-// The card stays mounted across rows, so the result remembers which project it belongs to.
-function useCheckoutBranch(projectId?: string) {
+// A project without a git checkout has no branch.
+function useCheckout(projectId?: string) {
   const fetchBranches = useBranches()
-  const [checkout, setCheckout] = useState<{ projectId: string; branch: string }>()
   useEffect(() => {
-    if (projectId)
-      fetchBranches(projectId, true, ({ currentBranch }) =>
-        setCheckout({ projectId, branch: currentBranch })
-      )
+    if (projectId) fetchBranches(projectId, true)
   }, [projectId, fetchBranches])
-  return checkout && checkout.projectId === projectId ? checkout.branch : undefined
+  const list = useBranchList(projectId, true)
+  if (!list || list.git === 'error') return undefined
+  return { branch: list.git === 'ok' ? list.currentBranch : undefined }
 }
 
 function ThreadHoverContent({
@@ -130,7 +128,8 @@ function ThreadHoverContent({
   onOpenPullRequest,
 }: ThreadHoverContentProps) {
   const local = details.environment === 'local'
-  const branch = useCheckoutBranch(local ? details.projectId : undefined) ?? details.branch
+  const checkout = useCheckout(local ? details.projectId : undefined)
+  const branch = checkout ? checkout.branch : details.branch
   const { pullRequest } = details
   const prLabel = pullRequest && pullRequestLabel(pullRequest)
   return (
@@ -161,7 +160,7 @@ function ThreadHoverContent({
         </span>
       </div>
       <EnvironmentLine worktree={!local} branch={branch} />
-      {details.startedOn && details.startedOn !== branch && (
+      {details.startedOn && branch !== undefined && details.startedOn !== branch && (
         <span className='flex items-start gap-1 text-foreground'>
           <Alert02Icon
             aria-hidden='true'

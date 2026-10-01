@@ -1,6 +1,5 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
-import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/git_icons'
 import {
   CircleIcon,
   Settings01Icon,
@@ -8,6 +7,7 @@ import {
   PencilEdit02Icon,
   PinIcon,
 } from '@/components/custom/huge_icons'
+import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

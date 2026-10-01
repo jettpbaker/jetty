@@ -1,4 +1,5 @@
-import { Search01Icon, SlidersHorizontalIcon } from '@/components/custom/huge_icons'
+import { Search01Icon } from '@/components/custom/huge_icons'
+import { Settings2Icon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -66,7 +67,7 @@ export function SidebarThreadControls({
             />
           }
         >
-          <SlidersHorizontalIcon className='size-3.5' aria-hidden='true' />
+          <Settings2Icon className='size-3.5' aria-hidden='true' />
         </DropdownMenuTrigger>
         <DropdownMenuContent side='right' align='start' className='w-44'>
           <DropdownMenuRadioGroup value={grouping} onValueChange={onGroupingChange}>

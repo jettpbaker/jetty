@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useRef, useState, type ReactNode } from 'react'
 
@@ -35,7 +36,7 @@ export function OptionPicker({
   disabled = false,
   emptyLabel = 'Select',
   onOpen,
-  labelPrefix,
+  tooltip,
   'aria-describedby': describedBy,
 }: {
   name: string
@@ -49,7 +50,7 @@ export function OptionPicker({
   actions?: readonly PickerAction[]
   disabled?: boolean
   onOpen?: () => void
-  labelPrefix?: string
+  tooltip?: string
   emptyLabel?: string
   'aria-describedby'?: string
 }) {
@@ -83,22 +84,28 @@ export function OptionPicker({
         }
       }}
     >
-      <PopoverTrigger
-        aria-label={selected ? `${name}: ${selected.label}` : label}
-        aria-describedby={describedBy}
-        disabled={disabled}
-        render={
-          <Button
-            variant='ghost-text'
-            size='sm'
-            className={cn('gap-1.5 rounded-sm', disabled && 'pointer-events-none')}
-          />
-        }
-      >
-        {selected?.icon ?? icon}
-        {labelPrefix}
-        {selected?.label ?? emptyLabel}
-      </PopoverTrigger>
+      <Tooltip disabled={!tooltip}>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              aria-label={selected ? `${name}: ${selected.label}` : label}
+              aria-describedby={describedBy}
+              disabled={disabled}
+              render={
+                <Button
+                  variant='ghost-text'
+                  size='sm'
+                  className={cn('gap-1.5 rounded-sm', disabled && 'pointer-events-none')}
+                />
+              }
+            />
+          }
+        >
+          {selected?.icon ?? icon}
+          {selected?.label ?? emptyLabel}
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
       <PopoverContent
         align={align}
         finalFocus={() => !actionChosen.current}

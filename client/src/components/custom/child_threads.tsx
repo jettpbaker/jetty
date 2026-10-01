@@ -1,6 +1,6 @@
 import type { ProviderId } from '@jetty/shared/wire'
 
-import { WorkflowIcon } from '@/components/custom/git_icons'
+import { WorkflowIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { formatAge, formatDuration } from '@/lib/time'

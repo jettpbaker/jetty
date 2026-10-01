@@ -1,6 +1,5 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
-import { DiffIcon, WorkflowIcon } from '@/components/custom/git_icons'
 import {
   BubbleChatIcon,
   File01Icon,
@@ -9,6 +8,7 @@ import {
   PlusSignIcon,
   Cancel01Icon,
 } from '@/components/custom/huge_icons'
+import { DiffIcon, WorkflowIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,

@@ -13,10 +13,8 @@ function loadProjectIconSet() {
   return (iconSet ??= import('./project_icon_set'))
 }
 
-function DefaultGlyph({ className, ...props }: GlyphProps) {
-  return (
-    <Folder01Icon aria-hidden='true' className={cn('icon-optical-down', className)} {...props} />
-  )
+function DefaultGlyph(props: GlyphProps) {
+  return <Folder01Icon aria-hidden='true' {...props} />
 }
 
 function EmojiGlyph({ emoji, className, ...props }: GlyphProps & { emoji: string }) {
@@ -41,7 +39,9 @@ function IconGlyph({ name, className, ...props }: GlyphProps & { name: string })
   return <Icon aria-hidden='true' className={cn('shrink-0', className)} {...props} />
 }
 
-export function ProjectGlyph({ icon, ...props }: GlyphProps & { icon?: ProjectIcon }) {
+// Every variant sits beside a project name, so each centres on its x-height, not the line box.
+export function ProjectGlyph({ icon, className, ...rest }: GlyphProps & { icon?: ProjectIcon }) {
+  const props = { ...rest, className: cn('icon-optical-down', className) }
   if (icon?.type === 'emoji') return <EmojiGlyph key={icon.emoji} emoji={icon.emoji} {...props} />
   if (icon?.type === 'icon')
     return (

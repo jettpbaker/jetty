@@ -1,4 +1,3 @@
-import { GitBranchIcon, GitMergeIcon } from '@/components/custom/git_icons'
 import {
   AnchorIcon,
   AppWindowIcon,
@@ -97,6 +96,7 @@ import {
   WrenchIcon,
   type Icon,
 } from '@/components/custom/huge_icons'
+import { GitBranchIcon, GitMergeIcon } from '@/components/custom/lucide_icons'
 
 export type ProjectIconOption = { name: string; label: string; icon: Icon; keywords: string }
 
