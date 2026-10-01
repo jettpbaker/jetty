@@ -1,9 +1,0 @@
-.wallpaper-dissolve {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  color: var(--background);
-  image-rendering: pixelated;
-  pointer-events: none;
-}

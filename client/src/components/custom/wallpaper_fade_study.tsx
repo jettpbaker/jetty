@@ -1,19 +1,15 @@
 import { Button } from '@/components/ui/button'
-import { useResolvedTheme } from '@/lib/theme'
 import { storage } from '@/platform'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
-
-import './wallpaper_fade_study.css'
+import { useSyncExternalStore, type ReactNode } from 'react'
 
 // Temporary: compares how a wallpaper fades out in light mode. Remove once one is chosen.
 
-export const wallpaperFades = ['current', 'clean', 'dissolve'] as const
+export const wallpaperFades = ['current', 'clean'] as const
 export type WallpaperFade = (typeof wallpaperFades)[number]
 
 const labels: Record<WallpaperFade, string> = {
   current: 'Current',
   clean: 'Clean',
-  dissolve: 'Dissolve',
 }
 const storageKey = 'jetty.wallpaper-fade-study'
 const listeners = new Set<() => void>()
@@ -59,54 +55,26 @@ export function WallpaperFadeToggle() {
   )
 }
 
-const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
-const block = 3
+// Fades the wallpaper out by the composer's bottom edge (the composer sits centred), so the
+// buttons beneath it read on the plain page colour.
+const stops = [1, 0.97, 0.88, 0.72, 0.5, 0.3, 0.14, 0.04, 0]
+const composerFade = `linear-gradient(to bottom, ${stops
+  .map(
+    (alpha, index) =>
+      `rgb(0 0 0 / ${alpha}) calc(50% - 12rem + ${(16.5 * index) / (stops.length - 1)}rem)`
+  )
+  .join(', ')})`
 
-// How much of the wallpaper survives at a height: all of it above 45%, none by 95%.
-function visibleAt(position: number) {
-  const t = Math.min(1, Math.max(0, (position - 0.45) / 0.5))
-  return 1 - t * t * (3 - 2 * t)
-}
-
-// Covers the wallpaper in page-coloured blocks on an ordered-dither threshold, so it breaks
-// up toward the bottom instead of washing out.
-export function WallpaperDissolve() {
-  const ref = useRef<HTMLCanvasElement>(null)
-  const theme = useResolvedTheme()
-  useEffect(() => {
-    const canvas = ref.current
-    const context = canvas?.getContext('2d', { willReadFrequently: true })
-    if (!canvas || !context) return
-    function draw() {
-      if (!canvas || !context) return
-      const { width, height } = canvas.getBoundingClientRect()
-      const columns = Math.max(1, Math.ceil(width / block))
-      const rows = Math.max(1, Math.ceil(height / block))
-      canvas.width = columns
-      canvas.height = rows
-      context.fillStyle = getComputedStyle(canvas).color
-      context.fillRect(0, 0, 1, 1)
-      const [r, g, b] = context.getImageData(0, 0, 1, 1).data
-      const pixels = context.createImageData(columns, rows)
-      for (let y = 0; y < rows; y++) {
-        const visible = visibleAt(y / rows)
-        // Surviving blocks pale as they go, so the last stragglers aren't hard dark dots.
-        const veil = Math.round((1 - visible) * 200)
-        for (let x = 0; x < columns; x++) {
-          const covered = (bayer[(y % 4) * 4 + (x % 4)]! + 0.5) / 16 >= visible
-          const index = (y * columns + x) * 4
-          pixels.data[index] = r!
-          pixels.data[index + 1] = g!
-          pixels.data[index + 2] = b!
-          pixels.data[index + 3] = covered ? 255 : veil
-        }
-      }
-      context.putImageData(pixels, 0, 0)
-    }
-    draw()
-    const observer = new ResizeObserver(draw)
-    observer.observe(canvas)
-    return () => observer.disconnect()
-  }, [theme])
-  return <canvas ref={ref} className='wallpaper-dissolve' aria-hidden='true' />
+export function ComposerFade({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className='background-stack'
+      style={{ background: 'var(--background)' }}
+      aria-hidden='true'
+    >
+      <div className='background-fade' style={{ maskImage: composerFade }}>
+        {children}
+      </div>
+    </div>
+  )
 }

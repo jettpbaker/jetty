@@ -10,7 +10,7 @@ import { DitherDrift } from './dither_drift'
 import { DownwardBlur } from './downward_blur'
 import { DriftingDither } from './drifting_dither'
 import { OpacityFade } from './opacity_fade'
-import { useWallpaperFade, WallpaperDissolve } from './wallpaper_fade_study'
+import { ComposerFade, useWallpaperFade } from './wallpaper_fade_study'
 import './new_thread_backdrop.css'
 
 const curve = {
@@ -50,19 +50,7 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   if (fade === 'clean')
     return (
       <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
-        <OpacityFade
-          settings={{ ...initialFadeSettings, topOpacity: 1 }}
-          background='var(--background)'
-        >
-          {wallpaper}
-        </OpacityFade>
-      </div>
-    )
-  if (fade === 'dissolve')
-    return (
-      <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
-        {wallpaper}
-        <WallpaperDissolve />
+        <ComposerFade>{wallpaper}</ComposerFade>
       </div>
     )
   return (

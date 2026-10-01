@@ -1,13 +1,23 @@
 import type { ComposerShadowSettings } from '@/lib/composer-shadow-settings'
 
 import { useAppearance } from '@/lib/appearance'
+import { useResolvedTheme } from '@/lib/theme'
 
+import { useWallpaperFade } from './wallpaper_fade_study'
 import './composer_shadow.css'
 
-export function ComposerShadow({ settings }: { settings: ComposerShadowSettings }) {
+// Whether the heavy shadow lifts the composer off a wallpaper; otherwise its own small lift does.
+export function useWallpaperUnderComposer() {
   const { wallpaper, video } = useAppearance()
-  // It lifts the composer off a wallpaper; the plain page needs only the composer's own lift.
-  if (!settings.enabled || !(wallpaper || video)) return null
+  const light = useResolvedTheme() === 'light'
+  const fade = useWallpaperFade()
+  if (video) return true
+  return !!wallpaper && !(light && fade === 'clean')
+}
+
+export function ComposerShadow({ settings }: { settings: ComposerShadowSettings }) {
+  const underneath = useWallpaperUnderComposer()
+  if (!settings.enabled || !underneath) return null
   const inset = Math.min(settings.falloffPx * 0.1, 8)
   const layer = `0 0 ${settings.falloffPx}px ${-inset}px var(--composer-shadow-color)`
   const boxShadow = Array.from({ length: settings.strength }, () => layer).join(', ')

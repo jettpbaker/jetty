@@ -3,7 +3,7 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
-import { ComposerShadow } from '@/components/custom/composer_shadow'
+import { ComposerShadow, useWallpaperUnderComposer } from '@/components/custom/composer_shadow'
 import { StopIcon, ArrowUp02Icon } from '@/components/custom/huge_icons'
 import {
   InputGroup,
@@ -12,7 +12,6 @@ import {
   InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useAppearance } from '@/lib/appearance'
 import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { cn } from '@/lib/utils'
 import {
@@ -69,7 +68,7 @@ export function Composer({
   inputRef?: RefObject<HTMLTextAreaElement | null>
 }) {
   const root = useRef<HTMLDivElement>(null)
-  const { wallpaper, video } = useAppearance()
+  const wallpaperUnder = useWallpaperUnderComposer()
   const ownInput = useRef<HTMLTextAreaElement>(null)
   const textarea = inputRef ?? ownInput
   const empty = !value.trim() && attachments.images.length === 0
@@ -143,7 +142,7 @@ export function Composer({
             className={cn(
               'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0',
               // Over a wallpaper the ambient shadow does the lifting.
-              ambient && (wallpaper || video ? 'shadow-none' : 'composer-lift')
+              ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
             )}
           >
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
