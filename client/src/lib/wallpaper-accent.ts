@@ -13,10 +13,13 @@ const relativeVividFraction = 0.7
 const minSamples = 24
 const binCount = 24
 const binSize = 360 / binCount
-const lightTarget = { l: 0.5, c: 0.17 }
-const darkTarget = { l: 0.772, c: 0.12 }
+const lightLightness = 0.5
+const darkLightness = 0.772
 const hueStatsWindow = 25
+// Vivid wallpapers pull both themes' lightness toward the middle by the same amount.
+const imageLightLightnessMax = 0.56
 const imageDarkLightnessMin = 0.64
+const accentChromaMin = 0.12
 const imageChromaMin = 0.1
 const imageChromaMax = 0.2
 const monoColorfulFraction = 0.02
@@ -105,13 +108,14 @@ function hueToTokens(hue: number, samples: OklchSample[]): Omit<AccentTokens, 't
   const weight = nearby.reduce((sum, sample) => sum + sample.c, 0)
   const chroma = nearby.reduce((sum, sample) => sum + sample.c * sample.c, 0) / weight
   const depth = clamp((chroma - imageChromaMin) / (imageChromaMax - imageChromaMin), 0, 1)
+  const accentChroma = clamp(chroma, accentChromaMin, imageChromaMax)
   return {
-    light: token(lightTarget.l, lightTarget.c, hue),
-    dark: token(
-      darkTarget.l - depth * (darkTarget.l - imageDarkLightnessMin),
-      clamp(chroma, darkTarget.c, imageChromaMax),
+    light: token(
+      lightLightness + depth * (imageLightLightnessMax - lightLightness),
+      accentChroma,
       hue
     ),
+    dark: token(darkLightness - depth * (darkLightness - imageDarkLightnessMin), accentChroma, hue),
   }
 }
 
