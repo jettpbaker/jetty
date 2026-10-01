@@ -266,11 +266,13 @@ export function ThreadList({
   )
 
   const stamp = rows.map(rowStamp).join('|')
+  // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
+  const totalSize = virtualizer.getTotalSize()
 
   useLayoutEffect(() => {
     if (!pinned.current || rows.length === 0) return
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width])
+  }, [virtualizer, rows.length, stamp, width, totalSize])
 
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
@@ -295,7 +297,7 @@ export function ThreadList({
             element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
         }}
       >
-        <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
+        <div className='relative w-full' style={{ height: totalSize }}>
           {virtualizer.getVirtualItems().map((virtualRow) => (
             <div
               key={virtualRow.key}
