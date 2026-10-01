@@ -29,6 +29,13 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   setups registered for localhost). If those can't move, focused-thread
   forwarding (the thread you're viewing owns the default ports) is the
   fallback. Also: shared backend vs per-worktree, and the Linux inotify limit.
+- Spotlight (Conductor's name), the alternative to per-worktree ports: toggle it
+  on a worktree thread and Jetty mirrors that worktree's tracked files into the
+  project checkout (snapshot commit, check it out), watching for the agent's
+  edits, so the dev server already running there hot-reloads on the thread's
+  code. One thread at a time, one-way; switching swaps, off restores the
+  checkout. Open: the user's own uncommitted work in the checkout (stash or
+  refuse), and Local threads writing there at the same time. Start with a POC.
 - Design Jetty's built-in agent instructions (server/src/jetty-instructions.ts)
   so agents understand the process and the ideal workflow: work out of a couple
   of orchestrator threads, children report up to their parent, the parent
