@@ -173,7 +173,22 @@ export function AppSidebar() {
     }
   }
 
+  // The server refuses a worktree with uncommitted changes; check first so we never claim success.
   function archive(threadId: string) {
+    if (chrome?.threads.find((thread) => thread.id === threadId)?.environment !== 'worktree') {
+      confirmArchive(threadId)
+      return
+    }
+    checkChanges(threadId, (count) => {
+      if (count > 0)
+        toast.error(
+          `Commit or discard ${count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`} before archiving this worktree`
+        )
+      else confirmArchive(threadId)
+    })
+  }
+
+  function confirmArchive(threadId: string) {
     archiveThread(threadId, true)
     const comeBack = leaveIfSelected(threadId)
     toast('Thread archived', {
