@@ -92,6 +92,8 @@
 - The companion rule: prefer easy undo over confirm dialogs. Act fast, make it
   reversible — don't use a modal as a safety net for an action that could just be
   undoable.
+- Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
+  inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still.
 
 ## thread environments
 

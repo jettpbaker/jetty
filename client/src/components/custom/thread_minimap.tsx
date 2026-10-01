@@ -6,8 +6,6 @@ import { Tooltip, TooltipContent } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useState } from 'react'
 
-import { OverflowTitle } from './overflow_title'
-
 const minTurns = 2
 const tickSpacing = 8
 // A gutter this wide holds the minimap without covering the conversation, so it stays visible.
@@ -236,11 +234,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
           align={activeIndex === 0 ? 'start' : activeIndex === lastIndex ? 'end' : 'center'}
           className='pointer-events-none block w-80 max-w-80 rounded-lg px-2.5 py-2 text-sm leading-snug'
         >
-          {preview && (
-            <OverflowTitle focusable={false} className='leading-snug'>
-              {preview.title}
-            </OverflowTitle>
-          )}
+          <p className='truncate font-medium'>{preview?.title}</p>
           {preview?.reply && (
             <p className='mt-0.5 line-clamp-3 text-muted-foreground'>{preview.reply}</p>
           )}

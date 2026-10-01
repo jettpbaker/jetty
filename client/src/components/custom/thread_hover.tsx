@@ -104,11 +104,7 @@ function EnvironmentLine({ worktree, branch }: { worktree: boolean; branch?: str
     >
       <Icon aria-hidden='true' className='size-3 shrink-0' />
       <span className='sr-only'>{worktree ? 'Worktree' : 'Local checkout'}</span>
-      {branch && (
-        <OverflowTitle focusable={false} className='font-mono text-xs font-normal leading-normal'>
-          {branch}
-        </OverflowTitle>
-      )}
+      <span className='truncate font-mono'>{branch}</span>
     </span>
   )
 }
@@ -160,9 +156,7 @@ function ThreadHoverContent({
         </span>
         <span className='flex min-w-0 items-center gap-1'>
           <ProjectGlyph icon={details.projectIcon} className='size-3' />
-          <OverflowTitle focusable={false} className='text-xs font-normal leading-normal'>
-            {details.project}
-          </OverflowTitle>
+          <span className='truncate'>{details.project}</span>
         </span>
       </div>
       <EnvironmentLine worktree={!local} branch={branch} />
