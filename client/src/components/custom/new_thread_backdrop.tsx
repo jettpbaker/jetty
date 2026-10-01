@@ -36,7 +36,8 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const studied = useWallpaperFade()
   if (!image && !video) return <DitherDrift />
   const fadeBackground = resolvedTheme === 'light' ? '#ffffff' : '#000000'
-  const fade = resolvedTheme === 'light' && !video ? studied : 'current'
+  // Clean is light-only; Jett compares in both themes.
+  const fade = video || (resolvedTheme === 'dark' && studied === 'clean') ? 'current' : studied
   const wallpaper = (
     <DriftingDither
       className='wallpaper'

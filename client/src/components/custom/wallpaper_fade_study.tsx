@@ -36,10 +36,10 @@ export function WallpaperFadeToggle() {
   const value = useWallpaperFade()
   return (
     <fieldset
-      aria-label='Wallpaper fade in light mode'
+      aria-label='Wallpaper fade'
       className='absolute right-4 bottom-4 z-20 m-0 flex items-center gap-1 rounded-md border border-border bg-background p-1 text-xs'
     >
-      <span className='px-1.5 text-muted-foreground'>Light fade</span>
+      <span className='px-1.5 text-muted-foreground'>Fade</span>
       {wallpaperFades.map((option) => (
         <Button
           key={option}
