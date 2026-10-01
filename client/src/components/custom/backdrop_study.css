@@ -8,7 +8,7 @@
   mask-image: radial-gradient(ellipse 55% 50% at 50% 55%, black 10%, transparent 100%);
 }
 .backdrop-study-edges {
-  --edge: 5rem;
+  --edge: 2.5rem;
   mask-image:
     linear-gradient(
       to right,
