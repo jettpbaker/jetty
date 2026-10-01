@@ -2,6 +2,7 @@ import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
+import { cn } from '@/lib/utils'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import {
@@ -94,7 +95,9 @@ export function ThreadHoverCard({
   )
 }
 
-function EnvironmentLine({ worktree, branch }: { worktree: boolean; branch?: string }) {
+type Checkout = { label: string; branch: boolean }
+
+function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?: Checkout }) {
   const Icon = worktree ? FolderGit2Icon : LaptopIcon
   return (
     <span
@@ -103,20 +106,26 @@ function EnvironmentLine({ worktree, branch }: { worktree: boolean; branch?: str
     >
       <Icon aria-hidden='true' className='size-3 shrink-0' />
       <span className='sr-only'>{worktree ? 'Worktree' : 'Local checkout'}</span>
-      <span className='truncate font-mono'>{branch}</span>
+      {checkout && (
+        <span className={cn('truncate', checkout.branch && 'font-mono')}>{checkout.label}</span>
+      )}
     </span>
   )
 }
 
-// A project without a git checkout has no branch.
-function useCheckout(projectId?: string) {
+// A Local thread works on whatever the project checkout has out right now.
+function useCheckout(projectId?: string): Checkout | undefined {
   const fetchBranches = useBranches()
   useEffect(() => {
     if (projectId) fetchBranches(projectId, true)
   }, [projectId, fetchBranches])
   const list = useBranchList(projectId, true)
   if (!list || list.git === 'error') return undefined
-  return { branch: list.git === 'ok' ? list.currentBranch : undefined }
+  if (list.git !== 'ok')
+    return { label: list.git === 'missing' ? 'Folder missing' : 'Local folder', branch: false }
+  return list.currentBranch
+    ? { label: list.currentBranch, branch: true }
+    : { label: 'Detached HEAD', branch: false }
 }
 
 function ThreadHoverContent({
@@ -127,8 +136,9 @@ function ThreadHoverContent({
   onOpenPullRequest,
 }: ThreadHoverContentProps) {
   const local = details.environment === 'local'
-  const checkout = useCheckout(local ? details.projectId : undefined)
-  const branch = checkout ? checkout.branch : details.branch
+  const checkout =
+    useCheckout(local ? details.projectId : undefined) ??
+    (details.branch ? { label: details.branch, branch: true } : undefined)
   const { pullRequest } = details
   const prLabel = pullRequest && pullRequestLabel(pullRequest)
   return (
@@ -158,7 +168,7 @@ function ThreadHoverContent({
           <span className='truncate'>{details.project}</span>
         </span>
       </div>
-      <EnvironmentLine worktree={!local} branch={branch} />
+      <EnvironmentLine worktree={!local} checkout={checkout} />
       <div className='flex items-center gap-1'>
         {details.provider && (
           <ProviderGlyph provider={details.provider} className='size-3 text-primary' />
