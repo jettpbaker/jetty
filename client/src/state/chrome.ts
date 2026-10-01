@@ -17,6 +17,7 @@ import { AsyncResult, Atom } from 'effect/unstable/reactivity'
 import { subscribe } from './connection'
 import {
   createdThreadsAtom,
+  deletedProjectsAtom,
   deletedThreadsAtom,
   projectIconPatchesAtom,
   threadPatchesAtom,
@@ -59,6 +60,12 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, projects: upsert(chrome.projects, update.project) }
     case 'thread.upserted':
       return { ...chrome, threads: upsert(chrome.threads, update.thread) }
+    case 'project.removed':
+      return {
+        ...chrome,
+        projects: chrome.projects.filter((project) => project.id !== update.projectId),
+        threads: chrome.threads.filter((thread) => thread.projectId !== update.projectId),
+      }
     case 'thread.removed':
       return {
         ...chrome,
@@ -91,23 +98,32 @@ function withPending(
   created: ReadonlyMap<string, ThreadMeta>,
   patches: ReadonlyMap<string, ThreadPatch>,
   deleted: ReadonlySet<string>,
-  icons: ReadonlyMap<string, ProjectIcon | null>
+  icons: ReadonlyMap<string, ProjectIcon | null>,
+  deletedProjects: ReadonlySet<string>
 ): Chrome {
-  if (created.size === 0 && patches.size === 0 && deleted.size === 0 && icons.size === 0)
+  if (
+    created.size === 0 &&
+    patches.size === 0 &&
+    deleted.size === 0 &&
+    icons.size === 0 &&
+    deletedProjects.size === 0
+  )
     return chrome
   const known = new Set(chrome.threads.map((thread) => thread.id))
   const threads = [
     ...chrome.threads,
     ...[...created.values()].filter((thread) => !known.has(thread.id)),
   ]
-    .filter((thread) => !deleted.has(thread.id))
+    .filter((thread) => !deleted.has(thread.id) && !deletedProjects.has(thread.projectId))
     .map((thread) => {
       const patch = patches.get(thread.id)
       return patch ? { ...thread, ...patch } : thread
     })
-  const projects = chrome.projects.map((project) =>
-    icons.has(project.id) ? { ...project, icon: icons.get(project.id) ?? undefined } : project
-  )
+  const projects = chrome.projects
+    .filter((project) => !deletedProjects.has(project.id))
+    .map((project) =>
+      icons.has(project.id) ? { ...project, icon: icons.get(project.id) ?? undefined } : project
+    )
   return { ...chrome, projects, threads }
 }
 
@@ -120,7 +136,8 @@ export const chromeAtom = Atom.readable((get) => {
       get(createdThreadsAtom),
       get(threadPatchesAtom),
       get(deletedThreadsAtom),
-      get(projectIconPatchesAtom)
+      get(projectIconPatchesAtom),
+      get(deletedProjectsAtom)
     )
   )
 })

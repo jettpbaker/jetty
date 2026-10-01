@@ -308,6 +308,10 @@ export const methods = {
     params: Schema.Struct({ path: Schema.String }),
     result: Schema.Struct({ project: Project }),
   },
+  'project.delete': {
+    params: Schema.Struct({ projectId: Schema.String }),
+    result: Schema.Null,
+  },
   'project.setIcon': {
     params: Schema.Struct({ projectId: Schema.String, icon: Schema.NullOr(ProjectIcon) }),
     result: Schema.Null,
@@ -607,6 +611,7 @@ export const ChromePushData = Schema.Union([
     agentBehaviours: Schema.optional(AgentBehaviours),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
+  Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),

@@ -37,6 +37,9 @@ export const threadPatchesAtom = Atom.make<ReadonlyMap<string, ThreadPatch>>(new
 export const deletedThreadsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
   Atom.keepAlive
 )
+export const deletedProjectsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
+  Atom.keepAlive
+)
 export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon | null>>(
   new Map()
 ).pipe(Atom.keepAlive)
@@ -181,6 +184,37 @@ function deleteThread(registry: Registry, threadId: string) {
   return deletion
 }
 
+// Like a thread delete: hidden at once, removed on the server (threads included) on `commit`.
+function deleteProject(registry: Registry, projectId: string) {
+  registry.update(deletedProjectsAtom, (deleted) => new Set(deleted).add(projectId))
+  const restore = () =>
+    registry.update(deletedProjectsAtom, (deleted) => withoutId(deleted, projectId))
+  let settled = false
+  const deletion = {
+    undo() {
+      if (settled) return
+      settled = true
+      pendingDeletions.delete(deletion.commit)
+      restore()
+    },
+    commit() {
+      if (settled) return
+      settled = true
+      pendingDeletions.delete(deletion.commit)
+      run(
+        registry,
+        (connection) =>
+          connection
+            .request('project.delete', { projectId })
+            .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
+        restore
+      )
+    },
+  }
+  pendingDeletions.add(deletion.commit)
+  return deletion
+}
+
 // Sending to an archived thread brings it back first; the server won't queue on archived threads.
 export function unarchiveFirst(
   registry: Registry,
@@ -246,6 +280,10 @@ export function useRenameThread() {
 
 export function usePinThread() {
   return useAction(pinThread)
+}
+
+export function useDeleteProject() {
+  return useAction(deleteProject)
 }
 
 export function useDeleteThread() {

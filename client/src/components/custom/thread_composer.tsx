@@ -88,8 +88,13 @@ export function ThreadComposer({
   const selectedId = useParams({ strict: false }).threadId
   const [pickedProjectId, setPickedProjectId] = useState<string>()
   const [queueOpen, setQueueOpen] = useState(false)
+  const picked = chrome?.projects.some((project) => project.id === pickedProjectId)
   const projectId =
-    !threadId && chrome ? (pickedProjectId ?? newThreadProject(chrome, selectedId)) : undefined
+    !threadId && chrome
+      ? picked
+        ? pickedProjectId
+        : newThreadProject(chrome, selectedId)
+      : undefined
   const [environment, setEnvironment] = useState<'local' | 'worktree'>('worktree')
   const [startingRef, setStartingRef] = useState<string>()
   const meta = chrome?.threads.find((thread) => thread.id === threadId)

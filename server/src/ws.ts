@@ -237,6 +237,25 @@ export function createRpcHandlers(
             return { project }
           })
         ),
+      // Each thread goes through the normal delete (worktree and attachment cleanup) first.
+      'project.delete': (params) =>
+        Effect.gen(function* () {
+          yield* requireProject(params.projectId)
+          for (const thread of yield* store.listThreads())
+            if (thread.projectId === params.projectId) yield* orch.deleteThread(thread.id)
+          yield* mutation(
+            store
+              .deleteProject(params.projectId)
+              .pipe(
+                Effect.tap(() =>
+                  Effect.sync(() =>
+                    hub.pushChrome({ type: 'project.removed', projectId: params.projectId })
+                  )
+                )
+              )
+          )
+          return null
+        }).pipe(Effect.mapError(wireError)),
       'project.setIcon': (params) =>
         mutation(
           store.setProjectIcon(params.projectId, params.icon).pipe(

@@ -830,6 +830,12 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      deleteProject(id: string) {
+        return sql`DELETE FROM projects WHERE id = ${id}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       setProjectIcon(id: string, icon: ProjectIcon | null) {
         return Effect.gen(function* () {
           const rows =

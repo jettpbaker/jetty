@@ -1,17 +1,32 @@
 import { PlusSignIcon, Delete02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
+import { useDeleteProject } from '@/state/mutations'
 import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 
-import { DisabledTooltip } from './disabled_tooltip'
 import { ProjectFolderDialog } from './project_folder_dialog'
 import { ProjectIconPicker } from './project_icon_picker'
 
 export function SettingsProjects() {
-  const projects = useChrome()?.projects ?? []
+  const chrome = useChrome()
+  const projects = chrome?.projects ?? []
   const createProject = useCreateProject()
+  const deleteProject = useDeleteProject()
   const [adding, setAdding] = useState(false)
   const addButton = useRef<HTMLButtonElement>(null)
+  function remove(projectId: string, title: string) {
+    const threads = chrome?.threads.filter((thread) => thread.projectId === projectId).length ?? 0
+    const deletion = deleteProject(projectId)
+    toast(
+      `Deleted ${title}${threads ? ` and its ${threads === 1 ? 'thread' : `${threads} threads`}` : ''}`,
+      {
+        action: { label: 'Undo', onClick: deletion.undo },
+        onAutoClose: deletion.commit,
+        onDismiss: deletion.commit,
+      }
+    )
+  }
   function setDialogOpen(open: boolean) {
     setAdding(open)
     if (!open) requestAnimationFrame(() => addButton.current?.focus())
@@ -49,18 +64,15 @@ export function SettingsProjects() {
                 </span>
               </td>
               <td className='py-3 text-right'>
-                <DisabledTooltip reason='Coming soon' wrap='inline-flex'>
-                  <Button
-                    variant='ghost'
-                    tone='muted'
-                    size='icon'
-                    aria-label={`Remove ${project.title}`}
-                    className='pointer-events-none'
-                    disabled
-                  >
-                    <Delete02Icon aria-hidden='true' className='size-3.5 text-status-error' />
-                  </Button>
-                </DisabledTooltip>
+                <Button
+                  variant='ghost'
+                  tone='muted'
+                  size='icon'
+                  aria-label={`Delete ${project.title}`}
+                  onClick={() => remove(project.id, project.title)}
+                >
+                  <Delete02Icon aria-hidden='true' className='size-3.5 text-status-error' />
+                </Button>
               </td>
             </tr>
           ))}
