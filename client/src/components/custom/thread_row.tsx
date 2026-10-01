@@ -22,7 +22,6 @@ export function ThreadRow({
   pullRequest,
   environment,
   branch,
-  startedOn,
   provider,
   model,
   effort,
@@ -41,7 +40,6 @@ export function ThreadRow({
   pullRequest?: ThreadPullRequest
   environment: 'local' | 'worktree'
   branch?: string
-  startedOn?: string
   provider?: ProviderId
   model?: string
   effort?: string
@@ -65,7 +63,6 @@ export function ThreadRow({
           pullRequest,
           environment,
           branch,
-          startedOn,
         }}
         onOpenPullRequest={onOpenPullRequest}
         model={model}

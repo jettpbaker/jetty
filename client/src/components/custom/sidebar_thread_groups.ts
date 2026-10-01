@@ -16,7 +16,6 @@ export type SidebarThread = {
   lastActivity: string
   environment: 'local' | 'worktree'
   branch?: string
-  startedOn?: string
   updatedAt: number
   pinned: boolean
   archived: boolean

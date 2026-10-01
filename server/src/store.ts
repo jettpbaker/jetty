@@ -122,7 +122,7 @@ function publicProvider(value: string | null): ProviderId | undefined {
 
 function rowToThread(row: ThreadRow): ThreadMeta {
   const git = row.git_json
-    ? (JSON.parse(row.git_json) as { branch?: string; dirty?: boolean; startingBranch?: string })
+    ? (JSON.parse(row.git_json) as { branch?: string; dirty?: boolean })
     : null
   const provider = publicProvider(row.provider)
   const worktree = row.worktree_json ? (JSON.parse(row.worktree_json) as WorktreeRecord) : null
@@ -133,11 +133,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     ...(worktree?.checkoutPath ? { workingPath: worktree.checkoutPath } : {}),
     ...(git?.branch
       ? {
-          git: {
-            branch: git.branch,
-            dirty: git.dirty ?? false,
-            startingBranch: git.startingBranch,
-          },
+          git: { branch: git.branch, dirty: git.dirty ?? false },
         }
       : {}),
     ...(worktree
@@ -512,8 +508,8 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      captureLocalBase(threadId: string, baseCommit: string, startingBranch: string) {
-        return sql`UPDATE threads SET git_json = json_set(COALESCE(git_json, '{}'), '$.baseCommit', ${baseCommit}, '$.startingBranch', ${startingBranch}) WHERE id = ${threadId} AND environment = 'local' AND json_extract(git_json, '$.baseCommit') IS NULL`.pipe(
+      captureLocalBase(threadId: string, baseCommit: string) {
+        return sql`UPDATE threads SET git_json = json_set(COALESCE(git_json, '{}'), '$.baseCommit', ${baseCommit}) WHERE id = ${threadId} AND environment = 'local' AND json_extract(git_json, '$.baseCommit') IS NULL`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )

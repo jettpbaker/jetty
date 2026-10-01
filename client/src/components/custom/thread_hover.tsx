@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { Alert02Icon, LaptopIcon } from './huge_icons'
+import { LaptopIcon } from './huge_icons'
 import { FolderGit2Icon } from './lucide_icons'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -32,7 +32,6 @@ export type ThreadDetails = {
   pullRequest?: ThreadPullRequest
   environment: 'local' | 'worktree'
   branch?: string
-  startedOn?: string
 }
 
 type ThreadHoverContentProps = {
@@ -160,18 +159,6 @@ function ThreadHoverContent({
         </span>
       </div>
       <EnvironmentLine worktree={!local} branch={branch} />
-      {details.startedOn && branch !== undefined && details.startedOn !== branch && (
-        <span className='flex items-start gap-1 text-foreground'>
-          <Alert02Icon
-            aria-hidden='true'
-            className='mt-0.5 size-3 shrink-0 text-muted-foreground'
-          />
-          <span>
-            Checkout moved from <span className='font-mono'>{details.startedOn}</span> since this
-            thread started
-          </span>
-        </span>
-      )}
       <div className='flex items-center gap-1'>
         {details.provider && (
           <ProviderGlyph provider={details.provider} className='size-3 text-primary' />

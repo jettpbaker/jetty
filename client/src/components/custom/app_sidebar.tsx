@@ -100,7 +100,6 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
         : formatAge(thread.updatedAt, now),
     environment: thread.environment,
     branch: thread.git?.branch ?? thread.worktree?.branch ?? undefined,
-    startedOn: thread.git?.startingBranch,
     updatedAt: thread.updatedAt,
     pinned: thread.pinned,
     archived: thread.archived,

@@ -111,7 +111,6 @@ export const Project = Schema.Struct({
 export type Project = Schema.Schema.Type<typeof Project>
 
 export const ThreadGitStatus = Schema.Struct({
-  startingBranch: Schema.optional(Schema.String),
   branch: Schema.String,
   dirty: Schema.Boolean,
 })
