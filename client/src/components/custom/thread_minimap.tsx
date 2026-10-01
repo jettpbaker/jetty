@@ -2,10 +2,7 @@ import type { ThreadRow } from '@/components/custom/thread_rows'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
 
-import { ArrowDown01Icon, ArrowUp01Icon } from '@/components/custom/huge_icons'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { pressProps } from '@/lib/press'
+import { Tooltip, TooltipContent } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useState } from 'react'
 
@@ -15,8 +12,6 @@ const tickSpacing = 8
 const persistentGutter = 48
 const stripLeft = 12
 const stripMaxWidth = 40
-// The step buttons sit centred 4px into the strip and are 24px wide.
-const stepReach = 16
 const previewOffset = 32
 
 type View = { current: number | null; first: number; last: number }
@@ -147,8 +142,6 @@ export const ThreadMinimap = memo(function ThreadMinimap({
   const stripWidth = Math.max(0, Math.min(stripMaxWidth, Math.floor(gutter) - stripLeft))
   const preview = activeIndex === null ? null : turnPreview(rows.current, turns[activeIndex]!)
   const current = view.current !== null && view.current < turns.length ? view.current : null
-  const previous = current === null ? undefined : turns[current - 1]
-  const next = current === null ? undefined : turns[current + 1]
   const lastIndex = turns.length - 1
 
   function select(index: number | null) {
@@ -192,12 +185,6 @@ export const ThreadMinimap = memo(function ThreadMinimap({
           width: stripWidth,
         }}
       >
-        <MinimapStep
-          direction='previous'
-          target={previous}
-          interactive={stripWidth >= stepReach}
-          onSelect={onSelect}
-        />
         <button
           ref={setRail}
           type='button'
@@ -238,12 +225,6 @@ export const ThreadMinimap = memo(function ThreadMinimap({
             )
           })}
         </button>
-        <MinimapStep
-          direction='next'
-          target={next}
-          interactive={stripWidth >= stepReach}
-          onSelect={onSelect}
-        />
       </div>
       <Tooltip open={preview !== null}>
         <TooltipContent
@@ -262,47 +243,3 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     </div>
   )
 })
-
-function MinimapStep({
-  direction,
-  target,
-  interactive,
-  onSelect,
-}: {
-  direction: 'previous' | 'next'
-  target: number | undefined
-  interactive: boolean
-  onSelect: (row: number) => void
-}) {
-  const previous = direction === 'previous'
-  const label = previous ? 'Previous turn' : 'Next turn'
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span
-            className={cn(
-              'absolute left-1 z-10 inline-flex -translate-x-1/2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 hover:opacity-100 motion-reduce:transition-none',
-              interactive ? 'pointer-events-auto' : 'pointer-events-none',
-              previous ? 'bottom-[calc(100%+2px)]' : 'top-[calc(100%+2px)]'
-            )}
-          />
-        }
-      >
-        <Button
-          variant='ghost'
-          tone='muted'
-          size='icon-xs'
-          aria-label={label}
-          disabled={target === undefined}
-          {...pressProps(() => {
-            if (target !== undefined) onSelect(target)
-          })}
-        >
-          {previous ? <ArrowUp01Icon /> : <ArrowDown01Icon />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side={previous ? 'top' : 'bottom'}>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
