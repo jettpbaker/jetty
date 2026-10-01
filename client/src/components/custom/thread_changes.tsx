@@ -75,8 +75,8 @@ export function ThreadChanges({
   onTarget: OnTarget
 }) {
   const [pickedScope, setScope] = useState<DiffScope>()
-  const scope =
-    pickedScope ?? defaultDiffScope(useChrome()?.threads.find((thread) => thread.id === threadId))
+  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const scope = pickedScope ?? defaultDiffScope(meta)
   const { diff, failed } = useThreadDiff(threadId, scope)
   const nothingChanged = failed || diff?.diff === ''
   useLayoutEffect(() => {

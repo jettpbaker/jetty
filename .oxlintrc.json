@@ -6,6 +6,7 @@
   },
   "rules": {
     "unicorn/no-array-for-each": "error",
+    "react/rules-of-hooks": "error",
     "no-restricted-imports": [
       "error",
       {
