@@ -15,10 +15,9 @@ const options: { value: LightComposerShadow; label: string }[] = [
 export function ComposerShadowToggle() {
   const [value, setValue] = useState(loadLightComposerShadow)
   return (
-    <div
-      role='group'
+    <fieldset
       aria-label='Composer shadow in light mode'
-      className='absolute right-4 bottom-4 z-20 flex items-center gap-1 rounded-md border border-border bg-background p-1 text-xs'
+      className='absolute right-4 bottom-4 z-20 m-0 flex items-center gap-1 rounded-md border border-border bg-background p-1 text-xs'
     >
       <span className='px-1.5 text-muted-foreground'>Shadow</span>
       {options.map((option) => (
@@ -36,6 +35,6 @@ export function ComposerShadowToggle() {
           {option.label}
         </Button>
       ))}
-    </div>
+    </fieldset>
   )
 }
