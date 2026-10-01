@@ -1136,7 +1136,7 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      setThreadSessionId(threadId: string, sessionId: string) {
+      setThreadSessionId(threadId: string, sessionId: string | null) {
         return sql`UPDATE threads SET agent_session_id = ${sessionId} WHERE id = ${threadId}`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)

@@ -1,5 +1,7 @@
 import {
   query,
+  getSessionMessages,
+  forkSession,
   type McpSdkServerConfigWithInstance,
   type EffortLevel,
   type Options,
@@ -784,6 +786,65 @@ export function createClaudeAdapter(
     }
 
     return {
+      rewind(threadId, cwd, turnId, boundaries) {
+        return Effect.gen(function* () {
+          const session = sessions.get(threadId)
+          if (
+            session &&
+            (session.awaitingResult ||
+              session.runningAgents.size ||
+              session.runningWorkflows.size ||
+              session.backgroundTasks.tasks().length)
+          )
+            return yield* Effect.fail(new AgentError('Stop background work before rewinding'))
+          const retained = Object.keys(boundaries).slice(0, Object.keys(boundaries).indexOf(turnId))
+          let sessionId: string | null = null
+          const remapped: Record<string, string> = {}
+          if (retained.length) {
+            const source = yield* store.getThreadSessionId(threadId)
+            if (!source)
+              return yield* Effect.fail(new AgentError('Claude session history is unavailable'))
+            const messages = yield* Effect.tryPromise(() =>
+              getSessionMessages(source, { dir: cwd, includeSystemMessages: true })
+            )
+            const index = messages.findIndex((message) => message.uuid === boundaries[turnId])
+            if (index < 1)
+              return yield* Effect.fail(
+                new AgentError('The exact Claude message boundary is unavailable')
+              )
+            const positions = retained.map((id) =>
+              messages.findIndex((message) => message.uuid === boundaries[id])
+            )
+            if (positions.some((position) => position < 0 || position >= index))
+              return yield* Effect.fail(new AgentError('Claude retained history is unavailable'))
+            const fork = yield* Effect.tryPromise(() =>
+              forkSession(source, { dir: cwd, upToMessageId: messages[index - 1]!.uuid })
+            )
+            const history = yield* Effect.tryPromise(() =>
+              getSessionMessages(fork.sessionId, { dir: cwd, includeSystemMessages: true })
+            )
+            if (
+              history.length !== index ||
+              history.some(
+                (message, i) =>
+                  JSON.stringify(message.message) !== JSON.stringify(messages[i]!.message)
+              )
+            )
+              return yield* Effect.fail(
+                new AgentError('Claude fork did not preserve retained history')
+              )
+            for (const [i, id] of retained.entries()) remapped[id] = history[positions[i]!]!.uuid
+            sessionId = fork.sessionId
+          }
+          if (session) yield* closeSession(session, 'rewind')
+          yield* store.setThreadSessionId(threadId, sessionId)
+          return remapped
+        }).pipe(
+          Effect.mapError((error) =>
+            error instanceof AgentError ? error : new AgentError(String(error))
+          )
+        )
+      },
       startTurn(input, emit) {
         return Effect.gen(function* () {
           const projectPath = yield* Effect.gen(function* () {
@@ -831,7 +892,15 @@ export function createClaudeAdapter(
             started.failReason = null
             started.done = yield* Deferred.make<void, AgentError>()
             yield* publish(started, { type: 'turn.started', turnId: input.turnId })
-            yield* Queue.offer(started.input, userMessage(input.text, input.images))
+            yield* publish(started, {
+              type: 'turn.boundary',
+              turnId: input.turnId,
+              messageId: input.turnId,
+            })
+            yield* Queue.offer(started.input, {
+              ...userMessage(input.text, input.images),
+              uuid: input.turnId as NonNullable<SDKUserMessage['uuid']>,
+            })
             if (fresh) {
               yield* Effect.forkIn(readSession(started), started.scope)
               yield* requestUsage(started)

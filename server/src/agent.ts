@@ -45,6 +45,12 @@ export type Emit = (
 export type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
+  rewind?: (
+    threadId: string,
+    cwd: string,
+    turnId: string,
+    boundaries: Readonly<Record<string, string>>
+  ) => Effect.Effect<Record<string, string>, AgentError>
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
   busy?: (threadId: string) => boolean
@@ -196,6 +202,12 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
     }
 
     return {
+      rewind(_threadId, _cwd, turnId, boundaries) {
+        const ids = Object.keys(boundaries)
+        return Effect.succeed(
+          Object.fromEntries(ids.slice(0, ids.indexOf(turnId)).map((id) => [id, boundaries[id]!]))
+        )
+      },
       interrupt(threadId, reason = 'interrupted') {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
@@ -248,6 +260,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
 
           const lifecycle = Effect.gen(function* () {
             yield* emit({ type: 'turn.started', turnId: input.turnId })
+            yield* emit({ type: 'turn.boundary', turnId: input.turnId, messageId: input.turnId })
 
             const reasoning: ThreadItem = {
               ...itemBase(),

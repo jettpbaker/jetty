@@ -1,6 +1,6 @@
 import { Effect, Schema } from 'effect'
 
-import { ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
+import { Checkpoint, ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
 import { ThreadItem } from './items'
 
 export const TurnOutcome = Schema.Literals([
@@ -12,6 +12,12 @@ export const TurnOutcome = Schema.Literals([
 export type TurnOutcome = Schema.Schema.Type<typeof TurnOutcome>
 
 export const ThreadState = Schema.Struct({
+  checkpoints: Schema.Record(Schema.String, Checkpoint).pipe(
+    Schema.withDecodingDefault(Effect.succeed({}))
+  ),
+  boundaries: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withDecodingDefault(Effect.succeed({}))
+  ),
   items: Schema.Array(ThreadItem),
   status: SessionStatus,
   activeTurnId: Schema.NullOr(Schema.String),
@@ -27,6 +33,8 @@ export const ThreadState = Schema.Struct({
 export type ThreadState = Schema.Schema.Type<typeof ThreadState>
 
 export const emptyThread: ThreadState = {
+  checkpoints: {},
+  boundaries: {},
   items: [],
   status: 'idle',
   activeTurnId: null,
@@ -43,6 +51,31 @@ export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEven
 
 function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState {
   switch (event.type) {
+    case 'checkpoint.captured':
+      return { ...state, checkpoints: { ...state.checkpoints, [event.turnId]: event.checkpoint } }
+    case 'turn.boundary':
+      return { ...state, boundaries: { ...state.boundaries, [event.turnId]: event.messageId } }
+    case 'thread.rewound': {
+      const index = state.items.findIndex((item) => item.id === event.messageId)
+      if (index < 0) return state
+      const items = state.items.slice(0, index)
+      const turns = new Set(items.map((item) => item.turnId))
+      const turnOutcomes = Object.fromEntries(
+        Object.entries(state.turnOutcomes).filter(([id]) => turns.has(id))
+      )
+      return deriveStatus({
+        ...state,
+        items,
+        turnOutcomes,
+        checkpoints: Object.fromEntries(
+          Object.entries(state.checkpoints).filter(([id]) => id === '' || turns.has(id))
+        ),
+        boundaries: event.boundaries,
+        activeTurnId: null,
+        context: null,
+        lastTurnOutcome: Object.values(turnOutcomes).at(-1) ?? null,
+      })
+    }
     case 'turn.started':
       return { ...state, activeTurnId: event.turnId, lastTurnOutcome: null, status: 'running' }
     case 'turn.completed':
