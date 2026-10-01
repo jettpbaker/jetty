@@ -184,6 +184,11 @@
     color: var(--primary);
     background-color: color-mix(in oklch, var(--primary) 10%, transparent);
   }
+  [data-slot='bubble'][data-variant='default'] > [data-slot='bubble-content'] ::selection,
+  [data-slot='bubble'][data-variant='default'] > [data-slot='bubble-content']::selection {
+    color: var(--primary);
+    background-color: var(--primary-foreground);
+  }
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;

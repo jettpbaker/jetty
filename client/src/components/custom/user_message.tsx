@@ -43,13 +43,8 @@ export function UserMessage({
     <Message align='end'>
       <MessageContent className={cn(from && 'gap-1.5')}>
         {from && <ThreadSourceLabel from={from} className='self-end' />}
-        <Bubble variant='secondary' align='end'>
-          <BubbleContent
-            className='rounded-lg'
-            style={
-              from ? undefined : { backgroundColor: 'oklch(from var(--primary) l c h / 0.25)' }
-            }
-          >
+        <Bubble variant={from ? 'tinted' : 'default'} align='end'>
+          <BubbleContent className='rounded-lg'>
             {images.length > 0 && (
               <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
                 {images.map((image, index) => (
@@ -60,7 +55,12 @@ export function UserMessage({
                     }}
                     type='button'
                     aria-label={`Open ${image.name}`}
-                    className='shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+                    className={cn(
+                      'shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2',
+                      from
+                        ? 'focus-visible:outline-ring'
+                        : 'focus-visible:outline-primary-foreground'
+                    )}
                     onClick={() =>
                       openMedia({
                         items: images,
@@ -101,7 +101,11 @@ export function UserMessage({
               <Button
                 variant='ghost-text'
                 size='xs'
-                className='-ml-1 mt-1 px-1'
+                className={cn(
+                  '-ml-1 mt-1 px-1',
+                  !from &&
+                    'text-primary-foreground/85 enabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
+                )}
                 aria-expanded={expanded}
                 onClick={() => {
                   if (expanded) expandedMessages.delete(id)
@@ -113,7 +117,13 @@ export function UserMessage({
               </Button>
             )}
             {others.map((attachment) => (
-              <span key={attachment.id} className='mt-2 text-xs text-muted-foreground'>
+              <span
+                key={attachment.id}
+                className={cn(
+                  'mt-2 text-xs',
+                  from ? 'text-muted-foreground' : 'text-primary-foreground/85'
+                )}
+              >
                 {attachment.name}
               </span>
             ))}
