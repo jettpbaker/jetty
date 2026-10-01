@@ -1,5 +1,5 @@
+import { Image01Icon } from '@/components/custom/huge_icons'
 import { canDropImages, dropImages, isImageType } from '@/hooks/use-image-attachments'
-import { ImageIcon } from '@primer/octicons-react'
 import { useEffect, useState } from 'react'
 
 type DragState = 'images' | 'other'
@@ -74,7 +74,7 @@ export function FileDropOverlay() {
   if (!state) return null
   return (
     <div className='pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background/80 text-sm supports-backdrop-filter:backdrop-blur-xs'>
-      <ImageIcon size={24} className='text-muted-foreground' />
+      <Image01Icon size={24} className='text-muted-foreground' />
       {state === 'images' ? 'Drop images to attach' : 'Images only'}
     </div>
   )

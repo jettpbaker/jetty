@@ -1,3 +1,4 @@
+import { UndoIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,7 +17,6 @@ import {
   type CropHandle,
   type WallpaperCrop,
 } from '@/lib/wallpaper-crop'
-import { ArrowUUpLeftIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const edges = [
@@ -300,7 +300,7 @@ export function WallpaperEditor({
             onClick={() => setCrop({ ...defaultCrop, aspect: panelAspect() })}
             disabled={saving}
           >
-            <ArrowUUpLeftIcon />
+            <UndoIcon />
             Reset
           </Button>
           <Button

@@ -1,3 +1,4 @@
+import { Search01Icon, SlidersHorizontalIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { MagnifyingGlassIcon, SlidersHorizontalIcon } from '@phosphor-icons/react'
 
 import type { ThreadGrouping } from './sidebar_thread_groups'
 
@@ -44,7 +44,7 @@ export function SidebarThreadControls({
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
       <GhostInput
-        icon={<MagnifyingGlassIcon className='size-3' />}
+        icon={<Search01Icon className='size-3' />}
         aria-label='Search threads'
         placeholder='Search threads'
         className='text-xs text-muted-foreground'

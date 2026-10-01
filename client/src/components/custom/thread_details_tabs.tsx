@@ -1,5 +1,14 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
+import { DiffIcon, WorkflowIcon } from '@/components/custom/git_icons'
+import {
+  BubbleChatIcon,
+  File01Icon,
+  LeftToRightListBulletIcon,
+  Link01Icon,
+  PlusSignIcon,
+  Cancel01Icon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,16 +26,6 @@ import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import {
-  CommentDiscussionIcon,
-  DiffIcon,
-  FileIcon,
-  ListUnorderedIcon,
-  LinkIcon,
-  PlusIcon,
-  WorkflowIcon,
-  XIcon,
-} from '@primer/octicons-react'
 import { useReducedMotion } from 'motion/react'
 import {
   useEffect,
@@ -44,8 +43,8 @@ import { LinkPullRequestDialog } from './pull_request_link'
 import { linkPresentation } from './thread_pull_request'
 
 const tabs = {
-  chat: { label: 'Chat', Icon: CommentDiscussionIcon },
-  overview: { label: 'Overview', Icon: ListUnorderedIcon },
+  chat: { label: 'Chat', Icon: BubbleChatIcon },
+  overview: { label: 'Overview', Icon: LeftToRightListBulletIcon },
   changes: { label: 'Changes', Icon: DiffIcon },
   threads: { label: 'Threads', Icon: WorkflowIcon },
 }
@@ -257,7 +256,7 @@ export function ThreadDetailsTabs({
           >
             <TabLabel
               label={fileName!}
-              icon={<FileIcon className='details-tab-kind size-3' />}
+              icon={<File01Icon className='details-tab-kind size-3' />}
               canClose={canClose}
               onClose={closeFile}
             />
@@ -270,7 +269,7 @@ export function ThreadDetailsTabs({
             }
             aria-label='Open tab'
           >
-            <PlusIcon className='size-3' />
+            <PlusSignIcon className='size-3' />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'
@@ -313,7 +312,7 @@ export function ThreadDetailsTabs({
               )
             })}
             <DropdownMenuItem onClick={() => setLinking(true)}>
-              <LinkIcon />
+              <Link01Icon />
               Link pull request
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -428,7 +427,7 @@ function TabLabel({
               onClose()
             }}
           >
-            <XIcon className='size-3' />
+            <Cancel01Icon className='size-3' />
           </span>
         )}
       </span>

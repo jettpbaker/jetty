@@ -1,10 +1,10 @@
-import { cn } from '@/lib/utils'
 import {
   GitMergeIcon,
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
-} from '@primer/octicons-react'
+} from '@/components/custom/git_icons'
+import { cn } from '@/lib/utils'
 
 export const prPresentation = {
   draft: { icon: GitPullRequestDraftIcon, label: 'Draft', color: 'text-pr-draft' },

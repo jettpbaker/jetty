@@ -1,10 +1,14 @@
 import type { DiffScope } from '@jetty/shared/wire'
 import type { CodeViewOptions, FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  SidebarLeft01Icon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResolvedTheme } from '@/lib/theme'
-import { CaretDownIcon, CaretRightIcon, SidebarIcon } from '@phosphor-icons/react'
 import { CodeView, type CodeViewHandle } from '@pierre/diffs/react'
 import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees'
 import { FileTree, useFileTree } from '@pierre/trees/react'
@@ -36,9 +40,9 @@ import './file_changes_viewer.css'
 // Matches menu items (`h-menu-item-compact`).
 const treeRowHeight = 26
 const filePrefetchConcurrency = 4
-// Phosphor CaretDown (bold). trees.software rotates the chevron slot -90deg when collapsed, so one glyph covers both states.
+// trees.software rotates the chevron slot -90deg when collapsed.
 const treeCaretSprite =
-  '<svg aria-hidden="true" width="0" height="0"><symbol id="jetty-caret-down" viewBox="0 0 256 256"><path fill="currentColor" d="M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z"/></symbol><symbol id="jetty-empty" viewBox="0 0 6 6"></symbol></svg>'
+  '<svg aria-hidden="true" width="0" height="0"><symbol id="jetty-caret-down" viewBox="1.333333 1.333333 21.333333 21.333333"><path fill="none" stroke="currentColor" stroke-width="1.333" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9"/></symbol><symbol id="jetty-empty" viewBox="0 0 6 6"></symbol></svg>'
 const treeIcons = {
   set: 'complete',
   colored: true,
@@ -48,7 +52,7 @@ const treeIcons = {
       name: 'jetty-caret-down',
       width: 12,
       height: 12,
-      viewBox: '0 0 256 256',
+      viewBox: '1.333333 1.333333 21.333333 21.333333',
     },
     // Every folder in a PR tree contains changes, so the "has changes" dot carries no information.
     'file-tree-icon-dot': { name: 'jetty-empty', width: 6, height: 6, viewBox: '0 0 6 6' },
@@ -380,7 +384,7 @@ export function FileChangesViewer({
       aria-controls={treeId}
       onClick={() => setTreeOpen((open) => !open)}
     >
-      <SidebarIcon mirrored={layout === 'panel'} />
+      <SidebarLeft01Icon className={layout === 'panel' ? '-scale-x-100' : undefined} />
     </Button>
   )
   const [mode, setMode] = useState('unified')
@@ -596,7 +600,7 @@ function FileCollapseButton({
       .replace(`<symbol id="${icon.name}"`, '<svg')
       .replace('</symbol>', '</svg>')
   }, [icon.name])
-  const Chevron = collapsed ? CaretDownIcon : CaretRightIcon
+  const Chevron = collapsed ? ArrowDown01Icon : ArrowRight01Icon
   return (
     <Button
       variant='ghost-text'

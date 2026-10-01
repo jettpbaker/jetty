@@ -1,12 +1,12 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import { ImageThumbnail } from '@/components/custom/gallery_message'
+import { ImageNotFound01Icon } from '@/components/custom/huge_icons'
 import { fittedStyle, INLINE_IMAGE_MAX_HEIGHT } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { VideoPlayer } from '@/components/custom/video_message'
 import { cn } from '@/lib/utils'
 import { githubMediaPath, githubMediaSource } from '@jetty/shared/github-media'
-import { ImageBrokenIcon } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 
 type HastNode = {
@@ -197,7 +197,7 @@ export function GithubMedia({
         rel='noreferrer'
         className='inline-flex w-fit items-center gap-2 rounded-lg bg-muted px-3 py-2 align-middle text-xs whitespace-nowrap text-muted-foreground no-underline transition-colors hover:text-foreground'
       >
-        <ImageBrokenIcon className='size-4 shrink-0' />
+        <ImageNotFound01Icon className='size-4 shrink-0' />
         Couldn't load attachment · Open on GitHub
       </a>
     )

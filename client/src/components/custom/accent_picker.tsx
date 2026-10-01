@@ -1,3 +1,4 @@
+import { ArrowDown01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -8,7 +9,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { accentChangeEvent, accentPresets, isAccent, loadAccent, setAccent } from '@/lib/accent'
 import { useAppearance } from '@/lib/appearance'
-import { CaretDownIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 
 function presetAccent() {
@@ -44,7 +44,7 @@ export function AccentPicker() {
       >
         <span aria-hidden='true' className='size-3 rounded-full bg-primary' />
         {label}
-        {accent && <CaretDownIcon aria-hidden='true' className='size-3' />}
+        {accent && <ArrowDown01Icon aria-hidden='true' className='size-3' />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuRadioGroup

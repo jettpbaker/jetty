@@ -1,5 +1,6 @@
 'use client'
 
+import { SidebarLeftIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -16,7 +17,6 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
-import { SidebarSimpleIcon } from '@phosphor-icons/react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
 
@@ -271,7 +271,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       }}
       {...props}
     >
-      <SidebarSimpleIcon />
+      <SidebarLeftIcon />
       <span className='sr-only'>Toggle Sidebar</span>
     </Button>
   )

@@ -1,5 +1,8 @@
 import type { ComposerImage } from '@/hooks/use-image-attachments'
 
+import { CircleDotIcon } from '@/components/custom/git_icons'
+import { Cancel01Icon } from '@/components/custom/huge_icons'
+import { Attachment01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,8 +13,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { imageAccept } from '@/hooks/use-image-attachments'
 import { pickFiles } from '@/platform'
-import { XIcon } from '@phosphor-icons/react'
-import { IssueOpenedIcon, PaperclipIcon, PlusIcon } from '@primer/octicons-react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 
@@ -22,19 +23,19 @@ export function ComposerAttach({ onAttach }: { onAttach: (files: File[]) => void
         aria-label='Add attachment'
         render={<Button variant='ghost' tone='muted' size='icon' />}
       >
-        <PlusIcon />
+        <PlusSignIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuGroup>
           <DropdownMenuItem
             onClick={() => void pickFiles({ accept: imageAccept, multiple: true }).then(onAttach)}
           >
-            <PaperclipIcon className='text-muted-foreground' />
+            <Attachment01Icon className='text-muted-foreground' />
             Attach images
           </DropdownMenuItem>
           <DisabledTooltip reason='Coming soon' side='right'>
             <DropdownMenuItem disabled>
-              <IssueOpenedIcon className='text-muted-foreground' />
+              <CircleDotIcon className='text-muted-foreground' />
               Link issue
             </DropdownMenuItem>
           </DisabledTooltip>
@@ -65,7 +66,7 @@ export function ComposerImages({
             className='absolute top-0 right-0 text-white opacity-0 group-focus-within/image:opacity-100 group-hover/image:opacity-100 enabled:hover:text-white [@media(hover:none)]:opacity-100'
             onClick={() => onRemove(image.url)}
           >
-            <XIcon />
+            <Cancel01Icon />
           </Button>
         </div>
       ))}

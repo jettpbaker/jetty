@@ -1,6 +1,6 @@
+import { ArrowRight01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { ChevronRightIcon } from '@primer/octicons-react'
 import { Fragment } from 'react'
 
 import { SubagentRow, formatSubagentTokens, type Subagent } from './subagent_row'
@@ -27,7 +27,7 @@ export function SubagentGroup({
         render={<Button variant='ghost' />}
         className='group/subagents flex h-auto min-h-9 w-full flex-wrap items-center justify-start gap-x-2 gap-y-1 rounded-sm px-2.5 py-2 text-sm font-normal active:translate-y-0'
       >
-        <ChevronRightIcon className='size-3 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/subagents:rotate-90 motion-reduce:transition-none' />
+        <ArrowRight01Icon className='size-3 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/subagents:rotate-90 motion-reduce:transition-none' />
         <span>
           {agents.length
             ? `${agents.length} subagent${agents.length === 1 ? '' : 's'}`

@@ -1,9 +1,9 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
+import { ArrowLeft01Icon } from '@/components/custom/huge_icons'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useOpenPullRequest, usePullRequestSummary } from '@/state'
-import { CaretLeftIcon } from '@phosphor-icons/react'
 
 import { OverflowTitle } from './overflow_title'
 import { pullRequestState } from './pull_request_model'
@@ -45,7 +45,7 @@ export function PullRequestRow({
         <>
           <span className='flex min-w-0 items-center gap-1 font-mono'>
             <span className='truncate'>{pull.base.ref}</span>
-            <CaretLeftIcon className='icon-optical-down size-2.5 shrink-0' />
+            <ArrowLeft01Icon className='icon-optical-down size-2.5 shrink-0' />
             <span className='truncate'>{pull.head.ref}</span>
           </span>
           <span className='shrink-0 font-mono tabular-nums'>

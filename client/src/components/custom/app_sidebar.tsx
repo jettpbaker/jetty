@@ -1,5 +1,8 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
+import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/git_icons'
+import { CircleIcon, Settings01Icon } from '@/components/custom/huge_icons'
+import { Archive02Icon, PencilEdit02Icon, PinIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,14 +37,6 @@ import {
 } from '@/state'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { catalogModelName } from '@jetty/shared/model-name'
-import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
-import {
-  ArchiveIcon,
-  ComposeIcon,
-  GitPullRequestIcon,
-  IssueOpenedIcon,
-  PinIcon,
-} from '@primer/octicons-react'
 import { Link, useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
@@ -72,11 +67,14 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     id: thread.id,
     title: thread.title,
     project: projects.get(thread.projectId)?.title ?? '',
+    projectId: thread.projectId,
     projectIcon: projects.get(thread.projectId)?.icon,
     parent: thread.parentThreadId && titles.get(thread.parentThreadId),
     status: threadStatus(thread.status, thread.readyForReview),
     lastActivity: formatAge(thread.updatedAt, now),
     environment: thread.environment,
+    branch: thread.git?.branch ?? thread.worktree?.branch ?? undefined,
+    startedOn: thread.git?.startingBranch,
     updatedAt: thread.updatedAt,
     pinned: thread.pinned,
     archived: thread.archived,
@@ -225,7 +223,7 @@ export function AppSidebar() {
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
               <Button variant='ghost' className={navigationButtonClass} {...pressProps(newThread)}>
-                <ComposeIcon className='size-3' />
+                <PencilEdit02Icon className='size-3' />
                 New thread
               </Button>
             </SidebarMenuItem>
@@ -236,7 +234,7 @@ export function AppSidebar() {
                   className={`${navigationButtonClass} pointer-events-none`}
                   disabled
                 >
-                  <IssueOpenedIcon className='size-3' />
+                  <CircleDotIcon className='size-3' />
                   Issues
                 </Button>
               </DisabledTooltip>
@@ -278,18 +276,19 @@ export function AppSidebar() {
                       key={item.id}
                       className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
                     >
-                      {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
+                      {item.pinned && (
+                        <PinIcon filled className='size-3 shrink-0' aria-hidden='true' />
+                      )}
                       {item.archived && (
-                        <ArchiveIcon className='size-3 shrink-0' aria-hidden='true' />
+                        <Archive02Icon className='size-3 shrink-0' aria-hidden='true' />
                       )}
                       {!item.pinned && !item.archived && grouping === 'project' && (
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
                       {item.status === 'idle' ? (
                         <CircleIcon
-                          weight='regular'
                           stroke='currentColor'
-                          strokeWidth={16}
+
                           className='size-3 shrink-0'
                           aria-hidden='true'
                         />
@@ -359,7 +358,7 @@ export function AppSidebar() {
           aria-label='Settings'
           {...pressProps(openSettings)}
         >
-          <GearSixIcon />
+          <Settings01Icon />
           Settings
         </Button>
       </SidebarFooter>

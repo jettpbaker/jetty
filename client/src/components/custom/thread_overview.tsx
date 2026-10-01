@@ -1,11 +1,11 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
+import { ArrowRight01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
 import { storage } from '@/platform'
 import { useChrome, useRequestReveal, useThread, useThreadDiff, useThreadTab } from '@/state'
-import { ChevronRightIcon } from '@primer/octicons-react'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { ChildThreadList, type ChildThread } from './child_threads'
@@ -231,7 +231,7 @@ function Section({
       >
         {label}
         <span className='font-mono font-normal text-muted-foreground tabular-nums'>{count}</span>
-        <ChevronRightIcon className='ml-auto text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
+        <ArrowRight01Icon className='ml-auto text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='pt-1'>{children}</div>

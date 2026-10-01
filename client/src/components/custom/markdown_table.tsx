@@ -1,6 +1,6 @@
+import { ArrowExpandIcon } from '@/components/custom/huge_icons'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { CornersOutIcon } from '@phosphor-icons/react'
 import { useContext, useEffect, useRef, useState, type ComponentProps } from 'react'
 import {
   StreamdownContext,
@@ -39,7 +39,7 @@ export function MarkdownTable({
           aria-label='View fullscreen'
           onClick={() => setFullscreen(true)}
         >
-          <CornersOutIcon size={14} />
+          <ArrowExpandIcon size={14} />
         </button>
       </div>
       <div

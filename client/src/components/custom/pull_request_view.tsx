@@ -1,5 +1,25 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 
+import { SuccessStatusIcon, ErrorStatusIcon } from '@/components/custom/circle_status_icon'
+import {
+  GitBranchIcon,
+  GitCommitHorizontalIcon,
+  GitPullRequestIcon,
+} from '@/components/custom/git_icons'
+import { DiffIcon, GitMergeIcon, CircleDotIcon, WorkflowIcon } from '@/components/custom/git_icons'
+import {
+  RefreshIcon,
+  LinkSquare02Icon,
+  ArrowDown01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Tick02Icon,
+  InformationCircleIcon,
+  Unlink01Icon,
+  MinusSignCircleIcon,
+  Cancel01Icon,
+} from '@/components/custom/huge_icons'
+import { UserGroupIcon } from '@/components/custom/huge_icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -26,30 +46,6 @@ import {
   useUnlinkPullRequest,
   type PullRequestRef,
 } from '@/state'
-import {
-  ArrowClockwiseIcon,
-  ArrowSquareOutIcon,
-  CaretDownIcon,
-  CaretLeftIcon,
-  CaretRightIcon,
-  CheckCircleIcon,
-  CheckIcon,
-  GitBranchIcon,
-  GitCommitIcon,
-  GitPullRequestIcon,
-  InfoIcon,
-  LinkBreakIcon,
-  MinusCircleIcon,
-  XCircleIcon,
-  XIcon,
-} from '@phosphor-icons/react'
-import {
-  DiffIcon,
-  GitMergeIcon,
-  IssueOpenedIcon,
-  PeopleIcon,
-  WorkflowIcon,
-} from '@primer/octicons-react'
 import { Link } from '@tanstack/react-router'
 import { lazy, Suspense, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -250,9 +246,9 @@ function CheckStatusIcon({ run }: { run: GitHubCheckRun }) {
     return <InProgressIcon className='shrink-0 text-status-working' />
   if (run.status === 'queued') return <InProgressIcon className='shrink-0 text-status-working' />
   if (run.conclusion === 'success')
-    return <CheckCircleIcon weight='fill' className='size-4 shrink-0 text-tick-complete' />
-  if (failed(run)) return <XCircleIcon weight='fill' className='size-4 shrink-0 text-pr-closed' />
-  return <MinusCircleIcon className='size-4 shrink-0 text-muted-foreground' />
+    return <SuccessStatusIcon className='size-4 shrink-0 text-tick-complete' />
+  if (failed(run)) return <ErrorStatusIcon className='size-4 shrink-0 text-pr-closed' />
+  return <MinusSignCircleIcon className='size-4 shrink-0 text-muted-foreground' />
 }
 
 const reviewCopy: Partial<Record<GitHubReview['state'], { label: string; color: string }>> = {
@@ -283,7 +279,7 @@ function CommitRow({ commit, inset = false }: { commit: GitHubCommit; inset?: bo
     <li className='flex h-8 items-center gap-2 text-sm'>
       {inset ? <span className='w-4 shrink-0' aria-hidden /> : null}
       <RowIcon>
-        <GitCommitIcon className='size-4 text-muted-foreground' />
+        <GitCommitHorizontalIcon className='size-4 text-muted-foreground' />
       </RowIcon>
       <span className='min-w-0 flex-1 truncate'>{commit.commit.message.split('\n')[0]}</span>
       <span className='shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
@@ -315,7 +311,7 @@ function CommitGroup({ commits }: { commits: GitHubCommit[] }) {
         }
       >
         <RowIcon>
-          <CaretRightIcon className='size-3 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/commits:rotate-90 motion-reduce:transition-none' />
+          <ArrowRight01Icon className='size-3 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/commits:rotate-90 motion-reduce:transition-none' />
         </RowIcon>
         <span className='min-w-0 flex-1 truncate text-left text-sm'>
           {author} added {commits.length} commits
@@ -395,7 +391,7 @@ function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
           />
         }
       >
-        <CaretRightIcon className='size-3 shrink-0 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/thread:rotate-90 motion-reduce:transition-none' />
+        <ArrowRight01Icon className='size-3 shrink-0 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/thread:rotate-90 motion-reduce:transition-none' />
         <span className='min-w-0 flex-1 truncate text-left font-mono text-xs'>
           {thread.path}
           {thread.line != null ? `:${thread.line}` : ''}
@@ -535,7 +531,7 @@ function MergeAction({
           }
           aria-label='Select merge method'
         >
-          <CaretDownIcon />
+          <ArrowDown01Icon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-max min-w-56'>
           <DropdownMenuRadioGroup
@@ -608,12 +604,12 @@ function ReviewerBadge({
             className='flex size-4 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/reviewer:opacity-100'
             onClick={onRemove}
           >
-            <XIcon className='size-3' />
+            <Cancel01Icon className='size-3' />
           </button>
         )}
       </span>
       <span className={cn(!team && 'relative -top-px')}>{user.login}</span>
-      {state === 'APPROVED' && <CheckIcon weight='bold' className='text-status-success' />}
+      {state === 'APPROVED' && <Tick02Icon className='text-status-success' />}
     </Badge>
   )
 }
@@ -685,7 +681,7 @@ export function PullRequestView({
               value='info'
               className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
             >
-              <InfoIcon data-icon='inline-start' />
+              <InformationCircleIcon data-icon='inline-start' />
               Info
             </TabsTrigger>
             <TabsTrigger
@@ -715,7 +711,7 @@ export function PullRequestView({
                   />
                 }
               >
-                <ArrowSquareOutIcon />
+                <LinkSquare02Icon />
               </TooltipTrigger>
               <TooltipContent>Open on GitHub</TooltipContent>
             </Tooltip>
@@ -736,7 +732,7 @@ export function PullRequestView({
               <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-2'>
                 <span className='flex min-w-0 items-center gap-1 font-mono'>
                   <span className='truncate'>{pull.base.ref}</span>
-                  <CaretLeftIcon className='icon-optical-down size-2.5 shrink-0 text-muted-foreground' />
+                  <ArrowLeft01Icon className='icon-optical-down size-2.5 shrink-0 text-muted-foreground' />
                   <span className='truncate'>{pull.head.ref}</span>
                 </span>
                 <span className='shrink-0 font-mono tabular-nums'>
@@ -766,7 +762,7 @@ export function PullRequestView({
               {closingIssuesReferences.length > 0 && (
                 <>
                   <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                    <IssueOpenedIcon className='size-3 shrink-0' />
+                    <CircleDotIcon className='size-3 shrink-0' />
                     {closingIssuesReferences.length === 1 ? 'Issue' : 'Issues'}
                   </dt>
                   <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
@@ -797,7 +793,7 @@ export function PullRequestView({
                 </>
               )}
               <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                <PeopleIcon className='size-3 shrink-0' />
+                <UserGroupIcon className='size-3 shrink-0' />
                 Reviewers
               </dt>
               <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-1.5'>
@@ -961,7 +957,7 @@ function RefreshButton({ link, error }: { link: PullRequestRef; error?: string }
           />
         }
       >
-        <ArrowClockwiseIcon
+        <RefreshIcon
           className={cn(
             refreshing && 'animate-spin [animation-duration:700ms] motion-reduce:animate-none'
           )}
@@ -1003,7 +999,7 @@ function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestA
           />
         }
       >
-        <LinkBreakIcon />
+        <Unlink01Icon />
       </TooltipTrigger>
       <TooltipContent>Unlink from thread</TooltipContent>
     </Tooltip>

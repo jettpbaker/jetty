@@ -1,8 +1,8 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ComponentType, SVGProps } from 'react'
 
+import { CircleSlashIcon } from '@/components/custom/huge_icons'
 import { cn } from '@/lib/utils'
-import { CircleSlashIcon } from '@primer/octicons-react'
 
 import {
   ErrorStatusIcon,

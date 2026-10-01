@@ -1,9 +1,9 @@
 'use client'
 
+import { Cancel01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
-import { XIcon } from '@primer/octicons-react'
 import * as React from 'react'
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -63,7 +63,7 @@ function SheetContent({
             data-slot='sheet-close'
             render={<Button variant='ghost' className='absolute top-4 right-4' size='icon-sm' />}
           >
-            <XIcon />
+            <Cancel01Icon />
             <span className='sr-only'>Close</span>
           </SheetPrimitive.Close>
         )}

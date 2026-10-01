@@ -1,5 +1,5 @@
+import { GitBranchIcon } from '@/components/custom/git_icons'
 import { Button } from '@/components/ui/button'
-import { GitBranchIcon } from '@primer/octicons-react'
 
 import { OptionPicker } from './option_picker'
 

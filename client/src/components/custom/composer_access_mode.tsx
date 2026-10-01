@@ -1,5 +1,10 @@
 import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
+import {
+  ShieldQuestionMarkIcon,
+  ShieldCheckIcon,
+  ShieldOffIcon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,13 +14,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { CommentIcon, SearchIcon, UnlockIcon } from '@primer/octicons-react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 
-const modes: Record<PermissionMode, { label: string; Icon: typeof SearchIcon }> = {
-  auto: { label: 'Auto', Icon: SearchIcon },
-  full_access: { label: 'Full access', Icon: UnlockIcon },
+const modes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> = {
+  auto: { label: 'Auto', Icon: ShieldCheckIcon },
+  full_access: { label: 'Full access', Icon: ShieldOffIcon },
 }
 
 function isMode(value: unknown): value is PermissionMode {
@@ -42,7 +46,7 @@ export function ComposerAccessMode({
           aria-label='Access mode: Asks first'
           className='pointer-events-none'
         >
-          <CommentIcon className='size-3.5' />
+          <ShieldQuestionMarkIcon className='size-3.5' />
         </Button>
       </DisabledTooltip>
     )

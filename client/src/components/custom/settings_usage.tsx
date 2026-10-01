@@ -1,7 +1,7 @@
 import type { ProviderUsage } from '@jetty/shared/wire'
 
+import { UndoIcon } from '@/components/custom/huge_icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 
 import type { ProviderEnabled } from './settings_providers'
@@ -39,7 +39,7 @@ function Allowance({ usage, provider, now }: { usage: Window; provider: string; 
             <span className='min-w-12'>{usage.label}</span>
             {reset && (
               <span className='inline-flex items-center gap-1 tabular-nums' aria-label={reset}>
-                <ArrowCounterClockwiseIcon aria-hidden='true' className='size-3' />
+                <UndoIcon aria-hidden='true' className='size-3' />
                 {reset.replace(/^Resets in /, '')}
               </span>
             )}

@@ -1,5 +1,11 @@
 import type { ProviderModel as LoadoutModel } from '@jetty/shared/wire'
 
+import {
+  ArrowUpRight01Icon,
+  DragDropVerticalIcon,
+  PlusSignIcon,
+  Cancel01Icon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -28,7 +34,6 @@ import { useModelAvailability } from '@/state/loadouts'
 import { KeyboardSensor, PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { DragDropProvider, DragOverlay, useDraggable } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
-import { ArrowUpRightIcon, DotsSixVerticalIcon, PlusIcon, XIcon } from '@phosphor-icons/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -315,7 +320,7 @@ export function SettingsLoadout({
                 className='inline-flex shrink-0 items-center gap-1 rounded-menu-item text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring'
               >
                 Connect
-                <ArrowUpRightIcon aria-hidden='true' className='size-3' />
+                <ArrowUpRight01Icon aria-hidden='true' className='size-3' />
               </button>
             </div>
             <div className='flex flex-col gap-1'>
@@ -328,7 +333,7 @@ export function SettingsLoadout({
                     aria-label={`${name} — GitHub Copilot disabled`}
                   >
                     <span className='flex w-6 shrink-0 items-center justify-center'>
-                      <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
+                      <DragDropVerticalIcon aria-hidden='true' className='size-3.5' />
                     </span>
                     <span className='truncate px-1'>{name}</span>
                   </button>
@@ -498,7 +503,7 @@ function LoadoutSlot({
               transition={{ duration: 0.12 }}
               className='flex flex-1 items-center justify-center gap-2 text-muted-foreground'
             >
-              <PlusIcon aria-hidden='true' className='size-5' />
+              <PlusSignIcon aria-hidden='true' className='size-5' />
               <span className='text-xs'>Drop a model</span>
             </motion.div>
           </ModelPicker>
@@ -525,7 +530,7 @@ function LoadoutSlot({
                 })
               }
             >
-              <XIcon aria-hidden='true' className='size-3' />
+              <Cancel01Icon aria-hidden='true' className='size-3' />
             </button>
             <ConfigContent
               model={model}
@@ -822,7 +827,7 @@ function CatalogModel({ model, disabledReason }: { model: LoadoutModel; disabled
           className='flex h-7 w-full min-w-0 touch-none cursor-grab items-center rounded-menu-item text-left text-xs enabled:hover:bg-accent disabled:pointer-events-none disabled:text-disabled-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing'
         >
           <span className='flex w-6 shrink-0 items-center justify-center text-muted-foreground'>
-            <DotsSixVerticalIcon aria-hidden='true' className='size-3.5' />
+            <DragDropVerticalIcon aria-hidden='true' className='size-3.5' />
           </span>
           <span className='truncate px-1'>
             <ModelLabel model={model} />

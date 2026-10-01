@@ -1,5 +1,8 @@
 import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire'
 
+import { SuccessStatusIcon, ErrorStatusIcon } from '@/components/custom/circle_status_icon'
+import { RefreshIcon } from '@/components/custom/huge_icons'
+import { ArrowRight01Icon, ViewIcon, UserIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,8 +13,6 @@ import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { storage } from '@/platform'
 import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList } from '@/state'
-import { ArrowClockwiseIcon, CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
-import { ChevronRightIcon, EyeIcon, PersonIcon } from '@primer/octicons-react'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 
@@ -72,14 +73,14 @@ export function PullRequestList({
                 value='for-you'
                 className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
               >
-                <EyeIcon data-icon='inline-start' />
+                <ViewIcon data-icon='inline-start' />
                 For you
               </TabsTrigger>
               <TabsTrigger
                 value='created'
                 className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
               >
-                <PersonIcon data-icon='inline-start' />
+                <UserIcon data-icon='inline-start' />
                 Created
               </TabsTrigger>
             </TabsList>
@@ -98,7 +99,7 @@ export function PullRequestList({
               />
             }
           >
-            <ArrowClockwiseIcon
+            <RefreshIcon
               className={cn(
                 refreshing && 'animate-spin [animation-duration:700ms] motion-reduce:animate-none'
               )}
@@ -238,7 +239,7 @@ function PullRequestGroups({
             render={<section aria-label={pr.label} />}
           >
             <CollapsibleTrigger className='group/section sticky top-0 z-10 flex h-8 w-full items-center gap-1.5 bg-background px-4 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:bg-accent'>
-              <ChevronRightIcon className='size-3 transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
+              <ArrowRight01Icon className='size-3 transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
               <pr.icon aria-hidden='true' className={cn('size-3.5', pr.color)} />
               <span className='font-medium text-foreground'>{pr.label}</span>
               <span
@@ -344,9 +345,9 @@ function ChecksMark({ checks }: { checks?: PullRequestListItem['checks'] }) {
       {checks === 'pending' ? (
         <InProgressIcon aria-hidden='true' className='size-3.5' />
       ) : checks === 'success' ? (
-        <CheckCircleIcon weight='fill' aria-hidden='true' className='size-3.5' />
+        <SuccessStatusIcon aria-hidden='true' className='size-3.5' />
       ) : (
-        <XCircleIcon weight='fill' aria-hidden='true' className='size-3.5' />
+        <ErrorStatusIcon aria-hidden='true' className='size-3.5' />
       )}
       <span className='sr-only'>{label}</span>
     </span>

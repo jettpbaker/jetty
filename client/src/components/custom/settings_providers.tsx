@@ -1,5 +1,6 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
+import { Tick02Icon, Copy01Icon, RefreshIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { copilotModels } from '@/lib/loadout'
@@ -7,7 +8,6 @@ import { storage } from '@/platform'
 import { useChrome } from '@/state/chrome'
 import { useModelAvailability } from '@/state/loadouts'
 import { useProviderUsage } from '@/state/provider-usage'
-import { CheckIcon, CopyIcon, ArrowClockwiseIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
 import { ModelLabel } from './model_label'
@@ -192,7 +192,7 @@ export function SettingsProviders({
                   }
                 }}
               >
-                {copied ? <CheckIcon className='size-3.5' /> : <CopyIcon className='size-3.5' />}
+                {copied ? <Tick02Icon className='size-3.5' /> : <Copy01Icon className='size-3.5' />}
               </Button>
             </div>
             <Button
@@ -201,7 +201,7 @@ export function SettingsProviders({
               className='-ml-2 h-7 w-fit rounded-sm'
               onClick={() => setMessage('No CLI connection in this design preview.')}
             >
-              <ArrowClockwiseIcon className='size-3' />
+              <RefreshIcon className='size-3' />
               Check connection
             </Button>
             {message && (

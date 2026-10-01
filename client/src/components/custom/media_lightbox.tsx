@@ -1,20 +1,20 @@
 import type { Attachment } from '@jetty/shared/items'
 
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Tick02Icon,
+  Copy01Icon,
+  ZoomOutAreaIcon,
+  ZoomInAreaIcon,
+  Cancel01Icon,
+} from '@/components/custom/huge_icons'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressProps } from '@/lib/press'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
-import {
-  CaretLeft,
-  CaretRight,
-  Check,
-  Copy,
-  MagnifyingGlassMinus,
-  MagnifyingGlassPlus,
-  X,
-} from '@phosphor-icons/react'
 import {
   animate,
   AnimatePresence,
@@ -466,7 +466,7 @@ function StepButton({
       className={`fixed top-1/2 -translate-y-1/2 ${side === 'left' ? 'left-3' : 'right-3'}`}
       {...pressProps(onPress)}
     >
-      {side === 'left' ? <CaretLeft /> : <CaretRight />}
+      {side === 'left' ? <ArrowLeft01Icon /> : <ArrowRight01Icon />}
     </Button>
   )
 }
@@ -514,20 +514,20 @@ function Toolbar({
         disabled={!zoom.zoomed}
         onPress={() => zoom.zoomTo(zoom.scale.get() / 1.5)}
       >
-        <MagnifyingGlassMinus />
+        <ZoomOutAreaIcon />
       </ToolbarButton>
       <ToolbarButton
         label='Zoom in'
         shortcut='+'
         onPress={() => zoom.zoomTo(zoom.scale.get() * 1.5)}
       >
-        <MagnifyingGlassPlus />
+        <ZoomInAreaIcon />
       </ToolbarButton>
-      <ToolbarButton label={copied ? 'Copied' : 'Copy image'} onPress={copyImage}>
-        {copied ? <Check /> : <Copy />}
+      <ToolbarButton label={copied ? 'Copied' : 'Copy01Icon image'} onPress={copyImage}>
+        {copied ? <Tick02Icon /> : <Copy01Icon />}
       </ToolbarButton>
       <ToolbarButton label='Close' shortcut='Esc' onPress={onClose}>
-        <X />
+        <Cancel01Icon />
       </ToolbarButton>
     </div>
   )

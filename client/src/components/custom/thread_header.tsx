@@ -1,9 +1,9 @@
 import type { ContextUsage } from '@jetty/shared/events'
 
+import { ArchiveArrowUpIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressProps } from '@/lib/press'
-import { BoxArrowUpIcon } from '@phosphor-icons/react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 
@@ -28,7 +28,7 @@ export function ThreadHeader({
         <PageSidebarTrigger />
         {onUnarchive && (
           <Button variant='ghost-text' size='sm' {...pressProps(onUnarchive)}>
-            <BoxArrowUpIcon />
+            <ArchiveArrowUpIcon />
             Unarchive
           </Button>
         )}

@@ -1,3 +1,8 @@
+import {
+  ArrowShrink02Icon,
+  ArrowExpand01Icon,
+  SidebarLeftIcon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
@@ -7,7 +12,6 @@ import {
   usePullRequestTabs,
   useThreadPullRequests,
 } from '@/state'
-import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, SidebarSimpleIcon } from '@phosphor-icons/react'
 import {
   Activity,
   useCallback,
@@ -254,7 +258,7 @@ export function ThreadDetailsLayout({
                 title={expanded ? 'Restore split view' : 'Expand thread details'}
                 {...pressProps(() => setExpanded((value) => !value))}
               >
-                {expanded ? <ArrowsInSimpleIcon /> : <ArrowsOutSimpleIcon />}
+                {expanded ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
               </Button>
             </div>
           )}
@@ -409,7 +413,7 @@ export function ThreadDetailsLayout({
           title='Toggle thread details (⌘⌥B)'
           {...pressProps(toggle)}
         >
-          <SidebarSimpleIcon className='rotate-180' />
+          <SidebarLeftIcon className='rotate-180' />
         </Button>
       </div>
       {open && !full && (

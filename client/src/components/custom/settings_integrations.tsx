@@ -1,8 +1,13 @@
+import { GithubIcon } from '@/components/custom/github_icon'
+import {
+  RefreshIcon,
+  ArrowUpRight01Icon,
+  Tick02Icon,
+  Copy01Icon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { run, useAction } from '@/state/connection'
-import { ArrowClockwiseIcon, ArrowUpRightIcon, CheckIcon, CopyIcon } from '@phosphor-icons/react'
-import { MarkGithubIcon } from '@primer/octicons-react'
 import { Effect } from 'effect'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
@@ -71,7 +76,7 @@ function GitHubConnection() {
       className='flex flex-wrap items-center justify-between gap-x-4 gap-y-3'
     >
       <div className='flex items-center gap-3'>
-        <MarkGithubIcon size={20} className='shrink-0 text-muted-foreground' />
+        <GithubIcon className='size-5 shrink-0 text-muted-foreground' />
         <div className='flex flex-col gap-1'>
           <div className='flex items-center gap-2'>
             <h3 className='text-13'>GitHub</h3>
@@ -95,7 +100,7 @@ function GitHubConnection() {
             }
           >
             <ActionIcon>
-              <ArrowClockwiseIcon />
+              <RefreshIcon />
             </ActionIcon>
           </TooltipTrigger>
           <TooltipContent>Check connection</TooltipContent>
@@ -114,7 +119,7 @@ function GitHubConnection() {
             }
           >
             <code className='text-xs'>gh auth login</code>
-            <ActionIcon>{copied ? <CheckIcon /> : <CopyIcon />}</ActionIcon>
+            <ActionIcon>{copied ? <Tick02Icon /> : <Copy01Icon />}</ActionIcon>
           </TooltipTrigger>
           <TooltipContent>Copy command, run in your terminal, then refresh</TooltipContent>
         </Tooltip>
@@ -127,7 +132,7 @@ function GitHubConnection() {
         >
           Install
           <ActionIcon>
-            <ArrowUpRightIcon />
+            <ArrowUpRight01Icon />
           </ActionIcon>
         </a>
       ) : state === 'error' ? (
@@ -139,7 +144,7 @@ function GitHubConnection() {
         >
           Retry
           <ActionIcon>
-            <ArrowClockwiseIcon />
+            <RefreshIcon />
           </ActionIcon>
         </Button>
       ) : null}

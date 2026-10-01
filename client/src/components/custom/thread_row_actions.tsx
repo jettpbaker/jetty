@@ -1,3 +1,11 @@
+import {
+  ArchiveArrowUpIcon,
+  MoreVerticalIcon,
+  PencilEdit01Icon,
+  PinIcon,
+  Delete02Icon,
+} from '@/components/custom/huge_icons'
+import { Archive02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -9,14 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import {
-  BoxArrowUpIcon,
-  DotsThreeVerticalIcon,
-  PencilSimpleIcon,
-  PushPinIcon,
-  TrashIcon,
-} from '@phosphor-icons/react'
-import { ArchiveIcon } from '@primer/octicons-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 type ActionOverlay = 'closed' | 'menu' | 'edit'
@@ -73,7 +73,11 @@ export function ThreadRowActions({
           aria-label={`${archived ? 'Unarchive' : 'Archive'} ${title}`}
           onClick={onArchive}
         >
-          {archived ? <BoxArrowUpIcon className='size-3' /> : <ArchiveIcon className='size-3' />}
+          {archived ? (
+            <ArchiveArrowUpIcon className='size-3' />
+          ) : (
+            <Archive02Icon className='size-3' />
+          )}
         </Button>
         <DropdownMenu
           open={overlay === 'menu'}
@@ -89,28 +93,28 @@ export function ThreadRowActions({
               />
             }
           >
-            <DotsThreeVerticalIcon
+            <MoreVerticalIcon
               className='size-3.5'
               stroke='currentColor'
-              strokeWidth={8}
+
               aria-hidden='true'
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={editTitle}>
-                <PencilSimpleIcon />
+                <PencilEdit01Icon />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onPin}>
-                <PushPinIcon weight={pinned ? 'fill' : 'regular'} />
+                <PinIcon filled={pinned} />
                 {pinned ? 'Unpin' : 'Pin'}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem variant='destructive' onClick={onDelete}>
-                <TrashIcon />
+                <Delete02Icon />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuGroup>

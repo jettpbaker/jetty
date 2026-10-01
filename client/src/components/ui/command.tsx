@@ -1,3 +1,4 @@
+import { Search01Icon, Tick02Icon } from '@/components/custom/huge_icons'
 import {
   Dialog,
   DialogContent,
@@ -6,7 +7,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
-import { SearchIcon, CheckIcon } from '@primer/octicons-react'
 import { Command as CommandPrimitive } from 'cmdk'
 import { cn } from 'cn'
 import * as React from 'react'
@@ -70,7 +70,7 @@ function CommandInput({
           {...props}
         />
         <InputGroupAddon>
-          <SearchIcon className='size-4 shrink-0 text-muted-foreground' />
+          <Search01Icon className='size-4 shrink-0 text-muted-foreground' />
         </InputGroupAddon>
       </InputGroup>
     </div>
@@ -147,7 +147,7 @@ function CommandItem({
       {...props}
     >
       {children}
-      <CheckIcon className='ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100' />
+      <Tick02Icon className='ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100' />
     </CommandPrimitive.Item>
   )
 }

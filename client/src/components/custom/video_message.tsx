@@ -1,18 +1,18 @@
 import type { Attachment } from '@jetty/shared/items'
 
+import {
+  ArrowShrinkIcon,
+  ArrowExpandIcon,
+  PauseIcon,
+  PlayIcon,
+  VolumeHighIcon,
+  VolumeMute02Icon,
+} from '@/components/custom/huge_icons'
 import { fittedStyle, INLINE_IMAGE_MAX_HEIGHT, mediaUrl } from '@/components/custom/media_layout'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
-import {
-  CornersIn,
-  CornersOut,
-  Pause,
-  Play,
-  SpeakerHigh,
-  SpeakerSlash,
-} from '@phosphor-icons/react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 // Survive the virtualizer unmounting a row: a video scrolled back into view resumes where it paused.
@@ -125,14 +125,14 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
       />
       <button
         type='button'
-        aria-label={`${paused ? 'Play' : 'Pause'} ${video.name}`}
+        aria-label={`${paused ? 'PlayIcon' : 'PauseIcon'} ${video.name}`}
         tabIndex={started ? -1 : 0}
         className='absolute inset-0 grid place-items-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset'
         onClick={toggle}
       >
         {!started && (
           <span className='grid size-12 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-transform group-hover/video:scale-105 motion-reduce:transition-none'>
-            <Play weight='fill' className='size-5' />
+            <PlayIcon filled className='size-5' />
           </span>
         )}
       </button>
@@ -146,10 +146,10 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
           <Button
             variant='ghost'
             size='icon'
-            aria-label={paused ? 'Play' : 'Pause'}
+            aria-label={paused ? 'PlayIcon' : 'PauseIcon'}
             onClick={toggle}
           >
-            {paused ? <Play weight='fill' /> : <Pause weight='fill' />}
+            {paused ? <PlayIcon filled /> : <PauseIcon filled />}
           </Button>
           <Scrubber media={media} duration={duration} />
           <Button
@@ -160,7 +160,7 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
               if (media.current) media.current.muted = !media.current.muted
             }}
           >
-            {muted ? <SpeakerSlash /> : <SpeakerHigh />}
+            {muted ? <VolumeMute02Icon /> : <VolumeHighIcon />}
           </Button>
           <Button
             variant='ghost'
@@ -168,7 +168,7 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
           >
-            {fullscreen ? <CornersIn /> : <CornersOut />}
+            {fullscreen ? <ArrowShrinkIcon /> : <ArrowExpandIcon />}
           </Button>
         </div>
       )}

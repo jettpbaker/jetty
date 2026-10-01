@@ -1,7 +1,6 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
-import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
-import { DeviceDesktopIcon, GitBranchIcon } from '@primer/octicons-react'
+import { ArrowMoveDownRightIcon } from '@/components/custom/huge_icons'
 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -15,12 +14,15 @@ import './thread_row.css'
 export function ThreadRow({
   title,
   project,
+  projectId,
   projectIcon,
   parent,
   status,
   lastActivity,
   pullRequest,
   environment,
+  branch,
+  startedOn,
   provider,
   model,
   effort,
@@ -31,12 +33,15 @@ export function ThreadRow({
 }: {
   title: string
   project: string
+  projectId?: string
   projectIcon?: ProjectIcon
   parent?: string
   status: ThreadStatus
   lastActivity: string
   pullRequest?: ThreadPullRequest
   environment: 'local' | 'worktree'
+  branch?: string
+  startedOn?: string
   provider?: ProviderId
   model?: string
   effort?: string
@@ -50,7 +55,18 @@ export function ThreadRow({
   return (
     <div className='thread-row' data-selected={selected || undefined}>
       <ThreadHoverCard
-        details={{ title, project, projectIcon, provider, lastActivity, pullRequest }}
+        details={{
+          title,
+          project,
+          projectId,
+          projectIcon,
+          provider,
+          lastActivity,
+          pullRequest,
+          environment,
+          branch,
+          startedOn,
+        }}
         onOpenPullRequest={onOpenPullRequest}
         model={model}
         effort={effort}
@@ -75,7 +91,7 @@ export function ThreadRow({
           >
             {parent ? (
               <span className='flex min-w-0 items-center gap-1' title={`Created by ${parent}`}>
-                <ArrowElbowDownRightIcon aria-hidden='true' className='size-3 shrink-0' />
+                <ArrowMoveDownRightIcon aria-hidden='true' className='size-3 shrink-0' />
                 <span className='truncate'>{parent}</span>
               </span>
             ) : (
@@ -98,22 +114,15 @@ export function ThreadRow({
                 </span>
               </>
             )}
-            <span className='ml-auto mr-px flex shrink-0 items-center gap-2'>
-              <span
-                className='font-mono'
-                aria-label={
-                  lastActivity === 'now'
-                    ? 'Last activity just now'
-                    : `Last activity ${lastActivity} ago`
-                }
-              >
-                {lastActivity}
-              </span>
-              {environment === 'worktree' ? (
-                <GitBranchIcon aria-label='Runs in a worktree' className='size-3' />
-              ) : (
-                <DeviceDesktopIcon aria-label='Runs locally' className='size-3' />
-              )}
+            <span
+              className='ml-auto mr-px shrink-0 font-mono'
+              aria-label={
+                lastActivity === 'now'
+                  ? 'Last activity just now'
+                  : `Last activity ${lastActivity} ago`
+              }
+            >
+              {lastActivity}
             </span>
           </TwoLineRow>
         )}

@@ -1,5 +1,11 @@
+import {
+  Alert02Icon,
+  CheckmarkCircle02Icon,
+  InformationCircleIcon,
+  RefreshIcon,
+  CancelCircleIcon,
+} from '@/components/custom/huge_icons'
 import { useResolvedTheme } from '@/lib/theme'
-import { AlertIcon, CheckCircleIcon, InfoIcon, SyncIcon, XCircleIcon } from '@primer/octicons-react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
 function Toaster({ ...props }: ToasterProps) {
@@ -10,11 +16,11 @@ function Toaster({ ...props }: ToasterProps) {
       theme={theme}
       className='toaster group'
       icons={{
-        success: <CheckCircleIcon className='size-4' />,
-        info: <InfoIcon className='size-4' />,
-        warning: <AlertIcon className='size-4' />,
-        error: <XCircleIcon className='size-4' />,
-        loading: <SyncIcon className='size-4 animate-spin' />,
+        success: <CheckmarkCircle02Icon className='size-4' />,
+        info: <InformationCircleIcon className='size-4' />,
+        warning: <Alert02Icon className='size-4' />,
+        error: <CancelCircleIcon className='size-4' />,
+        loading: <RefreshIcon className='size-4 animate-spin' />,
       }}
       style={
         {

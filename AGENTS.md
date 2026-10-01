@@ -48,23 +48,24 @@
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue") — never hidden. They're reminders of
   what's still wanted, not clutter.
-- Icons are Phosphor (`@phosphor-icons/react`) or Octicons (`@primer/octicons-react`),
-  never lucide. Both packs are intentional — keep each icon in the pack the design
-  uses; never convert between them. Registry components
-  arrive speaking lucide — swapping their icon imports to Phosphor equivalents is
-  part of adding them (lucide's `Chevron*` is Phosphor's `Caret*`). oxlint bans
-  `lucide-react` imports so a missed swap fails the lint gate. Weight/stroke
-  tuning waits for the design pass — plain swaps until then.
+- Icons are Lucide for git, issues and thread-environment folders; Hugeicons free
+  stroke-rounded for everything else (including carets). Lucide imports live only in `git_icons.tsx`; Hugeicons
+  render through `huge_icons.tsx`. oxlint enforces the pack boundaries and bans
+  Phosphor and Octicons. Registry components arrive speaking lucide — swap their
+  non-git icons to Hugeicons when adding them.
 
 ### icons
 
-- Weight is `bold` via the global IconContext; `weight='fill'` only for solid
-  metaphors (home, stop).
+- Every pack icon line stays 1.333px at every size. Hugeicons draw 1.125× their
+  slot, centred without changing layout; Lucide draws at slot size.
+- Fill only solid metaphors: stop, fast-mode flash, video play/pause, pinned pin.
+  Checks passed/failed use the existing status discs; selected answers stay
+  stroked. GitHub uses the official filled svgl mark. Provider logos, in-progress
+  glyph, status discs and context ring stay custom.
 - Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
   `size-glyph` (18px) is for tab status glyphs only. No arbitrary `size-[Npx]`.
 - One muted: `text-muted-foreground`. No `/50`, `/60`, or `opacity-*` tints on
-  icons — sole exception: the idle Moon at `/60`, which is semantic (dimmer =
-  asleep).
+  icons.
 - Icon buttons are `Button variant='ghost' size='icon*'` — they idle muted
   automatically (compound variant) and hover with bg fill + text→foreground.
   Text buttons that shouldn't fill use `variant='ghost-text'`: text shift only,

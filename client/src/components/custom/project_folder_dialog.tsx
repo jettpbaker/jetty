@@ -1,7 +1,7 @@
+import { ArrowUpLeft01Icon, Folder01Icon, FolderOpenIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
-import { ArrowUpLeftIcon, FolderIcon, FolderOpenIcon } from '@phosphor-icons/react'
 import { useImperativeHandle, useRef, type RefObject, type UIEvent } from 'react'
 
 import { UP, useFolderPicker } from './project_folder_picker'
@@ -99,13 +99,13 @@ function FolderPicker({
         >
           {picker.canGoUp && (
             <div {...picker.row(UP)} className={row}>
-              <ArrowUpLeftIcon className='text-muted-foreground' />
+              <ArrowUpLeft01Icon className='text-muted-foreground' />
               ..
             </div>
           )}
           {picker.entries.map((entry) => (
             <div key={entry.fullPath} {...picker.row(entry.fullPath)} className={row}>
-              <FolderIcon className='text-muted-foreground' />
+              <Folder01Icon className='text-muted-foreground' />
               <span className='truncate'>{entry.name}</span>
               {(entry.added || entry.isGitRepo) && (
                 <span className={tag}>{entry.added ? 'Added' : 'Git repo'}</span>

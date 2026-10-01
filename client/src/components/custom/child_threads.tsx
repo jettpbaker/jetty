@@ -1,12 +1,12 @@
 import type { ProviderId } from '@jetty/shared/wire'
 
+import { WorkflowIcon } from '@/components/custom/git_icons'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
-import { DeviceDesktopIcon, GitBranchIcon, WorkflowIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
@@ -82,11 +82,6 @@ function useOpenThread(): Open {
   return (child) => void navigate({ to: '/threads/$threadId', params: { threadId: child.id } })
 }
 
-const envLabel: Record<Environment, string> = {
-  local: 'Runs locally',
-  worktree: 'Runs in a worktree',
-}
-
 function ChildTitle({ child }: { child: ChildThread }) {
   return (
     <OverflowTitle
@@ -97,11 +92,6 @@ function ChildTitle({ child }: { child: ChildThread }) {
       {child.title}
     </OverflowTitle>
   )
-}
-
-function EnvTag({ env }: { env: Environment }) {
-  const Icon = env === 'worktree' ? GitBranchIcon : DeviceDesktopIcon
-  return <Icon aria-label={envLabel[env]} className='size-3 shrink-0' />
 }
 
 function AgentMeta({ child }: { child: ChildThread }) {
@@ -176,7 +166,6 @@ function OwnedThreadRow({
       <AgentMeta child={child} />
       <span className='ml-auto mr-px flex shrink-0 items-center gap-2 pl-1.5'>
         <LastActivity child={child} />
-        <EnvTag env={child.env} />
       </span>
     </TwoLineRow>
   )
@@ -211,7 +200,6 @@ function CreatedRow({
         <AgentMeta child={child} />
         <span className='mr-px flex items-center gap-2'>
           <LastActivity child={child} />
-          <EnvTag env={child.env} />
         </span>
       </span>
       <StatusGlyph status={child.status} />

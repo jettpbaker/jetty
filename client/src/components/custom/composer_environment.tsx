@@ -1,3 +1,5 @@
+import { GitBranchIcon } from '@/components/custom/git_icons'
+import { ComputerIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -6,7 +8,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { DeviceDesktopIcon, GitBranchIcon } from '@primer/octicons-react'
 
 type Environment = 'local' | 'worktree'
 
@@ -17,7 +18,7 @@ export function ComposerEnvironment({
   value: Environment
   onValueChange: (value: Environment) => void
 }) {
-  const Icon = value === 'local' ? DeviceDesktopIcon : GitBranchIcon
+  const Icon = value === 'local' ? ComputerIcon : GitBranchIcon
   const label = value === 'local' ? 'Local' : 'Worktree'
 
   return (
@@ -41,7 +42,7 @@ export function ComposerEnvironment({
             Worktree
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value='local'>
-            <DeviceDesktopIcon className='text-muted-foreground' />
+            <ComputerIcon className='text-muted-foreground' />
             Local
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

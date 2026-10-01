@@ -1,8 +1,8 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
 
+import { Folder01Icon } from '@/components/custom/huge_icons'
 import { emojiUrl } from '@/lib/fluent_emoji'
 import { cn } from '@/lib/utils'
-import { RepoIcon } from '@primer/octicons-react'
 import { Suspense, use, useState } from 'react'
 
 type GlyphProps = { className?: string; 'data-icon'?: 'inline-start' }
@@ -14,7 +14,9 @@ function loadProjectIconSet() {
 }
 
 function DefaultGlyph({ className, ...props }: GlyphProps) {
-  return <RepoIcon aria-hidden='true' className={cn('icon-optical-down', className)} {...props} />
+  return (
+    <Folder01Icon aria-hidden='true' className={cn('icon-optical-down', className)} {...props} />
+  )
 }
 
 function EmojiGlyph({ emoji, className, ...props }: GlyphProps & { emoji: string }) {

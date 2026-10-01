@@ -1,6 +1,11 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
 import type { KeyboardEvent, SyntheticEvent } from 'react'
 
+import {
+  ArrowUpRight01Icon,
+  DragDropVerticalIcon,
+  PlusSignIcon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -35,7 +40,6 @@ import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
-import { ArrowUpRightIcon, DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react'
 import { useReducedMotion } from 'motion/react'
 
 import { DisabledTooltip } from './disabled_tooltip'
@@ -85,7 +89,7 @@ function DragHandle({
       onClick={stopSelect}
       onPointerUp={stopSelect}
     >
-      <DotsSixVerticalIcon className='size-4! text-muted-foreground' />
+      <DragDropVerticalIcon className='size-4! text-muted-foreground' />
     </span>
   )
 }
@@ -103,7 +107,7 @@ function SettingsArrow({ onOpenSettings }: { onOpenSettings: () => void }) {
       }}
       onPointerUp={stopSelect}
     >
-      <ArrowUpRightIcon className='size-3.5' />
+      <ArrowUpRight01Icon className='size-3.5' />
     </button>
   )
 }
@@ -165,7 +169,7 @@ const emptyRowClass =
 function EmptyRowLabel() {
   return (
     <span className='flex items-center gap-1.5'>
-      <PlusIcon className='size-3 shrink-0' />
+      <PlusSignIcon className='size-3 shrink-0' />
       Add configuration
     </span>
   )

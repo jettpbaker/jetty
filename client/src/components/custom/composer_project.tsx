@@ -1,4 +1,4 @@
-import { GearIcon, PlusIcon } from '@primer/octicons-react'
+import { Settings01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
 
 import { OptionPicker, type PickerOption } from './option_picker'
 import { ProjectGlyph } from './project_glyph'
@@ -20,8 +20,8 @@ export function ComposerProject({
       label='Choose project'
       placeholder='Search projects'
       actions={[
-        { label: 'Manage projects', icon: <GearIcon />, onSelect: onManageProjects },
-        { label: 'New project', icon: <PlusIcon />, onSelect: onNewProject },
+        { label: 'Manage projects', icon: <Settings01Icon />, onSelect: onManageProjects },
+        { label: 'New project', icon: <PlusSignIcon />, onSelect: onNewProject },
       ]}
       icon={<ProjectGlyph data-icon='inline-start' className='size-3' />}
       {...props}

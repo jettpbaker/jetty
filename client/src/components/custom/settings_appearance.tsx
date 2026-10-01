@@ -1,3 +1,12 @@
+import {
+  Moon02Icon,
+  Sun03Icon,
+  Upload04Icon,
+  ArrowDown01Icon,
+  ComputerIcon,
+  CropIcon,
+  Delete02Icon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,15 +28,6 @@ import {
 } from '@/lib/appearance'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
-import {
-  MoonIcon,
-  SunIcon,
-  UploadSimpleIcon,
-  CaretDownIcon,
-  DesktopIcon,
-  CropIcon,
-  TrashIcon,
-} from '@phosphor-icons/react'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import './settings_sections.css'
@@ -36,9 +36,9 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { WallpaperEditor } from './wallpaper_editor'
 
 const themes = [
-  { value: 'light', label: 'Light', Icon: SunIcon },
-  { value: 'dark', label: 'Dark', Icon: MoonIcon },
-  { value: 'system', label: 'System', Icon: DesktopIcon },
+  { value: 'light', label: 'Light', Icon: Sun03Icon },
+  { value: 'dark', label: 'Dark', Icon: Moon02Icon },
+  { value: 'system', label: 'System', Icon: ComputerIcon },
 ] as const
 
 export function SettingsAppearance() {
@@ -155,7 +155,7 @@ export function SettingsAppearance() {
             }
           >
             {themeLabel}
-            <CaretDownIcon className='size-3' />
+            <ArrowDown01Icon className='size-3' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
@@ -180,7 +180,7 @@ export function SettingsAppearance() {
             <div className='flex items-center gap-1'>
               {[
                 { label: 'Crop image', Icon: CropIcon, action: () => setEditing(true) },
-                { label: 'Change image', Icon: UploadSimpleIcon, action: () => void chooseImage() },
+                { label: 'Change image', Icon: Upload04Icon, action: () => void chooseImage() },
               ].map(({ label, Icon, action }) => (
                 <Tooltip key={label}>
                   <TooltipTrigger
@@ -235,7 +235,7 @@ export function SettingsAppearance() {
                   />
                 }
               >
-                <TrashIcon className='size-3.5' />
+                <Delete02Icon className='size-3.5' />
               </TooltipTrigger>
               <TooltipContent>Remove image</TooltipContent>
             </Tooltip>
@@ -269,7 +269,7 @@ export function SettingsAppearance() {
                   />
                 }
               >
-                <UploadSimpleIcon className='size-3.5' />
+                <Upload04Icon className='size-3.5' />
               </TooltipTrigger>
               <TooltipContent>Change video</TooltipContent>
             </Tooltip>
@@ -293,7 +293,7 @@ export function SettingsAppearance() {
                   />
                 }
               >
-                <TrashIcon className='size-3.5' />
+                <Delete02Icon className='size-3.5' />
               </TooltipTrigger>
               <TooltipContent>Remove video</TooltipContent>
             </Tooltip>

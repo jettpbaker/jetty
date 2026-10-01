@@ -11,8 +11,24 @@
       {
         "paths": [
           {
+            "name": "@phosphor-icons/react",
+            "message": "Use the approved icon modules. See AGENTS.md (icons)."
+          },
+          {
+            "name": "@primer/octicons-react",
+            "message": "Use the approved icon modules. See AGENTS.md (icons)."
+          },
+          {
             "name": "lucide-react",
-            "message": "Icons are Phosphor (@phosphor-icons/react) or Octicons (@primer/octicons-react), never lucide. See AGENTS.md (icons)."
+            "message": "Use the approved icon modules. See AGENTS.md (icons)."
+          },
+          {
+            "name": "@hugeicons/react",
+            "message": "Use the approved icon modules. See AGENTS.md (icons)."
+          },
+          {
+            "name": "@hugeicons/core-free-icons",
+            "message": "Use the approved icon modules. See AGENTS.md (icons)."
           }
         ]
       }
@@ -91,8 +107,24 @@
           {
             "paths": [
               {
+                "name": "@phosphor-icons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@primer/octicons-react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
                 "name": "lucide-react",
-                "message": "Icons are Phosphor (@phosphor-icons/react) or Octicons (@primer/octicons-react), never lucide. See AGENTS.md (icons)."
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@hugeicons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@hugeicons/core-free-icons",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
               },
               { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
               { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
@@ -104,7 +136,33 @@
     {
       "files": ["client/src/state/**"],
       "rules": {
-        "no-restricted-imports": "off"
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@phosphor-icons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@primer/octicons-react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "lucide-react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@hugeicons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@hugeicons/core-free-icons",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -112,6 +170,62 @@
       "rules": {
         "no-restricted-globals": "off",
         "no-restricted-properties": "off"
+      }
+    },
+    {
+      "files": ["client/src/components/custom/git_icons.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@phosphor-icons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@primer/octicons-react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@hugeicons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@hugeicons/core-free-icons",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
+              { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["client/src/components/custom/huge_icons.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@phosphor-icons/react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "@primer/octicons-react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              {
+                "name": "lucide-react",
+                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+              },
+              { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
+              { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
+            ]
+          }
+        ]
       }
     }
   ]

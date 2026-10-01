@@ -1,17 +1,16 @@
+import {
+  ChartHistogramIcon,
+  PaintBrush01Icon,
+  Plug01Icon,
+  PuzzleIcon,
+  Robot01Icon,
+} from '@/components/custom/huge_icons'
+import { DashboardSquare01Icon, Folder01Icon, RefreshIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useModelRefresh } from '@/state/models'
 import { useProviderUsage } from '@/state/provider-usage'
-import {
-  ChartBarIcon,
-  IconContext,
-  PaintBrushIcon,
-  PlugsIcon,
-  PuzzlePieceIcon,
-  RobotIcon,
-} from '@phosphor-icons/react'
-import { AppsIcon, RepoIcon, SyncIcon } from '@primer/octicons-react'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -79,75 +78,73 @@ export function SettingsView() {
     document.getElementById('settings-providers-heading')?.scrollIntoView({ block: 'start' })
   }
   return (
-    <IconContext.Provider value={{ weight: 'bold' }}>
-      <div className='flex h-full min-h-0 flex-col bg-background' aria-label='Settings'>
-        <h1 className='sr-only'>Settings</h1>
-        <PageSidebarTrigger standalone />
-        <div className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-          <div className='settings-content mx-auto flex w-full max-w-[708px] flex-col gap-8 px-6 py-6'>
-            <Section id='providers' label='Providers' icon={PlugsIcon}>
-              <SettingsProviders
-                selected={provider}
-                onSelect={setProvider}
-                enabled={enabled}
-                onEnabledChange={(id, value) => {
-                  const next = { ...enabled, [id]: value }
-                  setEnabled(next)
-                  saveProviderEnabled(next)
-                }}
-              />
-            </Section>
-            <Section
-              id='loadout'
-              label='Model loadout'
-              icon={AppsIcon}
-              action={
-                <Tooltip>
-                  <TooltipTrigger render={<span className='inline-flex' />}>
-                    <Button
-                      variant='ghost'
-                      size='icon-sm'
-                      aria-label='Refresh models'
-                      aria-busy={refreshing}
-                      disabled={refreshing}
-                      onClick={() => refresh(true)}
-                    >
-                      <SyncIcon className={cn(refreshing && 'motion-safe:animate-spin')} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Refresh models</TooltipContent>
-                </Tooltip>
-              }
-            >
-              <SettingsLoadout enabledProviders={enabled} onConnectProvider={showProvider} />
-              <SettingsTitleModel />
-            </Section>
-            <Section id='agent-behaviour' label='Agent behaviour' icon={RobotIcon}>
-              <SettingsAgentBehaviour />
-            </Section>
-            <Section id='integrations' label='Integrations' icon={PuzzlePieceIcon}>
-              <SettingsIntegrations />
-            </Section>
-            <Section id='worktrees' label='Worktrees' icon={RepoIcon}>
-              <SettingsWorktrees />
-            </Section>
-            <Section id='projects' label='Projects' icon={RepoIcon}>
-              <SettingsProjects />
-            </Section>
-            <Section id='appearance' label='Appearance' icon={PaintBrushIcon}>
-              <SettingsAppearance />
-            </Section>
-            {(enabled.claude || enabled.codex) &&
-              (!loaded ||
-                failed ||
-                usage.some((item) => enabled[item.provider] && item.connected)) && (
-                <Section id='usage' label='Usage' icon={ChartBarIcon}>
-                  <SettingsUsage enabled={enabled} usage={usage} failed={failed} />
-                </Section>
-              )}
-          </div>
+    <div className='flex h-full min-h-0 flex-col bg-background' aria-label='Settings'>
+      <h1 className='sr-only'>Settings</h1>
+      <PageSidebarTrigger standalone />
+      <div className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
+        <div className='settings-content mx-auto flex w-full max-w-[708px] flex-col gap-8 px-6 py-6'>
+          <Section id='providers' label='Providers' icon={Plug01Icon}>
+            <SettingsProviders
+              selected={provider}
+              onSelect={setProvider}
+              enabled={enabled}
+              onEnabledChange={(id, value) => {
+                const next = { ...enabled, [id]: value }
+                setEnabled(next)
+                saveProviderEnabled(next)
+              }}
+            />
+          </Section>
+          <Section
+            id='loadout'
+            label='Model loadout'
+            icon={DashboardSquare01Icon}
+            action={
+              <Tooltip>
+                <TooltipTrigger render={<span className='inline-flex' />}>
+                  <Button
+                    variant='ghost'
+                    size='icon-sm'
+                    aria-label='Refresh models'
+                    aria-busy={refreshing}
+                    disabled={refreshing}
+                    onClick={() => refresh(true)}
+                  >
+                    <RefreshIcon className={cn(refreshing && 'motion-safe:animate-spin')} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh models</TooltipContent>
+              </Tooltip>
+            }
+          >
+            <SettingsLoadout enabledProviders={enabled} onConnectProvider={showProvider} />
+            <SettingsTitleModel />
+          </Section>
+          <Section id='agent-behaviour' label='Agent behaviour' icon={Robot01Icon}>
+            <SettingsAgentBehaviour />
+          </Section>
+          <Section id='integrations' label='Integrations' icon={PuzzleIcon}>
+            <SettingsIntegrations />
+          </Section>
+          <Section id='worktrees' label='Worktrees' icon={Folder01Icon}>
+            <SettingsWorktrees />
+          </Section>
+          <Section id='projects' label='Projects' icon={Folder01Icon}>
+            <SettingsProjects />
+          </Section>
+          <Section id='appearance' label='Appearance' icon={PaintBrush01Icon}>
+            <SettingsAppearance />
+          </Section>
+          {(enabled.claude || enabled.codex) &&
+            (!loaded ||
+              failed ||
+              usage.some((item) => enabled[item.provider] && item.connected)) && (
+              <Section id='usage' label='Usage' icon={ChartHistogramIcon}>
+                <SettingsUsage enabled={enabled} usage={usage} failed={failed} />
+              </Section>
+            )}
         </div>
       </div>
-    </IconContext.Provider>
+    </div>
   )
 }

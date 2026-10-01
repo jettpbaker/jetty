@@ -1,6 +1,6 @@
+import { PlusSignIcon, Delete02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
-import { PlusIcon, TrashIcon } from '@phosphor-icons/react'
 import { useRef, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
@@ -58,7 +58,7 @@ export function SettingsProjects() {
                     className='pointer-events-none'
                     disabled
                   >
-                    <TrashIcon aria-hidden='true' className='size-3.5 text-status-error' />
+                    <Delete02Icon aria-hidden='true' className='size-3.5 text-status-error' />
                   </Button>
                 </DisabledTooltip>
               </td>
@@ -73,7 +73,7 @@ export function SettingsProjects() {
                 onClick={() => setAdding(true)}
               >
                 <span className='flex size-7 items-center justify-center'>
-                  <PlusIcon aria-hidden='true' className='size-4' />
+                  <PlusSignIcon aria-hidden='true' className='size-4' />
                 </span>
                 New project
               </button>

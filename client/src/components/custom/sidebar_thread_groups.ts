@@ -9,11 +9,14 @@ export type SidebarThread = {
   id: string
   title: string
   project: string
+  projectId?: string
   projectIcon?: ProjectIcon
   parent?: string
   status: ThreadStatus
   lastActivity: string
   environment: 'local' | 'worktree'
+  branch?: string
+  startedOn?: string
   updatedAt: number
   pinned: boolean
   archived: boolean

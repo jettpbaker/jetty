@@ -1,8 +1,8 @@
 import type { RouterHistory } from '@tanstack/react-router'
 
+import { ArrowLeft01Icon, ArrowRight01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
-import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
@@ -73,7 +73,7 @@ export function ShellNavigation() {
           disabled={!canGoBack}
           onClick={back}
         >
-          <CaretLeftIcon weight='regular' />
+          <ArrowLeft01Icon />
         </Button>
         <Button
           variant='ghost'
@@ -84,7 +84,7 @@ export function ShellNavigation() {
           disabled={!canGoForward}
           onClick={forward}
         >
-          <CaretRightIcon weight='regular' />
+          <ArrowRight01Icon />
         </Button>
       </div>
     </nav>

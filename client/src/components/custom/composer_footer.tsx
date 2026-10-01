@@ -1,9 +1,9 @@
 import type { ResultOf } from '@jetty/shared/wire'
 
+import { PlusSignIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
 import { useBranches } from '@/state/worktrees'
-import { PlusIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -61,7 +61,7 @@ export function ComposerFooter({
     >
       {projects.length === 0 ? (
         <Button variant='ghost-text' size='sm' onClick={() => setAdding(true)}>
-          <PlusIcon />
+          <PlusSignIcon />
           Add project
         </Button>
       ) : (

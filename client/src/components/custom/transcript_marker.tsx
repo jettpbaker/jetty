@@ -1,4 +1,4 @@
-import { CheckIcon, CommentIcon, XIcon } from '@primer/octicons-react'
+import { Tick02Icon, Comment01Icon, Cancel01Icon } from '@/components/custom/huge_icons'
 
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
@@ -6,11 +6,11 @@ import { SourceLabel } from './source_label'
 
 type Tone = 'allow' | 'deny' | 'answer' | 'dismiss'
 
-const markerIcons: Record<Tone, typeof CheckIcon> = {
-  allow: CheckIcon,
-  deny: XIcon,
-  answer: CommentIcon,
-  dismiss: XIcon,
+const markerIcons: Record<Tone, typeof Tick02Icon> = {
+  allow: Tick02Icon,
+  deny: Cancel01Icon,
+  answer: Comment01Icon,
+  dismiss: Cancel01Icon,
 }
 
 function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {

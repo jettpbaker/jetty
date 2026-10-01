@@ -4,6 +4,8 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
 import { ComposerShadow } from '@/components/custom/composer_shadow'
+import { StopIcon } from '@/components/custom/huge_icons'
+import { ArrowUp02Icon } from '@/components/custom/huge_icons'
 import {
   InputGroup,
   InputGroupAddon,
@@ -13,8 +15,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { cn } from '@/lib/utils'
-import { StopIcon } from '@phosphor-icons/react'
-import { ArrowUpIcon } from '@primer/octicons-react'
 import {
   useEffect,
   useEffectEvent,
@@ -190,7 +190,7 @@ export function Composer({
                     aria-label='Stop'
                     onClick={onInterrupt}
                   >
-                    <StopIcon weight='fill' />
+                    <StopIcon filled />
                   </InputGroupButton>
                 ) : (
                   <Tooltip>
@@ -205,7 +205,7 @@ export function Composer({
                         disabled={!canSend}
                         className={canSend ? undefined : 'pointer-events-none'}
                       >
-                        <ArrowUpIcon />
+                        <ArrowUp02Icon />
                       </InputGroupButton>
                     </TooltipTrigger>
                     <TooltipContent>{sendHint ?? sendLabel}</TooltipContent>

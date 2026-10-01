@@ -1,21 +1,26 @@
 import type { Draft, QuestionProgress } from '@/state'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
+import {
+  ArrowDown01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  ArrowUp01Icon,
+  CheckmarkSquare02Icon,
+  CircleIcon,
+  RadioButtonIcon,
+  SquareIcon,
+} from '@/components/custom/huge_icons'
+import {
+  Tick02Icon,
+  Clock01Icon,
+  PencilEdit01Icon,
+  Cancel01Icon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
-import {
-  CaretDownIcon,
-  CaretLeftIcon,
-  CaretRightIcon,
-  CaretUpIcon,
-  CheckSquareIcon,
-  CircleIcon,
-  RadioButtonIcon,
-  SquareIcon,
-} from '@phosphor-icons/react'
-import { CheckIcon, ClockIcon, PencilIcon, XIcon } from '@primer/octicons-react'
 import {
   lazy,
   Suspense,
@@ -122,7 +127,7 @@ export function Pager({
         disabled={index === 0}
         onClick={onPrev}
       >
-        <CaretLeftIcon />
+        <ArrowLeft01Icon />
       </Button>
       <span className='min-w-6 text-center font-mono tabular-nums'>
         {index + 1}/{total}
@@ -135,7 +140,7 @@ export function Pager({
         disabled={nextDisabled ?? index === total - 1}
         onClick={onNext}
       >
-        <CaretRightIcon />
+        <ArrowRight01Icon />
       </Button>
     </span>
   )
@@ -159,7 +164,7 @@ function StripToggle({
       aria-label={open ? `Hide ${label}` : `Show ${label}`}
       onClick={onToggle}
     >
-      {open ? <CaretDownIcon /> : <CaretUpIcon />}
+      {open ? <ArrowDown01Icon /> : <ArrowUp01Icon />}
     </Button>
   )
 }
@@ -377,7 +382,7 @@ export function ApprovalStrip({
                 onClick={() => ctl.setExpanded(false)}
                 className='-my-1'
               >
-                <CaretUpIcon />
+                <ArrowUp01Icon />
               </Button>
             )}
           </span>
@@ -562,7 +567,7 @@ export function QuestionStrip({
               const selected = ctl.picks.includes(option.label)
               const Mark = spec.multiSelect
                 ? selected
-                  ? CheckSquareIcon
+                  ? CheckmarkSquare02Icon
                   : SquareIcon
                 : selected
                   ? RadioButtonIcon
@@ -581,7 +586,6 @@ export function QuestionStrip({
                 >
                   <span className='flex h-5 shrink-0 items-center'>
                     <Mark
-                      weight={selected ? 'fill' : 'bold'}
                       className={cn(
                         'size-3.5',
                         selected ? 'text-primary' : 'text-muted-foreground'
@@ -667,10 +671,10 @@ function QueueActions({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
     <span className='flex shrink-0 items-center'>
       <SteerButton entry={entry} q={q} />
       <IconAction label='Edit' onClick={() => q.edit(entry)}>
-        <PencilIcon />
+        <PencilEdit01Icon />
       </IconAction>
       <IconAction label='Remove' onClick={() => q.remove(entry)}>
-        <XIcon />
+        <Cancel01Icon />
       </IconAction>
     </span>
   )
@@ -743,7 +747,7 @@ export function QueueTray({ q }: { q: QueueControl }) {
     return (
       <TrayShell>
         <div className='flex min-w-0 items-center gap-2'>
-          <ClockIcon className='size-3.5 shrink-0 text-muted-foreground' />
+          <Clock01Icon className='size-3.5 shrink-0 text-muted-foreground' />
           {q.paused && <span className='shrink-0 text-xs text-muted-foreground'>Paused</span>}
           <div className='min-w-0 flex-1'>
             <QueueRow entry={head} q={q} />
@@ -755,7 +759,7 @@ export function QueueTray({ q }: { q: QueueControl }) {
   return (
     <TrayShell>
       <div className='flex min-h-5 min-w-0 items-center gap-2'>
-        <ClockIcon className='size-3.5 shrink-0 text-muted-foreground' />
+        <Clock01Icon className='size-3.5 shrink-0 text-muted-foreground' />
         <span className='shrink-0 text-xs text-muted-foreground'>{queueSummary(q)}</span>
         {head && (
           <>
@@ -780,7 +784,7 @@ export function QueueTray({ q }: { q: QueueControl }) {
 }
 
 function TodoIcon({ status }: { status: Todo['status'] }) {
-  if (status === 'done') return <CheckIcon className='size-3.5 shrink-0 text-muted-foreground' />
+  if (status === 'done') return <Tick02Icon className='size-3.5 shrink-0 text-muted-foreground' />
   if (status === 'active')
     return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
   return <CircleIcon className='size-3.5 shrink-0 text-muted-foreground' />
@@ -867,7 +871,7 @@ export function PendingHeader({
         <RequestSource source={source} />
         {queued === 0 && q.waiting > 0 && (
           <span className='ml-auto flex shrink-0 items-center gap-1'>
-            <ClockIcon className='size-3' />
+            <Clock01Icon className='size-3' />
             {queueSummary(q)}
           </span>
         )}
@@ -879,9 +883,9 @@ export function PendingHeader({
             className='-my-1 ml-auto -mr-2 font-normal'
             {...pressProps(onToggle)}
           >
-            <ClockIcon />
+            <Clock01Icon />
             {queueSummary(q)}
-            {open ? <CaretDownIcon /> : <CaretUpIcon />}
+            {open ? <ArrowDown01Icon /> : <ArrowUp01Icon />}
           </Button>
         )}
       </div>

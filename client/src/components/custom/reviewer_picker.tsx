@@ -1,3 +1,4 @@
+import { UserAdd01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -9,7 +10,6 @@ import {
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { usePrefetchReviewerCandidates, useReviewerCandidates } from '@/state'
-import { UserPlusIcon } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 
 import type { GitHubUser } from './pull_request_model'
@@ -49,7 +49,7 @@ export function ReviewerPicker({
           aria-label='Request review'
           disabled
         >
-          <UserPlusIcon />
+          <UserAdd01Icon />
         </Button>
       </DisabledTooltip>
     )
@@ -62,7 +62,7 @@ export function ReviewerPicker({
         onFocus={() => prefetch(repo)}
         render={<Button variant='ghost' tone='muted' size='icon' className='h-7' />}
       >
-        <UserPlusIcon />
+        <UserAdd01Icon />
       </PopoverTrigger>
       <PopoverContent
         align='start'

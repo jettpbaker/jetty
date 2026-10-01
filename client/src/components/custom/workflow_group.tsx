@@ -1,12 +1,12 @@
 import type { WorkflowAgent } from '@jetty/shared/items'
 
+import { ArrowRight01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
 import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
-import { ChevronRightIcon } from '@primer/octicons-react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { formatSubagentTokens } from './subagent_row'
@@ -137,7 +137,7 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
         render={<Button variant='ghost' />}
         className='group/workflow flex h-auto min-h-9 w-full items-center justify-start gap-2 rounded-sm px-2.5 py-2 text-sm font-normal active:translate-y-0'
       >
-        <ChevronRightIcon className='size-3 shrink-0 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/workflow:rotate-90 motion-reduce:transition-none' />
+        <ArrowRight01Icon className='size-3 shrink-0 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/workflow:rotate-90 motion-reduce:transition-none' />
         <span
           className={cn(
             'shrink-0',

@@ -1,3 +1,4 @@
+import { ArrowDown01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,7 +18,6 @@ import { useChrome } from '@/state'
 import { useSetTitleModel } from '@/state/models'
 import { modelLabelText } from '@jetty/shared/model-name'
 import { resolveTitleEffort, resolveTitleModel, type TitleModel } from '@jetty/shared/wire'
-import { CaretDownIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
 import './settings_sections.css'
@@ -76,7 +76,7 @@ export function SettingsTitleModel() {
         >
           {name}
           {effortLabel && <span>{effortLabel}</span>}
-          <CaretDownIcon className='size-3' />
+          <ArrowDown01Icon className='size-3' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-max min-w-48'>
           <DropdownMenuGroup>

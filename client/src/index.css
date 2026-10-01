@@ -65,7 +65,7 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --status-working: var(--primary);
-  --status-attention: oklch(0.698 0.201 55);
+  --status-attention: oklch(0.69 0.145 61);
   --status-error: var(--pr-closed);
   --status-error-glyph: var(--pr-closed);
   --status-success: oklch(0.698 0.125 158.358);
@@ -79,6 +79,7 @@
 }
 
 .dark {
+  --status-attention: oklch(0.765 0.145 63);
   color-scheme: dark;
   --tint: var(--tint-c);
   --background: oklch(0.195 var(--tint) var(--tint-h));
@@ -250,4 +251,17 @@
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-auto-hide-thumb) transparent;
   }
+}
+
+/* Keep the line constant through viewBox scaling and parent slot sizes. */
+:is(svg[data-icon-pack='huge'], svg.lucide) {
+  overflow: visible;
+}
+:is(svg[data-icon-pack='huge'], svg.lucide)
+  :is(path, circle, rect, line, polyline, polygon, ellipse) {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.333px;
+}
+svg[data-icon-pack='huge'][data-filled] :is(path, circle, rect, polygon) {
+  fill: currentColor;
 }

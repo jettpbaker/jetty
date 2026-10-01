@@ -1,3 +1,4 @@
+import { PencilEdit02Icon } from '@/components/custom/huge_icons'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
 import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
@@ -16,7 +17,6 @@ import {
   useThreadOverlay,
   useThreadTab,
 } from '@/state'
-import { ComposeIcon } from '@primer/octicons-react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef } from 'react'
 
@@ -113,7 +113,7 @@ function ThreadNotFound() {
             void navigate({ to: '/' })
           })}
         >
-          <ComposeIcon />
+          <PencilEdit02Icon />
           New thread
         </Button>
       </div>

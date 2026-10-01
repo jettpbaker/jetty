@@ -1,10 +1,10 @@
 import type { Project, ProjectIcon } from '@jetty/shared/wire'
 
+import { Search01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSetProjectIcon } from '@/state'
-import { MagnifyingGlassIcon } from '@phosphor-icons/react'
 import { lazy, Suspense, useState } from 'react'
 
 import { GhostInput } from './ghost_input'
@@ -23,7 +23,7 @@ function IconGrid({ selected, onSelect }: { selected?: string; onSelect: (name: 
     <div className='flex h-80 flex-col'>
       <div className='border-b border-border px-3'>
         <GhostInput
-          icon={<MagnifyingGlassIcon className='size-3' />}
+          icon={<Search01Icon className='size-3' />}
           aria-label='Search icons'
           placeholder='Search icons'
           value={query}
