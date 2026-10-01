@@ -364,14 +364,6 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,
   },
-  'thread.rewind': {
-    params: Schema.Struct({
-      threadId: Schema.String,
-      messageId: Schema.String,
-      restoreFiles: Schema.Boolean,
-    }),
-    result: Schema.Struct({ text: Schema.String, attachments: Schema.Array(Attachment) }),
-  },
   'thread.delete': {
     params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,

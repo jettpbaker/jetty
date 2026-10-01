@@ -19,14 +19,9 @@ export const isFolder = (path: string) =>
     () => false
   )
 
-function spawnGit(cwd: string, args: string[], env?: Record<string, string | undefined>) {
+function spawnGit(cwd: string, args: string[]) {
   try {
-    return Bun.spawn(['git', ...args], {
-      cwd,
-      env: env ? { ...process.env, ...env } : process.env,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
+    return Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
   } catch (error) {
     // Bun reports a missing cwd as the git binary itself missing.
     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
@@ -35,12 +30,8 @@ function spawnGit(cwd: string, args: string[], env?: Record<string, string | und
   }
 }
 
-export async function gitOutput(
-  cwd: string,
-  args: string[],
-  env?: Record<string, string | undefined>
-) {
-  const process = spawnGit(cwd, args, env)
+async function git(cwd: string, ...args: string[]) {
+  const process = spawnGit(cwd, args)
   const timer = setTimeout(() => process.kill(), 120_000)
   try {
     const [out, error, code] = await Promise.all([
@@ -49,14 +40,10 @@ export async function gitOutput(
       process.exited,
     ])
     if (code !== 0) throw new Error(error.trim() || `git ${args[0]} exited ${code}`)
-    return out
+    return out.trim()
   } finally {
     clearTimeout(timer)
   }
-}
-
-export async function git(cwd: string, ...args: string[]) {
-  return (await gitOutput(cwd, args)).trim()
 }
 
 const tryGit = (cwd: string, ...args: string[]) => git(cwd, ...args).catch(() => '')
@@ -517,8 +504,6 @@ export function createWorktrees(
   }
 
   return {
-    serialized,
-    projectRoot: async (threadId: string) => (await locate(threadId)).project.path,
     branches,
     resolveRef: async (cwd: string, ref?: string) => {
       await requireGit(cwd)

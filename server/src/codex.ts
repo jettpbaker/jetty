@@ -266,11 +266,6 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           session.providerTurnId = string(object(turn.turn).id)
           if (!session.providerTurnId)
             return yield* Effect.fail(new AgentError('Codex returned no turn id'))
-          yield* session.emit({
-            type: 'turn.boundary',
-            turnId: session.input.turnId,
-            messageId: session.providerTurnId,
-          })
           session.accepting = true
           const translator = session.translator
           while (true) {
@@ -409,39 +404,6 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     }
 
     return {
-      rewind(threadId, cwd, turnId, boundaries) {
-        return Effect.scoped(
-          Effect.gen(function* () {
-            if (sessions.has(threadId))
-              return yield* Effect.fail(new AgentError('Turn is still settling'))
-            const providerThreadId = yield* store.getProviderSessionId(threadId, 'codex')
-            const beforeTurnId = boundaries[turnId]
-            if (!providerThreadId || !beforeTurnId)
-              return yield* Effect.fail(new AgentError('Codex turn boundary is unavailable'))
-            const connection = yield* openCodexConnection(cwd, options).pipe(
-              Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-            )
-            yield* connection.request('thread/resume', { threadId: providerThreadId, cwd })
-            const snapshot = yield* connection.request('thread/read', {
-              threadId: providerThreadId,
-              includeTurns: true,
-            })
-            const turns = object(snapshot.thread).turns
-            if (!Array.isArray(turns) || !turns.some((turn) => object(turn).id === beforeTurnId))
-              return yield* Effect.fail(new AgentError('Codex retained history is unavailable'))
-            yield* connection.request('thread/revert', { threadId: providerThreadId, beforeTurnId })
-            const retained = Object.keys(boundaries).slice(
-              0,
-              Object.keys(boundaries).indexOf(turnId)
-            )
-            return Object.fromEntries(retained.map((id) => [id, boundaries[id]!]))
-          })
-        ).pipe(
-          Effect.mapError((error) =>
-            error instanceof AgentError ? error : new AgentError(String(error))
-          )
-        )
-      },
       startTurn(input, emit) {
         return Effect.gen(function* () {
           if (sessions.has(input.threadId))

@@ -34,31 +34,7 @@ export const ContextUsage = Schema.Struct({
 })
 export type ContextUsage = Schema.Schema.Type<typeof ContextUsage>
 
-export const Checkpoint = Schema.Struct({
-  number: Schema.Natural,
-  oid: Schema.String,
-  files: Schema.Array(
-    Schema.Struct({ path: Schema.String, added: Schema.Natural, deleted: Schema.Natural })
-  ),
-})
-export type Checkpoint = Schema.Schema.Type<typeof Checkpoint>
-
 export const ThreadEvent = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal('checkpoint.captured'),
-    turnId: Schema.String,
-    checkpoint: Checkpoint,
-  }),
-  Schema.Struct({
-    type: Schema.Literal('turn.boundary'),
-    turnId: Schema.String,
-    messageId: Schema.String,
-  }),
-  Schema.Struct({
-    type: Schema.Literal('thread.rewound'),
-    messageId: Schema.String,
-    boundaries: Schema.Record(Schema.String, Schema.String),
-  }),
   Schema.Struct({ type: Schema.Literal('turn.started'), turnId: Schema.String }),
   Schema.Struct({
     type: Schema.Literal('turn.completed'),
