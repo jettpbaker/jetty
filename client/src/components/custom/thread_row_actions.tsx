@@ -1,7 +1,7 @@
 import {
   ArchiveArrowUpIcon,
   MoreVerticalIcon,
-  PencilEdit01Icon,
+  Edit03Icon,
   PinIcon,
   Delete02Icon,
   Archive02Icon,
@@ -98,7 +98,7 @@ export function ThreadRowActions({
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={editTitle}>
-                <PencilEdit01Icon />
+                <Edit03Icon />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onPin}>

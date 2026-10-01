@@ -12,7 +12,7 @@ import {
   SquareIcon,
   Tick02Icon,
   Clock01Icon,
-  PencilEdit01Icon,
+  Edit03Icon,
   Cancel01Icon,
 } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
@@ -669,7 +669,7 @@ function QueueActions({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
     <span className='flex shrink-0 items-center'>
       <SteerButton entry={entry} q={q} />
       <IconAction label='Edit' onClick={() => q.edit(entry)}>
-        <PencilEdit01Icon />
+        <Edit03Icon />
       </IconAction>
       <IconAction label='Remove' onClick={() => q.remove(entry)}>
         <Cancel01Icon />
