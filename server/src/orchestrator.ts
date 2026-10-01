@@ -29,6 +29,9 @@ import {
 import { StoreError } from './store'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
+const DELTA_BATCH = '50 millis'
+
+type ItemDelta = Extract<ThreadEvent, { type: 'item.delta' }>
 
 export type Orchestrator = Effect.Success<ReturnType<typeof createOrchestrator>>
 export const OrchestratorService = Context.Service<Orchestrator>('jetty/Orchestrator')
@@ -107,8 +110,15 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
+        pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
+
+    yield* Effect.addFinalizer(() =>
+      Effect.forEach(threads.keys(), (threadId) => locked(threadId, flushDelta(threadId)), {
+        discard: true,
+      }).pipe(Effect.ignore)
+    )
 
     function state(threadId: string) {
       let value = threads.get(threadId)
@@ -118,6 +128,7 @@ export function createOrchestrator({
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
           ready: true,
+          pendingDelta: null,
         }
         threads.set(threadId, value)
       }
@@ -139,63 +150,117 @@ export function createOrchestrator({
       })
     }
 
+    function commit(threadId: string, event: ThreadEvent, onCommit: Effect.Effect<void>) {
+      return Effect.gen(function* () {
+        const appended = yield* store.appendEvent(threadId, event)
+        if (event.type === 'turn.started') state(threadId).turnId = event.turnId
+        yield* onCommit
+        yield* publish(threadId, appended)
+        if (event.type === 'item.completed' && onPullRequestOutput) {
+          const item = appended.state.items.find((candidate) => candidate.id === event.itemId)
+          const input =
+            item?.kind === 'tool_call' && item.input && typeof item.input === 'object'
+              ? (item.input as Record<string, unknown>)
+              : null
+          const command =
+            input &&
+            (typeof input.command === 'string'
+              ? input.command
+              : typeof input.cmd === 'string'
+                ? input.cmd
+                : null)
+          const ownGhPr =
+            item?.kind === 'tool_call' &&
+            !item.agentId &&
+            /(?:bash|shell|exec|command)/i.test(item.toolName) &&
+            command &&
+            /(?:^|[;&|\n])\s*gh\s+pr\s+(?:create|view)(?:\s|$)/.test(command)
+          if (ownGhPr && item.output.includes('github.com/'))
+            yield* onPullRequestOutput(threadId, item.output).pipe(
+              Effect.catchCause((cause) => Effect.logWarning(cause)),
+              Effect.forkIn(scope)
+            )
+        }
+        if (event.type === 'turn.completed' || event.type === 'turn.failed')
+          state(threadId).turnId = null
+      })
+    }
+
+    function locked<A, E>(threadId: string, effect: Effect.Effect<A, E>) {
+      return Effect.suspend(() =>
+        state(threadId).publication.withPermit(
+          hub.withChromePublication(effect).pipe(Effect.uninterruptible)
+        )
+      )
+    }
+
+    // Callers hold the thread's publication permit, so the batch lands before their own write.
+    function flushDelta(threadId: string) {
+      return Effect.suspend(() => {
+        const live = state(threadId)
+        const pending = live.pendingDelta
+        if (!pending) return Effect.void
+        live.pendingDelta = null
+        return commit(threadId, pending.event, pending.onCommit)
+      })
+    }
+
+    function bufferDelta(
+      threadId: string,
+      event: ItemDelta,
+      onCommit: Effect.Effect<void>
+    ): Effect.Effect<void, StoreError> {
+      return Effect.suspend(() => {
+        const live = state(threadId)
+        const pending = live.pendingDelta
+        if (pending && pending.event.itemId !== event.itemId)
+          return locked(threadId, flushDelta(threadId)).pipe(
+            Effect.andThen(bufferDelta(threadId, event, onCommit))
+          )
+        if (pending) {
+          const tokens =
+            pending.event.tokens === undefined && event.tokens === undefined
+              ? {}
+              : { tokens: (pending.event.tokens ?? 0) + (event.tokens ?? 0) }
+          live.pendingDelta = {
+            event: { ...pending.event, delta: pending.event.delta + event.delta, ...tokens },
+            onCommit: pending.onCommit.pipe(Effect.andThen(onCommit)),
+          }
+          return Effect.void
+        }
+        live.pendingDelta = { event, onCommit }
+        return Effect.sleep(DELTA_BATCH).pipe(
+          Effect.andThen(locked(threadId, flushDelta(threadId))),
+          Effect.catchCause((cause) => Effect.logWarning(cause)),
+          Effect.forkIn(scope),
+          Effect.asVoid
+        )
+      })
+    }
+
     function append(
       threadId: string,
       event: ThreadEvent,
       onCommit = Effect.void,
       expectedTurnId?: string
     ) {
-      return Effect.suspend(() =>
-        state(threadId).publication.withPermit(
-          hub
-            .withChromePublication(
-              Effect.gen(function* () {
-                if (expectedTurnId && state(threadId).turnId !== expectedTurnId)
-                  return yield* Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
-                if (
-                  event.type === 'turn.started' &&
-                  state(threadId).turnId &&
-                  state(threadId).turnId !== event.turnId
-                )
-                  return yield* Effect.fail(new StoreError('conflict', 'Another turn is active'))
-                const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
-                if (terminal && state(threadId).turnId !== event.turnId) return
-                const appended = yield* store.appendEvent(threadId, event)
-                if (event.type === 'turn.started') state(threadId).turnId = event.turnId
-                yield* onCommit
-                yield* publish(threadId, appended)
-                if (event.type === 'item.completed' && onPullRequestOutput) {
-                  const item = appended.state.items.find(
-                    (candidate) => candidate.id === event.itemId
-                  )
-                  const input =
-                    item?.kind === 'tool_call' && item.input && typeof item.input === 'object'
-                      ? (item.input as Record<string, unknown>)
-                      : null
-                  const command =
-                    input &&
-                    (typeof input.command === 'string'
-                      ? input.command
-                      : typeof input.cmd === 'string'
-                        ? input.cmd
-                        : null)
-                  const ownGhPr =
-                    item?.kind === 'tool_call' &&
-                    !item.agentId &&
-                    /(?:bash|shell|exec|command)/i.test(item.toolName) &&
-                    command &&
-                    /(?:^|[;&|\n])\s*gh\s+pr\s+(?:create|view)(?:\s|$)/.test(command)
-                  if (ownGhPr && item.output.includes('github.com/'))
-                    yield* onPullRequestOutput(threadId, item.output).pipe(
-                      Effect.catchCause((cause) => Effect.logWarning(cause)),
-                      Effect.forkIn(scope)
-                    )
-                }
-                if (terminal) state(threadId).turnId = null
-              })
-            )
-            .pipe(Effect.uninterruptible)
-        )
+      if (event.type === 'item.delta') return bufferDelta(threadId, event, onCommit)
+      return locked(
+        threadId,
+        Effect.gen(function* () {
+          yield* flushDelta(threadId)
+          if (expectedTurnId && state(threadId).turnId !== expectedTurnId)
+            return yield* Effect.fail(new StoreError('conflict', 'Turn is no longer active'))
+          if (
+            event.type === 'turn.started' &&
+            state(threadId).turnId &&
+            state(threadId).turnId !== event.turnId
+          )
+            return yield* Effect.fail(new StoreError('conflict', 'Another turn is active'))
+          const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
+          if (terminal && state(threadId).turnId !== event.turnId) return
+          yield* commit(threadId, event, onCommit)
+        })
       )
     }
 
@@ -217,24 +282,22 @@ export function createOrchestrator({
           text,
           attachments: meta,
         }
-        yield* state(threadId).publication.withPermit(
-          hub
-            .withChromePublication(
+        yield* locked(
+          threadId,
+          Effect.gen(function* () {
+            yield* flushDelta(threadId)
+            const appended = yield* store.transaction(
               Effect.gen(function* () {
-                const appended = yield* store.transaction(
-                  Effect.gen(function* () {
-                    yield* store.beginDelivery(threadId, turnId, queued?.hop ?? 0, queued?.id)
-                    return yield* store.appendEvents(threadId, [
-                      { type: 'item.started', item },
-                      { type: 'item.completed', itemId: item.id },
-                    ])
-                  })
-                )
-                yield* onCommit
-                for (const event of appended) yield* publish(threadId, event)
+                yield* store.beginDelivery(threadId, turnId, queued?.hop ?? 0, queued?.id)
+                return yield* store.appendEvents(threadId, [
+                  { type: 'item.started', item },
+                  { type: 'item.completed', itemId: item.id },
+                ])
               })
             )
-            .pipe(Effect.uninterruptible)
+            yield* onCommit
+            for (const event of appended) yield* publish(threadId, event)
+          })
         )
       })
     }
@@ -870,6 +933,7 @@ export function createOrchestrator({
             live.publication.withPermit(
               hub.withChromePublication(
                 Effect.gen(function* () {
+                  yield* flushDelta(threadId)
                   yield* store.requireThread(threadId)
                   // A persisted activeTurnId can outlive a crash; only a live turn blocks delete.
                   if (live.turnId)

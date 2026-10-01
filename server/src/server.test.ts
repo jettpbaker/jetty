@@ -246,7 +246,7 @@ describe('server skeleton', () => {
           event.item.text === 'second'
       )
       const secondDelta = events.findIndex(
-        ({ event }) => event.type === 'item.delta' && event.delta === 'se'
+        ({ event }) => event.type === 'item.delta' && event.delta.includes('se')
       )
       expect(secondUser).toBeGreaterThan(-1)
       expect(secondDelta).toBeGreaterThan(secondUser)

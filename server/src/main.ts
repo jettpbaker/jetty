@@ -475,7 +475,7 @@ function createServer(opts: ServerOptions = {}) {
         port,
         hostname,
         disablePreemptiveShutdown: true,
-        websocket: { maxPayloadLength: MAX_TURN_PAYLOAD_BYTES },
+        websocket: { maxPayloadLength: MAX_TURN_PAYLOAD_BYTES, perMessageDeflate: true },
       })
     ).pipe(Effect.provideService(Scope.Scope, transportScope))
     const server = Context.get(http, HttpServer.HttpServer)

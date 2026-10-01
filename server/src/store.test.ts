@@ -49,7 +49,7 @@ test('project directory validation uses injected filesystem without holding a SQ
             ),
         })
       )
-    }).pipe(Effect.provide(BunServices.layer))
+    }).pipe(Effect.scoped, Effect.provide(BunServices.layer))
   )
   const pending = runtime.runPromise(store.createProject(home))
   try {
@@ -96,7 +96,7 @@ test('concurrent SQL appends serialize durable sequences and reduced projection 
   }
 })
 
-for (const table of ['thread_events', 'thread_states', 'threads']) {
+for (const table of ['thread_events', 'threads']) {
   test(`SQL failure at ${table} rolls back event, snapshot and thread metadata`, async () => {
     const { store, runtime, thread, sql } = await setup()
     const beforeThread = await runtime.runPromise(store.getThread(thread.id))
@@ -296,7 +296,7 @@ for (const invalid of [
   })
 }
 
-test('invalid persisted event JSON and mismatched snapshot sequences are surfaced', async () => {
+test('invalid persisted event JSON is surfaced', async () => {
   const { store, runtime, sql, thread } = await setup()
   await runtime.runPromise(store.appendEvent(thread.id, { type: 'turn.started', turnId: 'active' }))
   for (const invalid of ['not json', '{"type":"unknown"}']) {
@@ -307,12 +307,33 @@ test('invalid persisted event JSON and mismatched snapshot sequences are surface
       code: 'internal',
     })
   }
+})
+
+test('a snapshot behind the event log catches up by replaying the log', async () => {
+  const { store, runtime, sql, thread, home, close } = await setup()
   await runtime.runPromise(
-    sql`UPDATE thread_states SET last_seq = 99 WHERE thread_id = ${thread.id}`
+    sql`CREATE TRIGGER freeze_snapshot BEFORE UPDATE ON thread_states BEGIN SELECT RAISE(IGNORE); END`
   )
-  await expect(runtime.runPromise(store.getThreadState(thread.id))).rejects.toMatchObject({
-    code: 'internal',
-  })
+  await runtime.runPromise(
+    store.appendEvents(thread.id, [
+      { type: 'turn.started', turnId: 'active' },
+      {
+        type: 'item.started',
+        item: { id: 'reply', turnId: 'active', createdAt: 1, kind: 'assistant_message', text: '' },
+      },
+      { type: 'item.delta', itemId: 'reply', delta: 'hello' },
+    ])
+  )
+  const events = await runtime.runPromise(store.getEventsAfter(thread.id, 0))
+  await close()
+  const reopened = await openTestStore(home)
+  try {
+    expect(await reopened.runtime.runPromise(reopened.store.getThreadState(thread.id))).toEqual(
+      events.reduce(applyEvent, emptyThread)
+    )
+  } finally {
+    await reopened.close()
+  }
 })
 
 test('migration errors fail honestly and roll back the migration ledger', async () => {
