@@ -10,6 +10,7 @@ import { DitherDrift } from './dither_drift'
 import { DownwardBlur } from './downward_blur'
 import { DriftingDither } from './drifting_dither'
 import { OpacityFade } from './opacity_fade'
+import { useWallpaperFade, WallpaperDissolve } from './wallpaper_fade_study'
 import './new_thread_backdrop.css'
 
 const curve = {
@@ -32,8 +33,38 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const { wallpaper: image, video } = useAppearance()
   const resolvedTheme = useResolvedTheme()
   const reducedMotion = useReducedMotion()
+  const studied = useWallpaperFade()
   if (!image && !video) return <DitherDrift />
   const fadeBackground = resolvedTheme === 'light' ? '#ffffff' : '#000000'
+  const fade = resolvedTheme === 'light' && !video ? studied : 'current'
+  const wallpaper = (
+    <DriftingDither
+      className='wallpaper'
+      image={image}
+      {...initialDitherSettings}
+      offsetX={0}
+      offsetY={0}
+      drift={0}
+    />
+  )
+  if (fade === 'clean')
+    return (
+      <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
+        <OpacityFade
+          settings={{ ...initialFadeSettings, topOpacity: 1 }}
+          background='var(--background)'
+        >
+          {wallpaper}
+        </OpacityFade>
+      </div>
+    )
+  if (fade === 'dissolve')
+    return (
+      <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
+        {wallpaper}
+        <WallpaperDissolve />
+      </div>
+    )
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (
@@ -43,14 +74,7 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
       ) : (
         <OpacityFade settings={initialFadeSettings} background={fadeBackground}>
           <DownwardBlur settings={initialBlurSettings} curve={curve}>
-            <DriftingDither
-              className='wallpaper'
-              image={image}
-              {...initialDitherSettings}
-              offsetX={0}
-              offsetY={0}
-              drift={0}
-            />
+            {wallpaper}
           </DownwardBlur>
         </OpacityFade>
       )}
