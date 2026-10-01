@@ -76,6 +76,22 @@ export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | u
   return EffortLevel.literals.find((level) => model.efforts.includes(level))
 }
 
+export const agentBehaviours = [
+  {
+    key: 'archiveCompletedThreads',
+    label: 'Agents proactively archive completed threads',
+    defaultEnabled: true,
+    instruction:
+      'Call archive_thread on threads you created once their work is merged or no longer needed.',
+  },
+] as const
+
+export const AgentBehaviourKey = Schema.Literals(agentBehaviours.map((behaviour) => behaviour.key))
+export type AgentBehaviourKey = Schema.Schema.Type<typeof AgentBehaviourKey>
+
+export const AgentBehaviours = Schema.Record(AgentBehaviourKey, Schema.Boolean)
+export type AgentBehaviours = Schema.Schema.Type<typeof AgentBehaviours>
+
 export const ProjectIcon = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('emoji'),
@@ -236,6 +252,10 @@ export const methods = {
   },
   'settings.setTitleModel': {
     params: TitleModel,
+    result: Schema.Null,
+  },
+  'settings.setAgentBehaviour': {
+    params: Schema.Struct({ key: AgentBehaviourKey, enabled: Schema.Boolean }),
     result: Schema.Null,
   },
   'chrome.subscribe': {
@@ -614,6 +634,7 @@ export const ChromePushData = Schema.Union([
     models: Schema.optional(Schema.Array(ProviderModel)),
     modelDiscovery: Schema.optional(ModelDiscovery),
     titleModel: Schema.optional(TitleModel),
+    agentBehaviours: Schema.optional(AgentBehaviours),
   }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
@@ -622,5 +643,6 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
   Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
   Schema.Struct({ type: Schema.Literal('titleModel'), ...TitleModel.fields }),
+  Schema.Struct({ type: Schema.Literal('agentBehaviours'), behaviours: AgentBehaviours }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>

@@ -1,4 +1,5 @@
 import type {
+  AgentBehaviours,
   ChromePushData,
   ModelDiscovery,
   TitleModel,
@@ -29,6 +30,7 @@ export type Chrome = {
   models?: readonly ProviderModel[]
   modelDiscovery?: ModelDiscovery
   titleModel?: TitleModel
+  agentBehaviours?: AgentBehaviours
 }
 
 const emptyChrome: Chrome = { projects: [], threads: [] }
@@ -49,6 +51,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         models: update.models,
         modelDiscovery: update.modelDiscovery,
         titleModel: update.titleModel,
+        agentBehaviours: update.agentBehaviours,
       }
     case 'project.upserted':
       return { ...chrome, projects: upsert(chrome.projects, update.project) }
@@ -67,6 +70,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, modelDiscovery: update.status }
     case 'titleModel':
       return { ...chrome, titleModel: { model: update.model, effort: update.effort } }
+    case 'agentBehaviours':
+      return { ...chrome, agentBehaviours: update.behaviours }
   }
 }
 

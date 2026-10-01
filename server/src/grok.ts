@@ -19,7 +19,7 @@ import { approvalChanges, approvalInputWithoutChanges } from './approval-changes
 import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
 import { createGrokTranslator } from './grok-translate'
-import { JETTY_INSTRUCTIONS } from './jetty-instructions'
+import { jettyInstructions } from './jetty-instructions'
 import {
   object,
   string,
@@ -77,14 +77,14 @@ function grokInput(text: string, images?: AgentImage[]) {
   ]
 }
 
-export function grokArgs(input: TurnInput, jettyTools = false) {
+export function grokArgs(input: TurnInput, instructions?: string) {
   return [
     '--no-plan',
     '--permission-mode',
     input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
     '--sandbox',
     input.permissionMode === 'full_access' || input.environment ? 'off' : 'workspace',
-    ...(jettyTools ? ['--rules', JETTY_INSTRUCTIONS] : []),
+    ...(instructions ? ['--rules', instructions] : []),
     'agent',
     '--no-leader',
     'stdio',
@@ -317,9 +317,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               )
             : undefined
           const target = session.input.environment
+          const args = grokArgs(
+            session.input,
+            binding && jettyInstructions(yield* store.getAgentBehaviours())
+          )
           const { connection, init } = yield* openGrokConnection(
             target?.hostCheckout ?? cwd,
-            grokArgs(session.input, Boolean(binding)),
+            args,
             target
               ? {
                   ...options,
@@ -339,7 +343,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     'echo $$ > /artifacts/.jetty-provider.pid; exec "$@"',
                     'jetty',
                     'grok',
-                    ...grokArgs(session.input, Boolean(binding)),
+                    ...args,
                   ],
                   authMethod: 'xai.api_key',
                 }

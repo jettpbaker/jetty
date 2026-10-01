@@ -49,7 +49,7 @@ import {
   type TranslateCtx,
 } from './claude-translate'
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
-import { JETTY_INSTRUCTIONS } from './jetty-instructions'
+import { jettyInstructions } from './jetty-instructions'
 import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 import { readUsage } from './usage'
@@ -657,6 +657,13 @@ export function createClaudeAdapter(
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
+        const instructions =
+          sdkMcp &&
+          jettyInstructions(
+            yield* store
+              .getAgentBehaviours()
+              .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          )
         const q = yield* Effect.acquireRelease(
           Effect.try({
             try: () =>
@@ -710,7 +717,7 @@ export function createClaudeAdapter(
                   systemPrompt: {
                     type: 'preset',
                     preset: 'claude_code',
-                    ...(sdkMcp ? { append: JETTY_INSTRUCTIONS } : {}),
+                    ...(instructions ? { append: instructions } : {}),
                   },
                   settingSources: ['user', 'project', 'local'],
                   model: options.model,

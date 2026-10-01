@@ -254,6 +254,16 @@ export function createRpcHandlers(
             Effect.as(null)
           )
         ),
+      'settings.setAgentBehaviour': ({ key, enabled }) =>
+        mutation(
+          store.setAgentBehaviour(key, enabled).pipe(
+            Effect.andThen(store.getAgentBehaviours()),
+            Effect.tap((behaviours) =>
+              Effect.sync(() => hub.pushChrome({ type: 'agentBehaviours', behaviours }))
+            ),
+            Effect.as(null)
+          )
+        ),
       'chrome.subscribe': () =>
         Stream.unwrap(
           hub.withChromePublication(
@@ -264,6 +274,7 @@ export function createRpcHandlers(
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
               const titleModel = yield* store.getTitleModel()
+              const agentBehaviours = yield* store.getAgentBehaviours()
               const queue = yield* hub.subscribeChrome()
               const snapshot: ChromePushData = {
                 type: 'snapshot',
@@ -273,6 +284,7 @@ export function createRpcHandlers(
                 ...(models ? { models } : {}),
                 modelDiscovery,
                 titleModel,
+                agentBehaviours,
               }
               return Stream.concat(Stream.succeed(snapshot), Stream.fromQueue(queue))
             }).pipe(Effect.mapError(wireError))

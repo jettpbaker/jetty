@@ -2,6 +2,9 @@ import { ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment } from '@jetty/shared/items'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
+  agentBehaviours,
+  type AgentBehaviourKey,
+  type AgentBehaviours,
   EffortLevel,
   newId,
   type ErrorCode,
@@ -584,6 +587,32 @@ export function createStore() {
                 ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`
         return Effect.all([write('utility_model', model), write('utility_effort', effort)]).pipe(
           sql.withTransaction,
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      getAgentBehaviours() {
+        return sql<{
+          key: string
+          value_json: string
+        }>`SELECT key, value_json FROM settings WHERE key LIKE 'agent_behaviour.%'`.pipe(
+          Effect.map(
+            (rows) =>
+              Object.fromEntries(
+                agentBehaviours.map(({ key, defaultEnabled }) => {
+                  const row = rows.find((candidate) => candidate.key === `agent_behaviour.${key}`)
+                  const value: unknown = row && JSON.parse(row.value_json)
+                  return [key, typeof value === 'boolean' ? value : defaultEnabled]
+                })
+              ) as AgentBehaviours
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      setAgentBehaviour(key: AgentBehaviourKey, enabled: boolean) {
+        return sql`INSERT INTO settings (key, value_json)
+          VALUES (${`agent_behaviour.${key}`}, ${JSON.stringify(enabled)})
+          ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )

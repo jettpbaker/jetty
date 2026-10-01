@@ -9,11 +9,13 @@ import {
   PaintBrushIcon,
   PlugsIcon,
   PuzzlePieceIcon,
+  RobotIcon,
 } from '@phosphor-icons/react'
 import { AppsIcon, ContainerIcon, RepoIcon, SyncIcon } from '@primer/octicons-react'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
+import { SettingsAgentBehaviour } from './settings_agent_behaviour'
 import { SettingsAppearance } from './settings_appearance'
 import { SettingsContainers } from './settings_containers'
 import { SettingsIntegrations } from './settings_integrations'
@@ -119,6 +121,9 @@ export function SettingsView() {
             >
               <SettingsLoadout enabledProviders={enabled} onConnectProvider={showProvider} />
               <SettingsTitleModel />
+            </Section>
+            <Section id='agent-behaviour' label='Agent behaviour' icon={RobotIcon}>
+              <SettingsAgentBehaviour />
             </Section>
             <Section id='integrations' label='Integrations' icon={PuzzlePieceIcon}>
               <SettingsIntegrations />

@@ -460,17 +460,21 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            'Archive a thread you created with create_thread, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar, and a container thread stops its container. The user can still unarchive it.',
+            'Archive a thread in your project, other than your own, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar, and a container thread stops its container. The user can still unarchive it.',
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
           invoke(
             Effect.gen(function* () {
-              const caller = yield* accessible(identity, identity.threadId)
-              const target = yield* store.getThread(threadId)
-              if (target?.parentThreadId !== caller.id)
+              if (threadId === identity.threadId)
                 return yield* Effect.fail(
-                  new StoreError('invalid_params', 'You can only archive threads you created')
+                  new StoreError('invalid_params', "A thread can't archive itself")
+                )
+              const caller = yield* accessible(identity, identity.threadId)
+              const target = yield* store.requireThread(threadId)
+              if (target.projectId !== caller.projectId)
+                return yield* Effect.fail(
+                  new StoreError('not_found', 'Thread not found in caller project')
                 )
               if (target.archived)
                 return yield* Effect.fail(

@@ -1,4 +1,4 @@
-import type { TitleModel } from '@jetty/shared/wire'
+import type { AgentBehaviourKey, TitleModel } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
@@ -35,3 +35,18 @@ function setTitleModel(
 }
 
 export const useSetTitleModel = () => useAction(setTitleModel)
+
+function setAgentBehaviour(
+  registry: AtomRegistry.AtomRegistry,
+  key: AgentBehaviourKey,
+  enabled: boolean,
+  failed: () => void
+) {
+  run(
+    registry,
+    (connection) => connection.request('settings.setAgentBehaviour', { key, enabled }),
+    failed
+  )
+}
+
+export const useSetAgentBehaviour = () => useAction(setAgentBehaviour)

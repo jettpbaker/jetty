@@ -41,6 +41,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('settings.providerUsage'),
   unary('models.refresh'),
   unary('settings.setTitleModel'),
+  unary('settings.setAgentBehaviour'),
   unary('project.create'),
   unary('project.setIcon'),
   unary('containers.status'),
