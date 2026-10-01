@@ -115,17 +115,19 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
      log clipped mid-sentence instead of its final report.
   6. Let a parent escalate one child to the user (mark_ready_for_review with
      a threadId); agent-created threads no longer flag the user themselves.
-- Stuck on "Reconnecting" in a long thread, usually right after sending as the
-  reply starts streaming (work, 1 Oct). Recovers only by opening New thread,
-  reloading, then going back. Likely a side effect of 138ced7 (in-flight
-  subscriptions now fail and re-subscribe on disconnect). Hypothesis to verify
-  first: Effect's client pings every 5s and calls the socket dead if a pong
-  hasn't arrived by the next ping (not configurable), and the server's pong
-  queues behind a large thread snapshot on a slow link (WFH → Coder proxy).
-  Each reconnect re-subscribes from the same seq and resends the same big
-  snapshot, so it loops. Reproduce with a throttled proxy and a long thread;
-  fixes to weigh: send the snapshot in chunks so pongs interleave, trim large
-  tool outputs from the snapshot (load on expand), or tolerate a missed pong.
+- Long threads freeze the server while a reply streams (work, 1 Oct: first word
+  arrives, then "Reconnecting", and even a page reload hangs until the turn
+  ends; the agent itself finishes fine). Cause, measured locally: every event
+  (each streamed word) reads the thread's whole state JSON, schema-decodes it,
+  applies the event, re-encodes and rewrites it (store.ts append →
+  getThreadState/writeState), so per-event cost grows with thread size: 0.3ms
+  at 0.12MB, 2.4ms at 1.2MB, 14.5ms at 4.6MB, 31.8ms at 11.6MB of state. While
+  a burst of deltas lands, nothing else is served (a page load waited the whole
+  6.4s of 200 deltas at 11.6MB). Claude streams faster than that, so the
+  backlog grows until the turn ends. The work box is slower than this Mac.
+  Fix options: keep each thread's state in memory and persist it debounced
+  (events stay the durable log), coalesce streamed deltas (~50ms) before
+  appending, and skip schema-decoding our own stored state on the hot path.
 - A thread whose subagents are still running reads idle in the sidebar: its
   status follows the main turn, which ends while background subagents keep
   working (e.g. three Opus explorers mid-run). The thread should read working
