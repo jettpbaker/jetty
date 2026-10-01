@@ -25,6 +25,9 @@
     transparent 100%
   );
 }
+:root:not(.dark)[data-composer-shadow='off'] .composer-shadow {
+  display: none;
+}
 :root:not(.dark)[data-composer-shadow='blur'] .composer-shadow {
   background: var(--composer-shadow-tone);
   filter: blur(7rem);

@@ -13,12 +13,15 @@ export const initialComposerShadowSettings: ComposerShadowSettings = {
 }
 
 // Temporary comparison for light mode: how the shadow is drawn, and whether it takes the accent hue.
-export type ComposerShadowLook = { technique: 'gradient' | 'blur'; tinted: boolean }
+export type ComposerShadowLook = { technique: 'gradient' | 'blur' | 'off'; tinted: boolean }
 const storageKey = 'jetty.composer-shadow-look'
 
 export function loadComposerShadowLook(): ComposerShadowLook {
   const [technique, tint] = (storage.get(storageKey) ?? '').split(':')
-  return { technique: technique === 'blur' ? 'blur' : 'gradient', tinted: tint === 'tinted' }
+  return {
+    technique: technique === 'blur' || technique === 'off' ? technique : 'gradient',
+    tinted: tint === 'tinted',
+  }
 }
 
 export function applyComposerShadowLook(look: ComposerShadowLook) {

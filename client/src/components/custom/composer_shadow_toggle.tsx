@@ -9,6 +9,7 @@ import { useState } from 'react'
 const techniques: { value: ComposerShadowLook['technique']; label: string }[] = [
   { value: 'gradient', label: 'Gradient' },
   { value: 'blur', label: 'Blur' },
+  { value: 'off', label: 'Off' },
 ]
 
 // Temporary: compares light-mode composer shadows. Remove once one is chosen.
