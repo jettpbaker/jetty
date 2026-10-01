@@ -2,7 +2,7 @@ import { Effect } from 'effect'
 
 import type { TitlePrompt } from './title-model'
 
-export type Titler = (text: string) => Effect.Effect<string | null>
+export type Titler = (text: string) => Effect.Effect<string | null, unknown>
 
 const MAX_TITLE_LEN = 60
 const TITLE_TIMEOUT = '30 seconds'
@@ -28,19 +28,29 @@ export function normalizeTitle(raw: string | null | undefined): string | null {
 }
 
 export function titleModelTitler(prompt: TitlePrompt): Titler {
-  return (text) => prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(Effect.map(normalizeTitle))
+  return (text) =>
+    prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(
+      Effect.flatMap((reply) => {
+        const title = normalizeTitle(reply)
+        if (title) return Effect.succeed(title)
+        return Effect.fail(new Error(`Title model reply is not a title: ${JSON.stringify(reply)}`))
+      })
+    )
 }
 
-export const firstLineTitler: Titler = (text) =>
-  Effect.succeed(clampTitle(text.split('\n').find((line) => line.trim()) ?? ''))
+export function firstLineTitler(text: string) {
+  return Effect.succeed(clampTitle(text.split('\n').find((line) => line.trim()) ?? ''))
+}
 
-export function chainTitlers(...titlers: Titler[]): Titler {
+export function chainTitlers(...titlers: Titler[]): (text: string) => Effect.Effect<string | null> {
   return (text) =>
     Effect.gen(function* () {
       for (const titler of titlers) {
         const title = yield* titler(text).pipe(
           Effect.timeout(TITLE_TIMEOUT),
-          Effect.catchCause(() => Effect.succeed(null))
+          Effect.catchCause((cause) =>
+            Effect.logWarning('Thread titler failed', cause).pipe(Effect.as(null))
+          )
         )
         if (title) return title
       }

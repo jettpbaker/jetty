@@ -19,9 +19,9 @@ export type ModelPrompt = (
   effort: EffortLevel | undefined,
   instructions: string,
   text: string
-) => Effect.Effect<string | null>
+) => Effect.Effect<string, unknown>
 
-export type TitlePrompt = (instructions: string, text: string) => Effect.Effect<string | null>
+export type TitlePrompt = (instructions: string, text: string) => Effect.Effect<string, unknown>
 
 export function createTitlePrompt(options: {
   codex?: StdioProcessOptions
@@ -39,7 +39,7 @@ export function createTitlePrompt(options: {
       Effect.gen(function* () {
         const choice = yield* options.choice()
         const model = resolveTitleModel(choice.model, yield* options.catalog())
-        if (!model) return null
+        if (!model) return yield* Effect.fail(new Error('No title model is available'))
         const effort = resolveTitleEffort(model, choice.effort)
         return yield* prompts[model.provider](model, effort, instructions, text)
       })

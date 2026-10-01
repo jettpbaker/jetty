@@ -69,8 +69,8 @@ function selectTitler(
   prompt: TitlePrompt
 ) {
   if (opts.titler !== undefined) {
-    const fixed = opts.titler
-    if (!fixed) return null
+    if (!opts.titler) return null
+    const fixed = chainTitlers(opts.titler)
     return (_provider: AgentProvider, text: string) => fixed(text)
   }
   if (typeof kind !== 'string') return null

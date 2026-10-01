@@ -16,7 +16,7 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
           const cwd = tmpdir()
           const connection = yield* openCodexConnection(cwd, options)
           const { account } = yield* connection.request('account/read', {})
-          if (!account) return null
+          if (!account) return yield* Effect.fail(new Error('Codex is not signed in'))
           const started = yield* connection.request('thread/start', {
             cwd,
             model: model.id,
@@ -45,10 +45,7 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
             if (message.method === 'turn/completed') return reply
           }
         })
-      ).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-        Effect.catch(() => Effect.succeed(null))
-      )
+      ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
     return prompt
   })
 }

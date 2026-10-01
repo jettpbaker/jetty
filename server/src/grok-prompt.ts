@@ -55,10 +55,7 @@ export function createGrokPrompt(options: StdioProcessOptions = {}) {
               return reply
           }
         })
-      ).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-        Effect.catch(() => Effect.succeed(null))
-      )
+      ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
     return prompt
   })
 }

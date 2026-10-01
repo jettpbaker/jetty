@@ -15,7 +15,9 @@ export const claudePrompt: ModelPrompt = (model, effort, instructions, text) =>
           ...(effort ? { effort } : {}),
           pathToClaudeCodeExecutable: claudeBin,
           maxTurns: 1,
-          allowedTools: [],
+          tools: [],
+          mcpServers: {},
+          strictMcpConfig: true,
           settingSources: [],
           persistSession: false,
           systemPrompt: instructions,
@@ -23,12 +25,20 @@ export const claudePrompt: ModelPrompt = (model, effort, instructions, text) =>
       })
     ),
     (q) =>
-      Effect.tryPromise(async () => {
-        let result: string | null = null
-        for await (const message of q) {
-          if (message.type === 'result' && message.subtype === 'success') result = message.result
-        }
-        return result
+      Effect.tryPromise({
+        try: async () => {
+          for await (const message of q) {
+            if (message.type !== 'result') continue
+            if (message.subtype === 'success' && !message.is_error) return message.result
+            throw new Error(
+              message.subtype === 'success'
+                ? message.result
+                : `${message.subtype}: ${message.errors.join('; ')}`
+            )
+          }
+          throw new Error('Claude ended without a result')
+        },
+        catch: (error) => error,
       }),
     (q) => Effect.try(() => q.close()).pipe(Effect.ignore)
-  ).pipe(Effect.catch(() => Effect.succeed(null)))
+  )
