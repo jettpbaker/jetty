@@ -6,7 +6,10 @@ import { join } from 'node:path'
 import { git, gitOutput, isFolder, type Worktrees } from './worktrees'
 
 function prefix(threadId: string) {
-  const id = /^[a-zA-Z0-9_-]+$/.test(threadId) ? threadId : Buffer.from(threadId).toString('hex')
+  const id = encodeURIComponent(threadId).replace(
+    /[.!~*'()]/g,
+    (character) => `%${character.charCodeAt(0).toString(16)}`
+  )
   return `refs/jetty/checkpoints/${id}/turn/`
 }
 

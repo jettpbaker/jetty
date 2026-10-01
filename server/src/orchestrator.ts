@@ -11,7 +11,7 @@ import type {
 
 import { findProviderModel } from '@jetty/shared/model-name'
 import { newId } from '@jetty/shared/wire'
-import { Context, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Context, Deferred, Effect, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
@@ -115,7 +115,7 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
-        checkpoint: Fiber.Fiber<void, never> | null
+        checkpoint: Effect.Effect<void> | null
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -193,15 +193,17 @@ export function createOrchestrator({
             )
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
-          state(threadId).turnId = null
           if (checkpoints) {
+            const captured = Deferred.makeUnsafe<void>()
+            state(threadId).checkpoint = Deferred.await(captured)
+            state(threadId).turnId = null
             const snapshot = appended.state
             const number = new Set(
               snapshot.items
                 .filter((item) => item.kind === 'user_message' && !item.agentId)
                 .map((item) => item.turnId)
             ).size
-            state(threadId).checkpoint = yield* Effect.gen(function* () {
+            yield* Effect.gen(function* () {
               const checkpoint = yield* Effect.tryPromise(() =>
                 checkpoints.capture(threadId, number)
               )
@@ -214,9 +216,10 @@ export function createOrchestrator({
               if (worktrees) yield* Effect.tryPromise(() => worktrees.refresh(threadId))
             }).pipe(
               Effect.catchCause((cause) => Effect.logWarning(cause)),
+              Effect.ensuring(Deferred.succeed(captured, undefined)),
               Effect.forkIn(scope)
             )
-          }
+          } else state(threadId).turnId = null
         }
       })
     }
@@ -459,7 +462,7 @@ export function createOrchestrator({
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
               const capturing = state(input.threadId).checkpoint
-              if (capturing && !state(input.threadId).turnId) yield* Fiber.join(capturing)
+              if (capturing && !state(input.threadId).turnId) yield* capturing
               let thread = yield* store.requireThread(input.threadId)
               if (thread.archived && !input.queued)
                 thread = yield* store.archiveThread(thread.id, false)
@@ -1024,7 +1027,7 @@ export function createOrchestrator({
               return yield* Effect.fail(
                 new StoreError('conflict', 'Interrupt the current turn before rewinding')
               )
-            if (live.checkpoint) yield* Fiber.join(live.checkpoint)
+            if (live.checkpoint) yield* live.checkpoint
             const snapshot = yield* store.getThreadState(threadId)
             if (snapshot.activeTurnId)
               return yield* Effect.fail(new StoreError('conflict', 'A turn is running'))
@@ -1117,7 +1120,7 @@ export function createOrchestrator({
           const live = state(threadId)
           // Same lock order as a turn's writes: admission, publication, chrome.
           return live.admission.withPermit(
-            (live.checkpoint ? Fiber.join(live.checkpoint) : Effect.void).pipe(
+            (live.checkpoint ?? Effect.void).pipe(
               Effect.andThen(
                 live.publication.withPermit(
                   hub.withChromePublication(
