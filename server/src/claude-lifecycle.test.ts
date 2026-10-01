@@ -1028,19 +1028,11 @@ test('background watches survive idle TTL, wake a synthetic turn, and stop indiv
     subtype: 'background_tasks_changed',
     tasks: [
       { task_id: 'shell', task_type: 'local_bash', description: 'Wait for done' },
-      { task_id: 'watch', task_type: 'monitor', description: 'Watch checks' },
-      { task_id: 'ambient', task_type: 'monitor', description: 'Housekeeping', ambient: true },
+      { task_id: 'watch', task_type: 'monitor_mcp', description: 'Watch checks' },
+      { task_id: 'ambient', task_type: 'monitor_ws', description: 'Housekeeping', ambient: true },
     ],
   })
-  q.push({
-    type: 'system',
-    subtype: 'task_started',
-    task_id: 'shell',
-    task_type: 'local_bash',
-    tool_use_id: 'shell-tool',
-    description: 'Wait for done',
-    is_backgrounded: true,
-  })
+  q.push({ type: 'system', subtype: 'task_started', task_id: 'shell', tool_use_id: 'shell-tool' })
   q.push({ type: 'result', subtype: 'success' })
   await f.runtime.runPromise(turn.await)
   expect(tasks.map((task) => task.label)).toEqual(['sleep 20 && echo done', 'Watch checks'])
@@ -1071,15 +1063,8 @@ test('background watches survive idle TTL, wake a synthetic turn, and stop indiv
     'control failed'
   )
   expect(tasks.map((task) => task.id)).toEqual(['watch'])
-  // A task notification settles independently of a failed stop control.
-  q.push({ type: 'system', subtype: 'task_notification', task_id: 'watch', status: 'completed' })
-  q.push({
-    type: 'system',
-    subtype: 'task_progress',
-    task_id: 'watch',
-    description: 'Late progress',
-    usage: { duration_ms: 1000 },
-  })
+  // The level signal settles the watch independently of the failed stop control.
+  q.push({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
   await f.runtime.runPromise(TestClock.adjust(2000))
   expect(tasks).toEqual([])
   expect(q.closed).toBe(true)
@@ -1104,7 +1089,7 @@ test('Stop all removes every watch immediately and arms the normal idle timer', 
     subtype: 'background_tasks_changed',
     tasks: [
       { task_id: 'shell', task_type: 'local_bash', description: 'shell' },
-      { task_id: 'monitor', task_type: 'monitor', description: 'monitor' },
+      { task_id: 'monitor', task_type: 'monitor_mcp', description: 'monitor' },
     ],
   })
   q.push({ type: 'result', subtype: 'success' })

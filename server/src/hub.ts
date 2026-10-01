@@ -33,7 +33,6 @@ export function createHub() {
 
   function pushChrome(data: ChromePushData) {
     if (data.type === 'thread.upserted') data = { ...data, thread: decorateThread(data.thread) }
-    if (data.type === 'snapshot') data = { ...data, threads: data.threads.map(decorateThread) }
     for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
   }
 

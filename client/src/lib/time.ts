@@ -20,6 +20,14 @@ export function formatAgo(timestamp: number, now: number) {
   return `${count} ${unit}${count === 1 ? '' : 's'} ago`
 }
 
+// Coarse on purpose: a state that lasts hours shouldn't tick seconds at you.
+export function formatElapsed(ms: number) {
+  const minutes = Math.max(0, Math.floor(ms / minute))
+  if (minutes < 1) return '<1m'
+  if (minutes < 60) return `${minutes}m`
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+}
+
 export function formatDuration(seconds: number) {
   const total = Math.floor(seconds)
   if (total < 60) return `${total}s`

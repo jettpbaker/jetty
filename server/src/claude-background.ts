@@ -1,113 +1,73 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { BackgroundTask } from '@jetty/shared/wire'
 
-const monitorTypes = new Set(['monitor', 'monitor_mcp', 'local_bash', 'shell'])
-const terminalStatuses = new Set(['completed', 'failed', 'killed', 'paused'])
+// Background shells and Monitor watches. Agents and workflows read as Working through their items.
+const monitorTypes = new Set(['local_bash', 'monitor_mcp', 'monitor_ws'])
 
-type Task = BackgroundTask & { taskType: string; command?: string; ambient?: boolean }
+type Entry = { id: string; description: string; startedAt: number }
+
+export type BackgroundTasks = ReturnType<typeof createBackgroundTasks>
 
 export function createBackgroundTasks() {
-  const live = new Set<string>()
-  const metadata = new Map<string, Task>()
+  // Membership follows the SDK's background_tasks_changed level signal (replace semantics).
+  let entries: Entry[] = []
+  // A shell is labelled by its command: Bash tool_use id → command until the task starts, then task id → command.
   const commands = new Map<string, string>()
-  // Level snapshots own membership; lifecycle bookends can arrive in either order.
-  let hasSnapshot = false
+  const shells = new Map<string, string>()
 
-  function record(
-    id: string,
-    taskType: string,
-    description: string,
-    command?: string,
-    ambient = false
-  ) {
-    const previous = metadata.get(id)
-    metadata.set(id, {
+  function tasks(): BackgroundTask[] {
+    return entries.map(({ id, description, startedAt }) => ({
       id,
-      taskType,
-      label: command ?? previous?.command ?? description,
-      startedAt: previous?.startedAt ?? Date.now(),
-      command: command ?? previous?.command,
-      ambient: ambient || previous?.ambient,
-    })
+      label: shells.get(id) ?? description,
+      startedAt,
+    }))
   }
 
-  function ingest(message: SDKMessage) {
+  // Returns whether the reported tasks changed.
+  function ingest(message: SDKMessage): boolean {
     if (message.type === 'assistant') {
       for (const block of message.message.content) {
         if (block.type !== 'tool_use' || block.name !== 'Bash') continue
-        const input = block.input as { command?: unknown }
-        if (typeof input.command === 'string') commands.set(block.id, input.command)
+        const { command } = block.input as { command?: string }
+        if (command) commands.set(block.id, command)
       }
+      return false
     }
-    if (message.type === 'user') {
-      const content = message.message.content
-      if (Array.isArray(content))
-        for (const block of content)
-          if (block.type === 'tool_result') commands.delete(block.tool_use_id)
+    if (message.type === 'result') {
+      commands.clear()
+      return false
     }
-    if (message.type !== 'system') return
-    switch (message.subtype) {
-      case 'background_tasks_changed':
-        hasSnapshot = true
-        const previousLive = new Set(live)
-        live.clear()
-        for (const task of message.tasks) {
-          if (task.ambient) continue
-          live.add(task.task_id)
-          record(task.task_id, task.task_type, task.description)
-        }
-        for (const id of previousLive) if (!live.has(id)) metadata.delete(id)
-        break
-      case 'task_started': {
-        const command = message.tool_use_id ? commands.get(message.tool_use_id) : undefined
-        if (message.tool_use_id) commands.delete(message.tool_use_id)
-        record(
-          message.task_id,
-          message.task_type ?? '',
-          message.description,
-          command,
-          message.ambient || message.skip_transcript
-        )
-        if (
-          !hasSnapshot &&
-          !message.ambient &&
-          !message.skip_transcript &&
-          message.is_backgrounded !== false
-        )
-          live.add(message.task_id)
-        break
-      }
-      case 'task_progress': {
-        const task = metadata.get(message.task_id)
-        if (task && live.has(task.id)) record(task.id, task.taskType, message.description)
-        break
-      }
-      case 'task_updated': {
-        const task = metadata.get(message.task_id)
-        if (task && message.patch.description)
-          record(task.id, task.taskType, message.patch.description)
-        if (message.patch.status && terminalStatuses.has(message.patch.status)) {
-          live.delete(message.task_id)
-          metadata.delete(message.task_id)
-        } else if (!hasSnapshot && task && !task.ambient && message.patch.is_backgrounded)
-          live.add(task.id)
-        break
-      }
-      case 'task_notification':
-        live.delete(message.task_id)
-        metadata.delete(message.task_id)
-        break
+    if (message.type !== 'system') return false
+    if (message.subtype === 'task_started') {
+      const command = message.tool_use_id ? commands.get(message.tool_use_id) : undefined
+      if (!command) return false
+      shells.set(message.task_id, command)
+      return entries.some((entry) => entry.id === message.task_id)
     }
+    if (message.subtype !== 'background_tasks_changed') return false
+    const known = new Map(entries.map((entry) => [entry.id, entry]))
+    entries = message.tasks
+      .filter((task) => !task.ambient && monitorTypes.has(task.task_type))
+      .map(
+        (task) =>
+          known.get(task.task_id) ?? {
+            id: task.task_id,
+            description: task.description,
+            startedAt: Date.now(),
+          }
+      )
+    for (const id of shells.keys())
+      if (!message.tasks.some((task) => task.task_id === id)) shells.delete(id)
+    return true
   }
 
-  function tasks(): BackgroundTask[] {
-    return [...live].flatMap((id) => {
-      const task = metadata.get(id)
-      return task && monitorTypes.has(task.taskType)
-        ? [{ id: task.id, label: task.label, startedAt: task.startedAt }]
-        : []
-    })
+  function remove(id: string) {
+    entries = entries.filter((entry) => entry.id !== id)
   }
 
-  return { live, ingest, tasks }
+  function clear() {
+    entries = []
+  }
+
+  return { ingest, tasks, remove, clear }
 }

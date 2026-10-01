@@ -2,7 +2,7 @@ import type { BackgroundTask } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
-import { monitoringElapsed } from '@/lib/monitoring'
+import { formatElapsed } from '@/lib/time'
 import { useStopBackgroundTasks } from '@/state/turns'
 import { useState } from 'react'
 
@@ -16,13 +16,10 @@ export function MonitoringLine({
   tasks: readonly BackgroundTask[]
 }) {
   const [expanded, setExpanded] = useState(false)
-  const now = useNow(60_000, tasks.length > 0)
+  const now = useNow(60_000)
   const stopTasks = useStopBackgroundTasks()
-  if (!tasks.length) return null
   const many = tasks.length > 1
-  function stop(taskId?: string) {
-    stopTasks(threadId, taskId)
-  }
+  const longest = now - Math.min(...tasks.map((task) => task.startedAt))
   return (
     <div className='flex flex-col px-2.5 text-xs'>
       <div className='relative flex h-7 min-w-0 items-center gap-3 rounded-sm pr-2.25 pl-1.75 hover:bg-accent/40'>
@@ -52,15 +49,15 @@ export function MonitoringLine({
           )}
         </span>
         <span className='pointer-events-none shrink-0 text-muted-foreground tabular-nums'>
-          {monitoringElapsed(tasks, now)}
+          {formatElapsed(longest)}
         </span>
         <Button
           size='sm'
           variant='ghost'
           className='relative -mr-2.25 rounded-sm'
-          onClick={() => stop()}
+          onClick={() => stopTasks(threadId)}
         >
-          Stop all
+          {many ? 'Stop all' : 'Stop'}
         </Button>
       </div>
       {expanded && (
@@ -74,13 +71,13 @@ export function MonitoringLine({
                 {task.label}
               </span>
               <span className='shrink-0 text-muted-foreground tabular-nums'>
-                {monitoringElapsed([task], now)}
+                {formatElapsed(now - task.startedAt)}
               </span>
               <Button
                 size='sm'
                 variant='ghost'
                 className='relative -mr-2.25 rounded-sm'
-                onClick={() => stop(task.id)}
+                onClick={() => stopTasks(threadId, task.id)}
               >
                 Stop
               </Button>
