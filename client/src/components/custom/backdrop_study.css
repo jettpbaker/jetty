@@ -26,3 +26,20 @@
 .backdrop-study-mark img {
   filter: grayscale(1);
 }
+
+:root:not(.dark)[data-muted-study='light'] {
+  --muted-foreground: oklch(0.6 calc(var(--tint) * 0.5) var(--tint-h));
+  --disabled-foreground: oklch(0.6 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
+}
+:root.dark[data-muted-study='dark'] {
+  --muted-foreground: oklch(0.7 calc(var(--tint) * 0.5) var(--tint-h));
+  --disabled-foreground: oklch(0.7 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
+}
+:root:not(.dark)[data-muted-study='middle'] {
+  --muted-foreground: oklch(0.56 calc(var(--tint) * 0.5) var(--tint-h));
+  --disabled-foreground: oklch(0.56 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
+}
+:root.dark[data-muted-study='middle'] {
+  --muted-foreground: oklch(0.66 calc(var(--tint) * 0.5) var(--tint-h));
+  --disabled-foreground: oklch(0.66 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
+}
