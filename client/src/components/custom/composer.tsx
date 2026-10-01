@@ -4,8 +4,7 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
 import { ComposerShadow } from '@/components/custom/composer_shadow'
-import { StopIcon } from '@/components/custom/huge_icons'
-import { ArrowUp02Icon } from '@/components/custom/huge_icons'
+import { StopIcon, ArrowUp02Icon } from '@/components/custom/huge_icons'
 import {
   InputGroup,
   InputGroupAddon,

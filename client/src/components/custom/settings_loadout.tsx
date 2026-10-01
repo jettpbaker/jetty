@@ -5,6 +5,7 @@ import {
   DragDropVerticalIcon,
   PlusSignIcon,
   Cancel01Icon,
+  FlashIcon,
 } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,7 +43,6 @@ import type { ProviderEnabled, ProviderId } from './settings_providers'
 
 import { moveOnKeys } from './composer_loadout'
 import { DisabledTooltip } from './disabled_tooltip'
-import { LightningIcon } from './lightning_icon'
 import './settings_loadout.css'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
@@ -76,7 +76,7 @@ function Glyph({ provider, large = false }: { provider: string; large?: boolean 
 function EffortSummary({ slot }: { slot: Slot }) {
   return (
     <span data-equip-effort className='flex items-center gap-1'>
-      {slot.fast && <LightningIcon filled data-icon='inline-start' className='size-3!' />}
+      {slot.fast && <FlashIcon filled data-icon='inline-start' className='size-3!' />}
       {slot.effort && effortLabels[slot.effort]}
     </span>
   )
@@ -589,7 +589,7 @@ function LoadoutSlot({
                           closeOnClick={false}
                           onCheckedChange={(fast) => onChange({ ...slot, fast })}
                         >
-                          <LightningIcon filled={slot.fast} className='text-muted-foreground' />
+                          <FlashIcon filled={slot.fast} className='text-muted-foreground' />
                           Fast
                           <Switch
                             render={<span />}

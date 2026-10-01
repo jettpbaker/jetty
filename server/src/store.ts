@@ -136,7 +136,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
           git: {
             branch: git.branch,
             dirty: git.dirty ?? false,
-            ...(git.startingBranch ? { startingBranch: git.startingBranch } : {}),
+            startingBranch: git.startingBranch,
           },
         }
       : {}),
@@ -512,8 +512,8 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      captureLocalBase(threadId: string, baseCommit: string | null, startingBranch: string) {
-        return sql`UPDATE threads SET git_json = json_set(COALESCE(git_json, '{}'), '$.baseCommit', ${baseCommit}, '$.startingBranch', COALESCE(json_extract(git_json, '$.startingBranch'), ${startingBranch})) WHERE id = ${threadId} AND environment = 'local' AND json_extract(git_json, '$.baseCommit') IS NULL`.pipe(
+      captureLocalBase(threadId: string, baseCommit: string, startingBranch: string) {
+        return sql`UPDATE threads SET git_json = json_set(COALESCE(git_json, '{}'), '$.baseCommit', ${baseCommit}, '$.startingBranch', ${startingBranch}) WHERE id = ${threadId} AND environment = 'local' AND json_extract(git_json, '$.baseCommit') IS NULL`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )

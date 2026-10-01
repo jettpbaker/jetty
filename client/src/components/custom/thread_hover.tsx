@@ -25,12 +25,12 @@ import './thread_hover.css'
 export type ThreadDetails = {
   title: string
   project: string
-  projectId?: string
+  projectId: string
   projectIcon?: ProjectIcon
   provider?: ProviderId
   lastActivity: string
   pullRequest?: ThreadPullRequest
-  environment?: 'local' | 'worktree'
+  environment: 'local' | 'worktree'
   branch?: string
   startedOn?: string
 }
@@ -95,8 +95,7 @@ export function ThreadHoverCard({
   )
 }
 
-function EnvironmentLine({ details }: { details: ThreadDetails }) {
-  const worktree = details.environment === 'worktree'
+function EnvironmentLine({ worktree, branch }: { worktree: boolean; branch?: string }) {
   const Icon = worktree ? FolderGit2Icon : FolderIcon
   return (
     <span
@@ -105,9 +104,22 @@ function EnvironmentLine({ details }: { details: ThreadDetails }) {
     >
       <Icon aria-hidden='true' className='size-3 shrink-0' />
       <span className='sr-only'>{worktree ? 'Worktree' : 'Local checkout'}</span>
-      <span className='truncate font-mono'>{details.branch}</span>
+      <span className='truncate font-mono'>{branch}</span>
     </span>
   )
+}
+
+// The card stays mounted across rows, so the result remembers which project it belongs to.
+function useCheckoutBranch(projectId?: string) {
+  const fetchBranches = useBranches()
+  const [checkout, setCheckout] = useState<{ projectId: string; branch: string }>()
+  useEffect(() => {
+    if (projectId)
+      fetchBranches(projectId, true, ({ currentBranch }) =>
+        setCheckout({ projectId, branch: currentBranch })
+      )
+  }, [projectId, fetchBranches])
+  return checkout && checkout.projectId === projectId ? checkout.branch : undefined
 }
 
 function ThreadHoverContent({
@@ -117,23 +129,8 @@ function ThreadHoverContent({
   status,
   onOpenPullRequest,
 }: ThreadHoverContentProps) {
-  const fetchBranches = useBranches()
-  const [checkout, setCheckout] = useState<{ projectId: string; branch: string }>()
-  const { projectId, environment } = details
-  useEffect(() => {
-    if (!projectId || environment !== 'local') return
-    let active = true
-    fetchBranches(projectId, true, (result) => {
-      if (active) setCheckout({ projectId, branch: result.currentBranch })
-    })
-    return () => {
-      active = false
-    }
-  }, [projectId, environment, fetchBranches])
-  const branch =
-    environment === 'local' && checkout && checkout.projectId === projectId
-      ? checkout.branch
-      : details.branch
+  const local = details.environment === 'local'
+  const branch = useCheckoutBranch(local ? details.projectId : undefined) ?? details.branch
   const { pullRequest } = details
   const prLabel = pullRequest && pullRequestLabel(pullRequest)
   return (
@@ -163,22 +160,19 @@ function ThreadHoverContent({
           <span className='truncate'>{details.project}</span>
         </span>
       </div>
-      {details.environment && <EnvironmentLine details={{ ...details, branch }} />}
-      {details.environment === 'local' &&
-        details.startedOn &&
-        branch &&
-        details.startedOn !== branch && (
-          <span className='flex items-start gap-1 text-foreground'>
-            <Alert02Icon
-              aria-hidden='true'
-              className='mt-0.5 size-3 shrink-0 text-muted-foreground'
-            />
-            <span>
-              Checkout moved from <span className='font-mono'>{details.startedOn}</span> since this
-              thread started
-            </span>
+      <EnvironmentLine worktree={!local} branch={branch} />
+      {details.startedOn && details.startedOn !== branch && (
+        <span className='flex items-start gap-1 text-foreground'>
+          <Alert02Icon
+            aria-hidden='true'
+            className='mt-0.5 size-3 shrink-0 text-muted-foreground'
+          />
+          <span>
+            Checkout moved from <span className='font-mono'>{details.startedOn}</span> since this
+            thread started
           </span>
-        )}
+        </span>
+      )}
       <div className='flex items-center gap-1'>
         {details.provider && (
           <ProviderGlyph provider={details.provider} className='size-3 text-primary' />

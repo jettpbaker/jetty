@@ -1,177 +1,6 @@
 import type { ComponentType } from 'react'
 
-import {
-  Alert02Icon as Alert02Shape,
-  AnchorIcon as AnchorShape,
-  AppWindowIcon as AppWindowShape,
-  Archive02Icon as Archive02Shape,
-  ArchiveArrowUpIcon as ArchiveArrowUpShape,
-  ArrowDown01Icon as ArrowDown01Shape,
-  ArrowExpandIcon as ArrowExpandShape,
-  ArrowExpand01Icon as ArrowExpand01Shape,
-  ArrowLeft01Icon as ArrowLeft01Shape,
-  ArrowMoveDownRightIcon as ArrowMoveDownRightShape,
-  ArrowRight01Icon as ArrowRight01Shape,
-  ArrowShrinkIcon as ArrowShrinkShape,
-  ArrowShrink02Icon as ArrowShrink02Shape,
-  ArrowUp01Icon as ArrowUp01Shape,
-  ArrowUp02Icon as ArrowUp02Shape,
-  ArrowUpLeft01Icon as ArrowUpLeft01Shape,
-  ArrowUpRight01Icon as ArrowUpRight01Shape,
-  AtomIcon as AtomShape,
-  Attachment01Icon as Attachment01Shape,
-  BatteryEmptyIcon as BatteryEmptyShape,
-  BatteryFullIcon as BatteryFullShape,
-  BatteryLowIcon as BatteryLowShape,
-  BatteryMedium01Icon as BatteryMedium01Shape,
-  BatteryMedium02Icon as BatteryMedium02Shape,
-  BellIcon as BellShape,
-  BookOpenIcon as BookOpenShape,
-  BoxIcon as BoxShape,
-  BracesIcon as BracesShape,
-  BrainIcon as BrainShape,
-  BriefcaseIcon as BriefcaseShape,
-  BrowserIcon as BrowserShape,
-  BubbleChatIcon as BubbleChatShape,
-  BugIcon as BugShape,
-  CalendarIcon as CalendarShape,
-  CameraIcon as CameraShape,
-  Cancel01Icon as Cancel01Shape,
-  CancelCircleIcon as CancelCircleShape,
-  ChartHistogramIcon as ChartHistogramShape,
-  ChartLineIcon as ChartLineShape,
-  ChartScatterIcon as ChartScatterShape,
-  CheckmarkCircle02Icon as CheckmarkCircle02Shape,
-  CheckmarkSquare02Icon as CheckmarkSquare02Shape,
-  CircleIcon as CircleShape,
-  CircleSlashIcon as CircleSlashShape,
-  Clock01Icon as Clock01Shape,
-  CloudIcon as CloudShape,
-  CodeIcon as CodeShape,
-  CodeXmlIcon as CodeXmlShape,
-  CoffeeIcon as CoffeeShape,
-  Comment01Icon as Comment01Shape,
-  CompassIcon as CompassShape,
-  ComputerIcon as ComputerShape,
-  ContainerIcon as ContainerShape,
-  Copy01Icon as Copy01Shape,
-  CpuIcon as CpuShape,
-  CreditCardIcon as CreditCardShape,
-  CropIcon as CropShape,
-  DashboardSquare01Icon as DashboardSquare01Shape,
-  DatabaseIcon as DatabaseShape,
-  Delete02Icon as Delete02Shape,
-  DiceFaces05Icon as DiceFaces05Shape,
-  DnaIcon as DnaShape,
-  DragDropVerticalIcon as DragDropVerticalShape,
-  File01Icon as File01Shape,
-  FileCodeIcon as FileCodeShape,
-  FileTextIcon as FileTextShape,
-  FilmIcon as FilmShape,
-  FlagIcon as FlagShape,
-  FlameIcon as FlameShape,
-  FlashIcon as FlashShape,
-  FlaskConicalIcon as FlaskConicalShape,
-  Folder01Icon as Folder01Shape,
-  FolderOpenIcon as FolderOpenShape,
-  FunctionIcon as FunctionShape,
-  GameController03Icon as GameController03Shape,
-  GaugeIcon as GaugeShape,
-  GhostIcon as GhostShape,
-  GlobeIcon as GlobeShape,
-  GraduationCapIcon as GraduationCapShape,
-  HammerIcon as HammerShape,
-  HardDriveIcon as HardDriveShape,
-  HeartIcon as HeartShape,
-  HouseIcon as HouseShape,
-  Image01Icon as Image01Shape,
-  ImageNotFound01Icon as ImageNotFound01Shape,
-  InformationCircleIcon as InformationCircleShape,
-  KeyIcon as KeyShape,
-  KeyboardIcon as KeyboardShape,
-  LanguagesIcon as LanguagesShape,
-  LaptopIcon as LaptopShape,
-  LayersIcon as LayersShape,
-  LeafIcon as LeafShape,
-  LeftToRightListBulletIcon as LeftToRightListBulletShape,
-  LightbulbIcon as LightbulbShape,
-  Link01Icon as Link01Shape,
-  LinkSquare02Icon as LinkSquare02Shape,
-  LockIcon as LockShape,
-  MailIcon as MailShape,
-  MapPinIcon as MapPinShape,
-  MegaphoneIcon as MegaphoneShape,
-  MessageCircleIcon as MessageCircleShape,
-  MinusSignCircleIcon as MinusSignCircleShape,
-  Moon02Icon as Moon02Shape,
-  MoreVerticalIcon as MoreVerticalShape,
-  MusicIcon as MusicShape,
-  NetworkIcon as NetworkShape,
-  NewspaperIcon as NewspaperShape,
-  NotebookIcon as NotebookShape,
-  OrbitIcon as OrbitShape,
-  PackageIcon as PackageShape,
-  PaintBrush01Icon as PaintBrush01Shape,
-  PaletteIcon as PaletteShape,
-  PauseIcon as PauseShape,
-  PawPrintIcon as PawPrintShape,
-  PenToolIcon as PenToolShape,
-  PencilIcon as PencilShape,
-  PencilEdit01Icon as PencilEdit01Shape,
-  PencilEdit02Icon as PencilEdit02Shape,
-  PieChartIcon as PieChartShape,
-  PinIcon as PinShape,
-  PlayIcon as PlayShape,
-  PlugIcon as PlugShape,
-  Plug01Icon as Plug01Shape,
-  PlusSignIcon as PlusSignShape,
-  PuzzleIcon as PuzzleShape,
-  RadioButtonIcon as RadioButtonShape,
-  RefreshIcon as RefreshShape,
-  Robot01Icon as Robot01Shape,
-  RocketIcon as RocketShape,
-  Search01Icon as Search01Shape,
-  Settings01Icon as Settings01Shape,
-  ShapesIcon as ShapesShape,
-  ShieldCheckIcon as ShieldCheckShape,
-  ShieldOffIcon as ShieldOffShape,
-  ShieldQuestionMarkIcon as ShieldQuestionMarkShape,
-  ShoppingCartIcon as ShoppingCartShape,
-  SidebarLeftIcon as SidebarLeftShape,
-  SidebarLeft01Icon as SidebarLeft01Shape,
-  SlidersHorizontalIcon as SlidersHorizontalShape,
-  SmartphoneIcon as SmartphoneShape,
-  SourceCodeSquareIcon as SourceCodeSquareShape,
-  SparklesIcon as SparklesShape,
-  SquareIcon as SquareShape,
-  SquareTerminalIcon as SquareTerminalShape,
-  SquareUnlock02Icon as SquareUnlock02Shape,
-  StarIcon as StarShape,
-  StopIcon as StopShape,
-  StoreIcon as StoreShape,
-  Sun03Icon as Sun03Shape,
-  SwatchBookIcon as SwatchBookShape,
-  SwordIcon as SwordShape,
-  TableIcon as TableShape,
-  TargetIcon as TargetShape,
-  Tick02Icon as Tick02Shape,
-  ToolboxIcon as ToolboxShape,
-  TrophyIcon as TrophyShape,
-  UndoIcon as UndoShape,
-  Unlink01Icon as Unlink01Shape,
-  Upload04Icon as Upload04Shape,
-  UserIcon as UserShape,
-  UserAdd01Icon as UserAdd01Shape,
-  UserGroupIcon as UserGroupShape,
-  UsersIcon as UsersShape,
-  ViewIcon as ViewShape,
-  VolumeHighIcon as VolumeHighShape,
-  VolumeMute02Icon as VolumeMute02Shape,
-  WalletIcon as WalletShape,
-  WrenchIcon as WrenchShape,
-  ZoomInAreaIcon as ZoomInAreaShape,
-  ZoomOutAreaIcon as ZoomOutAreaShape,
-} from '@hugeicons/core-free-icons'
+import * as shapes from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type HugeiconsIconProps, type IconSvgElement } from '@hugeicons/react'
 
 export type IconProps = Omit<
@@ -180,14 +9,15 @@ export type IconProps = Omit<
 > & { filled?: boolean }
 export type Icon = ComponentType<IconProps>
 
-function hugeIcon(icon: IconSvgElement): Icon {
-  return function Icon({ filled = false, ...props }: IconProps) {
+// The inset viewBox draws the 24-unit shape 1.125× its slot; index.css keeps the line 1.333px.
+function hugeIcon(shape: IconSvgElement): Icon {
+  return function HugeIcon({ filled = false, ...props }: IconProps) {
     return (
       <HugeiconsIcon
         size={16}
         aria-hidden='true'
         {...props}
-        icon={icon}
+        icon={shape}
         viewBox='1.333333 1.333333 21.333333 21.333333'
         data-icon-pack='huge'
         data-filled={filled || undefined}
@@ -196,173 +26,172 @@ function hugeIcon(icon: IconSvgElement): Icon {
   }
 }
 
-export const Alert02Icon = /* @__PURE__ */ hugeIcon(Alert02Shape)
-export const AnchorIcon = /* @__PURE__ */ hugeIcon(AnchorShape)
-export const AppWindowIcon = /* @__PURE__ */ hugeIcon(AppWindowShape)
-export const Archive02Icon = /* @__PURE__ */ hugeIcon(Archive02Shape)
-export const ArchiveArrowUpIcon = /* @__PURE__ */ hugeIcon(ArchiveArrowUpShape)
-export const ArrowDown01Icon = /* @__PURE__ */ hugeIcon(ArrowDown01Shape)
-export const ArrowExpandIcon = /* @__PURE__ */ hugeIcon(ArrowExpandShape)
-export const ArrowExpand01Icon = /* @__PURE__ */ hugeIcon(ArrowExpand01Shape)
-export const ArrowLeft01Icon = /* @__PURE__ */ hugeIcon(ArrowLeft01Shape)
-export const ArrowMoveDownRightIcon = /* @__PURE__ */ hugeIcon(ArrowMoveDownRightShape)
-export const ArrowRight01Icon = /* @__PURE__ */ hugeIcon(ArrowRight01Shape)
-export const ArrowShrinkIcon = /* @__PURE__ */ hugeIcon(ArrowShrinkShape)
-export const ArrowShrink02Icon = /* @__PURE__ */ hugeIcon(ArrowShrink02Shape)
-export const ArrowUp01Icon = /* @__PURE__ */ hugeIcon(ArrowUp01Shape)
-export const ArrowUp02Icon = /* @__PURE__ */ hugeIcon(ArrowUp02Shape)
-export const ArrowUpLeft01Icon = /* @__PURE__ */ hugeIcon(ArrowUpLeft01Shape)
-export const ArrowUpRight01Icon = /* @__PURE__ */ hugeIcon(ArrowUpRight01Shape)
-export const AtomIcon = /* @__PURE__ */ hugeIcon(AtomShape)
-export const Attachment01Icon = /* @__PURE__ */ hugeIcon(Attachment01Shape)
-export const BatteryEmptyIcon = /* @__PURE__ */ hugeIcon(BatteryEmptyShape)
-export const BatteryFullIcon = /* @__PURE__ */ hugeIcon(BatteryFullShape)
-export const BatteryLowIcon = /* @__PURE__ */ hugeIcon(BatteryLowShape)
-export const BatteryMedium01Icon = /* @__PURE__ */ hugeIcon(BatteryMedium01Shape)
-export const BatteryMedium02Icon = /* @__PURE__ */ hugeIcon(BatteryMedium02Shape)
-export const BellIcon = /* @__PURE__ */ hugeIcon(BellShape)
-export const BookOpenIcon = /* @__PURE__ */ hugeIcon(BookOpenShape)
-export const BoxIcon = /* @__PURE__ */ hugeIcon(BoxShape)
-export const BracesIcon = /* @__PURE__ */ hugeIcon(BracesShape)
-export const BrainIcon = /* @__PURE__ */ hugeIcon(BrainShape)
-export const BriefcaseIcon = /* @__PURE__ */ hugeIcon(BriefcaseShape)
-export const BrowserIcon = /* @__PURE__ */ hugeIcon(BrowserShape)
-export const BubbleChatIcon = /* @__PURE__ */ hugeIcon(BubbleChatShape)
-export const BugIcon = /* @__PURE__ */ hugeIcon(BugShape)
-export const CalendarIcon = /* @__PURE__ */ hugeIcon(CalendarShape)
-export const CameraIcon = /* @__PURE__ */ hugeIcon(CameraShape)
-export const Cancel01Icon = /* @__PURE__ */ hugeIcon(Cancel01Shape)
-export const CancelCircleIcon = /* @__PURE__ */ hugeIcon(CancelCircleShape)
-export const ChartHistogramIcon = /* @__PURE__ */ hugeIcon(ChartHistogramShape)
-export const ChartLineIcon = /* @__PURE__ */ hugeIcon(ChartLineShape)
-export const ChartScatterIcon = /* @__PURE__ */ hugeIcon(ChartScatterShape)
-export const CheckmarkCircle02Icon = /* @__PURE__ */ hugeIcon(CheckmarkCircle02Shape)
-export const CheckmarkSquare02Icon = /* @__PURE__ */ hugeIcon(CheckmarkSquare02Shape)
-export const CircleIcon = /* @__PURE__ */ hugeIcon(CircleShape)
-export const CircleSlashIcon = /* @__PURE__ */ hugeIcon(CircleSlashShape)
-export const Clock01Icon = /* @__PURE__ */ hugeIcon(Clock01Shape)
-export const CloudIcon = /* @__PURE__ */ hugeIcon(CloudShape)
-export const CodeIcon = /* @__PURE__ */ hugeIcon(CodeShape)
-export const CodeXmlIcon = /* @__PURE__ */ hugeIcon(CodeXmlShape)
-export const CoffeeIcon = /* @__PURE__ */ hugeIcon(CoffeeShape)
-export const Comment01Icon = /* @__PURE__ */ hugeIcon(Comment01Shape)
-export const CompassIcon = /* @__PURE__ */ hugeIcon(CompassShape)
-export const ComputerIcon = /* @__PURE__ */ hugeIcon(ComputerShape)
-export const ContainerIcon = /* @__PURE__ */ hugeIcon(ContainerShape)
-export const Copy01Icon = /* @__PURE__ */ hugeIcon(Copy01Shape)
-export const CpuIcon = /* @__PURE__ */ hugeIcon(CpuShape)
-export const CreditCardIcon = /* @__PURE__ */ hugeIcon(CreditCardShape)
-export const CropIcon = /* @__PURE__ */ hugeIcon(CropShape)
-export const DashboardSquare01Icon = /* @__PURE__ */ hugeIcon(DashboardSquare01Shape)
-export const DatabaseIcon = /* @__PURE__ */ hugeIcon(DatabaseShape)
-export const Delete02Icon = /* @__PURE__ */ hugeIcon(Delete02Shape)
-export const DiceFaces05Icon = /* @__PURE__ */ hugeIcon(DiceFaces05Shape)
-export const DnaIcon = /* @__PURE__ */ hugeIcon(DnaShape)
-export const DragDropVerticalIcon = /* @__PURE__ */ hugeIcon(DragDropVerticalShape)
-export const File01Icon = /* @__PURE__ */ hugeIcon(File01Shape)
-export const FileCodeIcon = /* @__PURE__ */ hugeIcon(FileCodeShape)
-export const FileTextIcon = /* @__PURE__ */ hugeIcon(FileTextShape)
-export const FilmIcon = /* @__PURE__ */ hugeIcon(FilmShape)
-export const FlagIcon = /* @__PURE__ */ hugeIcon(FlagShape)
-export const FlameIcon = /* @__PURE__ */ hugeIcon(FlameShape)
-export const FlashIcon = /* @__PURE__ */ hugeIcon(FlashShape)
-export const FlaskConicalIcon = /* @__PURE__ */ hugeIcon(FlaskConicalShape)
-export const Folder01Icon = /* @__PURE__ */ hugeIcon(Folder01Shape)
-export const FolderOpenIcon = /* @__PURE__ */ hugeIcon(FolderOpenShape)
-export const FunctionIcon = /* @__PURE__ */ hugeIcon(FunctionShape)
-export const GameController03Icon = /* @__PURE__ */ hugeIcon(GameController03Shape)
-export const GaugeIcon = /* @__PURE__ */ hugeIcon(GaugeShape)
-export const GhostIcon = /* @__PURE__ */ hugeIcon(GhostShape)
-export const GlobeIcon = /* @__PURE__ */ hugeIcon(GlobeShape)
-export const GraduationCapIcon = /* @__PURE__ */ hugeIcon(GraduationCapShape)
-export const HammerIcon = /* @__PURE__ */ hugeIcon(HammerShape)
-export const HardDriveIcon = /* @__PURE__ */ hugeIcon(HardDriveShape)
-export const HeartIcon = /* @__PURE__ */ hugeIcon(HeartShape)
-export const HouseIcon = /* @__PURE__ */ hugeIcon(HouseShape)
-export const Image01Icon = /* @__PURE__ */ hugeIcon(Image01Shape)
-export const ImageNotFound01Icon = /* @__PURE__ */ hugeIcon(ImageNotFound01Shape)
-export const InformationCircleIcon = /* @__PURE__ */ hugeIcon(InformationCircleShape)
-export const KeyIcon = /* @__PURE__ */ hugeIcon(KeyShape)
-export const KeyboardIcon = /* @__PURE__ */ hugeIcon(KeyboardShape)
-export const LanguagesIcon = /* @__PURE__ */ hugeIcon(LanguagesShape)
-export const LaptopIcon = /* @__PURE__ */ hugeIcon(LaptopShape)
-export const LayersIcon = /* @__PURE__ */ hugeIcon(LayersShape)
-export const LeafIcon = /* @__PURE__ */ hugeIcon(LeafShape)
-export const LeftToRightListBulletIcon = /* @__PURE__ */ hugeIcon(LeftToRightListBulletShape)
-export const LightbulbIcon = /* @__PURE__ */ hugeIcon(LightbulbShape)
-export const Link01Icon = /* @__PURE__ */ hugeIcon(Link01Shape)
-export const LinkSquare02Icon = /* @__PURE__ */ hugeIcon(LinkSquare02Shape)
-export const LockIcon = /* @__PURE__ */ hugeIcon(LockShape)
-export const MailIcon = /* @__PURE__ */ hugeIcon(MailShape)
-export const MapPinIcon = /* @__PURE__ */ hugeIcon(MapPinShape)
-export const MegaphoneIcon = /* @__PURE__ */ hugeIcon(MegaphoneShape)
-export const MessageCircleIcon = /* @__PURE__ */ hugeIcon(MessageCircleShape)
-export const MinusSignCircleIcon = /* @__PURE__ */ hugeIcon(MinusSignCircleShape)
-export const Moon02Icon = /* @__PURE__ */ hugeIcon(Moon02Shape)
-export const MoreVerticalIcon = /* @__PURE__ */ hugeIcon(MoreVerticalShape)
-export const MusicIcon = /* @__PURE__ */ hugeIcon(MusicShape)
-export const NetworkIcon = /* @__PURE__ */ hugeIcon(NetworkShape)
-export const NewspaperIcon = /* @__PURE__ */ hugeIcon(NewspaperShape)
-export const NotebookIcon = /* @__PURE__ */ hugeIcon(NotebookShape)
-export const OrbitIcon = /* @__PURE__ */ hugeIcon(OrbitShape)
-export const PackageIcon = /* @__PURE__ */ hugeIcon(PackageShape)
-export const PaintBrush01Icon = /* @__PURE__ */ hugeIcon(PaintBrush01Shape)
-export const PaletteIcon = /* @__PURE__ */ hugeIcon(PaletteShape)
-export const PauseIcon = /* @__PURE__ */ hugeIcon(PauseShape)
-export const PawPrintIcon = /* @__PURE__ */ hugeIcon(PawPrintShape)
-export const PenToolIcon = /* @__PURE__ */ hugeIcon(PenToolShape)
-export const PencilIcon = /* @__PURE__ */ hugeIcon(PencilShape)
-export const PencilEdit01Icon = /* @__PURE__ */ hugeIcon(PencilEdit01Shape)
-export const PencilEdit02Icon = /* @__PURE__ */ hugeIcon(PencilEdit02Shape)
-export const PieChartIcon = /* @__PURE__ */ hugeIcon(PieChartShape)
-export const PinIcon = /* @__PURE__ */ hugeIcon(PinShape)
-export const PlayIcon = /* @__PURE__ */ hugeIcon(PlayShape)
-export const PlugIcon = /* @__PURE__ */ hugeIcon(PlugShape)
-export const Plug01Icon = /* @__PURE__ */ hugeIcon(Plug01Shape)
-export const PlusSignIcon = /* @__PURE__ */ hugeIcon(PlusSignShape)
-export const PuzzleIcon = /* @__PURE__ */ hugeIcon(PuzzleShape)
-export const RadioButtonIcon = /* @__PURE__ */ hugeIcon(RadioButtonShape)
-export const RefreshIcon = /* @__PURE__ */ hugeIcon(RefreshShape)
-export const Robot01Icon = /* @__PURE__ */ hugeIcon(Robot01Shape)
-export const RocketIcon = /* @__PURE__ */ hugeIcon(RocketShape)
-export const Search01Icon = /* @__PURE__ */ hugeIcon(Search01Shape)
-export const Settings01Icon = /* @__PURE__ */ hugeIcon(Settings01Shape)
-export const ShapesIcon = /* @__PURE__ */ hugeIcon(ShapesShape)
-export const ShieldCheckIcon = /* @__PURE__ */ hugeIcon(ShieldCheckShape)
-export const ShieldOffIcon = /* @__PURE__ */ hugeIcon(ShieldOffShape)
-export const ShieldQuestionMarkIcon = /* @__PURE__ */ hugeIcon(ShieldQuestionMarkShape)
-export const ShoppingCartIcon = /* @__PURE__ */ hugeIcon(ShoppingCartShape)
-export const SidebarLeftIcon = /* @__PURE__ */ hugeIcon(SidebarLeftShape)
-export const SidebarLeft01Icon = /* @__PURE__ */ hugeIcon(SidebarLeft01Shape)
-export const SlidersHorizontalIcon = /* @__PURE__ */ hugeIcon(SlidersHorizontalShape)
-export const SmartphoneIcon = /* @__PURE__ */ hugeIcon(SmartphoneShape)
-export const SourceCodeSquareIcon = /* @__PURE__ */ hugeIcon(SourceCodeSquareShape)
-export const SparklesIcon = /* @__PURE__ */ hugeIcon(SparklesShape)
-export const SquareIcon = /* @__PURE__ */ hugeIcon(SquareShape)
-export const SquareTerminalIcon = /* @__PURE__ */ hugeIcon(SquareTerminalShape)
-export const SquareUnlock02Icon = /* @__PURE__ */ hugeIcon(SquareUnlock02Shape)
-export const StarIcon = /* @__PURE__ */ hugeIcon(StarShape)
-export const StopIcon = /* @__PURE__ */ hugeIcon(StopShape)
-export const StoreIcon = /* @__PURE__ */ hugeIcon(StoreShape)
-export const Sun03Icon = /* @__PURE__ */ hugeIcon(Sun03Shape)
-export const SwatchBookIcon = /* @__PURE__ */ hugeIcon(SwatchBookShape)
-export const SwordIcon = /* @__PURE__ */ hugeIcon(SwordShape)
-export const TableIcon = /* @__PURE__ */ hugeIcon(TableShape)
-export const TargetIcon = /* @__PURE__ */ hugeIcon(TargetShape)
-export const Tick02Icon = /* @__PURE__ */ hugeIcon(Tick02Shape)
-export const ToolboxIcon = /* @__PURE__ */ hugeIcon(ToolboxShape)
-export const TrophyIcon = /* @__PURE__ */ hugeIcon(TrophyShape)
-export const UndoIcon = /* @__PURE__ */ hugeIcon(UndoShape)
-export const Unlink01Icon = /* @__PURE__ */ hugeIcon(Unlink01Shape)
-export const Upload04Icon = /* @__PURE__ */ hugeIcon(Upload04Shape)
-export const UserIcon = /* @__PURE__ */ hugeIcon(UserShape)
-export const UserAdd01Icon = /* @__PURE__ */ hugeIcon(UserAdd01Shape)
-export const UserGroupIcon = /* @__PURE__ */ hugeIcon(UserGroupShape)
-export const UsersIcon = /* @__PURE__ */ hugeIcon(UsersShape)
-export const ViewIcon = /* @__PURE__ */ hugeIcon(ViewShape)
-export const VolumeHighIcon = /* @__PURE__ */ hugeIcon(VolumeHighShape)
-export const VolumeMute02Icon = /* @__PURE__ */ hugeIcon(VolumeMute02Shape)
-export const WalletIcon = /* @__PURE__ */ hugeIcon(WalletShape)
-export const WrenchIcon = /* @__PURE__ */ hugeIcon(WrenchShape)
-export const ZoomInAreaIcon = /* @__PURE__ */ hugeIcon(ZoomInAreaShape)
-export const ZoomOutAreaIcon = /* @__PURE__ */ hugeIcon(ZoomOutAreaShape)
+export const Alert02Icon = hugeIcon(shapes.Alert02Icon)
+export const AnchorIcon = hugeIcon(shapes.AnchorIcon)
+export const AppWindowIcon = hugeIcon(shapes.AppWindowIcon)
+export const Archive02Icon = hugeIcon(shapes.Archive02Icon)
+export const ArchiveArrowUpIcon = hugeIcon(shapes.ArchiveArrowUpIcon)
+export const ArrowDown01Icon = hugeIcon(shapes.ArrowDown01Icon)
+export const ArrowExpandIcon = hugeIcon(shapes.ArrowExpandIcon)
+export const ArrowExpand01Icon = hugeIcon(shapes.ArrowExpand01Icon)
+export const ArrowLeft01Icon = hugeIcon(shapes.ArrowLeft01Icon)
+export const ArrowMoveDownRightIcon = hugeIcon(shapes.ArrowMoveDownRightIcon)
+export const ArrowRight01Icon = hugeIcon(shapes.ArrowRight01Icon)
+export const ArrowShrinkIcon = hugeIcon(shapes.ArrowShrinkIcon)
+export const ArrowShrink02Icon = hugeIcon(shapes.ArrowShrink02Icon)
+export const ArrowUp01Icon = hugeIcon(shapes.ArrowUp01Icon)
+export const ArrowUp02Icon = hugeIcon(shapes.ArrowUp02Icon)
+export const ArrowUpLeft01Icon = hugeIcon(shapes.ArrowUpLeft01Icon)
+export const ArrowUpRight01Icon = hugeIcon(shapes.ArrowUpRight01Icon)
+export const AtomIcon = hugeIcon(shapes.AtomIcon)
+export const Attachment01Icon = hugeIcon(shapes.Attachment01Icon)
+export const BatteryEmptyIcon = hugeIcon(shapes.BatteryEmptyIcon)
+export const BatteryFullIcon = hugeIcon(shapes.BatteryFullIcon)
+export const BatteryLowIcon = hugeIcon(shapes.BatteryLowIcon)
+export const BatteryMedium01Icon = hugeIcon(shapes.BatteryMedium01Icon)
+export const BatteryMedium02Icon = hugeIcon(shapes.BatteryMedium02Icon)
+export const BellIcon = hugeIcon(shapes.BellIcon)
+export const BookOpenIcon = hugeIcon(shapes.BookOpenIcon)
+export const BoxIcon = hugeIcon(shapes.BoxIcon)
+export const BracesIcon = hugeIcon(shapes.BracesIcon)
+export const BrainIcon = hugeIcon(shapes.BrainIcon)
+export const BriefcaseIcon = hugeIcon(shapes.BriefcaseIcon)
+export const BrowserIcon = hugeIcon(shapes.BrowserIcon)
+export const BubbleChatIcon = hugeIcon(shapes.BubbleChatIcon)
+export const BugIcon = hugeIcon(shapes.BugIcon)
+export const CalendarIcon = hugeIcon(shapes.CalendarIcon)
+export const CameraIcon = hugeIcon(shapes.CameraIcon)
+export const Cancel01Icon = hugeIcon(shapes.Cancel01Icon)
+export const CancelCircleIcon = hugeIcon(shapes.CancelCircleIcon)
+export const ChartHistogramIcon = hugeIcon(shapes.ChartHistogramIcon)
+export const ChartLineIcon = hugeIcon(shapes.ChartLineIcon)
+export const ChartScatterIcon = hugeIcon(shapes.ChartScatterIcon)
+export const CheckmarkCircle02Icon = hugeIcon(shapes.CheckmarkCircle02Icon)
+export const CheckmarkSquare02Icon = hugeIcon(shapes.CheckmarkSquare02Icon)
+export const CircleIcon = hugeIcon(shapes.CircleIcon)
+export const CircleSlashIcon = hugeIcon(shapes.CircleSlashIcon)
+export const Clock01Icon = hugeIcon(shapes.Clock01Icon)
+export const CloudIcon = hugeIcon(shapes.CloudIcon)
+export const CodeIcon = hugeIcon(shapes.CodeIcon)
+export const CodeXmlIcon = hugeIcon(shapes.CodeXmlIcon)
+export const CoffeeIcon = hugeIcon(shapes.CoffeeIcon)
+export const Comment01Icon = hugeIcon(shapes.Comment01Icon)
+export const CompassIcon = hugeIcon(shapes.CompassIcon)
+export const ComputerIcon = hugeIcon(shapes.ComputerIcon)
+export const ContainerIcon = hugeIcon(shapes.ContainerIcon)
+export const Copy01Icon = hugeIcon(shapes.Copy01Icon)
+export const CpuIcon = hugeIcon(shapes.CpuIcon)
+export const CreditCardIcon = hugeIcon(shapes.CreditCardIcon)
+export const CropIcon = hugeIcon(shapes.CropIcon)
+export const DashboardSquare01Icon = hugeIcon(shapes.DashboardSquare01Icon)
+export const DatabaseIcon = hugeIcon(shapes.DatabaseIcon)
+export const Delete02Icon = hugeIcon(shapes.Delete02Icon)
+export const DiceFaces05Icon = hugeIcon(shapes.DiceFaces05Icon)
+export const DnaIcon = hugeIcon(shapes.DnaIcon)
+export const DragDropVerticalIcon = hugeIcon(shapes.DragDropVerticalIcon)
+export const File01Icon = hugeIcon(shapes.File01Icon)
+export const FileCodeIcon = hugeIcon(shapes.FileCodeIcon)
+export const FileTextIcon = hugeIcon(shapes.FileTextIcon)
+export const FilmIcon = hugeIcon(shapes.FilmIcon)
+export const FlagIcon = hugeIcon(shapes.FlagIcon)
+export const FlameIcon = hugeIcon(shapes.FlameIcon)
+export const FlashIcon = hugeIcon(shapes.FlashIcon)
+export const FlaskConicalIcon = hugeIcon(shapes.FlaskConicalIcon)
+export const Folder01Icon = hugeIcon(shapes.Folder01Icon)
+export const FolderOpenIcon = hugeIcon(shapes.FolderOpenIcon)
+export const FunctionIcon = hugeIcon(shapes.FunctionIcon)
+export const GameController03Icon = hugeIcon(shapes.GameController03Icon)
+export const GaugeIcon = hugeIcon(shapes.GaugeIcon)
+export const GhostIcon = hugeIcon(shapes.GhostIcon)
+export const GlobeIcon = hugeIcon(shapes.GlobeIcon)
+export const GraduationCapIcon = hugeIcon(shapes.GraduationCapIcon)
+export const HammerIcon = hugeIcon(shapes.HammerIcon)
+export const HardDriveIcon = hugeIcon(shapes.HardDriveIcon)
+export const HeartIcon = hugeIcon(shapes.HeartIcon)
+export const HouseIcon = hugeIcon(shapes.HouseIcon)
+export const Image01Icon = hugeIcon(shapes.Image01Icon)
+export const ImageNotFound01Icon = hugeIcon(shapes.ImageNotFound01Icon)
+export const InformationCircleIcon = hugeIcon(shapes.InformationCircleIcon)
+export const KeyIcon = hugeIcon(shapes.KeyIcon)
+export const KeyboardIcon = hugeIcon(shapes.KeyboardIcon)
+export const LanguagesIcon = hugeIcon(shapes.LanguagesIcon)
+export const LaptopIcon = hugeIcon(shapes.LaptopIcon)
+export const LayersIcon = hugeIcon(shapes.LayersIcon)
+export const LeafIcon = hugeIcon(shapes.LeafIcon)
+export const LeftToRightListBulletIcon = hugeIcon(shapes.LeftToRightListBulletIcon)
+export const LightbulbIcon = hugeIcon(shapes.LightbulbIcon)
+export const Link01Icon = hugeIcon(shapes.Link01Icon)
+export const LinkSquare02Icon = hugeIcon(shapes.LinkSquare02Icon)
+export const LockIcon = hugeIcon(shapes.LockIcon)
+export const MailIcon = hugeIcon(shapes.MailIcon)
+export const MapPinIcon = hugeIcon(shapes.MapPinIcon)
+export const MegaphoneIcon = hugeIcon(shapes.MegaphoneIcon)
+export const MessageCircleIcon = hugeIcon(shapes.MessageCircleIcon)
+export const MinusSignCircleIcon = hugeIcon(shapes.MinusSignCircleIcon)
+export const Moon02Icon = hugeIcon(shapes.Moon02Icon)
+export const MoreVerticalIcon = hugeIcon(shapes.MoreVerticalIcon)
+export const MusicIcon = hugeIcon(shapes.MusicIcon)
+export const NetworkIcon = hugeIcon(shapes.NetworkIcon)
+export const NewspaperIcon = hugeIcon(shapes.NewspaperIcon)
+export const NotebookIcon = hugeIcon(shapes.NotebookIcon)
+export const OrbitIcon = hugeIcon(shapes.OrbitIcon)
+export const PackageIcon = hugeIcon(shapes.PackageIcon)
+export const PaintBrush01Icon = hugeIcon(shapes.PaintBrush01Icon)
+export const PaletteIcon = hugeIcon(shapes.PaletteIcon)
+export const PauseIcon = hugeIcon(shapes.PauseIcon)
+export const PawPrintIcon = hugeIcon(shapes.PawPrintIcon)
+export const PenToolIcon = hugeIcon(shapes.PenToolIcon)
+export const PencilIcon = hugeIcon(shapes.PencilIcon)
+export const PencilEdit01Icon = hugeIcon(shapes.PencilEdit01Icon)
+export const PencilEdit02Icon = hugeIcon(shapes.PencilEdit02Icon)
+export const PieChartIcon = hugeIcon(shapes.PieChartIcon)
+export const PinIcon = hugeIcon(shapes.PinIcon)
+export const PlayIcon = hugeIcon(shapes.PlayIcon)
+export const PlugIcon = hugeIcon(shapes.PlugIcon)
+export const Plug01Icon = hugeIcon(shapes.Plug01Icon)
+export const PlusSignIcon = hugeIcon(shapes.PlusSignIcon)
+export const PuzzleIcon = hugeIcon(shapes.PuzzleIcon)
+export const RadioButtonIcon = hugeIcon(shapes.RadioButtonIcon)
+export const RefreshIcon = hugeIcon(shapes.RefreshIcon)
+export const Robot01Icon = hugeIcon(shapes.Robot01Icon)
+export const RocketIcon = hugeIcon(shapes.RocketIcon)
+export const Search01Icon = hugeIcon(shapes.Search01Icon)
+export const Settings01Icon = hugeIcon(shapes.Settings01Icon)
+export const ShapesIcon = hugeIcon(shapes.ShapesIcon)
+export const ShieldCheckIcon = hugeIcon(shapes.ShieldCheckIcon)
+export const ShieldOffIcon = hugeIcon(shapes.ShieldOffIcon)
+export const ShieldQuestionMarkIcon = hugeIcon(shapes.ShieldQuestionMarkIcon)
+export const ShoppingCartIcon = hugeIcon(shapes.ShoppingCartIcon)
+export const SidebarLeftIcon = hugeIcon(shapes.SidebarLeftIcon)
+export const SidebarLeft01Icon = hugeIcon(shapes.SidebarLeft01Icon)
+export const SlidersHorizontalIcon = hugeIcon(shapes.SlidersHorizontalIcon)
+export const SmartphoneIcon = hugeIcon(shapes.SmartphoneIcon)
+export const SourceCodeSquareIcon = hugeIcon(shapes.SourceCodeSquareIcon)
+export const SparklesIcon = hugeIcon(shapes.SparklesIcon)
+export const SquareIcon = hugeIcon(shapes.SquareIcon)
+export const SquareTerminalIcon = hugeIcon(shapes.SquareTerminalIcon)
+export const StarIcon = hugeIcon(shapes.StarIcon)
+export const StopIcon = hugeIcon(shapes.StopIcon)
+export const StoreIcon = hugeIcon(shapes.StoreIcon)
+export const Sun03Icon = hugeIcon(shapes.Sun03Icon)
+export const SwatchBookIcon = hugeIcon(shapes.SwatchBookIcon)
+export const SwordIcon = hugeIcon(shapes.SwordIcon)
+export const TableIcon = hugeIcon(shapes.TableIcon)
+export const TargetIcon = hugeIcon(shapes.TargetIcon)
+export const Tick02Icon = hugeIcon(shapes.Tick02Icon)
+export const ToolboxIcon = hugeIcon(shapes.ToolboxIcon)
+export const TrophyIcon = hugeIcon(shapes.TrophyIcon)
+export const UndoIcon = hugeIcon(shapes.UndoIcon)
+export const Unlink01Icon = hugeIcon(shapes.Unlink01Icon)
+export const Upload04Icon = hugeIcon(shapes.Upload04Icon)
+export const UserIcon = hugeIcon(shapes.UserIcon)
+export const UserAdd01Icon = hugeIcon(shapes.UserAdd01Icon)
+export const UserGroupIcon = hugeIcon(shapes.UserGroupIcon)
+export const UsersIcon = hugeIcon(shapes.UsersIcon)
+export const ViewIcon = hugeIcon(shapes.ViewIcon)
+export const VolumeHighIcon = hugeIcon(shapes.VolumeHighIcon)
+export const VolumeMute02Icon = hugeIcon(shapes.VolumeMute02Icon)
+export const WalletIcon = hugeIcon(shapes.WalletIcon)
+export const WrenchIcon = hugeIcon(shapes.WrenchIcon)
+export const ZoomInAreaIcon = hugeIcon(shapes.ZoomInAreaIcon)
+export const ZoomOutAreaIcon = hugeIcon(shapes.ZoomOutAreaIcon)

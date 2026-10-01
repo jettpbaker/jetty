@@ -10,8 +10,6 @@ import {
   CircleIcon,
   RadioButtonIcon,
   SquareIcon,
-} from '@/components/custom/huge_icons'
-import {
   Tick02Icon,
   Clock01Icon,
   PencilEdit01Icon,

@@ -1,8 +1,7 @@
 import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire'
 
 import { SuccessStatusIcon, ErrorStatusIcon } from '@/components/custom/circle_status_icon'
-import { RefreshIcon } from '@/components/custom/huge_icons'
-import { ArrowRight01Icon, ViewIcon, UserIcon } from '@/components/custom/huge_icons'
+import { RefreshIcon, ArrowRight01Icon, ViewIcon, UserIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'

@@ -24,14 +24,12 @@ import { TwoLineRow } from './two_line_row'
 
 // A child that has gone idle has finished its run.
 type ChildStatus = Exclude<Status, 'idle' | 'stopped' | 'queued'>
-type Environment = 'local' | 'worktree'
 
 export type ChildThread = {
   id: string
   title: string
   provider?: ProviderId
   model?: string
-  env: Environment
   status: ChildStatus
   updatedAt: number
   run?: { startedAt: number; endedAt?: number }
@@ -59,7 +57,6 @@ function childThreads(chrome: Chrome | undefined, parentId: string) {
           thread.provider && thread.model
             ? catalogModelName(chrome.models, thread.provider, thread.model)
             : undefined,
-        env: thread.environment,
         status: childStatus(threadStatus(thread.status, thread.readyForReview)),
         updatedAt: thread.updatedAt,
         run:

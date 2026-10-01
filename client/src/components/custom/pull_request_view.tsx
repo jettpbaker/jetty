@@ -5,8 +5,11 @@ import {
   GitBranchIcon,
   GitCommitHorizontalIcon,
   GitPullRequestIcon,
+  DiffIcon,
+  GitMergeIcon,
+  CircleDotIcon,
+  WorkflowIcon,
 } from '@/components/custom/git_icons'
-import { DiffIcon, GitMergeIcon, CircleDotIcon, WorkflowIcon } from '@/components/custom/git_icons'
 import {
   RefreshIcon,
   LinkSquare02Icon,
@@ -18,8 +21,8 @@ import {
   Unlink01Icon,
   MinusSignCircleIcon,
   Cancel01Icon,
+  UserGroupIcon,
 } from '@/components/custom/huge_icons'
-import { UserGroupIcon } from '@/components/custom/huge_icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

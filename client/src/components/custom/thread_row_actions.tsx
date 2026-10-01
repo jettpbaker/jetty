@@ -4,8 +4,8 @@ import {
   PencilEdit01Icon,
   PinIcon,
   Delete02Icon,
+  Archive02Icon,
 } from '@/components/custom/huge_icons'
-import { Archive02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -93,12 +93,7 @@ export function ThreadRowActions({
               />
             }
           >
-            <MoreVerticalIcon
-              className='size-3.5'
-              stroke='currentColor'
-
-              aria-hidden='true'
-            />
+            <MoreVerticalIcon className='size-3.5' aria-hidden='true' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>

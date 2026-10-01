@@ -125,7 +125,7 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
       />
       <button
         type='button'
-        aria-label={`${paused ? 'PlayIcon' : 'PauseIcon'} ${video.name}`}
+        aria-label={`${paused ? 'Play' : 'Pause'} ${video.name}`}
         tabIndex={started ? -1 : 0}
         className='absolute inset-0 grid place-items-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset'
         onClick={toggle}
@@ -146,7 +146,7 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
           <Button
             variant='ghost'
             size='icon'
-            aria-label={paused ? 'PlayIcon' : 'PauseIcon'}
+            aria-label={paused ? 'Play' : 'Pause'}
             onClick={toggle}
           >
             {paused ? <PlayIcon filled /> : <PauseIcon filled />}

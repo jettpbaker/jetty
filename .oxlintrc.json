@@ -9,26 +9,15 @@
     "no-restricted-imports": [
       "error",
       {
-        "paths": [
+        "patterns": [
           {
-            "name": "@phosphor-icons/react",
-            "message": "Use the approved icon modules. See AGENTS.md (icons)."
-          },
-          {
-            "name": "@primer/octicons-react",
-            "message": "Use the approved icon modules. See AGENTS.md (icons)."
-          },
-          {
-            "name": "lucide-react",
-            "message": "Use the approved icon modules. See AGENTS.md (icons)."
-          },
-          {
-            "name": "@hugeicons/react",
-            "message": "Use the approved icon modules. See AGENTS.md (icons)."
-          },
-          {
-            "name": "@hugeicons/core-free-icons",
-            "message": "Use the approved icon modules. See AGENTS.md (icons)."
+            "group": [
+              "lucide-react",
+              "@hugeicons/*",
+              "@phosphor-icons/*",
+              "@primer/octicons-react"
+            ],
+            "message": "Icons come from git_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
           }
         ]
       }
@@ -106,28 +95,19 @@
           "error",
           {
             "paths": [
-              {
-                "name": "@phosphor-icons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@primer/octicons-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "lucide-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@hugeicons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@hugeicons/core-free-icons",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
               { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
               { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "lucide-react",
+                  "@hugeicons/*",
+                  "@phosphor-icons/*",
+                  "@primer/octicons-react"
+                ],
+                "message": "Icons come from git_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+              }
             ]
           }
         ]
@@ -139,26 +119,15 @@
         "no-restricted-imports": [
           "error",
           {
-            "paths": [
+            "patterns": [
               {
-                "name": "@phosphor-icons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@primer/octicons-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "lucide-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@hugeicons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@hugeicons/core-free-icons",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
+                "group": [
+                  "lucide-react",
+                  "@hugeicons/*",
+                  "@phosphor-icons/*",
+                  "@primer/octicons-react"
+                ],
+                "message": "Icons come from git_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
               }
             ]
           }
@@ -173,59 +142,12 @@
       }
     },
     {
-      "files": ["client/src/components/custom/git_icons.tsx"],
+      "files": [
+        "client/src/components/custom/git_icons.tsx",
+        "client/src/components/custom/huge_icons.tsx"
+      ],
       "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "paths": [
-              {
-                "name": "@phosphor-icons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@primer/octicons-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@hugeicons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@hugeicons/core-free-icons",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
-              { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["client/src/components/custom/huge_icons.tsx"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "paths": [
-              {
-                "name": "@phosphor-icons/react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "@primer/octicons-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              {
-                "name": "lucide-react",
-                "message": "Use the approved icon modules. See AGENTS.md (icons)."
-              },
-              { "name": "@effect/atom-react", "message": "Use the hooks from @/state." },
-              { "name": "effect/unstable/reactivity", "message": "Use the hooks from @/state." }
-            ]
-          }
-        ]
+        "no-restricted-imports": "off"
       }
     }
   ]

@@ -279,7 +279,7 @@ export function createWorktrees(
     if (thread.environment !== 'worktree') {
       const head = await revParse(project.path, 'HEAD')
       const branch = await tryGit(project.path, 'branch', '--show-current')
-      await run(store.captureLocalBase(threadId, head ?? null, branch))
+      if (head) await run(store.captureLocalBase(threadId, head, branch))
       await refresh(threadId)
       return project.path
     }

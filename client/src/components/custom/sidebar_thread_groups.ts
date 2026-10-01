@@ -9,7 +9,7 @@ export type SidebarThread = {
   id: string
   title: string
   project: string
-  projectId?: string
+  projectId: string
   projectIcon?: ProjectIcon
   parent?: string
   status: ThreadStatus

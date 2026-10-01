@@ -1,8 +1,13 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
 import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/git_icons'
-import { CircleIcon, Settings01Icon } from '@/components/custom/huge_icons'
-import { Archive02Icon, PencilEdit02Icon, PinIcon } from '@/components/custom/huge_icons'
+import {
+  CircleIcon,
+  Settings01Icon,
+  Archive02Icon,
+  PencilEdit02Icon,
+  PinIcon,
+} from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -286,12 +291,7 @@ export function AppSidebar() {
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
                       {item.status === 'idle' ? (
-                        <CircleIcon
-                          stroke='currentColor'
-
-                          className='size-3 shrink-0'
-                          aria-hidden='true'
-                        />
+                        <CircleIcon className='size-3 shrink-0' aria-hidden='true' />
                       ) : (
                         item.status && <StatusGlyph status={item.status} className='size-3' />
                       )}

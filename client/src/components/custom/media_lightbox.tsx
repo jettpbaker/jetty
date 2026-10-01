@@ -523,7 +523,7 @@ function Toolbar({
       >
         <ZoomInAreaIcon />
       </ToolbarButton>
-      <ToolbarButton label={copied ? 'Copied' : 'Copy01Icon image'} onPress={copyImage}>
+      <ToolbarButton label={copied ? 'Copied' : 'Copy image'} onPress={copyImage}>
         {copied ? <Tick02Icon /> : <Copy01Icon />}
       </ToolbarButton>
       <ToolbarButton label='Close' shortcut='Esc' onPress={onClose}>

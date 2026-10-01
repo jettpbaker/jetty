@@ -48,20 +48,22 @@
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue") — never hidden. They're reminders of
   what's still wanted, not clutter.
-- Icons are Lucide for git, issues and thread-environment folders; Hugeicons free
-  stroke-rounded for everything else (including carets). Lucide imports live only in `git_icons.tsx`; Hugeicons
-  render through `huge_icons.tsx`. oxlint enforces the pack boundaries and bans
-  Phosphor and Octicons. Registry components arrive speaking lucide — swap their
-  non-git icons to Hugeicons when adding them.
+- Icons are Lucide for git and issue concepts (branches, PRs, commits, diffs, the
+  worktree folder) and Hugeicons stroke-rounded for everything else, carets
+  included. Lucide is imported only in `git_icons.tsx`, Hugeicons only in
+  `huge_icons.tsx`, which wraps each glyph; oxlint bans both packs everywhere
+  else, and Phosphor and Octicons outright. Registry components arrive speaking
+  lucide — swap their non-git icons to Hugeicons when adding them.
 
 ### icons
 
-- Every pack icon line stays 1.333px at every size. Hugeicons draw 1.125× their
-  slot, centred without changing layout; Lucide draws at slot size.
-- Fill only solid metaphors: stop, fast-mode flash, video play/pause, pinned pin.
-  Checks passed/failed use the existing status discs; selected answers stay
-  stroked. GitHub uses the official filled svgl mark. Provider logos, in-progress
-  glyph, status discs and context ring stay custom.
+- Every icon line is 1.333px at every size (CSS non-scaling stroke). Hugeicons
+  draw 1.125× their slot through an inset viewBox, centred, without changing
+  layout; Lucide draws at slot size.
+- Fill (`filled`) only solid metaphors: stop, fast-mode flash, video play/pause,
+  the pinned pin. Checks passed/failed reuse the status discs; selected answers
+  stay stroked. GitHub is the official filled svgl mark. Provider logos, the
+  in-progress glyph, status discs and context ring stay custom.
 - Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
   `size-glyph` (18px) is for tab status glyphs only. No arbitrary `size-[Npx]`.
 - One muted: `text-muted-foreground`. No `/50`, `/60`, or `opacity-*` tints on
