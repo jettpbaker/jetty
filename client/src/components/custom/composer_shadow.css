@@ -16,18 +16,11 @@
   box-shadow: var(--composer-lift);
 }
 
-/* Dark mode keeps the heavy shadow only to lift the composer off a wallpaper. */
-.dark .composer-shadow:not([data-wallpaper]) {
-  display: none;
-}
-
-/* Light mode draws without huge box-shadows, which Chrome approximates in visible bands. */
-:root:not(.dark)[data-composer-shadow] .composer-shadow {
-  box-shadow: none;
-}
-:root:not(.dark)[data-composer-shadow='gradient'] .composer-shadow {
+/* Light mode draws a gradient: huge box-shadows band visibly in Chrome. */
+:root:not(.dark) .composer-shadow {
   inset: -22rem -26rem;
   border-radius: 0;
+  box-shadow: none;
   background: radial-gradient(
     closest-side,
     oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 1)) 30%,
@@ -39,12 +32,4 @@
     oklch(from var(--composer-shadow-tone) l c h / calc(alpha * 0.04)) 90%,
     transparent 100%
   );
-}
-:root:not(.dark)[data-composer-shadow='off'] .composer-shadow {
-  display: none;
-}
-:root:not(.dark)[data-composer-shadow='blur'] .composer-shadow {
-  background: var(--composer-shadow-tone);
-  filter: blur(7rem);
-  transform: scale(1.15, 1.6);
 }

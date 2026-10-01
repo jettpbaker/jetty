@@ -1,0 +1,22 @@
+.dither-drift {
+  --edge: 2.5rem;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      black var(--edge),
+      black calc(100% - var(--edge)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      transparent,
+      black var(--edge),
+      black calc(100% - var(--edge)),
+      transparent
+    );
+  mask-composite: intersect;
+}

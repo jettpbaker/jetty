@@ -6,7 +6,7 @@ import { useResolvedTheme } from '@/lib/theme'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
-import { BackdropStudy } from './backdrop_study'
+import { DitherDrift } from './dither_drift'
 import { DownwardBlur } from './downward_blur'
 import { DriftingDither } from './drifting_dither'
 import { OpacityFade } from './opacity_fade'
@@ -32,7 +32,7 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const { wallpaper: image, video } = useAppearance()
   const resolvedTheme = useResolvedTheme()
   const reducedMotion = useReducedMotion()
-  if (!image && !video) return <BackdropStudy />
+  if (!image && !video) return <DitherDrift />
   const fadeBackground = resolvedTheme === 'light' ? '#ffffff' : '#000000'
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>

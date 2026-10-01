@@ -217,14 +217,11 @@
   }
 }
 
-/* The new-thread composer's ambient shadow: black in dark mode; in light mode a softer tone,
-   optionally tinted with the accent hue (composer_shadow.css draws it). */
+/* The new-thread composer's ambient shadow over a wallpaper: black in dark mode; in light mode
+   a softer tone (composer_shadow.css draws it). */
 :root {
   --composer-shadow-color: rgb(0 0 0 / 0.18);
   --composer-shadow-tone: rgb(0 0 0 / 0.32);
-}
-:root[data-composer-shadow-tint='tinted'] {
-  --composer-shadow-tone: oklch(from var(--primary) 0.3 calc(c * 0.35) h / 0.32);
 }
 :root.dark {
   --composer-shadow-color: rgb(0 0 0 / 0.7);
