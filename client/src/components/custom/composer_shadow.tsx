@@ -1,18 +1,13 @@
 import type { ComposerShadowSettings } from '@/lib/composer-shadow-settings'
 
 import { useAppearance } from '@/lib/appearance'
-import { useResolvedTheme } from '@/lib/theme'
 
-import { useWallpaperFade } from './wallpaper_fade_study'
 import './composer_shadow.css'
 
 // Whether the heavy shadow lifts the composer off a wallpaper; otherwise its own small lift does.
 export function useWallpaperUnderComposer() {
   const { wallpaper, video } = useAppearance()
-  const light = useResolvedTheme() === 'light'
-  const fade = useWallpaperFade()
-  if (video) return true
-  return !!wallpaper && !(light && fade === 'clean')
+  return !!(wallpaper || video)
 }
 
 export function ComposerShadow({ settings }: { settings: ComposerShadowSettings }) {

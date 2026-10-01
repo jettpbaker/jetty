@@ -10,7 +10,6 @@ import { DitherDrift } from './dither_drift'
 import { DownwardBlur } from './downward_blur'
 import { DriftingDither } from './drifting_dither'
 import { OpacityFade } from './opacity_fade'
-import { ComposerFade, useWallpaperFade } from './wallpaper_fade_study'
 import './new_thread_backdrop.css'
 
 const curve = {
@@ -33,27 +32,9 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const { wallpaper: image, video } = useAppearance()
   const resolvedTheme = useResolvedTheme()
   const reducedMotion = useReducedMotion()
-  const studied = useWallpaperFade()
   if (!image && !video) return <DitherDrift />
-  const fadeBackground = resolvedTheme === 'light' ? '#ffffff' : '#000000'
-  // Clean is light-only; Jett compares in both themes.
-  const fade = video || (resolvedTheme === 'dark' && studied === 'clean') ? 'current' : studied
-  const wallpaper = (
-    <DriftingDither
-      className='wallpaper'
-      image={image}
-      {...initialDitherSettings}
-      offsetX={0}
-      offsetY={0}
-      drift={0}
-    />
-  )
-  if (fade === 'clean')
-    return (
-      <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
-        <ComposerFade>{wallpaper}</ComposerFade>
-      </div>
-    )
+  const light = resolvedTheme === 'light'
+  const fadeBackground = light ? '#ffffff' : '#000000'
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (
@@ -62,15 +43,18 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
         </OpacityFade>
       ) : (
         <OpacityFade
-          settings={
-            fade === 'jett'
-              ? { ...initialFadeSettings, topOpacity: resolvedTheme === 'light' ? 0.9 : 0.8 }
-              : initialFadeSettings
-          }
+          settings={{ ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }}
           background={fadeBackground}
         >
           <DownwardBlur settings={initialBlurSettings} curve={curve}>
-            {wallpaper}
+            <DriftingDither
+              className='wallpaper'
+              image={image}
+              {...initialDitherSettings}
+              offsetX={0}
+              offsetY={0}
+              drift={0}
+            />
           </DownwardBlur>
         </OpacityFade>
       )}

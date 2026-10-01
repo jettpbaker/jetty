@@ -1,6 +1,5 @@
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
-import { WallpaperFadeToggle } from '@/components/custom/wallpaper_fade_study'
 import { useDraftEpoch } from '@/state'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -14,7 +13,6 @@ function Home() {
       <div className='relative z-10 flex min-h-0 flex-1 flex-col justify-center'>
         <ThreadComposer running={false} rows={2} ambient />
       </div>
-      <WallpaperFadeToggle />
     </section>
   )
 }
