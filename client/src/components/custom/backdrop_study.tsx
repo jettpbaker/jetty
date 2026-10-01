@@ -3,6 +3,7 @@ import { accentChangeEvent } from '@/lib/accent'
 import {
   backdropFields,
   backdropMarks,
+  composerEdges,
   setBackdropLook,
   useBackdropLook,
   type BackdropLook,
@@ -32,6 +33,12 @@ const markLabels: Record<BackdropLook['mark'], string> = {
   jetty: 'Jetty',
   name: 'Name',
   glyph: 'Glyph',
+}
+const edgeLabels: Record<BackdropLook['edge'], string> = {
+  none: 'None',
+  border: 'Border',
+  shadow: 'Shadow',
+  both: 'Both',
 }
 const projectShapes = ['warp', 'simplex', 'wave', 'ripple', 'swirl'] as const
 
@@ -347,6 +354,13 @@ export function BackdropStudyToggle() {
         labels={markLabels}
         value={look.mark}
         onChange={(mark) => setBackdropLook({ ...look, mark })}
+      />
+      <Options
+        label='Edge'
+        values={composerEdges}
+        labels={edgeLabels}
+        value={look.edge}
+        onChange={(edge) => setBackdropLook({ ...look, edge })}
       />
       <Options
         label='Grain'

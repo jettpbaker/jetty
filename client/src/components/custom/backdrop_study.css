@@ -26,3 +26,21 @@
 .backdrop-study-mark img {
   filter: grayscale(1);
 }
+
+:root {
+  --composer-edge-border: 0 0 0 1px oklch(from var(--foreground) l c h / 0.1);
+  --composer-edge-shadow: 0 1px 2px oklch(0 0 0 / 0.05), 0 4px 12px oklch(0 0 0 / 0.05);
+}
+.dark {
+  --composer-edge-border: 0 0 0 1px oklch(from var(--foreground) l c h / 0.16);
+  --composer-edge-shadow: 0 1px 2px oklch(0 0 0 / 0.35), 0 4px 12px oklch(0 0 0 / 0.25);
+}
+:root[data-composer-edge='border'] .composer-shadow + [data-slot='input-group'] {
+  box-shadow: var(--composer-edge-border);
+}
+:root[data-composer-edge='shadow'] .composer-shadow + [data-slot='input-group'] {
+  box-shadow: var(--composer-edge-shadow);
+}
+:root[data-composer-edge='both'] .composer-shadow + [data-slot='input-group'] {
+  box-shadow: var(--composer-edge-border), var(--composer-edge-shadow);
+}
