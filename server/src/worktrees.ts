@@ -3,7 +3,7 @@ import type { ThreadMeta } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { cp, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import type { Store, WorktreeRecord } from './store'
 
@@ -211,9 +211,15 @@ export function createWorktrees(
 
   const exists = (folder: string) => Bun.file(join(folder, '.git')).exists()
 
+  // A worktree checks out the whole repository; a project nested inside it works in its subfolder.
+  async function workingFolder(projectPath: string, checkout: string) {
+    return resolve(checkout, await tryGit(projectPath, 'rev-parse', '--show-prefix'))
+  }
+
   async function root(threadId: string) {
     const { thread, project } = await locate(threadId)
-    return thread.environment === 'worktree' ? folderOf(project.id, threadId) : project.path
+    if (thread.environment !== 'worktree') return project.path
+    return workingFolder(project.path, folderOf(project.id, threadId))
   }
 
   async function changes(folder: string) {
@@ -323,6 +329,7 @@ export function createWorktrees(
       return project.path
     }
     const folder = folderOf(project.id, threadId)
+    const working = await workingFolder(project.path, folder)
     const record = await serialized(project.path, async () => {
       const record = await run(store.getWorktree(threadId))
       if (!record) throw new Error('Worktree has no base commit')
@@ -350,7 +357,7 @@ export function createWorktrees(
       }
       if (missing || record.slot === null) {
         record.slot = await run(store.allocateWorktreeSlot(threadId))
-        record.checkoutPath = folder
+        record.checkoutPath = working
         record.state = 'pending'
         record.error = null
         await save(threadId, record)
@@ -361,7 +368,9 @@ export function createWorktrees(
       record.state = 'setting_up'
       record.error = null
       await save(threadId, record)
-      await copyIncluded(project.path, folder)
+      if (!(await isFolder(working)))
+        throw new Error(`${basename(project.path)} isn't in this worktree's base commit`)
+      await copyIncluded(await git(project.path, 'rev-parse', '--show-toplevel'), folder)
       const setup = await setupCommand(folder)
       if (setup)
         await runSetup(
@@ -376,7 +385,7 @@ export function createWorktrees(
     if (record.temporaryBranch && thread.title !== DEFAULT_THREAD_TITLE)
       await rename(threadId, thread.title).catch(() => {})
     await refresh(threadId)
-    return folder
+    return working
   }
 
   // Resolves to the thread's working folder once it exists and its setup has run.
