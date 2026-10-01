@@ -1,7 +1,6 @@
 export {
   CircleDotIcon,
   DiffIcon,
-  FolderIcon,
   FolderGit2Icon,
   GitBranchIcon,
   GitCommitHorizontalIcon,

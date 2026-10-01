@@ -13,8 +13,8 @@ import {
   type ReactNode,
 } from 'react'
 
-import { FolderGit2Icon, FolderIcon } from './git_icons'
-import { Alert02Icon } from './huge_icons'
+import { FolderGit2Icon } from './git_icons'
+import { Alert02Icon, LaptopIcon } from './huge_icons'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
@@ -96,7 +96,7 @@ export function ThreadHoverCard({
 }
 
 function EnvironmentLine({ worktree, branch }: { worktree: boolean; branch?: string }) {
-  const Icon = worktree ? FolderGit2Icon : FolderIcon
+  const Icon = worktree ? FolderGit2Icon : LaptopIcon
   return (
     <span
       className='flex min-w-0 items-center gap-1 text-muted-foreground'
