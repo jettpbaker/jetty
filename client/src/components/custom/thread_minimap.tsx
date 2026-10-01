@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useState } from 'react'
 
 const minTurns = 2
-const tickSpacing = 8
+const tickSpacing = 12
 // A gutter this wide holds the minimap without covering the conversation, so it stays visible.
 const persistentGutter = 48
 const stripLeft = 12
@@ -213,12 +213,12 @@ export const ThreadMinimap = memo(function ThreadMinimap({
                 className={cn(
                   'pointer-events-none absolute left-0 h-0.5 -translate-y-1/2 rounded-full bg-muted-foreground/35 transition-[width,background-color] duration-150 data-in-view:bg-foreground/90 motion-reduce:transition-none',
                   distance === 0
-                    ? 'w-6 bg-muted-foreground/75'
+                    ? 'w-9 bg-muted-foreground/75'
                     : distance === 1
-                      ? 'w-4'
+                      ? 'w-6'
                       : distance === 2
-                        ? 'w-2.5'
-                        : 'w-2'
+                        ? 'w-3.75'
+                        : 'w-3'
                 )}
                 style={{ top: `${topPercent(index, turns.length)}%` }}
               />
@@ -232,11 +232,11 @@ export const ThreadMinimap = memo(function ThreadMinimap({
           side='right'
           sideOffset={0}
           align={activeIndex === 0 ? 'start' : activeIndex === lastIndex ? 'end' : 'center'}
-          className='pointer-events-none block w-80 max-w-80 rounded-lg p-3 text-sm'
+          className='pointer-events-none block w-80 max-w-80 rounded-lg px-2.5 py-2 text-sm leading-snug'
         >
           <p className='truncate font-medium'>{preview?.title}</p>
           {preview?.reply && (
-            <p className='mt-1 line-clamp-3 text-muted-foreground'>{preview.reply}</p>
+            <p className='mt-0.5 line-clamp-3 text-muted-foreground'>{preview.reply}</p>
           )}
         </TooltipContent>
       </Tooltip>
