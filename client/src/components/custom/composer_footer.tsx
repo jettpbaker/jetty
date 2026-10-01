@@ -66,6 +66,16 @@ export function ComposerFooter({
         : undefined
   const branchProblem = noGit ?? (branchList?.git === 'error' ? branchList.message : undefined)
   const checkout = known?.git === 'ok' ? known.currentBranch || 'Detached HEAD' : undefined
+  const branchLabel =
+    known?.git === 'missing'
+      ? 'Folder missing'
+      : known?.git === 'not-git'
+        ? 'Not a git repo'
+        : branchProblem
+          ? undefined
+          : localOnly
+            ? checkout
+            : startingRef
 
   return (
     <div
@@ -98,7 +108,7 @@ export function ComposerFooter({
         />
       </div>
       <ComposerBranch
-        branch={branchProblem ? undefined : localOnly ? checkout : startingRef}
+        branch={branchLabel}
         refs={branchList?.git === 'ok' ? branchList.branches : undefined}
         disabledReason={branchProblem}
         onChange={localOnly ? undefined : onStartingRefChange}
