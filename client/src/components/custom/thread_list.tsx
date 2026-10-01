@@ -332,6 +332,9 @@ export function ThreadList({
           <div />
           <div />
           <div />
+          <div />
+          <div />
+          <div />
         </div>
       </div>
     </MediaLightboxProvider>
