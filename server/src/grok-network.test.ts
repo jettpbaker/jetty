@@ -26,7 +26,11 @@ test('Grok fixture over backend RPC: disconnect, durable completion, immediate n
   try {
     const { project } = await client.request('project.create', { path: home })
     const threadId = newId()
-    await client.request('thread.create', { id: threadId, projectId: project.id })
+    await client.request('thread.create', {
+      environment: 'local',
+      id: threadId,
+      projectId: project.id,
+    })
     let subscription = client.subscribeThread({ threadId })
     await subscription.ready
     await client.request('turn.start', { threadId, text: 'steer' })

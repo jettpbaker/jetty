@@ -176,7 +176,16 @@ export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 export const ThreadMeta = Schema.Struct({
   id: Schema.String,
   projectId: Schema.String,
-  environment: Schema.optional(Schema.Literals(['local'])),
+  environment: Schema.optional(Schema.Literals(['local', 'worktree'])),
+  workingPath: Schema.optional(Schema.String),
+  worktree: Schema.optional(
+    Schema.Struct({
+      state: Schema.Literals(['pending', 'setting_up', 'ready', 'failed']),
+      error: Schema.NullOr(Schema.String),
+      branch: Schema.NullOr(Schema.String),
+      ref: Schema.String,
+    })
+  ),
   title: Schema.String,
   status: SessionStatus,
   queuePaused: Schema.optional(Schema.Boolean),
@@ -236,6 +245,27 @@ export const methods = {
     params: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),
     result: Schema.Null,
   },
+  'settings.setBranchPrefix': {
+    params: Schema.Struct({ prefix: Schema.String }),
+    result: Schema.Null,
+  },
+  'project.branches': {
+    params: Schema.Struct({
+      projectId: Schema.String,
+      query: Schema.optional(Schema.String),
+      localOnly: Schema.optional(Schema.Boolean),
+    }),
+    result: Schema.Struct({
+      defaultRef: Schema.String,
+      currentBranch: Schema.String,
+      branches: Schema.Array(Schema.String),
+    }),
+  },
+  'thread.worktreeChanges': {
+    params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Struct({ count: Schema.Natural }),
+  },
+  'thread.retrySetup': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   'settings.setTitleModel': {
     params: TitleModel,
     result: Schema.Null,
@@ -291,6 +321,8 @@ export const methods = {
     params: Schema.Struct({
       id: Schema.String.check(Schema.isMinLength(1)),
       projectId: Schema.String,
+      environment: Schema.optional(Schema.Literals(['local', 'worktree'])),
+      ref: Schema.optional(Schema.String),
     }),
     result: Schema.Struct({ thread: ThreadMeta }),
   },
@@ -315,7 +347,10 @@ export const methods = {
     result: Schema.Null,
   },
   'thread.diff': {
-    params: Schema.Struct({ threadId: Schema.String }),
+    params: Schema.Struct({
+      threadId: Schema.String,
+      scope: Schema.optional(Schema.Literals(['branch', 'uncommitted'])),
+    }),
     result: Schema.Struct({
       diff: Schema.String,
       truncatedPaths: Schema.optional(Schema.Array(Schema.String)),
@@ -323,6 +358,7 @@ export const methods = {
   },
   'thread.diffFile': {
     params: Schema.Struct({
+      scope: Schema.optional(Schema.Literals(['branch', 'uncommitted'])),
       threadId: Schema.String,
       path: Schema.String,
       prevPath: Schema.optional(Schema.String),
@@ -547,6 +583,7 @@ export const ChromePushData = Schema.Union([
     usage: Schema.optional(RateLimits),
     models: Schema.optional(Schema.Array(ProviderModel)),
     modelDiscovery: Schema.optional(ModelDiscovery),
+    branchPrefix: Schema.optional(Schema.String),
     titleModel: Schema.optional(TitleModel),
     agentBehaviours: Schema.optional(AgentBehaviours),
   }),
@@ -556,6 +593,7 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
   Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
+  Schema.Struct({ type: Schema.Literal('branchPrefix'), prefix: Schema.String }),
   Schema.Struct({ type: Schema.Literal('titleModel'), ...TitleModel.fields }),
   Schema.Struct({ type: Schema.Literal('agentBehaviours'), behaviours: AgentBehaviours }),
 ])

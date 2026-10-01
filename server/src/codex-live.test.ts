@@ -20,7 +20,11 @@ test.skipIf(process.env.JETTY_CODEX_LIVE_TEST !== '1')(
     try {
       const project = await client.request('project.create', { path: home })
       const threadId = newId()
-      await client.request('thread.create', { id: threadId, projectId: project.project.id })
+      await client.request('thread.create', {
+        environment: 'local',
+        id: threadId,
+        projectId: project.project.id,
+      })
       const subscription = client.subscribeThread({ threadId })
       await subscription.ready
       const first = await client.request('turn.start', {

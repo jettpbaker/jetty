@@ -52,6 +52,11 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
         const handlers = JettyRpcs.toLayer({
           'settings.providerUsage': () => Effect.succeed([]),
           'models.refresh': () => Effect.succeed(null),
+          'settings.setBranchPrefix': () => Effect.succeed(null),
+          'project.branches': () =>
+            Effect.succeed({ defaultRef: 'origin/main', currentBranch: 'main', branches: [] }),
+          'thread.worktreeChanges': () => Effect.succeed({ count: 0 }),
+          'thread.retrySetup': () => Effect.succeed(null),
           'settings.setTitleModel': () => Effect.succeed(null),
           'settings.setAgentBehaviour': () => Effect.succeed(null),
           'github.connection': () => Effect.succeed({ state: 'connected' as const }),

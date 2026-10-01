@@ -783,7 +783,7 @@ export function createClaudeAdapter(
               return yield* Effect.fail(
                 new AgentError(`Thread ${input.threadId} project not found`)
               )
-            return project.path
+            return input.cwd ?? project.path
           }).pipe(
             Effect.mapError((error) =>
               error instanceof AgentError ? error : new AgentError(error.message)

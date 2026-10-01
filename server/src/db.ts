@@ -163,6 +163,7 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`ALTER TABLE projects DROP COLUMN container_registration`
     yield* sql`ALTER TABLE threads DROP COLUMN base_commit`
   }),
+  '020_worktrees': addThreadColumns({ worktree_json: 'TEXT', git_json: 'TEXT' }),
 })
 
 export function databaseLayer(home: string) {

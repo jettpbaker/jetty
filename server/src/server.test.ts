@@ -370,7 +370,11 @@ describe('server skeleton', () => {
     const { project } = await c.request('project.create', { path: dir('/tmp/demo') })
     expect(project.path).toBe('/tmp/demo')
 
-    const { thread } = await c.request('thread.create', { id: newId(), projectId: project.id })
+    const { thread } = await c.request('thread.create', {
+      environment: 'local',
+      id: newId(),
+      projectId: project.id,
+    })
     expect(thread.projectId).toBe(project.id)
 
     const sub = await c.subscribeThread({ threadId: thread.id }).ready
@@ -467,6 +471,7 @@ describe('server skeleton', () => {
       path: dir('/tmp/gap'),
     })
     const { thread } = await c1.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -513,6 +518,7 @@ describe('server skeleton', () => {
       path: dir('/tmp/fan'),
     })
     const { thread } = await a.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -601,6 +607,7 @@ describe('server skeleton', () => {
       path: dir('/tmp/busy'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -664,6 +671,7 @@ describe('server skeleton', () => {
       path: dir('/tmp/title-gen'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -702,6 +710,7 @@ describe('server skeleton', () => {
       path: dir('/tmp/title-skip'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -738,6 +747,7 @@ describe('server skeleton', () => {
       path: dir('/tmp/title-null'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -825,6 +835,7 @@ describe('server skeleton', () => {
     const id = newId()
 
     const first = await c.request('thread.create', {
+      environment: 'local',
       id,
       projectId: project.id,
     })
@@ -833,6 +844,7 @@ describe('server skeleton', () => {
     await Effect.runPromise(store.setThreadTitle(id, 'Renamed after create'))
 
     const second = await c.request('thread.create', {
+      environment: 'local',
       id,
       projectId: project.id,
     })
@@ -857,9 +869,11 @@ describe('server skeleton', () => {
     })
     const id = newId()
 
-    await c.request('thread.create', { id, projectId: projectA.id })
+    await c.request('thread.create', { environment: 'local', id, projectId: projectA.id })
 
-    await expect(c.request('thread.create', { id, projectId: projectB.id })).rejects.toMatchObject({
+    await expect(
+      c.request('thread.create', { environment: 'local', id, projectId: projectB.id })
+    ).rejects.toMatchObject({
       code: 'invalid_params',
     })
 
@@ -910,7 +924,11 @@ describe('server skeleton', () => {
     })
     const id = newId()
 
-    const { thread } = await c.request('thread.create', { id, projectId: project.id })
+    const { thread } = await c.request('thread.create', {
+      environment: 'local',
+      id,
+      projectId: project.id,
+    })
     expect(thread.id).toBe(id)
     expect(thread.projectId).toBe(project.id)
 
@@ -952,6 +970,7 @@ describe('image attachments', () => {
       path: dir('/tmp/attach-write'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1001,6 +1020,7 @@ describe('image attachments', () => {
       path: dir('/tmp/attach-big'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1037,6 +1057,7 @@ describe('image attachments', () => {
       path: dir('/tmp/attach-junk'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1107,6 +1128,7 @@ describe('image attachments', () => {
       path: dir('/tmp/attach-agent'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1139,6 +1161,7 @@ describe('image attachments', () => {
       path: dir('/tmp/attach-http'),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1246,6 +1269,7 @@ describe('image attachments', () => {
       path: projectDir,
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1340,6 +1364,7 @@ describe('image attachments', () => {
       path: projectDir,
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })
@@ -1640,6 +1665,7 @@ describe('thread.diff', () => {
       path: dir(join(tmpdir(), `jetty-diff-nongit-${newId()}`)),
     })
     const { thread } = await c.request('thread.create', {
+      environment: 'local',
       id: newId(),
       projectId: project.id,
     })

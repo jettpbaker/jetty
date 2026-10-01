@@ -603,7 +603,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               )
               .pipe(Effect.ignore)
           }
-          const lifecycle = run(session, project.path).pipe(
+          const lifecycle = run(session, input.cwd ?? project.path).pipe(
             Effect.onInterrupt(() => cleanup(session.reason ?? 'server shutdown')),
             Effect.onError((cause) => cleanup(`Grok session failed: ${String(cause)}`, true)),
             Effect.ensuring(

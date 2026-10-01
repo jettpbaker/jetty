@@ -427,7 +427,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
-          const lifecycle = run(session, project.path).pipe(
+          const lifecycle = run(session, input.cwd ?? project.path).pipe(
             Effect.onInterrupt(() =>
               session.publication
                 .withPermit(

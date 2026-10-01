@@ -16,6 +16,7 @@ import { Context, Effect, Layer, Queue, Semaphore } from 'effect'
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
+import type { Worktrees } from './worktrees'
 
 import { AgentError, type Agent } from './agent'
 import {
@@ -81,6 +82,7 @@ type OrchestratorOptions = {
   store: Store
   agent: Agent | AgentRegistry
   hub: Hub
+  worktrees?: Worktrees
   titler?: ProviderTitler | null
   attachments?: Attachments | null
   onPullRequestOutput?: (threadId: string, text: string) => Effect.Effect<void, StoreError>
@@ -93,6 +95,7 @@ export function createOrchestrator({
   store,
   agent,
   hub,
+  worktrees,
   titler = null,
   attachments = null,
   onPullRequestOutput,
@@ -180,8 +183,11 @@ export function createOrchestrator({
               Effect.forkIn(scope)
             )
         }
-        if (event.type === 'turn.completed' || event.type === 'turn.failed')
+        if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           state(threadId).turnId = null
+          if (worktrees)
+            yield* Effect.promise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
+        }
       })
     }
 
@@ -310,7 +316,11 @@ export function createOrchestrator({
               if (!title) return
               const updated = yield* store.setGeneratedTitle(threadId, title)
               if (!updated) return
-              hub.pushChrome({ type: 'thread.upserted', thread: updated })
+              if (worktrees) yield* Effect.promise(() => worktrees.rename(threadId, title))
+              hub.pushChrome({
+                type: 'thread.upserted',
+                thread: yield* store.requireThread(threadId),
+              })
             }).pipe(Effect.uninterruptible)
           )
         ),
@@ -415,12 +425,15 @@ export function createOrchestrator({
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              const thread = yield* store.requireThread(input.threadId)
+              let thread = yield* store.requireThread(input.threadId)
+              if (thread.archived && !input.queued)
+                thread = yield* store.archiveThread(thread.id, false)
               const resumeQueue = !input.queued || (input.sendNow && input.resumeQueue !== false)
               let fromCreator = false
               if (input.queued) {
                 if (
                   thread.archived ||
+                  (thread.queuePaused && !input.sendNow) ||
                   !thread.pendingMessages?.some((m) => m.id === input.queued!.id)
                 )
                   return { turnId: '' }
@@ -515,6 +528,54 @@ export function createOrchestrator({
               if (!chosen.stored) yield* commitProvider(input.threadId, chosen.provider)
               yield* saveLoadout(input)
               const { agent } = chosen
+              let cwd: string | undefined
+              if (worktrees && !state(input.threadId).turnId) {
+                const preparing = state(input.threadId)
+                if (thread.environment === 'worktree' && !input.queued) {
+                  const message: QueuedMessage = {
+                    id: newId(),
+                    text: input.text,
+                    createdAt: Date.now(),
+                    hop: 0,
+                    attachments: saved.meta,
+                  }
+                  yield* store.enqueue(thread.id, message)
+                  yield* onCommit
+                  input = { ...input, queued: message }
+                }
+                preparing.ready = false
+                const prepared = yield* Effect.tryPromise({
+                  try: (signal) => worktrees.prepare(input.threadId, signal),
+                  catch: (error) => new StoreError('internal', String(error)),
+                }).pipe(
+                  Effect.interruptible,
+                  Effect.result,
+                  Effect.ensuring(
+                    Effect.sync(() => {
+                      preparing.ready = true
+                    })
+                  )
+                )
+                if (prepared._tag === 'Failure') {
+                  if (!input.queued) {
+                    yield* store.enqueue(thread.id, {
+                      id: newId(),
+                      text: input.text,
+                      createdAt: Date.now(),
+                      hop: 0,
+                      attachments: saved.meta,
+                    })
+                  }
+                  yield* onCommit
+                  yield* setQueuePaused(thread.id, true)
+                  hub.pushChrome({
+                    type: 'thread.upserted',
+                    thread: yield* store.requireThread(thread.id),
+                  })
+                  return { turnId: '' }
+                }
+                cwd = prepared.success
+              }
               if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
               const live = state(input.threadId)
@@ -558,6 +619,7 @@ export function createOrchestrator({
                   Effect.gen(function* () {
                     return yield* agent.startTurn(
                       {
+                        cwd,
                         threadId: input.threadId,
                         turnId,
                         text: agentText(input, fromCreator),
@@ -627,6 +689,9 @@ export function createOrchestrator({
               )
           )
         })
+      },
+      withAdmission<A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) {
+        return state(threadId).admission.withPermit(effect)
       },
       withPublication<A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) {
         return Effect.suspend(() => state(threadId).publication.withPermit(effect))
@@ -750,6 +815,7 @@ export function createOrchestrator({
             }
             if (
               thread.archived ||
+              thread.worktree?.state === 'setting_up' ||
               (yield* store.isQueuePaused(thread.id)) ||
               state(thread.id).turnId ||
               !state(thread.id).ready ||
@@ -803,7 +869,7 @@ export function createOrchestrator({
                   .pipe(Effect.catchCause((failure) => Effect.logError(failure)))
               )
             )
-            yield* start
+            yield* start.pipe(Effect.forkIn(scope))
           }
         })
         return Effect.forever(
@@ -901,6 +967,11 @@ export function createOrchestrator({
                     return yield* Effect.fail(
                       new StoreError('conflict', 'Cannot delete a thread while a turn is running')
                     )
+                  if (worktrees)
+                    yield* Effect.tryPromise({
+                      try: () => worktrees.remove(threadId, true),
+                      catch: (error) => new StoreError('internal', String(error)),
+                    })
                   const attachmentIds = yield* store.deleteThread(threadId)
                   if (attachments)
                     yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {

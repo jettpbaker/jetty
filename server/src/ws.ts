@@ -5,15 +5,16 @@ import type {
   ProviderUsage,
   RateLimits,
   ThreadMeta,
-  WireError,
 } from '@jetty/shared/wire'
 
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
-import { Effect, Fiber, Stream } from 'effect'
+import { WireError } from '@jetty/shared/wire'
+import { Effect, Fiber, Schema, Stream } from 'effect'
 
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
+import type { Worktrees } from './worktrees'
 
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
@@ -32,6 +33,7 @@ import { Skills } from './skills'
 import { StoreError } from './store'
 
 function wireError(error: unknown): WireError {
+  if (Schema.is(WireError)(error)) return error
   return {
     code: error instanceof StoreError ? error.code : 'internal',
     message: error instanceof Error ? error.message : String(error),
@@ -74,7 +76,7 @@ export function createRpcHandlers(
   getModels: () => readonly ProviderModel[] | null,
   refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void,
   pullRequests = createPullRequests(store, hub),
-  _unused?: undefined,
+  worktrees?: Worktrees,
   getModelDiscovery: () => ModelDiscovery = () => ({
     claude: 'loading',
     codex: 'loading',
@@ -121,8 +123,17 @@ export function createRpcHandlers(
       return Effect.gen(function* () {
         const thread = yield* store.requireThread(threadId)
         const project = yield* requireProject(thread.projectId)
-        return { path: project.path, baseCommit: undefined }
+        const baseCommit = yield* store.getThreadBaseCommit(threadId)
+        return {
+          path: worktrees ? yield* Effect.promise(() => worktrees.root(threadId)) : project.path,
+          baseCommit,
+          environment: thread.environment,
+        }
       })
+    }
+
+    function storeRunThread(threadId: string) {
+      return Effect.runPromise(store.requireThread(threadId))
     }
 
     function refreshInBackground(ref: { repo: string; number: number }) {
@@ -142,6 +153,46 @@ export function createRpcHandlers(
     }
 
     return JettyRpcs.of({
+      'settings.setBranchPrefix': ({ prefix }) =>
+        mutation(
+          store.setBranchPrefix(prefix).pipe(
+            Effect.tap(() => Effect.sync(() => hub.pushChrome({ type: 'branchPrefix', prefix }))),
+            Effect.as(null)
+          )
+        ),
+      'project.branches': ({ projectId, query, localOnly }) =>
+        requireProject(projectId).pipe(
+          Effect.flatMap((project) =>
+            Effect.tryPromise({
+              try: () => worktrees!.branches(project.path, query, localOnly),
+              catch: wireError,
+            })
+          ),
+          Effect.mapError(wireError)
+        ),
+      'thread.worktreeChanges': ({ threadId }) =>
+        Effect.tryPromise({
+          try: async () => ({
+            count:
+              (await storeRunThread(threadId)).environment === 'worktree'
+                ? await worktrees!.dirty(threadId)
+                : 0,
+          }),
+          catch: wireError,
+        }),
+      'thread.retrySetup': ({ threadId }) =>
+        orch.withAdmission(
+          threadId,
+          Effect.tryPromise({
+            try: (signal) => worktrees!.prepare(threadId, signal),
+            catch: wireError,
+          }).pipe(
+            Effect.interruptible,
+            Effect.andThen(store.setQueuePaused(threadId, false)),
+            Effect.as(null),
+            Effect.mapError(wireError)
+          )
+        ),
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'settings.providerUsage': () => getProviderUsage(),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
@@ -171,6 +222,7 @@ export function createRpcHandlers(
               const usage = getUsage()
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
+              const branchPrefix = yield* store.getBranchPrefix()
               const titleModel = yield* store.getTitleModel()
               const agentBehaviours = yield* store.getAgentBehaviours()
               const queue = yield* hub.subscribeChrome()
@@ -181,6 +233,7 @@ export function createRpcHandlers(
                 ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
                 modelDiscovery,
+                branchPrefix,
                 titleModel,
                 agentBehaviours,
               }
@@ -207,11 +260,57 @@ export function createRpcHandlers(
           )
         ),
       'thread.create': (params) =>
-        upsertThread(store.createThread(params.projectId, params.id)).pipe(
-          Effect.map((thread) => ({ thread }))
-        ),
+        Effect.gen(function* () {
+          const existing = yield* store.getThread(params.id)
+          if (existing) {
+            if (existing.projectId !== params.projectId)
+              return yield* Effect.fail(
+                new StoreError(
+                  'invalid_params',
+                  `Thread ${params.id} already belongs to a different project`
+                )
+              )
+            return { thread: existing }
+          }
+          const project = yield* requireProject(params.projectId)
+          const environment = params.environment ?? 'worktree'
+          const ref =
+            environment === 'worktree'
+              ? yield* Effect.tryPromise({
+                  try: () => worktrees!.resolveRef(project.path, params.ref),
+                  catch: wireError,
+                })
+              : ''
+          const thread = yield* upsertThread(
+            Effect.gen(function* () {
+              yield* store.createThread(params.projectId, params.id)
+              yield* store.setThreadEnvironment(params.id, environment, ref)
+              return yield* store.requireThread(params.id)
+            })
+          )
+          return { thread }
+        }).pipe(Effect.mapError(wireError)),
       'thread.archive': (params) =>
-        upsertThread(store.archiveThread(params.threadId, params.archived)).pipe(Effect.as(null)),
+        orch.withAdmission(
+          params.threadId,
+          Effect.gen(function* () {
+            if (yield* orch.isActive(params.threadId))
+              return yield* Effect.fail(
+                new StoreError('conflict', 'Cannot archive while a turn is running')
+              )
+            if (!params.archived) yield* upsertThread(store.archiveThread(params.threadId, false))
+            if (worktrees)
+              yield* Effect.tryPromise({
+                try: async (signal) => {
+                  if (params.archived) await worktrees.remove(params.threadId)
+                  else await worktrees.prepare(params.threadId, signal)
+                },
+                catch: wireError,
+              }).pipe(Effect.interruptible)
+            if (params.archived) yield* upsertThread(store.archiveThread(params.threadId, true))
+            return null
+          }).pipe(Effect.mapError(wireError))
+        ),
       'thread.rename': (params) =>
         upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>
@@ -239,12 +338,26 @@ export function createRpcHandlers(
           const thread = yield* store.getThread(params.threadId)
           const project = thread && (yield* store.getProject(thread.projectId))
           if (!project) return { diff: '' }
-          return yield* diff.computeThreadDiff(project.path)
+          const root = yield* threadRoot(params.threadId)
+          const base =
+            params.scope === 'branch' ||
+            (params.scope === undefined && thread?.environment === 'worktree')
+              ? root.baseCommit
+              : undefined
+          return yield* diff.computeThreadDiff(root.path, base)
         }).pipe(Effect.mapError(wireError)),
       'thread.diffFile': (params) =>
         threadRoot(params.threadId).pipe(
           Effect.flatMap((root) =>
-            diff.readDiffFile(root.path, params.path, params.prevPath, root.baseCommit)
+            diff.readDiffFile(
+              root.path,
+              params.path,
+              params.prevPath,
+              params.scope === 'branch' ||
+                (params.scope === undefined && root.environment === 'worktree')
+                ? root.baseCommit
+                : undefined
+            )
           ),
           Effect.mapError(wireError)
         ),

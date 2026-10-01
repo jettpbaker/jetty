@@ -1,7 +1,7 @@
 import { agentBehaviours, type AgentBehaviours } from '@jetty/shared/wire'
 
 const base =
-  'You are running inside Jetty. To delegate work to another model or agent, including Codex/GPT or Grok, use the Jetty create_thread tool to create a Jetty thread; list_models is the source of truth for which models are available, whatever other notes or CLI configs say. Inside Jetty this takes precedence over other instructions that describe delegating through model CLIs or forwarder subagents; only do that if the user explicitly asks in this conversation. Call mark_ready_for_review when you finish work for the user to review or need their decision, but not for trivial replies. Call link_pull_request when you open or take over a pull request for this thread.'
+  'You are running inside Jetty. Commit your work before creating a child thread that should build on it. To delegate work to another model or agent, including Codex/GPT or Grok, use the Jetty create_thread tool to create a Jetty thread; list_models is the source of truth for which models are available, whatever other notes or CLI configs say. Inside Jetty this takes precedence over other instructions that describe delegating through model CLIs or forwarder subagents; only do that if the user explicitly asks in this conversation. Call mark_ready_for_review when you finish work for the user to review or need their decision, but not for trivial replies. Call link_pull_request when you open or take over a pull request for this thread.'
 
 export function jettyInstructions(behaviours: AgentBehaviours) {
   return [

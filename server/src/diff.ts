@@ -50,9 +50,10 @@ const diffArgs = ['-c', 'core.quotePath=false', 'diff']
 export function computeThreadDiff(cwd: string, baseCommit?: string) {
   return Effect.gen(function* () {
     const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
+    const base = baseCommit ? yield* git(cwd, ['merge-base', baseCommit, 'HEAD']) : undefined
     const tracked = yield* git(cwd, [
       ...diffArgs,
-      head.code === 0 ? (baseCommit ?? 'HEAD') : EMPTY_TREE,
+      head.code === 0 ? (base?.code === 0 ? base.out.trim() : (baseCommit ?? 'HEAD')) : EMPTY_TREE,
     ])
     if (tracked.code !== 0) return { diff: '' }
     const untracked = yield* git(cwd, ['ls-files', '-z', '--others', '--exclude-standard'])
@@ -124,7 +125,12 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
     const root = yield* fs.realPath(top.out.trim()).pipe(Effect.option)
     if (top.code !== 0 || Option.isNone(root))
       return yield* Effect.fail(new StoreError('invalid_params', 'Not a git repository'))
-    const before = yield* readHead(root.value, prevPath, baseCommit)
+    const base = baseCommit ? yield* git(cwd, ['merge-base', baseCommit, 'HEAD']) : undefined
+    const before = yield* readHead(
+      root.value,
+      prevPath,
+      base?.code === 0 ? base.out.trim() : baseCommit
+    )
     if (typeof before === 'object' && before) return before
     const after = yield* readWorkingTree(root.value, path)
     if (typeof after === 'object' && after) return after

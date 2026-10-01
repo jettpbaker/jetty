@@ -45,6 +45,7 @@ async function fixture() {
   const connection = await client()
   const { project } = await connection.request('project.create', { path: home })
   const { thread } = await connection.request('thread.create', {
+    environment: 'local',
     projectId: project.id,
     id: newId(),
   })

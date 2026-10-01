@@ -64,7 +64,36 @@ type ThreadRow = {
   fast: number | null
   parent_thread_id: string | null
   created_by: 'user' | 'agent'
+  environment: 'local' | 'worktree'
+  git_json: string | null
+  worktree_json: string | null
   pending_messages: string
+}
+
+export type WorktreeRecord = {
+  checkoutPath: string | null
+  ref: string
+  baseCommit: string | null
+  branch: string | null
+  temporaryBranch: string | null
+  prefix: string | null
+  slot: number | null
+  state: 'pending' | 'setting_up' | 'ready' | 'failed'
+  error: string | null
+}
+
+export function newWorktree(ref: string): WorktreeRecord {
+  return {
+    checkoutPath: null,
+    ref,
+    baseCommit: null,
+    branch: null,
+    temporaryBranch: null,
+    prefix: null,
+    slot: null,
+    state: 'pending',
+    error: null,
+  }
 }
 
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
@@ -108,10 +137,27 @@ function publicProvider(value: string | null): ProviderId | undefined {
 }
 
 function rowToThread(row: ThreadRow): ThreadMeta {
+  const git = row.git_json
+    ? (JSON.parse(row.git_json) as { branch?: string; dirty?: boolean })
+    : null
   const provider = publicProvider(row.provider)
+  const worktree = row.worktree_json ? (JSON.parse(row.worktree_json) as WorktreeRecord) : null
   return {
     id: row.id,
     projectId: row.project_id,
+    environment: row.environment,
+    ...(worktree?.checkoutPath ? { workingPath: worktree.checkoutPath } : {}),
+    ...(git?.branch ? { git: { branch: git.branch, dirty: git.dirty ?? false } } : {}),
+    ...(worktree
+      ? {
+          worktree: {
+            state: worktree.state,
+            error: worktree.error,
+            branch: worktree.branch,
+            ref: worktree.ref,
+          },
+        }
+      : {}),
     title: row.title,
     status: row.status,
     queuePaused: row.queue_paused !== 0,
@@ -472,6 +518,96 @@ export function createStore() {
           queue_paused: number
         }>`SELECT queue_paused FROM threads WHERE id = ${threadId}`.pipe(
           Effect.map((rows) => rows[0]?.queue_paused === 1),
+          Effect.mapError(storeError)
+        )
+      },
+      setThreadGit(threadId: string, git: { branch: string; dirty: boolean }) {
+        return sql`UPDATE threads SET git_json = json_patch(COALESCE(git_json, '{}'), ${JSON.stringify(git)}) WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      captureLocalBase(threadId: string, baseCommit: string) {
+        return sql`UPDATE threads SET git_json = json_set(COALESCE(git_json, '{}'), '$.baseCommit', ${baseCommit}) WHERE id = ${threadId} AND environment = 'local' AND json_extract(git_json, '$.baseCommit') IS NULL`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      getThreadBaseCommit(threadId: string) {
+        return sql<{
+          base_commit: string | null
+        }>`SELECT COALESCE(json_extract(worktree_json, '$.baseCommit'), json_extract(git_json, '$.baseCommit')) AS base_commit FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows[0]?.base_commit ?? undefined),
+          Effect.mapError(storeError)
+        )
+      },
+      getBranchPrefix() {
+        return sql<{
+          value_json: string
+        }>`SELECT value_json FROM settings WHERE key = 'branchPrefix'`.pipe(
+          Effect.map((rows) => (rows[0] ? (JSON.parse(rows[0].value_json) as string) : 'jetty')),
+          Effect.mapError(storeError)
+        )
+      },
+      setBranchPrefix(prefix: string) {
+        return Effect.gen(function* () {
+          if (
+            !/^[a-zA-Z0-9][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9_-]*)*$/.test(prefix) ||
+            prefix.length > 100
+          )
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                'Use letters, digits, hyphens, underscores and single slashes for the branch prefix'
+              )
+            )
+          yield* sql`INSERT INTO settings (key, value_json) VALUES ('branchPrefix', ${JSON.stringify(prefix)}) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`
+        }).pipe(Effect.mapError(storeError))
+      },
+      setThreadEnvironment(
+        threadId: string,
+        environment: 'local' | 'worktree',
+        ref = 'origin/main'
+      ) {
+        return sql`UPDATE threads SET environment = ${environment}, worktree_json = ${environment === 'worktree' ? JSON.stringify(newWorktree(ref)) : null} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      getWorktree(threadId: string) {
+        return sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) =>
+            rows[0]?.worktree_json ? (JSON.parse(rows[0].worktree_json) as WorktreeRecord) : null
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      saveWorktree(threadId: string, record: WorktreeRecord) {
+        return sql`UPDATE threads SET worktree_json = ${JSON.stringify(record)} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      allocateWorktreeSlot(threadId: string) {
+        return Effect.gen(function* () {
+          const rows = yield* sql<{
+            slot: number
+          }>`SELECT json_extract(worktree_json, '$.slot') AS slot FROM threads WHERE worktree_json IS NOT NULL AND id != ${threadId}`
+          const occupied = new Set(rows.map((row) => row.slot))
+          let slot = 0
+          while (occupied.has(slot)) slot++
+          yield* sql`UPDATE threads SET worktree_json = json_set(worktree_json, '$.slot', ${slot}) WHERE id = ${threadId}`
+          return slot
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      listWorktrees() {
+        return sql<ThreadRow>`SELECT * FROM threads WHERE worktree_json IS NOT NULL`.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => ({
+              threadId: row.id,
+              record: JSON.parse(row.worktree_json!) as WorktreeRecord,
+            }))
+          ),
           Effect.mapError(storeError)
         )
       },

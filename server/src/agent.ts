@@ -17,6 +17,7 @@ export type AgentImage = {
 }
 
 export type TurnInput = {
+  cwd?: string
   threadId: string
   turnId: string
   text: string

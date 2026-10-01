@@ -10,6 +10,7 @@ import type { McpIdentity, McpSessions } from './mcp-sessions'
 import type { Orchestrator } from './orchestrator'
 import type { PullRequestLinks } from './pull-requests'
 import type { Store } from './store'
+import type { Worktrees } from './worktrees'
 
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
@@ -55,6 +56,8 @@ function matchingModels(catalog: readonly ProviderModel[], name: string) {
 const text = z.string().trim().min(1).max(32_000)
 const requestId = z.string().min(1).max(200).optional()
 const createInput = z.object({
+  environment: z.enum(['local', 'worktree']).optional(),
+  ref: z.string().min(1).optional(),
   prompt: text,
   title: z.string().trim().min(1).max(200).optional(),
   provider: z.enum(['claude', 'codex', 'grok']).optional(),
@@ -81,7 +84,8 @@ export function createMcpHandler(
   attachments: Attachments,
   models: () => readonly ProviderModel[] | null,
   pullRequestLinks: PullRequestLinks,
-  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>
+  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>,
+  worktrees?: Worktrees
 ) {
   return Effect.gen(function* () {
     const context = yield* Effect.context<Path.Path | Scope.Scope>()
@@ -106,6 +110,8 @@ export function createMcpHandler(
     }
 
     function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
+      let environment: 'local' | 'worktree' = 'local'
+      let base = ''
       const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
@@ -162,6 +168,7 @@ export function createMcpHandler(
             )
           const id = newId()
           yield* store.createThread(caller.projectId, id)
+          yield* store.setThreadEnvironment(id, environment, base)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
@@ -188,11 +195,38 @@ export function createMcpHandler(
           return response
         })
       )
-      return create
+      return Effect.gen(function* () {
+        const caller = yield* accessible(identity, identity.threadId)
+        if (input.requestId) {
+          const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
+          if (previous) return previous
+        }
+        environment = input.environment ?? caller.environment ?? 'local'
+        if (environment === 'worktree') {
+          const project = yield* store.getProject(caller.projectId)
+          if (!project || !worktrees)
+            return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+          const cwd =
+            caller.environment === 'worktree'
+              ? yield* Effect.promise(() => worktrees.root(caller.id))
+              : project.path
+          base = yield* Effect.tryPromise({
+            try: () =>
+              worktrees.resolveRef(
+                cwd,
+                input.ref ?? (caller.environment === 'worktree' ? 'HEAD' : undefined)
+              ),
+            catch: (error) => new StoreError('invalid_params', String(error)),
+          })
+        }
+        return yield* create
+      })
     }
 
     function sendMessage(identity: McpIdentity, input: z.infer<typeof sendInput>) {
       return Effect.gen(function* () {
+        const targetBeforeSend = yield* accessible(identity, input.threadId)
+        if (targetBeforeSend.archived) yield* store.archiveThread(targetBeforeSend.id, false)
         const response = yield* store.transaction(
           Effect.gen(function* () {
             const target = yield* accessible(identity, input.threadId)
@@ -372,7 +406,7 @@ export function createMcpHandler(
         'create_thread',
         {
           description:
-            'Delegate work to an independent Jetty agent in this project. The new thread works on its prompt in parallel and reports back to you with send_message when it finishes or needs a decision; Jetty messages you automatically only if one of its turns fails. notify=false (default true) makes it fire-and-forget: no report expected and no failure message. Choose provider/model/effort from list_models; model accepts an ID, display name, or unique short name. Reuse requestId to retry safely.',
+            'Create an independent agent thread in this project. Environment defaults to yours: local shares the project checkout; worktree creates a new branch and folder. For worktree, ref resolves locally or on origin; default is your current HEAD for worktree callers, otherwise origin’s default branch. Local ignores ref. Children report with send_message; notify=false disables reporting and failure notifications. Choose provider/model/effort via list_models (model accepts an ID, display name, or unique short name). Reuse requestId for safe retries.',
           inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
@@ -381,7 +415,7 @@ export function createMcpHandler(
         'send_message',
         {
           description:
-            'Message another Jetty agent thread. Default: queue behind its current turn, so it cannot answer until that turn ends. Use steer=true for urgent corrections or status checks during a running turn; the result says whether it was steered or queued. Reuse requestId to retry safely.',
+            'Message another Jetty agent thread. Default: queue behind its current turn, so it cannot answer until that turn ends. Use steer=true for urgent corrections or status checks during a running turn; the result says whether it was steered or queued. Environment defaults to your own: local uses the project checkout; worktree creates an independent branch. ref selects the worktree base (local ref or fetched origin branch); default is your current HEAD for worktree callers, otherwise origin’s default branch. Local ignores ref. Reuse requestId to retry safely.',
           inputSchema: sendInput,
         },
         (input) => invoke(sendMessage(identity, input))
@@ -426,7 +460,7 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            'Archive a thread in your project, other than your own, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar. The user can still unarchive it.',
+            'Archive a thread in your project, other than your own, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar. Worktrees must be clean: commit or discard changes first. Archive removes the folder and keeps the branch; unarchive restores it.',
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
@@ -468,7 +502,9 @@ export function createMcpHandler(
                   new StoreError('not_found', 'Attachment not found in caller project')
                 )
               }),
-            projectPath: project.path,
+            projectPath: worktrees
+              ? yield* Effect.promise(() => worktrees.root(caller.id))
+              : project.path,
             turnId: () => orch.currentTurn(caller.id) ?? '',
             emit: (
               event: Parameters<typeof orch.emitMedia>[2],

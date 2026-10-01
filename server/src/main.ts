@@ -50,6 +50,7 @@ import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { createTitlePrompt, type TitlePrompt } from './title-model'
 import { chainTitlers, firstLineTitler, titleModelTitler, type Titler } from './titler'
+import { createWorktrees } from './worktrees'
 import { createRpcHandlers } from './ws'
 
 export type ServerOptions = {
@@ -225,6 +226,10 @@ function createServer(opts: ServerOptions = {}) {
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)
     const hub = createHub()
+    const worktrees = createWorktrees(store, home, (thread) =>
+      hub.pushChrome({ type: 'thread.upserted', thread })
+    )
+    yield* Effect.promise(() => worktrees.reconcile())
     const io = yield* Layer.build(
       Layer.mergeAll(
         AttachmentsLive(home),
@@ -399,6 +404,7 @@ function createServer(opts: ServerOptions = {}) {
         onPullRequestOutput: pullRequestLinks.linkFound,
         modelCatalog,
         knownModels: () => models ?? [],
+        worktrees,
       })
     )
     const orch = Context.get(services, OrchestratorService)
@@ -411,7 +417,7 @@ function createServer(opts: ServerOptions = {}) {
       () => models,
       refreshModels,
       pullRequests,
-      undefined,
+      worktrees,
       () => modelDiscovery,
       () =>
         Effect.gen(function* () {
@@ -458,7 +464,8 @@ function createServer(opts: ServerOptions = {}) {
       attachments,
       () => models,
       pullRequestLinks,
-      (threadId) => handlers['thread.archive']({ threadId, archived: true })
+      (threadId) => handlers['thread.archive']({ threadId, archived: true }),
+      worktrees
     )
     registerClaudeMcp = handleMcp.register
     const app = Effect.gen(function* () {
@@ -530,6 +537,7 @@ function createServer(opts: ServerOptions = {}) {
       `http://${mcpHostname.includes(':') ? `[${mcpHostname}]` : mcpHostname}:${server.address.port}/mcp`
     )
     yield* orch.resumeQueues()
+    yield* Effect.addFinalizer(() => Effect.promise(() => worktrees.shutdown()))
 
     return {
       home,
@@ -537,6 +545,8 @@ function createServer(opts: ServerOptions = {}) {
       hostname: server.address.hostname,
       store,
       hub,
+      mcp,
+      shutdown: worktrees.shutdown,
     }
   })
 }
@@ -556,7 +566,7 @@ export async function startServer(opts: ServerOptions = {}) {
     return {
       ...running,
       stop() {
-        return (stopped ??= runtime.dispose())
+        return (stopped ??= running.shutdown().then(() => runtime.dispose()))
       },
     }
   } catch (error) {
@@ -572,7 +582,7 @@ if (import.meta.main) {
       yield* Effect.logInfo(`jetty listening on http://${running.hostname}:${running.port}`)
       if (!claudeBin)
         yield* Effect.logWarning("no installed claude found; using the SDK's bundled CLI")
-      yield* Effect.never
+      yield* Effect.never.pipe(Effect.onInterrupt(() => Effect.promise(() => running.shutdown())))
     }).pipe(Effect.provide(serverLayer()))
   )
 }
