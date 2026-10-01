@@ -1,3 +1,4 @@
+import type { DiffScope } from '@jetty/shared/wire'
 import type { CodeViewOptions, FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
 import { Button } from '@/components/ui/button'
@@ -277,8 +278,8 @@ export function FileChangesViewer({
   loadFile,
   reveal,
 }: {
-  scope?: 'branch' | 'uncommitted'
-  onScopeChange?: (scope: 'branch' | 'uncommitted') => void
+  scope?: DiffScope
+  onScopeChange?: (scope: DiffScope) => void
   files: FileChange[]
   footer?: ReactNode
   embedded?: boolean
@@ -461,7 +462,9 @@ export function FileChangesViewer({
       >
         <div className='flex min-w-0 items-center gap-2 text-xs'>
           {layout === 'page' && treeToggle}
-          {layout === 'panel' && <ChangesScopePicker value={scope} onChange={onScopeChange} />}
+          {layout === 'panel' && onScopeChange && (
+            <ChangesScopePicker value={scope} onChange={onScopeChange} />
+          )}
         </div>
         <div className='flex items-center gap-2'>
           <Tabs

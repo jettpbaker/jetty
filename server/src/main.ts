@@ -545,8 +545,6 @@ function createServer(opts: ServerOptions = {}) {
       hostname: server.address.hostname,
       store,
       hub,
-      mcp,
-      shutdown: worktrees.shutdown,
     }
   })
 }
@@ -566,7 +564,7 @@ export async function startServer(opts: ServerOptions = {}) {
     return {
       ...running,
       stop() {
-        return (stopped ??= running.shutdown().then(() => runtime.dispose()))
+        return (stopped ??= runtime.dispose())
       },
     }
   } catch (error) {
@@ -582,7 +580,7 @@ if (import.meta.main) {
       yield* Effect.logInfo(`jetty listening on http://${running.hostname}:${running.port}`)
       if (!claudeBin)
         yield* Effect.logWarning("no installed claude found; using the SDK's bundled CLI")
-      yield* Effect.never.pipe(Effect.onInterrupt(() => Effect.promise(() => running.shutdown())))
+      yield* Effect.never
     }).pipe(Effect.provide(serverLayer()))
   )
 }

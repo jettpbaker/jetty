@@ -74,6 +74,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
               thread: {
                 id,
                 projectId,
+                environment: 'local' as const,
                 title: 'Thread',
                 status: 'idle' as const,
                 archived: false,

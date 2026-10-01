@@ -47,14 +47,19 @@ const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 // Keeps non-ASCII paths readable in diff headers instead of octal-escaped.
 const diffArgs = ['-c', 'core.quotePath=false', 'diff']
 
+// A branch's own changes start at its merge base, so merging main in doesn't show main's work.
+function diffBase(cwd: string, baseCommit?: string) {
+  if (!baseCommit) return Effect.succeed(undefined)
+  return git(cwd, ['merge-base', baseCommit, 'HEAD']).pipe(
+    Effect.map((base) => (base.code === 0 ? base.out.trim() : baseCommit))
+  )
+}
+
 export function computeThreadDiff(cwd: string, baseCommit?: string) {
   return Effect.gen(function* () {
     const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
-    const base = baseCommit ? yield* git(cwd, ['merge-base', baseCommit, 'HEAD']) : undefined
-    const tracked = yield* git(cwd, [
-      ...diffArgs,
-      head.code === 0 ? (base?.code === 0 ? base.out.trim() : (baseCommit ?? 'HEAD')) : EMPTY_TREE,
-    ])
+    const base = yield* diffBase(cwd, baseCommit)
+    const tracked = yield* git(cwd, [...diffArgs, head.code === 0 ? (base ?? 'HEAD') : EMPTY_TREE])
     if (tracked.code !== 0) return { diff: '' }
     const untracked = yield* git(cwd, ['ls-files', '-z', '--others', '--exclude-standard'])
     const parts = [tracked.out]
@@ -125,12 +130,7 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
     const root = yield* fs.realPath(top.out.trim()).pipe(Effect.option)
     if (top.code !== 0 || Option.isNone(root))
       return yield* Effect.fail(new StoreError('invalid_params', 'Not a git repository'))
-    const base = baseCommit ? yield* git(cwd, ['merge-base', baseCommit, 'HEAD']) : undefined
-    const before = yield* readHead(
-      root.value,
-      prevPath,
-      base?.code === 0 ? base.out.trim() : baseCommit
-    )
+    const before = yield* readHead(root.value, prevPath, yield* diffBase(cwd, baseCommit))
     if (typeof before === 'object' && before) return before
     const after = yield* readWorkingTree(root.value, path)
     if (typeof after === 'object' && after) return after

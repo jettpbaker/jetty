@@ -1,3 +1,5 @@
+import type { DiffScope } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -7,14 +9,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export type ChangesScope = 'branch' | 'uncommitted'
-
 export function ChangesScopePicker({
   value,
   onChange,
 }: {
-  value: ChangesScope
-  onChange?: (scope: ChangesScope) => void
+  value: DiffScope
+  onChange: (scope: DiffScope) => void
 }) {
   const label = value === 'branch' ? 'Branch' : 'Uncommitted'
   return (
@@ -29,12 +29,10 @@ export function ChangesScopePicker({
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(next) => {
-            if (next === 'branch' || next === 'uncommitted') onChange?.(next)
+            if (next === 'branch' || next === 'uncommitted') onChange(next)
           }}
         >
-          <DropdownMenuRadioItem value='branch' disabled={!onChange}>
-            Branch
-          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value='branch'>Branch</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value='uncommitted'>Uncommitted</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>

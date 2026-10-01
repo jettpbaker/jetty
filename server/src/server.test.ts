@@ -1670,9 +1670,7 @@ describe('thread.diff', () => {
       projectId: project.id,
     })
 
-    const res = await c.request('thread.diff', {
-      threadId: thread.id,
-    })
+    const res = await c.request('thread.diff', { threadId: thread.id, scope: 'uncommitted' })
     expect(res.diff).toBe('')
     expect(res.truncatedPaths).toBeUndefined()
 

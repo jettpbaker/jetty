@@ -186,7 +186,7 @@ export function createOrchestrator({
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           state(threadId).turnId = null
           if (worktrees)
-            yield* Effect.promise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
+            yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
         }
       })
     }
@@ -316,7 +316,10 @@ export function createOrchestrator({
               if (!title) return
               const updated = yield* store.setGeneratedTitle(threadId, title)
               if (!updated) return
-              if (worktrees) yield* Effect.promise(() => worktrees.rename(threadId, title))
+              if (worktrees)
+                yield* Effect.tryPromise(() => worktrees.rename(threadId, title)).pipe(
+                  Effect.ignore
+                )
               hub.pushChrome({
                 type: 'thread.upserted',
                 thread: yield* store.requireThread(threadId),
@@ -530,7 +533,8 @@ export function createOrchestrator({
               const { agent } = chosen
               let cwd: string | undefined
               if (worktrees && !state(input.threadId).turnId) {
-                const preparing = state(input.threadId)
+                // The message waits in the queue while the worktree is prepared, so a failed
+                // setup keeps it for Retry.
                 if (thread.environment === 'worktree' && !input.queued) {
                   const message: QueuedMessage = {
                     id: newId(),
@@ -543,6 +547,7 @@ export function createOrchestrator({
                   yield* onCommit
                   input = { ...input, queued: message }
                 }
+                const preparing = state(input.threadId)
                 preparing.ready = false
                 const prepared = yield* Effect.tryPromise({
                   try: (signal) => worktrees.prepare(input.threadId, signal),
@@ -557,21 +562,7 @@ export function createOrchestrator({
                   )
                 )
                 if (prepared._tag === 'Failure') {
-                  if (!input.queued) {
-                    yield* store.enqueue(thread.id, {
-                      id: newId(),
-                      text: input.text,
-                      createdAt: Date.now(),
-                      hop: 0,
-                      attachments: saved.meta,
-                    })
-                  }
-                  yield* onCommit
                   yield* setQueuePaused(thread.id, true)
-                  hub.pushChrome({
-                    type: 'thread.upserted',
-                    thread: yield* store.requireThread(thread.id),
-                  })
                   return { turnId: '' }
                 }
                 cwd = prepared.success

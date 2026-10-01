@@ -59,7 +59,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string) {
           thread.provider && thread.model
             ? catalogModelName(chrome.models, thread.provider, thread.model)
             : undefined,
-        env: thread.environment ?? 'local',
+        env: thread.environment,
         status: childStatus(threadStatus(thread.status, thread.readyForReview)),
         updatedAt: thread.updatedAt,
         run:

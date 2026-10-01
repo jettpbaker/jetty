@@ -176,14 +176,13 @@ export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 export const ThreadMeta = Schema.Struct({
   id: Schema.String,
   projectId: Schema.String,
-  environment: Schema.optional(Schema.Literals(['local', 'worktree'])),
+  environment: Schema.Literals(['local', 'worktree']),
   workingPath: Schema.optional(Schema.String),
   worktree: Schema.optional(
     Schema.Struct({
       state: Schema.Literals(['pending', 'setting_up', 'ready', 'failed']),
       error: Schema.NullOr(Schema.String),
       branch: Schema.NullOr(Schema.String),
-      ref: Schema.String,
     })
   ),
   title: Schema.String,
@@ -235,6 +234,9 @@ export const ProviderUsage = Schema.Struct({
   asOf: Schema.optional(Schema.Finite),
 })
 export type ProviderUsage = Schema.Schema.Type<typeof ProviderUsage>
+
+export const DiffScope = Schema.Literals(['branch', 'uncommitted'])
+export type DiffScope = Schema.Schema.Type<typeof DiffScope>
 
 export const methods = {
   'settings.providerUsage': {
@@ -347,10 +349,7 @@ export const methods = {
     result: Schema.Null,
   },
   'thread.diff': {
-    params: Schema.Struct({
-      threadId: Schema.String,
-      scope: Schema.optional(Schema.Literals(['branch', 'uncommitted'])),
-    }),
+    params: Schema.Struct({ threadId: Schema.String, scope: DiffScope }),
     result: Schema.Struct({
       diff: Schema.String,
       truncatedPaths: Schema.optional(Schema.Array(Schema.String)),
@@ -358,8 +357,8 @@ export const methods = {
   },
   'thread.diffFile': {
     params: Schema.Struct({
-      scope: Schema.optional(Schema.Literals(['branch', 'uncommitted'])),
       threadId: Schema.String,
+      scope: DiffScope,
       path: Schema.String,
       prevPath: Schema.optional(Schema.String),
     }),

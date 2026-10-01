@@ -116,7 +116,7 @@ for (const replay of [false, true]) {
             threadId: f.thread.id,
             ...(replay ? { afterSeq: 0 } : {}),
           })
-          await f.connection.request('thread.diff', { threadId: f.thread.id })
+          await f.connection.request('thread.diff', { threadId: f.thread.id, scope: 'uncommitted' })
           expect(readStarted).toBe(false)
         }
         expect(subscription.messages).toEqual([])

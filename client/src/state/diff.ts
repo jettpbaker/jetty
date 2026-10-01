@@ -1,3 +1,5 @@
+import type { DiffScope, ThreadMeta } from '@jetty/shared/wire'
+
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
@@ -7,27 +9,27 @@ import { useChrome } from './chrome'
 import { connectionAtom } from './connection'
 import { useThread } from './threads'
 
-const diffAtom = Atom.family((key: string) =>
-  Atom.make((get) =>
-    get.result(connectionAtom).pipe(
-      Effect.flatMap((connection) =>
-        connection.request('thread.diff', {
-          threadId: key.split('\0')[0]!,
-          scope: key.split('\0')[1] as 'branch' | 'uncommitted',
-        })
-      )
-    )
+const diffAtom = Atom.family((key: string) => {
+  const [threadId, scope] = key.split('\0') as [string, DiffScope]
+  return Atom.make((get) =>
+    get
+      .result(connectionAtom)
+      .pipe(Effect.flatMap((connection) => connection.request('thread.diff', { threadId, scope })))
   ).pipe(Atom.setIdleTTL('10 minutes'))
-)
+})
 
 const liveStatuses = new Set(['starting', 'running', 'awaiting_approval'])
 
+// Worktree threads show everything since their base commit; local ones only uncommitted edits.
+export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
+  return thread?.environment === 'worktree' ? 'branch' : 'uncommitted'
+}
+
 // Mount only while the diff is on screen: a cached diff renders at once and is
 // refreshed behind it, and every finished turn refreshes it again.
-export function useThreadDiff(threadId: string, scope?: 'branch' | 'uncommitted') {
+export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
-  const selectedScope = scope ?? (meta?.environment === 'worktree' ? 'branch' : 'uncommitted')
-  const atom = diffAtom(`${threadId}\0${selectedScope}`)
+  const atom = diffAtom(`${threadId}\0${scope ?? defaultDiffScope(meta)}`)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
   const live = liveStatuses.has(useThread(threadId)?.status ?? 'idle')
@@ -49,7 +51,7 @@ export function useThreadDiff(threadId: string, scope?: 'branch' | 'uncommitted'
   }
 }
 
-export function useDiffFileLoader(threadId: string, scope?: 'branch' | 'uncommitted') {
+export function useDiffFileLoader(threadId: string, scope: DiffScope) {
   const registry = useContext(RegistryContext)
   return useCallback(
     (path: string, prevPath?: string) =>

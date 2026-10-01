@@ -30,9 +30,11 @@ export function ComposerBranch({
       labelPrefix='From '
       icon={<GitBranchIcon />}
       value={branch ?? ''}
-      options={[...new Set([...refs, branch])]
-        .filter((ref): ref is string => Boolean(ref))
-        .map((ref) => ({ value: ref, label: ref, pinned: ref === refs[0] }))}
+      options={[...new Set(branch ? [...refs, branch] : refs)].map((ref) => ({
+        value: ref,
+        label: ref,
+        pinned: ref === refs[0],
+      }))}
       onValueChange={onChange}
       onSearch={onSearch}
     />

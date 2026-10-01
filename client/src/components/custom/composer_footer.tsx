@@ -1,9 +1,11 @@
+import type { ResultOf } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
 import { useBranches } from '@/state/worktrees'
 import { PlusIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ComposerBranch } from './composer_branch'
 import { ComposerEnvironment } from './composer_environment'
@@ -33,28 +35,24 @@ export function ComposerFooter({
   const projects = chrome?.projects ?? []
   const fetchBranches = useBranches()
   const request = useRef(0)
-  const [branchList, setBranchList] = useState<{
-    defaultRef: string
-    currentBranch: string
-    branches: readonly string[]
-  }>()
-  function search(query: string) {
-    if (!projectId) return
-    const revision = ++request.current
-    fetchBranches(projectId, query, environment === 'local', (result) => {
-      if (revision === request.current) setBranchList(result)
-    })
-  }
+  const [branchList, setBranchList] = useState<ResultOf<'project.branches'>>()
+  // Only the newest request may land; a stale list would show the wrong project or search.
+  const load = useCallback(
+    (query: string, onLoaded?: (result: ResultOf<'project.branches'>) => void) => {
+      if (!projectId) return
+      const revision = ++request.current
+      fetchBranches(projectId, query, environment === 'local', (result) => {
+        if (revision !== request.current) return
+        setBranchList(result)
+        onLoaded?.(result)
+      })
+    },
+    [projectId, environment, fetchBranches]
+  )
   useEffect(() => {
     setBranchList(undefined)
-    if (!projectId) return
-    const revision = ++request.current
-    fetchBranches(projectId, '', environment === 'local', (result) => {
-      if (revision !== request.current) return
-      setBranchList(result)
-      onStartingRefChange(result.defaultRef)
-    })
-  }, [projectId, environment, fetchBranches, onStartingRefChange])
+    load('', (result) => onStartingRefChange(result.defaultRef))
+  }, [load, onStartingRefChange])
 
   return (
     <div
@@ -85,7 +83,7 @@ export function ComposerFooter({
           branch={environment === 'worktree' ? startingRef : branchList?.currentBranch}
           refs={branchList?.branches}
           onChange={environment === 'worktree' ? onStartingRefChange : undefined}
-          onSearch={search}
+          onSearch={load}
         />
       </div>
       <ProjectFolderDialog

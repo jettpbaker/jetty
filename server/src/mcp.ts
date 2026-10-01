@@ -110,8 +110,7 @@ export function createMcpHandler(
     }
 
     function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
-      let environment: 'local' | 'worktree' = 'local'
-      let base = ''
+      let baseCommit: string | undefined
       const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
@@ -168,7 +167,7 @@ export function createMcpHandler(
             )
           const id = newId()
           yield* store.createThread(caller.projectId, id)
-          yield* store.setThreadEnvironment(id, environment, base)
+          yield* store.setThreadEnvironment(id, baseCommit)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
@@ -201,24 +200,18 @@ export function createMcpHandler(
           const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
           if (previous) return previous
         }
-        environment = input.environment ?? caller.environment ?? 'local'
-        if (environment === 'worktree') {
-          const project = yield* store.getProject(caller.projectId)
-          if (!project || !worktrees)
-            return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-          const cwd =
-            caller.environment === 'worktree'
-              ? yield* Effect.promise(() => worktrees.root(caller.id))
-              : project.path
-          base = yield* Effect.tryPromise({
-            try: () =>
-              worktrees.resolveRef(
-                cwd,
-                input.ref ?? (caller.environment === 'worktree' ? 'HEAD' : undefined)
-              ),
-            catch: (error) => new StoreError('invalid_params', String(error)),
-          })
-        }
+        if ((input.environment ?? caller.environment) === 'local') return yield* create
+        const project = yield* store.getProject(caller.projectId)
+        if (!project || !worktrees)
+          return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+        const fromWorktree = caller.environment === 'worktree'
+        const cwd = fromWorktree
+          ? yield* Effect.promise(() => worktrees.root(caller.id))
+          : project.path
+        baseCommit = yield* Effect.tryPromise({
+          try: () => worktrees.resolveRef(cwd, input.ref ?? (fromWorktree ? 'HEAD' : undefined)),
+          catch: (error) => new StoreError('invalid_params', String(error)),
+        })
         return yield* create
       })
     }
@@ -415,7 +408,7 @@ export function createMcpHandler(
         'send_message',
         {
           description:
-            'Message another Jetty agent thread. Default: queue behind its current turn, so it cannot answer until that turn ends. Use steer=true for urgent corrections or status checks during a running turn; the result says whether it was steered or queued. Environment defaults to your own: local uses the project checkout; worktree creates an independent branch. ref selects the worktree base (local ref or fetched origin branch); default is your current HEAD for worktree callers, otherwise origin’s default branch. Local ignores ref. Reuse requestId to retry safely.',
+            'Message another Jetty agent thread. Default: queue behind its current turn, so it cannot answer until that turn ends. Use steer=true for urgent corrections or status checks during a running turn; the result says whether it was steered or queued. Reuse requestId to retry safely.',
           inputSchema: sendInput,
         },
         (input) => invoke(sendMessage(identity, input))

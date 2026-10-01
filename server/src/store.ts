@@ -26,7 +26,7 @@ import { SqlClient } from 'effect/unstable/sql'
 
 import { normalizePath } from './fs-browse'
 
-const DEFAULT_THREAD_TITLE = 'New thread'
+export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
 const EVICT_AFTER_MS = 5 * 60_000
 
@@ -72,28 +72,12 @@ type ThreadRow = {
 
 export type WorktreeRecord = {
   checkoutPath: string | null
-  ref: string
-  baseCommit: string | null
+  baseCommit: string
   branch: string | null
   temporaryBranch: string | null
-  prefix: string | null
   slot: number | null
   state: 'pending' | 'setting_up' | 'ready' | 'failed'
   error: string | null
-}
-
-export function newWorktree(ref: string): WorktreeRecord {
-  return {
-    checkoutPath: null,
-    ref,
-    baseCommit: null,
-    branch: null,
-    temporaryBranch: null,
-    prefix: null,
-    slot: null,
-    state: 'pending',
-    error: null,
-  }
 }
 
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
@@ -149,14 +133,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     ...(worktree?.checkoutPath ? { workingPath: worktree.checkoutPath } : {}),
     ...(git?.branch ? { git: { branch: git.branch, dirty: git.dirty ?? false } } : {}),
     ...(worktree
-      ? {
-          worktree: {
-            state: worktree.state,
-            error: worktree.error,
-            branch: worktree.branch,
-            ref: worktree.ref,
-          },
-        }
+      ? { worktree: { state: worktree.state, error: worktree.error, branch: worktree.branch } }
       : {}),
     title: row.title,
     status: row.status,
@@ -564,18 +541,28 @@ export function createStore() {
           yield* sql`INSERT INTO settings (key, value_json) VALUES ('branchPrefix', ${JSON.stringify(prefix)}) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`
         }).pipe(Effect.mapError(storeError))
       },
-      setThreadEnvironment(
-        threadId: string,
-        environment: 'local' | 'worktree',
-        ref = 'origin/main'
-      ) {
-        return sql`UPDATE threads SET environment = ${environment}, worktree_json = ${environment === 'worktree' ? JSON.stringify(newWorktree(ref)) : null} WHERE id = ${threadId}`.pipe(
+      // A worktree thread starts from a resolved base commit; everything else fills in at first send.
+      setThreadEnvironment(threadId: string, baseCommit?: string) {
+        const worktree: WorktreeRecord | null = baseCommit
+          ? {
+              checkoutPath: null,
+              baseCommit,
+              branch: null,
+              temporaryBranch: null,
+              slot: null,
+              state: 'pending',
+              error: null,
+            }
+          : null
+        return sql`UPDATE threads SET environment = ${worktree ? 'worktree' : 'local'}, worktree_json = ${worktree && JSON.stringify(worktree)} WHERE id = ${threadId}`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )
       },
       getWorktree(threadId: string) {
-        return sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`.pipe(
+        return sql<{
+          worktree_json: string | null
+        }>`SELECT worktree_json FROM threads WHERE id = ${threadId}`.pipe(
           Effect.map((rows) =>
             rows[0]?.worktree_json ? (JSON.parse(rows[0].worktree_json) as WorktreeRecord) : null
           ),
@@ -601,11 +588,14 @@ export function createStore() {
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       listWorktrees() {
-        return sql<ThreadRow>`SELECT * FROM threads WHERE worktree_json IS NOT NULL`.pipe(
+        return sql<{
+          id: string
+          worktree_json: string
+        }>`SELECT id, worktree_json FROM threads WHERE worktree_json IS NOT NULL`.pipe(
           Effect.map((rows) =>
             rows.map((row) => ({
               threadId: row.id,
-              record: JSON.parse(row.worktree_json!) as WorktreeRecord,
+              record: JSON.parse(row.worktree_json) as WorktreeRecord,
             }))
           ),
           Effect.mapError(storeError)
@@ -866,6 +856,7 @@ export function createStore() {
           const thread: ThreadMeta = {
             id,
             projectId,
+            environment: 'local',
             title: DEFAULT_THREAD_TITLE,
             status: 'idle',
             archived: false,

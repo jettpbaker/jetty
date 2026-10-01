@@ -1,4 +1,6 @@
-import { useDiffFileLoader, useThreadDiff, useChrome } from '@/state'
+import type { DiffScope } from '@jetty/shared/wire'
+
+import { defaultDiffScope, useChrome, useDiffFileLoader, useThreadDiff } from '@/state'
 import { lazy, Suspense, useLayoutEffect, useMemo, useState } from 'react'
 
 import type { FileTarget } from './file_link'
@@ -32,8 +34,8 @@ const PatchViewer = lazy(async () => {
     notShown: readonly string[]
     target?: FileTarget
     onTarget: OnTarget
-    scope: 'branch' | 'uncommitted'
-    onScopeChange: (scope: 'branch' | 'uncommitted') => void
+    scope: DiffScope
+    onScopeChange: (scope: DiffScope) => void
   }) {
     const files = useMemo(() => parseFileChanges(patch), [patch])
     const loadFile = useDiffFileLoader(threadId, scope)
@@ -72,9 +74,9 @@ export function ThreadChanges({
   target?: FileTarget
   onTarget: OnTarget
 }) {
-  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
-  const [pickedScope, setScope] = useState<'branch' | 'uncommitted'>()
-  const scope = pickedScope ?? (meta?.environment === 'worktree' ? 'branch' : 'uncommitted')
+  const [pickedScope, setScope] = useState<DiffScope>()
+  const scope =
+    pickedScope ?? defaultDiffScope(useChrome()?.threads.find((thread) => thread.id === threadId))
   const { diff, failed } = useThreadDiff(threadId, scope)
   const nothingChanged = failed || diff?.diff === ''
   useLayoutEffect(() => {
