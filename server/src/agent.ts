@@ -1,6 +1,7 @@
 import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type {
+  BackgroundTask,
   EffortLevel,
   PermissionMode,
   ProviderModel,
@@ -29,6 +30,7 @@ export type TurnInput = {
 }
 
 export type AgentHooks = {
+  onBackgroundTasks?: (threadId: string, tasks: readonly BackgroundTask[]) => Effect.Effect<void>
   onUsage?: (usage: RateLimits) => void
 }
 
@@ -46,6 +48,7 @@ export type Agent = {
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
   busy?: (threadId: string) => boolean
+  stopBackgroundTasks?: (threadId: string, taskId?: string) => Effect.Effect<void, AgentError>
   stopWorkflow?: (threadId: string, taskId: string) => Effect.Effect<boolean, AgentError>
   steer(
     threadId: string,

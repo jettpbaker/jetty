@@ -216,7 +216,7 @@ export function createRpcHandlers(
               const snapshot: ChromePushData = {
                 type: 'snapshot',
                 projects,
-                threads,
+                threads: threads.map(hub.decorateThread),
                 ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
                 modelDiscovery,
@@ -455,6 +455,10 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'turn.interrupt': (params) =>
         orch.interrupt(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
+      'background.stop': (params) =>
+        orch
+          .stopBackgroundTasks(params.threadId, params.taskId)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'workflow.stop': (params) =>
         orch
           .stopWorkflow(params.threadId, params.taskId)

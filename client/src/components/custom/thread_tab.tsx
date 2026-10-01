@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { OverflowTitle } from './overflow_title'
 
 const subagentGlyphColor: Record<ThreadStatus, string> = {
+  monitoring: 'text-muted-foreground',
   working: 'text-primary',
   'needs-attention': 'text-primary',
   idle: 'text-status-success',

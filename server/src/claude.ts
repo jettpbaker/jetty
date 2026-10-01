@@ -39,6 +39,7 @@ import {
   type TurnInput,
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
+import { createBackgroundTasks } from './claude-background'
 import { claudeBin } from './claude-bin'
 import {
   createTranslateCtx,
@@ -125,7 +126,7 @@ type WarmSession = {
   runningAgents: Set<string>
   runningWorkflows: Set<string>
   stoppedWorkflows: Set<string>
-  backgroundTasks: Set<string>
+  backgroundTasks: ReturnType<typeof createBackgroundTasks>
   emit: Emit
   closed: boolean
   queryClosed: boolean
@@ -313,6 +314,8 @@ export function createClaudeAdapter(
             })
             .pipe(Effect.ignore)
         session.runningWorkflows.clear()
+        session.backgroundTasks.live.clear()
+        yield* hooks.onBackgroundTasks?.(session.threadId, []) ?? Effect.void
         if (session.awaitingResult) {
           session.awaitingResult = false
           yield* session
@@ -380,7 +383,7 @@ export function createClaudeAdapter(
           session.awaitingResult ||
           session.runningAgents.size ||
           session.runningWorkflows.size ||
-          session.backgroundTasks.size ||
+          session.backgroundTasks.live.size ||
           session.idle
         )
           return
@@ -432,14 +435,16 @@ export function createClaudeAdapter(
             }
             // Background subagents keep working after the turn that spawned them ends.
             const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
-            if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
-              session.backgroundTasks = new Set(
-                message.tasks.filter((task) => !task.ambient).map((task) => task.task_id)
+            const previousTasks = JSON.stringify(session.backgroundTasks.tasks())
+            session.backgroundTasks.ingest(message)
+            if (previousTasks !== JSON.stringify(session.backgroundTasks.tasks()))
+              yield* (
+                hooks.onBackgroundTasks?.(session.threadId, session.backgroundTasks.tasks()) ??
+                  Effect.void
               )
-              if (session.backgroundTasks.size && session.idle) {
-                yield* Fiber.interrupt(session.idle)
-                session.idle = null
-              }
+            if (session.backgroundTasks.live.size && session.idle) {
+              yield* Fiber.interrupt(session.idle)
+              session.idle = null
             }
             if (
               !session.awaitingResult &&
@@ -448,6 +453,7 @@ export function createClaudeAdapter(
             ) {
               const turnId = newId()
               session.activeTurnId = turnId
+              session.failReason = null
               session.ctx = createTranslateCtx(turnId, session.ctx)
               session.awaitingResult = true
               session.accepting = true
@@ -756,7 +762,7 @@ export function createClaudeAdapter(
           runningAgents: new Set(),
           runningWorkflows: new Set(),
           stoppedWorkflows: new Set(),
-          backgroundTasks: new Set(),
+          backgroundTasks: createBackgroundTasks(),
           emit,
           closed: false,
           queryClosed: false,
@@ -874,6 +880,32 @@ export function createClaudeAdapter(
           )
         })
       },
+      stopBackgroundTasks(threadId, taskId) {
+        return Effect.gen(function* () {
+          const session = sessions.get(threadId)
+          if (!session || !current(session)) return
+          const tasks = session.backgroundTasks
+            .tasks()
+            .filter((task) => !taskId || task.id === taskId)
+          let failure: AgentError | undefined
+          for (const task of tasks) {
+            const stopped = yield* Effect.tryPromise({
+              try: () => session.query.stopTask(task.id),
+              catch: (error) => new AgentError(String(error)),
+            }).pipe(Effect.result)
+            if (Result.isFailure(stopped)) {
+              failure = stopped.failure
+              continue
+            }
+            session.backgroundTasks.live.delete(task.id)
+            yield* (
+              hooks.onBackgroundTasks?.(threadId, session.backgroundTasks.tasks()) ?? Effect.void
+            )
+          }
+          yield* armIdle(session)
+          if (failure) return yield* Effect.fail(failure)
+        })
+      },
       stopWorkflow(threadId, taskId) {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
@@ -888,12 +920,7 @@ export function createClaudeAdapter(
       },
       busy(threadId) {
         const session = sessions.get(threadId)
-        return Boolean(
-          session &&
-          (session.runningAgents.size ||
-            session.runningWorkflows.size ||
-            session.backgroundTasks.size)
-        )
+        return Boolean(session && (session.runningAgents.size || session.runningWorkflows.size))
       },
       respondToApproval(threadId, itemId, decision, message) {
         const reason = message?.trim() || undefined

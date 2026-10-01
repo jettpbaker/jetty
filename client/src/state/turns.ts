@@ -308,6 +308,18 @@ export function useInterruptTurn() {
   return useAction(interruptTurn)
 }
 
+function stopBackgroundTasks(registry: Registry, threadId: string, taskId?: string) {
+  return run(
+    registry,
+    (connection) => connection.request('background.stop', { threadId, taskId }),
+    () => toast.error("Couldn't stop background tasks")
+  )
+}
+
+export function useStopBackgroundTasks() {
+  return useAction(stopBackgroundTasks)
+}
+
 export function useStopWorkflow() {
   return useAction(stopWorkflow)
 }

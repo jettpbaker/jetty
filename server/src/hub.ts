@@ -1,5 +1,7 @@
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 import type {
+  BackgroundTask,
+  ThreadMeta,
   ChromePushData,
   PullRequestList,
   PullRequestListTab,
@@ -7,11 +9,19 @@ import type {
   WireError,
 } from '@jetty/shared/wire'
 
+import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Queue, Semaphore } from 'effect'
 
 export type Hub = ReturnType<typeof createHub>
 
 export function createHub() {
+  const backgroundTasks = new Map<string, readonly BackgroundTask[]>()
+
+  function decorateThread(thread: ThreadMeta): ThreadMeta {
+    const tasks = backgroundTasks.get(thread.id) ?? []
+    return { ...thread, backgroundTasks: tasks, status: backgroundStatus(thread.status, tasks) }
+  }
+
   const chromePublication = Semaphore.makeUnsafe(1)
   const chromeSubs = new Set<Queue.Queue<ChromePushData, WireError>>()
   const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
@@ -22,6 +32,8 @@ export function createHub() {
   >()
 
   function pushChrome(data: ChromePushData) {
+    if (data.type === 'thread.upserted') data = { ...data, thread: decorateThread(data.thread) }
+    if (data.type === 'snapshot') data = { ...data, threads: data.threads.map(decorateThread) }
     for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
   }
 
@@ -111,6 +123,11 @@ export function createHub() {
   }
 
   return {
+    decorateThread,
+    setBackgroundTasks(threadId: string, tasks: readonly BackgroundTask[]) {
+      if (tasks.length) backgroundTasks.set(threadId, tasks)
+      else backgroundTasks.delete(threadId)
+    },
     withChromePublication: chromePublication.withPermit,
     pushChrome,
     pushThread,

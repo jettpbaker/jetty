@@ -45,6 +45,12 @@ from the pointer (~0.7s spawn). Failure
 handling is lazy everywhere: a dying stream is its own detection, every store is
 append-as-you-go, and stale state is reconciled at the next boot instead of watched.
 
+Claude threads show **Monitoring** after their turn ends while background shells
+or Monitor watches remain live. Active turns, subagents and workflows show Working.
+Monitoring keeps the warm session alive; tasks can be stopped individually or
+together below the composer. Task liveness is in memory only and clears on session
+closure or server restart.
+
 Claude runs on your installed Claude Code, so its auto-updates (and new models) reach
 jetty without a dependency bump. `JETTY_CLAUDE_BIN` selects the executable (default
 `claude`, resolved on the server's `PATH`); if it doesn't resolve, jetty falls back to

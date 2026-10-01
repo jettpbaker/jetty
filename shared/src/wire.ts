@@ -174,6 +174,17 @@ export const QueuedMessage = Schema.Struct({
 })
 export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 
+export const BackgroundTask = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  startedAt: Schema.Int,
+})
+export type BackgroundTask = Schema.Schema.Type<typeof BackgroundTask>
+
+export function backgroundStatus(status: SessionStatus, tasks: readonly BackgroundTask[]) {
+  return tasks.length && (status === 'idle' || status === 'error') ? 'monitoring' : status
+}
+
 export const ThreadMeta = Schema.Struct({
   id: Schema.String,
   projectId: Schema.String,
@@ -188,6 +199,7 @@ export const ThreadMeta = Schema.Struct({
   ),
   title: Schema.String,
   status: SessionStatus,
+  backgroundTasks: Schema.optional(Schema.Array(BackgroundTask)),
   queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
@@ -504,6 +516,10 @@ export const methods = {
   },
   'turn.interrupt': {
     params: Schema.Struct({ threadId: Schema.String }),
+    result: Schema.Null,
+  },
+  'background.stop': {
+    params: Schema.Struct({ threadId: Schema.String, taskId: Schema.optional(Schema.String) }),
     result: Schema.Null,
   },
   'workflow.stop': {

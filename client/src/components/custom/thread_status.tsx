@@ -11,9 +11,11 @@ import {
   SuccessStatusIcon,
 } from './circle_status_icon'
 import { InProgressIcon } from './in_progress_icon'
+import { MonitoringIcon } from './monitoring_icon'
 
 // One status vocabulary for threads, child threads and workflow agents.
 export type Status =
+  | 'monitoring'
   | 'idle'
   | 'working'
   | 'needs-attention'
@@ -24,11 +26,13 @@ export type Status =
   | 'queued'
 export type ThreadStatus = Extract<
   Status,
-  'idle' | 'working' | 'needs-attention' | 'error' | 'ready'
+  'monitoring' | 'idle' | 'working' | 'needs-attention' | 'error' | 'ready'
 >
 
 export function threadStatus(status: SessionStatus, readyForReview = false): ThreadStatus {
   switch (status) {
+    case 'monitoring':
+      return 'monitoring'
     case 'idle':
       return readyForReview ? 'ready' : 'idle'
     case 'starting':
@@ -45,6 +49,7 @@ export const statusPresentation: Record<
   Status,
   { icon: ComponentType<SVGProps<SVGSVGElement>> | null; label: string; color: string }
 > = {
+  monitoring: { icon: MonitoringIcon, label: 'Monitoring', color: 'text-muted-foreground' },
   idle: { icon: null, label: 'Idle', color: 'text-muted-foreground' },
   working: { icon: InProgressIcon, label: 'Working', color: 'text-status-working' },
   'needs-attention': { icon: NeedsInputIcon, label: 'Needs input', color: 'text-status-attention' },

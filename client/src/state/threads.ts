@@ -2,10 +2,12 @@ import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { useAtomValue } from '@effect/atom-react'
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
+import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom } from 'effect/unstable/reactivity'
 import { useEffect, useRef, useState } from 'react'
 
+import { chromeAtom } from './chrome'
 import { subscribe } from './connection'
 import { awaitCreation } from './mutations'
 
@@ -38,7 +40,10 @@ const liveAtom = Atom.family((threadId: string) =>
 export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
     const resume = get(resumeAtom(threadId))
-    return AsyncResult.getOrElse(get(liveAtom(threadId)), () => resume)
+    const state = AsyncResult.getOrElse(get(liveAtom(threadId)), () => resume)
+    const tasks =
+      get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.backgroundTasks ?? []
+    return state ? { ...state, status: backgroundStatus(state.status, tasks) } : state
   })
 )
 

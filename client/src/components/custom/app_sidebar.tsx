@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useNow } from '@/hooks/use-now'
 import { effortLabels } from '@/lib/loadout'
+import { monitoringElapsed } from '@/lib/monitoring'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
 import {
@@ -76,7 +77,10 @@ function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
     projectIcon: projects.get(thread.projectId)?.icon,
     parent: thread.parentThreadId && titles.get(thread.parentThreadId),
     status: threadStatus(thread.status, thread.readyForReview),
-    lastActivity: formatAge(thread.updatedAt, now),
+    lastActivity:
+      thread.status === 'monitoring' && thread.backgroundTasks?.length
+        ? monitoringElapsed(thread.backgroundTasks, now)
+        : formatAge(thread.updatedAt, now),
     environment: thread.environment,
     branch: thread.git?.branch ?? thread.worktree?.branch ?? undefined,
     startedOn: thread.git?.startingBranch,

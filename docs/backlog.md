@@ -13,17 +13,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Accept `#<PR number>` as a worktree ref by fetching the PR head.
 - Continue work on an existing branch.
 - Command palette: removed in the v2 skeleton; no design yet.
-- Monitoring state (next after worktrees and the icon swap; t3code's approach):
-  when a Claude turn ends with background work still running in its session
-  (background shells, Monitor watches), the thread reads Monitoring instead of
-  idle, the session isn't retired by the idle TTL while that work runs, and
-  output Claude emits when it wakes itself shows in the thread. In memory only;
-  a restart clears it (the work is gone too). Design: sketchpad
-  /components/monitoring variation E — the in-progress ring without its
-  half-fill, muted foreground, no motion, label "Monitoring"; one collapsed
-  line under the composer ("command +N · elapsed · Stop all", expanding to a
-  Stop per task); same ring in the tab, and the hover card shows only
-  "Monitoring · elapsed" (no command line).
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
   plus an optional precheck command Jetty runs host-side; Orca's automations
   --precheck pattern) that survives restarts and works for every provider.

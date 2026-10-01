@@ -40,6 +40,8 @@ import { useRetrySetup } from '@/state/worktrees'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { MonitoringLine } from './monitoring_line'
+
 const noItems: readonly ThreadItem[] = []
 
 // How long a request must be on screen before text started in the composer answers it.
@@ -400,12 +402,17 @@ export function ThreadComposer({
         context={
           threadId ? (
             // Holds the project/branch footer's height so the composer sits where it did on the new thread.
-            <div className='flex min-h-7 items-center justify-between px-2.5'>
-              <WorkflowLines threadId={threadId} items={items} />
-              <span className='ml-auto text-xs text-muted-foreground'>
-                {meta?.environment === 'worktree' ? 'Worktree · ' : ''}
-                {meta?.worktree?.branch ?? meta?.git?.branch}
-              </span>
+            <div className='flex w-full flex-col'>
+              {meta?.backgroundTasks?.length ? (
+                <MonitoringLine key={threadId} threadId={threadId} tasks={meta.backgroundTasks} />
+              ) : null}
+              <div className='flex min-h-7 items-center justify-between px-2.5'>
+                <WorkflowLines threadId={threadId} items={items} />
+                <span className='ml-auto text-xs text-muted-foreground'>
+                  {meta?.environment === 'worktree' ? 'Worktree · ' : ''}
+                  {meta?.worktree?.branch ?? meta?.git?.branch}
+                </span>
+              </div>
             </div>
           ) : (
             <ComposerFooter

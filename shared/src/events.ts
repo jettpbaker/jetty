@@ -4,6 +4,7 @@ import { ThreadItem } from './items'
 
 export const SessionStatus = Schema.Literals([
   'idle',
+  'monitoring',
   'starting',
   'running',
   'awaiting_approval',

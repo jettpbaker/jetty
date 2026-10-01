@@ -24,7 +24,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
-import { AgentService, ECHO_MODELS, echoLayer, type Agent } from './agent'
+import { AgentService, ECHO_MODELS, echoLayer, type Agent, type AgentHooks } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
 import { claudeBin } from './claude-bin'
@@ -244,7 +244,18 @@ function createServer(opts: ServerOptions = {}) {
     const githubMedia = createGithubMedia(home)
     const mcp = createMcpSessions()
     let lastUsage: RateLimits | null = null
-    const hooks = {
+    const hooks: AgentHooks = {
+      onBackgroundTasks(threadId, tasks) {
+        return hub
+          .withChromePublication(
+            Effect.gen(function* () {
+              hub.setBackgroundTasks(threadId, tasks)
+              const thread = yield* store.requireThread(threadId)
+              hub.pushChrome({ type: 'thread.upserted', thread })
+            })
+          )
+          .pipe(Effect.ignore)
+      },
       onUsage(usage: RateLimits) {
         lastUsage = usage
         Effect.runFork(

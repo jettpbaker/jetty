@@ -885,6 +885,14 @@ export function createOrchestrator({
           )
         })
       },
+      stopBackgroundTasks(threadId: string, taskId?: string) {
+        return Effect.gen(function* () {
+          const agent = yield* agentForThread(threadId)
+          if (!agent.stopBackgroundTasks)
+            return yield* Effect.fail(new StoreError('not_found', 'Background tasks not supported'))
+          yield* agent.stopBackgroundTasks(threadId, taskId)
+        })
+      },
       stopWorkflow(threadId: string, taskId: string) {
         return Effect.gen(function* () {
           yield* store.requireThread(threadId)

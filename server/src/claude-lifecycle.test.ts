@@ -104,6 +104,7 @@ function fakeQueries(readUsage?: () => Promise<SDKControlGetUsageResponse>) {
         async interrupt() {
           interrupts++
         },
+        stopTask: (taskId: string) => control('stopTask', taskId),
         setModel: (model?: string) => control('setModel', model),
         applyFlagSettings: (settings: object) => control('applyFlagSettings', settings),
         setPermissionMode: (mode: string) => control('setPermissionMode', mode),
@@ -993,4 +994,129 @@ describe('scoped Claude sessions', () => {
     expect(f.events.filter((event) => event.type === 'turn.failed')).toHaveLength(1)
     expect(f.events.filter((event) => event.type === 'turn.completed')).toHaveLength(1)
   })
+})
+
+test('background watches survive idle TTL, wake a synthetic turn, and stop individually or together', async () => {
+  let tasks: readonly import('@jetty/shared/wire').BackgroundTask[] = []
+  const f = await setup(
+    {},
+    {
+      onBackgroundTasks: (_id, next) =>
+        Effect.sync(() => {
+          tasks = next
+        }),
+    }
+  )
+  const turn = await f.start('monitor-parent')
+  const q = f.queries[0]!
+  q.push({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    message: {
+      content: [
+        {
+          type: 'tool_use',
+          id: 'shell-tool',
+          name: 'Bash',
+          input: { command: 'sleep 20 && echo done', run_in_background: true },
+        },
+      ],
+    },
+  })
+  q.push({
+    type: 'system',
+    subtype: 'background_tasks_changed',
+    tasks: [
+      { task_id: 'shell', task_type: 'local_bash', description: 'Wait for done' },
+      { task_id: 'watch', task_type: 'monitor', description: 'Watch checks' },
+      { task_id: 'ambient', task_type: 'monitor', description: 'Housekeeping', ambient: true },
+    ],
+  })
+  q.push({
+    type: 'system',
+    subtype: 'task_started',
+    task_id: 'shell',
+    task_type: 'local_bash',
+    tool_use_id: 'shell-tool',
+    description: 'Wait for done',
+    is_backgrounded: true,
+  })
+  q.push({ type: 'result', subtype: 'success' })
+  await f.runtime.runPromise(turn.await)
+  expect(tasks.map((task) => task.label)).toEqual(['sleep 20 && echo done', 'Watch checks'])
+  expect(f.agent.busy?.(f.thread.id)).toBe(false)
+  await f.runtime.runPromise(TestClock.adjust(2000))
+  expect(q.closed).toBe(false)
+  q.push({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    message: { content: [{ type: 'text', text: 'done' }] },
+  })
+  const wake = await f.runtime.runPromise(f.next('turn.started'))
+  expect(wake).toMatchObject({ type: 'turn.started' })
+  q.push({ type: 'result', subtype: 'success' })
+  await f.runtime.runPromise(f.next('turn.completed'))
+  expect(
+    f.events.some(
+      (event) =>
+        event.type === 'item.started' &&
+        event.item.kind === 'assistant_message' &&
+        event.item.text === 'done'
+    )
+  ).toBe(true)
+  await f.runtime.runPromise(f.agent.stopBackgroundTasks!(f.thread.id, 'shell'))
+  expect(tasks.map((task) => task.id)).toEqual(['watch'])
+  q.rejectControls()
+  await expect(f.runtime.runPromise(f.agent.stopBackgroundTasks!(f.thread.id))).rejects.toThrow(
+    'control failed'
+  )
+  expect(tasks.map((task) => task.id)).toEqual(['watch'])
+  // A task notification settles independently of a failed stop control.
+  q.push({ type: 'system', subtype: 'task_notification', task_id: 'watch', status: 'completed' })
+  q.push({
+    type: 'system',
+    subtype: 'task_progress',
+    task_id: 'watch',
+    description: 'Late progress',
+    usage: { duration_ms: 1000 },
+  })
+  await f.runtime.runPromise(TestClock.adjust(2000))
+  expect(tasks).toEqual([])
+  expect(q.closed).toBe(true)
+  expect(q.controls).toContainEqual(['stopTask', 'shell'])
+})
+
+test('Stop all removes every watch immediately and arms the normal idle timer', async () => {
+  let tasks: readonly import('@jetty/shared/wire').BackgroundTask[] = []
+  const f = await setup(
+    {},
+    {
+      onBackgroundTasks: (_id, next) =>
+        Effect.sync(() => {
+          tasks = next
+        }),
+    }
+  )
+  const turn = await f.start()
+  const q = f.queries[0]!
+  q.push({
+    type: 'system',
+    subtype: 'background_tasks_changed',
+    tasks: [
+      { task_id: 'shell', task_type: 'local_bash', description: 'shell' },
+      { task_id: 'monitor', task_type: 'monitor', description: 'monitor' },
+    ],
+  })
+  q.push({ type: 'result', subtype: 'success' })
+  await f.runtime.runPromise(turn.await)
+  await f.runtime.runPromise(f.agent.stopBackgroundTasks!(f.thread.id))
+  expect(tasks).toEqual([])
+  expect(q.controls).toEqual([
+    ['stopTask', 'shell'],
+    ['stopTask', 'monitor'],
+  ])
+  await f.runtime.runPromise(TestClock.adjust(999))
+  expect(q.closed).toBe(false)
+  await f.runtime.runPromise(TestClock.adjust(1))
+  expect(q.closed).toBe(true)
 })
