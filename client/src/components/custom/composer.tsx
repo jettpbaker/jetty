@@ -3,7 +3,6 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
-import { ComposerEnvironment } from '@/components/custom/composer_environment'
 import { ComposerShadow } from '@/components/custom/composer_shadow'
 import {
   InputGroup,
@@ -46,8 +45,6 @@ export function Composer({
   rows = 2,
   ambient = false,
   inputRef,
-  environment = 'local',
-  onEnvironmentChange,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -70,8 +67,6 @@ export function Composer({
   rows?: number
   ambient?: boolean
   inputRef?: RefObject<HTMLTextAreaElement | null>
-  environment?: 'local'
-  onEnvironmentChange?: (value: 'local') => void
 }) {
   const root = useRef<HTMLDivElement>(null)
   const ownInput = useRef<HTMLTextAreaElement>(null)
@@ -188,7 +183,6 @@ export function Composer({
                 />
               </div>
               <div className='flex items-center gap-1'>
-                <ComposerEnvironment value={environment} onValueChange={onEnvironmentChange} />
                 {stop ? (
                   <InputGroupButton
                     variant='default'

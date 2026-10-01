@@ -3,14 +3,20 @@ import { Effect } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useEffect, useRef } from 'react'
 
+import { useChrome } from './chrome'
 import { connectionAtom } from './connection'
 import { useThread } from './threads'
 
-const diffAtom = Atom.family((threadId: string) =>
+const diffAtom = Atom.family((key: string) =>
   Atom.make((get) =>
-    get
-      .result(connectionAtom)
-      .pipe(Effect.flatMap((connection) => connection.request('thread.diff', { threadId })))
+    get.result(connectionAtom).pipe(
+      Effect.flatMap((connection) =>
+        connection.request('thread.diff', {
+          threadId: key.split('\0')[0]!,
+          scope: key.split('\0')[1] as 'branch' | 'uncommitted',
+        })
+      )
+    )
   ).pipe(Atom.setIdleTTL('10 minutes'))
 )
 
@@ -18,8 +24,10 @@ const liveStatuses = new Set(['starting', 'running', 'awaiting_approval'])
 
 // Mount only while the diff is on screen: a cached diff renders at once and is
 // refreshed behind it, and every finished turn refreshes it again.
-export function useThreadDiff(threadId: string) {
-  const atom = diffAtom(threadId)
+export function useThreadDiff(threadId: string, scope?: 'branch' | 'uncommitted') {
+  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const selectedScope = scope ?? (meta?.environment === 'worktree' ? 'branch' : 'uncommitted')
+  const atom = diffAtom(`${threadId}\0${selectedScope}`)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
   const live = liveStatuses.has(useThread(threadId)?.status ?? 'idle')
@@ -41,7 +49,7 @@ export function useThreadDiff(threadId: string) {
   }
 }
 
-export function useDiffFileLoader(threadId: string) {
+export function useDiffFileLoader(threadId: string, scope?: 'branch' | 'uncommitted') {
   const registry = useContext(RegistryContext)
   return useCallback(
     (path: string, prevPath?: string) =>
@@ -50,13 +58,14 @@ export function useDiffFileLoader(threadId: string) {
           Effect.flatMap((connection) =>
             connection.request('thread.diffFile', {
               threadId,
+              scope,
               path,
               ...(prevPath === undefined ? {} : { prevPath }),
             })
           )
         )
       ),
-    [registry, threadId]
+    [registry, threadId, scope]
   )
 }
 

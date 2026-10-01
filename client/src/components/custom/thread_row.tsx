@@ -1,7 +1,7 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { ArrowElbowDownRightIcon } from '@phosphor-icons/react'
-import { DeviceDesktopIcon } from '@primer/octicons-react'
+import { DeviceDesktopIcon, GitBranchIcon } from '@primer/octicons-react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -20,6 +20,7 @@ export function ThreadRow({
   status,
   lastActivity,
   pullRequest,
+  environment,
   provider,
   model,
   effort,
@@ -35,7 +36,7 @@ export function ThreadRow({
   status: ThreadStatus
   lastActivity: string
   pullRequest?: ThreadPullRequest
-  environment: 'local'
+  environment: 'local' | 'worktree'
   provider?: ProviderId
   model?: string
   effort?: string
@@ -108,7 +109,11 @@ export function ThreadRow({
               >
                 {lastActivity}
               </span>
-              <DeviceDesktopIcon aria-label='Runs locally' className='size-3' />
+              {environment === 'worktree' ? (
+                <GitBranchIcon aria-label='Runs in a worktree' className='size-3' />
+              ) : (
+                <DeviceDesktopIcon aria-label='Runs locally' className='size-3' />
+              )}
             </span>
           </TwoLineRow>
         )}

@@ -29,6 +29,7 @@ export type Chrome = {
   usage?: RateLimits
   models?: readonly ProviderModel[]
   modelDiscovery?: ModelDiscovery
+  branchPrefix?: string
   titleModel?: TitleModel
   agentBehaviours?: AgentBehaviours
 }
@@ -50,6 +51,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         usage: update.usage,
         models: update.models,
         modelDiscovery: update.modelDiscovery,
+        branchPrefix: update.branchPrefix,
         titleModel: update.titleModel,
         agentBehaviours: update.agentBehaviours,
       }
@@ -68,6 +70,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, models: update.models }
     case 'modelDiscovery':
       return { ...chrome, modelDiscovery: update.status }
+    case 'branchPrefix':
+      return { ...chrome, branchPrefix: update.prefix }
     case 'titleModel':
       return { ...chrome, titleModel: { model: update.model, effort: update.effort } }
     case 'agentBehaviours':

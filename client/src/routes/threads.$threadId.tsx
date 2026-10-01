@@ -42,7 +42,7 @@ function Thread() {
     [markSeen, threadId]
   )
   const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
-  const projectPath = project?.path
+  const projectPath = meta?.workingPath ?? project?.path
   const [tab, setTab] = useThreadTab(threadId)
   const archiveThread = useArchiveThread()
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])

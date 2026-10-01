@@ -9,13 +9,9 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 ## later
 
-- Branches: branch picker is disabled and always reads "Branch" — nothing on the
-  server fills `ThreadMeta.git`. Real switching probably wants a worktree per thread.
-  From t3code: create the worktree on first send, store an explicit cwd per thread,
-  reuse existing worktrees, recreate a missing one; never switch a checkout under a
-  running agent; key worktree paths per repo; make branch deletion explicit.
-  QA showed the cost: a manager's children working in worktrees the manager made
-  show the project checkout in Changes.
+- Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
+- Accept `#<PR number>` as a worktree ref by fetching the PR head.
+- Continue work on an existing branch.
 - Command palette: removed in the v2 skeleton; no design yet.
 - Monitoring state (next after worktrees and the icon swap; t3code's approach):
   when a Claude turn ends with background work still running in its session

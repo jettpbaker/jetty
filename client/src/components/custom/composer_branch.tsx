@@ -1,23 +1,40 @@
+import { Button } from '@/components/ui/button'
 import { GitBranchIcon } from '@primer/octicons-react'
 
-import { DisabledTooltip } from './disabled_tooltip'
 import { OptionPicker } from './option_picker'
 
-export function ComposerBranch({ branch }: { branch?: string }) {
+export function ComposerBranch({
+  branch,
+  refs = [],
+  onChange,
+  onSearch,
+}: {
+  branch?: string
+  refs?: readonly string[]
+  onChange?: (ref: string) => void
+  onSearch?: (query: string) => void
+}) {
+  if (!onChange)
+    return (
+      <Button variant='ghost-text' size='sm' disabled>
+        <GitBranchIcon />
+        {branch || 'Branch'}
+      </Button>
+    )
   return (
-    <DisabledTooltip reason='Coming soon' wrap='flex'>
-      <OptionPicker
-        name='Branch'
-        label='Choose branch'
-        placeholder='Search branches'
-        align='end'
-        disabled
-        emptyLabel='Branch'
-        icon={<GitBranchIcon data-icon='inline-start' className='icon-optical-down' />}
-        value={branch ?? ''}
-        options={branch ? [{ value: branch, label: branch }] : []}
-        onValueChange={() => {}}
-      />
-    </DisabledTooltip>
+    <OptionPicker
+      name='From'
+      label='Choose base ref'
+      placeholder='Search branches'
+      align='end'
+      labelPrefix='From '
+      icon={<GitBranchIcon />}
+      value={branch ?? ''}
+      options={[...new Set([...refs, branch])]
+        .filter((ref): ref is string => Boolean(ref))
+        .map((ref) => ({ value: ref, label: ref, pinned: ref === refs[0] }))}
+      onValueChange={onChange}
+      onSearch={onSearch}
+    />
   )
 }

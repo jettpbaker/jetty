@@ -16,8 +16,10 @@ import {
 } from '@/components/custom/composer_strip'
 import { currentTodos, pendingItems } from '@/components/custom/composer_strip_model'
 import { WorkflowLines } from '@/components/custom/workflow_lines'
+import { Button } from '@/components/ui/button'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { findModel } from '@/lib/loadout'
+import { pressProps } from '@/lib/press'
 import { newThreadProject } from '@/lib/thread_project'
 import {
   useAccessMode,
@@ -34,6 +36,7 @@ import {
   useThreadLoadout,
   useThreadQueue,
 } from '@/state'
+import { useRetrySetup } from '@/state/worktrees'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -85,6 +88,10 @@ export function ThreadComposer({
   const [queueOpen, setQueueOpen] = useState(false)
   const projectId =
     !threadId && chrome ? (pickedProjectId ?? newThreadProject(chrome, selectedId)) : undefined
+  const [environment, setEnvironment] = useState<'local' | 'worktree'>('worktree')
+  const [startingRef, setStartingRef] = useState<string>()
+  const meta = chrome?.threads.find((thread) => thread.id === threadId)
+  const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
 
   const pending = useMemo(
@@ -182,7 +189,8 @@ export function ThreadComposer({
   }
 
   function startTurn(text: string) {
-    const id = threadId ?? (projectId ? createThread(projectId) : undefined)
+    const id =
+      threadId ?? (projectId ? createThread(projectId, environment, startingRef) : undefined)
     if (!id) return
     const prior = priorCount(text)
     setDraft('')
@@ -345,6 +353,21 @@ export function ThreadComposer({
 
   return (
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
+      {meta?.worktree?.state === 'setting_up' && (
+        <output className='block pb-2 text-xs text-muted-foreground'>Setting up worktree…</output>
+      )}
+      {meta?.worktree?.state === 'failed' && (
+        <div role='alert' className='flex items-center gap-2 pb-2 text-xs text-destructive'>
+          <span>{meta.worktree.error}</span>
+          <Button
+            variant='outline'
+            size='sm'
+            {...pressProps(() => threadId && retrySetup(threadId))}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
       <Composer
         value={draft}
         onValueChange={setDraft}
@@ -377,11 +400,22 @@ export function ThreadComposer({
         context={
           threadId ? (
             // Holds the project/branch footer's height so the composer sits where it did on the new thread.
-            <div className='min-h-7'>
+            <div className='flex min-h-7 items-center justify-between px-2.5'>
               <WorkflowLines threadId={threadId} items={items} />
+              <span className='ml-auto text-xs text-muted-foreground'>
+                {meta?.environment === 'worktree' ? 'Worktree · ' : ''}
+                {meta?.worktree?.branch ?? meta?.git?.branch}
+              </span>
             </div>
           ) : (
-            <ComposerFooter projectId={projectId} onProjectChange={setPickedProjectId} />
+            <ComposerFooter
+              projectId={projectId}
+              onProjectChange={setPickedProjectId}
+              environment={environment}
+              onEnvironmentChange={setEnvironment}
+              startingRef={startingRef}
+              onStartingRefChange={setStartingRef}
+            />
           )
         }
         rows={rows}

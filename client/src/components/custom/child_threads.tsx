@@ -6,7 +6,7 @@ import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
-import { DeviceDesktopIcon, WorkflowIcon } from '@primer/octicons-react'
+import { DeviceDesktopIcon, GitBranchIcon, WorkflowIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
@@ -24,7 +24,7 @@ import { TwoLineRow } from './two_line_row'
 
 // A child that has gone idle has finished its run.
 type ChildStatus = Exclude<Status, 'idle' | 'stopped' | 'queued'>
-type Environment = 'local'
+type Environment = 'local' | 'worktree'
 
 export type ChildThread = {
   id: string
@@ -84,6 +84,7 @@ function useOpenThread(): Open {
 
 const envLabel: Record<Environment, string> = {
   local: 'Runs locally',
+  worktree: 'Runs in a worktree',
 }
 
 function ChildTitle({ child }: { child: ChildThread }) {
@@ -99,7 +100,7 @@ function ChildTitle({ child }: { child: ChildThread }) {
 }
 
 function EnvTag({ env }: { env: Environment }) {
-  const Icon = DeviceDesktopIcon
+  const Icon = env === 'worktree' ? GitBranchIcon : DeviceDesktopIcon
   return <Icon aria-label={envLabel[env]} className='size-3 shrink-0' />
 }
 

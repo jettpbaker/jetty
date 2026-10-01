@@ -13,7 +13,7 @@ import { useRef, useState, type ReactNode } from 'react'
 
 import './option_picker.css'
 
-export type PickerOption = { value: string; label: string; icon?: ReactNode }
+export type PickerOption = { value: string; label: string; icon?: ReactNode; pinned?: boolean }
 export type PickerAction = { label: string; icon: ReactNode; onSelect?: () => void }
 
 export function OptionPicker({
@@ -28,6 +28,8 @@ export function OptionPicker({
   actions,
   disabled = false,
   emptyLabel = 'Select',
+  onSearch,
+  labelPrefix,
   'aria-describedby': describedBy,
 }: {
   name: string
@@ -40,6 +42,8 @@ export function OptionPicker({
   align?: 'start' | 'end'
   actions?: readonly PickerAction[]
   disabled?: boolean
+  onSearch?: (query: string) => void
+  labelPrefix?: string
   emptyLabel?: string
   'aria-describedby'?: string
 }) {
@@ -49,7 +53,9 @@ export function OptionPicker({
   const pointerSelection = useRef(false)
   const actionChosen = useRef(false)
   const search = query.trim().toLowerCase()
-  const results = options.filter((option) => option.label.toLowerCase().includes(search))
+  const results = options.filter(
+    (option) => option.pinned || option.label.toLowerCase().includes(search)
+  )
   const selected = options.find((option) => option.value === value)
 
   function select(action: () => void) {
@@ -64,6 +70,7 @@ export function OptionPicker({
         setOpen(next)
         if (next) {
           setQuery('')
+          onSearch?.('')
           actionChosen.current = false
         }
       }}
@@ -81,6 +88,7 @@ export function OptionPicker({
         }
       >
         {selected?.icon ?? icon}
+        {labelPrefix}
         {selected?.label ?? emptyLabel}
       </PopoverTrigger>
       <PopoverContent
@@ -107,7 +115,10 @@ export function OptionPicker({
             placeholder={placeholder}
             aria-label={placeholder}
             value={query}
-            onValueChange={setQuery}
+            onValueChange={(next) => {
+              setQuery(next)
+              onSearch?.(next)
+            }}
           />
           <Separator />
           <CommandList>

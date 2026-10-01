@@ -1,10 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
+import { useBranches } from '@/state/worktrees'
 import { PlusIcon } from '@primer/octicons-react'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { ComposerBranch } from './composer_branch'
+import { ComposerEnvironment } from './composer_environment'
 import { ComposerProject } from './composer_project'
 import { ProjectFolderDialog } from './project_folder_dialog'
 import { ProjectGlyph } from './project_glyph'
@@ -12,7 +14,15 @@ import { ProjectGlyph } from './project_glyph'
 export function ComposerFooter({
   projectId,
   onProjectChange,
+  environment,
+  onEnvironmentChange,
+  startingRef,
+  onStartingRefChange,
 }: {
+  environment: 'local' | 'worktree'
+  onEnvironmentChange: (environment: 'local' | 'worktree') => void
+  startingRef?: string
+  onStartingRefChange: (ref: string) => void
   projectId?: string
   onProjectChange: (projectId: string) => void
 }) {
@@ -21,10 +31,30 @@ export function ComposerFooter({
   const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
   const projects = chrome?.projects ?? []
-  const threads = chrome?.threads ?? []
-  const branch = threads
-    .filter((candidate) => candidate.projectId === projectId && candidate.git)
-    .toSorted((a, b) => b.updatedAt - a.updatedAt)[0]?.git?.branch
+  const fetchBranches = useBranches()
+  const request = useRef(0)
+  const [branchList, setBranchList] = useState<{
+    defaultRef: string
+    currentBranch: string
+    branches: readonly string[]
+  }>()
+  function search(query: string) {
+    if (!projectId) return
+    const revision = ++request.current
+    fetchBranches(projectId, query, environment === 'local', (result) => {
+      if (revision === request.current) setBranchList(result)
+    })
+  }
+  useEffect(() => {
+    setBranchList(undefined)
+    if (!projectId) return
+    const revision = ++request.current
+    fetchBranches(projectId, '', environment === 'local', (result) => {
+      if (revision !== request.current) return
+      setBranchList(result)
+      onStartingRefChange(result.defaultRef)
+    })
+  }, [projectId, environment, fetchBranches, onStartingRefChange])
 
   return (
     <div
@@ -49,7 +79,15 @@ export function ComposerFooter({
           onManageProjects={() => void navigate({ to: '/settings', hash: 'projects' })}
         />
       )}
-      <ComposerBranch branch={branch} />
+      <div className='flex items-center'>
+        <ComposerEnvironment value={environment} onValueChange={onEnvironmentChange} />
+        <ComposerBranch
+          branch={environment === 'worktree' ? startingRef : branchList?.currentBranch}
+          refs={branchList?.branches}
+          onChange={environment === 'worktree' ? onStartingRefChange : undefined}
+          onSearch={search}
+        />
+      </div>
       <ProjectFolderDialog
         open={adding}
         onOpenChange={setAdding}

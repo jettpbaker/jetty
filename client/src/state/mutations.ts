@@ -3,6 +3,7 @@ import type { Project, ProjectIcon, ProviderId, ThreadMeta } from '@jetty/shared
 
 import { Effect, Fiber } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { toast } from 'sonner'
 
 import { run, useAction } from './connection'
 
@@ -62,12 +63,18 @@ export function awaitCreation(threadId: string) {
   return creation ? Fiber.join(creation) : Effect.void
 }
 
-function createThread(registry: Registry, projectId: string) {
+function createThread(
+  registry: Registry,
+  projectId: string,
+  environment: 'local' | 'worktree' = 'worktree',
+  ref?: string
+) {
   const id = crypto.randomUUID()
   registry.update(createdThreadsAtom, (threads) =>
     new Map(threads).set(id, {
       id,
       projectId,
+      environment,
       title: 'New thread',
       status: 'idle',
       archived: false,
@@ -78,10 +85,14 @@ function createThread(registry: Registry, projectId: string) {
   const creation = run(
     registry,
     (connection) =>
-      connection.request('thread.create', {
-        id,
-        projectId,
-      }),
+      connection
+        .request('thread.create', {
+          id,
+          projectId,
+          environment,
+          ref,
+        })
+        .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
     () => registry.update(createdThreadsAtom, (threads) => without(threads, [id]))
   )
   creations.set(id, creation)
@@ -188,7 +199,10 @@ function archiveThread(registry: Registry, threadId: string, archived: boolean) 
   setPatch(registry, threadId, { archived })
   run(
     registry,
-    (connection) => connection.request('thread.archive', { threadId, archived }),
+    (connection) =>
+      connection
+        .request('thread.archive', { threadId, archived })
+        .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
     () => clearPatch(registry, threadId, 'archived')
   )
 }

@@ -1,7 +1,9 @@
-import { useDiffFileLoader, useThreadDiff } from '@/state'
+import { useDiffFileLoader, useThreadDiff, useChrome } from '@/state'
 import { lazy, Suspense, useLayoutEffect, useMemo, useState } from 'react'
 
 import type { FileTarget } from './file_link'
+
+import { ChangesScopePicker } from './changes_scope'
 
 // A file link lands here first; `found` says whether it's among the changed files.
 type OnTarget = (target: FileTarget, found: boolean) => void
@@ -22,15 +24,19 @@ const PatchViewer = lazy(async () => {
     notShown,
     target,
     onTarget,
+    scope,
+    onScopeChange,
   }: {
     threadId: string
     patch: string
     notShown: readonly string[]
     target?: FileTarget
     onTarget: OnTarget
+    scope: 'branch' | 'uncommitted'
+    onScopeChange: (scope: 'branch' | 'uncommitted') => void
   }) {
     const files = useMemo(() => parseFileChanges(patch), [patch])
-    const loadFile = useDiffFileLoader(threadId)
+    const loadFile = useDiffFileLoader(threadId, scope)
     const [reveal, setReveal] = useState<FileTarget>()
     useLayoutEffect(() => {
       if (!target) return
@@ -43,6 +49,8 @@ const PatchViewer = lazy(async () => {
     return (
       <FileChangesViewer
         embedded
+        scope={scope}
+        onScopeChange={onScopeChange}
         files={files}
         loadFile={loadFile}
         reveal={reveal}
@@ -64,7 +72,10 @@ export function ThreadChanges({
   target?: FileTarget
   onTarget: OnTarget
 }) {
-  const { diff, failed } = useThreadDiff(threadId)
+  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const [pickedScope, setScope] = useState<'branch' | 'uncommitted'>()
+  const scope = pickedScope ?? (meta?.environment === 'worktree' ? 'branch' : 'uncommitted')
+  const { diff, failed } = useThreadDiff(threadId, scope)
   const nothingChanged = failed || diff?.diff === ''
   useLayoutEffect(() => {
     if (target && nothingChanged) onTarget(target, false)
@@ -77,10 +88,13 @@ export function ThreadChanges({
   if (diff.diff === '')
     return (
       <div className='flex h-full min-h-0 flex-col'>
+        <div className='flex h-9 shrink-0 items-center border-b border-border pl-2'>
+          <ChangesScopePicker value={scope} onChange={setScope} />
+        </div>
         <div className='flex flex-1 flex-col items-center justify-center gap-1 p-4 text-center'>
           <p className='text-sm'>No changes</p>
           <p className='text-xs text-muted-foreground'>
-            Uncommitted edits in this thread&apos;s project will show here.
+            Edits in this thread&apos;s working folder will show here.
           </p>
         </div>
         {notShown.length > 0 && <NotShown paths={notShown} />}
@@ -89,6 +103,8 @@ export function ThreadChanges({
   return (
     <Suspense fallback={loading}>
       <PatchViewer
+        scope={scope}
+        onScopeChange={setScope}
         threadId={threadId}
         patch={diff.diff}
         notShown={notShown}

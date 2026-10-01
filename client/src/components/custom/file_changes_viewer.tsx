@@ -1,13 +1,6 @@
 import type { CodeViewOptions, FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResolvedTheme } from '@/lib/theme'
 import { CaretDownIcon, CaretRightIcon, SidebarIcon } from '@phosphor-icons/react'
@@ -25,6 +18,7 @@ import {
   type ReactNode,
 } from 'react'
 
+import { ChangesScopePicker } from './changes_scope'
 import { DisabledTooltip } from './disabled_tooltip'
 import {
   diffItem,
@@ -274,6 +268,8 @@ function separatorFromEvent(event: PointerEvent) {
 }
 
 export function FileChangesViewer({
+  scope = 'uncommitted',
+  onScopeChange,
   files: changes,
   footer,
   embedded = false,
@@ -281,6 +277,8 @@ export function FileChangesViewer({
   loadFile,
   reveal,
 }: {
+  scope?: 'branch' | 'uncommitted'
+  onScopeChange?: (scope: 'branch' | 'uncommitted') => void
   files: FileChange[]
   footer?: ReactNode
   embedded?: boolean
@@ -463,28 +461,7 @@ export function FileChangesViewer({
       >
         <div className='flex min-w-0 items-center gap-2 text-xs'>
           {layout === 'page' && treeToggle}
-          {layout === 'panel' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label='Diff scope: Uncommitted'
-                render={
-                  <Button variant='ghost' tone='muted' size='sm' className='rounded-sm px-1' />
-                }
-              >
-                Uncommitted
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='start' className='w-max min-w-32'>
-                <DropdownMenuRadioGroup value='uncommitted'>
-                  <DisabledTooltip reason='Coming soon' side='right'>
-                    <DropdownMenuRadioItem value='branch' disabled>
-                      Branch
-                    </DropdownMenuRadioItem>
-                  </DisabledTooltip>
-                  <DropdownMenuRadioItem value='uncommitted'>Uncommitted</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {layout === 'panel' && <ChangesScopePicker value={scope} onChange={onScopeChange} />}
         </div>
         <div className='flex items-center gap-2'>
           <Tabs

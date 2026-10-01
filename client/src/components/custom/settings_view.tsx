@@ -28,6 +28,7 @@ import {
 } from './settings_providers'
 import { SettingsTitleModel } from './settings_title_model'
 import { SettingsUsage } from './settings_usage'
+import { SettingsWorktrees } from './settings_worktrees'
 
 function Section({
   id,
@@ -126,6 +127,9 @@ export function SettingsView() {
             </Section>
             <Section id='integrations' label='Integrations' icon={PuzzlePieceIcon}>
               <SettingsIntegrations />
+            </Section>
+            <Section id='worktrees' label='Worktrees' icon={RepoIcon}>
+              <SettingsWorktrees />
             </Section>
             <Section id='projects' label='Projects' icon={RepoIcon}>
               <SettingsProjects />

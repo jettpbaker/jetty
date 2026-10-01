@@ -2,6 +2,14 @@ import type { PullRequestLink } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -24,6 +32,7 @@ import {
   useRenameThread,
   type Chrome,
 } from '@/state'
+import { useWorktreeChanges } from '@/state/worktrees'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { CircleIcon, GearSixIcon } from '@phosphor-icons/react'
 import {
@@ -108,6 +117,8 @@ export function AppSidebar() {
   const onSettings = pathname === '/settings'
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
+  const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
+  const checkChanges = useWorktreeChanges()
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<ThreadGrouping>('date')
   const [showPinned, setShowPinned] = useState(true)
@@ -171,6 +182,17 @@ export function AppSidebar() {
   }
 
   function remove(threadId: string) {
+    if (chrome?.threads.find((thread) => thread.id === threadId)?.environment !== 'worktree') {
+      confirmRemove(threadId)
+      return
+    }
+    checkChanges(threadId, (count) => {
+      if (count > 0) setDeletePrompt({ threadId, count })
+      else confirmRemove(threadId)
+    })
+  }
+
+  function confirmRemove(threadId: string) {
     const deletion = deleteThread(threadId)
     const comeBack = leaveIfSelected(threadId)
     toast('Thread deleted', {
@@ -187,160 +209,195 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar
-      aria-label='Thread sidebar'
-      className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0'
-      variant='inset'
-      collapsible='offcanvas'
-    >
-      <SidebarHeader className='shrink-0 gap-5 px-1.5 pb-4 pt-4'>
-        <div className='flex items-center justify-between pl-2.5'>
-          <Link to='/' className='text-base font-medium tracking-tight'>
-            jetty
-          </Link>
-        </div>
-        <nav aria-label='Main navigation'>
-          <SidebarMenu className='gap-0.5'>
-            <SidebarMenuItem>
-              <Button variant='ghost' className={navigationButtonClass} {...pressProps(newThread)}>
-                <ComposeIcon className='size-3' />
-                New thread
-              </Button>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
+    <>
+      <Dialog
+        open={Boolean(deletePrompt)}
+        onOpenChange={(open) => {
+          if (!open) setDeletePrompt(undefined)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete thread?</DialogTitle>
+            <DialogDescription>
+              {deletePrompt?.count} uncommitted changes in this thread&apos;s worktree will be lost
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setDeletePrompt(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={() => {
+                if (deletePrompt) confirmRemove(deletePrompt.threadId)
+                setDeletePrompt(undefined)
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Sidebar
+        aria-label='Thread sidebar'
+        className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0'
+        variant='inset'
+        collapsible='offcanvas'
+      >
+        <SidebarHeader className='shrink-0 gap-5 px-1.5 pb-4 pt-4'>
+          <div className='flex items-center justify-between pl-2.5'>
+            <Link to='/' className='text-base font-medium tracking-tight'>
+              jetty
+            </Link>
+          </div>
+          <nav aria-label='Main navigation'>
+            <SidebarMenu className='gap-0.5'>
+              <SidebarMenuItem>
                 <Button
                   variant='ghost'
-                  className={`${navigationButtonClass} pointer-events-none`}
-                  disabled
+                  className={navigationButtonClass}
+                  {...pressProps(newThread)}
                 >
-                  <IssueOpenedIcon className='size-3' />
-                  Issues
+                  <ComposeIcon className='size-3' />
+                  New thread
                 </Button>
-              </DisabledTooltip>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <Button
-                variant='ghost'
-                className={navigationButtonClass}
-                aria-current={onPullRequests ? 'page' : undefined}
-                {...pressProps(() => navigate({ to: '/pull-requests' }))}
-              >
-                <GitPullRequestIcon className='size-3' />
-                Pull requests
-              </Button>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </nav>
-      </SidebarHeader>
-      <div className='px-1.5 pb-4'>
-        <SidebarThreadControls
-          query={query}
-          onQueryChange={setQuery}
-          grouping={grouping}
-          onGroupingChange={setGrouping}
-          showPinned={showPinned}
-          onShowPinnedChange={setShowPinned}
-          showArchived={showArchived}
-          onShowArchivedChange={setShowArchived}
-        />
-      </div>
-      <ThreadHoverGroup>
-        <MotionSidebarContent layoutScroll className='overscroll-contain px-1.5 pb-0'>
-          <nav aria-label='Threads'>
-            <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
-              {items.map((item) => {
-                if (item.kind === 'heading')
-                  return (
-                    <h3
-                      key={item.id}
-                      className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
-                    >
-                      {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
-                      {item.archived && (
-                        <ArchiveIcon className='size-3 shrink-0' aria-hidden='true' />
-                      )}
-                      {!item.pinned && !item.archived && grouping === 'project' && (
-                        <ProjectGlyph icon={item.projectIcon} className='size-3' />
-                      )}
-                      {item.status === 'idle' ? (
-                        <CircleIcon
-                          weight='regular'
-                          stroke='currentColor'
-                          strokeWidth={16}
-                          className='size-3 shrink-0'
-                          aria-hidden='true'
-                        />
-                      ) : (
-                        item.status && <StatusGlyph status={item.status} className='size-3' />
-                      )}
-                      <span className='flex min-w-0 flex-1 items-baseline gap-1'>
-                        <span className='min-w-0 truncate font-medium'>{item.label}</span>
-                        <span
-                          className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
-                          aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
-                        >
-                          {item.count}
-                        </span>
-                      </span>
-                    </h3>
-                  )
-                const thread = item.thread
-                return (
-                  <motion.div
-                    key={thread.id}
-                    data-thread-row
-                    layout={reducedMotion ? false : 'position'}
-                    layoutDependency={layoutDependency}
-                    initial={false}
-                    transition={{ layout: rowLayoutTransition }}
-                    onPointerEnter={() => {
-                      if (thread.id === selectedId) return
-                      prefetch.enter(thread.id)
-                    }}
-                    onPointerLeave={() => prefetch.leave(thread.id)}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
+                  <Button
+                    variant='ghost'
+                    className={`${navigationButtonClass} pointer-events-none`}
+                    disabled
                   >
-                    <ThreadRow
-                      {...thread}
-                      selected={selectedId === thread.id}
-                      actions={{
-                        pinned: thread.pinned,
-                        archived: thread.archived,
-                        onArchive: () =>
-                          thread.archived ? archiveThread(thread.id, false) : archive(thread.id),
-                        onDelete: () => remove(thread.id),
-                        onPin: () => pinThread(thread.id, !thread.pinned),
-                        onRename: (title) => renameThread(thread.id, title),
-                      }}
-                      onSelect={() =>
-                        navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
-                      }
-                      onOpenPullRequest={() =>
-                        thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)
-                      }
-                    />
-                  </motion.div>
-                )
-              })}
-              {chrome && !groups.length && (
-                <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
-              )}
-            </div>
+                    <IssueOpenedIcon className='size-3' />
+                    Issues
+                  </Button>
+                </DisabledTooltip>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Button
+                  variant='ghost'
+                  className={navigationButtonClass}
+                  aria-current={onPullRequests ? 'page' : undefined}
+                  {...pressProps(() => navigate({ to: '/pull-requests' }))}
+                >
+                  <GitPullRequestIcon className='size-3' />
+                  Pull requests
+                </Button>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </nav>
-        </MotionSidebarContent>
-      </ThreadHoverGroup>
-      <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
-        <Button
-          variant='ghost'
-          className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground enabled:hover:bg-sidebar-accent enabled:hover:text-foreground enabled:active:not-aria-[haspopup]:translate-y-0 aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
-          aria-current={onSettings ? 'page' : undefined}
-          aria-label='Settings'
-          {...pressProps(openSettings)}
-        >
-          <GearSixIcon />
-          Settings
-        </Button>
-      </SidebarFooter>
-    </Sidebar>
+        </SidebarHeader>
+        <div className='px-1.5 pb-4'>
+          <SidebarThreadControls
+            query={query}
+            onQueryChange={setQuery}
+            grouping={grouping}
+            onGroupingChange={setGrouping}
+            showPinned={showPinned}
+            onShowPinnedChange={setShowPinned}
+            showArchived={showArchived}
+            onShowArchivedChange={setShowArchived}
+          />
+        </div>
+        <ThreadHoverGroup>
+          <MotionSidebarContent layoutScroll className='overscroll-contain px-1.5 pb-0'>
+            <nav aria-label='Threads'>
+              <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
+                {items.map((item) => {
+                  if (item.kind === 'heading')
+                    return (
+                      <h3
+                        key={item.id}
+                        className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
+                      >
+                        {item.pinned && <PinIcon className='size-3 shrink-0' aria-hidden='true' />}
+                        {item.archived && (
+                          <ArchiveIcon className='size-3 shrink-0' aria-hidden='true' />
+                        )}
+                        {!item.pinned && !item.archived && grouping === 'project' && (
+                          <ProjectGlyph icon={item.projectIcon} className='size-3' />
+                        )}
+                        {item.status === 'idle' ? (
+                          <CircleIcon
+                            weight='regular'
+                            stroke='currentColor'
+                            strokeWidth={16}
+                            className='size-3 shrink-0'
+                            aria-hidden='true'
+                          />
+                        ) : (
+                          item.status && <StatusGlyph status={item.status} className='size-3' />
+                        )}
+                        <span className='flex min-w-0 flex-1 items-baseline gap-1'>
+                          <span className='min-w-0 truncate font-medium'>{item.label}</span>
+                          <span
+                            className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
+                            aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
+                          >
+                            {item.count}
+                          </span>
+                        </span>
+                      </h3>
+                    )
+                  const thread = item.thread
+                  return (
+                    <motion.div
+                      key={thread.id}
+                      data-thread-row
+                      layout={reducedMotion ? false : 'position'}
+                      layoutDependency={layoutDependency}
+                      initial={false}
+                      transition={{ layout: rowLayoutTransition }}
+                      onPointerEnter={() => {
+                        if (thread.id === selectedId) return
+                        prefetch.enter(thread.id)
+                      }}
+                      onPointerLeave={() => prefetch.leave(thread.id)}
+                    >
+                      <ThreadRow
+                        {...thread}
+                        selected={selectedId === thread.id}
+                        actions={{
+                          pinned: thread.pinned,
+                          archived: thread.archived,
+                          onArchive: () =>
+                            thread.archived ? archiveThread(thread.id, false) : archive(thread.id),
+                          onDelete: () => remove(thread.id),
+                          onPin: () => pinThread(thread.id, !thread.pinned),
+                          onRename: (title) => renameThread(thread.id, title),
+                        }}
+                        onSelect={() =>
+                          navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
+                        }
+                        onOpenPullRequest={() =>
+                          thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)
+                        }
+                      />
+                    </motion.div>
+                  )
+                })}
+                {chrome && !groups.length && (
+                  <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
+                )}
+              </div>
+            </nav>
+          </MotionSidebarContent>
+        </ThreadHoverGroup>
+        <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
+          <Button
+            variant='ghost'
+            className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground enabled:hover:bg-sidebar-accent enabled:hover:text-foreground enabled:active:not-aria-[haspopup]:translate-y-0 aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+            aria-current={onSettings ? 'page' : undefined}
+            aria-label='Settings'
+            {...pressProps(openSettings)}
+          >
+            <GearSixIcon />
+            Settings
+          </Button>
+        </SidebarFooter>
+      </Sidebar>
+    </>
   )
 }

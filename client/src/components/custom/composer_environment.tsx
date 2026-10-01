@@ -1,14 +1,30 @@
-import { Button } from '@/components/ui/button'
-import { DeviceDesktopIcon } from '@primer/octicons-react'
+import { DeviceDesktopIcon, GitBranchIcon } from '@primer/octicons-react'
 
-export function ComposerEnvironment(_props: {
-  value?: 'local'
-  onValueChange?: (value: 'local') => void
+import { OptionPicker } from './option_picker'
+
+type Environment = 'local' | 'worktree'
+
+export function ComposerEnvironment({
+  value,
+  onValueChange,
+}: {
+  value: Environment
+  onValueChange: (value: Environment) => void
 }) {
   return (
-    <Button variant='ghost-text' size='sm' disabled>
-      <DeviceDesktopIcon />
-      Local
-    </Button>
+    <OptionPicker
+      name='Environment'
+      label='Choose environment'
+      placeholder='Search environments'
+      value={value}
+      options={[
+        { value: 'worktree', label: 'Worktree', icon: <GitBranchIcon /> },
+        { value: 'local', label: 'Local', icon: <DeviceDesktopIcon /> },
+      ]}
+      icon={<GitBranchIcon />}
+      onValueChange={(next) => {
+        if (next === 'local' || next === 'worktree') onValueChange(next)
+      }}
+    />
   )
 }

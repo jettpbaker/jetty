@@ -46,7 +46,7 @@
   component if one fits; else compose one from
   shadcn primitives; truly custom only when all fail, and say so in the commit.
 - Features the design has but the app can't do yet stay visible but disabled
-  (e.g. "Link issue", the branch picker) — never hidden. They're reminders of
+  (e.g. "Link issue") — never hidden. They're reminders of
   what's still wanted, not clutter.
 - Icons are Phosphor (`@phosphor-icons/react`) or Octicons (`@primer/octicons-react`),
   never lucide. Both packs are intentional — keep each icon in the pack the design
@@ -88,6 +88,19 @@
 - The companion rule: prefer easy undo over confirm dialogs. Act fast, make it
   reversible — don't use a modal as a safety net for an action that could just be
   undoable.
+
+## thread environments
+
+- New threads default to Worktree; Local uses the project checkout. Environment
+  and worktree base are fixed at first send. The Local branch is read-only.
+- Worktrees live under JETTY_HOME/worktrees/<project-id>/<thread-id>; folders stay
+  stable when generated titles rename branches. Branch prefix defaults to jetty.
+- `.worktreeinclude` copies matching gitignored source files before optional
+  `.jetty/worktree.json` setup (`{ "setup": "pnpm install" }`). Setup gets stable
+  JETTY_WORKTREE_NAME and a live-worktree JETTY_WORKTREE_SLOT.
+- Commit work before creating children that build on it. Archive requires a clean
+  worktree and removes its folder while keeping its branch; resume recreates it
+  and reruns setup. Delete removes the branch only for a linked merged PR.
 
 ## Cloud Agent specific instructions
 
