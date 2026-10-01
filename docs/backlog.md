@@ -17,6 +17,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   QA showed the cost: a manager's children working in worktrees the manager made
   show the project checkout in Changes. Containers solve it for container threads.
 - Command palette: removed in the v2 skeleton; no design yet.
+- Redesign the agent question card's answer options (composer_strip.tsx):
+  multi-select answers use a checkbox and single-select a radio, filled when
+  selected. Needs a proper design pass in the sketchpad (they were flagged in
+  the icon swap).
 - Per-worktree dev server ports (after worktrees v1, which ignores ports): Jetty
   gives each live worktree a slot number (JETTY_WORKTREE_SLOT, lowest free) and
   a project's setup script derives a port block from it (base + slot * 20, one
