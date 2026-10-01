@@ -63,7 +63,9 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
       ) : (
         <OpacityFade
           settings={
-            fade === 'jett' ? { ...initialFadeSettings, topOpacity: 0.9 } : initialFadeSettings
+            fade === 'jett'
+              ? { ...initialFadeSettings, topOpacity: resolvedTheme === 'light' ? 0.9 : 0.8 }
+              : initialFadeSettings
           }
           background={fadeBackground}
         >
