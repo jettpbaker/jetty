@@ -6,6 +6,16 @@
   box-shadow: var(--composer-box-shadow);
 }
 
+:root {
+  --composer-lift: 0 1px 2px oklch(0 0 0 / 0.05), 0 4px 12px oklch(0 0 0 / 0.05);
+}
+.dark {
+  --composer-lift: 0 1px 2px oklch(0 0 0 / 0.35), 0 4px 12px oklch(0 0 0 / 0.25);
+}
+.composer-lift {
+  box-shadow: var(--composer-lift);
+}
+
 /* Dark mode keeps the heavy shadow only to lift the composer off a wallpaper. */
 .dark .composer-shadow:not([data-wallpaper]) {
   display: none;

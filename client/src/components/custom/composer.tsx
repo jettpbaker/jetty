@@ -140,7 +140,7 @@ export function Composer({
           <InputGroup
             className={cn(
               'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover has-[[data-slot=input-group-control]:focus-visible]:ring-0',
-              ambient && 'shadow-none'
+              ambient && 'composer-lift'
             )}
           >
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
