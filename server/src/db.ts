@@ -164,6 +164,15 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`ALTER TABLE threads DROP COLUMN base_commit`
   }),
   '020_worktrees': addThreadColumns({ worktree_json: 'TEXT', git_json: 'TEXT' }),
+  // Rewind checkpoints shipped briefly and were removed; their snapshots rebuild from the log.
+  '021_remove_checkpoints': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const kinds = sql.in(['checkpoint.captured', 'turn.boundary', 'thread.rewound'])
+    yield* sql`DELETE FROM thread_states WHERE thread_id IN (
+      SELECT thread_id FROM thread_events WHERE json_extract(payload_json, '$.type') IN ${kinds}
+    )`
+    yield* sql`DELETE FROM thread_events WHERE json_extract(payload_json, '$.type') IN ${kinds}`
+  }),
 })
 
 export function databaseLayer(home: string) {
