@@ -22,6 +22,14 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   of orchestrator threads, children report up to their parent, the parent
   reports to the user (mark_ready_for_review), archive finished threads, etc.
   The optional parts become toggles in Settings → Agent behaviour.
+  Jett reviews every place Jetty talks to agents, not just that file:
+  1. the base instructions and the Agent behaviour sentences
+     (server/src/jetty-instructions.ts, `agentBehaviours` in shared/src/wire.ts)
+  2. the MCP tool descriptions (server/src/mcp.ts)
+  3. the relayed-message wrapper and the child's report-back line
+     (`agentText` in server/src/orchestrator.ts)
+  4. system messages and tool results agents read ("Thread X failed: …",
+     send_images/send_video results, MCP error texts)
 - Slash / skill commands in the composer (`/verify`, `/pr`, …). The server
   already lists skills (`skills.list` in server/src/skills.ts reads project and
   user skills, including `user-invocable`), but no client uses it yet.
