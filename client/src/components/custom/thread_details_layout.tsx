@@ -68,7 +68,7 @@ export function ThreadDetailsLayout({
   const [expanded, setExpanded] = useState(false)
   const [pickedTab, setTab] = useState('changes')
   const projectId = useChrome()?.threads.find((thread) => thread.id === threadId)?.projectId
-  const git = useProjectGit(projectId)
+  const git = useProjectGit(projectId)?.git
   const changesDisabled =
     git === 'not-git'
       ? 'Not a git repository'

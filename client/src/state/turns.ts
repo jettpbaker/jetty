@@ -5,6 +5,7 @@ import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
 import {
   equipModel,
+  findModel,
   sameLoadoutIn,
   slotLoadout,
   type Loadout,
@@ -19,8 +20,8 @@ import { toast } from 'sonner'
 import { accessModeAtom } from './access_mode'
 import { chromeAtom, modelsAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
-import { stageSend } from './drafts'
-import { loadoutsAtom } from './loadouts'
+import { resetDraftTarget, stageSend, useDraft } from './drafts'
+import { enabledModelsAtom, loadoutsAtom } from './loadouts'
 import {
   awaitCreation,
   clearPatch,
@@ -35,8 +36,6 @@ type Registry = AtomRegistry.AtomRegistry
 
 type PendingPrompt = { text: string; priorCount: number; images: readonly Attachment[] }
 type Resolution = Readonly<Record<string, unknown>>
-
-const draftKey = ''
 
 const loadoutOverridesAtom = Atom.make<ReadonlyMap<string, Loadout>>(new Map()).pipe(Atom.keepAlive)
 const draftEpochAtom = Atom.make(0).pipe(Atom.keepAlive)
@@ -132,9 +131,7 @@ function sendTurn(
 ) {
   const staged = stageSend(registry, fromDraft, { text, images })
   if (loadout)
-    registry.update(loadoutOverridesAtom, (overrides) =>
-      new Map(without(overrides, [draftKey])).set(threadId, loadout)
-    )
+    registry.update(loadoutOverridesAtom, (overrides) => new Map(overrides).set(threadId, loadout))
   const prompt: PendingPrompt = {
     text,
     priorCount,
@@ -197,7 +194,7 @@ function sendTurn(
       clearPatch(registry, threadId, 'provider')
       settle()
       // A thread that failed to create is gone; its message goes back to the new-thread composer.
-      staged.failed(threadMeta(registry, threadId) ? threadId : draftKey)
+      staged.failed(threadMeta(registry, threadId) ? threadId : '')
       toast.error("Couldn't send message")
     }
   )
@@ -257,7 +254,7 @@ function dismissQuestion(registry: Registry, threadId: string, itemId: string) {
 
 function bumpDraft(registry: Registry) {
   registry.update(draftEpochAtom, (epoch) => epoch + 1)
-  registry.update(loadoutOverridesAtom, (overrides) => without(overrides, [draftKey]))
+  resetDraftTarget(registry)
 }
 
 function firstLoadout(slots: readonly LoadoutSlot[]) {
@@ -282,25 +279,38 @@ function savedLoadout(
   return model && equipModel({ fast: false }, model)
 }
 
+// A thread's pick lives here until the server saves it; the new-thread draft keeps its own.
 export function useThreadLoadout(threadId: string | undefined) {
   const registry = useContext(RegistryContext)
-  const key = threadId ?? draftKey
-  const override = useAtomValue(loadoutOverridesAtom).get(key)
+  const overrides = useAtomValue(loadoutOverridesAtom)
+  const { draft, update, read } = useDraft('')
+  const enabled = useAtomValue(enabledModelsAtom)
+  const drafted = draft.target?.loadout
+  const override = threadId
+    ? overrides.get(threadId)
+    : drafted && findModel(enabled, drafted)
+      ? drafted
+      : undefined
   const slots = useAtomValue(loadoutsAtom)
   const catalog = useAtomValue(modelsAtom)
   const thread = useChrome()?.threads.find((item) => item.id === threadId)
   const saved = useMemo(() => savedLoadout(thread, slots, catalog), [catalog, slots, thread])
   const settled = Boolean(override && saved && sameLoadoutIn(catalog, override, saved))
 
-  useEffect(() => {
-    if (settled) registry.update(loadoutOverridesAtom, (overrides) => without(overrides, [key]))
-  }, [key, registry, settled])
-
   const setLoadout = useCallback(
-    (next: Loadout) =>
-      registry.update(loadoutOverridesAtom, (overrides) => new Map(overrides).set(key, next)),
-    [key, registry]
+    (next: Loadout | undefined) => {
+      if (!threadId) return update({ target: { ...read().target, loadout: next } })
+      registry.update(loadoutOverridesAtom, (map) =>
+        next ? new Map(map).set(threadId, next) : without(map, [threadId])
+      )
+    },
+    [read, registry, threadId, update]
   )
+
+  useEffect(() => {
+    if (settled) setLoadout(undefined)
+  }, [setLoadout, settled])
+
   return { loadout: override ?? saved, lockedProvider: thread?.provider, setLoadout }
 }
 

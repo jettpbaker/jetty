@@ -1,9 +1,9 @@
 import { PlusSignIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { useChrome, useCreateProject } from '@/state'
-import { useBranches, useBranchList } from '@/state/worktrees'
+import { useBranches, useBranchList, type BranchList } from '@/state/worktrees'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 
 import { ComposerBranch } from './composer_branch'
 import { ComposerEnvironment } from './composer_environment'
@@ -39,23 +39,19 @@ export function ComposerFooter({
   // one lands.
   const otherList = useBranchList(projectId, !localOnly)
   const known = branchList ?? otherList
-  // Worktree is the default; only a project without git forces Local, and only until the next one.
-  const forcedLocal = useRef(false)
+  // A starting ref the list still has stays picked; otherwise the project's default takes over.
+  const settleRef = useEffectEvent((result: Extract<BranchList, { git: 'ok' }>) => {
+    if (!startingRef || !result.branches.includes(startingRef))
+      onStartingRefChange(result.defaultRef)
+  })
   useEffect(() => {
     if (!projectId) return
     // Only the newest request may settle; a stale one would apply the wrong project.
     const revision = ++request.current
     fetchBranches(projectId, localOnly, (result) => {
-      if (revision !== request.current) return
-      if (result.git !== 'ok') {
-        forcedLocal.current ||= !localOnly
-        onEnvironmentChange('local')
-      } else if (forcedLocal.current) {
-        forcedLocal.current = false
-        onEnvironmentChange('worktree')
-      } else if (!localOnly) onStartingRefChange(result.defaultRef)
+      if (revision === request.current && result.git === 'ok' && !localOnly) settleRef(result)
     })
-  }, [projectId, localOnly, fetchBranches, onEnvironmentChange, onStartingRefChange])
+  }, [projectId, localOnly, fetchBranches])
 
   const project = projects.find((entry) => entry.id === projectId)
   const noGit =

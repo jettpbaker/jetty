@@ -53,14 +53,16 @@ export function useBranchList(projectId: string | undefined, localOnly: boolean)
   return projectId === undefined ? undefined : lists.get(listKey(projectId, localOnly))
 }
 
-// Loads a project's git state once if nothing has asked for it yet.
+// Either list knows the project's git state; if neither has landed, load the cheap local one.
 export function useProjectGit(projectId: string | undefined) {
-  const list = useBranchList(projectId, true)
+  const all = useBranchList(projectId, false)
+  const local = useBranchList(projectId, true)
+  const known = all ?? local
   const fetchBranches = useBranches()
   useEffect(() => {
-    if (projectId && !list) fetchBranches(projectId, true)
-  }, [projectId, list, fetchBranches])
-  return list?.git
+    if (projectId && !known) fetchBranches(projectId, true)
+  }, [projectId, known, fetchBranches])
+  return known
 }
 
 function setPrefix(registry: AtomRegistry.AtomRegistry, prefix: string, done: () => void) {

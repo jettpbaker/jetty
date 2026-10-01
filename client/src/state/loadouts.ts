@@ -25,6 +25,11 @@ function loadModelEnabled(): Record<string, boolean> {
 
 const modelEnabledAtom = Atom.make(loadModelEnabled()).pipe(Atom.keepAlive)
 
+export const enabledModelsAtom = Atom.readable((get) => {
+  const enabled = get(modelEnabledAtom)
+  return get(modelsAtom).filter((model) => enabled[`${model.provider}:${model.id}`] !== false)
+})
+
 function loadStored(): unknown {
   try {
     return JSON.parse(storage.get(key) ?? 'null')
@@ -42,11 +47,7 @@ export const loadoutsAtom = Atom.readable((get) =>
 export function useLoadouts() {
   const registry = useContext(RegistryContext)
   const loadouts = useAtomValue(loadoutsAtom)
-  const allModels = useAtomValue(modelsAtom)
-  const modelEnabled = useAtomValue(modelEnabledAtom)
-  const catalog = allModels.filter(
-    (model) => modelEnabled[`${model.provider}:${model.id}`] !== false
-  )
+  const catalog = useAtomValue(enabledModelsAtom)
   const setLoadouts = useCallback(
     (next: readonly LoadoutSlot[]) => {
       registry.set(storedAtom, next)

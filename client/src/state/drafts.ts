@@ -1,8 +1,9 @@
 import type { ComposerImage, ReadyImage } from '@/hooks/use-image-attachments'
+import type { Loadout } from '@/lib/loadout'
 
 import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { UploadAttachment } from '@jetty/shared/wire'
+import { EffortLevel, ProviderId, UploadAttachment } from '@jetty/shared/wire'
 import { Schema } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
@@ -19,8 +20,21 @@ const QuestionProgress = Schema.Struct({
 })
 export type QuestionProgress = typeof QuestionProgress.Type
 
+// Where a new-thread draft will go. Each field is the user's pick; absent ones use the defaults.
+export type DraftTarget = {
+  projectId?: string
+  environment?: 'local' | 'worktree'
+  ref?: string
+  loadout?: Loadout
+}
+
 // A message that has left the composer but that the server hasn't taken yet.
-type Sending = { text: string; images: readonly ReadyImage[]; editing?: string }
+type Sending = {
+  text: string
+  images: readonly ReadyImage[]
+  editing?: string
+  target?: DraftTarget
+}
 
 // The unsent composer state of one thread; the new-thread composer uses the key ''.
 export type Draft = {
@@ -35,18 +49,39 @@ export type Draft = {
   typedFor?: string
   parked?: Readonly<Record<string, string>>
   questions?: Readonly<Record<string, QuestionProgress>>
+  target?: DraftTarget
 }
 
+const StoredTarget = Schema.Struct({
+  projectId: Schema.optional(Schema.String),
+  environment: Schema.optional(Schema.Literals(['local', 'worktree'])),
+  ref: Schema.optional(Schema.String),
+  loadout: Schema.optional(
+    Schema.Struct({
+      provider: ProviderId,
+      model: Schema.String,
+      effort: Schema.optional(EffortLevel),
+      fast: Schema.Boolean,
+    })
+  ),
+})
 const StoredDraft = Schema.Struct({
   text: Schema.String,
   editing: Schema.optional(Schema.String),
   sending: Schema.optional(
-    Schema.Array(Schema.Struct({ text: Schema.String, editing: Schema.optional(Schema.String) }))
+    Schema.Array(
+      Schema.Struct({
+        text: Schema.String,
+        editing: Schema.optional(Schema.String),
+        target: Schema.optional(StoredTarget),
+      })
+    )
   ),
   pendingId: Schema.optional(Schema.String),
   typedFor: Schema.optional(Schema.String),
   parked: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   questions: Schema.optional(Schema.Record(Schema.String, QuestionProgress)),
+  target: Schema.optional(StoredTarget),
 })
 const StoredImage = Schema.Struct({
   name: Schema.String,
@@ -100,6 +135,7 @@ function loadDrafts() {
           .filter((text) => text.trim())
           .join('\n\n'),
         editing: draft.editing ?? sending.find((sent) => sent.editing)?.editing,
+        target: draft.target ?? sending.find((sent) => sent.target)?.target,
         images: [],
       })
     }
@@ -121,6 +157,7 @@ function persist(key: string, current: Draft, previous: Draft) {
     draft.text !== '' ||
     draft.editing !== undefined ||
     sending.length > 0 ||
+    draft.target !== undefined ||
     Object.keys(draft.parked ?? {}).length > 0 ||
     Object.keys(draft.questions ?? {}).length > 0
   writeStored(
@@ -130,7 +167,7 @@ function persist(key: string, current: Draft, previous: Draft) {
       ? {
           ...draft,
           ...(sending.length > 0 && {
-            sending: sending.map(({ text, editing }) => ({ text, editing })),
+            sending: sending.map(({ text, editing, target }) => ({ text, editing, target })),
           }),
         }
       : undefined
@@ -180,14 +217,29 @@ function restoreDraft(registry: Registry, key: string, restored: Sending) {
     text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
     images: [...restored.images, ...draft.images],
     editing: draft.editing ?? restored.editing,
+    target: key ? draft.target : (draft.target ?? restored.target),
   }))
+}
+
+// A fresh new thread starts from the defaults; one with something typed keeps its target.
+export function resetDraftTarget(registry: Registry) {
+  change(registry, '', (draft) =>
+    draft.text.trim() || draft.images.length ? draft : { ...draft, target: undefined }
+  )
 }
 
 // Keeps a message that left the composer in its draft until the server takes it, so a reload
 // in the meantime brings it back. With no key it's only restored if the server refuses it.
-export function stageSend(registry: Registry, key: string | undefined, message: Sending) {
+// The draft's target leaves with the message.
+export function stageSend(registry: Registry, key: string | undefined, sending: Sending) {
+  const target = key === undefined ? undefined : registry.get(draftsAtom).get(key)?.target
+  const message = target ? { ...sending, target } : sending
   if (key !== undefined)
-    change(registry, key, (draft) => ({ ...draft, sending: [...(draft.sending ?? []), message] }))
+    change(registry, key, (draft) => ({
+      ...draft,
+      target: undefined,
+      sending: [...(draft.sending ?? []), message],
+    }))
   function sent() {
     if (key !== undefined)
       change(registry, key, (draft) => ({

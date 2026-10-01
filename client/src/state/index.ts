@@ -4,7 +4,13 @@ export { useChrome, type Chrome } from './chrome'
 export { useConnectionNotice } from './connection'
 export { useMarkThreadSeen } from './mutations'
 export { defaultDiffScope, useDiffFileLoader, useProjectFile, useThreadDiff } from './diff'
-export { useDraft, useForgetDeletedDrafts, type Draft, type QuestionProgress } from './drafts'
+export {
+  useDraft,
+  useForgetDeletedDrafts,
+  type Draft,
+  type DraftTarget,
+  type QuestionProgress,
+} from './drafts'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export { useThread, useThreadRowPrefetch } from './threads'

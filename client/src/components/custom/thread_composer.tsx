@@ -1,4 +1,4 @@
-import type { Draft } from '@/state'
+import type { Draft, DraftTarget } from '@/state'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
@@ -36,7 +36,7 @@ import {
   useThreadLoadout,
   useThreadQueue,
 } from '@/state'
-import { useRetrySetup } from '@/state/worktrees'
+import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -67,7 +67,7 @@ export function ThreadComposer({
   projectTitle?: string
 }) {
   const draftKey = threadId ?? ''
-  const { draft: saved, update } = useDraft(draftKey)
+  const { draft: saved, update, read } = useDraft(draftKey)
   const draft = saved.text
   const editing = saved.editing
   const attachments = useImageAttachments(draftKey)
@@ -86,17 +86,22 @@ export function ThreadComposer({
   const navigate = useNavigate()
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
-  const [pickedProjectId, setPickedProjectId] = useState<string>()
   const [queueOpen, setQueueOpen] = useState(false)
-  const picked = chrome?.projects.some((project) => project.id === pickedProjectId)
+  const target = saved.target
+  const picked = chrome?.projects.some((project) => project.id === target?.projectId)
   const projectId =
     !threadId && chrome
       ? picked
-        ? pickedProjectId
+        ? target?.projectId
         : newThreadProject(chrome, selectedId)
       : undefined
-  const [environment, setEnvironment] = useState<'local' | 'worktree'>('worktree')
-  const [startingRef, setStartingRef] = useState<string>()
+  const git = useProjectGit(projectId)?.git
+  const environment =
+    git === 'missing' || git === 'not-git' ? 'local' : (target?.environment ?? 'worktree')
+  const startingRef = target?.ref
+  function retarget(patch: DraftTarget) {
+    update({ target: { ...read().target, ...patch } })
+  }
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
@@ -422,11 +427,13 @@ export function ThreadComposer({
           ) : (
             <ComposerFooter
               projectId={projectId}
-              onProjectChange={setPickedProjectId}
+              onProjectChange={(id) => {
+                if (id !== projectId) retarget({ projectId: id, ref: undefined })
+              }}
               environment={environment}
-              onEnvironmentChange={setEnvironment}
+              onEnvironmentChange={(next) => retarget({ environment: next })}
               startingRef={startingRef}
-              onStartingRefChange={setStartingRef}
+              onStartingRefChange={(ref) => retarget({ ref })}
             />
           )
         }
