@@ -6,6 +6,11 @@
   box-shadow: var(--composer-box-shadow);
 }
 
+/* Dark mode keeps the heavy shadow only to lift the composer off a wallpaper. */
+.dark .composer-shadow:not([data-wallpaper]) {
+  display: none;
+}
+
 /* Light mode draws without huge box-shadows, which Chrome approximates in visible bands. */
 :root:not(.dark)[data-composer-shadow] .composer-shadow {
   box-shadow: none;
