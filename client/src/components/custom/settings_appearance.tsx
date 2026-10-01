@@ -26,11 +26,6 @@ import {
   useAppearance,
   type Appearance,
 } from '@/lib/appearance'
-import {
-  loadLightComposerShadow,
-  setLightComposerShadow,
-  type LightComposerShadow,
-} from '@/lib/composer-shadow-settings'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -39,8 +34,6 @@ import './settings_sections.css'
 import { AccentPicker } from './accent_picker'
 import { DisabledTooltip } from './disabled_tooltip'
 import { WallpaperEditor } from './wallpaper_editor'
-
-const shadowLabels = { faint: 'Fainter', tinted: 'Fainter + tinted' }
 
 const themes = [
   { value: 'light', label: 'Light', Icon: Sun03Icon },
@@ -51,7 +44,6 @@ const themes = [
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
   const themeLabel = themes.find((option) => option.value === theme)?.label
-  const [lightShadow, setLightShadow] = useState(loadLightComposerShadow)
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
   const wallpaperTintId = useId()
@@ -173,36 +165,6 @@ export function SettingsAppearance() {
                   {label}
                 </DropdownMenuRadioItem>
               ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className='appearance-option-row'>
-        <span>Composer shadow (light)</span>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger
-            aria-label={`Composer shadow in light mode: ${shadowLabels[lightShadow]}`}
-            render={
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
-              />
-            }
-          >
-            {shadowLabels[lightShadow]}
-            <ArrowDown01Icon className='size-3' />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuRadioGroup
-              value={lightShadow}
-              onValueChange={(value: LightComposerShadow) => {
-                setLightComposerShadow(value)
-                setLightShadow(value)
-              }}
-            >
-              <DropdownMenuRadioItem value='faint'>{shadowLabels.faint}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value='tinted'>{shadowLabels.tinted}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
