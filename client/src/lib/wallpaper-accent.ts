@@ -25,7 +25,7 @@ const monoLightTarget = 0.42
 const monoDarkTarget = 0.96
 
 // Greys take the wallpaper's hue at up to this chroma, scaled by how colourful it is.
-const maxTint = 0.0035
+const maxTint = 0.00175
 const tintFullColorfulness = 0.12
 
 type OklchSample = { l: number; c: number; h: number }
@@ -151,15 +151,21 @@ function pickAccent(all: OklchSample[]): AccentTokens | null {
   return hue === null ? null : { ...hueToTokens(hue, kept), tint: tintFor(hue, all) }
 }
 
-export function applyWallpaperAccent(image: HTMLImageElement) {
+export function applyWallpaperAccent(
+  image: HTMLImageElement,
+  { autoAccent, autoTint }: { autoAccent: boolean; autoTint: boolean }
+) {
   const tokens = pickAccent(samplePixels(image))
   if (!tokens) return false
   const root = document.documentElement
-  root.style.setProperty('--accent-primary-light', tokens.light)
-  root.style.setProperty('--accent-primary-dark', tokens.dark)
-  root.style.setProperty('--tint-h', String(tokens.tint.h))
-  root.style.setProperty('--tint-c', String(tokens.tint.c))
-  root.dataset.accentFrom = 'wallpaper'
+  const set = (name: string, value: string, on: boolean) =>
+    on ? root.style.setProperty(name, value) : root.style.removeProperty(name)
+  set('--accent-primary-light', tokens.light, autoAccent)
+  set('--accent-primary-dark', tokens.dark, autoAccent)
+  set('--tint-h', String(tokens.tint.h), autoTint)
+  set('--tint-c', String(tokens.tint.c), autoTint)
+  if (autoAccent) root.dataset.accentFrom = 'wallpaper'
+  else delete root.dataset.accentFrom
   notifyAccentChange()
   return true
 }

@@ -9,6 +9,7 @@ export type Appearance = {
   wallpaper: string
   filename: string | null
   autoAccent: boolean
+  autoTint: boolean
   source?: string
   crop?: WallpaperCrop
   video: string
@@ -19,6 +20,7 @@ const defaults: Appearance = {
   wallpaper: '',
   filename: null,
   autoAccent: false,
+  autoTint: false,
   video: '',
   videoFilename: null,
 }
@@ -31,6 +33,7 @@ const dataUrl = /^data:image\/(jpeg|png|webp);base64,/
 
 type StoredAppearance = {
   autoAccent: boolean
+  autoTint?: boolean
   filename: string | null
   wallpaper: '' | 'opfs'
   source?: 'opfs'
@@ -75,6 +78,7 @@ function readStored(): StoredAppearance {
     if (data.wallpaper === 'opfs') {
       return {
         autoAccent: data.autoAccent,
+        autoTint: data.autoTint === true,
         filename: typeof data.filename === 'string' ? data.filename : null,
         wallpaper: 'opfs',
         source: data.source === 'opfs' ? 'opfs' : undefined,
@@ -90,6 +94,7 @@ function readStored(): StoredAppearance {
 
 function writeStored({
   autoAccent,
+  autoTint,
   filename,
   wallpaper,
   source,
@@ -99,7 +104,16 @@ function writeStored({
 }: StoredAppearance) {
   storage.set(
     key,
-    JSON.stringify({ autoAccent, filename, wallpaper, source, crop, video, videoFilename })
+    JSON.stringify({
+      autoAccent,
+      autoTint,
+      filename,
+      wallpaper,
+      source,
+      crop,
+      video,
+      videoFilename,
+    })
   )
 }
 
@@ -134,6 +148,7 @@ async function materialize(stored: StoredAppearance): Promise<Appearance> {
     wallpaper,
     filename: wallpaper ? stored.filename : null,
     autoAccent: Boolean(wallpaper && stored.autoAccent),
+    autoTint: Boolean(wallpaper && stored.autoTint),
     source,
     crop: wallpaper ? stored.crop : undefined,
     video,
@@ -165,13 +180,13 @@ function syncAppearanceAccent() {
   const current = ++generation
   const prefs = loadAppearance()
   const restorePreset = () => setAccent(loadAccent())
-  if (!prefs.autoAccent || !prefs.wallpaper) {
+  if ((!prefs.autoAccent && !prefs.autoTint) || !prefs.wallpaper) {
     restorePreset()
     return
   }
   const image = new Image()
   image.onload = () => {
-    if (current === generation && !applyWallpaperAccent(image)) restorePreset()
+    if (current === generation && !applyWallpaperAccent(image, prefs)) restorePreset()
   }
   image.onerror = () => {
     if (current === generation) restorePreset()
@@ -225,6 +240,7 @@ export function saveAppearance(next: Appearance) {
     stored.filename = next.filename
     stored.crop = next.crop
     stored.autoAccent = next.autoAccent
+    stored.autoTint = next.autoTint
     writeStored(stored)
     publish(await materialize(stored))
   })

@@ -15,6 +15,7 @@ import {
   saveAppearance,
   saveVideoWallpaper,
   useAppearance,
+  type Appearance,
 } from '@/lib/appearance'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
@@ -45,6 +46,7 @@ export function SettingsAppearance() {
   const themeLabel = themes.find((option) => option.value === theme)?.label
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
+  const wallpaperTintId = useId()
   const [editing, setEditing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -87,9 +89,9 @@ export function SettingsAppearance() {
     const [file] = await pickFiles({ accept: 'image/jpeg,image/png,image/webp', multiple: false })
     await upload(file)
   }
-  async function setAuto(autoAccent: boolean) {
+  async function setAuto(change: Partial<Pick<Appearance, 'autoAccent' | 'autoTint'>>) {
     try {
-      await saveAppearance({ ...appearance, autoAccent })
+      await saveAppearance({ ...appearance, ...change })
       setError('')
     } catch {
       setError('Your appearance preference could not be saved.')
@@ -125,7 +127,13 @@ export function SettingsAppearance() {
   }
   async function removeWallpaper() {
     try {
-      await saveAppearance({ ...appearance, wallpaper: '', filename: null, autoAccent: false })
+      await saveAppearance({
+        ...appearance,
+        wallpaper: '',
+        filename: null,
+        autoAccent: false,
+        autoTint: false,
+      })
       setError('')
     } catch {
       setError('Could not remove the wallpaper.')
@@ -307,19 +315,41 @@ export function SettingsAppearance() {
           className='appearance-option-row'
           tabIndex={appearance.wallpaper ? -1 : 0}
           role='group'
-          aria-label='Wallpaper colours'
+          aria-label='Wallpaper accent'
         >
           <label
             htmlFor={wallpaperAccentId}
             className={appearance.wallpaper ? undefined : 'text-disabled-foreground'}
           >
-            Match colours to wallpaper
+            Match accent to wallpaper
           </label>
           <Switch
             id={wallpaperAccentId}
             disabled={!appearance.wallpaper}
             checked={appearance.autoAccent}
-            onCheckedChange={setAuto}
+            onCheckedChange={(autoAccent) => void setAuto({ autoAccent })}
+            className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
+          />
+        </div>
+      </DisabledTooltip>
+      <DisabledTooltip reason={appearance.wallpaper ? undefined : 'Add a wallpaper first.'}>
+        <div
+          className='appearance-option-row'
+          tabIndex={appearance.wallpaper ? -1 : 0}
+          role='group'
+          aria-label='Wallpaper tint'
+        >
+          <label
+            htmlFor={wallpaperTintId}
+            className={appearance.wallpaper ? undefined : 'text-disabled-foreground'}
+          >
+            Tint app to wallpaper
+          </label>
+          <Switch
+            id={wallpaperTintId}
+            disabled={!appearance.wallpaper}
+            checked={appearance.autoTint}
+            onCheckedChange={(autoTint) => void setAuto({ autoTint })}
             className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
           />
         </div>
