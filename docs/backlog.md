@@ -41,6 +41,9 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   of orchestrator threads, children report up to their parent, the parent
   reports to the user (mark_ready_for_review), archive finished threads, etc.
   The optional parts become toggles in Settings → Agent behaviour.
+  Consider app-delivered completion/failure callbacks that notify and resume the
+  coordinating thread, rather than relying solely on a worker's explicit report.
+  Consider reliability across app restarts and duplicate delivery/retries.
   Jett reviews every place Jetty talks to agents, not just that file:
   1. the base instructions and the Agent behaviour sentences
      (server/src/jetty-instructions.ts, `agentBehaviours` in shared/src/wire.ts)
