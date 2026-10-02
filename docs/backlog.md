@@ -10,6 +10,16 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 ## later
 
 - Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
+  Merge through GitHub's async merge API (GA 2026-10-01): `PUT
+  /repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
+  `merged` | `enqueued` | `failed`; results kept 24h). One endpoint covers direct
+  merge, merge queue and stacks. Pin `sha` to the head the user saw (a push
+  mid-merge cancels it), keep `bypass_rules` false, and show the in-between
+  states in the PR view: Merging…, In merge queue, Failed with the reason.
+- Stacked PRs from parent/child threads: a child's worktree builds on its
+  parent's, so their PRs could open as a GitHub stack, and one async merge of
+  the top PR lands every downstack layer together or none of them. Needs a
+  stack model in the GitHub client.
 - Accept `#<PR number>` as a worktree ref by fetching the PR head.
 - Continue work on an existing branch.
 - Command palette: removed in the v2 skeleton; no design yet.
