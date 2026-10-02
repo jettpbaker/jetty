@@ -306,7 +306,11 @@ export async function iterate(
       top: coverage.top,
       calls: coverage.all,
       ...(loafs ? { loafs } : {}),
-      ...(finished.missing ? { warning: 'the page sent no journey record' } : {}),
+      ...(finished.missing
+        ? { warning: 'the page sent no journey record: counters but no wall-clock' }
+        : settled
+          ? {}
+          : { warning: 'the page never went quiet, so the window closed on the timeout' }),
     }
   } catch (error) {
     return {

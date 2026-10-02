@@ -108,7 +108,8 @@ function nondeterminism(group: Group) {
   return { exact, frame }
 }
 
-// The functions whose call counts moved between iterations: where to look for drift.
+// The functions whose call counts moved between iterations: where to look for drift. React's
+// internals always move the most, so the app's own functions come first.
 function driftingFunctions(group: Group) {
   const runs = ok(group.runs).filter((run) => run.calls)
   if (runs.length < 2) return []
@@ -120,7 +121,9 @@ function driftingFunctions(group: Group) {
     const max = Math.max(...counts)
     if (min !== max) out.push({ fn: key, min, max })
   }
-  return out.sort((a, b) => b.max - b.min - (a.max - a.min)).slice(0, 5)
+  out.sort((a, b) => b.max - b.min - (a.max - a.min))
+  const app = out.filter((entry) => entry.fn.includes(' src/'))
+  return [...app.slice(0, 5), ...out.filter((entry) => !app.includes(entry)).slice(0, 3)]
 }
 
 function fmt(value: number | undefined) {
@@ -302,8 +305,7 @@ export function renderReport(opts: {
 
   if (warnings.size) {
     lines.push('## Warnings', '')
-    for (const [warning, count] of warnings)
-      lines.push(`- ${warning}, in ${count} iteration(s); those have counters but no wall-clock`)
+    for (const [warning, count] of warnings) lines.push(`- ${warning}, in ${count} iteration(s)`)
     lines.push('')
   }
 
