@@ -3,10 +3,12 @@ import { join } from 'node:path'
 
 import { summarizeTrace } from './analyze'
 import { prepareTree } from './app'
+import { tier2 } from './counters'
 import { journeyId } from './journeys'
 import { recordGh } from './record-gh'
 import {
   baselinePath,
+  frameBatched,
   budgetsPath,
   readJson,
   renderReport,
@@ -179,10 +181,12 @@ switch (command) {
     const changes: string[] = []
     for (const [id, entry] of Object.entries(baseline.journeys)) {
       const budget = (budgets[id] ??= {})
-      const proposed: Record<string, number> = { ...entry.counters }
-      for (const name of ['scriptMs', 'taskMs', 'layoutMs', 'recalcMs', 'loafBlockingMs'])
-        delete proposed[name]
-      // Wall-clock gets the noise floor as headroom; counts are exact, so their ceiling is the count.
+      // Exact counts get the count as their ceiling; frame-batched ones, which jitter by a pass
+      // or two, get 10%; wall-clock gets the noise floor.
+      const proposed: Record<string, number> = {}
+      for (const [name, value] of Object.entries(entry.counters))
+        if (!(tier2 as readonly string[]).includes(name))
+          proposed[name] = Math.ceil(frameBatched.has(name) ? value * 1.1 : value)
       proposed.wallMs = round(entry.wallMs + (entry.noiseMs ?? 0))
       for (const [name, value] of Object.entries(proposed)) {
         const ceiling = budget[name]

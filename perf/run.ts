@@ -24,7 +24,7 @@ import { createSourceMapper, type SourceMapper } from './sourcemap'
 
 export const cpuThrottle = 4
 
-export type Record = {
+export type PerfRecord = {
   v: 1
   t: number
   sid: string
@@ -48,7 +48,7 @@ export type Iteration = {
   wallSource: 'record' | 'lab' | 'none'
   settled: boolean
   phases?: Counters
-  record?: Record
+  record?: PerfRecord
   top?: Counters
   // Every app function's call count; kept in memory for drift diagnosis, not written out.
   calls?: Map<string, number>
@@ -91,7 +91,6 @@ export type RunOptions = {
   // `sameAs` reuses another variant's build with its own servers: the A/A noise run.
   variants: { label: string; ref?: string; sameAs?: string }[]
   out: string
-  trace?: boolean
 }
 
 export function selectJourneys(filter?: string) {
@@ -188,12 +187,12 @@ async function preparePage(origin: string) {
 
 async function waitForJourney(page: Page, journey: Journey, ctx: Ctx) {
   const started = Date.now()
-  const others: Record[] = []
+  const others: PerfRecord[] = []
   let doneAt = 0
   for (;;) {
     // With the in-app module, take() is what's polled; its calls are excluded from the counts.
     const state = await page
-      .evaluate<{ module: boolean; records: Record[] }>(
+      .evaluate<{ module: boolean; records: PerfRecord[] }>(
         `(() => {
           const perf = window.__jettyPerf
           return { module: !!perf, records: perf ? perf.take() : [] }

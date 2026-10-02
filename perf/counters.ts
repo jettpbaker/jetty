@@ -76,14 +76,9 @@ export const tier2 = ['scriptMs', 'taskMs', 'layoutMs', 'recalcMs', 'loafBlockin
 
 export type Counters = Record<string, number>
 
-type PageCounters = {
-  commits: number
-  loafCount: number
-  loafBlockingMs: number
-  shifts: number
-  wsMsgs: number
-  wsBytes: number
-}
+// The page's counters() has more, but the lab measures LoAF and shifts itself.
+const pageCounters = ['commits', 'wsMsgs', 'wsBytes'] as const
+type PageCounters = Record<(typeof pageCounters)[number], number>
 
 export type Snapshot = {
   metrics: Record<string, number>
@@ -130,12 +125,8 @@ export function delta(before: Snapshot, after: Snapshot): Counters {
     layoutMs: ms('LayoutDuration'),
     recalcMs: ms('RecalcStyleDuration'),
   }
-  if (after.page) {
-    const base = before.page
-    for (const key of Object.keys(after.page) as (keyof PageCounters)[])
-      if (key === 'commits' || key === 'wsMsgs' || key === 'wsBytes')
-        out[key] = Math.round((after.page[key] - (base?.[key] ?? 0)) * 10) / 10
-  }
+  if (after.page)
+    for (const key of pageCounters) out[key] = after.page[key] - (before.page?.[key] ?? 0)
   const shifts = after.lab?.shifts ?? {}
   let total = 0
   for (const [region, count] of Object.entries(shifts)) {
