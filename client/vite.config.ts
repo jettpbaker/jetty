@@ -103,6 +103,8 @@ export default defineConfig({
     fluentEmoji(),
     websocketSecret(),
   ],
+  // The code highlighter worker loads its grammars on demand.
+  worker: { format: 'es' },
   server: {
     port: Number(process.env.JETTY_CLIENT_PORT ?? 5173),
     proxy: {

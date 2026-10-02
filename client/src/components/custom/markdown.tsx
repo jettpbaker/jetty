@@ -1,4 +1,4 @@
-import { createCodePlugin, shikiThemes } from '@/components/custom/code_plugin'
+import { CodePre } from '@/components/custom/code_block'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
 import { GithubMedia, githubMediaTags, rehypeGithubMedia } from '@/components/custom/github_media'
 import { MarkdownTable } from '@/components/custom/markdown_table'
@@ -11,9 +11,13 @@ import {
 } from 'streamdown'
 import 'streamdown/styles.css'
 
-const codePlugin = createCodePlugin()
 const remarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBreaks, remarkFileLinks]
-const components = { table: MarkdownTable, 'file-link': FileLink, 'github-media': GithubMedia }
+const components = {
+  pre: CodePre,
+  table: MarkdownTable,
+  'file-link': FileLink,
+  'github-media': GithubMedia,
+}
 // Links open in a new tab; streamdown's confirm modal is a speed bump with no focus handling.
 const linkSafety = { enabled: false }
 
@@ -52,10 +56,8 @@ export function Markdown({
       allowedTags={fileLinkTag}
       linkSafety={linkSafety}
       isAnimating={streaming}
-      plugins={{ code: codePlugin }}
       remarkPlugins={remarkPlugins}
       rehypePlugins={githubMedia ? githubRehypePlugins : undefined}
-      shikiTheme={shikiThemes}
     >
       {children}
     </Streamdown>
