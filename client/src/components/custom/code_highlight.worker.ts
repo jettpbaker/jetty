@@ -19,11 +19,11 @@ let draining = false
 // Requests come in bursts (every block a thread mounts), so they're answered as one message: one
 // render on the page instead of one per block.
 async function drain() {
-  const highlighter = await core
   const results: { key: string; html?: string[] }[] = []
   for (let request = queue.shift(); request; request = queue.shift()) {
     const { key, code, lang, numbered } = request
     try {
+      const highlighter = await core
       if (lang !== 'text' && !highlighter.getLoadedLanguages().includes(lang))
         await highlighter.loadLanguage(languages[lang])
       const { tokens } = highlighter.codeToTokens(code, { lang, themes })

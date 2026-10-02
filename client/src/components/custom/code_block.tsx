@@ -40,7 +40,7 @@ function useHighlightedHtml(code: string, language: string, numbered: boolean) {
   useEffect(() => {
     let live = true
     const cached = highlightHtml(code, language, numbered, (next) => {
-      if (live) setHtml(next)
+      if (live) setHtml(next ?? plainHtml(code, numbered))
     })
     if (cached !== undefined) setHtml(cached)
     return () => {
