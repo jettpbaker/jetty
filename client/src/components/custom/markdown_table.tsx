@@ -1,4 +1,4 @@
-import { ArrowExpandIcon } from '@/components/custom/huge_icons'
+import { ArrowExpand01Icon } from '@/components/custom/huge_icons'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { useContext, useEffect, useRef, useState, type ComponentProps } from 'react'
@@ -39,7 +39,7 @@ export function MarkdownTable({
           aria-label='View fullscreen'
           onClick={() => setFullscreen(true)}
         >
-          <ArrowExpandIcon size={14} />
+          <ArrowExpand01Icon size={14} />
         </button>
       </div>
       <div

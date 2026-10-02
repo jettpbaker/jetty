@@ -1,8 +1,8 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import {
-  ArrowShrinkIcon,
-  ArrowExpandIcon,
+  ArrowShrink02Icon,
+  ArrowExpand01Icon,
   PauseIcon,
   PlayIcon,
   VolumeHighIcon,
@@ -168,7 +168,7 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
           >
-            {fullscreen ? <ArrowShrinkIcon /> : <ArrowExpandIcon />}
+            {fullscreen ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
           </Button>
         </div>
       )}
