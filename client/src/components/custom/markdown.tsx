@@ -48,7 +48,9 @@ const githubRehypePlugins = [
 
 // Streamdown parses a block every time it mounts, and a thread switch remounts every message.
 // This is its Block render (Streamdown 2.6.0) keeping each tree by text, so a block parses once.
-// It has no incomplete-fence context, which only a streaming block needs.
+// It skips what the app never sets (dir, indentation normalising, animation, element filters,
+// html-to-text without rehype-raw) and the incomplete-fence context only a streaming block needs.
+// Re-check it against Streamdown's on upgrade.
 function cachedBlock() {
   const trees = new Map<string, ReactElement>()
   let processor: ReturnType<typeof blockProcessor> | undefined
