@@ -1371,6 +1371,10 @@ const checkStates: Record<string, PullRequestListItem['checks']> = {
   EXPECTED: 'pending',
 }
 
+function itemChecksRunning(item: PullRequestListItem) {
+  return item.checks === 'pending' && (item.state === 'open' || item.state === 'draft')
+}
+
 function listItem(value: unknown): PullRequestListItem | null {
   const node = record(value)
   const repo = string(record(node.repository).nameWithOwner).toLowerCase()
@@ -1465,9 +1469,7 @@ export function createPullRequestLists(store: Store, hub: Hub) {
       ...list,
       rateLimit: githubRateLimitHealth(
         paused ? null : 120_000 * cadenceMultiplier(),
-        !paused && list.items?.some((item) => item.checks === 'pending')
-          ? 30_000 * cadenceMultiplier()
-          : null
+        !paused && list.items?.some(itemChecksRunning) ? 30_000 * cadenceMultiplier() : null
       ),
     }
   }
@@ -1549,7 +1551,7 @@ export function createPullRequestLists(store: Store, hub: Hub) {
         return
       checkingTabs.add(tab)
       lastCheckRefresh.set(tab, Date.now())
-      const refs = (list.items ?? []).filter((item) => item.checks === 'pending')
+      const refs = (list.items ?? []).filter(itemChecksRunning)
       yield* Effect.gen(function* () {
         const graphs = yield* Effect.tryPromise({
           try: () => fetchGraphqlBatch(refs, pullRequestStateFields),
