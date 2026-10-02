@@ -424,7 +424,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   }, [live, optimistic, promptCount, registry, status, threadId])
 
   return {
-    items: [...overlaid, ...pendingUserItems(pending)],
+    items: pending.length > 0 ? [...overlaid, ...pendingUserItems(pending)] : overlaid,
     // the server's items with local answers applied, without optimistic prompts
     serverItems: overlaid,
     empty: overlaid.length === 0 && pending.length === 0,
