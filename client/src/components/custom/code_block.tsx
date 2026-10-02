@@ -6,6 +6,7 @@ import {
   isValidElement,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -49,8 +50,31 @@ function useHighlightedHtml(code: string, language: string, numbered: boolean) {
   return html
 }
 
+// A block mounts with its lines in one innerHTML. Later results replace only the lines from the
+// first changed one, so a selection above a streaming end survives it.
+function usePatchedLines(html: readonly string[]) {
+  const code = useRef<HTMLElement>(null)
+  const shown = useRef(html)
+  const [mounted] = useState(() => ({ __html: html.join('') }))
+  useLayoutEffect(() => {
+    const element = code.current
+    const previous = shown.current
+    shown.current = html
+    if (!element || previous === html) return
+    let same = 0
+    while (same < html.length && previous[same] === html[same]) same++
+    if (same === 0) {
+      element.innerHTML = html.join('')
+      return
+    }
+    while (element.childNodes.length > same) element.lastChild!.remove()
+    if (same < html.length) element.insertAdjacentHTML('beforeend', html.slice(same).join(''))
+  }, [html])
+  return [code, mounted] as const
+}
+
 // A capped block follows its streaming end unless the reader has scrolled up in it.
-function useFollowEnd(streaming: boolean, capped: boolean, html: string) {
+function useFollowEnd(streaming: boolean, capped: boolean, html: readonly string[]) {
   const body = useRef<HTMLDivElement>(null)
   const atEnd = useRef(true)
   useEffect(() => {
@@ -94,6 +118,7 @@ function CodeBlock({
   const html = useHighlightedHtml(code.replace(/\n+$/, ''), language, numbered)
   const capped = Boolean(codeBlockMaxHeight)
   const body = useFollowEnd(isAnimating, capped, html)
+  const [lines, mounted] = usePatchedLines(html)
   return (
     <CodeBlockContainer dir='ltr' isIncomplete={incomplete} language={language}>
       <CodeBlockHeader language={language} />
@@ -126,11 +151,12 @@ function CodeBlock({
           style={preStyle}
         >
           <code
+            ref={lines}
             className={numbered ? '[counter-increment:line_0] [counter-reset:line]' : undefined}
             style={
               numbered && startLine > 1 ? { counterReset: `line ${startLine - 1}` } : undefined
             }
-            dangerouslySetInnerHTML={{ __html: html }}
+            dangerouslySetInnerHTML={mounted}
           />
         </pre>
       </div>

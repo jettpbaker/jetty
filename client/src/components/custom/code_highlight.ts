@@ -4,14 +4,14 @@ import { resolveLanguage } from '@/lib/shiki-langs'
 
 // Tokenising runs in a worker so a thread full of code doesn't block the page.
 let worker: Worker | undefined
-const results = new Map<string, string>()
-const pending = new Map<string, Set<(html: string) => void>>()
+const results = new Map<string, readonly string[]>()
+const pending = new Map<string, Set<(html: readonly string[]) => void>>()
 
 function cacheKey(code: string, language: string, numbered: boolean) {
   return `${numbered ? '#' : ''}${resolveLanguage(language)}:${code}`
 }
 
-function receive({ data }: MessageEvent<{ key: string; html?: string }[]>) {
+function receive({ data }: MessageEvent<{ key: string; html?: string[] }[]>) {
   for (const { key, html } of data) {
     if (html !== undefined) {
       if (results.size >= 512) results.clear()
@@ -30,7 +30,7 @@ export function highlightHtml(
   code: string,
   language: string,
   numbered: boolean,
-  onResult: (html: string) => void
+  onResult: (html: readonly string[]) => void
 ) {
   const key = cacheKey(code, language, numbered)
   const cached = results.get(key)

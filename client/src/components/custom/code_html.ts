@@ -2,7 +2,8 @@ import type { resolveLanguage } from '@/lib/shiki-langs'
 import type { ThemedToken } from 'shiki/core'
 
 // A code block's lines in Streamdown's markup, serialised once so showing it again is one
-// innerHTML instead of a React element per token.
+// innerHTML instead of a React element per token. Kept per line, so streaming rewrites only the
+// lines that changed.
 export type HighlightRequest = {
   key: string
   code: string
@@ -47,12 +48,10 @@ function tokenHtml(token: Token) {
 }
 
 export function linesHtml(lines: Token[][], numbered: boolean) {
-  let html = ''
-  for (const line of lines) {
+  return lines.map((line) => {
     const empty = line.length === 0 || (line.length === 1 && line[0]!.content === '')
-    html += `<span class="${numbered ? numberedLineClass : lineClass}">${empty ? '\n' : line.map(tokenHtml).join('')}</span>`
-  }
-  return html
+    return `<span class="${numbered ? numberedLineClass : lineClass}">${empty ? '\n' : line.map(tokenHtml).join('')}</span>`
+  })
 }
 
 export function plainHtml(code: string, numbered: boolean) {

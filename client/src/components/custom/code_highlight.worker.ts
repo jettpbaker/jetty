@@ -20,7 +20,7 @@ let draining = false
 // render on the page instead of one per block.
 async function drain() {
   const highlighter = await core
-  const results: { key: string; html?: string }[] = []
+  const results: { key: string; html?: string[] }[] = []
   for (let request = queue.shift(); request; request = queue.shift()) {
     const { key, code, lang, numbered } = request
     try {
