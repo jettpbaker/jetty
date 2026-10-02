@@ -1,12 +1,12 @@
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { perf } from '@/perf'
-import { useAtomValue } from '@effect/atom-react'
+import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
 import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/unstable/reactivity'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef } from 'react'
 
 import { chromeAtom } from './chrome'
 import { subscribe, useAction } from './connection'
@@ -62,34 +62,45 @@ export function useThreadJourney() {
   return useAction(startThreadJourney)
 }
 
-const unread = Atom.readable<ThreadState | undefined>(() => undefined)
-
 export function useThread(threadId: string): ThreadState | undefined {
   return useAtomValue(threadAtom(threadId))
 }
 
-function usePrefetchThread(threadId: string | undefined) {
-  return useAtomValue(threadId ? threadAtom(threadId) : unread)
-}
-
+// Warms a hovered row's thread outside React, so hovering never re-renders the list. A warm
+// that hasn't loaded yet outlives the hover until it has.
 export function useThreadRowPrefetch() {
-  const [warmId, setWarmId] = useState<string | undefined>()
+  const registry = useContext(RegistryContext)
   const hovering = useRef<string | undefined>(undefined)
-  const warmed = usePrefetchThread(warmId)
+  const warm = useRef<{ id: string; release: () => void } | undefined>(undefined)
 
-  useEffect(() => {
-    if (warmed && hovering.current !== warmId) setWarmId(undefined)
-  }, [warmed, warmId])
+  function settle() {
+    const current = warm.current
+    if (!current || current.id === hovering.current) return
+    if (registry.get(threadAtom(current.id)) === undefined) return
+    current.release()
+    warm.current = undefined
+  }
+
+  useEffect(
+    () => () => {
+      warm.current?.release()
+      warm.current = undefined
+    },
+    []
+  )
 
   return {
     enter(id: string) {
       hovering.current = id
-      setWarmId(id)
+      if (warm.current?.id === id) return
+      warm.current?.release()
+      warm.current = { id, release: registry.subscribe(threadAtom(id), settle) }
+      registry.get(threadAtom(id))
     },
     leave(id: string) {
       if (hovering.current !== id) return
       hovering.current = undefined
-      if (warmId === id && warmed) setWarmId(undefined)
+      settle()
     },
   }
 }
