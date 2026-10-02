@@ -44,7 +44,7 @@ import {
 } from '@/state'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { catalogModelName } from '@jetty/shared/model-name'
-import { Link, useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
+import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -137,7 +137,7 @@ export function AppSidebar() {
   const navigate = useNavigate()
   const router = useRouter()
   const selectedId = useParams({ strict: false }).threadId
-  const pathname = useLocation({ select: (location) => location.pathname })
+  const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onSettings = pathname === '/settings'
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()

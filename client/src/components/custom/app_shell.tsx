@@ -11,7 +11,7 @@ import {
   useThreadTab,
   type SubagentTab,
 } from '@/state'
-import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import { useMatches, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
@@ -78,7 +78,7 @@ function Workspace({
 }) {
   const navigate = useNavigate()
   const { setOpenMobile } = useSidebar()
-  const pathname = useLocation({ select: (location) => location.pathname })
+  const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const threadId = useParams({ strict: false }).threadId
   const thread = useChrome()?.threads.find((entry) => entry.id === threadId)
   const agents = useSubagentTabs(threadId)
