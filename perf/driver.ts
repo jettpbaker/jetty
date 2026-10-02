@@ -99,7 +99,7 @@ export async function openPage(): Promise<Page> {
       await mouse('mousePressed', x, y, 1)
       await mouse('mouseReleased', x, y, 1)
     },
-    async key(key, text) {
+    async key(key, text = key === 'Enter' ? '\r' : undefined) {
       const code = text && /^[a-z]$/i.test(text) ? `Key${text.toUpperCase()}` : key
       const base = {
         key,

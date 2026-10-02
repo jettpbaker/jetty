@@ -35,7 +35,11 @@ export function git(args: string[], cwd = repoRoot) {
 // The working tree as it is now (uncommitted edits included), or a git ref, as an isolated
 // checkout with its own install and perf-mode client build. Isolation keeps a run stable
 // while other agents edit the repo, and never touches the repo's own client/dist.
-export async function prepareTree(label: string, ref?: string): Promise<Tree> {
+export async function prepareTree(
+  label: string,
+  ref?: string,
+  opts: { profiling?: boolean } = {}
+): Promise<Tree> {
   const dir = join(workRoot, `${label}-${process.pid}-${Date.now().toString(36)}`)
   mkdirSync(dirname(dir), { recursive: true })
   let sha: string
@@ -53,7 +57,7 @@ export async function prepareTree(label: string, ref?: string): Promise<Tree> {
   }
   try {
     await run(['bun', 'install', '--frozen-lockfile'], dir)
-    await buildClient(dir)
+    await buildClient(dir, opts.profiling)
   } catch (error) {
     await dispose()
     throw error
@@ -82,8 +86,9 @@ function copyWorkingTree(dir: string) {
   }
 }
 
-async function buildClient(dir: string) {
-  await run(['bun', join(perfDir, 'build-client.ts')], join(dir, 'client'))
+async function buildClient(dir: string, profiling = false) {
+  const args = ['bun', join(perfDir, 'build-client.ts'), ...(profiling ? ['--profiling'] : [])]
+  await run(args, join(dir, 'client'))
 }
 
 export async function freePort(): Promise<number> {

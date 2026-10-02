@@ -14,7 +14,9 @@ const journey: Journey = {
   async act(ctx) {
     await ctx.page.key('a', 'a')
   },
-  done: () => `${composer}.value === 'a'`,
+  // The native getter: React wraps the element's own value property.
+  done: () =>
+    `Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').get.call(${composer}) === 'a'`,
 }
 
 export default [journey]

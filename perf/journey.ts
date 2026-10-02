@@ -22,7 +22,9 @@ export type Journey = {
   env?: Record<string, string>
   setup(ctx: Ctx): Promise<void>
   act(ctx: Ctx): Promise<void>
-  // DOM fallback for "the journey finished" when the page has no record for it.
+  // DOM fallback for "the journey finished" when the page has no record for it. It's polled
+  // inside the measured window, so it must not call app code: use native getters, since
+  // React wraps input values.
   done: (ctx: Ctx) => string
   // Extra condition before counters are read (e.g. the streamed turn has completed).
   settled?: (ctx: Ctx) => string

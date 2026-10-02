@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { perfDir, prepareTree } from './app'
 import { click, hasText, open, quiet, type Ctx } from './journey'
 import { journeyId, journeys } from './journeys'
-import { disposeVariant, iterate, makeVariant } from './run'
+import { disposeVariant, iterate, makeVariant, type Variant } from './run'
 import { prNumbers, prRepo, seedHome } from './seed'
 
 export async function recordGh(out: string) {
@@ -17,9 +17,10 @@ export async function recordGh(out: string) {
   const tree = await prepareTree('record')
   const dir = join(tmpdir(), 'jetty-perf', `record-home-${process.pid}`)
   mkdirSync(dir, { recursive: true })
+  let variant: Variant | undefined
   try {
     const seeded = await seedHome({ tree, dir, gh: { mode: 'record' } })
-    const variant = makeVariant(
+    variant = makeVariant(
       'record',
       tree,
       { dir, home: join(dir, 'home'), fixtures: seeded },
@@ -52,8 +53,8 @@ export async function recordGh(out: string) {
       )
       console.log(`PR #${number}: recorded`)
     }
-    await disposeVariant(variant)
   } finally {
+    await (variant ? disposeVariant(variant) : tree.dispose())
     rmSync(dir, { recursive: true, force: true })
   }
   console.log(`${readdirSync(fixtures).length} fixtures in ${fixtures}`)

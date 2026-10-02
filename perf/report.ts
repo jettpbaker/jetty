@@ -60,7 +60,9 @@ function values(runs: Iteration[], counter: string) {
 }
 
 function walls(runs: Iteration[]) {
-  return ok(runs).map((run) => run.wallMs)
+  return ok(runs)
+    .map((run) => run.wallMs)
+    .filter((wall) => Number.isFinite(wall))
 }
 
 // Every counter that appeared in any run, tier 1 first, then per-region shifts.
@@ -163,7 +165,6 @@ export function renderReport(opts: {
   notes?: string[]
 }) {
   const all = groups(opts.results)
-  const first = opts.results[0]
   const lines: string[] = [
     `# ${opts.title}`,
     '',
@@ -172,7 +173,7 @@ export function renderReport(opts: {
       all[0] ? all[0].runs.length : 0
     } per journey after one warm-up${opts.variants.length > 1 ? ', interleaved' : ''}`,
     `- machine load at start: ${opts.load}`,
-    `- wall-clock: ${first?.wallSource === 'record' ? 'the journey record (input → painted)' : 'lab-measured (input → DOM condition), the page sent no record'}`,
+    `- wall-clock: ${wallSources(opts.results)}`,
     '',
     ...(opts.notes ?? []).flatMap((note) => [`> ${note}`, '']),
   ]
@@ -189,6 +190,12 @@ export function renderReport(opts: {
     if (frame.length) jitter.push(`- ${group.id} (${group.variant}): ${frame.join(', ')}`)
   }
   const errors = opts.results.filter((run) => run.error)
+  const warnings = new Map<string, number>()
+  for (const run of opts.results)
+    if (run.warning && !run.warmup) {
+      const key = `${run.journey}/${run.case} (${run.variant}): ${run.warning}`
+      warnings.set(key, (warnings.get(key) ?? 0) + 1)
+    }
 
   if (opts.mode === 'run') {
     const header = ['journey', 'wall ms (95% CI)', ...columns.map(([, label]) => label)]
@@ -292,6 +299,13 @@ export function renderReport(opts: {
       ''
     )
 
+  if (warnings.size) {
+    lines.push('## Warnings', '')
+    for (const [warning, count] of warnings)
+      lines.push(`- ${warning}, in ${count} iteration(s); those have counters but no wall-clock`)
+    lines.push('')
+  }
+
   if (errors.length) {
     lines.push('## Errors', '')
     for (const run of errors)
@@ -356,6 +370,19 @@ export function renderReport(opts: {
     lines.push('')
   }
   return lines.join('\n')
+}
+
+function wallSources(results: Iteration[]) {
+  const by = new Map<string, Set<string>>()
+  for (const run of results)
+    if (!run.error) by.set(run.variant, (by.get(run.variant) ?? new Set()).add(run.wallSource))
+  const describe = (sources: Set<string>) =>
+    sources.has('record')
+      ? 'the journey record (input → painted)'
+      : 'lab-measured (input → DOM condition); the page sent no records'
+  const kinds = new Set([...by.values()].map(describe))
+  if (kinds.size <= 1) return [...kinds][0] ?? 'none'
+  return `**differs between builds** (${[...by].map(([variant, sources]) => `${variant}: ${describe(sources)}`).join('; ')}), so compare counters, not wall-clock`
 }
 
 function wallVerdict(diff: number, noise?: number) {

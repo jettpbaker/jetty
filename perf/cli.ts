@@ -204,7 +204,7 @@ switch (command) {
     await checkMachine()
     const [journey] = selectJourneys(id)
     const out = outDir()
-    const variant = await prepareVariant('head')
+    const variant = await prepareVariant('head', undefined, { profiling: true })
     try {
       await iterate(variant, journey!, { iteration: 0, warmup: true, out })
       const tracePath = join(out, 'trace.json')

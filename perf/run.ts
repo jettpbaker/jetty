@@ -45,7 +45,7 @@ export type Iteration = {
   warmup: boolean
   counters: Counters
   wallMs: number
-  wallSource: 'record' | 'lab'
+  wallSource: 'record' | 'lab' | 'none'
   settled: boolean
   phases?: Counters
   record?: Record
@@ -53,6 +53,7 @@ export type Iteration = {
   // Every app function's call count; kept in memory for drift diagnosis, not written out.
   calls?: Map<string, number>
   loafs?: Loaf[]
+  warning?: string
   error?: string
 }
 
@@ -63,6 +64,8 @@ export type Variant = {
   mapper: SourceMapper
   servers: Map<string, Promise<{ server: Server; rpc: Client }>>
   gh: 'replay' | 'record'
+  // How long each journey took from input to settled last time, for ping alignment.
+  spans: Map<string, number>
 }
 
 export function makeVariant(
@@ -78,6 +81,7 @@ export function makeVariant(
     mapper: createSourceMapper(join(tree.dir, 'client/dist')),
     servers: new Map(),
     gh,
+    spans: new Map(),
   }
 }
 
@@ -115,9 +119,13 @@ export async function checkMachine() {
   Bun.spawn(['caffeinate', '-dimsu', '-w', String(process.pid)], { stdout: 'ignore' })
 }
 
-export async function prepareVariant(label: string, ref?: string): Promise<Variant> {
+export async function prepareVariant(
+  label: string,
+  ref?: string,
+  opts: { profiling?: boolean } = {}
+): Promise<Variant> {
   console.log(`preparing ${label}${ref ? ` (${ref})` : ' (working tree)'}…`)
-  const tree = await prepareTree(label, ref)
+  const tree = await prepareTree(label, ref, opts)
   try {
     return makeVariant(label, tree, await goldenHome(tree))
   } catch (error) {
@@ -179,31 +187,54 @@ async function preparePage(origin: string) {
 }
 
 async function waitForJourney(page: Page, journey: Journey, ctx: Ctx) {
-  const deadline = Date.now() + 20_000
+  const started = Date.now()
   const others: Record[] = []
   let doneAt = 0
   for (;;) {
+    // With the in-app module, take() is what's polled; its calls are excluded from the counts.
     const state = await page
-      .evaluate<{ module: boolean; records: Record[] | null; done: boolean }>(
+      .evaluate<{ module: boolean; records: Record[] }>(
         `(() => {
           const perf = window.__jettyPerf
-          return { module: !!perf, records: perf ? perf.take() : null, done: !!(${journey.done(ctx)}) }
+          return { module: !!perf, records: perf ? perf.take() : [] }
         })()`
       )
       .catch(() => null)
-    if (state) {
-      for (const record of state.records ?? []) {
-        if (record.k === 'journey' && record.n === journey.name) return { record, others }
-        others.push(record)
-      }
-      if (state.done && !doneAt) doneAt = Date.now()
-      // Without the in-app module the DOM condition ends the journey; with it, a missing
-      // record is reported rather than waited on forever.
-      if (state.done && (!state.module || Date.now() - doneAt > 5000))
-        return { record: null, others, missing: state.module }
+    for (const record of state?.records ?? []) {
+      if (record.k === 'journey' && record.n === journey.name) return { record, others }
+      others.push(record)
     }
-    if (Date.now() > deadline) throw new Error(`${journeyId(journey)} did not finish`)
-    await Bun.sleep(50)
+    // Without the module the DOM condition ends the journey. With it, the condition is only
+    // a fallback for a record that never comes, reported rather than waited on forever.
+    if (state && (!state.module || Date.now() - started > 300)) {
+      const done = await page.evaluate<boolean>(`!!(${journey.done(ctx)})`).catch(() => false)
+      if (done && !state.module) return { record: null, others }
+      if (done) doneAt ||= Date.now()
+      if (doneAt && Date.now() - doneAt > 1000) return { record: null, others, missing: true }
+    }
+    if (Date.now() - started > 20_000) throw new Error(`${journeyId(journey)} did not finish`)
+    await Bun.sleep(state?.module ? 20 : 50)
+  }
+}
+
+// The app's RPC socket pings every 5 s and handling the pong is app work. Starting a journey
+// just after a pong, when the journey fits before the next one, keeps it out of the counts.
+const pingMs = 5000
+
+function watchSocket(page: Page) {
+  let last = Date.now()
+  page.on<{ url: string }>('Network.webSocketCreated', (data) => {
+    if (data.url.includes('/ws')) last = Date.now()
+  })
+  page.on<{ response: { payloadData: string } }>('Network.webSocketFrameReceived', (data) => {
+    if (data.response.payloadData.includes('"Pong"')) last = Date.now()
+  })
+  return {
+    async clear(expectedMs: number) {
+      const deadline = Date.now() + pingMs + 1000
+      while (Date.now() - last + expectedMs > pingMs - 300 && Date.now() < deadline)
+        await Bun.sleep(20)
+    },
   }
 }
 
@@ -231,11 +262,14 @@ export async function iterate(
     warmup: opts.warmup,
   }
   const page = await preparePage(server.origin)
+  const socket = watchSocket(page)
   const ctx: Ctx = { page, origin: server.origin, fixtures: variant.golden.fixtures, rpc, vars: {} }
+  const id = journeyId(journey)
   try {
     await startCoverage(page)
     await journey.setup(ctx)
     await quiet(page)
+    if (!journey.navigates) await socket.clear(variant.spans.get(id) ?? 2000)
     await page.evaluate('window.__jettyPerf?.take(), 0')
     const before = journey.navigates ? emptySnapshot : await snapshot(page)
     await takeCoverage(page, server.origin, variant.mapper)
@@ -246,6 +280,7 @@ export async function iterate(
     const labWall = performance.now() - started
     if (journey.settled) await waitSettled(page, journey.settled(ctx))
     const settled = await quiet(page)
+    variant.spans.set(id, performance.now() - started)
     const after = await snapshot(page)
     const coverage = await takeCoverage(page, server.origin, variant.mapper)
     const loafs = tracing ? await page.evaluate<Loaf[]>('window.__perfLab.loafs') : undefined
@@ -258,14 +293,16 @@ export async function iterate(
     return {
       ...base,
       counters,
-      wallMs: Math.round((record?.d ?? labWall) * 10) / 10,
-      wallSource: record?.d !== undefined ? 'record' : 'lab',
+      // A page with the module but no record for this journey gets no wall-clock sample: the
+      // lab's own timing isn't the same measurement.
+      wallMs: finished.missing ? NaN : Math.round((record?.d ?? labWall) * 10) / 10,
+      wallSource: record?.d !== undefined ? 'record' : finished.missing ? 'none' : 'lab',
       settled,
       ...(record ? { phases, record } : {}),
       top: coverage.top,
       calls: coverage.all,
       ...(loafs ? { loafs } : {}),
-      ...(finished.missing ? { error: 'page has the perf module but sent no journey record' } : {}),
+      ...(finished.missing ? { warning: 'the page sent no journey record' } : {}),
     }
   } catch (error) {
     return {
@@ -346,7 +383,7 @@ export async function runJourneys(opts: RunOptions) {
       const twin = variants.find((variant) => variant.label === spec.sameAs)
       variants.push(
         twin
-          ? { ...twin, label: spec.label, servers: new Map() }
+          ? { ...twin, label: spec.label, servers: new Map(), spans: new Map() }
           : await prepareVariant(spec.label, spec.ref)
       )
     }
