@@ -59,6 +59,14 @@ export const GitHubReviewComment = Schema.Struct({
   resolved: Schema.optional(Schema.Boolean),
 })
 
+export const GitHubIssueComment = Schema.Struct({
+  id: Schema.Int,
+  user: GitHubUser,
+  body: Schema.String,
+  created_at: Schema.String,
+  html_url: Schema.String,
+})
+
 export const GitHubCheckRun = Schema.Struct({
   id: Schema.Union([Schema.Int, Schema.String]),
   name: Schema.String,
@@ -107,6 +115,7 @@ export const PullRequestData = Schema.Struct({
   pull: GitHubPullRequest,
   reviews: Schema.Array(GitHubReview),
   reviewComments: Schema.Array(GitHubReviewComment),
+  issueComments: Schema.optional(Schema.Array(GitHubIssueComment)),
   checkRuns: Schema.Array(GitHubCheckRun),
   commits: Schema.Array(GitHubCommit),
   files: Schema.Array(GitHubFile),

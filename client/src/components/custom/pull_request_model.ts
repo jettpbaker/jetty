@@ -4,6 +4,7 @@ export type GitHubPullRequest = PullRequestData['pull']
 export type GitHubUser = GitHubPullRequest['user']
 export type GitHubReview = PullRequestData['reviews'][number]
 export type GitHubReviewComment = PullRequestData['reviewComments'][number]
+export type GitHubIssueComment = NonNullable<PullRequestData['issueComments']>[number]
 export type GitHubCheckRun = PullRequestData['checkRuns'][number]
 export type GitHubCommit = PullRequestData['commits'][number]
 export type GitHubFile = PullRequestData['files'][number]
@@ -30,6 +31,7 @@ export function pullRequestState(
 export type PrActivityItem =
   | { kind: 'commits'; id: string; at: string; commits: GitHubCommit[] }
   | { kind: 'review'; id: string; at: string; review: GitHubReview }
+  | { kind: 'comment'; id: string; at: string; comment: GitHubIssueComment }
   | { kind: 'thread'; id: string; at: string; thread: ReviewThread }
   | { kind: 'merged'; id: string; at: string; user: GitHubUser }
 
@@ -44,7 +46,7 @@ function commitAuthorKey(commit: GitHubCommit) {
 }
 
 export function prActivity(
-  data: Pick<PullRequestData, 'pull' | 'reviews' | 'reviewComments' | 'commits'>
+  data: Pick<PullRequestData, 'pull' | 'reviews' | 'reviewComments' | 'issueComments' | 'commits'>
 ): PrActivityItem[] {
   const events: Array<
     PrActivityItem | { kind: 'commit'; id: string; at: string; commit: GitHubCommit }
@@ -60,6 +62,12 @@ export function prActivity(
       id: `review:${review.id}`,
       at: review.submitted_at,
       review,
+    })),
+    ...(data.issueComments ?? []).map((comment) => ({
+      kind: 'comment' as const,
+      id: `comment:${comment.id}`,
+      at: comment.created_at,
+      comment,
     })),
     ...reviewThreads(data.reviewComments).flatMap((thread) => {
       const first = thread.comments[0]

@@ -321,23 +321,43 @@ function CommitGroup({ commits }: { commits: GitHubCommit[] }) {
 function ReviewEvent({ review }: { review: GitHubReview }) {
   const copy = reviewCopy[review.state]
   if (!copy) return null
-  const body = review.body.trim()
+  return (
+    <CommentEvent
+      user={review.user}
+      label={copy.label}
+      color={copy.color}
+      at={review.submitted_at}
+      body={review.body}
+    />
+  )
+}
+
+function CommentEvent({
+  user,
+  label,
+  color,
+  at,
+  body,
+}: {
+  user: GitHubUser
+  label: string
+  color: string
+  at: string
+  body: string
+}) {
+  const text = body.trim()
   return (
     <div className='flex gap-2'>
-      <PersonAvatar
-        login={review.user.login}
-        src={review.user.avatar_url}
-        className='size-5 shrink-0'
-      />
+      <PersonAvatar login={user.login} src={user.avatar_url} className='size-5 shrink-0' />
       <div className='flex min-w-0 flex-1 flex-col gap-1'>
         <div className='flex min-h-5 items-baseline gap-2 text-xs'>
-          <span className='font-medium'>{review.user.login}</span>
-          <span className={copy.color}>{copy.label}</span>
+          <span className='font-medium'>{user.login}</span>
+          <span className={color}>{label}</span>
           <span className='text-muted-foreground'>
-            <TimeAgo at={review.submitted_at} />
+            <TimeAgo at={at} />
           </span>
         </div>
-        {body ? <Markdown githubMedia>{body}</Markdown> : null}
+        {text ? <Markdown githubMedia>{text}</Markdown> : null}
       </div>
     </div>
   )
@@ -360,6 +380,16 @@ function MergedEvent({ user, at }: { user: GitHubUser; at: string }) {
 function ActivityItem({ item }: { item: PrActivityItem }) {
   if (item.kind === 'commits') return <CommitGroup commits={item.commits} />
   if (item.kind === 'review') return <ReviewEvent review={item.review} />
+  if (item.kind === 'comment')
+    return (
+      <CommentEvent
+        user={item.comment.user}
+        label='commented'
+        color='text-muted-foreground'
+        at={item.comment.created_at}
+        body={item.comment.body}
+      />
+    )
   if (item.kind === 'thread') return <ReviewThreadCard thread={item.thread} />
   return <MergedEvent user={item.user} at={item.at} />
 }
@@ -614,13 +644,22 @@ export function PullRequestView({
   actions?: ReactNode
   threads?: readonly LinkedThread[]
 }) {
-  const { pull, reviews, reviewComments, checkRuns, commits, files, closingIssuesReferences } = data
+  const {
+    pull,
+    reviews,
+    reviewComments,
+    issueComments,
+    checkRuns,
+    commits,
+    files,
+    closingIssuesReferences,
+  } = data
   const [pane, setPane] = useState<PrPane>('info')
   const [diffSeen, setDiffSeen] = useState(false)
   const state = pullRequestState(pull)
   const presentation = prPresentation[state]
   const Icon = presentation.icon
-  const activity = prActivity({ pull, reviews, reviewComments, commits })
+  const activity = prActivity({ pull, reviews, reviewComments, issueComments, commits })
   const patches = useReviewRequestPatches(link)
   const setReviewRequest = useSetReviewRequest()
   const requested = patchedRequests(pull.requested_reviewers, patches)

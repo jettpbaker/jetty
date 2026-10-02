@@ -462,15 +462,17 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
   const base = `repos/${ref.repo}`
   const pull = (await ghApi(`${base}/pulls/${ref.number}`)) as Record<string, unknown>
   const head = pull.head as { sha: string }
-  const [reviews, reviewComments, checks, commits, files, repo, graph] = await Promise.all([
-    ghPages(`${base}/pulls/${ref.number}/reviews`),
-    ghPages(`${base}/pulls/${ref.number}/comments`),
-    ghCheckRollup(ref, head.sha),
-    ghPages(`${base}/pulls/${ref.number}/commits`),
-    ghPages(`${base}/pulls/${ref.number}/files`),
-    ghApi(base),
-    ghGraphql(ref),
-  ])
+  const [reviews, reviewComments, issueComments, checks, commits, files, repo, graph] =
+    await Promise.all([
+      ghPages(`${base}/pulls/${ref.number}/reviews`),
+      ghPages(`${base}/pulls/${ref.number}/comments`),
+      ghPages(`${base}/issues/${ref.number}/comments`),
+      ghCheckRollup(ref, head.sha),
+      ghPages(`${base}/pulls/${ref.number}/commits`),
+      ghPages(`${base}/pulls/${ref.number}/files`),
+      ghApi(base),
+      ghGraphql(ref),
+    ])
   const repository = repo as Record<string, unknown>
   const permissions = record(repository.permissions)
   const state = enumValue(
@@ -511,6 +513,10 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
         pull_request_review_id: comment.pull_request_review_id ?? 0,
         resolved: graph.resolved.get(Number(comment.id)) ?? false,
       }
+    }),
+    issueComments: issueComments.map((value) => {
+      const comment = record(value)
+      return { ...comment, user: user(comment.user), body: string(comment.body) }
     }),
     checkRuns: checks.map((value) => {
       const check = record(value)
