@@ -17,6 +17,7 @@ import {
 import { currentTodos, pendingItems } from '@/components/custom/composer_strip_model'
 import { WorkflowLines } from '@/components/custom/workflow_lines'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
@@ -209,12 +210,18 @@ export function ThreadComposer({
     const prior = priorCount(text)
     const kept = read().target
     setDraft('')
-    sendTurn(id, text, prior, loadout, attachments.take(), draftKey)
-    if (threadId) return
     const open = () => void navigate({ to: '/threads/$threadId', params: { threadId: id } })
+    // Shown at once for instant feedback, and withdrawn if the send fails so Open never dangles.
+    const notice =
+      background && !threadId
+        ? toast('Started in background', { action: { label: 'Open', onClick: open } })
+        : undefined
+    sendTurn(id, text, prior, loadout, attachments.take(), draftKey, () => {
+      if (notice !== undefined) toast.dismiss(notice)
+    })
+    if (threadId) return
     if (!background) return open()
     update({ target: kept })
-    toast('Started in background', { action: { label: 'Open', onClick: open } })
   }
 
   function submit(background = false) {
@@ -400,7 +407,20 @@ export function ThreadComposer({
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
         sendDisabled={mode.sendDisabled}
-        sendHint={needsModel ? 'Choose a model first' : undefined}
+        sendHint={
+          needsModel ? (
+            'Choose a model first'
+          ) : threadId ? undefined : (
+            <span className='flex flex-col gap-1'>
+              <span className='flex items-center justify-between gap-3'>
+                Send <Kbd>↵</Kbd>
+              </span>
+              <span className='flex items-center justify-between gap-3'>
+                Send in background <Kbd>⌘↵</Kbd>
+              </span>
+            </span>
+          )
+        }
         onKeyDown={mode.onKeyDown}
         loadout={
           <ComposerLoadout

@@ -283,6 +283,18 @@ export function ThreadList({
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [virtualizer, rows.length, stamp, width, totalSize])
 
+  // The top edge blurs only content that can scroll under it; a short chat has none.
+  const [scrollable, setScrollable] = useState(false)
+  useLayoutEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    const check = () => setScrollable(element.scrollHeight > element.clientHeight)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [totalSize])
+
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
     if (!revealId || agentId) return
@@ -353,16 +365,18 @@ export function ThreadList({
             ))}
           </div>
         </section>
-        <div aria-hidden='true' className='conversation-top-blur'>
-          <div />
-          <div />
-          <div />
-          <div />
-          <div />
-          <div />
-          <div />
-          <div />
-        </div>
+        {scrollable && (
+          <div aria-hidden='true' className='conversation-top-blur'>
+            <div />
+            <div />
+            <div />
+            <div />
+            <div />
+            <div />
+            <div />
+            <div />
+          </div>
+        )}
         <ThreadMinimap
           turns={turns}
           rows={latestRows}

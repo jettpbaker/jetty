@@ -127,7 +127,8 @@ function sendTurn(
   priorCount: number,
   loadout: Loadout | undefined,
   images: readonly ReadyImage[] = [],
-  fromDraft?: string
+  fromDraft?: string,
+  onFailure?: () => void
 ) {
   const staged = stageSend(registry, fromDraft, { text, images })
   if (loadout)
@@ -195,6 +196,7 @@ function sendTurn(
       settle()
       // A thread that failed to create is gone; its message goes back to the new-thread composer.
       staged.failed(threadMeta(registry, threadId) ? threadId : '')
+      onFailure?.()
       toast.error("Couldn't send message")
     }
   )

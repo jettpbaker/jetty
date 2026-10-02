@@ -58,7 +58,7 @@ export function Composer({
   sendLabel?: string
   // defaults to disabled while empty
   sendDisabled?: boolean
-  sendHint?: string
+  sendHint?: ReactNode
   onKeyDown?: (event: KeyboardEvent) => void
   loadout: ReactNode
   model?: ProviderModel
