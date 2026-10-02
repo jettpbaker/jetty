@@ -114,3 +114,9 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
 - PR checks list design pass: jettpbaker/jetty-issues#11.
+- Audit GitHub API usage: Jett occasionally hits rate limits at work (on the
+  pre-backlog build). REST and GraphQL have separate hourly budgets (5,000
+  each). Find what polls and how often per open PR or thread, send ETags so
+  unchanged REST responses come back 304 (those don't count against the
+  limit), fold REST calls into the GraphQL query each refresh already makes
+  where possible, and back off on the rate-limit headers.
