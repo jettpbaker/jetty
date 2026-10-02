@@ -125,3 +125,5 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   `pierre-light-soft` / `pierre-dark-soft`. Once Jett picks the PR view's theme
   (the study in the sketchpad's `pr_redesign/syntax_themes.ts`), use it for code
   blocks too so code looks the same everywhere.
+- Jetty bot avatar (sketchpad `/components/bot`, not ported): when bots land,
+  call Jett's own bot Sauron.
