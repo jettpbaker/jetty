@@ -27,7 +27,7 @@ import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
 import { useRevealRow } from '@/state'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const pinSlack = 96
 // Keeps a jumped-to message below the conversation's top blur.
@@ -121,7 +121,8 @@ function SubagentsRow({
   )
 }
 
-function ThreadItemRow({
+// Rows keep their identity while unchanged, so a list re-render (scroll, measurement) skips them.
+const ThreadItemRow = memo(function ThreadItemRow({
   row,
   threadId,
   selectedAgent,
@@ -185,7 +186,7 @@ function ThreadItemRow({
       projectPath={projectPath}
     />
   )
-}
+})
 
 export function ThreadList({
   threadId,
@@ -279,7 +280,7 @@ export function ThreadList({
     [view, virtualizer, width]
   )
 
-  const stamp = rows.map(rowStamp).join('|')
+  const stamp = useMemo(() => rows.map(rowStamp).join('|'), [rows])
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
   const totalSize = virtualizer.getTotalSize()
 
