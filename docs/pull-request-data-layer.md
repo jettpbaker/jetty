@@ -18,6 +18,8 @@ Closing issues carry repository identity and `open`, `completed` or
 carry names as well as their existing identity fields. The existing assignable
 user search remains separate, with a five-minute cache; suggestions are not
 another search endpoint. Mergeability preserves GitHub's enum values.
+Top-level conversation comments (`issueComments`) come from the same query,
+newest 100, keeping REST's `[bot]` login suffix.
 
 ## Refresh policy
 
@@ -38,7 +40,8 @@ check deadlines; that timer does not itself call GitHub.
 Concurrent full refresh jobs batch into one aliased GraphQL query, while
 retaining the existing visible/prefetch priority limits. In-flight REST reads
 are shared and use ETags. Existing REST PR/history/files/repository reads remain
-for the current view's data; new metadata and checks share the GraphQL read.
+for the current view's data; new metadata, conversation comments and checks
+share the GraphQL read.
 Concurrent list tabs use a single aliased search query. Snapshot publication is
 serialized, and revisions discard reads that overlap our writes.
 

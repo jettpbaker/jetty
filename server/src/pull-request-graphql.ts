@@ -18,6 +18,9 @@ export const pullRequestGraphqlFields = `
   latestReviews: reviews(last:100) { pageInfo { hasPreviousPage } nodes {
     databaseId state submittedAt author { __typename login avatarUrl url ... on User { name } }
   } }
+  comments(last:100) { pageInfo { hasPreviousPage } nodes {
+    databaseId body createdAt url author { __typename login avatarUrl url }
+  } }
   reviewRequests(first:100) { pageInfo { hasNextPage } nodes {
     asCodeOwner requestedReviewer { __typename
       ... on User { login name avatarUrl url }
@@ -177,8 +180,8 @@ export function mapPullRequestGraphql(value: unknown) {
     'closingIssuesReferences',
     'reviewThreads',
   ].filter((field) => record(record(pull[field]).pageInfo).hasNextPage === true)
-  if (record(record(pull.latestReviews).pageInfo).hasPreviousPage)
-    truncatedConnections.push('latestReviews')
+  for (const field of ['latestReviews', 'comments'])
+    if (record(record(pull[field]).pageInfo).hasPreviousPage) truncatedConnections.push(field)
   if (record(record(rollup.contexts).pageInfo).hasNextPage) truncatedConnections.push('checkRuns')
   return {
     pull,
@@ -199,6 +202,22 @@ export function mapPullRequestGraphql(value: unknown) {
             : issue.stateReason === 'NOT_PLANNED' || issue.stateReason === 'DUPLICATE'
               ? 'not_planned'
               : 'completed',
+      }
+    }),
+    issueComments: nodes(pull.comments).map((value) => {
+      const comment = record(value)
+      const author = record(comment.author)
+      return {
+        id: Number(comment.databaseId),
+        // REST, which the rest of the view reads, names bots with the [bot] suffix GraphQL drops.
+        user: githubUser(
+          author.__typename === 'Bot'
+            ? { ...author, login: `${string(author.login)}[bot]` }
+            : author
+        ),
+        body: string(comment.body),
+        created_at: string(comment.createdAt),
+        html_url: string(comment.url),
       }
     }),
     suggestedReviewers: ((pull.suggestedReviewers as unknown[]) ?? []).map(

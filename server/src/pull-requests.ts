@@ -608,10 +608,9 @@ async function fetchPullRequest(
       'unavailable',
       'The pull request changed during refresh. Refresh again for the latest head.'
     )
-  const [reviews, reviewComments, issueComments, commits, files, repo] = await Promise.all([
+  const [reviews, reviewComments, commits, files, repo] = await Promise.all([
     ghPages(`${base}/pulls/${ref.number}/reviews`),
     ghPages(`${base}/pulls/${ref.number}/comments`),
-    ghPages(`${base}/issues/${ref.number}/comments`),
     ghPages(`${base}/pulls/${ref.number}/commits`),
     ghPages(`${base}/pulls/${ref.number}/files`),
     ghApi(base),
@@ -660,10 +659,7 @@ async function fetchPullRequest(
         resolved: graph.resolved.get(Number(comment.in_reply_to_id ?? comment.id)) ?? false,
       }
     }),
-    issueComments: issueComments.map((value) => {
-      const comment = record(value)
-      return { ...comment, user: user(comment.user), body: string(comment.body) }
-    }),
+    issueComments: graph.issueComments,
     checkRuns: mapCheckRuns(graph.checks),
     checkRollupState: graph.checkRollupState,
     commits: commits.map((value) => {
