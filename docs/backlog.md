@@ -10,8 +10,8 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 ## later
 
 - Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
-  Merge through GitHub's async merge API (GA 2026-10-01): `PUT
-  /repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
+  Merge through GitHub's async merge API (GA 2026-10-01): a PUT to
+  `/repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
   `merged` | `enqueued` | `failed`; results kept 24h). One endpoint covers direct
   merge, merge queue and stacks. Pin `sha` to the head the user saw (a push
   mid-merge cancels it), keep `bypass_rules` false, and show the in-between
