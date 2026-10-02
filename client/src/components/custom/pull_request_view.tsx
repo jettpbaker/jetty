@@ -100,16 +100,7 @@ const PullRequestDiff = lazy(async () => {
   }) {
     const changes = useMemo(() => parseFileChanges(filesPatch(files)), [files])
     const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
-    const notShown = files.filter((file) => file.patch === undefined && file.status !== 'renamed')
-    return (
-      <FileChangesViewer
-        embedded
-        layout='page'
-        files={changes}
-        loadFile={loadFile}
-        footer={notShown.length > 0 && <NotShown paths={notShown.map((file) => file.filename)} />}
-      />
-    )
+    return <FileChangesViewer embedded layout='page' files={changes} loadFile={loadFile} />
   }
   return { default: PullRequestDiff }
 })
@@ -118,7 +109,6 @@ const PullRequestDiff = lazy(async () => {
 function filesPatch(files: readonly GitHubFile[]) {
   let patch = ''
   for (const file of files) {
-    if (file.patch === undefined && file.status !== 'renamed') continue
     const before = file.previous_filename ?? file.filename
     const header = [`diff --git a/${before} b/${file.filename}`]
     if (file.status === 'added') header.push('new file mode 100644')
@@ -139,17 +129,6 @@ function filesPatch(files: readonly GitHubFile[]) {
     patch += `${header.join('\n')}\n`
   }
   return patch
-}
-
-function NotShown({ paths }: { paths: readonly string[] }) {
-  return (
-    <p
-      className='shrink-0 truncate border-t border-border px-3 py-2 text-xs text-muted-foreground'
-      title={paths.join('\n')}
-    >
-      Not shown: {paths.join(', ')}
-    </p>
-  )
 }
 
 type PrPane = 'info' | 'diff'

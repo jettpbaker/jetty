@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResolvedTheme } from '@/lib/theme'
-import { CodeView, type CodeViewHandle } from '@pierre/diffs/react'
+import { CodeView, type CodeViewHandle, type CodeViewItem } from '@pierre/diffs/react'
 import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import {
@@ -516,6 +516,7 @@ export function FileChangesViewer({
             className='diff-scroll-viewport min-h-0 flex-1 overflow-auto'
             options={diffOptions}
             renderHeaderPrefix={renderFilePrefix}
+            renderHeaderMetadata={renderNotShown}
           />
           <ScrollOverlay viewport={scrollViewport} controls={scrollId} />
           {footer}
@@ -539,6 +540,14 @@ export function FileChangesViewer({
       </div>
     </div>
   )
+}
+
+// Binary and oversized files come through with no hunks to draw.
+function renderNotShown(item: CodeViewItem<undefined>) {
+  if (item.type !== 'diff') return null
+  const diff = item.fileDiff
+  if (diff.hunks.length > 0 || diff.type === 'rename-pure') return null
+  return <span className='text-xs text-muted-foreground'>Diff not shown</span>
 }
 
 function ChangedFilesTree({
