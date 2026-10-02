@@ -1077,6 +1077,7 @@ export function createStore() {
           JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
           JOIN threads t ON t.id = l.thread_id
           WHERE t.archived = 0
+          ORDER BY json_extract(p.data_json, '$.pull.state') IS 'closed'
           LIMIT 100`.pipe(Effect.mapError(storeError))
       },
       getThreadProvider(threadId: string) {
