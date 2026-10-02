@@ -23,7 +23,9 @@
 [data-slot='sidebar-wrapper'][data-resizing] [data-slot='shell-navigation'] {
   transition: none;
 }
-[data-slot='sidebar-wrapper']:has(.sidebar-resize-handle) [data-slot='sidebar-container'] {
+/* The handle shows while the sidebar is expanded. Not `:has()`: an anchor this high up makes Chrome
+   restyle the whole app on every DOM insertion. */
+[data-slot='sidebar'][data-state='expanded'] [data-slot='sidebar-container'] {
   transition-property: transform;
 }
 [data-slot='sidebar-wrapper'][data-resizing] {
