@@ -136,6 +136,29 @@
       }
     },
     {
+      "files": ["client/src/perf/**"],
+      "rules": {
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/*", "../*"],
+                "message": "The perf module stands alone: the app imports it, never the reverse."
+              },
+              {
+                "group": ["@jetty/shared/*"],
+                "allowTypeImports": true,
+                "message": "The perf module takes only types from shared."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["client/src/platform/**"],
       "rules": {
         "no-restricted-globals": "off",

@@ -14,9 +14,11 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { cn } from '@/lib/utils'
+import { perf } from '@/perf'
 import {
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   type CSSProperties,
   type ReactNode,
@@ -78,6 +80,8 @@ export function Composer({
   const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stop = running && empty
 
+  useLayoutEffect(() => perf.rendered('app.launch'), [])
+
   const append = useEffectEvent((key: string) => onValueChange(value + key))
   const handleKey = useEffectEvent((event: KeyboardEvent) => onKeyDown?.(event))
 
@@ -131,7 +135,11 @@ export function Composer({
   }
 
   return (
-    <div ref={root} className='mx-auto flex w-full max-w-[660px] flex-col gap-1'>
+    <div
+      ref={root}
+      data-perf-region='composer'
+      className='mx-auto flex w-full max-w-[660px] flex-col gap-1'
+    >
       <div>
         {strip ? <div className='px-3'>{strip}</div> : null}
         <div

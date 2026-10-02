@@ -39,6 +39,7 @@ import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { formatAgo, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { perf } from '@/perf'
 import {
   useLinkPullRequest,
   usePullRequest,
@@ -50,7 +51,15 @@ import {
   type PullRequestRef,
 } from '@/state'
 import { Link } from '@tanstack/react-router'
-import { lazy, Suspense, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react'
 import { toast } from 'sonner'
 
 import { DisabledTooltip } from './disabled_tooltip'
@@ -100,6 +109,7 @@ const PullRequestDiff = lazy(async () => {
   }) {
     const changes = useMemo(() => parseFileChanges(filesPatch(files)), [files])
     const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
+    useLayoutEffect(() => perf.rendered('pr.diff'), [])
     return <FileChangesViewer embedded layout='page' files={changes} loadFile={loadFile} />
   }
   return { default: PullRequestDiff }
@@ -697,6 +707,8 @@ export function PullRequestView({
   const requested = patchedRequests(pull.requested_reviewers, patches)
   const reviewers = reviewerEntries({ ...pull, requested_reviewers: requested }, reviews)
   const body = pull.body.trim()
+  useLayoutEffect(() => perf.rendered('pr.open', { pr: link.number }), [link.number])
+  useLayoutEffect(() => perf.rendered('pr.diff', { warm: true }), [pane])
 
   function toggleReviewer(user: GitHubUser, on: boolean) {
     setReviewRequest(link, user, on)
@@ -711,9 +723,11 @@ export function PullRequestView({
       value={pane}
       onValueChange={(value) => {
         if (value === 'info' || value === 'diff') setPane(value)
+        if (value === 'diff') perf.start('pr.diff', { pr: pull.number, warm: diffSeen })
         if (value === 'diff') setDiffSeen(true)
       }}
       render={<section aria-label={pull.title} />}
+      data-perf-region='pr-panel'
       className='relative h-full min-h-0 w-full gap-0'
     >
       <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 pt-4'>

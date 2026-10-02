@@ -107,6 +107,7 @@ export default defineConfig({
     port: Number(process.env.JETTY_CLIENT_PORT ?? 5173),
     proxy: {
       '/ws': { target: server, ws: true },
+      '/perf': { target: server },
       '/attachments': { target: server },
       '/github-media': { target: server },
     },

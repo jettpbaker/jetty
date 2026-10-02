@@ -23,7 +23,10 @@ export function ThreadHeader({
     ? `Context window ${Math.round(fraction * 100)}% full`
     : 'Context usage unavailable'
   return (
-    <header className='thread-conversation-header flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border pr-[42px] pl-(--page-header-inset)'>
+    <header
+      data-perf-region='thread-header'
+      className='thread-conversation-header flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border pr-[42px] pl-(--page-header-inset)'
+    >
       <div className='flex min-w-0 items-center gap-2'>
         <PageSidebarTrigger />
         {onUnarchive && (

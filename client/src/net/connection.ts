@@ -1,6 +1,7 @@
 import type { GitHubActivity } from '@jetty/shared/pull-request'
 import type { PullRequestListTab } from '@jetty/shared/wire'
 
+import { perf } from '@/perf'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { Effect, Latch, Layer, Schedule, Stream } from 'effect'
 import { RpcClient, RpcClientError, type RpcGroup, RpcSerialization } from 'effect/unstable/rpc'
@@ -54,7 +55,11 @@ function protocol(
   retryPolicy: Schedule.Schedule<unknown>
 ) {
   const socket = Socket.layerWebSocket(url).pipe(
-    Layer.provide(Socket.layerWebSocketConstructorGlobal)
+    Layer.provide(
+      Layer.succeed(Socket.WebSocketConstructor)((url, protocols) =>
+        perf.watchSocket(new globalThis.WebSocket(url, protocols))
+      )
+    )
   )
   return Layer.effect(RpcClient.Protocol)(RpcClient.makeProtocolSocket({ retryPolicy })).pipe(
     Layer.provide([

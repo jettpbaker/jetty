@@ -7,6 +7,7 @@ import { ThreadList } from '@/components/custom/thread_list'
 import { threadSubagents } from '@/components/custom/thread_rows'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
+import { perf } from '@/perf'
 import {
   MAIN_TAB,
   useArchiveThread,
@@ -18,13 +19,15 @@ import {
   useThreadTab,
 } from '@/state'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
 
 function Thread() {
   const { threadId } = Route.useParams()
   const thread = useThread(threadId)
+  perf.threadLocal(threadId, thread !== undefined)
+  useLayoutEffect(() => perf.threadShown(threadId, thread !== undefined))
   const overlay = useThreadOverlay(threadId, thread)
   const chrome = useChrome()
   const meta = chrome?.threads.find((item) => item.id === threadId)

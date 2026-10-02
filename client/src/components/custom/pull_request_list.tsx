@@ -10,6 +10,7 @@ import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { perf } from '@/perf'
 import { storage } from '@/platform'
 import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList } from '@/state'
 import { Link } from '@tanstack/react-router'
@@ -258,7 +259,10 @@ function PullRequestGroups({
                   onKeyDown={moveFocus}
                   onPointerEnter={() => enterRow(item)}
                   onPointerLeave={() => leaveRow(`${item.repo}#${item.number}`)}
-                  onOpen={() => openedRows.set(tab, `${item.repo}#${item.number}`)}
+                  onOpen={() => {
+                    perf.start('pr.open', { pr: item.number })
+                    openedRows.set(tab, `${item.repo}#${item.number}`)
+                  }}
                 />
               ))}
             </CollapsibleContent>

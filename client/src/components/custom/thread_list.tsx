@@ -325,7 +325,10 @@ export function ThreadList({
 
   return (
     <MediaLightboxProvider>
-      <div className='conversation-scroll relative flex min-h-0 flex-1 flex-col'>
+      <div
+        data-perf-region='messages'
+        className='conversation-scroll relative flex min-h-0 flex-1 flex-col'
+      >
         <section
           ref={scroller}
           className='scrollbar-subtle scroll-fade-y [--scroll-fade-t-size:0px] [scroll-timeline:--conversation_y] [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'

@@ -1,14 +1,15 @@
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
+import { perf } from '@/perf'
 import { useAtomValue } from '@effect/atom-react'
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
 import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Stream } from 'effect'
-import { AsyncResult, Atom } from 'effect/unstable/reactivity'
+import { AsyncResult, Atom, type AtomRegistry } from 'effect/unstable/reactivity'
 import { useEffect, useRef, useState } from 'react'
 
 import { chromeAtom } from './chrome'
-import { subscribe } from './connection'
+import { subscribe, useAction } from './connection'
 import { awaitCreation } from './mutations'
 
 function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
@@ -30,6 +31,7 @@ const liveAtom = Atom.family((threadId: string) =>
         Effect.as(awaitCreation(threadId), connection.subscribeThread(threadId, cached?.lastSeq))
       )
     ).pipe(
+      Stream.tap((update) => Effect.sync(() => perf.threadUpdate(threadId, update))),
       Stream.scan(cached ?? emptyThread, foldUpdate),
       Stream.drop(1),
       Stream.tap((state) => Effect.sync(() => get.set(resumeAtom(threadId), state)))
@@ -46,6 +48,19 @@ export const threadAtom = Atom.family((threadId: string) =>
     return state ? { ...state, status: backgroundStatus(state.status, tasks) } : state
   })
 )
+
+function startThreadJourney(registry: AtomRegistry.AtomRegistry, threadId: string) {
+  const live = registry.getNodes().get(liveAtom(threadId))?.value()
+  perf.threadClick(
+    threadId,
+    registry.get(resumeAtom(threadId)) !== undefined,
+    live !== undefined && AsyncResult.isSuccess(live)
+  )
+}
+
+export function useThreadJourney() {
+  return useAction(startThreadJourney)
+}
 
 const unread = Atom.readable<ThreadState | undefined>(() => undefined)
 
