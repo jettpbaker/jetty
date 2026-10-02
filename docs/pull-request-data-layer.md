@@ -1,16 +1,21 @@
 # Pull request data layer
 
-`server/src/pull-request-graphql.ts` exports `pullRequestGraphqlFields`,
-`checkRollupFields`, `pullRequestGraphqlQuery`, `mapPullRequestGraphql`, and
-`mapReviewers`. List queries and mapping live in `server/src/pull-requests.ts`
-as `pullRequestListGraphqlQuery` and `mapPullRequestList`.
+`server/src/pull-request-graphql.ts` exports the field selections
+(`pullRequestGraphqlFields` for a full refresh, `checkRollupFields` for running
+checks, `pullRequestStateFields` for change detection), `pullRequestGraphqlQuery`,
+`mapPullRequestGraphql`, and `mapReviewers`. List queries and mapping live in
+`server/src/pull-requests.ts` as `pullRequestListGraphqlQuery` and
+`mapPullRequestList`.
 
 The new snapshot data is additive, so stored snapshots from older versions
 still decode. `reviewRequests` contains pending users, bots and teams;
-`reviewers` also includes people who have reviewed. `state: AWAITING` overrides
-an older review when someone is explicitly requested again, while
-`latestReviewState` preserves that prior review. Both Copilot logins normalize
-to `copilot-pull-request-reviewer`, with display name `Copilot`. Team identities
+`reviewers` also includes people who have reviewed (from the REST reviews, last
+review per login wins). `state: AWAITING` overrides an older review when someone
+is explicitly requested again, while `latestReviewState` preserves that prior
+review. Logins keep GitHub's casing and bots keep REST's `[bot]` suffix, so a
+reviewer matches across REST and GraphQL. Copilot, which GitHub names `Copilot`
+on comments and `copilot-pull-request-reviewer[bot]` on reviews and requests,
+is one reviewer with login `Copilot`; writes send the bot login. Team identities
 use `organization/slug`, and include `asCodeOwner`.
 
 Closing issues carry repository identity and `open`, `completed` or
@@ -23,25 +28,32 @@ newest 100, keeping REST's `[bot]` login suffix.
 
 ## Refresh policy
 
-| Context             | PR refresh                | Running checks only              |
-| ------------------- | ------------------------- | -------------------------------- |
-| Focused PR view     | 30 seconds                | 10 seconds                       |
-| Blurred PR view     | 2 minutes                 | 30 seconds                       |
-| Thread list         | 2 minutes                 | 30 seconds                       |
-| PR list tabs        | 2 minutes, batched search | 30 seconds, aliased rollup reads |
-| Hidden clients      | Paused                    | Paused                           |
-| Closed or merged PR | 30 minutes                | Paused                           |
+| Context             | PR refresh                    | Running checks only              |
+| ------------------- | ----------------------------- | -------------------------------- |
+| Focused PR view     | 30 seconds                    | 10 seconds                       |
+| Blurred PR view     | 2 minutes                     | 30 seconds                       |
+| Linked PRs          | On change, detected every 30s | Rollup state in the same query   |
+| PR list tabs        | 2 minutes, batched search     | 30 seconds, aliased rollup reads |
+| Hidden clients      | Paused                        | Paused                           |
+| Closed or merged PR | 30 minutes                    | Paused                           |
+
+Linked PRs (the sidebar marks) share one aliased query for every active link
+that reads `updatedAt` and the check rollup state; a PR is fully refreshed only
+when either differs from its stored snapshot. That query costs about one point
+regardless of how many PRs are linked.
 
 A visible client keeps shared data fresh for hidden clients too. Subscriptions
-send cached state first. Browser focus/visibility is wired in the connection
-layer, without changing components. The server wakes every five seconds to
-check deadlines; that timer does not itself call GitHub.
+send cached state first, and later updates arrive as hub pushes; the poll timer
+itself emits nothing. Browser focus/visibility is wired in the connection layer,
+without changing components. The server wakes every five seconds to check
+deadlines; that timer does not itself call GitHub.
 
 Concurrent full refresh jobs batch into one aliased GraphQL query, while
-retaining the existing visible/prefetch priority limits. In-flight REST reads
-are shared and use ETags. Existing REST PR/history/files/repository reads remain
-for the current view's data; new metadata, conversation comments and checks
-share the GraphQL read.
+retaining the existing visible/prefetch priority limits. A fetch publishes its
+own result, so a subscription restarting mid-fetch (focus, blur, navigation)
+never drops it. In-flight REST reads are shared and use ETags. Existing REST
+PR/history/files/repository reads remain for the current view's data; new
+metadata, conversation comments and checks share the GraphQL read.
 Concurrent list tabs use a single aliased search query. Snapshot publication is
 serialized, and revisions discard reads that overlap our writes.
 
@@ -51,7 +63,9 @@ REST replies. The overall check rollup remains available even if individual
 checks are truncated. REST history retains its existing five-page bound.
 `behindBy` is obtained inside the same query using the cached head SHA and live
 base ref. It is null on the first read, if comparison is unavailable, or when
-that SHA no longer matches the PR's head.
+that SHA no longer matches the PR's head. A push landing between the GraphQL
+and REST reads of one refresh leaves the checks briefly stale rather than
+failing the refresh; the next poll catches up.
 
 Both PR and list snapshots expose `rateLimit`: GraphQL cost/remaining/reset,
 REST remaining/reset, backoff deadline, full cadence, and check cadence. Either
@@ -71,7 +85,8 @@ are logged with `[pr-rate]`.
 - `pullRequest.setReviewRequest { repo, number, login, requested, kind? }`:
   preserves existing user calls, accepts bots, and uses `kind: team` with a team
   slug. Copilot writes use `copilot-pull-request-reviewer[bot]`. Changes are
-  optimistic, roll back on rejection, and refresh after the write.
+  optimistic, roll back on rejection, and refresh after the write. A secondary
+  rate limit on a write reports the backoff rather than a permissions error.
 - `pullRequest.uploadAttachment { repo, name, mimeType, base64data }`: returns
   `{ url }`, without posting a comment or editing a PR body. Images are limited
   to 10 MiB; videos to 48 MiB within the existing RPC payload budget. Supporting
@@ -92,8 +107,8 @@ with `name`, `content_type`, and numeric `repository_id` query parameters,
 response supplies `url`. OAuth, classic PAT and fine-grained PAT credentials
 are supported. Some user-to-server tokens work, with the endpoint deciding;
 installation tokens are unsupported. WRITE, MAINTAIN or ADMIN repository
-permission is required. The operation checks credential type and write access,
-rejects redirects, and reports endpoint failures.
+permission is required. The operation checks write access, rejects redirects, and reports
+endpoint failures (including non-JSON replies).
 
 ## Verification and remaining decisions
 
