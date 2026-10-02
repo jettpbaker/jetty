@@ -15,6 +15,8 @@ export const collapsedTextHeight = 240
 export const collapseAfterHeight = collapsedTextHeight + 46
 // Survives the virtualizer unmounting a row.
 export const expandedMessages = new Set<string>()
+// Remounts reuse the measurement, so revisiting a thread never forces a synchronous layout.
+export const collapsibleTexts = new Map<string, boolean>()
 const fade = 'linear-gradient(to bottom, black calc(100% - 1.75rem), transparent)'
 
 export function UserMessage({
@@ -30,10 +32,16 @@ export function UserMessage({
 }) {
   const openMedia = useOpenMedia()
   const textRef = useRef<HTMLParagraphElement>(null)
-  const [collapsible, setCollapsible] = useState(false)
+  const [collapsible, setCollapsible] = useState(() => collapsibleTexts.get(text) ?? false)
   const [expanded, setExpanded] = useState(() => expandedMessages.has(id))
   useLayoutEffect(() => {
-    if (textRef.current) setCollapsible(textRef.current.scrollHeight > collapseAfterHeight)
+    if (!textRef.current) return
+    let measured = collapsibleTexts.get(text)
+    if (measured === undefined) {
+      measured = textRef.current.scrollHeight > collapseAfterHeight
+      collapsibleTexts.set(text, measured)
+    }
+    setCollapsible(measured)
   }, [text])
   const collapsed = collapsible && !expanded
   const thumbnails = useRef<(HTMLButtonElement | null)[]>([])

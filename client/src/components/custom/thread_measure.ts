@@ -9,7 +9,12 @@ import {
   INLINE_IMAGE_MAX_HEIGHT,
   videoHeight,
 } from './media_layout'
-import { collapseAfterHeight, collapsedTextHeight, expandedMessages } from './user_message'
+import {
+  collapseAfterHeight,
+  collapsedTextHeight,
+  collapsibleTexts,
+  expandedMessages,
+} from './user_message'
 import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
 const font = '14px "Geist Variable"'
@@ -18,6 +23,7 @@ const cache = new Map<string, { text: string; prepared: PreparedText }>()
 
 export function clearTextMeasure() {
   cache.clear()
+  collapsibleTexts.clear()
 }
 
 function textHeight(id: string, text: string, width: number, preWrap: boolean) {
