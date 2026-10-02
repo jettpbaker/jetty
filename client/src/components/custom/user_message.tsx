@@ -17,8 +17,15 @@ export const collapseAfterHeight = collapsedTextHeight + 46
 export const expandedMessages = new Set<string>()
 // Remounts reuse the measurement, so revisiting a thread never forces a synchronous layout. Bounded
 // like the code highlight cache, since it holds whole prompts.
-export const collapsibleTexts = new Map<string, boolean>()
+export const collapsibleTexts = new Map<string, { width: number; collapsible: boolean }>()
 const fade = 'linear-gradient(to bottom, black calc(100% - 1.75rem), transparent)'
+
+function measureCollapsible(element: HTMLElement, text: string) {
+  const collapsible = element.scrollHeight > collapseAfterHeight
+  if (collapsibleTexts.size >= 512) collapsibleTexts.clear()
+  collapsibleTexts.set(text, { width: element.getBoundingClientRect().width, collapsible })
+  return collapsible
+}
 
 export function UserMessage({
   id,
@@ -33,17 +40,27 @@ export function UserMessage({
 }) {
   const openMedia = useOpenMedia()
   const textRef = useRef<HTMLParagraphElement>(null)
-  const [collapsible, setCollapsible] = useState(() => collapsibleTexts.get(text) ?? false)
+  const [collapsible, setCollapsible] = useState(
+    () => collapsibleTexts.get(text)?.collapsible ?? false
+  )
   const [expanded, setExpanded] = useState(() => expandedMessages.has(id))
   useLayoutEffect(() => {
-    if (!textRef.current) return
-    let measured = collapsibleTexts.get(text)
-    if (measured === undefined) {
-      measured = textRef.current.scrollHeight > collapseAfterHeight
-      if (collapsibleTexts.size >= 512) collapsibleTexts.clear()
-      collapsibleTexts.set(text, measured)
+    const element = textRef.current
+    if (!element) return
+    const cached = collapsibleTexts.get(text)
+    if (!cached) {
+      setCollapsible(measureCollapsible(element, text))
+      return
     }
-    setCollapsible(measured)
+    setCollapsible(cached.collapsible)
+    // Once laid out its width is free to read, and a new one means the cached result is stale.
+    const observer = new ResizeObserver(([entry]) => {
+      observer.disconnect()
+      if (entry!.borderBoxSize[0]!.inlineSize !== cached.width)
+        setCollapsible(measureCollapsible(element, text))
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
   }, [text])
   const collapsed = collapsible && !expanded
   const thumbnails = useRef<(HTMLButtonElement | null)[]>([])
