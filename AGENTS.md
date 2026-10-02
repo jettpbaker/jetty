@@ -76,7 +76,8 @@
 - The tab close button is deliberately its own thing (tiny, no bg hover) — leave
   it.
 - Status colors are semantic: amber = awaiting approval, destructive = error,
-  green = open PR, purple = merged PR, `code-*` = ember brand.
+  green = open PR, purple = merged PR. There's no fixed brand colour; the
+  user's accent (`primary`) plays that role.
 
 - Act on pointer-down, not click, wherever it's safe (Carmack's "act on press"):
   fixed-position controls like sidebar items, tabs, buttons, toggles. It reads as
