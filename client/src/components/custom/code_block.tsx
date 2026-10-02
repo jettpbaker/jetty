@@ -73,6 +73,8 @@ function useFollowEnd(streaming: boolean, capped: boolean, html: string) {
   return body
 }
 
+// Mirrors Streamdown 2.6.0's code block body (markup, classes, follow-to-end), so it can paint from
+// cached HTML. Re-check it against Streamdown's on upgrade.
 function CodeBlock({
   className,
   code,

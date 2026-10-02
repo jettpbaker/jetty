@@ -509,7 +509,8 @@ export function threadRows(
 const previousRows = new WeakMap<ThreadItem, Map<string, ThreadRow>>()
 
 // Rows equal to the last call's keep their identity, so a streaming delta re-renders only the
-// row it changed.
+// row it changed. Keyed by the thread's first item, which outlives every delta and goes with the
+// thread.
 function reuseRows(first: ThreadItem | undefined, rows: ThreadRow[]) {
   if (!first) return rows
   const previous = previousRows.get(first)
