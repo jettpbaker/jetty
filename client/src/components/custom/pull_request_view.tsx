@@ -123,8 +123,13 @@ function filesPatch(files: readonly GitHubFile[]) {
     const header = [`diff --git a/${before} b/${file.filename}`]
     if (file.status === 'added') header.push('new file mode 100644')
     if (file.status === 'removed') header.push('deleted file mode 100644')
+    // The parser only reads a git rename from its similarity line; GitHub doesn't send the score.
     if (file.status === 'renamed')
-      header.push(`rename from ${before}`, `rename to ${file.filename}`)
+      header.push(
+        `similarity index ${file.changes ? 50 : 100}%`,
+        `rename from ${before}`,
+        `rename to ${file.filename}`
+      )
     if (file.patch !== undefined)
       header.push(
         `--- ${file.status === 'added' ? '/dev/null' : `a/${before}`}`,
