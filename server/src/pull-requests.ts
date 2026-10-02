@@ -845,6 +845,10 @@ export function createPullRequests(store: Store, hub: Hub) {
   const revisions = new Map<string, number>()
   const pendingOperations = new Map<string, NonNullable<PullRequestSnapshot['pendingOperation']>>()
   const publication = Semaphore.makeUnsafe(1)
+  // One GitHub write at a time, so quick reviewer picks and an Undo queue rather than fail.
+  // Only the last queued write to a PR refreshes it, once for all of them.
+  const writing = Semaphore.makeUnsafe(1)
+  const queuedWrites = new Map<string, number>()
   const jobs = new Map<string, Job>()
   const queue: Job[] = []
   let activeVisible = 0
@@ -1162,13 +1166,9 @@ export function createPullRequests(store: Store, hub: Hub) {
     confirm: (data: PullRequestData, response: unknown) => PullRequestData = (data) => data
   ) {
     const key = prKey(ref)
-    return Effect.gen(function* () {
+    const applied = Effect.gen(function* () {
       const previous = yield* publication.withPermit(
         Effect.gen(function* () {
-          if (pendingOperations.has(key))
-            return yield* Effect.fail(
-              new StoreError('conflict', 'A pull request operation is already in progress')
-            )
           const snapshot = yield* get(ref)
           pendingOperations.set(key, operation)
           revisions.set(key, revision(key) + 1)
@@ -1203,16 +1203,27 @@ export function createPullRequests(store: Store, hub: Hub) {
               })
             )
             .pipe(Effect.catch((error) => Effect.logWarning(error)))
-        ),
+        )
+      )
+    })
+    return Effect.suspend(() => {
+      queuedWrites.set(key, (queuedWrites.get(key) ?? 0) + 1)
+      return writing.withPermit(applied).pipe(
         Effect.onExit(() =>
           Effect.gen(function* () {
+            const queued = queuedWrites.get(key)! - 1
+            if (queued) {
+              queuedWrites.set(key, queued)
+              return
+            }
+            queuedWrites.delete(key)
             const running = jobs.get(key)
             if (running) yield* Effect.promise(() => running.promise)
             yield* refresh(ref).pipe(Effect.catch(() => Effect.void))
           })
-        )
+        ),
+        Effect.andThen(get(ref))
       )
-      return yield* get(ref)
     }).pipe(Effect.uninterruptible)
   }
 

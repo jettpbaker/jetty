@@ -71,9 +71,10 @@ Both PR and list snapshots expose `rateLimit`: GraphQL cost/remaining/reset,
 REST remaining/reset, backoff deadline, full cadence, and check cadence. Either
 budget below 500 slows cadence fourfold. Exhaustion honours reset, secondary
 limits honour Retry-After, and absent guidance starts exponential backoff at
-60 seconds (capped at 15 minutes). A write refreshes immediately after its
-request completes, unless GitHub requires backoff. Limit and cadence changes
-are logged with `[pr-rate]`.
+60 seconds (capped at 15 minutes). Writes run one at a time, queueing rather
+than failing, and the last queued write to a PR refreshes it immediately after
+its request completes, unless GitHub requires backoff. Limit and cadence
+changes are logged with `[pr-rate]`.
 
 ## Operations
 
