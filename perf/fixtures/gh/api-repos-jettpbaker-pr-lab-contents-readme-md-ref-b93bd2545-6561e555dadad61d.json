@@ -1,9 +1,0 @@
-{
-  "args": [
-    "api",
-    "repos/jettpbaker/pr-lab/contents/README.md?ref=b93bd2545545572505efe4d71c4e4136049c75ed"
-  ],
-  "code": 0,
-  "stdout": "{\"name\":\"README.md\",\"path\":\"README.md\",\"sha\":\"4f19b8172da87ad22d6c2b3a75031f0e0cd69276\",\"size\":115,\"url\":\"https://api.github.com/repos/jettpbaker/pr-lab/contents/README.md?ref=b93bd2545545572505efe4d71c4e4136049c75ed\",\"html_url\":\"https://github.com/jettpbaker/pr-lab/blob/b93bd2545545572505efe4d71c4e4136049c75ed/README.md\",\"git_url\":\"https://api.github.com/repos/jettpbaker/pr-lab/git/blobs/4f19b8172da87ad22d6c2b3a75031f0e0cd69276\",\"download_url\":\"https://raw.githubusercontent.com/jettpbaker/pr-lab/b93bd2545545572505efe4d71c4e4136049c75ed/README.md?token=BB3N4SO5ZTZXBNLM2WZMJIDKX7LGTAA\",\"type\":\"file\",\"content\":\"IyBwci1sYWIKCkEgc21hbGwgY2FydCBhbmQgcHJpY2luZyBsaWJyYXJ5IHVz\\nZWQgdG8gZXhlcmNpc2UgcHVsbCByZXF1ZXN0IHZpZXdzOiBjaGVja3MsCnJl\\ndmlldyB0aHJlYWRzLCBhbmQgZGlmZnMuCg==\\n\",\"encoding\":\"base64\",\"_links\":{\"self\":\"https://api.github.com/repos/jettpbaker/pr-lab/contents/README.md?ref=b93bd2545545572505efe4d71c4e4136049c75ed\",\"git\":\"https://api.github.com/repos/jettpbaker/pr-lab/git/blobs/4f19b8172da87ad22d6c2b3a75031f0e0cd69276\",\"html\":\"https://github.com/jettpbaker/pr-lab/blob/b93bd2545545572505efe4d71c4e4136049c75ed/README.md\"}}",
-  "stderr": ""
-}

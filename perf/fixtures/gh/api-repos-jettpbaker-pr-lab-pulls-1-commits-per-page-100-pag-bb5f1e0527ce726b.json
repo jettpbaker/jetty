@@ -1,0 +1,14 @@
+{
+  "args": [
+    "api",
+    "--hostname",
+    "github.com",
+    "--include",
+    "repos/jettpbaker/pr-lab/pulls/1/commits?per_page=100&page=1",
+    "-H",
+    "If-None-Match: W/\"29f6892aa88819d3204c4f617ca9cbd3f0ef45edf63169ae2dc5002a024c7e30\""
+  ],
+  "code": 1,
+  "stdout": "HTTP/2.0 304 Not Modified\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset, Warning\r\nCache-Control: private, max-age=60, s-maxage=60\r\nContent-Security-Policy: default-src 'none'\r\nDate: Fri, 02 Oct 2026 17:03:53 GMT\r\nEtag: \"29f6892aa88819d3204c4f617ca9cbd3f0ef45edf63169ae2dc5002a024c7e30\"\r\nLast-Modified: Thu, 01 Oct 2026 13:45:42 GMT\r\nReferrer-Policy: origin-when-cross-origin, strict-origin-when-cross-origin\r\nServer: github.com\r\nStrict-Transport-Security: max-age=31536000; includeSubdomains; preload\r\nVary: Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: deny\r\nX-Github-Api-Version-Selected: 2022-11-28\r\nX-Github-Edge-Region: australiaeast\r\nX-Github-Request-Id: 429A:339F17:150694:199CBF:6ABFE3F8\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4914\r\nX-Ratelimit-Reset: 1790961129\r\nX-Ratelimit-Resource: core\r\nX-Ratelimit-Used: 86\r\nX-Xss-Protection: 0\r\n\r\n",
+  "stderr": "gh: HTTP 304\n"
+}

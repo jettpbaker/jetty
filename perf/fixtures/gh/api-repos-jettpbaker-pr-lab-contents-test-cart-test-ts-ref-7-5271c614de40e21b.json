@@ -1,9 +1,0 @@
-{
-  "args": [
-    "api",
-    "repos/jettpbaker/pr-lab/contents/test/cart.test.ts?ref=762e18a0c4133b6c0fca8231d12d96b467397490"
-  ],
-  "code": 0,
-  "stdout": "{\"name\":\"cart.test.ts\",\"path\":\"test/cart.test.ts\",\"sha\":\"fac7490c8e16c4e4ae337942dfca15589cf7323a\",\"size\":235,\"url\":\"https://api.github.com/repos/jettpbaker/pr-lab/contents/test/cart.test.ts?ref=762e18a0c4133b6c0fca8231d12d96b467397490\",\"html_url\":\"https://github.com/jettpbaker/pr-lab/blob/762e18a0c4133b6c0fca8231d12d96b467397490/test/cart.test.ts\",\"git_url\":\"https://api.github.com/repos/jettpbaker/pr-lab/git/blobs/fac7490c8e16c4e4ae337942dfca15589cf7323a\",\"download_url\":\"https://raw.githubusercontent.com/jettpbaker/pr-lab/762e18a0c4133b6c0fca8231d12d96b467397490/test/cart.test.ts?token=BB3N4SKKBPZGE6THZ5PUAE3KX7LFZAA\",\"type\":\"file\",\"content\":\"aW1wb3J0IHsgZXhwZWN0LCB0ZXN0IH0gZnJvbSAnYnVuOnRlc3QnCmltcG9y\\ndCB7IG1vbmV5IH0gZnJvbSAnLi4vc3JjL2N1cnJlbmN5JwppbXBvcnQgeyBz\\ndWJ0b3RhbCB9IGZyb20gJy4uL3NyYy9jYXJ0JwoKdGVzdCgnc3VidG90YWxz\\nIGxpbmVzJywgKCkgPT4KICBleHBlY3Qoc3VidG90YWwoW3sgc2t1OiAndGVh\\nJywgdW5pdDogbW9uZXkoNDUwKSwgcXVhbnRpdHk6IDIgfV0pLmNlbnRzKS50\\nb0JlKDkwMCkpCg==\\n\",\"encoding\":\"base64\",\"_links\":{\"self\":\"https://api.github.com/repos/jettpbaker/pr-lab/contents/test/cart.test.ts?ref=762e18a0c4133b6c0fca8231d12d96b467397490\",\"git\":\"https://api.github.com/repos/jettpbaker/pr-lab/git/blobs/fac7490c8e16c4e4ae337942dfca15589cf7323a\",\"html\":\"https://github.com/jettpbaker/pr-lab/blob/762e18a0c4133b6c0fca8231d12d96b467397490/test/cart.test.ts\"}}",
-  "stderr": ""
-}

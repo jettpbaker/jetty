@@ -5,7 +5,7 @@ import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { perfDir, prepareTree } from './app'
+import { perfDir, prepareTree, repoRoot } from './app'
 import { click, hasText, open, quiet, type Ctx } from './journey'
 import { journeyId, journeys } from './journeys'
 import { disposeVariant, iterate, makeVariant, type Variant } from './run'
@@ -44,8 +44,10 @@ export async function recordGh(out: string) {
           async act(ctx: Ctx) {
             await click(ctx.page, diffTab, 'the Diff tab')
             await quiet(ctx.page, 1500)
-            // Linked PRs refresh every 15 s while a page is open; catch that query too.
-            if (number === prNumbers[0]) await Bun.sleep(16_000)
+            // A focused PR view refreshes every 30 s (polled on a 5 s tick), and a second
+            // refresh in one server revalidates its REST reads with ETags: different gh calls.
+            // The 30 s linked-PR change query lands in the same wait.
+            if (number === prNumbers[0]) await Bun.sleep(40_000)
           },
           done: () => 'true',
         },
@@ -57,6 +59,8 @@ export async function recordGh(out: string) {
     await (variant ? disposeVariant(variant) : tree.dispose())
     rmSync(dir, { recursive: true, force: true })
   }
+  // They're committed: leave them as the formatter would.
+  await Bun.spawn(['bun', 'run', 'format', fixtures], { cwd: repoRoot, stdout: 'ignore' }).exited
   console.log(`${readdirSync(fixtures).length} fixtures in ${fixtures}`)
 }
 
