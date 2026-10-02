@@ -61,6 +61,12 @@ export function ThreadDetailsLayout({
     chatHost.current.className = 'flex h-full min-h-0 min-w-0 flex-col'
   }
   const [leftSlot, setLeftSlot] = useState<HTMLDivElement | null>(null)
+  // The chat starts here, attached before its own layout effects run (they run before this
+  // component's), so on its first commit it measures a connected scroller, not a detached one.
+  const attachLeftSlot = useCallback((slot: HTMLDivElement | null) => {
+    if (slot && !chatHost.current!.parentNode) slot.appendChild(chatHost.current!)
+    setLeftSlot(slot)
+  }, [])
   const [chatSlot, setChatSlot] = useState<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [available, setAvailable] = useState(0)
@@ -201,7 +207,8 @@ export function ThreadDetailsLayout({
   // Keep the portal container stable: changing it remounts the entire chat,
   // including markdown, tool disclosures, and the composer.
   useLayoutEffect(() => {
-    if (portalTarget && chatHost.current) portalTarget.appendChild(chatHost.current)
+    const host = chatHost.current
+    if (portalTarget && host && host.parentNode !== portalTarget) portalTarget.appendChild(host)
   }, [portalTarget])
 
   function start(event: PointerEvent<HTMLDivElement>) {
@@ -408,7 +415,7 @@ export function ThreadDetailsLayout({
         inert={open && full}
         aria-hidden={(open && full) || undefined}
       >
-        <div ref={setLeftSlot} className='flex h-full min-w-[320px] flex-col' />
+        <div ref={attachLeftSlot} className='flex h-full min-w-[320px] flex-col' />
       </div>
       <OpenFileLink value={openFile}>
         {createPortal(children, chatHost.current)}
