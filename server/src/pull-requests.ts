@@ -1111,15 +1111,19 @@ export function createPullRequests(store: Store, hub: Hub) {
       if (!links.length) return
       linksPolledAt = Date.now()
       const graphs = yield* Effect.promise(() => fetchGraphqlBatch(links, pullRequestStateFields))
-      for (const [index, link] of links.entries()) {
+      const changed = links.filter((link, index) => {
         const graph = graphs[index]!
-        if (graph instanceof GhFailure) continue
-        if (
-          string(graph.pull.updatedAt) !== link.updated_at ||
-          graph.checkRollupState !== link.checks
+        return (
+          !(graph instanceof GhFailure) &&
+          (string(graph.pull.updatedAt) !== link.updated_at ||
+            graph.checkRollupState !== link.checks)
         )
-          void schedule(link, 'prefetch')
-      }
+      })
+      // Scheduled all at once, they would overflow the prefetch queue and drop the rest.
+      yield* Effect.forEach(changed, (link) => Effect.promise(() => schedule(link, 'prefetch')), {
+        concurrency: prefetchLimit,
+        discard: true,
+      })
     })
   }
 
