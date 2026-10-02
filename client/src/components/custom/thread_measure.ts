@@ -19,7 +19,8 @@ import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
 const font = '14px "Geist Variable"'
 const lineHeight = 23
-const cache = new Map<string, { text: string; prepared: PreparedText }>()
+type Measured = { text: string; prepared: PreparedText; width?: number; height: number }
+const cache = new Map<string, Measured>()
 
 export function clearTextMeasure() {
   cache.clear()
@@ -32,10 +33,15 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean) {
     entry = {
       text,
       prepared: prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined),
+      height: 0,
     }
     cache.set(id, entry)
   }
-  return layout(entry.prepared, Math.max(1, width), lineHeight).height
+  if (entry.width !== width) {
+    entry.width = width
+    entry.height = layout(entry.prepared, Math.max(1, width), lineHeight).height
+  }
+  return entry.height
 }
 
 function captionHeight(id: string, caption: string | undefined, width: number) {
