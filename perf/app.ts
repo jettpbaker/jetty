@@ -142,7 +142,11 @@ export async function startServer(opts: {
   })
   const origin = `http://127.0.0.1:${port}`
   let exited = false
-  void child.exited.then(() => (exited = true))
+  live.add(child.pid)
+  void child.exited.then(() => {
+    exited = true
+    live.delete(child.pid)
+  })
   const deadline = Date.now() + 30_000
   for (;;) {
     if (exited) throw new Error(`server exited during startup; see ${opts.log}`)
@@ -170,6 +174,14 @@ export async function startServer(opts: {
     },
   }
 }
+
+// Servers run in their own process group; never leave one behind if the lab dies or is
+// interrupted.
+const live = new Set<number>()
+process.on('exit', () => {
+  for (const pid of live) killGroup(pid, 'SIGKILL')
+})
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => process.exit(130))
 
 function killGroup(pid: number, signal: NodeJS.Signals) {
   try {
