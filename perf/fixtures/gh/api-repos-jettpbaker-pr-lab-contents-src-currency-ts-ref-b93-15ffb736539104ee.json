@@ -1,0 +1,9 @@
+{
+  "args": [
+    "api",
+    "repos/jettpbaker/pr-lab/contents/src/currency.ts?ref=b93bd2545545572505efe4d71c4e4136049c75ed"
+  ],
+  "code": 1,
+  "stdout": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/repos/contents#get-repository-content\",\"status\":\"404\"}",
+  "stderr": "gh: Not Found (HTTP 404)\n"
+}

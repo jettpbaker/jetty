@@ -1,0 +1,9 @@
+{
+  "args": [
+    "api",
+    "repos/jettpbaker/pr-lab/contents/docs/pricing.md?ref=04248ce587517ccb1f8ba8a0c7aa27932bad3d28"
+  ],
+  "code": 0,
+  "stdout": "{\"name\":\"pricing.md\",\"path\":\"docs/pricing.md\",\"sha\":\"4804cf64feb33772e6d38853057527630718c5bc\",\"size\":199,\"url\":\"https://api.github.com/repos/jettpbaker/pr-lab/contents/docs/pricing.md?ref=04248ce587517ccb1f8ba8a0c7aa27932bad3d28\",\"html_url\":\"https://github.com/jettpbaker/pr-lab/blob/04248ce587517ccb1f8ba8a0c7aa27932bad3d28/docs/pricing.md\",\"git_url\":\"https://api.github.com/repos/jettpbaker/pr-lab/git/blobs/4804cf64feb33772e6d38853057527630718c5bc\",\"download_url\":\"https://raw.githubusercontent.com/jettpbaker/pr-lab/04248ce587517ccb1f8ba8a0c7aa27932bad3d28/docs/pricing.md?token=BB3N4SOK2J7QLTI3F7D2ETLKX7LEBAA\",\"type\":\"file\",\"content\":\"IyBQcmljaW5nCgpQcmljZXMgYXJlIHN0b3JlZCBpbiBjZW50cyBhbmQgcm91\\nbmRlZCB0byB0aGUgbmVhcmVzdCBjZW50LgoKIyMgRGlzY291bnQgY29kZXMK\\nCkNvZGVzIGFyZSBjYXNlLWluc2Vuc2l0aXZlLiBQZXJjZW50IGNvZGVzIGFw\\ncGx5IGJlZm9yZSByb3VuZGluZzsgZml4ZWQgY29kZXMKbmV2ZXIgdGFrZSBh\\nIHRvdGFsIGJlbG93IHplcm8uCg==\\n\",\"encoding\":\"base64\",\"_links\":{\"self\":\"https://api.github.com/repos/jettpbaker/pr-lab/contents/docs/pricing.md?ref=04248ce587517ccb1f8ba8a0c7aa27932bad3d28\",\"git\":\"https://api.github.com/repos/jettpbaker/pr-lab/git/blobs/4804cf64feb33772e6d38853057527630718c5bc\",\"html\":\"https://github.com/jettpbaker/pr-lab/blob/04248ce587517ccb1f8ba8a0c7aa27932bad3d28/docs/pricing.md\"}}",
+  "stderr": ""
+}

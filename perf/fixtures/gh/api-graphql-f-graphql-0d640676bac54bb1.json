@@ -1,0 +1,11 @@
+{
+  "args": [
+    "api",
+    "graphql",
+    "-f",
+    "query=query { p0: repository(owner: \"jettpbaker\", name: \"pr-lab\") { pullRequest(number: 1) { updatedAt commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } }"
+  ],
+  "code": 0,
+  "stdout": "{\"data\":{\"p0\":{\"pullRequest\":{\"updatedAt\":\"2026-10-01T13:45:42Z\",\"commits\":{\"nodes\":[{\"commit\":{\"statusCheckRollup\":{\"state\":\"SUCCESS\"}}}]}}}}}",
+  "stderr": ""
+}

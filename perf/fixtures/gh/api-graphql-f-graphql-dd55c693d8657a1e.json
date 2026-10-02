@@ -1,0 +1,17 @@
+{
+  "args": [
+    "api",
+    "graphql",
+    "-f",
+    "query=query($owner:String!,$name:String!,$number:Int!) { repository(owner:$owner,name:$name) { pullRequest(number:$number) { closingIssuesReferences(first:100) { nodes { number title url repository { nameWithOwner } } } reviewThreads(first:100) { nodes { isResolved comments(first:100) { nodes { databaseId } } } } suggestedReviewers { reviewer { ... on User { login avatarUrl url } } } reviewDecision } } }",
+    "-f",
+    "owner=jettpbaker",
+    "-f",
+    "name=pr-lab",
+    "-F",
+    "number=3"
+  ],
+  "code": 0,
+  "stdout": "{\"data\":{\"repository\":{\"pullRequest\":{\"closingIssuesReferences\":{\"nodes\":[]},\"reviewThreads\":{\"nodes\":[]},\"suggestedReviewers\":[],\"reviewDecision\":null}}}}",
+  "stderr": ""
+}
