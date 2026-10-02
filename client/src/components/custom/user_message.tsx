@@ -15,7 +15,8 @@ export const collapsedTextHeight = 240
 export const collapseAfterHeight = collapsedTextHeight + 46
 // Survives the virtualizer unmounting a row.
 export const expandedMessages = new Set<string>()
-// Remounts reuse the measurement, so revisiting a thread never forces a synchronous layout.
+// Remounts reuse the measurement, so revisiting a thread never forces a synchronous layout. Bounded
+// like the code highlight cache, since it holds whole prompts.
 export const collapsibleTexts = new Map<string, boolean>()
 const fade = 'linear-gradient(to bottom, black calc(100% - 1.75rem), transparent)'
 
@@ -39,6 +40,7 @@ export function UserMessage({
     let measured = collapsibleTexts.get(text)
     if (measured === undefined) {
       measured = textRef.current.scrollHeight > collapseAfterHeight
+      if (collapsibleTexts.size >= 512) collapsibleTexts.clear()
       collapsibleTexts.set(text, measured)
     }
     setCollapsible(measured)
