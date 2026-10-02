@@ -28,11 +28,6 @@ async function uploadToken() {
   const token = out.trim()
   if (code !== 0 || !token)
     throw new StoreError('internal', 'Sign in with gh auth login to upload attachments')
-  if (!/^(gho_|ghp_|github_pat_|ghu_)/.test(token))
-    throw new StoreError(
-      'invalid_params',
-      'GitHub attachments require an OAuth or personal access token. Installation tokens are unsupported.'
-    )
   return token
 }
 
@@ -46,8 +41,7 @@ export async function uploadGithubAttachment(params: {
     !validRepo(params.repo) ||
     !params.name ||
     params.name.length > 255 ||
-    /[/\\]/.test(params.name) ||
-    [...params.name].some((char) => char.charCodeAt(0) < 32)
+    [...params.name].some((char) => char < ' ' || char === '/' || char === '\\')
   )
     throw new StoreError('invalid_params', 'Invalid attachment name or repository')
   const type = uploadTypes[params.name.split('.').at(-1)?.toLowerCase() ?? '']
@@ -93,7 +87,13 @@ export async function uploadGithubAttachment(params: {
       'Content-Type': 'application/octet-stream',
     },
   })
-  const result = (await response.json()) as { url?: string; message?: string }
+  const text = await response.text()
+  let result: { url?: string; message?: string } = {}
+  try {
+    result = JSON.parse(text)
+  } catch {
+    result = { message: text.slice(0, 200) }
+  }
   observeRateLimit(response.headers, result, response.status, result.message)
   if (!response.ok) {
     if (response.status === 404)
