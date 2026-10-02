@@ -116,7 +116,3 @@ export async function openPage(): Promise<Page> {
 }
 
 const keyCodes: Record<string, number> = { Enter: 13, Escape: 27, Backspace: 8, Tab: 9 }
-
-export function closeBrowser() {
-  Bun.WebView.closeAll()
-}

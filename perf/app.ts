@@ -1,4 +1,13 @@
-import { constants, copyFileSync, lstatSync, mkdirSync, readlinkSync, symlinkSync } from 'node:fs'
+import {
+  constants,
+  copyFileSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -45,6 +54,7 @@ export async function prepareTree(
   let sha: string
   if (ref) {
     sha = await git(['rev-parse', '--short', ref])
+    await git(['worktree', 'prune'])
     await git(['worktree', 'add', '--detach', dir, ref])
   } else {
     const dirty = (await git(['status', '--porcelain'])).length > 0
@@ -182,12 +192,22 @@ export async function startServer(opts: {
 }
 
 // Servers run in their own process group; never leave one behind if the lab dies or is
-// interrupted.
+// interrupted. An interrupt skips every `finally`, so the exit handler also removes this
+// process's trees and homes (their names carry its pid); the next run prunes the worktree
+// registrations they leave behind.
 const live = new Set<number>()
 process.on('exit', () => {
   for (const pid of live) killGroup(pid, 'SIGKILL')
+  let names: string[] = []
+  try {
+    names = readdirSync(workRoot)
+  } catch {}
+  for (const name of names)
+    if (ownDir.test(name)) rmSync(join(workRoot, name), { recursive: true, force: true })
 })
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => process.exit(130))
+
+const ownDir = new RegExp(`-${process.pid}(-|$)`)
 
 function killGroup(pid: number, signal: NodeJS.Signals) {
   try {
