@@ -257,10 +257,11 @@ export function ThreadList({
     paddingEnd: 24,
     getItemKey: (index) => rows[index]!.id,
     initialMeasurementsCache: saved?.sizes,
+    // A pinned thread mounts its bottom rows, not its top; the scroller is never taller than the window.
     initialOffset: (): number =>
       saved?.anchor && saved.index !== -1
         ? (virtualizer.measurementsCache[saved.index]?.start ?? 0) + saved.anchor.offset
-        : 0,
+        : Math.max(0, virtualizer.getTotalSize() - window.innerHeight),
   })
 
   useLayoutEffect(
