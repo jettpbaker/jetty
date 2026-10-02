@@ -37,6 +37,7 @@ import {
   useDeleteThread,
   useOpenPullRequest,
   usePinThread,
+  useThreadJourney,
   useThreadRowPrefetch,
   useRenameThread,
   type Chrome,
@@ -173,6 +174,7 @@ export function AppSidebar() {
     ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
   ])
   const bumpDraft = useBumpDraft()
+  const startThreadJourney = useThreadJourney()
   const archiveThread = useArchiveThread()
   const renameThread = useRenameThread()
   const pinThread = usePinThread()
@@ -252,6 +254,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar
+      data-perf-region='sidebar'
       aria-label='Thread sidebar'
       className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0'
       variant='inset'
@@ -372,9 +375,10 @@ export function AppSidebar() {
                         onPin: () => pinThread(thread.id, !thread.pinned),
                         onRename: (title) => renameThread(thread.id, title),
                       }}
-                      onSelect={() =>
-                        navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
-                      }
+                      onSelect={() => {
+                        startThreadJourney(thread.id)
+                        void navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
+                      }}
                       onOpenPullRequest={() =>
                         thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)
                       }

@@ -13,7 +13,7 @@ export {
 } from './drafts'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
-export { useThread, useThreadRowPrefetch } from './threads'
+export { useThread, useThreadJourney, useThreadRowPrefetch } from './threads'
 export {
   MAIN_TAB,
   useRequestReveal,

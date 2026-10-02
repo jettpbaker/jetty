@@ -11,6 +11,7 @@ import {
   type Loadout,
   type LoadoutSlot,
 } from '@/lib/loadout'
+import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
@@ -130,6 +131,7 @@ function sendTurn(
   fromDraft?: string,
   onFailure?: () => void
 ) {
+  const journey = perf.start('turn.send', { threadId })
   const staged = stageSend(registry, fromDraft, { text, images })
   if (loadout)
     registry.update(loadoutOverridesAtom, (overrides) => new Map(overrides).set(threadId, loadout))
@@ -150,6 +152,7 @@ function sendTurn(
   )
   registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
   if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
+  perf.mark(journey, 'local')
   function settle() {
     registry.update(pendingPromptsAtom, (prompts) => {
       const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)

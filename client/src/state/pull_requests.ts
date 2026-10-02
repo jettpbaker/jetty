@@ -7,6 +7,7 @@ import type {
   ResultOf,
 } from '@jetty/shared/wire'
 
+import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { useNavigate } from '@tanstack/react-router'
 import { Effect, Stream } from 'effect'
@@ -365,6 +366,7 @@ export function useDetailsRequest(threadId: string) {
 }
 
 function openPullRequest(registry: Registry, threadId: string, ref: PullRequestRef) {
+  perf.start('pr.open', { pr: ref.number })
   showTab(registry, threadId, pullRequestKey(ref))
   registry.set(detailsRequestAtom, { threadId, tab: pullRequestTabId(ref) })
 }
