@@ -1,9 +1,14 @@
-import { Schema, SchemaTransformation } from 'effect'
+import { Schema } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { SessionStatus } from './events'
 import { ApprovalDecision, Attachment } from './items'
-import { PullRequestData, ReviewerCandidate } from './pull-request'
+import {
+  GitHubActivity,
+  GitHubRateLimitHealth,
+  PullRequestData,
+  ReviewerCandidate,
+} from './pull-request'
 import { ThreadState } from './reducer'
 
 export function newId() {
@@ -134,6 +139,8 @@ export const PullRequestSnapshot = Schema.Struct({
   error: Schema.optional(Schema.String),
   refreshedAt: Schema.optional(Schema.Int),
   data: Schema.optional(PullRequestData),
+  rateLimit: Schema.optional(GitHubRateLimitHealth),
+  pendingOperation: Schema.optional(Schema.Literals(['title', 'merge', 'reviews'])),
 })
 export type PullRequestSnapshot = Schema.Schema.Type<typeof PullRequestSnapshot>
 
@@ -158,6 +165,7 @@ export const PullRequestList = Schema.Struct({
   refreshedAt: Schema.optional(Schema.Int),
   items: Schema.optional(Schema.Array(PullRequestListItem)),
   truncated: Schema.optional(Schema.Boolean),
+  rateLimit: Schema.optional(GitHubRateLimitHealth),
 })
 export type PullRequestList = Schema.Schema.Type<typeof PullRequestList>
 
@@ -292,15 +300,7 @@ export const methods = {
     result: Schema.Null,
   },
   'chrome.subscribe': {
-    params: Schema.Record(Schema.String, Schema.Unknown).pipe(
-      Schema.decodeTo(
-        Schema.Struct({}),
-        SchemaTransformation.transform({
-          decode: () => ({}),
-          encode: () => ({}),
-        })
-      )
-    ),
+    params: Schema.Struct({ activity: Schema.optional(GitHubActivity) }),
     result: Schema.Null,
   },
   'project.create': {
@@ -444,12 +444,39 @@ export const methods = {
       repo: Schema.String,
       number: Schema.Int,
       login: Schema.String,
+      kind: Schema.optional(Schema.Literals(['user', 'bot', 'team'])),
       requested: Schema.Boolean,
     }),
     result: PullRequestSnapshot,
   },
+  'pullRequest.updateTitle': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int, title: Schema.String }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.merge': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      sha: Schema.String,
+      mergeMethod: Schema.optional(Schema.Literals(['squash', 'merge', 'rebase'])),
+    }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.uploadAttachment': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      name: Schema.String,
+      mimeType: Schema.String,
+      base64data: Schema.String,
+    }),
+    result: Schema.Struct({ url: Schema.String }),
+  },
   'pullRequest.subscribe': {
-    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      activity: Schema.optional(GitHubActivity),
+    }),
     result: PullRequestSnapshot,
   },
   'pullRequestList.refresh': {
@@ -457,7 +484,7 @@ export const methods = {
     result: PullRequestList,
   },
   'pullRequestList.subscribe': {
-    params: Schema.Struct({ tab: PullRequestListTab }),
+    params: Schema.Struct({ tab: PullRequestListTab, activity: Schema.optional(GitHubActivity) }),
     result: PullRequestList,
   },
   'thread.subscribe': {

@@ -4,6 +4,7 @@ export const GitHubUser = Schema.Struct({
   login: Schema.String,
   avatar_url: Schema.String,
   html_url: Schema.String,
+  name: Schema.optional(Schema.String),
 })
 
 export const ReviewerCandidate = Schema.Struct({
@@ -11,6 +12,38 @@ export const ReviewerCandidate = Schema.Struct({
   name: Schema.optional(Schema.String),
 })
 export type ReviewerCandidate = Schema.Schema.Type<typeof ReviewerCandidate>
+
+export const ReviewState = Schema.Literals([
+  'APPROVED',
+  'CHANGES_REQUESTED',
+  'COMMENTED',
+  'PENDING',
+  'DISMISSED',
+])
+export const PullRequestReviewer = Schema.Struct({
+  ...GitHubUser.fields,
+  kind: Schema.Literals(['user', 'bot', 'team']),
+  slug: Schema.optional(Schema.String),
+  organization: Schema.optional(Schema.String),
+  asCodeOwner: Schema.Boolean,
+  requested: Schema.Boolean,
+  state: Schema.NullOr(Schema.Union([ReviewState, Schema.Literal('AWAITING')])),
+  latestReviewState: Schema.NullOr(ReviewState),
+})
+export type PullRequestReviewer = Schema.Schema.Type<typeof PullRequestReviewer>
+
+export const GitHubRateLimitHealth = Schema.Struct({
+  remaining: Schema.NullOr(Schema.Int),
+  resetAt: Schema.NullOr(Schema.String),
+  cost: Schema.NullOr(Schema.Int),
+  restRemaining: Schema.NullOr(Schema.Int),
+  restResetAt: Schema.NullOr(Schema.String),
+  backoffUntil: Schema.NullOr(Schema.Int),
+  cadenceMs: Schema.NullOr(Schema.Int),
+  checksCadenceMs: Schema.NullOr(Schema.Int),
+})
+export const GitHubActivity = Schema.Literals(['focused', 'blurred', 'hidden'])
+export type GitHubActivity = Schema.Schema.Type<typeof GitHubActivity>
 
 export const GitHubPullRequest = Schema.Struct({
   number: Schema.Int,
@@ -117,6 +150,7 @@ export const PullRequestData = Schema.Struct({
   reviewComments: Schema.Array(GitHubReviewComment),
   issueComments: Schema.optional(Schema.Array(GitHubIssueComment)),
   checkRuns: Schema.Array(GitHubCheckRun),
+  checkRollupState: Schema.optional(Schema.String),
   commits: Schema.Array(GitHubCommit),
   files: Schema.Array(GitHubFile),
   closingIssuesReferences: Schema.Array(
@@ -124,12 +158,26 @@ export const PullRequestData = Schema.Struct({
       number: Schema.Int,
       title: Schema.String,
       url: Schema.String,
+      state: Schema.optional(Schema.Literals(['open', 'completed', 'not_planned'])),
       repository: Schema.optional(Schema.Struct({ nameWithOwner: Schema.String })),
     })
   ),
-  suggestedReviewers: Schema.Array(GitHubUser),
+  suggestedReviewers: Schema.Array(ReviewerCandidate),
+  reviewRequests: Schema.optional(Schema.Array(PullRequestReviewer)),
+  reviewers: Schema.optional(Schema.Array(PullRequestReviewer)),
+  mergeable: Schema.optional(Schema.Literals(['MERGEABLE', 'CONFLICTING', 'UNKNOWN'])),
+  mergeStateStatus: Schema.optional(Schema.String),
+  behindBy: Schema.optional(Schema.NullOr(Schema.Int)),
+  truncatedConnections: Schema.optional(Schema.Array(Schema.String)),
   requestedTeams: Schema.optional(
-    Schema.Array(Schema.Struct({ name: Schema.String, avatar_url: Schema.String }))
+    Schema.Array(
+      Schema.Struct({
+        name: Schema.String,
+        avatar_url: Schema.String,
+        slug: Schema.optional(Schema.String),
+        asCodeOwner: Schema.optional(Schema.Boolean),
+      })
+    )
   ),
   reviewDecision: Schema.optional(
     Schema.NullOr(Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']))

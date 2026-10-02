@@ -1,3 +1,4 @@
+import type { GitHubActivity } from '@jetty/shared/pull-request'
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 import type {
   BackgroundTask,
@@ -24,6 +25,24 @@ export function createHub() {
 
   const chromePublication = Semaphore.makeUnsafe(1)
   const chromeSubs = new Set<Queue.Queue<ChromePushData, WireError>>()
+  const githubActivities = new Map<symbol, GitHubActivity>()
+
+  function watchGithubActivity(activity: GitHubActivity) {
+    const token = Symbol()
+    return Effect.acquireRelease(
+      Effect.sync(() => githubActivities.set(token, activity)),
+      () => Effect.sync(() => githubActivities.delete(token))
+    )
+  }
+
+  function githubActivity(): GitHubActivity {
+    const values = [...githubActivities.values()]
+    return values.includes('focused')
+      ? 'focused'
+      : values.includes('blurred')
+        ? 'blurred'
+        : 'hidden'
+  }
   const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
   const pullRequestSubs = new Map<string, Set<Queue.Queue<PullRequestSnapshot, WireError>>>()
   const pullRequestListSubs = new Map<
@@ -123,6 +142,8 @@ export function createHub() {
 
   return {
     decorateThread,
+    watchGithubActivity,
+    githubActivity,
     setBackgroundTasks(threadId: string, tasks: readonly BackgroundTask[]) {
       if (tasks.length) backgroundTasks.set(threadId, tasks)
       else backgroundTasks.delete(threadId)

@@ -1,4 +1,17 @@
-import type { ReviewerCandidate } from '@jetty/shared/pull-request'
+/*
+ * One bounded GraphQL selection per PR refresh; concurrent jobs share aliased batches
+ * (up to 5 PRs). REST history/files retain ETags; authenticated 304s are free.
+ * Focused views: 30s for responsive review/merge state, blurred views and lists: 2m
+ * to save idle budget, hidden: no polling, closed/merged: 30m. Running checks alone:
+ * 10s focused, 30s blurred/list, so CI progresses without reloading history/files.
+ * Writes publish cached state first and refresh immediately after confirmation.
+ * The server queue/cache dedupes clients. Below 500 GraphQL or REST points, cadence slows
+ * 4x; exhaustion waits for reset. Secondary limits honour Retry-After (at least
+ * 60s without it), then exponential backoff. All limit/cadence changes are logged.
+ * Connections are bounded to avoid nested point/node explosions; truncation is
+ * explicit in the snapshot rather than paginating GraphQL on every poll.
+ */
+import type { GitHubActivity, ReviewerCandidate } from '@jetty/shared/pull-request'
 import type {
   PullRequestList,
   PullRequestListItem,
@@ -7,11 +20,21 @@ import type {
 } from '@jetty/shared/wire'
 
 import { PullRequestData } from '@jetty/shared/pull-request'
-import { Effect, Schema, Scope } from 'effect'
+import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { Hub } from './hub'
 import type { Store } from './store'
 
+import {
+  githubUser as user,
+  mapPullRequestGraphql,
+  mapReviewers,
+  nodes,
+  record,
+  reviewerLogin,
+  string,
+  pullRequestGraphqlQuery,
+} from './pull-request-graphql'
 import { StoreError } from './store'
 
 export type PullRequestRef = { repo: string; number: number }
@@ -48,7 +71,7 @@ export function validPullRequestRef(ref: PullRequestRef): boolean {
 }
 
 export function validLogin(login: string): boolean {
-  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)
+  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/.test(login)
 }
 
 export function parsePullRequestUrl(value: string): PullRequestRef | null {
@@ -100,7 +123,7 @@ export function createPullRequestLinks(
           return thread
         })
       )
-      yield* pulls.refreshIfStale(ref).pipe(
+      yield* pulls.refreshIfStale(ref, 120_000).pipe(
         Effect.catchCause((cause) => Effect.logWarning(cause)),
         Effect.forkIn(scope)
       )
@@ -171,7 +194,8 @@ export function resolvePullRequestReference(
 class GhFailure extends Error {
   constructor(
     readonly kind: 'unavailable' | 'not_found' | 'rate_limited',
-    message: string
+    message: string,
+    readonly status?: number
   ) {
     super(message)
   }
@@ -198,22 +222,186 @@ async function gh(args: string[], input?: string) {
   }
 }
 
-function commonFailure(detail: string) {
-  if (/rate limit|secondary rate limit|abuse detection/i.test(detail))
-    return new GhFailure('rate_limited', 'GitHub API rate limit reached')
-  if (/authentication|not logged|HTTP 401|gh auth login/i.test(detail))
-    return new GhFailure('unavailable', 'Sign in with gh auth login to view pull requests')
-  return null
+const rateHealth = {
+  remaining: null as number | null,
+  resetAt: null as string | null,
+  cost: null as number | null,
+  restRemaining: null as number | null,
+  restResetAt: null as string | null,
+  backoffUntil: null as number | null,
+}
+let secondaryFailures = 0
+const restCache = new Map<string, { etag: string; value: unknown }>()
+const apiInFlight = new Map<string, Promise<unknown>>()
+
+export function githubRateLimitHealth(
+  cadenceMs: number | null,
+  checksCadenceMs: number | null = null
+) {
+  return {
+    ...rateHealth,
+    backoffUntil:
+      rateHealth.backoffUntil && rateHealth.backoffUntil > Date.now()
+        ? rateHealth.backoffUntil
+        : null,
+    cadenceMs,
+    checksCadenceMs,
+  }
 }
 
-async function ghApi(...args: string[]): Promise<unknown> {
-  const { out, detail, code } = await gh(['api', ...args])
-  if (code === 0) return JSON.parse(out)
-  const failure = commonFailure(detail)
-  if (failure) throw failure
-  if (/HTTP 404|Not Found|HTTP 403/i.test(detail))
-    throw new GhFailure('not_found', 'Pull request not found or access denied')
-  throw new GhFailure('unavailable', detail || 'GitHub API is unavailable')
+function cadenceMultiplier() {
+  return (rateHealth.remaining !== null && rateHealth.remaining < 500) ||
+    (rateHealth.restRemaining !== null && rateHealth.restRemaining < 500)
+    ? 4
+    : 1
+}
+
+export function observeRateLimit(headers: Headers, body: unknown, status: number, detail = '') {
+  const remaining = headers.get('x-ratelimit-remaining')
+  const reset = Number(headers.get('x-ratelimit-reset')) * 1000
+  if (headers.get('x-ratelimit-resource') !== 'graphql' && remaining !== null) {
+    rateHealth.restRemaining = Number(remaining)
+    rateHealth.restResetAt = reset ? new Date(reset).toISOString() : null
+  }
+  const limit = record(record(body).data).rateLimit
+  if (limit) {
+    const value = record(limit)
+    rateHealth.remaining = Number(value.remaining)
+    rateHealth.cost = Number(value.cost)
+    rateHealth.resetAt = string(value.resetAt)
+    console.info(
+      `[pr-rate] cost=${rateHealth.cost} remaining=${rateHealth.remaining} reset=${rateHealth.resetAt} cadenceMultiplier=${cadenceMultiplier()}`
+    )
+  }
+  const retryAfter = headers.get('retry-after')
+  const exhausted = remaining === '0' || rateHealth.remaining === 0
+  if (
+    status === 429 ||
+    exhausted ||
+    ((status === 403 || status === 200) &&
+      (Boolean(retryAfter) || /rate limit|abuse detection/i.test(detail)))
+  ) {
+    const retryAt = retryAfter
+      ? Number.isFinite(Number(retryAfter))
+        ? Date.now() + Number(retryAfter) * 1000
+        : Date.parse(retryAfter)
+      : 0
+    const graphReset =
+      exhausted && rateHealth.remaining === 0 ? Date.parse(rateHealth.resetAt ?? '') : 0
+    const exhaustedAt = Math.max(remaining === '0' ? reset : 0, graphReset || 0)
+    const fallback =
+      !retryAt && !exhaustedAt
+        ? Date.now() + Math.min(15 * 60_000, 60_000 * 2 ** secondaryFailures++)
+        : 0
+    rateHealth.backoffUntil = Math.max(
+      rateHealth.backoffUntil ?? 0,
+      Date.now() + 1000,
+      retryAt || 0,
+      exhaustedAt,
+      fallback
+    )
+    console.warn(
+      `[pr-rate] backoff until=${new Date(rateHealth.backoffUntil).toISOString()} status=${status} remaining=${remaining} retry-after=${retryAfter}`
+    )
+  } else if (status >= 200 && status < 400 && (rateHealth.backoffUntil ?? 0) <= Date.now())
+    secondaryFailures = 0
+}
+
+export function checkBackoff() {
+  if (rateHealth.backoffUntil && Date.now() < rateHealth.backoffUntil)
+    throw new GhFailure(
+      'rate_limited',
+      `GitHub rate limit reached; retry after ${new Date(rateHealth.backoffUntil).toISOString()}`
+    )
+}
+
+async function requestApi(args: string[], body?: string): Promise<unknown> {
+  checkBackoff()
+  const restGet = args.length === 1 && args[0] !== 'graphql' && body === undefined
+  const key = args[0]!
+  const cached = restGet ? restCache.get(key) : undefined
+  const { out, detail, code } = await gh(
+    [
+      'api',
+      '--hostname',
+      'github.com',
+      '--include',
+      ...args,
+      ...(cached ? ['-H', `If-None-Match: ${cached.etag}`] : []),
+      ...(body === undefined ? [] : ['--input', '-']),
+    ],
+    body
+  )
+  const split = out.search(/\r?\n\r?\n/)
+  const headerText = split >= 0 ? out.slice(0, split) : ''
+  const raw = split >= 0 ? out.slice(split).trim() : out
+  const status = Number(headerText.match(/^HTTP\/\S+\s+(\d+)/)?.[1]) || (code === 0 ? 200 : 0)
+  const headers = new Headers()
+  for (const line of headerText.split(/\r?\n/).slice(1)) {
+    const colon = line.indexOf(':')
+    if (colon > 0) headers.set(line.slice(0, colon).trim(), line.slice(colon + 1).trim())
+  }
+  let value: unknown = null
+  try {
+    if (raw) value = JSON.parse(raw)
+  } catch {
+    if (code === 0 && status !== 304)
+      throw new GhFailure('unavailable', 'Invalid response from GitHub')
+  }
+  const errors = record(value).errors
+  const errorDetails = Array.isArray(errors)
+    ? errors
+        .map((error) => {
+          if (typeof error === 'string') return error
+          const value = record(error)
+          return (
+            string(value.message) ||
+            [string(value.resource), string(value.field), string(value.code)]
+              .filter(Boolean)
+              .join(' ')
+          )
+        })
+        .filter(Boolean)
+    : []
+  const message =
+    [string(record(value).message), ...errorDetails].filter(Boolean).join('; ') || detail
+  observeRateLimit(headers, value, status, message)
+  if (status === 304 && cached) return cached.value
+  const partialGraph =
+    args.includes('graphql') &&
+    Boolean(record(value).data) &&
+    errors &&
+    status < 400 &&
+    !/rate limit|abuse detection/i.test(message)
+  if (!partialGraph && (code !== 0 || status >= 400 || errors)) {
+    if (
+      status === 429 ||
+      (status === 403 && (rateHealth.backoffUntil ?? 0) > Date.now()) ||
+      /rate limit|abuse detection/i.test(message)
+    )
+      throw new GhFailure('rate_limited', message || 'GitHub rate limit reached', status)
+    if (status === 404)
+      throw new GhFailure('not_found', 'Pull request not found or access denied', status)
+    throw new GhFailure('unavailable', message || 'GitHub API is unavailable', status)
+  }
+  if (restGet && headers.get('etag')) {
+    restCache.set(key, { etag: headers.get('etag')!, value })
+    if (restCache.size > 512) restCache.delete(restCache.keys().next().value!)
+  }
+  return value
+}
+
+export async function ghApi(...args: string[]): Promise<unknown> {
+  const key = JSON.stringify(args)
+  const existing = apiInFlight.get(key)
+  if (existing) return existing
+  const promise = requestApi(args)
+  apiInFlight.set(key, promise)
+  try {
+    return await promise
+  } finally {
+    apiInFlight.delete(key)
+  }
 }
 
 type DiffContents = string | null | { unavailable: 'tooLarge' | 'binary' }
@@ -313,115 +501,29 @@ export async function pullRequestDiffFile(params: {
   return { before, after }
 }
 
-async function ghGraphql(ref: PullRequestRef): Promise<{
-  resolved: Map<number, boolean>
-  closingIssuesReferences: unknown[]
-  suggestedReviewers: unknown[]
-  reviewDecision?: unknown
-}> {
-  const gh = Bun.which('gh')
-  if (!gh) return { resolved: new Map(), closingIssuesReferences: [], suggestedReviewers: [] }
-  const [owner, name] = ref.repo.split('/')
-  const query = `query($owner:String!,$name:String!,$number:Int!) {
-    repository(owner:$owner,name:$name) { pullRequest(number:$number) {
-      closingIssuesReferences(first:100) { nodes { number title url repository { nameWithOwner } } }
-      reviewThreads(first:100) { nodes { isResolved comments(first:100) { nodes { databaseId } } } }
-      suggestedReviewers { reviewer { ... on User { login avatarUrl url } } }
-      reviewDecision
-    } }
-  }`
-  try {
-    const child = Bun.spawn(
-      [
-        gh,
-        'api',
-        'graphql',
-        '-f',
-        `query=${query}`,
-        '-f',
-        `owner=${owner}`,
-        '-f',
-        `name=${name}`,
-        '-F',
-        `number=${ref.number}`,
-      ],
-      {
-        stdout: 'pipe',
-        stderr: 'ignore',
-        signal: AbortSignal.timeout(20000),
-      }
-    )
-    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
-    if (code !== 0)
-      return { resolved: new Map(), closingIssuesReferences: [], suggestedReviewers: [] }
-    const pull = JSON.parse(out).data?.repository?.pullRequest
-    const resolved = new Map<number, boolean>()
-    for (const thread of pull?.reviewThreads?.nodes ?? [])
-      for (const comment of thread.comments?.nodes ?? [])
-        if (comment.databaseId) resolved.set(comment.databaseId, thread.isResolved === true)
+async function fetchGraphqlBatch(
+  refs: readonly (PullRequestRef & { headSha?: string })[],
+  checksOnly = false,
+  rollupOnly = false
+) {
+  const response = record(
+    await ghApi('graphql', '-f', `query=${pullRequestGraphqlQuery(refs, checksOnly, rollupOnly)}`)
+  )
+  const data = record(response.data)
+  return refs.map((_, index) => {
+    const value = record(data[`p${index}`]).pullRequest
+    if (!value) return new GhFailure('not_found', 'Pull request not found or access denied')
+    const graph = mapPullRequestGraphql(value)
+    const comparison = record(record(graph.pull.baseRef).compare)
+    const behindBy = comparison.behindBy
     return {
-      resolved,
-      closingIssuesReferences: pull?.closingIssuesReferences?.nodes ?? [],
-      reviewDecision: pull?.reviewDecision,
-      suggestedReviewers: (pull?.suggestedReviewers ?? []).flatMap(
-        (value: { reviewer?: { login?: string; avatarUrl?: string; url?: string } }) =>
-          value.reviewer?.login
-            ? [
-                {
-                  login: value.reviewer.login,
-                  avatar_url: value.reviewer.avatarUrl ?? '',
-                  html_url: value.reviewer.url ?? '',
-                },
-              ]
-            : []
-      ),
+      ...graph,
+      behindBy:
+        record(comparison.headTarget).oid === graph.pull.headRefOid && typeof behindBy === 'number'
+          ? behindBy
+          : null,
     }
-  } catch {
-    return { resolved: new Map(), closingIssuesReferences: [], suggestedReviewers: [] }
-  }
-}
-
-async function ghCheckRollup(ref: PullRequestRef, sha: string): Promise<unknown[]> {
-  const [owner, name] = ref.repo.split('/')
-  const query = `query($owner:String!,$name:String!,$sha:GitObjectID!,$after:String) {
-    repository(owner:$owner,name:$name) { object(oid:$sha) { ... on Commit {
-      statusCheckRollup { contexts(first:100,after:$after) {
-        nodes {
-          __typename
-          ... on CheckRun {
-            id name status conclusion detailsUrl startedAt completedAt
-            checkSuite { app { name } workflowRun { workflow { name } } }
-          }
-          ... on StatusContext { id context state targetUrl updatedAt }
-        }
-        pageInfo { hasNextPage endCursor }
-      } }
-    } } }
-  }`
-  const contexts: unknown[] = []
-  let after: string | undefined
-  do {
-    const response = record(
-      await ghApi(
-        'graphql',
-        '-f',
-        `query=${query}`,
-        '-f',
-        `owner=${owner}`,
-        '-f',
-        `name=${name}`,
-        '-f',
-        `sha=${sha}`,
-        ...(after ? ['-f', `after=${after}`] : [])
-      )
-    )
-    const rollup = record(record(record(record(response.data).repository).object).statusCheckRollup)
-    const connection = record(rollup.contexts)
-    contexts.push(...((connection.nodes as unknown[] | undefined) ?? []))
-    const pageInfo = record(connection.pageInfo)
-    after = pageInfo.hasNextPage ? string(pageInfo.endCursor) : undefined
-  } while (after)
-  return contexts
+  })
 }
 
 async function ghPages(path: string): Promise<unknown[]> {
@@ -435,44 +537,85 @@ async function ghPages(path: string): Promise<unknown[]> {
   return items
 }
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
-function string(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback
-}
-
 function enumValue<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
   return values.find((candidate) => candidate === value) ?? fallback
 }
 
-function user(value: unknown) {
-  const valueRecord = record(value)
-  return {
-    login: string(valueRecord.login, 'ghost'),
-    avatar_url: string(valueRecord.avatar_url),
-    html_url: string(valueRecord.html_url),
-  }
+export function mapCheckRuns(checks: readonly unknown[]): PullRequestData['checkRuns'] {
+  return checks.map((value): PullRequestData['checkRuns'][number] => {
+    const check = record(value)
+    if (check.__typename === 'StatusContext') {
+      const state = string(check.state)
+      return {
+        id: string(check.id),
+        name: string(check.context),
+        status: state === 'PENDING' || state === 'EXPECTED' ? 'queued' : 'completed',
+        conclusion:
+          state === 'SUCCESS'
+            ? 'success'
+            : state === 'FAILURE' || state === 'ERROR'
+              ? 'failure'
+              : null,
+        // A status is a posted state, not a run, so it has no duration to show.
+        started_at: '',
+        completed_at: state === 'PENDING' || state === 'EXPECTED' ? null : string(check.updatedAt),
+        html_url: string(check.targetUrl),
+        app: { name: 'GitHub' },
+      }
+    }
+    const suite = record(check.checkSuite)
+    const workflow = string(record(record(suite.workflowRun).workflow).name)
+    const status = string(check.status)
+    return {
+      id: string(check.id),
+      name: workflow ? `${workflow} / ${string(check.name)}` : string(check.name),
+      status:
+        status === 'COMPLETED' ? 'completed' : status === 'IN_PROGRESS' ? 'in_progress' : 'queued',
+      conclusion:
+        check.conclusion === null
+          ? null
+          : enumValue(
+              string(check.conclusion).toLowerCase(),
+              [
+                'success',
+                'failure',
+                'neutral',
+                'cancelled',
+                'skipped',
+                'timed_out',
+                'action_required',
+                'stale',
+                'startup_failure',
+              ] as const,
+              'neutral'
+            ),
+      started_at: string(check.startedAt),
+      completed_at: typeof check.completedAt === 'string' ? check.completedAt : null,
+      html_url: string(check.detailsUrl),
+      app: { name: string(record(suite.app).name, 'GitHub') },
+    }
+  })
 }
 
-async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
+async function fetchPullRequest(
+  ref: PullRequestRef,
+  graph: Exclude<Awaited<ReturnType<typeof fetchGraphqlBatch>>[number], GhFailure>
+): Promise<PullRequestData> {
   const base = `repos/${ref.repo}`
   const pull = (await ghApi(`${base}/pulls/${ref.number}`)) as Record<string, unknown>
-  const head = pull.head as { sha: string }
-  const [reviews, reviewComments, issueComments, checks, commits, files, repo, graph] =
-    await Promise.all([
-      ghPages(`${base}/pulls/${ref.number}/reviews`),
-      ghPages(`${base}/pulls/${ref.number}/comments`),
-      ghPages(`${base}/issues/${ref.number}/comments`),
-      ghCheckRollup(ref, head.sha),
-      ghPages(`${base}/pulls/${ref.number}/commits`),
-      ghPages(`${base}/pulls/${ref.number}/files`),
-      ghApi(base),
-      ghGraphql(ref),
-    ])
+  if (record(pull.head).sha !== graph.pull.headRefOid)
+    throw new GhFailure(
+      'unavailable',
+      'The pull request changed during refresh. Refresh again for the latest head.'
+    )
+  const [reviews, reviewComments, issueComments, commits, files, repo] = await Promise.all([
+    ghPages(`${base}/pulls/${ref.number}/reviews`),
+    ghPages(`${base}/pulls/${ref.number}/comments`),
+    ghPages(`${base}/issues/${ref.number}/comments`),
+    ghPages(`${base}/pulls/${ref.number}/commits`),
+    ghPages(`${base}/pulls/${ref.number}/files`),
+    ghApi(base),
+  ])
   const repository = repo as Record<string, unknown>
   const permissions = record(repository.permissions)
   const state = enumValue(
@@ -480,6 +623,7 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
     ['clean', 'blocked', 'dirty', 'unstable'],
     'unknown'
   )
+  const reviewers = mapReviewers(graph.pull, reviews)
   const fixture = {
     pull: {
       ...pull,
@@ -487,7 +631,9 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
       body: string(pull.body),
       user: user(pull.user),
       mergeable_state: state,
-      requested_reviewers: ((pull.requested_reviewers as unknown[]) ?? []).map(user),
+      requested_reviewers: reviewers.reviewRequests
+        .filter((reviewer) => reviewer.kind !== 'team')
+        .map(user),
     },
     reviews: reviews.map((value) => {
       const review = record(value)
@@ -511,71 +657,15 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
         body: string(comment.body),
         line: comment.line ?? null,
         pull_request_review_id: comment.pull_request_review_id ?? 0,
-        resolved: graph.resolved.get(Number(comment.id)) ?? false,
+        resolved: graph.resolved.get(Number(comment.in_reply_to_id ?? comment.id)) ?? false,
       }
     }),
     issueComments: issueComments.map((value) => {
       const comment = record(value)
       return { ...comment, user: user(comment.user), body: string(comment.body) }
     }),
-    checkRuns: checks.map((value) => {
-      const check = record(value)
-      if (check.__typename === 'StatusContext') {
-        const state = string(check.state)
-        return {
-          id: string(check.id),
-          name: string(check.context),
-          status: state === 'PENDING' || state === 'EXPECTED' ? 'queued' : 'completed',
-          conclusion:
-            state === 'SUCCESS'
-              ? 'success'
-              : state === 'FAILURE' || state === 'ERROR'
-                ? 'failure'
-                : null,
-          // A status is a posted state, not a run, so it has no duration to show.
-          started_at: '',
-          completed_at:
-            state === 'PENDING' || state === 'EXPECTED' ? null : string(check.updatedAt),
-          html_url: string(check.targetUrl),
-          app: { name: 'GitHub' },
-        }
-      }
-      const suite = record(check.checkSuite)
-      const workflow = string(record(record(suite.workflowRun).workflow).name)
-      const status = string(check.status)
-      return {
-        id: string(check.id),
-        name: workflow ? `${workflow} / ${string(check.name)}` : string(check.name),
-        status:
-          status === 'COMPLETED'
-            ? 'completed'
-            : status === 'IN_PROGRESS'
-              ? 'in_progress'
-              : 'queued',
-        conclusion:
-          check.conclusion === null
-            ? null
-            : enumValue(
-                string(check.conclusion).toLowerCase(),
-                [
-                  'success',
-                  'failure',
-                  'neutral',
-                  'cancelled',
-                  'skipped',
-                  'timed_out',
-                  'action_required',
-                  'stale',
-                  'startup_failure',
-                ],
-                'neutral'
-              ),
-        started_at: string(check.startedAt),
-        completed_at: check.completedAt ?? null,
-        html_url: string(check.detailsUrl),
-        app: { name: string(record(suite.app).name, 'GitHub') },
-      }
-    }),
+    checkRuns: mapCheckRuns(graph.checks),
+    checkRollupState: graph.checkRollupState,
     commits: commits.map((value) => {
       const item = record(value)
       const commit = record(item.commit)
@@ -593,25 +683,21 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
         status: enumValue(file.status, ['added', 'removed', 'modified', 'renamed'], 'modified'),
       }
     }),
-    closingIssuesReferences: graph.closingIssuesReferences.map((value) => {
-      const issue = record(value)
-      return {
-        number: Number(issue.number),
-        title: string(issue.title),
-        url: string(issue.url),
-        ...(issue.repository
-          ? { repository: { nameWithOwner: string(record(issue.repository).nameWithOwner) } }
-          : {}),
-      }
-    }),
+    closingIssuesReferences: graph.closingIssuesReferences,
     suggestedReviewers: graph.suggestedReviewers,
-    requestedTeams: ((pull.requested_teams as unknown[]) ?? []).map((value) => {
-      const team = record(value)
-      return {
-        name: string(team.name),
-        avatar_url: `https://avatars.githubusercontent.com/t/${Number(team.id)}`,
-      }
-    }),
+    ...reviewers,
+    mergeable: graph.pull.mergeable,
+    mergeStateStatus: string(graph.pull.mergeStateStatus, 'UNKNOWN'),
+    behindBy: graph.behindBy,
+    truncatedConnections: graph.truncatedConnections,
+    requestedTeams: reviewers.reviewRequests
+      .filter((reviewer) => reviewer.kind === 'team')
+      .map((reviewer) => ({
+        name: reviewer.name ?? reviewer.login,
+        avatar_url: reviewer.avatar_url,
+        slug: reviewer.slug,
+        asCodeOwner: reviewer.asCodeOwner,
+      })),
     reviewDecision:
       (['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'] as const).find(
         (decision) => decision === graph.reviewDecision
@@ -637,6 +723,7 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
 async function fetchReviewerCandidates(repo: string, search: string) {
   const [owner, name] = repo.split('/')
   const query = `query($owner:String!,$name:String!,$search:String) {
+    rateLimit { cost remaining resetAt }
     repository(owner:$owner,name:$name) { assignableUsers(first:100,query:$search) {
       pageInfo { hasNextPage }
       nodes { login name avatarUrl url }
@@ -670,35 +757,71 @@ async function fetchReviewerCandidates(repo: string, search: string) {
   return { candidates, truncated: record(users.pageInfo).hasNextPage === true }
 }
 
-function reviewRequestError(error: unknown, ref: PullRequestRef, login: string) {
-  if (error instanceof GhFailure) return new StoreError('internal', error.message)
-  const detail = error instanceof Error ? error.message : String(error)
-  if (/requested from pull request author/i.test(detail))
-    return new StoreError('invalid_params', "Can't request a review from the pull request author")
-  if (/only be requested from collaborators/i.test(detail))
-    return new StoreError('invalid_params', `${login} isn't a collaborator on ${ref.repo}`)
-  if (/HTTP 40[34]|Not Found/i.test(detail))
-    return new StoreError('not_found', `No permission to change reviewers on ${ref.repo}`)
-  return new StoreError(
-    'internal',
-    detail.replace(/^gh: /, '').replace(/ \(HTTP \d+\)$/, '') || 'GitHub API is unavailable'
-  )
+function writeError(error: unknown) {
+  if (error instanceof StoreError) return error
+  if (error instanceof GhFailure) {
+    if (error.status === 405)
+      return new StoreError(
+        'invalid_params',
+        'This pull request cannot be merged. Check conflicts, required reviews, and branch rules.'
+      )
+    if (error.status === 409)
+      return new StoreError('conflict', 'The pull request head changed. Refresh and try again.')
+    if (error.status === 401 || error.status === 403 || error.status === 404)
+      return new StoreError(
+        'not_found',
+        'GitHub denied this operation. Check your login and repository permissions.'
+      )
+    if (error.status === 422) {
+      if (/requested from pull request author|review.*author/i.test(error.message))
+        return new StoreError(
+          'invalid_params',
+          "Can't request a review from the pull request author"
+        )
+      if (/only be requested from collaborators/i.test(error.message))
+        return new StoreError(
+          'invalid_params',
+          'Reviews can only be requested from repository collaborators'
+        )
+      return new StoreError('invalid_params', error.message || 'GitHub rejected this operation')
+    }
+    return new StoreError('internal', error.message)
+  }
+  return new StoreError('internal', error instanceof Error ? error.message : String(error))
 }
 
-async function sendReviewRequest(ref: PullRequestRef, login: string, requested: boolean) {
-  const { out, detail, code } = await gh(
+async function sendReviewRequest(
+  ref: PullRequestRef,
+  login: string,
+  requested: boolean,
+  kind = 'user'
+) {
+  const normalized = reviewerLogin(login)
+  const reviewers =
+    normalized === 'copilot-pull-request-reviewer'
+      ? ['copilot-pull-request-reviewer[bot]']
+      : [login]
+  return requestApi(
     [
-      'api',
       '--method',
       requested ? 'POST' : 'DELETE',
       `repos/${ref.repo}/pulls/${ref.number}/requested_reviewers`,
-      '--input',
-      '-',
     ],
-    JSON.stringify({ reviewers: [login] })
+    JSON.stringify(
+      kind === 'team'
+        ? { team_reviewers: [login], reviewers: [] }
+        : { reviewers, team_reviewers: [] }
+    )
   )
-  if (code !== 0) throw commonFailure(detail) ?? new Error(detail)
-  return ((record(JSON.parse(out)).requested_reviewers as unknown[]) ?? []).map(user)
+}
+
+function checksRunning(data: PullRequestData | undefined) {
+  return (
+    data?.pull.state === 'open' &&
+    (data.checkRollupState === 'PENDING' ||
+      data.checkRollupState === 'EXPECTED' ||
+      data.checkRuns.some((check) => check.status !== 'completed'))
+  )
 }
 
 export function createPullRequests(store: Store, hub: Hub) {
@@ -711,72 +834,113 @@ export function createPullRequests(store: Store, hub: Hub) {
     priority: 'visible' | 'prefetch'
     queuedAt: number
     started: boolean
+    revision: number
     promise: Promise<PullRequestSnapshot | undefined>
     resolve: (snapshot: PullRequestSnapshot | undefined) => void
   }
+  const revisions = new Map<string, number>()
+  const fetchedRevisions = new WeakMap<PullRequestSnapshot, number>()
+  const publication = Semaphore.makeUnsafe(1)
   const jobs = new Map<string, Job>()
   const queue: Job[] = []
   let activeVisible = 0
   let activePrefetches = 0
 
+  let drainQueued = false
   function drain() {
-    while (true) {
-      let index =
-        activeVisible < visibleLimit ? queue.findIndex((job) => job.priority === 'visible') : -1
-      if (index < 0 && activePrefetches < prefetchLimit)
-        index = queue.findIndex((job) => job.priority === 'prefetch')
-      if (index < 0) return
-      const job = queue.splice(index, 1)[0]!
-      job.started = true
-      if (job.priority === 'prefetch') activePrefetches++
-      else activeVisible++
-      const waitMs = Date.now() - job.queuedAt
-      const startedAt = Date.now()
+    if (drainQueued) return
+    drainQueued = true
+    queueMicrotask(() => {
+      drainQueued = false
+      const batch: Job[] = []
+      while (batch.length < 5) {
+        let index =
+          activeVisible < visibleLimit ? queue.findIndex((job) => job.priority === 'visible') : -1
+        if (index < 0 && activePrefetches < prefetchLimit)
+          index = queue.findIndex((job) => job.priority === 'prefetch')
+        if (index < 0) break
+        const job = queue.splice(index, 1)[0]!
+        job.started = true
+        if (job.priority === 'prefetch') activePrefetches++
+        else activeVisible++
+        batch.push(job)
+      }
+      if (!batch.length) return
       void (async () => {
-        let snapshot: PullRequestSnapshot
+        const startedAt = Date.now()
+        const refs = await Promise.all(
+          batch.map(async (job) => {
+            const cached = await Effect.runPromise(
+              store.getPullRequest(job.ref.repo, job.ref.number)
+            )
+            return {
+              ...job.ref,
+              headSha: cached.data?.pull.head.sha,
+            }
+          })
+        )
+        let graphs: Awaited<ReturnType<typeof fetchGraphqlBatch>> | undefined
+        let graphError: unknown
         try {
-          snapshot = {
-            ...job.ref,
-            status: 'ready',
-            data: await fetchPullRequest(job.ref),
-            refreshedAt: Date.now(),
-          }
+          graphs = await fetchGraphqlBatch(refs)
         } catch (error) {
-          const failure =
-            error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
-          snapshot = {
-            ...job.ref,
-            status: failure.kind,
-            error: failure.message,
-            refreshedAt: Date.now(),
-          }
+          graphError = error
         }
-        if (process.env.JETTY_PR_FETCH_DEBUG === '1')
-          console.debug(
-            `[pr-fetch] ${job.key} ${job.priority} wait=${waitMs}ms fetch=${Date.now() - startedAt}ms`
-          )
-        jobs.delete(job.key)
-        if (job.priority === 'prefetch') activePrefetches--
-        else activeVisible--
-        job.resolve(snapshot)
+        await Promise.all(
+          batch.map(async (job, index) => {
+            let snapshot: PullRequestSnapshot
+            try {
+              if (!graphs) throw graphError
+              const graph = graphs[index]!
+              if (graph instanceof GhFailure) throw graph
+              snapshot = {
+                ...job.ref,
+                status: 'ready',
+                data: await fetchPullRequest(job.ref, graph),
+                refreshedAt: Date.now(),
+              }
+            } catch (error) {
+              const failure =
+                error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+              snapshot = {
+                ...job.ref,
+                status: failure.kind,
+                error: failure.message,
+                refreshedAt: Date.now(),
+              }
+            }
+            if (process.env.JETTY_PR_FETCH_DEBUG === '1')
+              console.debug(
+                `[pr-fetch] ${job.key} ${job.priority} batch=${batch.length} wait=${startedAt - job.queuedAt}ms fetch=${Date.now() - startedAt}ms`
+              )
+            fetchedRevisions.set(snapshot, job.revision)
+            jobs.delete(job.key)
+            if (job.priority === 'prefetch') activePrefetches--
+            else activeVisible--
+            job.resolve(job.revision === (revisions.get(job.key) ?? 0) ? snapshot : undefined)
+          })
+        )
         drain()
-      })()
-    }
+      })().catch((error) => {
+        for (const job of batch) {
+          jobs.delete(job.key)
+          if (job.priority === 'prefetch') activePrefetches--
+          else activeVisible--
+          job.resolve({
+            ...job.ref,
+            status: 'unavailable',
+            error: String(error),
+            refreshedAt: Date.now(),
+          })
+        }
+        drain()
+      })
+    })
   }
 
   function schedule(ref: PullRequestRef, priority: Job['priority']) {
     const key = `${ref.repo}#${ref.number}`
-    if (priority === 'visible') {
-      for (const job of queue.splice(0)) {
-        if (job.key === key) {
-          job.priority = 'visible'
-          queue.push(job)
-        } else if (job.priority === 'prefetch') {
-          jobs.delete(job.key)
-          job.resolve(undefined)
-        } else queue.push(job)
-      }
-    }
+    if (pendingOperations.has(key)) return Promise.resolve(undefined)
     const existing = jobs.get(key)
     if (existing) {
       if (priority === 'visible' && existing.priority === 'prefetch') {
@@ -798,7 +962,16 @@ export function createPullRequests(store: Store, hub: Hub) {
     const promise = new Promise<PullRequestSnapshot | undefined>((done) => {
       resolve = done
     })
-    const job: Job = { ref, key, priority, queuedAt: Date.now(), started: false, promise, resolve }
+    const job: Job = {
+      ref,
+      key,
+      priority,
+      queuedAt: Date.now(),
+      started: false,
+      promise,
+      resolve,
+      revision: revisions.get(key) ?? 0,
+    }
     jobs.set(key, job)
     queue.push(job)
     drain()
@@ -807,107 +980,405 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   // Saves a fetch and pushes it to the PR view and to every thread linking it (sidebar marks).
   function publish(ref: PullRequestRef, fetched: PullRequestSnapshot) {
-    return Effect.gen(function* () {
-      yield* store.savePullRequest(fetched)
-      // The stored snapshot keeps the last good data when this read failed.
-      const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
-      hub.pushPullRequest(snapshot)
-      for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
-        const thread = yield* store.requireThread(threadId)
-        hub.pushChrome({ type: 'thread.upserted', thread })
-      }
-      return snapshot
-    })
+    return publication.withPermit(
+      Effect.gen(function* () {
+        const key = `${ref.repo}#${ref.number}`
+        if (
+          pendingOperations.has(key) ||
+          (fetchedRevisions.has(fetched) &&
+            fetchedRevisions.get(fetched) !== (revisions.get(key) ?? 0))
+        )
+          return yield* get(ref)
+        yield* store.savePullRequest(fetched)
+        // The stored snapshot keeps the last good data when this read failed.
+        const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
+        hub.pushPullRequest(decorate(snapshot))
+        for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
+          const thread = yield* store.requireThread(threadId)
+          hub.pushChrome({ type: 'thread.upserted', thread })
+        }
+        return decorate(snapshot)
+      })
+    )
   }
 
   function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
     return Effect.promise(() => schedule(ref, 'visible')).pipe(
-      Effect.flatMap((fetched) => publish(ref, fetched!))
+      Effect.flatMap((fetched) => (fetched ? publish(ref, fetched) : get(ref)))
     )
   }
 
-  function prefetch(ref: PullRequestRef) {
-    return Effect.gen(function* () {
-      const cached = yield* store.getPullRequest(ref.repo, ref.number)
-      if (cached.refreshedAt && Date.now() - cached.refreshedAt < 60_000) return cached
-      const pull = (cached.data as { pull?: { state?: string } } | undefined)?.pull
-      if (pull?.state === 'closed') return cached
-      const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
-      if (!fetched) return yield* store.getPullRequest(ref.repo, ref.number)
-      return yield* publish(ref, fetched)
-    })
+  const watches = new Map<string, Map<symbol, GitHubActivity>>()
+  const pendingOperations = new Map<string, NonNullable<PullRequestSnapshot['pendingOperation']>>()
+  const lastChecks = new Map<string, number>()
+  const checking = new Set<string>()
+  const lastCadences = new Map<string, string>()
+
+  function activity(ref: PullRequestRef) {
+    const values = [...(watches.get(`${ref.repo}#${ref.number}`)?.values() ?? [])]
+    return values.includes('focused')
+      ? 'focused'
+      : values.includes('blurred')
+        ? 'blurred'
+        : 'hidden'
   }
 
-  // Check runs don't bump a PR's updatedAt, so the rollup is compared separately.
-  const lastChecks = new Map<string, string>()
+  function watch(ref: PullRequestRef, state: GitHubActivity) {
+    const key = `${ref.repo}#${ref.number}`
+    const token = Symbol()
+    return Effect.acquireRelease(
+      Effect.sync(() => {
+        const subscribers = watches.get(key) ?? new Map()
+        subscribers.set(token, state)
+        watches.set(key, subscribers)
+      }),
+      () =>
+        Effect.sync(() => {
+          const subscribers = watches.get(key)
+          subscribers?.delete(token)
+          if (!subscribers?.size) watches.delete(key)
+        })
+    )
+  }
 
-  // One GraphQL call reads updatedAt and the check rollup for every open linked PR; only
-  // changed ones get a full refresh, so states follow GitHub without the ~7 calls each costs.
-  function refreshChangedLinks() {
-    return Effect.gen(function* () {
-      const links = (yield* store.openPullRequestLinks()).filter((link) => validRepo(link.repo))
-      if (!links.length) return
-      const fields = links.map((link, index) => {
-        const [owner, name] = link.repo.split('/')
-        return `p${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${Number(link.number)}) { updatedAt commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`
-      })
-      const response = yield* Effect.tryPromise(() =>
-        ghApi('graphql', '-f', `query=query { ${fields.join(' ')} }`)
-      ).pipe(Effect.orElseSucceed(() => null))
-      const data = record(record(response).data)
-      for (const [index, link] of links.entries()) {
-        const pull = record(record(data[`p${index}`]).pullRequest)
-        const updatedAt = string(pull.updatedAt)
-        if (!updatedAt) continue
-        const key = `${link.repo}#${link.number}`
-        const commit = record(
-          record((record(pull.commits).nodes as unknown[] | undefined)?.[0]).commit
-        )
-        const checks = string(record(commit.statusCheckRollup).state)
-        const checksChanged = lastChecks.has(key) && lastChecks.get(key) !== checks
-        lastChecks.set(key, checks)
-        if (updatedAt === link.updated_at && !checksChanged) continue
-        const ref = { repo: link.repo, number: link.number }
-        const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
-        if (fetched) yield* publish(ref, fetched)
-      }
-    })
+  function cadence(snapshot: PullRequestSnapshot, state = activity(snapshot), list = false) {
+    if (state === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()) return null
+    const interval =
+      snapshot.data?.pull.state === 'closed'
+        ? 30 * 60_000
+        : list || state === 'blurred'
+          ? 120_000
+          : 30_000
+    return interval * cadenceMultiplier()
+  }
+
+  function decorate(snapshot: PullRequestSnapshot): PullRequestSnapshot {
+    const watched = watches.has(`${snapshot.repo}#${snapshot.number}`)
+    const state = watched ? activity(snapshot) : hub.githubActivity()
+    const interval = cadence(snapshot, state, !watched)
+    const runningChecks = checksRunning(snapshot.data)
+    const cadenceKey = `${snapshot.repo}#${snapshot.number}`
+    const health = `${interval ?? 'paused'}/${runningChecks && state !== 'hidden' ? (state === 'focused' && watched ? 10_000 : 30_000) * cadenceMultiplier() : 'paused'}`
+    if (lastCadences.get(cadenceKey) !== health) {
+      lastCadences.set(cadenceKey, health)
+      console.info(`[pr-rate] ${cadenceKey} cadence=${health}ms activity=${state}`)
+    }
+    return {
+      ...snapshot,
+      pendingOperation: pendingOperations.get(`${snapshot.repo}#${snapshot.number}`),
+      rateLimit: githubRateLimitHealth(
+        interval,
+        runningChecks && interval !== null && state !== 'hidden'
+          ? (state === 'focused' && watched ? 10_000 : 30_000) * cadenceMultiplier()
+          : null
+      ),
+    }
   }
 
   function get(ref: PullRequestRef) {
-    return store.getPullRequest(ref.repo, ref.number)
+    return store.getPullRequest(ref.repo, ref.number).pipe(Effect.map(decorate))
   }
 
-  function refreshIfStale(ref: PullRequestRef, maxAge = 60_000) {
+  function refreshIfStale(ref: PullRequestRef, maxAge?: number) {
     return Effect.gen(function* () {
       const snapshot = yield* get(ref)
-      if (snapshot.refreshedAt && Date.now() - snapshot.refreshedAt < maxAge) return snapshot
-      const pull = (snapshot.data as { pull?: { state?: string } } | undefined)?.pull
-      if (pull?.state === 'closed') return snapshot
+      const interval = maxAge ?? snapshot.rateLimit?.cadenceMs ?? null
+      if (pendingOperations.has(`${ref.repo}#${ref.number}`)) return snapshot
+      if (interval === null || (rateHealth.backoffUntil ?? 0) > Date.now()) return snapshot
+      if (snapshot.refreshedAt && Date.now() - snapshot.refreshedAt < interval) return snapshot
       return yield* refresh(ref)
     })
   }
 
-  function setReviewRequest(ref: PullRequestRef, login: string, requested: boolean) {
+  function prefetch(ref: PullRequestRef) {
     return Effect.gen(function* () {
-      const reviewers = yield* Effect.tryPromise({
-        try: () => sendReviewRequest(ref, login, requested),
-        catch: (error) => reviewRequestError(error, ref, login),
-      })
-      const running = jobs.get(`${ref.repo}#${ref.number}`)
-      // A read that began before this write would land the old reviewers over the new ones.
-      if (running?.started)
-        void running.promise.then(() => Effect.runPromise(refresh(ref)).catch(() => {}))
-      const snapshot = yield* get(ref)
-      if (!snapshot.data) return yield* refresh(ref)
-      const updated = {
-        ...snapshot,
-        data: { ...snapshot.data, pull: { ...snapshot.data.pull, requested_reviewers: reviewers } },
-      }
-      yield* store.savePullRequest(updated)
-      hub.pushPullRequest(updated)
-      return updated
+      const cached = yield* get(ref)
+      const interval = cadence(cached, 'blurred', true)!
+      if (cached.refreshedAt && Date.now() - cached.refreshedAt < interval) return cached
+      const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
+      return fetched ? yield* publish(ref, fetched) : cached
     })
+  }
+
+  function refreshChangedLinks() {
+    return Effect.gen(function* () {
+      const state = hub.githubActivity()
+      if (state === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()) return
+      const links = (yield* store.activePullRequestLinks()).filter((link) =>
+        validPullRequestRef(link)
+      )
+      const due: PullRequestRef[] = []
+      const checks: PullRequestRef[] = []
+      for (const link of links) {
+        const snapshot = yield* get(link)
+        const interval = cadence(snapshot, state, true)!
+        if (!snapshot.refreshedAt || Date.now() - snapshot.refreshedAt >= interval) due.push(link)
+        else if (
+          checksRunning(snapshot.data) &&
+          Date.now() - (lastChecks.get(`${link.repo}#${link.number}`) ?? snapshot.refreshedAt) >=
+            30_000 * cadenceMultiplier()
+        )
+          checks.push(link)
+      }
+      for (let index = 0; index < due.length; index += 5) {
+        yield* Effect.forEach(
+          due.slice(index, index + 5),
+          (ref) =>
+            Effect.promise(() => schedule(ref, 'prefetch')).pipe(
+              Effect.flatMap((snapshot) => (snapshot ? publish(ref, snapshot) : Effect.void))
+            ),
+          { concurrency: 'unbounded', discard: true }
+        )
+      }
+      yield* refreshChecks(checks)
+    })
+  }
+
+  function refreshChecks(refs: readonly PullRequestRef[]) {
+    return Effect.gen(function* () {
+      for (let index = 0; index < refs.length; index += 5) {
+        const batch = refs
+          .slice(index, index + 5)
+          .filter(
+            (ref) =>
+              !checking.has(`${ref.repo}#${ref.number}`) &&
+              !jobs.has(`${ref.repo}#${ref.number}`) &&
+              !pendingOperations.has(`${ref.repo}#${ref.number}`)
+          )
+        if (!batch.length) continue
+        const versions = batch.map((ref) => revisions.get(`${ref.repo}#${ref.number}`) ?? 0)
+        for (const ref of batch) checking.add(`${ref.repo}#${ref.number}`)
+        const graphs = yield* Effect.tryPromise({
+          try: () => fetchGraphqlBatch(batch, true),
+          catch: (error) => new StoreError('internal', String(error)),
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              for (const ref of batch) checking.delete(`${ref.repo}#${ref.number}`)
+            })
+          )
+        )
+        for (const [index, ref] of batch.entries()) {
+          const snapshot = yield* get(ref)
+          const graph = graphs[index]!
+          if (
+            graph instanceof GhFailure ||
+            versions[index] !== (revisions.get(`${ref.repo}#${ref.number}`) ?? 0)
+          )
+            continue
+          lastChecks.set(`${ref.repo}#${ref.number}`, Date.now())
+          if (!snapshot.data) continue
+          const head = string(record(record(nodes(graph.pull.commits)[0]).commit).oid)
+          if (head !== snapshot.data.pull.head.sha) {
+            yield* refresh(ref)
+            continue
+          }
+          const data = {
+            ...snapshot.data,
+            checkRuns: mapCheckRuns(graph.checks),
+            checkRollupState: graph.checkRollupState,
+          }
+          const fetched = { ...snapshot, data }
+          fetchedRevisions.set(fetched, versions[index]!)
+          yield* publish(ref, fetched)
+        }
+      }
+    })
+  }
+
+  function poll(ref: PullRequestRef) {
+    return Effect.gen(function* () {
+      const snapshot = yield* refreshIfStale(ref)
+      const interval = snapshot.rateLimit?.checksCadenceMs
+      if (
+        interval &&
+        Date.now() - (lastChecks.get(`${ref.repo}#${ref.number}`) ?? snapshot.refreshedAt ?? 0) >=
+          interval &&
+        (rateHealth.backoffUntil ?? 0) <= Date.now()
+      )
+        yield* refreshChecks([ref])
+      return yield* get(ref)
+    })
+  }
+
+  function write(
+    ref: PullRequestRef,
+    operation: NonNullable<PullRequestSnapshot['pendingOperation']>,
+    optimistic: (data: PullRequestData) => PullRequestData,
+    send: () => Promise<unknown>,
+    confirm: (data: PullRequestData, response: unknown) => PullRequestData = (data) => data
+  ) {
+    const key = `${ref.repo}#${ref.number}`
+    return Effect.gen(function* () {
+      const previous = yield* publication.withPermit(
+        Effect.gen(function* () {
+          if (pendingOperations.has(key))
+            return yield* Effect.fail(
+              new StoreError('conflict', 'A pull request operation is already in progress')
+            )
+          const snapshot = yield* get(ref)
+          pendingOperations.set(key, operation)
+          revisions.set(key, (revisions.get(key) ?? 0) + 1)
+          return snapshot
+        })
+      )
+      function save(data: PullRequestData | undefined) {
+        return publication.withPermit(
+          Effect.gen(function* () {
+            const snapshot = { ...previous, data }
+            yield* store.savePullRequest(snapshot)
+            hub.pushPullRequest(decorate(snapshot))
+            return decorate(snapshot)
+          })
+        )
+      }
+      return yield* Effect.gen(function* () {
+        if (previous.data) yield* save(optimistic(previous.data))
+        else hub.pushPullRequest(decorate(previous))
+        const result = yield* Effect.tryPromise({ try: send, catch: writeError }).pipe(
+          Effect.tapError(() => save(previous.data))
+        )
+        const current = yield* get(ref)
+        if (current.data) yield* save(confirm(current.data, result))
+      }).pipe(
+        Effect.ensuring(
+          publication
+            .withPermit(
+              Effect.gen(function* () {
+                pendingOperations.delete(key)
+                revisions.set(key, (revisions.get(key) ?? 0) + 1)
+                hub.pushPullRequest(yield* get(ref))
+              })
+            )
+            .pipe(Effect.catch((error) => Effect.logWarning(error)))
+        ),
+        Effect.onExit(() =>
+          Effect.gen(function* () {
+            const running = jobs.get(key)
+            if (running) yield* Effect.promise(() => running.promise)
+            for (const path of restCache.keys())
+              if (path.startsWith(`repos/${ref.repo}/pulls/${ref.number}`)) restCache.delete(path)
+            yield* refresh(ref).pipe(Effect.catch(() => Effect.void))
+          })
+        ),
+        Effect.andThen(get(ref))
+      )
+    }).pipe(Effect.uninterruptible)
+  }
+
+  function updateTitle(ref: PullRequestRef, title: string) {
+    if (!title.trim() || title.length > 256)
+      return Effect.fail(
+        new StoreError('invalid_params', 'A pull request title must contain 1–256 characters')
+      )
+    return write(
+      ref,
+      'title',
+      (data) => ({ ...data, pull: { ...data.pull, title } }),
+      () =>
+        requestApi(
+          ['--method', 'PATCH', `repos/${ref.repo}/pulls/${ref.number}`],
+          JSON.stringify({ title })
+        ),
+      (data, result) => ({
+        ...data,
+        pull: { ...data.pull, title: string(record(result).title, title) },
+      })
+    )
+  }
+
+  function merge(
+    ref: PullRequestRef,
+    sha: string,
+    mergeMethod: 'squash' | 'merge' | 'rebase' = 'squash'
+  ) {
+    if (!/^[a-f0-9]{40,64}$/i.test(sha))
+      return Effect.fail(new StoreError('invalid_params', 'A merge requires the current head SHA'))
+    return write(
+      ref,
+      'merge',
+      (data) => data,
+      async () => {
+        const result = record(
+          await requestApi(
+            ['--method', 'PUT', `repos/${ref.repo}/pulls/${ref.number}/merge`],
+            JSON.stringify({ merge_method: mergeMethod, sha })
+          )
+        )
+        if (result.merged !== true)
+          throw new StoreError(
+            'invalid_params',
+            string(result.message, 'GitHub did not merge this pull request')
+          )
+        return result
+      },
+      (data) => ({
+        ...data,
+        pull: { ...data.pull, state: 'closed', merged: true, merged_at: new Date().toISOString() },
+      })
+    )
+  }
+
+  function setReviewRequest(
+    ref: PullRequestRef,
+    login: string,
+    requested: boolean,
+    kind: 'user' | 'bot' | 'team' = 'user'
+  ) {
+    if (kind === 'team' ? !/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(login) : !validLogin(login))
+      return Effect.fail(
+        new StoreError(
+          'invalid_params',
+          kind === 'team' ? 'Invalid GitHub team slug' : 'Invalid GitHub login'
+        )
+      )
+    const canonical = reviewerLogin(login)
+    return write(
+      ref,
+      'reviews',
+      (data) => {
+        const identity = kind === 'team' ? `${ref.repo.split('/')[0]}/${login}` : canonical
+        const existing = data.reviewers?.find((reviewer) => reviewer.login === identity)
+        const reviewer = {
+          login: identity,
+          avatar_url: '',
+          html_url: '',
+          ...existing,
+          kind: canonical === 'copilot-pull-request-reviewer' ? ('bot' as const) : kind,
+          ...(canonical === 'copilot-pull-request-reviewer' ? { name: 'Copilot' } : {}),
+          ...(kind === 'team' ? { slug: login, organization: ref.repo.split('/')[0] } : {}),
+          requested,
+          asCodeOwner: existing?.asCodeOwner ?? false,
+          latestReviewState: existing?.latestReviewState ?? null,
+          state: requested ? ('AWAITING' as const) : (existing?.latestReviewState ?? null),
+        }
+        const reviewRequests = [
+          ...(data.reviewRequests ?? []).filter((entry) => entry.login !== identity),
+          ...(requested ? [reviewer] : []),
+        ]
+        return {
+          ...data,
+          reviewRequests,
+          reviewers: [
+            ...(data.reviewers ?? []).filter((entry) => entry.login !== identity),
+            reviewer,
+          ],
+          pull: {
+            ...data.pull,
+            requested_reviewers: reviewRequests.filter((entry) => entry.kind !== 'team').map(user),
+          },
+          requestedTeams: reviewRequests
+            .filter((entry) => entry.kind === 'team')
+            .map((entry) => ({
+              name: entry.name ?? entry.login,
+              avatar_url: entry.avatar_url,
+              slug: entry.slug,
+              asCodeOwner: entry.asCodeOwner,
+            })),
+        }
+      },
+      () => sendReviewRequest(ref, login, requested, kind)
+    )
   }
 
   const candidateTtl = 5 * 60_000
@@ -922,6 +1393,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     if (cached && Date.now() - cached.at < candidateTtl) return cached.promise
     const promise = fetchReviewerCandidates(repo, search)
     candidates.set(key, { at: Date.now(), promise })
+    if (candidates.size > 64) candidates.delete(candidates.keys().next().value!)
     promise.catch(() => candidates.delete(key))
     return promise
   }
@@ -934,6 +1406,10 @@ export function createPullRequests(store: Store, hub: Hub) {
     refreshChangedLinks,
     setReviewRequest,
     reviewerCandidates,
+    watch,
+    poll,
+    updateTitle,
+    merge,
   }
 }
 
@@ -990,67 +1466,120 @@ function listItem(value: unknown): PullRequestListItem | null {
   }
 }
 
-async function fetchPullRequestList(tab: PullRequestListTab) {
-  const searches = listSearches(tab)
+export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[]) {
+  const searches = tabs.flatMap(listSearches)
   const fields = `issueCount nodes { ... on PullRequest {
     number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
     commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
   } }`
-  const query = `query(${searches.map((_, index) => `$q${index}:String!`).join(',')}) {
+  return {
+    searches,
+    query: `query(${searches.map((_, index) => `$q${index}:String!`).join(',')}) {
+    rateLimit { cost remaining resetAt }
     ${searches.map((_, index) => `s${index}: search(query:$q${index},type:ISSUE,first:${listLimit}) { ${fields} }`).join('\n')}
-  }`
-  const response = record(
-    await ghApi(
-      'graphql',
-      '-f',
-      `query=${query}`,
-      ...searches.flatMap((search, index) => ['-f', `q${index}=${search}`])
-    )
-  )
+  }`,
+  }
+}
+
+export function mapPullRequestList(value: unknown, tabIndex = 0) {
+  const data = record(record(value).data)
   const since = Date.parse(recentSince())
   const found = new Map<string, PullRequestListItem>()
   let truncated = false
-  for (const result of Object.values(record(response.data))) {
-    const nodes = (record(result).nodes as unknown[] | undefined) ?? []
-    if (Number(record(result).issueCount) > nodes.length) truncated = true
-    for (const node of nodes) {
+  for (let index = tabIndex * 2; index < tabIndex * 2 + 2; index++) {
+    const result = record(data[`s${index}`])
+    const values = nodes(result)
+    if (Number(result.issueCount) > values.length) truncated = true
+    for (const node of values) {
       const closedAt = Date.parse(string(record(node).closedAt))
       if (closedAt < since) continue
       const item = listItem(node)
       if (item) found.set(`${item.repo}#${item.number}`, item)
     }
   }
-  const items = [...found.values()].sort((left, right) => right.updatedAt - left.updatedAt)
-  return { items, truncated }
+  return {
+    items: [...found.values()].sort((left, right) => right.updatedAt - left.updatedAt),
+    truncated,
+  }
+}
+
+async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
+  const { searches, query } = pullRequestListGraphqlQuery(tabs)
+  const response = await ghApi(
+    'graphql',
+    '-f',
+    `query=${query}`,
+    ...searches.flatMap((search, index) => ['-f', `q${index}=${search}`])
+  )
+  return tabs.map(
+    (tab, index): PullRequestList => ({
+      tab,
+      status: 'ready',
+      ...mapPullRequestList(response, index),
+      refreshedAt: Date.now(),
+    })
+  )
 }
 
 export function createPullRequestLists(store: Store, hub: Hub) {
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
+  const queued = new Map<PullRequestListTab, (list: PullRequestList) => void>()
+  let flushQueued = false
+
+  function decorate(list: PullRequestList, activity = hub.githubActivity()): PullRequestList {
+    const paused = activity === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()
+    return {
+      ...list,
+      rateLimit: githubRateLimitHealth(
+        paused ? null : 120_000 * cadenceMultiplier(),
+        !paused && list.items?.some((item) => item.checks === 'pending')
+          ? 30_000 * cadenceMultiplier()
+          : null
+      ),
+    }
+  }
+
+  function get(tab: PullRequestListTab) {
+    return store.getPullRequestList(tab).pipe(Effect.map((list) => decorate(list)))
+  }
+
   function load(tab: PullRequestListTab) {
-    let pending = inFlight.get(tab)
-    if (pending) return pending
-    pending = fetchPullRequestList(tab).then(
-      ({ items, truncated }): PullRequestList => ({
-        tab,
-        status: 'ready',
-        items,
-        ...(truncated ? { truncated } : {}),
-        refreshedAt: Date.now(),
-      }),
-      (error): PullRequestList => ({
-        tab,
-        status:
-          error instanceof GhFailure && error.kind === 'rate_limited'
-            ? 'rate_limited'
-            : 'unavailable',
-        error: error instanceof GhFailure ? error.message : 'GitHub API is unavailable',
-        refreshedAt: Date.now(),
+    const existing = inFlight.get(tab)
+    if (existing) return existing
+    const promise = new Promise<PullRequestList>((resolve) => queued.set(tab, resolve))
+    inFlight.set(tab, promise)
+    if (!flushQueued) {
+      flushQueued = true
+      queueMicrotask(() => {
+        flushQueued = false
+        const batch = [...queued]
+        queued.clear()
+        void fetchPullRequestLists(batch.map(([tab]) => tab)).then(
+          (lists) => {
+            for (const [index, [tab, resolve]] of batch.entries()) {
+              inFlight.delete(tab)
+              resolve(lists[index]!)
+            }
+          },
+          (error) => {
+            for (const [tab, resolve] of batch) {
+              inFlight.delete(tab)
+              resolve({
+                tab,
+                status:
+                  error instanceof GhFailure && error.kind === 'rate_limited'
+                    ? 'rate_limited'
+                    : 'unavailable',
+                error: error instanceof GhFailure ? error.message : 'GitHub API is unavailable',
+                refreshedAt: Date.now(),
+              })
+            }
+          }
+        )
       })
-    )
-    inFlight.set(tab, pending)
-    void pending.finally(() => inFlight.delete(tab))
-    return pending
+    }
+    return promise
   }
 
   function refresh(tab: PullRequestListTab) {
@@ -1058,19 +1587,77 @@ export function createPullRequestLists(store: Store, hub: Hub) {
       yield* store.savePullRequestList(yield* Effect.promise(() => load(tab)))
       // The stored list keeps the last good items when this read failed.
       const list = yield* store.getPullRequestList(tab)
-      hub.pushPullRequestList(list)
-      return list
+      const decorated = decorate(list)
+      hub.pushPullRequestList(decorated)
+      return decorated
     })
   }
 
-  function refreshIfStale(tab: PullRequestListTab) {
+  function refreshIfStale(tab: PullRequestListTab, activity: GitHubActivity = 'focused') {
     return Effect.gen(function* () {
-      const list = yield* store.getPullRequestList(tab)
-      const maxAge = list.status === 'rate_limited' ? 5 * 60_000 : 60_000
+      const list = decorate(yield* store.getPullRequestList(tab), activity)
+      if (activity === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()) return list
+      const maxAge = 120_000 * cadenceMultiplier()
       if (list.refreshedAt && Date.now() - list.refreshedAt < maxAge) return list
       return yield* refresh(tab)
     })
   }
 
-  return { get: store.getPullRequestList, refresh, refreshIfStale }
+  const lastCheckRefresh = new Map<PullRequestListTab, number>()
+  const checkingTabs = new Set<PullRequestListTab>()
+
+  function poll(tab: PullRequestListTab, activity: GitHubActivity) {
+    return Effect.gen(function* () {
+      const list = yield* refreshIfStale(tab, activity)
+      const refs = (list.items ?? []).filter((item) => item.checks === 'pending')
+      const interval = 30_000 * cadenceMultiplier()
+      if (
+        activity === 'hidden' ||
+        (rateHealth.backoffUntil ?? 0) > Date.now() ||
+        !refs.length ||
+        checkingTabs.has(tab) ||
+        Date.now() - (lastCheckRefresh.get(tab) ?? list.refreshedAt ?? 0) < interval
+      )
+        return list
+      checkingTabs.add(tab)
+      return yield* Effect.gen(function* () {
+        const checks = new Map<string, PullRequestListItem['checks']>()
+        for (let index = 0; index < refs.length; index += 5) {
+          const batch = refs.slice(index, index + 5)
+          const graphs = yield* Effect.tryPromise({
+            try: () => fetchGraphqlBatch(batch, true, true),
+            catch: (error) => new StoreError('internal', String(error)),
+          })
+          for (const [index, ref] of batch.entries()) {
+            const graph = graphs[index]!
+            if (!(graph instanceof GhFailure))
+              checks.set(`${ref.repo}#${ref.number}`, checkStates[graph.checkRollupState])
+          }
+        }
+        const current = yield* store.getPullRequestList(tab)
+        const updated = decorate(
+          {
+            ...current,
+            items: current.items?.map((item) =>
+              checks.has(`${item.repo}#${item.number}`)
+                ? { ...item, checks: checks.get(`${item.repo}#${item.number}`) }
+                : item
+            ),
+          },
+          activity
+        )
+        yield* store.savePullRequestList(updated)
+        lastCheckRefresh.set(tab, Date.now())
+        hub.pushPullRequestList(updated)
+        return updated
+      }).pipe(Effect.ensuring(Effect.sync(() => checkingTabs.delete(tab))))
+    })
+  }
+
+  return {
+    get,
+    refresh,
+    refreshIfStale,
+    poll,
+  }
 }

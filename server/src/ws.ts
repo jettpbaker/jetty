@@ -19,13 +19,13 @@ import type { Worktrees } from './worktrees'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
+import { uploadGithubAttachment } from './github-upload'
 import {
   createPullRequestLinks,
   createPullRequestLists,
   createPullRequests,
   githubConnection,
   pullRequestDiffFile,
-  validLogin,
   validPullRequestRef,
   validRepo,
 } from './pull-requests'
@@ -144,7 +144,10 @@ export function createRpcHandlers(
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
     const pullRequestLists = createPullRequestLists(store, hub)
 
-    function checkedRef(ref: { repo: string; number: number }) {
+    function checkedRef(ref: {
+      repo: string
+      number: number
+    }): Effect.Effect<{ repo: string; number: number }, StoreError> {
       return validPullRequestRef(ref)
         ? Effect.succeed(ref)
         : Effect.fail(new StoreError('invalid_params', 'Invalid GitHub pull request reference'))
@@ -200,10 +203,11 @@ export function createRpcHandlers(
             Effect.as(null)
           )
         ),
-      'chrome.subscribe': () =>
+      'chrome.subscribe': ({ activity = 'focused' }) =>
         Stream.unwrap(
           hub.withChromePublication(
             Effect.gen(function* () {
+              yield* hub.watchGithubActivity(activity)
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
               const usage = getUsage()
@@ -361,12 +365,7 @@ export function createRpcHandlers(
         Effect.gen(function* () {
           yield* checkedRef(ref)
           const snapshot = yield* pullRequests.get(ref)
-          const pull = (snapshot.data as { pull?: { state?: string } } | undefined)?.pull
-          if (
-            !snapshot.refreshedAt ||
-            (pull?.state !== 'closed' && Date.now() - snapshot.refreshedAt > 60_000)
-          )
-            yield* refreshInBackground(ref)
+          yield* refreshInBackground(ref)
           return snapshot
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.prefetch': (ref) =>
@@ -389,23 +388,38 @@ export function createRpcHandlers(
             })
           : Effect.fail(new StoreError('invalid_params', 'Invalid reviewer search'))
         ).pipe(Effect.mapError(wireError)),
-      'pullRequest.setReviewRequest': ({ login, requested, ...ref }) =>
+      'pullRequest.setReviewRequest': ({ login, requested, kind, ...ref }) =>
         Effect.gen(function* () {
           yield* checkedRef(ref)
-          if (!validLogin(login))
-            return yield* Effect.fail(new StoreError('invalid_params', 'Invalid GitHub login'))
-          return yield* pullRequests.setReviewRequest(ref, login, requested)
+          return yield* pullRequests.setReviewRequest(ref, login, requested, kind)
         }).pipe(Effect.mapError(wireError)),
-      'pullRequest.subscribe': (ref) =>
+      'pullRequest.updateTitle': ({ title, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.updateTitle(ref, title)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.merge': ({ sha, mergeMethod, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.merge(ref, sha, mergeMethod)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.uploadAttachment': (params) =>
+        Effect.tryPromise({
+          try: () => uploadGithubAttachment(params),
+          catch: wireError,
+        }),
+      'pullRequest.subscribe': ({ activity = 'focused', ...ref }) =>
         Stream.unwrap(
           Effect.gen(function* () {
             yield* checkedRef(ref)
+            yield* hub.watchGithubActivity(activity)
+            yield* pullRequests.watch(ref, activity)
             const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
             const snapshot = yield* pullRequests.get(ref)
             yield* refreshInBackground(ref)
-            const periodic = Stream.tick('60 seconds').pipe(
+            const periodic = Stream.tick('5 seconds').pipe(
               Stream.mapEffect(() =>
-                pullRequests.refreshIfStale(ref).pipe(Effect.catch(() => pullRequests.get(ref)))
+                pullRequests.poll(ref).pipe(Effect.catch(() => pullRequests.get(ref)))
               )
             )
             return Stream.concat(
@@ -416,19 +430,20 @@ export function createRpcHandlers(
         ),
       'pullRequestList.refresh': ({ tab }) =>
         pullRequestLists.refresh(tab).pipe(Effect.mapError(wireError)),
-      'pullRequestList.subscribe': ({ tab }) =>
+      'pullRequestList.subscribe': ({ tab, activity = 'focused' }) =>
         Stream.unwrap(
           Effect.gen(function* () {
+            yield* hub.watchGithubActivity(activity)
             const queue = yield* hub.subscribePullRequestList(tab)
             const list = yield* pullRequestLists.get(tab)
-            yield* pullRequestLists.refreshIfStale(tab).pipe(
+            yield* pullRequestLists.refreshIfStale(tab, activity).pipe(
               Effect.catch(() => Effect.void),
               Effect.forkIn(admissionScope)
             )
-            const periodic = Stream.tick('60 seconds').pipe(
+            const periodic = Stream.tick('5 seconds').pipe(
               Stream.mapEffect(() =>
                 pullRequestLists
-                  .refreshIfStale(tab)
+                  .poll(tab, activity)
                   .pipe(Effect.catch(() => pullRequestLists.get(tab)))
               )
             )

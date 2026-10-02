@@ -1,3 +1,4 @@
+import type { GitHubActivity } from '@jetty/shared/pull-request'
 import type { PullRequestListTab } from '@jetty/shared/wire'
 
 import { JettyRpcs } from '@jetty/shared/rpc'
@@ -24,6 +25,28 @@ const backoff = Schedule.min([
 const reconnect = backoff.pipe(
   Schedule.while(({ input }) => input instanceof RpcClientError.RpcClientError)
 )
+
+function githubActivity(): GitHubActivity {
+  return document.visibilityState === 'hidden'
+    ? 'hidden'
+    : document.hasFocus()
+      ? 'focused'
+      : 'blurred'
+}
+
+function activityStream() {
+  const changes = Stream.mergeAll(
+    [
+      Stream.fromEventListener(document, 'visibilitychange'),
+      Stream.fromEventListener(window, 'focus'),
+      Stream.fromEventListener(window, 'blur'),
+    ],
+    { concurrency: 'unbounded' }
+  ).pipe(Stream.map(githubActivity))
+  return Stream.suspend(() =>
+    Stream.concat(Stream.succeed(githubActivity()), changes).pipe(Stream.changes)
+  )
+}
 
 function protocol(
   url: Effect.Effect<string>,
@@ -85,7 +108,10 @@ export function createConnection(
     }
 
     function subscribeChrome() {
-      return online(rpc('chrome.subscribe', {})).pipe(Stream.retry(reconnect))
+      return activityStream().pipe(
+        Stream.switchMap((activity) => online(rpc('chrome.subscribe', { activity }))),
+        Stream.retry(reconnect)
+      )
     }
 
     function subscribeThread(threadId: string, afterSeq?: number) {
@@ -103,11 +129,19 @@ export function createConnection(
     }
 
     function subscribePullRequest(repo: string, number: number) {
-      return online(rpc('pullRequest.subscribe', { repo, number })).pipe(Stream.retry(reconnect))
+      return activityStream().pipe(
+        Stream.switchMap((activity) =>
+          online(rpc('pullRequest.subscribe', { repo, number, activity }))
+        ),
+        Stream.retry(reconnect)
+      )
     }
 
     function subscribePullRequestList(tab: PullRequestListTab) {
-      return online(rpc('pullRequestList.subscribe', { tab })).pipe(Stream.retry(reconnect))
+      return activityStream().pipe(
+        Stream.switchMap((activity) => online(rpc('pullRequestList.subscribe', { tab, activity }))),
+        Stream.retry(reconnect)
+      )
     }
 
     return {
