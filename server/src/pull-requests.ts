@@ -392,7 +392,7 @@ async function ghCheckRollup(ref: PullRequestRef, sha: string): Promise<unknown[
             id name status conclusion detailsUrl startedAt completedAt
             checkSuite { app { name } workflowRun { workflow { name } } }
           }
-          ... on StatusContext { id context state targetUrl createdAt updatedAt }
+          ... on StatusContext { id context state targetUrl updatedAt }
         }
         pageInfo { hasNextPage endCursor }
       } }
@@ -532,7 +532,8 @@ async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequestData> {
               : state === 'FAILURE' || state === 'ERROR'
                 ? 'failure'
                 : null,
-          started_at: string(check.createdAt),
+          // A status is a posted state, not a run, so it has no duration to show.
+          started_at: '',
           completed_at:
             state === 'PENDING' || state === 'EXPECTED' ? null : string(check.updatedAt),
           html_url: string(check.targetUrl),

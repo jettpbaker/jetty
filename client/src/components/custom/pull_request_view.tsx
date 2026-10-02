@@ -141,6 +141,7 @@ function TimeAgo({ at }: { at: string }) {
 function checkDuration(run: GitHubCheckRun) {
   if (run.status === 'queued') return 'Queued'
   if (run.status === 'in_progress' || !run.completed_at) return 'Running'
+  if (run.conclusion === 'skipped') return ''
   const seconds = (Date.parse(run.completed_at) - Date.parse(run.started_at)) / 1000
   return Number.isNaN(seconds) ? '' : formatDuration(Math.max(0, seconds))
 }
