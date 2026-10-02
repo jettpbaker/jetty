@@ -503,5 +503,34 @@ export function threadRows(
     lastWork.startedAt = undefined
     lastWork.elapsedSeconds = undefined
   }
+  return reuseRows(allItems[0], rows)
+}
+
+const previousRows = new WeakMap<ThreadItem, Map<string, ThreadRow>>()
+
+// Rows equal to the last call's keep their identity, so a streaming delta re-renders only the
+// row it changed.
+function reuseRows(first: ThreadItem | undefined, rows: ThreadRow[]) {
+  if (!first) return rows
+  const previous = previousRows.get(first)
+  const next = new Map<string, ThreadRow>()
+  for (const [index, row] of rows.entries()) {
+    const old = previous?.get(row.id)
+    if (old && same(old, row)) rows[index] = old
+    next.set(row.id, rows[index]!)
+  }
+  previousRows.set(first, next)
   return rows
+}
+
+function same(a: unknown, b: unknown): boolean {
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) return a === b
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  for (const key of keys) {
+    const x = a[key as keyof typeof a]
+    const y = b[key as keyof typeof b]
+    if (x !== y && !same(x, y)) return false
+  }
+  return true
 }
