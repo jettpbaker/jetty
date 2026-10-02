@@ -256,9 +256,13 @@ export function githubRateLimitHealth(
   }
 }
 
+function lowBalance(remaining: number | null, resetAt: string | null) {
+  return remaining !== null && remaining < 500 && Date.parse(resetAt ?? '') > Date.now()
+}
+
 function cadenceMultiplier() {
-  return (rateHealth.remaining !== null && rateHealth.remaining < 500) ||
-    (rateHealth.restRemaining !== null && rateHealth.restRemaining < 500)
+  return lowBalance(rateHealth.remaining, rateHealth.resetAt) ||
+    lowBalance(rateHealth.restRemaining, rateHealth.restResetAt)
     ? 4
     : 1
 }
