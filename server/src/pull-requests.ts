@@ -813,8 +813,14 @@ function requestedReviewers(reviewRequests: readonly PullRequestReviewer[]) {
   }
 }
 
-function checksRunning(state: string | undefined, rollup: string | undefined) {
-  return state === 'open' && (rollup === 'PENDING' || rollup === 'EXPECTED')
+// One failed check makes the rollup FAILURE while the rest still run.
+function checksRunning(data: PullRequestData | undefined) {
+  return (
+    data?.pull.state === 'open' &&
+    (data.checkRollupState === 'PENDING' ||
+      data.checkRollupState === 'EXPECTED' ||
+      data.checkRuns.some((run) => run.status !== 'completed'))
+  )
 }
 
 function prKey(ref: PullRequestRef) {
@@ -1046,7 +1052,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     const state = watched ? activity(snapshot) : hub.githubActivity()
     const interval = cadence(snapshot.data?.pull.state === 'closed', state, !watched)
     const checksInterval =
-      interval !== null && checksRunning(snapshot.data?.pull.state, snapshot.data?.checkRollupState)
+      interval !== null && checksRunning(snapshot.data)
         ? (watched && state === 'focused' ? 10_000 : 30_000) * cadenceMultiplier()
         : null
     const health = `${interval ?? 'paused'}/${checksInterval ?? 'paused'}`
