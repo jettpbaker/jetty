@@ -222,7 +222,7 @@ export function ThreadList({
   const pinned = useRef(!saved || saved.index === -1)
   const [width, setWidth] = useState(saved?.width ?? 660)
   const [gutter, setGutter] = useState(0)
-  const [, setFontsReady] = useState(false)
+  const [fontsReady, setFontsReady] = useState(false)
 
   useEffect(() => {
     const element = scroller.current
@@ -242,10 +242,14 @@ export function ThreadList({
     if (document.fonts.status === 'loaded') return
     void document.fonts.ready.then(() => {
       clearTextMeasure()
-      // Re-render so the virtualizer re-estimates unmeasured rows with the loaded font.
       setFontsReady(true)
     })
   }, [])
+
+  // A new key function makes the virtualizer re-estimate every unmeasured row, so it changes
+  // only when an estimate can.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- width and fontsReady feed the estimates
+  const getItemKey = useCallback((index: number) => rows[index]!.id, [rows, width, fontsReady])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -255,7 +259,7 @@ export function ThreadList({
     gap: 12,
     paddingStart: 24,
     paddingEnd: 24,
-    getItemKey: (index) => rows[index]!.id,
+    getItemKey,
     initialMeasurementsCache: saved?.sizes,
     // A pinned thread mounts its bottom rows, not its top; the scroller is never taller than the window.
     initialOffset: (): number =>
