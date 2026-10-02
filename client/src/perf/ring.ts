@@ -65,7 +65,9 @@ function flush() {
 function send(body: string) {
   fetch('/perf', {
     method: 'POST',
-    keepalive: true,
+    // A single record over the budget (a snapshot) goes without keepalive; with it, Chrome
+    // rejects the request and the record is lost.
+    keepalive: body.length <= maxBodyChars,
     headers: { 'Content-Type': 'application/x-ndjson' },
     body,
   }).catch(() => {})
