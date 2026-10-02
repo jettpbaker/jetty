@@ -341,7 +341,6 @@ async function startTrace(page: Page) {
         'disabled-by-default-devtools.timeline',
         'disabled-by-default-devtools.timeline.frame',
         'disabled-by-default-devtools.timeline.stack',
-        'disabled-by-default-devtools.timeline.invalidationTracking',
         'disabled-by-default-v8.cpu_profiler',
         'v8.execute',
         'v8',
