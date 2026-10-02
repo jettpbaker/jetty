@@ -483,6 +483,16 @@ function allowedMergeOptions(data: PullRequestData) {
   return mergeMethodOptions.filter((option) => allowedByMethod[option.method])
 }
 
+// Merging isn't built yet, so the button explains the first thing that would block it on GitHub.
+function mergeBlocker(data: PullRequestData) {
+  if (data.pull.mergeable_state === 'dirty') return 'Resolve merge conflicts first'
+  if (data.checkRuns.some(failed)) return 'Some checks are failing'
+  if (data.checkRuns.some((run) => run.status !== 'completed')) return 'Checks are still running'
+  if (data.reviewDecision === 'CHANGES_REQUESTED') return 'Changes were requested'
+  if (data.reviewDecision === 'REVIEW_REQUIRED') return 'Awaiting an approving review'
+  return 'Coming soon'
+}
+
 function MergeAction({
   data,
   state,
@@ -501,9 +511,25 @@ function MergeAction({
 
   if (state === 'merged' || state === 'closed') {
     return (
-      <Button size='sm' variant='outline' className='rounded-sm' disabled>
-        {prPresentation[state].label}
-      </Button>
+      <DisabledTooltip
+        reason={state === 'closed' ? "Closed pull requests can't be merged" : undefined}
+        wrap='flex'
+      >
+        <Button size='sm' variant='outline' className='rounded-sm' disabled>
+          {prPresentation[state].label}
+        </Button>
+      </DisabledTooltip>
+    )
+  }
+
+  if (state === 'draft') {
+    return (
+      <DisabledTooltip reason='Coming soon' wrap='flex'>
+        <Button size='sm' className='h-7 rounded-sm' disabled>
+          <GitPullRequestIcon data-icon='inline-start' />
+          Ready for review
+        </Button>
+      </DisabledTooltip>
     )
   }
 
@@ -528,17 +554,17 @@ function MergeAction({
     </Button>
   )
 
-  const soon = (
-    <DisabledTooltip reason='Coming soon' wrap='flex'>
+  const blocked = (
+    <DisabledTooltip reason={mergeBlocker(data)} wrap='flex'>
       {primary}
     </DisabledTooltip>
   )
 
-  if (options.length === 1) return soon
+  if (options.length === 1) return blocked
 
   return (
     <div className='flex'>
-      {soon}
+      {blocked}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
