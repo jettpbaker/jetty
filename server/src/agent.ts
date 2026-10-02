@@ -155,12 +155,14 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
     const scope = yield* Effect.scope
     const sessions = new Map<string, EchoSession>()
     const contextByThread = new Map<string, number>()
+    const chunks = Math.max(1, echoEnvInt('JETTY_ECHO_CHUNKS', 4))
+    const chunkMs = echoEnvInt('JETTY_ECHO_CHUNK_MS', CHUNK_MS)
 
     function emitChunks(emit: Emit, itemId: string, text: string) {
       return Effect.gen(function* () {
-        const size = Math.max(1, Math.ceil(text.length / 4))
+        const size = Math.max(1, Math.ceil(text.length / chunks))
         for (let i = 0; i < text.length; i += size) {
-          yield* Effect.sleep(CHUNK_MS)
+          yield* Effect.sleep(chunkMs)
           yield* emit({ type: 'item.delta', itemId, delta: text.slice(i, i + size) })
         }
         yield* Effect.sleep(STEP_MS)
@@ -332,6 +334,11 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
 
 export function echoLayer(hooks: AgentHooks = {}) {
   return Layer.effect(AgentService, createEchoAdapter(hooks))
+}
+
+function echoEnvInt(name: string, fallback: number): number {
+  const raw = Number(process.env[name] || NaN)
+  return Number.isSafeInteger(raw) && raw >= 0 ? raw : fallback
 }
 
 function echoSeedPct(): number {
