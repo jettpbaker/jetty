@@ -27,6 +27,7 @@ export function Composer({
   value,
   onValueChange,
   onSubmit,
+  onBackgroundSubmit,
   onInterrupt,
   running,
   strip,
@@ -48,6 +49,8 @@ export function Composer({
   value: string
   onValueChange: (value: string) => void
   onSubmit: () => void
+  // ⌘Enter / Ctrl+Enter; without it the chord is left to onKeyDown
+  onBackgroundSubmit?: () => void
   onInterrupt: () => void
   running: boolean
   strip?: ReactNode
@@ -158,16 +161,11 @@ export function Composer({
                 attachments.add(event.clipboardData.files)
               }}
               onKeyDown={(event) => {
-                if (
-                  event.key === 'Enter' &&
-                  !event.shiftKey &&
-                  !event.metaKey &&
-                  !event.ctrlKey &&
-                  !event.nativeEvent.isComposing
-                ) {
-                  event.preventDefault()
-                  submit()
-                }
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
+                if (!send) return
+                event.preventDefault()
+                if (canSend) send()
               }}
               rows={rows}
               style={{ minHeight: `calc(${rows}lh + 1rem)` }}

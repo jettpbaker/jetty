@@ -120,20 +120,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   unchanged REST responses come back 304 (those don't count against the
   limit), fold REST calls into the GraphQL query each refresh already makes
   where possible, and back off on the rate-limit headers.
-- Background send from the new-thread page: with text in the composer, Cmd+Enter
-  creates the thread and sends exactly like Enter, but stays put with a cleared
-  composer for the next prompt; plain Enter still opens the thread.
-  - t3code (~/code/ctx/t3code/apps/web/src): `composerSubmissionIntentForEnter`
-    (composer-logic.ts) returns `background` for Mod+Enter on a draft thread
-    (not on mobile). ChatView.tsx's send starts the turn, opens a fresh draft
-    keeping env mode, branch and from-origin, and toasts "Started in background"
-    with an Open action. On failure it restores the prompt and attachments to
-    the draft and toasts "Background task failed" with Open draft. No hint
-    anywhere; you have to know it.
-  - For us: Composer's Enter handler (components/custom/composer.tsx) skips
-    Cmd+Enter today; `startTurn` in thread_composer.tsx would skip its
-    `navigate` and keep the draft's target (`stageSend` in state/drafts.ts takes
-    it with the message), then a sonner toast with Open.
 - Code block syntax colours: chat and description code blocks (sketchpad
   `src/components/custom/code_block.tsx`, not ported) hardcode
   `pierre-light-soft` / `pierre-dark-soft`. Once Jett picks the PR view's theme

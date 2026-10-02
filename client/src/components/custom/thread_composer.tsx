@@ -39,6 +39,7 @@ import {
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { MonitoringLine } from './monitoring_line'
 
@@ -200,22 +201,28 @@ export function ThreadComposer({
     return items.filter((entry) => entry.kind === 'user_message' && entry.text === text).length
   }
 
-  function startTurn(text: string) {
+  // In the background, the new-thread page stays put with its picks for the next prompt.
+  function startTurn(text: string, background: boolean) {
     const id =
       threadId ?? (projectId ? createThread(projectId, environment, startingRef) : undefined)
     if (!id) return
     const prior = priorCount(text)
+    const kept = read().target
     setDraft('')
     sendTurn(id, text, prior, loadout, attachments.take(), draftKey)
-    if (!threadId) void navigate({ to: '/threads/$threadId', params: { threadId: id } })
+    if (threadId) return
+    const open = () => void navigate({ to: '/threads/$threadId', params: { threadId: id } })
+    if (!background) return open()
+    update({ target: kept })
+    toast('Started in background', { action: { label: 'Open', onClick: open } })
   }
 
-  function submit() {
+  function submit(background = false) {
     const text = draft.trim()
     if (!text && attachments.images.length === 0) return
     if (threadId && text && editingEntry) queueActions.edit(threadId, editingEntry.id, text)
     else if (threadId && running) queueActions.add(threadId, text, attachments.take())
-    else return startTurn(text)
+    else return startTurn(text, background)
     clearDraft()
   }
 
@@ -354,7 +361,7 @@ export function ThreadComposer({
               : 'Ask for follow-up changes',
           sendLabel: running ? (item ? 'Queue as a follow-up' : 'Queue') : 'Send',
           sendDisabled: (!threadId && !projectId) || needsModel ? true : undefined,
-          onSubmit: submit,
+          onSubmit: () => submit(),
           onKeyDown: keyHandler((event) => {
             if (event.key !== 'Escape' || !editing) return false
             if (threadId) queueActions.release(threadId, editing)
@@ -384,6 +391,7 @@ export function ThreadComposer({
         value={draft}
         onValueChange={setDraft}
         onSubmit={mode.onSubmit}
+        onBackgroundSubmit={threadId ? undefined : () => submit(true)}
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
         }}
