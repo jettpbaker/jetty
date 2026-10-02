@@ -91,6 +91,12 @@ async function buildClient(dir: string, profiling = false) {
   await run(args, join(dir, 'client'))
 }
 
+// The lab's committed output (fixtures, baseline, budgets) is left as the formatter would.
+export async function format(path: string) {
+  const args = ['bun', 'run', '--silent', 'format', path]
+  await Bun.spawn(args, { cwd: repoRoot, stdout: 'ignore' }).exited
+}
+
 export async function freePort(): Promise<number> {
   for (;;) {
     const listener = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } })

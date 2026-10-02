@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import type { Iteration } from './run'
 
-import { perfDir } from './app'
+import { format, perfDir } from './app'
 import chrome from './chrome.json'
 import { tier1, tier2 } from './counters'
 import { median, medianCI, medianDiffCI, round } from './stats'
@@ -32,6 +32,7 @@ export async function readJson<T>(path: string): Promise<T | null> {
 
 export async function writeJson(path: string, value: unknown) {
   await Bun.write(path, `${JSON.stringify(value, null, 2)}\n`)
+  await format(path)
 }
 
 type Group = { id: string; variant: string; runs: Iteration[] }

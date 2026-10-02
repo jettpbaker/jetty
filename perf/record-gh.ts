@@ -5,7 +5,7 @@ import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { perfDir, prepareTree, repoRoot } from './app'
+import { format, perfDir, prepareTree } from './app'
 import { click, hasText, open, quiet, type Ctx } from './journey'
 import { journeyId, journeys } from './journeys'
 import { disposeVariant, iterate, makeVariant, type Variant } from './run'
@@ -59,8 +59,7 @@ export async function recordGh(out: string) {
     await (variant ? disposeVariant(variant) : tree.dispose())
     rmSync(dir, { recursive: true, force: true })
   }
-  // They're committed: leave them as the formatter would.
-  await Bun.spawn(['bun', 'run', 'format', fixtures], { cwd: repoRoot, stdout: 'ignore' }).exited
+  await format(fixtures)
   console.log(`${readdirSync(fixtures).length} fixtures in ${fixtures}`)
 }
 
