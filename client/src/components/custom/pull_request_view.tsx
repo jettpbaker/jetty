@@ -95,6 +95,7 @@ const PullRequestDiff = lazy(async () => {
   await preloadHighlighter({
     themes: ['pierre-dark-soft', 'pierre-light-soft'],
     langs: ['typescript', 'tsx'],
+    preferredHighlighter: 'shiki-wasm',
   })
   function PullRequestDiff({
     files,

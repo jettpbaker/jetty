@@ -202,6 +202,7 @@ export function diffViewOptions(
     diffStyle: split ? 'split' : 'unified',
     theme: { light: 'pierre-light-soft', dark: 'pierre-dark-soft' },
     themeType,
+    preferredHighlighter: 'shiki-wasm',
     stickyHeaders: true,
     itemMetrics: {
       diffHeaderHeight: 36,

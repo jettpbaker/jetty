@@ -274,6 +274,7 @@ function loadProposedDiff() {
       await preloadHighlighter({
         themes: ['pierre-dark-soft', 'pierre-light-soft'],
         langs: ['typescript', 'tsx'],
+        preferredHighlighter: 'shiki-wasm',
       })
       return { default: ProposedDiff }
     }
