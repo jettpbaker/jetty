@@ -42,6 +42,7 @@ import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
+import { createPerfSink } from './perf-sink'
 import { readClaudeProviderUsage, readCodexProviderUsage } from './provider-usage'
 import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
@@ -242,6 +243,7 @@ function createServer(opts: ServerOptions = {}) {
     const attachments = Context.get(io, Attachments)
     const pullRequests = createPullRequests(store, hub)
     const githubMedia = createGithubMedia(home)
+    const perfSink = createPerfSink(home)
     const mcp = createMcpSessions()
     let lastUsage: RateLimits | null = null
     const hooks: AgentHooks = {
@@ -505,6 +507,14 @@ function createServer(opts: ServerOptions = {}) {
           return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
         }
         return yield* websocket
+      }
+      if (url.pathname === '/perf') {
+        if (!originAllowed(request.headers.origin))
+          return HttpServerResponse.text('Forbidden origin', { status: 403 })
+        if (request.method !== 'POST')
+          return HttpServerResponse.text('Method not allowed', { status: 405 })
+        const web = yield* HttpServerRequest.toWeb(request)
+        return HttpServerResponse.fromWeb(yield* Effect.promise(() => perfSink(web)))
       }
       if (request.method === 'GET' && url.pathname.startsWith('/attachments/')) {
         const id = url.pathname.slice('/attachments/'.length)
