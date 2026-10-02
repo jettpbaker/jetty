@@ -1,7 +1,7 @@
 {
   "app.launch/root": {
-    "commits": 10,
-    "jsCalls": 177254,
+    "commits": 12,
+    "jsCalls": 184200,
     "layouts": 7,
     "styleRecalcs": 14,
     "mutations": 99,
@@ -9,26 +9,26 @@
     "wsMsgs": 2,
     "wsBytes": 3438,
     "shifts": 2,
-    "loafCount": 3,
+    "loafCount": 4,
     "shifts.composer": 2,
-    "wallMs": 368.5
+    "wallMs": 364.8
   },
   "app.launch/long": {
-    "commits": 25,
-    "jsCalls": 5534056,
+    "commits": 26,
+    "jsCalls": 5768865,
     "layouts": 16,
-    "styleRecalcs": 28,
-    "mutations": 226,
+    "styleRecalcs": 27,
+    "mutations": 227,
     "domNodes": 765,
     "wsMsgs": 3,
     "wsBytes": 401883,
     "shifts": 0,
-    "loafCount": 5,
-    "wallMs": 1184.7
+    "loafCount": 6,
+    "wallMs": 1153.3
   },
   "thread.switch/long": {
-    "commits": 8,
-    "jsCalls": 1824060,
+    "commits": 9,
+    "jsCalls": 1824604,
     "layouts": 8,
     "styleRecalcs": 15,
     "mutations": 66,
@@ -37,12 +37,12 @@
     "wsBytes": 0,
     "shifts": 0,
     "loafCount": 3,
-    "wallMs": 185.5
+    "wallMs": 182.6
   },
   "thread.switch/code": {
-    "commits": 10,
-    "jsCalls": 5662823,
-    "layouts": 15,
+    "commits": 9,
+    "jsCalls": 5659776,
+    "layouts": 14,
     "styleRecalcs": 19,
     "mutations": 8362,
     "domNodes": 7574,
@@ -50,87 +50,87 @@
     "wsBytes": 0,
     "shifts": 0,
     "loafCount": 13,
-    "wallMs": 235.6
+    "wallMs": 234.2
   },
   "thread.open/long": {
     "commits": 19,
-    "jsCalls": 5450301,
+    "jsCalls": 5450667,
     "layouts": 14,
-    "styleRecalcs": 24,
+    "styleRecalcs": 22,
     "mutations": 139,
     "domNodes": 765,
     "wsMsgs": 1,
     "wsBytes": 398445,
     "shifts": 0,
     "loafCount": 3,
-    "wallMs": 608.1
+    "wallMs": 596.1
   },
   "thread.open/code": {
     "commits": 25,
-    "jsCalls": 8863348,
+    "jsCalls": 8863714,
     "layouts": 22,
-    "styleRecalcs": 37,
+    "styleRecalcs": 38,
     "mutations": 8478,
     "domNodes": 7574,
     "wsMsgs": 1,
     "wsBytes": 254523,
     "shifts": 0,
     "loafCount": 10,
-    "wallMs": 714.7
+    "wallMs": 725.4
   },
   "turn.send/new": {
-    "commits": 73,
-    "jsCalls": 575626,
-    "layouts": 91,
-    "styleRecalcs": 161,
-    "mutations": 207,
+    "commits": 76,
+    "jsCalls": 580106,
+    "layouts": 94,
+    "styleRecalcs": 160,
+    "mutations": 211,
     "domNodes": 390,
     "wsMsgs": 20,
     "wsBytes": 8999,
     "shifts": 0,
-    "loafCount": 5,
-    "wallMs": 1068.8
+    "loafCount": 3,
+    "wallMs": 1064.3
   },
   "turn.stream/new": {
-    "commits": 104,
-    "jsCalls": 942865,
-    "layouts": 116,
-    "styleRecalcs": 280,
-    "mutations": 240,
+    "commits": 106,
+    "jsCalls": 946814,
+    "layouts": 119,
+    "styleRecalcs": 281,
+    "mutations": 244,
     "domNodes": 390,
     "wsMsgs": 49,
     "wsBytes": 14074,
     "shifts": 4,
-    "loafCount": 5,
+    "loafCount": 3,
     "shifts.messages": 4,
-    "wallMs": 683.2
+    "wallMs": 658.4
   },
   "pr.open/1": {
-    "commits": 20,
-    "jsCalls": 324922,
+    "commits": 19,
+    "jsCalls": 312549,
     "layouts": 15,
     "styleRecalcs": 19,
     "mutations": 71,
-    "domNodes": 1009,
-    "wsMsgs": 4,
-    "wsBytes": 55945,
+    "domNodes": 1020,
+    "wsMsgs": 3,
+    "wsBytes": 39450,
     "shifts": 0,
     "loafCount": 3,
-    "wallMs": 216.4
+    "wallMs": 226.6
   },
   "pr.diff/1": {
     "commits": 13,
-    "jsCalls": 1480213,
+    "jsCalls": 1481369,
     "layouts": 18,
     "styleRecalcs": 57,
     "mutations": 82,
-    "domNodes": 849,
+    "domNodes": 860,
     "wsMsgs": 2,
     "wsBytes": 1279,
     "shifts": 2,
     "loafCount": 4,
     "shifts.pr-panel": 2,
-    "wallMs": 958.6
+    "wallMs": 963.9
   },
   "composer.key/small": {
     "commits": 1,
