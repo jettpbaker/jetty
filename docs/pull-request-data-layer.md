@@ -64,8 +64,9 @@ checks are truncated. REST history retains its existing five-page bound.
 `behindBy` is obtained inside the same query using the cached head SHA and live
 base ref. It is null on the first read, if comparison is unavailable, or when
 that SHA no longer matches the PR's head. A push landing between the GraphQL
-and REST reads of one refresh leaves the checks briefly stale rather than
-failing the refresh; the next poll catches up.
+and REST reads of one refresh re-reads the GraphQL half once at the new head; a
+second push inside that window leaves the checks briefly stale until the next
+poll.
 
 Both PR and list snapshots expose `rateLimit`: GraphQL cost/remaining/reset,
 REST remaining/reset, backoff deadline, full cadence, and check cadence. Either

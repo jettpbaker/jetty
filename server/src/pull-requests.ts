@@ -601,11 +601,18 @@ export function mapCheckRuns(checks: readonly unknown[]): PullRequestData['check
   })
 }
 
-async function fetchPullRequest(ref: PullRequestRef, graph: Graph): Promise<PullRequestData> {
+async function fetchPullRequest(ref: PullRequestRef, first: Graph): Promise<PullRequestData> {
   const base = `repos/${ref.repo}`
   const pull = (await ghApi(`${base}/pulls/${ref.number}`)) as Record<string, unknown>
-  // A push between the two reads leaves the comparison stale; the next poll refreshes.
-  const headMoved = record(pull.head).sha !== graph.headSha
+  const headSha = string(record(pull.head).sha)
+  // A push between the two reads would pair the new head with the old head's checks and
+  // mergeability, so the GraphQL half is read once more at the new head.
+  const retried =
+    first.pull.headRefOid === headSha
+      ? first
+      : (await fetchGraphqlBatch([{ ...ref, headSha }]).catch(() => []))[0]
+  const graph = retried && !(retried instanceof GhFailure) ? retried : first
+  const headMoved = graph.pull.headRefOid !== headSha
   const [reviews, reviewComments, commits, files, repo] = await Promise.all([
     ghPages(`${base}/pulls/${ref.number}/reviews`),
     ghPages(`${base}/pulls/${ref.number}/comments`),
