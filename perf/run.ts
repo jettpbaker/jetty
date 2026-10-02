@@ -274,6 +274,7 @@ export async function iterate(
     const before = journey.navigates ? emptySnapshot : await snapshot(page)
     await takeCoverage(page, server.origin, variant.mapper)
     const tracing = opts.trace ? await startTrace(page) : null
+    const actAt = journey.navigates ? 0 : await page.evaluate<number>('performance.now()')
     const started = performance.now()
     await journey.act(ctx)
     const finished = await waitForJourney(page, journey, ctx)
@@ -283,7 +284,11 @@ export async function iterate(
     variant.spans.set(id, performance.now() - started)
     const after = await snapshot(page)
     const coverage = await takeCoverage(page, server.origin, variant.mapper)
-    const loafs = tracing ? await page.evaluate<Loaf[]>('window.__perfLab.loafs') : undefined
+    const loafs = tracing
+      ? (await page.evaluate<Loaf[]>('window.__perfLab.loafs')).filter(
+          (loaf) => loaf.start + loaf.duration >= actAt
+        )
+      : undefined
     if (tracing) await tracing.stop(opts.trace!)
     const { record } = finished
     const counters = { ...delta(before, after), jsCalls: coverage.calls }

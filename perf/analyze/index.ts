@@ -62,12 +62,18 @@ function selfTime(events: TraceEvent[], mapper: SourceMapper, origin: string) {
   for (const event of events) {
     if (event.name !== 'ProfileChunk' || !event.id) continue
     const data = event.args?.data as {
-      cpuProfile?: { nodes?: { id: number; callFrame: CallFrame }[]; samples?: number[] }
+      cpuProfile?: { nodes?: { id: number; callFrame?: Partial<CallFrame> }[]; samples?: number[] }
       timeDeltas?: number[]
     }
     const key = `${event.pid}:${event.id}`
     const profile: Profile = profiles.get(key) ?? { nodes: new Map(), samples: [], deltas: [] }
-    for (const node of data.cpuProfile?.nodes ?? []) profile.nodes.set(node.id, node.callFrame)
+    for (const node of data.cpuProfile?.nodes ?? [])
+      profile.nodes.set(node.id, {
+        functionName: node.callFrame?.functionName ?? '',
+        url: node.callFrame?.url ?? '',
+        lineNumber: node.callFrame?.lineNumber ?? 0,
+        columnNumber: node.callFrame?.columnNumber ?? 0,
+      })
     profile.samples.push(...(data.cpuProfile?.samples ?? []))
     profile.deltas.push(...(data.timeDeltas ?? []))
     profiles.set(key, profile)
@@ -100,7 +106,9 @@ export async function summarizeTrace(opts: {
   const parsed = model.parsedTrace()
   if (!parsed) throw new Error('the trace engine could not parse the trace')
   const { mapper, origin } = opts
-  const start = Math.min(...events.filter((event) => event.ts > 0).map((event) => event.ts))
+  let start = Infinity
+  for (const event of events)
+    if (event.ph === 'X' && event.ts > 0 && event.ts < start) start = event.ts
   const lines = [`# Trace summary: ${opts.journey}`, '', `Trace: \`${opts.tracePath}\``, '']
 
   const hot = selfTime(events, mapper, origin)
@@ -158,15 +166,15 @@ export async function summarizeTrace(opts: {
   for (const [name, insight] of Object.entries(models)) {
     if (!interactionInsights.has(name)) continue
     if (insight.state !== 'fail' && insight.state !== 'informative') continue
-    lines.push(
-      `- **${String(insight.title ?? name)}** (${String(insight.state)})${insightDetail(name, insight)}`
-    )
+    const title = (insight.strings as { title?: string } | undefined)?.title ?? name
+    lines.push(`- **${title}** (${String(insight.state)})${insightDetail(name, insight)}`)
   }
   lines.push('')
 
   lines.push('## Jetty track', '')
   const timings = parsed.data.UserTimings
   const marks = [...timings.performanceMeasures, ...timings.performanceMarks]
+    .filter(onJettyTrack)
     .map((event) => ({
       name: event.name,
       at: (event.ts - start) / 1000,
@@ -201,6 +209,23 @@ export async function summarizeTrace(opts: {
     lines.push(`- ${track}: ${entry.count} entries, ${ms(entry.time)}`)
   lines.push('')
   return lines.join('\n')
+}
+
+function onJettyTrack(event: unknown) {
+  const args = (
+    event as {
+      args?: {
+        detail?: string
+        data?: { detail?: string; beginEvent?: { args?: { detail?: string } } }
+      }
+    }
+  ).args
+  const detail = args?.data?.beginEvent?.args?.detail ?? args?.data?.detail ?? args?.detail
+  try {
+    return JSON.parse(detail ?? 'null')?.devtools?.track === 'Jetty'
+  } catch {
+    return false
+  }
 }
 
 // The rest (LCP, caching, render-blocking, HTTP) are about page loads from a network.
