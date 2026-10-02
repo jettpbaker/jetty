@@ -1,17 +1,20 @@
 /*
  * One bounded GraphQL selection per PR refresh; concurrent jobs share aliased batches
  * (up to 5 PRs). REST history/files retain ETags; authenticated 304s are free.
- * Focused views: 30s for responsive review/merge state, blurred views and lists: 2m
- * to save idle budget, hidden: no polling, closed/merged: 30m. Running checks alone:
- * 10s focused, 30s blurred/list, so CI progresses without reloading history/files.
- * Writes publish cached state first and refresh immediately after confirmation.
- * The server queue/cache dedupes clients. Below 500 GraphQL or REST points, cadence slows
- * 4x; exhaustion waits for reset. Secondary limits honour Retry-After (at least
- * 60s without it), then exponential backoff. All limit/cadence changes are logged.
- * Connections are bounded to avoid nested point/node explosions; truncation is
- * explicit in the snapshot rather than paginating GraphQL on every poll.
+ * Focused views refresh every 30s, blurred views every 2m, hidden clients never, closed or
+ * merged PRs every 30m. While checks run, a checks-only query adds 10s focused / 30s blurred.
+ * Linked PRs outside the view share one cheap query every 30s reading updatedAt and the
+ * check rollup; only changed PRs pay for a full refresh. Writes publish cached state first
+ * and refresh after confirmation. Below 500 GraphQL or REST points, cadence slows 4x;
+ * exhaustion waits for reset. Secondary limits honour Retry-After, else exponential backoff
+ * from 60s (capped at 15m). All limit/cadence changes are logged. Connections are bounded
+ * at 100; truncation is explicit in the snapshot rather than paginating on every poll.
  */
-import type { GitHubActivity, ReviewerCandidate } from '@jetty/shared/pull-request'
+import type {
+  GitHubActivity,
+  PullRequestReviewer,
+  ReviewerCandidate,
+} from '@jetty/shared/pull-request'
 import type {
   PullRequestList,
   PullRequestListItem,
@@ -26,14 +29,18 @@ import type { Hub } from './hub'
 import type { Store } from './store'
 
 import {
+  canonicalLogin,
+  checkRollupFields,
+  copilotWriteLogin,
   githubUser as user,
   mapPullRequestGraphql,
   mapReviewers,
+  pullRequestGraphqlFields,
+  pullRequestGraphqlQuery,
+  pullRequestStateFields,
   nodes,
   record,
-  reviewerLogin,
   string,
-  pullRequestGraphqlQuery,
 } from './pull-request-graphql'
 import { StoreError } from './store'
 
@@ -256,62 +263,54 @@ function cadenceMultiplier() {
     : 1
 }
 
+function backingOff() {
+  return (rateHealth.backoffUntil ?? 0) > Date.now()
+}
+
 export function observeRateLimit(headers: Headers, body: unknown, status: number, detail = '') {
   const remaining = headers.get('x-ratelimit-remaining')
-  const reset = Number(headers.get('x-ratelimit-reset')) * 1000
-  if (headers.get('x-ratelimit-resource') !== 'graphql' && remaining !== null) {
+  const resetAt = Number(headers.get('x-ratelimit-reset')) * 1000 || 0
+  if (remaining !== null && headers.get('x-ratelimit-resource') !== 'graphql') {
     rateHealth.restRemaining = Number(remaining)
-    rateHealth.restResetAt = reset ? new Date(reset).toISOString() : null
+    rateHealth.restResetAt = resetAt ? new Date(resetAt).toISOString() : null
   }
-  const limit = record(record(body).data).rateLimit
-  if (limit) {
-    const value = record(limit)
-    rateHealth.remaining = Number(value.remaining)
-    rateHealth.cost = Number(value.cost)
-    rateHealth.resetAt = string(value.resetAt)
+  const limit = record(record(record(body).data).rateLimit)
+  if (limit.remaining !== undefined) {
+    rateHealth.remaining = Number(limit.remaining)
+    rateHealth.cost = Number(limit.cost)
+    rateHealth.resetAt = string(limit.resetAt)
     console.info(
       `[pr-rate] cost=${rateHealth.cost} remaining=${rateHealth.remaining} reset=${rateHealth.resetAt} cadenceMultiplier=${cadenceMultiplier()}`
     )
   }
   const retryAfter = headers.get('retry-after')
-  const exhausted = remaining === '0' || rateHealth.remaining === 0
-  if (
+  const limited =
     status === 429 ||
-    exhausted ||
+    remaining === '0' ||
     ((status === 403 || status === 200) &&
       (Boolean(retryAfter) || /rate limit|abuse detection/i.test(detail)))
-  ) {
-    const retryAt = retryAfter
-      ? Number.isFinite(Number(retryAfter))
-        ? Date.now() + Number(retryAfter) * 1000
-        : Date.parse(retryAfter)
-      : 0
-    const graphReset =
-      exhausted && rateHealth.remaining === 0 ? Date.parse(rateHealth.resetAt ?? '') : 0
-    const exhaustedAt = Math.max(remaining === '0' ? reset : 0, graphReset || 0)
-    const fallback =
-      !retryAt && !exhaustedAt
-        ? Date.now() + Math.min(15 * 60_000, 60_000 * 2 ** secondaryFailures++)
-        : 0
-    rateHealth.backoffUntil = Math.max(
-      rateHealth.backoffUntil ?? 0,
-      Date.now() + 1000,
-      retryAt || 0,
-      exhaustedAt,
-      fallback
-    )
-    console.warn(
-      `[pr-rate] backoff until=${new Date(rateHealth.backoffUntil).toISOString()} status=${status} remaining=${remaining} retry-after=${retryAfter}`
-    )
-  } else if (status >= 200 && status < 400 && (rateHealth.backoffUntil ?? 0) <= Date.now())
-    secondaryFailures = 0
+  if (!limited) {
+    if (status >= 200 && status < 400 && !backingOff()) secondaryFailures = 0
+    return
+  }
+  const until = retryAfter
+    ? Number.isFinite(Number(retryAfter))
+      ? Date.now() + Number(retryAfter) * 1000
+      : Date.parse(retryAfter)
+    : remaining === '0'
+      ? resetAt
+      : Date.now() + Math.min(15 * 60_000, 60_000 * 2 ** secondaryFailures++)
+  rateHealth.backoffUntil = Math.max(rateHealth.backoffUntil ?? 0, Date.now() + 1000, until || 0)
+  console.warn(
+    `[pr-rate] backoff until=${new Date(rateHealth.backoffUntil).toISOString()} status=${status} remaining=${remaining} retry-after=${retryAfter}`
+  )
 }
 
 export function checkBackoff() {
-  if (rateHealth.backoffUntil && Date.now() < rateHealth.backoffUntil)
+  if (backingOff())
     throw new GhFailure(
       'rate_limited',
-      `GitHub rate limit reached; retry after ${new Date(rateHealth.backoffUntil).toISOString()}`
+      `GitHub rate limit reached; retry after ${new Date(rateHealth.backoffUntil!).toISOString()}`
     )
 }
 
@@ -376,7 +375,7 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
   if (!partialGraph && (code !== 0 || status >= 400 || errors)) {
     if (
       status === 429 ||
-      (status === 403 && (rateHealth.backoffUntil ?? 0) > Date.now()) ||
+      (status === 403 && backingOff()) ||
       /rate limit|abuse detection/i.test(message)
     )
       throw new GhFailure('rate_limited', message || 'GitHub rate limit reached', status)
@@ -501,13 +500,14 @@ export async function pullRequestDiffFile(params: {
   return { before, after }
 }
 
+type Graph = Exclude<Awaited<ReturnType<typeof fetchGraphqlBatch>>[number], GhFailure>
+
 async function fetchGraphqlBatch(
   refs: readonly (PullRequestRef & { headSha?: string })[],
-  checksOnly = false,
-  rollupOnly = false
+  fields = pullRequestGraphqlFields
 ) {
   const response = record(
-    await ghApi('graphql', '-f', `query=${pullRequestGraphqlQuery(refs, checksOnly, rollupOnly)}`)
+    await ghApi('graphql', '-f', `query=${pullRequestGraphqlQuery(refs, fields)}`)
   )
   const data = record(response.data)
   return refs.map((_, index) => {
@@ -597,17 +597,11 @@ export function mapCheckRuns(checks: readonly unknown[]): PullRequestData['check
   })
 }
 
-async function fetchPullRequest(
-  ref: PullRequestRef,
-  graph: Exclude<Awaited<ReturnType<typeof fetchGraphqlBatch>>[number], GhFailure>
-): Promise<PullRequestData> {
+async function fetchPullRequest(ref: PullRequestRef, graph: Graph): Promise<PullRequestData> {
   const base = `repos/${ref.repo}`
   const pull = (await ghApi(`${base}/pulls/${ref.number}`)) as Record<string, unknown>
-  if (record(pull.head).sha !== graph.pull.headRefOid)
-    throw new GhFailure(
-      'unavailable',
-      'The pull request changed during refresh. Refresh again for the latest head.'
-    )
+  // A push between the two reads leaves the comparison stale; the next poll refreshes.
+  const headMoved = record(pull.head).sha !== graph.headSha
   const [reviews, reviewComments, commits, files, repo] = await Promise.all([
     ghPages(`${base}/pulls/${ref.number}/reviews`),
     ghPages(`${base}/pulls/${ref.number}/comments`),
@@ -623,6 +617,7 @@ async function fetchPullRequest(
     'unknown'
   )
   const reviewers = mapReviewers(graph.pull, reviews)
+  const { requestedUsers, requestedTeams } = requestedReviewers(reviewers.reviewRequests)
   const fixture = {
     pull: {
       ...pull,
@@ -630,9 +625,7 @@ async function fetchPullRequest(
       body: string(pull.body),
       user: user(pull.user),
       mergeable_state: state,
-      requested_reviewers: reviewers.reviewRequests
-        .filter((reviewer) => reviewer.kind !== 'team')
-        .map(user),
+      requested_reviewers: requestedUsers,
     },
     reviews: reviews.map((value) => {
       const review = record(value)
@@ -684,16 +677,9 @@ async function fetchPullRequest(
     ...reviewers,
     mergeable: graph.pull.mergeable,
     mergeStateStatus: string(graph.pull.mergeStateStatus, 'UNKNOWN'),
-    behindBy: graph.behindBy,
+    behindBy: headMoved ? null : graph.behindBy,
     truncatedConnections: graph.truncatedConnections,
-    requestedTeams: reviewers.reviewRequests
-      .filter((reviewer) => reviewer.kind === 'team')
-      .map((reviewer) => ({
-        name: reviewer.name ?? reviewer.login,
-        avatar_url: reviewer.avatar_url,
-        slug: reviewer.slug,
-        asCodeOwner: reviewer.asCodeOwner,
-      })),
+    requestedTeams,
     reviewDecision:
       (['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'] as const).find(
         (decision) => decision === graph.reviewDecision
@@ -756,6 +742,7 @@ async function fetchReviewerCandidates(repo: string, search: string) {
 function writeError(error: unknown) {
   if (error instanceof StoreError) return error
   if (error instanceof GhFailure) {
+    if (error.kind === 'rate_limited') return new StoreError('internal', error.message)
     if (error.status === 405)
       return new StoreError(
         'invalid_params',
@@ -792,11 +779,7 @@ async function sendReviewRequest(
   requested: boolean,
   kind = 'user'
 ) {
-  const normalized = reviewerLogin(login)
-  const reviewers =
-    normalized === 'copilot-pull-request-reviewer'
-      ? ['copilot-pull-request-reviewer[bot]']
-      : [login]
+  const reviewer = canonicalLogin(login) === 'Copilot' ? copilotWriteLogin : login
   return requestApi(
     [
       '--method',
@@ -806,18 +789,32 @@ async function sendReviewRequest(
     JSON.stringify(
       kind === 'team'
         ? { team_reviewers: [login], reviewers: [] }
-        : { reviewers, team_reviewers: [] }
+        : { reviewers: [reviewer], team_reviewers: [] }
     )
   )
 }
 
-function checksRunning(data: PullRequestData | undefined) {
-  return (
-    data?.pull.state === 'open' &&
-    (data.checkRollupState === 'PENDING' ||
-      data.checkRollupState === 'EXPECTED' ||
-      data.checkRuns.some((check) => check.status !== 'completed'))
-  )
+// The pre-redesign view reads requests as REST's `requested_reviewers` and `requested_teams`.
+function requestedReviewers(reviewRequests: readonly PullRequestReviewer[]) {
+  return {
+    requestedUsers: reviewRequests.filter((reviewer) => reviewer.kind !== 'team').map(user),
+    requestedTeams: reviewRequests
+      .filter((reviewer) => reviewer.kind === 'team')
+      .map((reviewer) => ({
+        name: reviewer.name ?? reviewer.login,
+        avatar_url: reviewer.avatar_url,
+        slug: reviewer.slug,
+        asCodeOwner: reviewer.asCodeOwner,
+      })),
+  }
+}
+
+function checksRunning(state: string | undefined, rollup: string | undefined) {
+  return state === 'open' && (rollup === 'PENDING' || rollup === 'EXPECTED')
+}
+
+function prKey(ref: PullRequestRef) {
+  return `${ref.repo}#${ref.number}`
 }
 
 export function createPullRequests(store: Store, hub: Hub) {
@@ -834,13 +831,79 @@ export function createPullRequests(store: Store, hub: Hub) {
     promise: Promise<PullRequestSnapshot | undefined>
     resolve: (snapshot: PullRequestSnapshot | undefined) => void
   }
+  // Writes bump a PR's revision; a read that started before the bump is discarded.
   const revisions = new Map<string, number>()
-  const fetchedRevisions = new WeakMap<PullRequestSnapshot, number>()
+  const pendingOperations = new Map<string, NonNullable<PullRequestSnapshot['pendingOperation']>>()
   const publication = Semaphore.makeUnsafe(1)
   const jobs = new Map<string, Job>()
   const queue: Job[] = []
   let activeVisible = 0
   let activePrefetches = 0
+  const watches = new Map<string, Map<symbol, GitHubActivity>>()
+  const lastChecks = new Map<string, number>()
+  const checking = new Set<string>()
+  const lastCadences = new Map<string, string>()
+  let linksPolledAt = 0
+
+  function revision(key: string) {
+    return revisions.get(key) ?? 0
+  }
+
+  function finish(job: Job, fetched: PullRequestSnapshot) {
+    if (!jobs.delete(job.key)) return
+    if (job.priority === 'prefetch') activePrefetches--
+    else activeVisible--
+    void Effect.runPromise(publish(job.ref, fetched, job.revision)).then(job.resolve, () =>
+      job.resolve(undefined)
+    )
+  }
+
+  async function fetchBatch(batch: Job[]) {
+    const startedAt = Date.now()
+    const refs = await Promise.all(
+      batch.map(async (job) => {
+        const cached = await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))
+        return { ...job.ref, headSha: cached.data?.pull.head.sha }
+      })
+    )
+    let graphs: (Graph | GhFailure)[]
+    try {
+      graphs = await fetchGraphqlBatch(refs)
+    } catch (error) {
+      const failure =
+        error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+      graphs = batch.map(() => failure)
+    }
+    await Promise.all(
+      batch.map(async (job, index) => {
+        let snapshot: PullRequestSnapshot
+        try {
+          const graph = graphs[index]!
+          if (graph instanceof GhFailure) throw graph
+          snapshot = {
+            ...job.ref,
+            status: 'ready',
+            data: await fetchPullRequest(job.ref, graph),
+            refreshedAt: Date.now(),
+          }
+        } catch (error) {
+          const failure =
+            error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+          snapshot = {
+            ...job.ref,
+            status: failure.kind,
+            error: failure.message,
+            refreshedAt: Date.now(),
+          }
+        }
+        if (process.env.JETTY_PR_FETCH_DEBUG === '1')
+          console.debug(
+            `[pr-fetch] ${job.key} ${job.priority} batch=${batch.length} wait=${startedAt - job.queuedAt}ms fetch=${Date.now() - startedAt}ms`
+          )
+        finish(job, snapshot)
+      })
+    )
+  }
 
   let drainQueued = false
   function drain() {
@@ -862,80 +925,22 @@ export function createPullRequests(store: Store, hub: Hub) {
         batch.push(job)
       }
       if (!batch.length) return
-      void (async () => {
-        const startedAt = Date.now()
-        const refs = await Promise.all(
-          batch.map(async (job) => {
-            const cached = await Effect.runPromise(
-              store.getPullRequest(job.ref.repo, job.ref.number)
-            )
-            return {
+      void fetchBatch(batch)
+        .catch((error: unknown) => {
+          for (const job of batch)
+            finish(job, {
               ...job.ref,
-              headSha: cached.data?.pull.head.sha,
-            }
-          })
-        )
-        let graphs: Awaited<ReturnType<typeof fetchGraphqlBatch>> | undefined
-        let graphError: unknown
-        try {
-          graphs = await fetchGraphqlBatch(refs)
-        } catch (error) {
-          graphError = error
-        }
-        await Promise.all(
-          batch.map(async (job, index) => {
-            let snapshot: PullRequestSnapshot
-            try {
-              if (!graphs) throw graphError
-              const graph = graphs[index]!
-              if (graph instanceof GhFailure) throw graph
-              snapshot = {
-                ...job.ref,
-                status: 'ready',
-                data: await fetchPullRequest(job.ref, graph),
-                refreshedAt: Date.now(),
-              }
-            } catch (error) {
-              const failure =
-                error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
-              snapshot = {
-                ...job.ref,
-                status: failure.kind,
-                error: failure.message,
-                refreshedAt: Date.now(),
-              }
-            }
-            if (process.env.JETTY_PR_FETCH_DEBUG === '1')
-              console.debug(
-                `[pr-fetch] ${job.key} ${job.priority} batch=${batch.length} wait=${startedAt - job.queuedAt}ms fetch=${Date.now() - startedAt}ms`
-              )
-            fetchedRevisions.set(snapshot, job.revision)
-            jobs.delete(job.key)
-            if (job.priority === 'prefetch') activePrefetches--
-            else activeVisible--
-            job.resolve(job.revision === (revisions.get(job.key) ?? 0) ? snapshot : undefined)
-          })
-        )
-        drain()
-      })().catch((error) => {
-        for (const job of batch) {
-          jobs.delete(job.key)
-          if (job.priority === 'prefetch') activePrefetches--
-          else activeVisible--
-          job.resolve({
-            ...job.ref,
-            status: 'unavailable',
-            error: String(error),
-            refreshedAt: Date.now(),
-          })
-        }
-        drain()
-      })
+              status: 'unavailable',
+              error: String(error),
+              refreshedAt: Date.now(),
+            })
+        })
+        .finally(drain)
     })
   }
 
   function schedule(ref: PullRequestRef, priority: Job['priority']) {
-    const key = `${ref.repo}#${ref.number}`
+    const key = prKey(ref)
     if (pendingOperations.has(key)) return Promise.resolve(undefined)
     const existing = jobs.get(key)
     if (existing) {
@@ -964,9 +969,9 @@ export function createPullRequests(store: Store, hub: Hub) {
       priority,
       queuedAt: Date.now(),
       started: false,
+      revision: revision(key),
       promise,
       resolve,
-      revision: revisions.get(key) ?? 0,
     }
     jobs.set(key, job)
     queue.push(job)
@@ -975,43 +980,31 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   // Saves a fetch and pushes it to the PR view and to every thread linking it (sidebar marks).
-  function publish(ref: PullRequestRef, fetched: PullRequestSnapshot) {
+  function publish(ref: PullRequestRef, fetched: PullRequestSnapshot, fetchedRevision: number) {
     return publication.withPermit(
       Effect.gen(function* () {
-        const key = `${ref.repo}#${ref.number}`
-        if (
-          pendingOperations.has(key) ||
-          (fetchedRevisions.has(fetched) &&
-            fetchedRevisions.get(fetched) !== (revisions.get(key) ?? 0))
-        )
-          return yield* get(ref)
+        if (fetchedRevision !== revision(prKey(ref))) return undefined
         yield* store.savePullRequest(fetched)
         // The stored snapshot keeps the last good data when this read failed.
-        const snapshot = yield* store.getPullRequest(ref.repo, ref.number)
-        hub.pushPullRequest(decorate(snapshot))
+        const snapshot = decorate(yield* store.getPullRequest(ref.repo, ref.number))
+        hub.pushPullRequest(snapshot)
         for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
           const thread = yield* store.requireThread(threadId)
           hub.pushChrome({ type: 'thread.upserted', thread })
         }
-        return decorate(snapshot)
+        return snapshot
       })
     )
   }
 
   function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
     return Effect.promise(() => schedule(ref, 'visible')).pipe(
-      Effect.flatMap((fetched) => (fetched ? publish(ref, fetched) : get(ref)))
+      Effect.flatMap((published) => (published ? Effect.succeed(published) : get(ref)))
     )
   }
 
-  const watches = new Map<string, Map<symbol, GitHubActivity>>()
-  const pendingOperations = new Map<string, NonNullable<PullRequestSnapshot['pendingOperation']>>()
-  const lastChecks = new Map<string, number>()
-  const checking = new Set<string>()
-  const lastCadences = new Map<string, string>()
-
-  function activity(ref: PullRequestRef) {
-    const values = [...(watches.get(`${ref.repo}#${ref.number}`)?.values() ?? [])]
+  function activity(ref: PullRequestRef): GitHubActivity {
+    const values = [...(watches.get(prKey(ref))?.values() ?? [])]
     return values.includes('focused')
       ? 'focused'
       : values.includes('blurred')
@@ -1020,7 +1013,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   function watch(ref: PullRequestRef, state: GitHubActivity) {
-    const key = `${ref.repo}#${ref.number}`
+    const key = prKey(ref)
     const token = Symbol()
     return Effect.acquireRelease(
       Effect.sync(() => {
@@ -1037,37 +1030,30 @@ export function createPullRequests(store: Store, hub: Hub) {
     )
   }
 
-  function cadence(snapshot: PullRequestSnapshot, state = activity(snapshot), list = false) {
-    if (state === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()) return null
-    const interval =
-      snapshot.data?.pull.state === 'closed'
-        ? 30 * 60_000
-        : list || state === 'blurred'
-          ? 120_000
-          : 30_000
+  function cadence(closed: boolean, state: GitHubActivity, list: boolean) {
+    if (state === 'hidden' || backingOff()) return null
+    const interval = closed ? 30 * 60_000 : list || state === 'blurred' ? 120_000 : 30_000
     return interval * cadenceMultiplier()
   }
 
   function decorate(snapshot: PullRequestSnapshot): PullRequestSnapshot {
-    const watched = watches.has(`${snapshot.repo}#${snapshot.number}`)
+    const key = prKey(snapshot)
+    const watched = watches.has(key)
     const state = watched ? activity(snapshot) : hub.githubActivity()
-    const interval = cadence(snapshot, state, !watched)
-    const runningChecks = checksRunning(snapshot.data)
-    const cadenceKey = `${snapshot.repo}#${snapshot.number}`
-    const health = `${interval ?? 'paused'}/${runningChecks && state !== 'hidden' ? (state === 'focused' && watched ? 10_000 : 30_000) * cadenceMultiplier() : 'paused'}`
-    if (lastCadences.get(cadenceKey) !== health) {
-      lastCadences.set(cadenceKey, health)
-      console.info(`[pr-rate] ${cadenceKey} cadence=${health}ms activity=${state}`)
+    const interval = cadence(snapshot.data?.pull.state === 'closed', state, !watched)
+    const checksInterval =
+      interval !== null && checksRunning(snapshot.data?.pull.state, snapshot.data?.checkRollupState)
+        ? (watched && state === 'focused' ? 10_000 : 30_000) * cadenceMultiplier()
+        : null
+    const health = `${interval ?? 'paused'}/${checksInterval ?? 'paused'}`
+    if (lastCadences.get(key) !== health) {
+      lastCadences.set(key, health)
+      console.info(`[pr-rate] ${key} cadence=${health}ms activity=${state}`)
     }
     return {
       ...snapshot,
-      pendingOperation: pendingOperations.get(`${snapshot.repo}#${snapshot.number}`),
-      rateLimit: githubRateLimitHealth(
-        interval,
-        runningChecks && interval !== null && state !== 'hidden'
-          ? (state === 'focused' && watched ? 10_000 : 30_000) * cadenceMultiplier()
-          : null
-      ),
+      pendingOperation: pendingOperations.get(key),
+      rateLimit: githubRateLimitHealth(interval, checksInterval),
     }
   }
 
@@ -1079,8 +1065,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     return Effect.gen(function* () {
       const snapshot = yield* get(ref)
       const interval = maxAge ?? snapshot.rateLimit?.cadenceMs ?? null
-      if (pendingOperations.has(`${ref.repo}#${ref.number}`)) return snapshot
-      if (interval === null || (rateHealth.backoffUntil ?? 0) > Date.now()) return snapshot
+      if (pendingOperations.has(prKey(ref)) || interval === null || backingOff()) return snapshot
       if (snapshot.refreshedAt && Date.now() - snapshot.refreshedAt < interval) return snapshot
       return yield* refresh(ref)
     })
@@ -1089,96 +1074,64 @@ export function createPullRequests(store: Store, hub: Hub) {
   function prefetch(ref: PullRequestRef) {
     return Effect.gen(function* () {
       const cached = yield* get(ref)
-      const interval = cadence(cached, 'blurred', true)!
-      if (cached.refreshedAt && Date.now() - cached.refreshedAt < interval) return cached
-      const fetched = yield* Effect.promise(() => schedule(ref, 'prefetch'))
-      return fetched ? yield* publish(ref, fetched) : cached
+      const interval = cadence(cached.data?.pull.state === 'closed', 'blurred', true)
+      if (interval === null || (cached.refreshedAt && Date.now() - cached.refreshedAt < interval))
+        return cached
+      return (yield* Effect.promise(() => schedule(ref, 'prefetch'))) ?? cached
     })
   }
 
+  // One cheap query notices change on every linked PR; only changed ones pay for a full read.
+  // Check runs don't bump updatedAt, so the rollup state is compared too.
   function refreshChangedLinks() {
     return Effect.gen(function* () {
-      const state = hub.githubActivity()
-      if (state === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()) return
+      if (
+        hub.githubActivity() === 'hidden' ||
+        backingOff() ||
+        Date.now() - linksPolledAt < 30_000 * cadenceMultiplier()
+      )
+        return
       const links = (yield* store.activePullRequestLinks()).filter((link) =>
         validPullRequestRef(link)
       )
-      const due: PullRequestRef[] = []
-      const checks: PullRequestRef[] = []
-      for (const link of links) {
-        const snapshot = yield* get(link)
-        const interval = cadence(snapshot, state, true)!
-        if (!snapshot.refreshedAt || Date.now() - snapshot.refreshedAt >= interval) due.push(link)
-        else if (
-          checksRunning(snapshot.data) &&
-          Date.now() - (lastChecks.get(`${link.repo}#${link.number}`) ?? snapshot.refreshedAt) >=
-            30_000 * cadenceMultiplier()
+      if (!links.length) return
+      linksPolledAt = Date.now()
+      const graphs = yield* Effect.promise(() => fetchGraphqlBatch(links, pullRequestStateFields))
+      for (const [index, link] of links.entries()) {
+        const graph = graphs[index]!
+        if (graph instanceof GhFailure) continue
+        if (
+          string(graph.pull.updatedAt) !== link.updated_at ||
+          graph.checkRollupState !== link.checks
         )
-          checks.push(link)
+          void schedule(link, 'prefetch')
       }
-      for (let index = 0; index < due.length; index += 5) {
-        yield* Effect.forEach(
-          due.slice(index, index + 5),
-          (ref) =>
-            Effect.promise(() => schedule(ref, 'prefetch')).pipe(
-              Effect.flatMap((snapshot) => (snapshot ? publish(ref, snapshot) : Effect.void))
-            ),
-          { concurrency: 'unbounded', discard: true }
-        )
-      }
-      yield* refreshChecks(checks)
     })
   }
 
-  function refreshChecks(refs: readonly PullRequestRef[]) {
+  function refreshChecks(ref: PullRequestRef) {
+    const key = prKey(ref)
     return Effect.gen(function* () {
-      for (let index = 0; index < refs.length; index += 5) {
-        const batch = refs
-          .slice(index, index + 5)
-          .filter(
-            (ref) =>
-              !checking.has(`${ref.repo}#${ref.number}`) &&
-              !jobs.has(`${ref.repo}#${ref.number}`) &&
-              !pendingOperations.has(`${ref.repo}#${ref.number}`)
-          )
-        if (!batch.length) continue
-        const versions = batch.map((ref) => revisions.get(`${ref.repo}#${ref.number}`) ?? 0)
-        for (const ref of batch) checking.add(`${ref.repo}#${ref.number}`)
-        const graphs = yield* Effect.tryPromise({
-          try: () => fetchGraphqlBatch(batch, true),
-          catch: (error) => new StoreError('internal', String(error)),
-        }).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              for (const ref of batch) checking.delete(`${ref.repo}#${ref.number}`)
-            })
-          )
-        )
-        for (const [index, ref] of batch.entries()) {
-          const snapshot = yield* get(ref)
-          const graph = graphs[index]!
-          if (
-            graph instanceof GhFailure ||
-            versions[index] !== (revisions.get(`${ref.repo}#${ref.number}`) ?? 0)
-          )
-            continue
-          lastChecks.set(`${ref.repo}#${ref.number}`, Date.now())
-          if (!snapshot.data) continue
-          const head = string(record(record(nodes(graph.pull.commits)[0]).commit).oid)
-          if (head !== snapshot.data.pull.head.sha) {
-            yield* refresh(ref)
-            continue
-          }
-          const data = {
-            ...snapshot.data,
-            checkRuns: mapCheckRuns(graph.checks),
-            checkRollupState: graph.checkRollupState,
-          }
-          const fetched = { ...snapshot, data }
-          fetchedRevisions.set(fetched, versions[index]!)
-          yield* publish(ref, fetched)
-        }
+      if (checking.has(key) || jobs.has(key) || pendingOperations.has(key)) return
+      checking.add(key)
+      lastChecks.set(key, Date.now())
+      const fetchedRevision = revision(key)
+      const [graph] = yield* Effect.tryPromise({
+        try: () => fetchGraphqlBatch([ref], checkRollupFields),
+        catch: (error) => new StoreError('internal', String(error)),
+      }).pipe(Effect.ensuring(Effect.sync(() => checking.delete(key))))
+      const snapshot = yield* get(ref)
+      if (!graph || graph instanceof GhFailure || !snapshot.data) return
+      if (graph.headSha !== snapshot.data.pull.head.sha) {
+        yield* refresh(ref)
+        return
       }
+      const data = {
+        ...snapshot.data,
+        checkRuns: mapCheckRuns(graph.checks),
+        checkRollupState: graph.checkRollupState,
+      }
+      yield* publish(ref, { ...snapshot, data }, fetchedRevision)
     })
   }
 
@@ -1186,14 +1139,8 @@ export function createPullRequests(store: Store, hub: Hub) {
     return Effect.gen(function* () {
       const snapshot = yield* refreshIfStale(ref)
       const interval = snapshot.rateLimit?.checksCadenceMs
-      if (
-        interval &&
-        Date.now() - (lastChecks.get(`${ref.repo}#${ref.number}`) ?? snapshot.refreshedAt ?? 0) >=
-          interval &&
-        (rateHealth.backoffUntil ?? 0) <= Date.now()
-      )
-        yield* refreshChecks([ref])
-      return yield* get(ref)
+      const checkedAt = Math.max(lastChecks.get(prKey(ref)) ?? 0, snapshot.refreshedAt ?? 0)
+      if (interval && Date.now() - checkedAt >= interval) yield* refreshChecks(ref)
     })
   }
 
@@ -1204,7 +1151,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     send: () => Promise<unknown>,
     confirm: (data: PullRequestData, response: unknown) => PullRequestData = (data) => data
   ) {
-    const key = `${ref.repo}#${ref.number}`
+    const key = prKey(ref)
     return Effect.gen(function* () {
       const previous = yield* publication.withPermit(
         Effect.gen(function* () {
@@ -1214,7 +1161,7 @@ export function createPullRequests(store: Store, hub: Hub) {
             )
           const snapshot = yield* get(ref)
           pendingOperations.set(key, operation)
-          revisions.set(key, (revisions.get(key) ?? 0) + 1)
+          revisions.set(key, revision(key) + 1)
           return snapshot
         })
       )
@@ -1224,11 +1171,10 @@ export function createPullRequests(store: Store, hub: Hub) {
             const snapshot = { ...previous, data }
             yield* store.savePullRequest(snapshot)
             hub.pushPullRequest(decorate(snapshot))
-            return decorate(snapshot)
           })
         )
       }
-      return yield* Effect.gen(function* () {
+      yield* Effect.gen(function* () {
         if (previous.data) yield* save(optimistic(previous.data))
         else hub.pushPullRequest(decorate(previous))
         const result = yield* Effect.tryPromise({ try: send, catch: writeError }).pipe(
@@ -1242,7 +1188,7 @@ export function createPullRequests(store: Store, hub: Hub) {
             .withPermit(
               Effect.gen(function* () {
                 pendingOperations.delete(key)
-                revisions.set(key, (revisions.get(key) ?? 0) + 1)
+                revisions.set(key, revision(key) + 1)
                 hub.pushPullRequest(yield* get(ref))
               })
             )
@@ -1252,13 +1198,11 @@ export function createPullRequests(store: Store, hub: Hub) {
           Effect.gen(function* () {
             const running = jobs.get(key)
             if (running) yield* Effect.promise(() => running.promise)
-            for (const path of restCache.keys())
-              if (path.startsWith(`repos/${ref.repo}/pulls/${ref.number}`)) restCache.delete(path)
             yield* refresh(ref).pipe(Effect.catch(() => Effect.void))
           })
-        ),
-        Effect.andThen(get(ref))
+        )
       )
+      return yield* get(ref)
     }).pipe(Effect.uninterruptible)
   }
 
@@ -1328,49 +1272,37 @@ export function createPullRequests(store: Store, hub: Hub) {
           kind === 'team' ? 'Invalid GitHub team slug' : 'Invalid GitHub login'
         )
       )
-    const canonical = reviewerLogin(login)
+    const organization = ref.repo.split('/')[0]!
+    const identity = kind === 'team' ? `${organization}/${login}` : canonicalLogin(login)
+    const others = (entries: readonly PullRequestReviewer[] = []) =>
+      entries.filter((entry) => entry.login.toLowerCase() !== identity.toLowerCase())
     return write(
       ref,
       'reviews',
       (data) => {
-        const identity = kind === 'team' ? `${ref.repo.split('/')[0]}/${login}` : canonical
-        const existing = data.reviewers?.find((reviewer) => reviewer.login === identity)
-        const reviewer = {
+        const existing = data.reviewers?.find(
+          (entry) => entry.login.toLowerCase() === identity.toLowerCase()
+        )
+        const reviewer: PullRequestReviewer = {
           login: identity,
           avatar_url: '',
           html_url: '',
           ...existing,
-          kind: canonical === 'copilot-pull-request-reviewer' ? ('bot' as const) : kind,
-          ...(canonical === 'copilot-pull-request-reviewer' ? { name: 'Copilot' } : {}),
-          ...(kind === 'team' ? { slug: login, organization: ref.repo.split('/')[0] } : {}),
+          kind: identity === 'Copilot' ? 'bot' : kind,
+          ...(kind === 'team' ? { slug: login, organization } : {}),
           requested,
           asCodeOwner: existing?.asCodeOwner ?? false,
           latestReviewState: existing?.latestReviewState ?? null,
-          state: requested ? ('AWAITING' as const) : (existing?.latestReviewState ?? null),
+          state: requested ? 'AWAITING' : (existing?.latestReviewState ?? null),
         }
-        const reviewRequests = [
-          ...(data.reviewRequests ?? []).filter((entry) => entry.login !== identity),
-          ...(requested ? [reviewer] : []),
-        ]
+        const reviewRequests = [...others(data.reviewRequests), ...(requested ? [reviewer] : [])]
+        const { requestedUsers, requestedTeams } = requestedReviewers(reviewRequests)
         return {
           ...data,
           reviewRequests,
-          reviewers: [
-            ...(data.reviewers ?? []).filter((entry) => entry.login !== identity),
-            reviewer,
-          ],
-          pull: {
-            ...data.pull,
-            requested_reviewers: reviewRequests.filter((entry) => entry.kind !== 'team').map(user),
-          },
-          requestedTeams: reviewRequests
-            .filter((entry) => entry.kind === 'team')
-            .map((entry) => ({
-              name: entry.name ?? entry.login,
-              avatar_url: entry.avatar_url,
-              slug: entry.slug,
-              asCodeOwner: entry.asCodeOwner,
-            })),
+          reviewers: [...others(data.reviewers), reviewer],
+          pull: { ...data.pull, requested_reviewers: requestedUsers },
+          requestedTeams,
         }
       },
       () => sendReviewRequest(ref, login, requested, kind)
@@ -1524,7 +1456,7 @@ export function createPullRequestLists(store: Store, hub: Hub) {
   let flushQueued = false
 
   function decorate(list: PullRequestList, activity = hub.githubActivity()): PullRequestList {
-    const paused = activity === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()
+    const paused = activity === 'hidden' || backingOff()
     return {
       ...list,
       rateLimit: githubRateLimitHealth(
@@ -1592,9 +1524,8 @@ export function createPullRequestLists(store: Store, hub: Hub) {
   function refreshIfStale(tab: PullRequestListTab, activity: GitHubActivity = 'focused') {
     return Effect.gen(function* () {
       const list = decorate(yield* store.getPullRequestList(tab), activity)
-      if (activity === 'hidden' || (rateHealth.backoffUntil ?? 0) > Date.now()) return list
-      const maxAge = 120_000 * cadenceMultiplier()
-      if (list.refreshedAt && Date.now() - list.refreshedAt < maxAge) return list
+      const maxAge = list.rateLimit?.cadenceMs
+      if (!maxAge || (list.refreshedAt && Date.now() - list.refreshedAt < maxAge)) return list
       return yield* refresh(tab)
     })
   }
@@ -1605,47 +1536,40 @@ export function createPullRequestLists(store: Store, hub: Hub) {
   function poll(tab: PullRequestListTab, activity: GitHubActivity) {
     return Effect.gen(function* () {
       const list = yield* refreshIfStale(tab, activity)
-      const refs = (list.items ?? []).filter((item) => item.checks === 'pending')
-      const interval = 30_000 * cadenceMultiplier()
+      const interval = list.rateLimit?.checksCadenceMs
       if (
-        activity === 'hidden' ||
-        (rateHealth.backoffUntil ?? 0) > Date.now() ||
-        !refs.length ||
+        !interval ||
         checkingTabs.has(tab) ||
         Date.now() - (lastCheckRefresh.get(tab) ?? list.refreshedAt ?? 0) < interval
       )
-        return list
+        return
       checkingTabs.add(tab)
-      return yield* Effect.gen(function* () {
+      lastCheckRefresh.set(tab, Date.now())
+      const refs = (list.items ?? []).filter((item) => item.checks === 'pending')
+      yield* Effect.gen(function* () {
+        const graphs = yield* Effect.tryPromise({
+          try: () => fetchGraphqlBatch(refs, pullRequestStateFields),
+          catch: (error) => new StoreError('internal', String(error)),
+        })
         const checks = new Map<string, PullRequestListItem['checks']>()
-        for (let index = 0; index < refs.length; index += 5) {
-          const batch = refs.slice(index, index + 5)
-          const graphs = yield* Effect.tryPromise({
-            try: () => fetchGraphqlBatch(batch, true, true),
-            catch: (error) => new StoreError('internal', String(error)),
-          })
-          for (const [index, ref] of batch.entries()) {
-            const graph = graphs[index]!
-            if (!(graph instanceof GhFailure))
-              checks.set(`${ref.repo}#${ref.number}`, checkStates[graph.checkRollupState])
-          }
+        for (const [index, ref] of refs.entries()) {
+          const graph = graphs[index]!
+          if (!(graph instanceof GhFailure))
+            checks.set(prKey(ref), checkStates[graph.checkRollupState])
         }
         const current = yield* store.getPullRequestList(tab)
         const updated = decorate(
           {
             ...current,
-            items: current.items?.map((item) =>
-              checks.has(`${item.repo}#${item.number}`)
-                ? { ...item, checks: checks.get(`${item.repo}#${item.number}`) }
-                : item
-            ),
+            items: current.items?.map((item) => {
+              const state = checks.get(prKey(item))
+              return state ? { ...item, checks: state } : item
+            }),
           },
           activity
         )
         yield* store.savePullRequestList(updated)
-        lastCheckRefresh.set(tab, Date.now())
         hub.pushPullRequestList(updated)
-        return updated
       }).pipe(Effect.ensuring(Effect.sync(() => checkingTabs.delete(tab))))
     })
   }

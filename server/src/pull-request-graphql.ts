@@ -1,6 +1,6 @@
 import type { PullRequestReviewer, ReviewerCandidate } from '@jetty/shared/pull-request'
 
-export const checkRollupStateFields = `commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
+export const pullRequestStateFields = `updatedAt commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
 
 export const checkRollupFields = `commits(last:1) { nodes { commit {
   oid statusCheckRollup { state contexts(first:100) {
@@ -15,9 +15,6 @@ export const checkRollupFields = `commits(last:1) { nodes { commit {
 
 export const pullRequestGraphqlFields = `
   updatedAt headRefOid mergeable mergeStateStatus reviewDecision
-  latestReviews: reviews(last:100) { pageInfo { hasPreviousPage } nodes {
-    databaseId state submittedAt author { __typename login avatarUrl url ... on User { name } }
-  } }
   comments(last:100) { pageInfo { hasPreviousPage } nodes {
     databaseId body createdAt url author { __typename login avatarUrl url }
   } }
@@ -40,19 +37,17 @@ export const pullRequestGraphqlFields = `
 
 export function pullRequestGraphqlQuery(
   refs: readonly { repo: string; number: number; headSha?: string }[],
-  checksOnly = false,
-  rollupOnly = false
+  fields = pullRequestGraphqlFields
 ) {
   return `query { rateLimit { cost remaining resetAt }
     ${refs
       .map((ref, index) => {
         const [owner, name] = ref.repo.split('/')
-        const comparison =
-          !checksOnly && ref.headSha
-            ? `baseRef { compare(headRef:${JSON.stringify(ref.headSha)}) { behindBy headTarget { oid } } }`
-            : ''
+        const comparison = ref.headSha
+          ? `baseRef { compare(headRef:${JSON.stringify(ref.headSha)}) { behindBy headTarget { oid } } }`
+          : ''
         return `p${index}: repository(owner:${JSON.stringify(owner)},name:${JSON.stringify(name)}) {
-        pullRequest(number:${ref.number}) { ${rollupOnly ? checkRollupStateFields : checksOnly ? checkRollupFields : pullRequestGraphqlFields} ${comparison} }
+        pullRequest(number:${ref.number}) { ${fields} ${comparison} }
       }`
       })
       .join('\n')}
@@ -73,16 +68,22 @@ export function nodes(value: unknown): unknown[] {
   return (record(value).nodes as unknown[] | undefined) ?? []
 }
 
-export function reviewerLogin(login: string) {
-  return login
-    .toLowerCase()
-    .replace(/^copilot-pull-request-reviewer\[bot\]$/, 'copilot-pull-request-reviewer')
+// GitHub names the review bot `Copilot` on comments and `copilot-pull-request-reviewer[bot]` on
+// reviews and review requests; the snapshot shows it as `Copilot` and writes use the bot login.
+export const copilotWriteLogin = 'copilot-pull-request-reviewer[bot]'
+
+export function canonicalLogin(login: string) {
+  const lower = login.toLowerCase()
+  return lower === 'copilot' || lower === copilotWriteLogin ? 'Copilot' : login
 }
 
 export function githubUser(value: unknown) {
   const node = record(value)
-  const login = reviewerLogin(string(node.login, 'ghost'))
-  const name = login === 'copilot-pull-request-reviewer' ? 'Copilot' : string(node.name)
+  // REST names bots with a `[bot]` suffix that GraphQL drops.
+  const login = canonicalLogin(
+    `${string(node.login, 'ghost')}${node.__typename === 'Bot' ? '[bot]' : ''}`
+  )
+  const name = string(node.name)
   return {
     login,
     avatar_url: string(node.avatar_url ?? node.avatarUrl),
@@ -91,39 +92,20 @@ export function githubUser(value: unknown) {
   }
 }
 
+function reviewerKind(login: string): PullRequestReviewer['kind'] {
+  return login === 'Copilot' || login.endsWith('[bot]') ? 'bot' : 'user'
+}
+
 export function mapReviewers(pull: unknown, reviews: readonly unknown[]) {
-  const history = [
-    ...reviews,
-    ...nodes(record(pull).latestReviews).map((value) => {
-      const review = record(value)
-      return {
-        id: review.databaseId,
-        state: review.state,
-        submitted_at: review.submittedAt,
-        user: review.author,
-      }
-    }),
-  ]
-  const latest = new Map<string, { review: Record<string, unknown>; at: number }>()
-  for (const value of history) {
+  const reviewers = new Map<string, PullRequestReviewer>()
+  for (const value of reviews) {
     const review = record(value)
     if (review.state === 'PENDING') continue
-    const login = reviewerLogin(string(record(review.user).login))
-    const at = Date.parse(string(review.submitted_at)) || Number(review.id) || 0
-    if (login && at >= (latest.get(login)?.at ?? 0)) latest.set(login, { review, at })
-  }
-  const reviewers = new Map<string, PullRequestReviewer>()
-  for (const [login, { review }] of latest) {
-    const actor = record(review.user)
+    const actor = githubUser(review.user)
     const state = review.state as PullRequestReviewer['latestReviewState']
-    reviewers.set(login, {
-      ...githubUser(actor),
-      kind:
-        actor.type === 'Bot' ||
-        actor.__typename === 'Bot' ||
-        login === 'copilot-pull-request-reviewer'
-          ? 'bot'
-          : 'user',
+    reviewers.set(actor.login.toLowerCase(), {
+      ...actor,
+      kind: reviewerKind(actor.login),
       requested: false,
       asCodeOwner: false,
       state,
@@ -146,20 +128,17 @@ export function mapReviewers(pull: unknown, reviews: readonly unknown[]) {
           html_url: `https://github.com/orgs/${organization}/teams/${slug}`,
         }
       : githubUser(actor)
+    const key = identity.login.toLowerCase()
     const reviewer: PullRequestReviewer = {
       ...identity,
-      kind: team
-        ? 'team'
-        : actor.__typename === 'Bot' || identity.login === 'copilot-pull-request-reviewer'
-          ? 'bot'
-          : 'user',
+      kind: team ? 'team' : reviewerKind(identity.login),
       ...(team ? { slug, organization } : {}),
       asCodeOwner: request.asCodeOwner === true,
       requested: true,
       state: 'AWAITING',
-      latestReviewState: reviewers.get(identity.login)?.latestReviewState ?? null,
+      latestReviewState: reviewers.get(key)?.latestReviewState ?? null,
     }
-    reviewers.set(identity.login, reviewer)
+    reviewers.set(key, reviewer)
     reviewRequests.push(reviewer)
   }
   return { reviewRequests, reviewers: [...reviewers.values()] }
@@ -180,12 +159,12 @@ export function mapPullRequestGraphql(value: unknown) {
     'closingIssuesReferences',
     'reviewThreads',
   ].filter((field) => record(record(pull[field]).pageInfo).hasNextPage === true)
-  for (const field of ['latestReviews', 'comments'])
-    if (record(record(pull[field]).pageInfo).hasPreviousPage) truncatedConnections.push(field)
+  if (record(record(pull.comments).pageInfo).hasPreviousPage) truncatedConnections.push('comments')
   if (record(record(rollup.contexts).pageInfo).hasNextPage) truncatedConnections.push('checkRuns')
   return {
     pull,
     resolved,
+    headSha: string(commit.oid),
     checks: nodes(rollup.contexts),
     checkRollupState: string(rollup.state),
     truncatedConnections,
@@ -197,7 +176,7 @@ export function mapPullRequestGraphql(value: unknown) {
         url: string(issue.url),
         repository: { nameWithOwner: string(record(issue.repository).nameWithOwner) },
         state:
-          issue.state === 'OPEN' || issue.stateReason === 'REOPENED'
+          issue.state === 'OPEN'
             ? 'open'
             : issue.stateReason === 'NOT_PLANNED' || issue.stateReason === 'DUPLICATE'
               ? 'not_planned'
@@ -206,15 +185,9 @@ export function mapPullRequestGraphql(value: unknown) {
     }),
     issueComments: nodes(pull.comments).map((value) => {
       const comment = record(value)
-      const author = record(comment.author)
       return {
         id: Number(comment.databaseId),
-        // REST, which the rest of the view reads, names bots with the [bot] suffix GraphQL drops.
-        user: githubUser(
-          author.__typename === 'Bot'
-            ? { ...author, login: `${string(author.login)}[bot]` }
-            : author
-        ),
+        user: githubUser(comment.author),
         body: string(comment.body),
         created_at: string(comment.createdAt),
         html_url: string(comment.url),

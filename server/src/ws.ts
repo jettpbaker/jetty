@@ -417,10 +417,10 @@ export function createRpcHandlers(
             const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
             const snapshot = yield* pullRequests.get(ref)
             yield* refreshInBackground(ref)
+            // Refreshes reach the client through the hub; the poll itself emits nothing.
             const periodic = Stream.tick('5 seconds').pipe(
-              Stream.mapEffect(() =>
-                pullRequests.poll(ref).pipe(Effect.catch(() => pullRequests.get(ref)))
-              )
+              Stream.mapEffect(() => pullRequests.poll(ref).pipe(Effect.catch(() => Effect.void))),
+              Stream.drain
             )
             return Stream.concat(
               Stream.succeed(snapshot),
@@ -442,10 +442,9 @@ export function createRpcHandlers(
             )
             const periodic = Stream.tick('5 seconds').pipe(
               Stream.mapEffect(() =>
-                pullRequestLists
-                  .poll(tab, activity)
-                  .pipe(Effect.catch(() => pullRequestLists.get(tab)))
-              )
+                pullRequestLists.poll(tab, activity).pipe(Effect.catch(() => Effect.void))
+              ),
+              Stream.drain
             )
             return Stream.concat(
               Stream.succeed(list),

@@ -1065,8 +1065,14 @@ export function createStore() {
         )
       },
       activePullRequestLinks() {
-        return sql<{ repo: string; number: number; updated_at: string | null }>`SELECT DISTINCT
-          l.repo, l.number, json_extract(p.data_json, '$.pull.updated_at') AS updated_at
+        return sql<{
+          repo: string
+          number: number
+          updated_at: string | null
+          checks: string | null
+        }>`SELECT DISTINCT
+          l.repo, l.number, json_extract(p.data_json, '$.pull.updated_at') AS updated_at,
+          json_extract(p.data_json, '$.checkRollupState') AS checks
           FROM thread_pull_requests l
           JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
           JOIN threads t ON t.id = l.thread_id

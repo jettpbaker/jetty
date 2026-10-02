@@ -7,10 +7,7 @@ export const GitHubUser = Schema.Struct({
   name: Schema.optional(Schema.String),
 })
 
-export const ReviewerCandidate = Schema.Struct({
-  ...GitHubUser.fields,
-  name: Schema.optional(Schema.String),
-})
+export const ReviewerCandidate = GitHubUser
 export type ReviewerCandidate = Schema.Schema.Type<typeof ReviewerCandidate>
 
 export const ReviewState = Schema.Literals([
