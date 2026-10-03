@@ -36,6 +36,8 @@ const preStyle = { '--sdm-bg': 'transparent', '--sdm-fg': 'inherit' } as CSSProp
 // (every line is at least 20 px) is skipped, as a placeholder exactly the cap's height. Never while
 // streaming: skipping resets the body's scroll, which stops it following the end.
 const containerStyle = { contentVisibility: 'visible', contain: 'content' } as const
+// Streamdown's buttons transition-all, so every restyle also fires no-op transitions (scrollbar-color).
+const actionClass = 'transition-[color,opacity]'
 
 function bodyStyle(
   maxHeight: number | string,
@@ -147,8 +149,8 @@ function CodeBlock({
           className='pointer-events-auto flex shrink-0 items-center gap-2 rounded-md border border-sidebar bg-sidebar/80 px-1.5 py-1 supports-[backdrop-filter]:bg-sidebar/70 supports-[backdrop-filter]:backdrop-blur'
           data-streamdown='code-block-actions'
         >
-          <CodeBlockDownloadButton code={code} language={language} />
-          <CodeBlockCopyButton code={code} />
+          <CodeBlockDownloadButton className={actionClass} code={code} language={language} />
+          <CodeBlockCopyButton className={actionClass} code={code} />
         </div>
       </div>
       <div
