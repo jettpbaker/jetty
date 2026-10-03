@@ -153,7 +153,7 @@ export function FileChangesViewer({
   }, [reveal])
   useEffect(() => {
     if (selected) selectFile(selected)
-  }, [selected, reveal, filter, selectFile])
+  }, [selected, reveal, selectFile])
   return (
     <DiffStyleContext value={diffStyle}>
       <DiffWrapContext value={wrap}>
