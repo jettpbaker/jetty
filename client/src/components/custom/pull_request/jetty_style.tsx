@@ -1836,6 +1836,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const [scrolledTo, setInView] = useState<string | null>(null)
   const inViewRef = useRef<string | null>(null)
   const commit = pr.commits.find((c) => c.sha === commitSha)
+  if (commitSha && !commit) setCommitSha(null)
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified')
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
