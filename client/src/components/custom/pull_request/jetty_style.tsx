@@ -103,7 +103,7 @@ import type {
 import { loadDiffWorkerPool, DiffWorkerPoolProvider } from '../diff_worker_pool'
 import { githubUser, prFile } from './adapter'
 import { syntaxTheme } from './cursor_themes'
-import { DescriptionEditor, MarkdownEditor } from './description_editor'
+import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import {
   checkCounts,
   countLabel,
@@ -119,7 +119,12 @@ import {
   repoName,
   repoPath,
 } from './model'
-import { usePrRuntime, PrDiffLoaderContext, PrDiffRevisionContext } from './runtime'
+import {
+  usePrRuntime,
+  PrDiffLoaderContext,
+  PrDiffRevisionContext,
+  PrPaintedContext,
+} from './runtime'
 import '@/components/custom/charmed_icons.css'
 
 import './file_card.css'
@@ -184,7 +189,7 @@ function Composer({
         />
         <div className='min-w-0 flex-1'>
           <MediaLightboxProvider>
-            <MarkdownEditor
+            <DeferredMarkdownEditor
               initial=''
               label={reply ? 'Reply' : 'Comment'}
               placeholder={reply ? 'Leave a reply…' : 'Leave a comment…'}
@@ -1811,6 +1816,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     if (state !== 'merged') void actions.state(state)
   }
   const [tab, setTab] = useState('overview')
+  const painted = useContext(PrPaintedContext)
   const [diffSeen, setDiffSeen] = useState(false)
   if (tab === 'diff' && !diffSeen) setDiffSeen(true)
   const [mode, setMode] = useState('all')
@@ -1893,8 +1899,8 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
           : []),
       ]
   useEffect(() => {
-    void loadDiffWorkerPool(syntaxTheme)
-  }, [])
+    if (painted) void loadDiffWorkerPool(syntaxTheme)
+  }, [painted])
   useLayoutEffect(() => {
     if (tab === 'diff') perf.rendered('pr.diff')
   }, [tab])
@@ -2281,11 +2287,13 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                     </div>
                   )}
 
-                  <svg
-                    aria-hidden='true'
-                    className='absolute size-0 overflow-hidden'
-                    dangerouslySetInnerHTML={{ __html: charmedSprite }}
-                  />
+                  {(painted || diffSeen) && (
+                    <svg
+                      aria-hidden='true'
+                      className='absolute size-0 overflow-hidden'
+                      dangerouslySetInnerHTML={{ __html: charmedSprite }}
+                    />
+                  )}
                 </div>
               </DiffWorkerPoolProvider>
             </PrDiffLoaderContext>

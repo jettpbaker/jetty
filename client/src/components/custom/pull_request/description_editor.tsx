@@ -34,7 +34,8 @@ import { VideoPlayer } from '@/components/custom/video_message'
 import { Button } from '@/components/ui/button'
 import { InputGroupButton } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
-import { Extension, Node, type Editor } from '@tiptap/core'
+import { whenIdle } from '@/lib/preload'
+import { Extension, Node, getSchema, type Editor } from '@tiptap/core'
 import Code from '@tiptap/extension-code'
 import CodeBlock from '@tiptap/extension-code-block'
 import Image from '@tiptap/extension-image'
@@ -42,7 +43,8 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import TaskItem from '@tiptap/extension-task-item'
 import TaskList from '@tiptap/extension-task-list'
-import { Markdown } from '@tiptap/markdown'
+import { Markdown, MarkdownManager } from '@tiptap/markdown'
+import { DOMSerializer } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
@@ -56,12 +58,24 @@ import {
 } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
-import { Fragment, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import { createPortal } from 'react-dom'
+import {
+  Fragment,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type MouseEvent,
+} from 'react'
+import { createPortal, flushSync } from 'react-dom'
 import { toast } from 'sonner'
 
 import './description_editor.css'
 import './issue_chip.css'
+import { PrPaintedContext } from './runtime'
 
 const uploads = new Map<string, { name: string; video: boolean }>()
 const videoURL = /^(?:https?:\/\/|\/|blob:)[^\s]+\.(?:mp4|mov|webm)(?:[?#][^\s]*)?$/i
@@ -523,6 +537,206 @@ function slashAt(editor: Editor): Slash | null {
   }
 }
 
+let descriptionRenderer: ReturnType<typeof createDescriptionRenderer> | undefined
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    whenIdle(() => (descriptionRenderer ??= createDescriptionRenderer()))
+  })
+})
+function createDescriptionRenderer() {
+  const configured = extensions('Add description…')
+  const schema = getSchema(configured)
+  return {
+    parser: new MarkdownManager({ extensions: configured }),
+    schema,
+    serializer: DOMSerializer.fromSchema(schema),
+  }
+}
+const proseNodes = new Set([
+  'doc',
+  'text',
+  'paragraph',
+  'heading',
+  'bulletList',
+  'orderedList',
+  'listItem',
+  'blockquote',
+  'horizontalRule',
+  'hardBreak',
+])
+function descriptionMarkup(body: string) {
+  try {
+    const { parser, schema, serializer } = (descriptionRenderer ??= createDescriptionRenderer())
+    const doc = schema.nodeFromJSON(parser.parse(body))
+    let supported = !!doc.textContent
+    doc.descendants((node) => {
+      if (!proseNodes.has(node.type.name) || node.marks.some((mark) => mark.type.name === 'link'))
+        supported = false
+      if (node.type.name === 'paragraph' && !node.childCount) supported = false
+    })
+    if (!supported || issueDecorations(doc, { repo: '', issues: [] }).find().length) return
+    const root = document.createElement('div')
+    root.append(serializer.serializeFragment(doc.content))
+    for (const paragraph of root.querySelectorAll('p')) {
+      if (paragraph.lastChild && paragraph.lastChild.nodeName !== 'BR') continue
+      const br = document.createElement('br')
+      br.className = 'ProseMirror-trailingBreak'
+      paragraph.append(br)
+    }
+    return root.innerHTML
+  } catch {
+    return undefined
+  }
+}
+
+function selectionPath(node: Selection['anchorNode'], root: HTMLElement | null) {
+  const path: number[] = []
+  while (node && node !== root) {
+    const parent = node.parentNode
+    if (!parent) return
+    path.unshift(Array.prototype.indexOf.call(parent.childNodes, node))
+    node = parent
+  }
+  return node === root ? path : undefined
+}
+
+export function DeferredMarkdownEditor(props: ComponentProps<typeof MarkdownEditor>) {
+  const painted = useContext(PrPaintedContext)
+  const [ready, setReady] = useState(false)
+  const host = useRef<HTMLDivElement>(null)
+  const pointer = useRef(false)
+  const releasePointer = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => () => releasePointer.current?.(), [])
+  const editorRef = useRef<Editor>(null)
+  const receiveEditor = useCallback((editor: Editor) => {
+    editorRef.current = editor
+  }, [])
+  if (props.quote && !ready) setReady(true)
+  const markup = useMemo(() => {
+    if (ready || (painted && !pointer.current) || props.quote) return
+    if (props.onSubmit && !props.initial)
+      return `<p${props.disabled ? '' : ` data-placeholder="${props.placeholder.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}" class="is-empty is-editor-empty"`}><br class="ProseMirror-trailingBreak"></p>`
+    return descriptionMarkup(props.initial)
+  }, [
+    ready,
+    painted,
+    props.initial,
+    props.onSubmit,
+    props.disabled,
+    props.placeholder,
+    props.quote,
+  ])
+  const mounted = ready || markup === undefined
+  function activate(focus: boolean) {
+    if (mounted) return
+    const root = host.current?.querySelector<HTMLElement>('.description-document') ?? null
+    const selection = window.getSelection()
+    const anchor = selectionPath(selection?.anchorNode ?? null, root)
+    const head = selectionPath(selection?.focusNode ?? null, root)
+    const offsets = selection && [selection.anchorOffset, selection.focusOffset]
+    flushSync(() => setReady(true))
+    const editor = editorRef.current
+    if (!editor) return
+    if (anchor && head && offsets) {
+      const positions = [anchor, head].map((path, index) => {
+        let node: Selection['anchorNode'] = editor.view.dom
+        for (const child of path) node = node?.childNodes[child] ?? null
+        return node ? editor.view.posAtDOM(node, offsets[index]!) : 1
+      })
+      editor.view.dispatch(
+        editor.state.tr.setSelection(
+          TextSelection.create(editor.state.doc, positions[0]!, positions[1]!)
+        )
+      )
+    }
+    if (focus) editor.view.focus()
+  }
+  if (mounted) return <MarkdownEditor {...props} onReady={receiveEditor} />
+  return (
+    <div
+      ref={host}
+      data-description-editor={props.onSubmit ? undefined : ''}
+      data-saved-markdown={props.initial}
+      className={props.onSubmit ? 'flex items-end gap-2' : undefined}
+      onFocusCapture={(event) => {
+        if (!pointer.current && (event.target as HTMLElement).closest('.description-document'))
+          activate(true)
+      }}
+      onPointerDownCapture={(event) => {
+        if (!(event.target as HTMLElement).closest('.description-document')) return
+        pointer.current = true
+        releasePointer.current?.()
+        const release = () => {
+          pointer.current = false
+          queueMicrotask(() => activate(true))
+        }
+        const end = event.pointerType === 'mouse' ? 'mouseup' : 'pointerup'
+        document.addEventListener(end, release, { once: true })
+        releasePointer.current = () => document.removeEventListener(end, release)
+      }}
+      onPointerCancel={() => {
+        pointer.current = false
+        activate(false)
+      }}
+      onKeyDownCapture={() => activate(true)}
+      onDragEnterCapture={() => activate(false)}
+    >
+      <div className={props.onSubmit ? 'min-w-0 flex-1 py-0.5' : undefined}>
+        <div
+          contentEditable={!props.disabled}
+          suppressContentEditableWarning
+          translate='no'
+          className='tiptap ProseMirror description-document text-sm leading-relaxed'
+          // Match ProseMirror's contenteditable accessibility semantics.
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+          role='textbox'
+          aria-label={props.label}
+          aria-multiline='true'
+          spellCheck={false}
+          tabIndex={0}
+          dangerouslySetInnerHTML={{ __html: markup }}
+        />
+      </div>
+      {props.attachSlot &&
+        createPortal(
+          <Button
+            variant='ghost'
+            size='icon-xs'
+            className='-my-1 text-muted-foreground opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
+            disabled={props.disabled || !props.onUpload}
+            aria-label='Attach image or video'
+            title='Attach image or video'
+            onClick={() => {
+              activate(false)
+              props.attachSlot
+                ?.closest('section')
+                ?.querySelector<HTMLButtonElement>('[aria-label="Attach image or video"]')
+                ?.click()
+            }}
+          >
+            <Attachment01Icon />
+          </Button>,
+          props.attachSlot
+        )}
+      {props.onSubmit && (
+        <ComposerActions
+          disabled={!!props.disabled}
+          upload={!!props.onUpload}
+          empty
+          pickFiles={() => {
+            const parent = host.current?.parentElement
+            activate(false)
+            parent
+              ?.querySelector<HTMLButtonElement>('[aria-label="Attach image or video"]')
+              ?.click()
+          }}
+          submit={() => {}}
+        />
+      )}
+    </div>
+  )
+}
+
 export function DescriptionEditor({
   disabled = false,
   identity,
@@ -542,7 +756,7 @@ export function DescriptionEditor({
 }) {
   return (
     <MediaLightboxProvider>
-      <MarkdownEditor
+      <DeferredMarkdownEditor
         key={identity}
         disabled={disabled}
         initial={body}
@@ -562,6 +776,44 @@ export function DescriptionEditor({
 export type UploadedAttachment = { src: string; width?: number; height?: number }
 export type UploadAttachment = (file: File) => Promise<UploadedAttachment>
 
+function ComposerActions({
+  disabled,
+  upload,
+  empty,
+  pickFiles,
+  submit,
+}: {
+  disabled: boolean
+  upload: boolean
+  empty: boolean | null
+  pickFiles: () => void
+  submit: () => void
+}) {
+  return (
+    <div className='flex shrink-0 items-center gap-1'>
+      <Button
+        variant='ghost'
+        size='icon'
+        className='text-muted-foreground'
+        disabled={disabled || !upload}
+        aria-label='Attach image or video'
+        onClick={pickFiles}
+      >
+        <Attachment01Icon />
+      </Button>
+      <InputGroupButton
+        variant='default'
+        size='icon-sm'
+        aria-label='Comment (⌘↵)'
+        disabled={empty ?? true}
+        onClick={submit}
+      >
+        <ArrowUp02Icon />
+      </InputGroupButton>
+    </div>
+  )
+}
+
 // The slash menu uses ARIA options while ProseMirror retains keyboard focus in the editor.
 /* oxlint-disable jsx-a11y/prefer-tag-over-role */
 export function MarkdownEditor({
@@ -575,6 +827,7 @@ export function MarkdownEditor({
   references,
   quote,
   attachSlot,
+  onReady,
 }: {
   initial: string
   disabled?: boolean
@@ -587,6 +840,7 @@ export function MarkdownEditor({
   // Markdown to append and focus, as Quote reply does; a new id appends again.
   quote?: { markdown: string; id: number }
   attachSlot?: HTMLElement | null
+  onReady?: (editor: Editor) => void
 }) {
   const [saved, setSaved] = useState(initial)
   const callbacks = useRef({ onSave, onSubmit, onUpload })
@@ -798,9 +1052,6 @@ export function MarkdownEditor({
         return true
       },
     },
-    onCreate({ editor }) {
-      unchanged.current = markdownOf(editor)
-    },
     onUpdate({ editor }) {
       dirty.current = true
       clearTimeout(timer.current)
@@ -822,6 +1073,11 @@ export function MarkdownEditor({
     },
   })
   const loaded = useRef(initial)
+  useLayoutEffect(() => {
+    if (!editor) return
+    unchanged.current ??= markdownOf(editor)
+    onReady?.(editor)
+  }, [editor, onReady])
   useEffect(() => {
     if (!editor || loaded.current === initial || onSubmit) return
     const clean =
@@ -1251,27 +1507,13 @@ export function MarkdownEditor({
           attachSlot
         )}
       {onSubmit && (
-        <div className='flex shrink-0 items-center gap-1'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='text-muted-foreground'
-            disabled={disabled || !onUpload}
-            aria-label='Attach image or video'
-            onClick={pickFiles}
-          >
-            <Attachment01Icon />
-          </Button>
-          <InputGroupButton
-            variant='default'
-            size='icon-sm'
-            aria-label='Comment (⌘↵)'
-            disabled={empty}
-            onClick={submit}
-          >
-            <ArrowUp02Icon />
-          </InputGroupButton>
-        </div>
+        <ComposerActions
+          disabled={disabled}
+          upload={!!onUpload}
+          empty={empty}
+          pickFiles={pickFiles}
+          submit={submit}
+        />
       )}
     </div>
   )

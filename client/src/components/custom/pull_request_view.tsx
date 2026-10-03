@@ -34,7 +34,7 @@ import { MediaLightboxProvider } from './media_lightbox'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { adaptPullRequest } from './pull_request/adapter'
 import { JettyStyle } from './pull_request/jetty_style'
-import { PrRuntimeContext } from './pull_request/runtime'
+import { AfterPrPaint, PrRuntimeContext } from './pull_request/runtime'
 import './thread_details_layout.css'
 
 type LinkedThread = { id: string; title: string }
@@ -155,7 +155,9 @@ export function PullRequestView({
         sidebar: standalone ? <PageSidebarTrigger /> : null,
       }}
     >
-      <JettyStyle pr={pr} />
+      <AfterPrPaint>
+        <JettyStyle pr={pr} />
+      </AfterPrPaint>
     </PrRuntimeContext>
   )
 }

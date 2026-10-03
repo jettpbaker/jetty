@@ -2,6 +2,9 @@
 
 .description-document {
   outline: none;
+  position: relative;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
