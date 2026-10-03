@@ -1933,7 +1933,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               tab === value ? 'bg-accent text-foreground' : 'text-muted-foreground'
                             )}
                             {...pressProps(() => {
-                              perf.start('pr.diff')
+                              if (value === 'diff') perf.start('pr.diff')
                               setTab(value)
                             })}
                           >
