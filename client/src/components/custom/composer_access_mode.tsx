@@ -65,7 +65,7 @@ export function ComposerAccessMode({
                   size='icon'
                   className={
                     value === 'full_access'
-                      ? 'text-status-attention enabled:hover:text-status-attention aria-expanded:text-status-attention'
+                      ? 'text-status-attention not-disabled:hover:text-status-attention aria-expanded:text-status-attention'
                       : undefined
                   }
                 />

@@ -131,7 +131,7 @@ export function UserMessage({
                 className={cn(
                   '-ml-1 mt-1 px-1',
                   !from &&
-                    'text-primary-foreground/85 enabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
+                    'text-primary-foreground/85 not-disabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
                 )}
                 aria-expanded={expanded}
                 onClick={() => {

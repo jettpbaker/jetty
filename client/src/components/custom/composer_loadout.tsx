@@ -287,7 +287,7 @@ export function ComposerLoadout({
             tone={value ? 'default' : 'muted'}
             className={cn(
               'group/chip gap-1.5 rounded-sm',
-              value && 'text-primary enabled:hover:text-primary aria-expanded:text-primary'
+              value && 'text-primary not-disabled:hover:text-primary aria-expanded:text-primary'
             )}
           />
         }

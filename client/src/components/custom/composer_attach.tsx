@@ -62,7 +62,7 @@ export function ComposerImages({
             variant='ghost-text'
             size='icon-xs'
             aria-label={`Remove ${image.name}`}
-            className='absolute top-0 right-0 text-white opacity-0 group-focus-within/image:opacity-100 group-hover/image:opacity-100 enabled:hover:text-white [@media(hover:none)]:opacity-100'
+            className='absolute top-0 right-0 text-white opacity-0 group-focus-within/image:opacity-100 group-hover/image:opacity-100 not-disabled:hover:text-white [@media(hover:none)]:opacity-100'
             onClick={() => onRemove(image.url)}
           >
             <Cancel01Icon />

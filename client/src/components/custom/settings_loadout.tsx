@@ -824,7 +824,7 @@ function CatalogModel({ model, disabledReason }: { model: LoadoutModel; disabled
           type='button'
           disabled={disabled}
           aria-label={`Drag ${model.name}`}
-          className='flex h-7 w-full min-w-0 touch-none cursor-grab items-center rounded-menu-item text-left text-xs enabled:hover:bg-accent disabled:pointer-events-none disabled:text-disabled-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing'
+          className='flex h-7 w-full min-w-0 touch-none cursor-grab items-center rounded-menu-item text-left text-xs not-disabled:hover:bg-accent disabled:pointer-events-none disabled:text-disabled-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing'
         >
           <span className='flex w-6 shrink-0 items-center justify-center text-muted-foreground'>
             <DragDropVerticalIcon aria-hidden='true' className='size-3.5' />

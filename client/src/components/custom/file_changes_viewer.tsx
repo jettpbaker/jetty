@@ -379,7 +379,7 @@ export function FileChangesViewer({
     <Button
       variant='ghost-text'
       size='icon-sm'
-      className="aria-expanded:text-muted-foreground enabled:hover:aria-expanded:text-foreground [&_svg:not([class*='size-'])]:size-4"
+      className="aria-expanded:text-muted-foreground not-disabled:hover:aria-expanded:text-foreground [&_svg:not([class*='size-'])]:size-4"
       aria-label={treeOpen ? 'Collapse file tree' : 'Expand file tree'}
       aria-expanded={treeOpen}
       aria-controls={treeId}

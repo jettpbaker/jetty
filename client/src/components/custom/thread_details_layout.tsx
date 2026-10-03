@@ -432,7 +432,7 @@ export function ThreadDetailsLayout({
         <Button
           variant='ghost-text'
           size='icon'
-          className='aria-expanded:text-muted-foreground aria-expanded:enabled:hover:text-foreground'
+          className='aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
           aria-label={open ? 'Close thread details' : 'Open thread details'}
           aria-expanded={open}
           aria-keyshortcuts='Meta+Alt+B'
