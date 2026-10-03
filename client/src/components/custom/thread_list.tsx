@@ -416,7 +416,7 @@ export function ThreadList({
       >
         <section
           ref={scroller}
-          className='scrollbar-subtle scroll-fade-y [--scroll-fade-t-size:0px] [scroll-timeline:--conversation_y] [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
+          className='scrollbar-subtle scroll-fade-y [scroll-timeline:--conversation_y] [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}

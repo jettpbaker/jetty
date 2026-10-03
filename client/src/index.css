@@ -226,8 +226,8 @@
   --composer-shadow-tone: oklch(from var(--background) l c h / 0.7);
 }
 
-/* The conversation's top edge blurs instead of fading: eight layers, each a little stronger over a
-   band nearer the edge, ramping in over the first 4rem of scroll. */
+/* The conversation's top edge fades over a blur: eight layers, each a little stronger over a band
+   nearer the edge, ramping in over the first 5rem of scroll; the fade does the last of the work. */
 .conversation-scroll {
   timeline-scope: --conversation;
 }
@@ -235,7 +235,7 @@
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 8rem;
+  height: 5rem;
   pointer-events: none;
 }
 /* The fade-in sits on each layer: opacity on a shared parent would become their backdrop root. */
@@ -245,7 +245,7 @@
   opacity: 0;
   animation: conversation-top-blur linear both;
   animation-timeline: --conversation;
-  animation-range: 0 4rem;
+  animation-range: 0 5rem;
 }
 .conversation-top-blur > div:nth-child(1) {
   backdrop-filter: blur(0.2px);
@@ -264,19 +264,19 @@
   mask-image: linear-gradient(to top, transparent 30%, #000 40%, #000 50%, transparent 60%);
 }
 .conversation-top-blur > div:nth-child(5) {
-  backdrop-filter: blur(1.1px);
+  backdrop-filter: blur(1.15px);
   mask-image: linear-gradient(to top, transparent 40%, #000 50%, #000 60%, transparent 70%);
 }
 .conversation-top-blur > div:nth-child(6) {
-  backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.65px);
   mask-image: linear-gradient(to top, transparent 50%, #000 60%, #000 70%, transparent 80%);
 }
 .conversation-top-blur > div:nth-child(7) {
-  backdrop-filter: blur(2.1px);
+  backdrop-filter: blur(2.45px);
   mask-image: linear-gradient(to top, transparent 60%, #000 70%, #000 80%, transparent 90%);
 }
 .conversation-top-blur > div:nth-child(8) {
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(4px);
   mask-image: linear-gradient(to top, transparent 70%, #000 80%);
 }
 @keyframes conversation-top-blur {
