@@ -3,7 +3,13 @@ export { useBrowse } from './browse'
 export { useChrome, type Chrome } from './chrome'
 export { useConnectionNotice } from './connection'
 export { useMarkThreadSeen } from './mutations'
-export { defaultDiffScope, useDiffFileLoader, useProjectFile, useThreadDiff } from './diff'
+export {
+  defaultDiffScope,
+  useDiffFileLoader,
+  useProjectFile,
+  useThreadDiff,
+  useThreadDiffFetch,
+} from './diff'
 export {
   useDraft,
   useForgetDeletedDrafts,

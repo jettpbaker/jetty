@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
 import {
+  defaultDiffScope,
   pullRequestTabId,
   useChrome,
   useDetailsRequest,
@@ -33,7 +34,7 @@ import { ChildThreadList, useChildThreads } from './child_threads'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { LivePullRequestView } from './pull_request_view'
-import { ThreadChanges } from './thread_changes'
+import { ThreadChanges, useThreadChangesPrefetch } from './thread_changes'
 import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
 import { ThreadFile } from './thread_file'
 import { ThreadOverview, useHasOverview } from './thread_overview'
@@ -73,8 +74,8 @@ export function ThreadDetailsLayout({
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
   const [pickedTab, setTab] = useState('changes')
-  const projectId = useChrome()?.threads.find((thread) => thread.id === threadId)?.projectId
-  const git = useProjectGit(projectId)?.git
+  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const git = useProjectGit(meta?.projectId)?.git
   const changesDisabled =
     git === 'not-git'
       ? 'Not a git repository'
@@ -83,6 +84,11 @@ export function ThreadDetailsLayout({
         : undefined
   // Changes needs git, so those projects open on Overview.
   const tab = changesDisabled && pickedTab === 'changes' ? 'overview' : pickedTab
+  // An open pane has Changes mounted already.
+  useThreadChangesPrefetch(
+    threadId,
+    meta && !open && !changesDisabled ? defaultDiffScope(meta) : undefined
+  )
   const tabs = useRef<DetailsTabsHandle>(null)
   // A file link goes to Changes first, and on to its own tab if it isn't a changed file.
   const [fileRequest, setFileRequest] = useState<ThreadFileTarget>()

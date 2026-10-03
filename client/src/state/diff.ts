@@ -51,6 +51,16 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
   }
 }
 
+// Loads a thread's diff into the cache without showing it.
+export function useThreadDiffFetch() {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (threadId: string, scope: DiffScope) =>
+      Effect.runPromise(AtomRegistry.getResult(registry, diffAtom(`${threadId}\0${scope}`))),
+    [registry]
+  )
+}
+
 export function useDiffFileLoader(threadId: string, scope: DiffScope) {
   const registry = useContext(RegistryContext)
   return useCallback(

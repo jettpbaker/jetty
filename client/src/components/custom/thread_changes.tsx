@@ -1,64 +1,85 @@
 import type { DiffScope } from '@jetty/shared/wire'
 
-import { defaultDiffScope, useChrome, useDiffFileLoader, useThreadDiff } from '@/state'
-import { lazy, Suspense, useLayoutEffect, useMemo, useState } from 'react'
+import { whenIdle } from '@/lib/preload'
+import {
+  defaultDiffScope,
+  useChrome,
+  useDiffFileLoader,
+  useThreadDiff,
+  useThreadDiffFetch,
+} from '@/state'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 import type { FileTarget } from './file_link'
 
 import { ChangesScopePicker } from './changes_scope'
-import { loadDiffWorkerPool } from './diff_worker_pool'
+import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
 
 // A file link lands here first; `found` says whether it's among the changed files.
 type OnTarget = (target: FileTarget, found: boolean) => void
 
-const PatchViewer = lazy(async () => {
-  const [{ FileChangesViewer }, { parseFileChanges }] = await Promise.all([
-    import('./file_changes_viewer'),
-    import('./file_diff_model'),
-    loadDiffWorkerPool(),
-  ])
-  function PatchViewer({
-    threadId,
-    patch,
-    notShown,
-    target,
-    onTarget,
-    scope,
-    onScopeChange,
-  }: {
-    threadId: string
-    patch: string
-    notShown: readonly string[]
-    target?: FileTarget
-    onTarget: OnTarget
-    scope: DiffScope
-    onScopeChange: (scope: DiffScope) => void
-  }) {
-    const files = useMemo(() => parseFileChanges(patch), [patch])
-    const loadFile = useDiffFileLoader(threadId, scope)
-    const [reveal, setReveal] = useState<FileTarget>()
-    useLayoutEffect(() => {
-      if (!target) return
-      const exact = files.find((file) => file.path === target.path)
-      const suffix = exact ? [] : files.filter((file) => file.path.endsWith(`/${target.path}`))
-      const match = exact ?? (suffix.length === 1 ? suffix[0] : undefined)
-      if (match) setReveal({ ...target, path: match.path })
-      onTarget(target, !!match)
-    }, [target, files, onTarget])
-    return (
-      <FileChangesViewer
-        embedded
-        scope={scope}
-        onScopeChange={onScopeChange}
-        files={files}
-        loadFile={loadFile}
-        reveal={reveal}
-        footer={notShown.length > 0 && <NotShown paths={notShown} />}
-      />
-    )
-  }
-  return { default: PatchViewer }
-})
+function PatchViewer({
+  threadId,
+  patch,
+  notShown,
+  target,
+  onTarget,
+  scope,
+  onScopeChange,
+}: {
+  threadId: string
+  patch: string
+  notShown: readonly string[]
+  target?: FileTarget
+  onTarget: OnTarget
+  scope: DiffScope
+  onScopeChange: (scope: DiffScope) => void
+}) {
+  const { FileChangesViewer, parseFileChanges } = diffViewer.useLoaded()
+  const files = useMemo(() => parseFileChanges(patch), [patch, parseFileChanges])
+  const loadFile = useDiffFileLoader(threadId, scope)
+  const [reveal, setReveal] = useState<FileTarget>()
+  useLayoutEffect(() => {
+    if (!target) return
+    const exact = files.find((file) => file.path === target.path)
+    const suffix = exact ? [] : files.filter((file) => file.path.endsWith(`/${target.path}`))
+    const match = exact ?? (suffix.length === 1 ? suffix[0] : undefined)
+    if (match) setReveal({ ...target, path: match.path })
+    onTarget(target, !!match)
+  }, [target, files, onTarget])
+  return (
+    <FileChangesViewer
+      embedded
+      scope={scope}
+      onScopeChange={onScopeChange}
+      files={files}
+      loadFile={loadFile}
+      reveal={reveal}
+      footer={notShown.length > 0 && <NotShown paths={notShown} />}
+    />
+  )
+}
+
+// Once the thread has painted, its diff, the viewer and the first files' highlighting load
+// behind it, so opening Changes paints them at once, coloured. No scope, no prefetch.
+export function useThreadChangesPrefetch(threadId: string, scope: DiffScope | undefined) {
+  const fetchDiff = useThreadDiffFetch()
+  useEffect(() => {
+    if (!scope) return
+    return whenIdle(() => void prefetchChanges(fetchDiff(threadId, scope)).catch(() => {}))
+  }, [fetchDiff, threadId, scope])
+}
+
+// Each diff is parsed once, however often its thread is revisited.
+const prefetched = new WeakSet<object>()
+
+async function prefetchChanges(diff: Promise<{ diff: string }>) {
+  const result = await diff
+  if (result.diff === '' || prefetched.has(result)) return
+  prefetched.add(result)
+  const { parseFileChanges } = await diffViewer.preload()
+  await primeDiffHighlights(parseFileChanges(result.diff).map((file) => file.diff))
+}
 
 const loading = <p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>
 
