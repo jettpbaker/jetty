@@ -99,7 +99,12 @@ export function patchMatchesContents(
 }
 
 // @pierre/diffs only offers context expansion on `change`/`rename-changed` diffs, so posing as a
-// pure rename drops the expand buttons.
+// pure rename drops the expand buttons. Diffs that share a cache key are the same diff to it, so
+// the copy takes its own.
 export function withoutContext(diff: FileDiffMetadata): FileDiffMetadata {
-  return { ...diff, type: 'rename-pure' }
+  return {
+    ...diff,
+    type: 'rename-pure',
+    cacheKey: diff.cacheKey && `${diff.cacheKey}:no-context`,
+  }
 }
