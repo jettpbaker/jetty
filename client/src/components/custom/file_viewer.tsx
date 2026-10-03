@@ -1,3 +1,4 @@
+import { contentKey } from '@/lib/hash'
 import { useResolvedTheme } from '@/lib/theme'
 import { CodeView, type CodeViewHandle } from '@pierre/diffs/react'
 import { useEffect, useId, useMemo, useRef } from 'react'
@@ -15,18 +16,15 @@ export function FileViewer({ target, contents }: { target: FileTarget; contents:
   const options = useMemo(() => diffViewOptions(themeType, {}), [themeType])
   const { collapsedFiles, renderFilePrefix } = useCollapsedFiles(() => new Set())
   const collapsed = collapsedFiles.has(path)
+  // The diff worker pool caches the file's highlighting by its key.
+  const file = useMemo(
+    () => ({ name: path, contents, cacheKey: `${path}:${contentKey(contents)}` }),
+    [path, contents]
+  )
   // CodeView only re-reads an item when its version changes.
   const items = useMemo(
-    () => [
-      {
-        id: path,
-        type: 'file' as const,
-        file: { name: path, contents },
-        collapsed,
-        version: ++lastVersion,
-      },
-    ],
-    [path, contents, collapsed]
+    () => [{ id: path, type: 'file' as const, file, collapsed, version: ++lastVersion }],
+    [path, file, collapsed]
   )
   const selectedLines = useMemo(
     () => (line ? { id: path, range: { start: line, end: line } } : null),
