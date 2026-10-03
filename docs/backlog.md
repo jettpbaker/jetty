@@ -128,9 +128,5 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   (mergeability flips, thread resolution). If that bites, a 10-minute full
   refresh floor for linked PRs is a two-line addition (an open PR view already
   refreshes fully every 30s).
-- Sidebar thread rows: a Base UI preview-card hover race adds one sidebar render
-  to about a quarter of thread switches. Should pressing a row cancel the
-  preview card's hover intent? Better UX, and the perf lab's thread.switch
-  counts become exact. Needs Jett's call.
 - Perf lab: exact frame counts need Chrome's 120 Hz begin-frame control, which
   is Linux-only (headless Chrome in Docker). A separate spike.
