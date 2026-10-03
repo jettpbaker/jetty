@@ -1,4 +1,4 @@
-import type { DiffLineAnnotation } from '@pierre/diffs'
+import type { DiffLineAnnotation, FileDiffMetadata } from '@pierre/diffs'
 
 import { hugeIconMasks } from '@/components/custom/huge_icons'
 import { Markdown } from '@/components/custom/markdown'
@@ -9,13 +9,19 @@ import { contentKey } from '@/lib/hash'
 import { useResolvedTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { FileDiff } from '@pierre/diffs/react'
-import { useContext, useMemo, type ReactNode } from 'react'
+import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import type { PrComment, PrFile, PrThread } from './adapter'
 
 import { useDiffWorkerPool } from '../diff_worker_pool'
-import { loadedFiles, patchMatchesContents, parseFileChanges } from '../file_diff_model'
+import {
+  hydratedDiff,
+  loadedFiles,
+  parseFileChanges,
+  patchMatchesContents,
+  withoutContext,
+} from '../file_diff_model'
 import { syntaxTheme } from './cursor_themes'
 import {
   ago,
@@ -180,6 +186,29 @@ export function Diff({
       }
     }
   }, [loadFile, file.path, file.previousPath, suggestion, patch])
+  // A mounted body fetches its file's contents, as the Changes view does, so folds and the trailing
+  // context are exact rather than "may be available"; without them the hunks render bare.
+  const [context, setContext] = useState<{ diff: FileDiffMetadata; shown: FileDiffMetadata }>()
+  useEffect(() => {
+    if (!loadFile || suggestion || patch !== undefined || !diff?.isPartial) return
+    if (diff.type !== 'change' && diff.type !== 'rename-changed') return
+    let active = true
+    loadFile(file.path, file.previousPath).then(
+      (contents) => {
+        if (!active) return
+        const usable = !('unavailable' in contents) && patchMatchesContents(diff, contents)
+        setContext({
+          diff,
+          shown: usable ? hydratedDiff(diff, loadedFiles(diff, contents)) : withoutContext(diff),
+        })
+      },
+      () => active && setContext({ diff, shown: withoutContext(diff) })
+    )
+    return () => {
+      active = false
+    }
+  }, [loadFile, suggestion, patch, diff, file.path, file.previousPath])
+  const shown = context && context.diff === diff ? context.shown : diff
   const wrap = useContext(DiffWrapContext)
   const anchored = threads.filter(
     (t) =>
@@ -234,7 +263,7 @@ export function Diff({
   return (
     <div className='min-w-0 overflow-x-auto'>
       <FileDiff
-        fileDiff={diff!}
+        fileDiff={shown!}
         lineAnnotations={annotations}
         renderAnnotation={({ metadata }) => (
           // Reaches back over the line numbers to where the change bar ends, and stops the same 4px short

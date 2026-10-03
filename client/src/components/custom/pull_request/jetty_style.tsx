@@ -9,7 +9,7 @@ import {
   SkippedStatusIcon,
   SuccessStatusIcon,
 } from '@/components/custom/circle_status_icon'
-import { ArrowTurnBackwardIcon, PlusSignIcon } from '@/components/custom/huge_icons'
+import { ArrowTurnBackwardIcon, BubbleChatIcon, PlusSignIcon } from '@/components/custom/huge_icons'
 import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
@@ -826,16 +826,19 @@ function Properties({ pr }: { pr: PrPull }) {
       </div>
     ),
     Thread: (
-      <div className='flex flex-wrap items-center gap-2 px-0.75 py-1.5'>
+      <div className='flex flex-wrap items-center gap-x-2'>
         {threads.map((thread) => (
-          <Link
+          <Button
             key={thread.id}
-            to='/threads/$threadId'
-            params={{ threadId: thread.id }}
-            className='truncate hover:underline'
+            variant='ghost'
+            size='sm'
+            className='h-7 max-w-full gap-2 rounded-sm px-0.75 font-normal'
+            nativeButton={false}
+            render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
-            {thread.title}
-          </Link>
+            <BubbleChatIcon className='size-4' />
+            <span className='truncate'>{thread.title}</span>
+          </Button>
         ))}
       </div>
     ),
