@@ -18,7 +18,7 @@ import { FolderGit2Icon, LaptopIcon } from './huge_icons'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
-import { PullRequestMark, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
+import { PullRequestMark, type ThreadPullRequest } from './thread_pull_request'
 import { StatusGlyph, statusPresentation, type ThreadStatus } from './thread_status'
 import './thread_hover.css'
 
@@ -29,7 +29,7 @@ export type ThreadDetails = {
   projectIcon?: ProjectIcon
   provider?: ProviderId
   lastActivity: string
-  pullRequest?: ThreadPullRequest
+  pullRequests: readonly ThreadPullRequest[]
   environment: 'local' | 'worktree'
   branch?: string
 }
@@ -139,8 +139,7 @@ function ThreadHoverContent({
   const checkout =
     useCheckout(local ? details.projectId : undefined) ??
     (details.branch ? { label: details.branch, branch: true } : undefined)
-  const { pullRequest } = details
-  const prLabel = pullRequest && pullRequestLabel(pullRequest)
+  const { pullRequests } = details
   return (
     <div
       data-overflow-hover
@@ -178,14 +177,13 @@ function ThreadHoverContent({
           {effort && <span className='text-muted-foreground'>{effort}</span>}
         </span>
         <span className='ml-auto shrink-0 pl-2'>
-          {pullRequest && prLabel ? (
+          {pullRequests.length > 0 ? (
             <Button
               variant='ghost-text'
-              className='h-auto gap-1 p-0 text-xs font-normal'
-              title={prLabel.title}
+              className='h-auto p-0 text-xs font-normal'
               {...pressProps(onOpenPullRequest)}
             >
-              <PullRequestMark pullRequest={pullRequest} />
+              <PullRequestMark pullRequests={pullRequests} />
             </Button>
           ) : (
             <span className='text-muted-foreground'>No pull requests</span>

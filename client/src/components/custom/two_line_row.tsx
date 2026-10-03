@@ -9,12 +9,14 @@ export function TwoLineRow({
   glyph,
   children,
   className,
+  metaClassName,
   variant = 'ghost',
   ...props
 }: Omit<ComponentProps<typeof Button>, 'children'> & {
   heading: ReactNode
   glyph: ReactNode
   children: ReactNode
+  metaClassName?: string
 }) {
   return (
     <Button
@@ -30,7 +32,12 @@ export function TwoLineRow({
         {heading}
         {glyph}
       </span>
-      <span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
+      <span
+        className={cn(
+          'flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground',
+          metaClassName
+        )}
+      >
         {children}
       </span>
     </Button>

@@ -5,7 +5,7 @@ import { ArrowMoveDownRightIcon } from '@/components/custom/huge_icons'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
-import { PullRequestMark, pullRequestLabel, type ThreadPullRequest } from './thread_pull_request'
+import { PullRequestMark, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
 import { StatusGlyph, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
@@ -19,7 +19,7 @@ export function ThreadRow({
   parent,
   status,
   lastActivity,
-  pullRequest,
+  pullRequests,
   environment,
   branch,
   provider,
@@ -37,7 +37,7 @@ export function ThreadRow({
   parent?: string
   status: ThreadStatus
   lastActivity: string
-  pullRequest?: ThreadPullRequest
+  pullRequests: readonly ThreadPullRequest[]
   environment: 'local' | 'worktree'
   branch?: string
   provider?: ProviderId
@@ -48,8 +48,6 @@ export function ThreadRow({
   onSelect: () => void
   onOpenPullRequest: () => void
 }) {
-  const prLabel = pullRequest && pullRequestLabel(pullRequest)
-
   return (
     <div className='thread-row' data-selected={selected || undefined}>
       <ThreadHoverCard
@@ -60,7 +58,7 @@ export function ThreadRow({
           projectIcon,
           provider,
           lastActivity,
-          pullRequest,
+          pullRequests,
           environment,
           branch,
         }}
@@ -85,6 +83,7 @@ export function ThreadRow({
               </OverflowTitle>
             }
             glyph={<StatusGlyph status={status} />}
+            metaClassName='gap-2.5'
           >
             {parent ? (
               <span className='flex min-w-0 items-center gap-1' title={`Created by ${parent}`}>
@@ -97,19 +96,10 @@ export function ThreadRow({
                 <span className='truncate'>{project}</span>
               </span>
             )}
-            {pullRequest && prLabel && (
-              <>
-                <span aria-hidden='true' className='shrink-0 text-muted-foreground'>
-                  ·
-                </span>
-                <span
-                  data-pull-request
-                  className='flex shrink-0 items-center gap-1 hover:text-foreground'
-                  title={prLabel.title}
-                >
-                  <PullRequestMark pullRequest={pullRequest} />
-                </span>
-              </>
+            {pullRequests.length > 0 && (
+              <span data-pull-request className='flex shrink-0'>
+                <PullRequestMark pullRequests={pullRequests} />
+              </span>
             )}
             <span
               className='ml-auto mr-px shrink-0 font-mono'

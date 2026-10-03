@@ -19,6 +19,8 @@ export type SidebarThread = {
   updatedAt: number
   pinned: boolean
   archived: boolean
+  pullRequests: ThreadPullRequest[]
+  // The one a click opens: the PR still in flight, newest first within a state.
   pullRequest?: ThreadPullRequest
   provider?: ProviderId
   model?: string

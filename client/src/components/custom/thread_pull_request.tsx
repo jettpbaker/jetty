@@ -13,21 +13,10 @@ export const prPresentation = {
   closed: { icon: GitPullRequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
 }
 
-export function pullRequestLabel(pullRequest: ThreadPullRequest) {
-  const pr = prPresentation[pullRequest.state]
-  return pullRequest.count > 1
-    ? {
-        text: `${pullRequest.count} PRs`,
-        title: `${pr.label} PR #${pullRequest.number} and ${pullRequest.count - 1} more`,
-      }
-    : { text: `#${pullRequest.number}`, title: `${pr.label} PR #${pullRequest.number}` }
-}
-
 export type ThreadPullRequest = {
   repo: string
   number: number
   state: keyof typeof prPresentation
-  count: number
 }
 
 // A link's state is unknown until GitHub has been read once.
@@ -37,14 +26,38 @@ export function linkPresentation(state?: keyof typeof prPresentation) {
     : { ...prPresentation.open, label: 'Pull request', color: 'text-muted-foreground' }
 }
 
-// The thread's pull request as its sidebar row and hover card show it.
-export function PullRequestMark({ pullRequest }: { pullRequest: ThreadPullRequest }) {
-  const pr = prPresentation[pullRequest.state]
+// In-flight PRs lead, matching how the app ranks a thread's PRs.
+const stateOrder: ThreadPullRequest['state'][] = ['open', 'draft', 'merged', 'closed']
+
+// A thread's PRs as its row and hover card show them: one by number, several as a count per state.
+export function PullRequestMark({ pullRequests }: { pullRequests: readonly ThreadPullRequest[] }) {
+  const [only] = pullRequests
+  const groups =
+    pullRequests.length === 1 && only
+      ? [{ state: only.state, text: `#${only.number}` }]
+      : stateOrder.flatMap((state) => {
+          const count = pullRequests.filter((pr) => pr.state === state).length
+          return count ? [{ state, text: `${count}` }] : []
+        })
+  const title =
+    pullRequests.length === 1 && only
+      ? `${prPresentation[only.state].label} PR #${only.number}`
+      : groups
+          .map(({ state, text }) => `${text} ${prPresentation[state].label.toLowerCase()}`)
+          .join(', ')
+
   return (
-    <>
-      <pr.icon aria-hidden='true' className={cn('size-3', pr.color)} />
-      <span className='font-mono'>{pullRequestLabel(pullRequest).text}</span>
-      <span className='sr-only'>{pr.label}</span>
-    </>
+    <span className='flex shrink-0 items-center gap-1.5' title={title}>
+      {groups.map(({ state, text }) => {
+        const pr = prPresentation[state]
+        return (
+          <span key={state} className={cn('flex items-center gap-1', pr.color)}>
+            <pr.icon aria-hidden='true' className='size-3' />
+            <span className='font-mono'>{text}</span>
+            <span className='sr-only'>{pr.label}</span>
+          </span>
+        )
+      })}
+    </span>
   )
 }
