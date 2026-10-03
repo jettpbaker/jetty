@@ -1,5 +1,7 @@
+import type { FileDiffMetadata } from '@pierre/diffs'
 import type { WorkerPoolManager } from '@pierre/diffs/worker'
 
+import { preloadable } from '@/lib/preload'
 import { WorkerPoolContext } from '@pierre/diffs/react'
 import { useSyncExternalStore, type ReactNode } from 'react'
 
@@ -45,4 +47,32 @@ function subscribe(listener: () => void) {
 export function DiffWorkerPoolProvider({ children }: { children: ReactNode }) {
   const value = useSyncExternalStore(subscribe, () => pool)
   return <WorkerPoolContext value={value}>{children}</WorkerPoolContext>
+}
+
+// The Changes and PR Diff views' code, with the pool they highlight in.
+export const diffViewer = preloadable(() =>
+  Promise.all([
+    import('./file_changes_viewer'),
+    import('./file_diff_model'),
+    loadDiffWorkerPool(),
+  ]).then(([{ FileChangesViewer }, { parseFileChanges }]) => ({
+    FileChangesViewer,
+    parseFileChanges,
+  }))
+)
+
+// About a screen of diff and the viewer's overscroll.
+const firstPaintLines = 100
+
+// The workers highlight the files a view paints first into the pool's cache, so it paints them
+// coloured, and they compile those grammars before the view opens. The diffs need cache keys.
+export async function primeDiffHighlights(diffs: readonly FileDiffMetadata[]) {
+  const pool = await loadDiffWorkerPool()
+  if (!pool?.isWorkingPool()) return
+  let lines = 0
+  for (const diff of diffs) {
+    if (lines >= firstPaintLines) break
+    lines += diff.unifiedLineCount
+    void pool.primeDiffHighlightCache(diff).catch(() => {})
+  }
 }

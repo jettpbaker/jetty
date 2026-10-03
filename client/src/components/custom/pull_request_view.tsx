@@ -36,6 +36,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
+import { contentKey } from '@/lib/hash'
+import { whenIdle } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { formatAgo, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -53,7 +55,6 @@ import {
 import { Link } from '@tanstack/react-router'
 import {
   Suspense,
-  use,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -63,7 +64,7 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 
-import { loadDiffWorkerPool } from './diff_worker_pool'
+import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { Markdown } from './markdown'
@@ -88,61 +89,41 @@ import { ReviewerPicker } from './reviewer_picker'
 import { prPresentation } from './thread_pull_request'
 import './thread_details_layout.css'
 
-type DiffViewer = {
-  FileChangesViewer: typeof import('./file_changes_viewer').FileChangesViewer
-  parseFileChanges: typeof import('./file_diff_model').parseFileChanges
+// The patch GitHub returns is fixed by the two commits, but the PR and its files arrive in
+// separate requests, and a push between them pairs one head with another's files, so the key
+// hashes the patch too.
+function parsePullRequestDiff(
+  parseFileChanges: typeof import('./file_diff_model').parseFileChanges,
+  files: readonly GitHubFile[],
+  commits: string
+) {
+  const patch = filesPatch(files)
+  return parseFileChanges(patch, `${commits}:${contentKey(patch)}`)
 }
 
-let diffViewer: DiffViewer | undefined
-let diffViewerLoad: Promise<DiffViewer> | undefined
-
-function loadDiffViewer() {
-  diffViewerLoad ??= Promise.all([
-    import('./file_changes_viewer'),
-    import('./file_diff_model'),
-    loadDiffWorkerPool(),
-  ]).then(
-    ([{ FileChangesViewer }, { parseFileChanges }]) =>
-      (diffViewer = { FileChangesViewer, parseFileChanges })
-  )
-  return diffViewerLoad
-}
-
-// About a screen of diff and the viewer's overscroll.
-const firstPaintLines = 100
-
-// The workers highlight the files Diff paints first into the pool's cache, so Diff paints them
-// coloured, and they compile those grammars before the click.
-async function prefetchDiff(files: readonly GitHubFile[], cacheKey: string) {
-  const [{ parseFileChanges }, pool] = await Promise.all([loadDiffViewer(), loadDiffWorkerPool()])
-  if (!pool?.isWorkingPool()) return
-  let lines = 0
-  for (const { diff } of parseFileChanges(filesPatch(files), cacheKey)) {
-    if (lines >= firstPaintLines) break
-    lines += diff.unifiedLineCount
-    void pool.primeDiffHighlightCache(diff).catch(() => {})
-  }
+async function prefetchDiff(files: readonly GitHubFile[], commits: string) {
+  const { parseFileChanges } = await diffViewer.preload()
+  const changes = parsePullRequestDiff(parseFileChanges, files, commits)
+  await primeDiffHighlights(changes.map(({ diff }) => diff))
 }
 
 function PullRequestDiff({
   files,
-  cacheKey,
+  commits,
   repo,
   baseSha,
   headSha,
 }: {
   files: readonly GitHubFile[]
-  cacheKey: string
+  commits: string
   repo: string
   baseSha?: string
   headSha: string
 }) {
-  // use() suspends on a promise it hasn't seen even once it has settled, so a loaded viewer is
-  // read directly.
-  const { FileChangesViewer, parseFileChanges } = diffViewer ?? use(loadDiffViewer())
+  const { FileChangesViewer, parseFileChanges } = diffViewer.useLoaded()
   const changes = useMemo(
-    () => parseFileChanges(filesPatch(files), cacheKey),
-    [files, cacheKey, parseFileChanges]
+    () => parsePullRequestDiff(parseFileChanges, files, commits),
+    [files, commits, parseFileChanges]
   )
   const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
   useLayoutEffect(() => perf.rendered('pr.diff'), [])
@@ -797,14 +778,12 @@ export function PullRequestView({
   useLayoutEffect(() => {
     if (pane === 'diff') setDiffSeen(true)
   }, [pane])
-  // The patch GitHub returns is fixed by the two commits.
-  const diffCacheKey = `${link.repo}@${pull.base.sha}..${pull.head.sha}`
-  useEffect(() => {
-    // Once the Overview has painted, so clicking Diff renders straight away. Safari has no
-    // requestIdleCallback.
-    const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : setTimeout
-    idle(() => void prefetchDiff(files, diffCacheKey).catch(() => {}))
-  }, [files, diffCacheKey])
+  const diffCommits = `${link.repo}@${pull.base.sha}..${pull.head.sha}`
+  // Once the Overview has painted, so clicking Diff renders straight away.
+  useEffect(
+    () => whenIdle(() => void prefetchDiff(files, diffCommits).catch(() => {})),
+    [files, diffCommits]
+  )
 
   function toggleReviewer(user: GitHubUser, on: boolean) {
     setReviewRequest(link, user, on)
@@ -1100,7 +1079,7 @@ export function PullRequestView({
           >
             <PullRequestDiff
               files={files}
-              cacheKey={diffCacheKey}
+              commits={diffCommits}
               repo={link.repo}
               baseSha={pull.base.sha}
               headSha={pull.head.sha}

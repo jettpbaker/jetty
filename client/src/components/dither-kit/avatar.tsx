@@ -1,4 +1,5 @@
 import { accentChangeEvent } from '@/lib/accent'
+import { fnv1a } from '@/lib/hash'
 import { cn } from '@/lib/utils'
 import { useEffect, useRef, type CSSProperties } from 'react'
 
@@ -28,15 +29,6 @@ function bayer4(row: number, col: number) {
 }
 
 const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t)
-
-function fnv1a(str: string) {
-  let h = 0x811c9dc5
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return h >>> 0
-}
 
 function xorshift32(seed: number) {
   let s = seed || 0x9e3779b9
