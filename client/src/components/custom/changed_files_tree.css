@@ -1,0 +1,46 @@
+.changed-files-tree {
+  --trees-font-family-override: var(--font-sans);
+  --trees-font-size-override: var(--text-xs);
+  --trees-font-weight-regular-override: 400;
+  --trees-font-weight-semibold-override: 500;
+  --trees-border-radius-override: var(--radius-sm);
+  --trees-icon-width-override: 16px;
+  --trees-icon-nudge-override: 0px;
+  --trees-level-gap-override: 4px;
+  --trees-gap-override: 2px;
+  --trees-item-padding-x-override: 8px;
+  --trees-item-margin-x-override: 0px;
+  --trees-item-row-gap-override: 6px;
+  --trees-git-lane-width-override: 16px;
+  --trees-focus-ring-width-override: 1px;
+  --trees-focus-ring-offset-override: -1px;
+  --trees-accent-override: var(--primary);
+  --trees-input-bg-override: var(--background);
+  --trees-search-bg-override: var(--background);
+  --trees-search-fg-override: var(--foreground);
+  --trees-search-font-weight-override: 400;
+  --trees-focus-ring-color-override: var(--ring);
+  --trees-selected-focused-border-color-override: var(--ring);
+  --trees-indent-guide-bg-override: var(--border);
+  --trees-status-added-override: var(--status-success);
+  --trees-status-untracked-override: var(--status-success);
+  --trees-status-deleted-override: var(--status-error);
+  --trees-status-modified-override: var(--muted-foreground);
+  --trees-status-renamed-override: var(--muted-foreground);
+  --trees-status-ignored-override: var(--muted-foreground);
+  --trees-padding-inline-override: 6px;
+  --trees-bg-override: var(--background);
+  --trees-fg-override: var(--foreground);
+  --trees-fg-muted-override: var(--muted-foreground);
+  --trees-bg-muted-override: var(--accent);
+  --trees-selected-bg-override: var(--accent);
+  --trees-selected-fg-override: var(--foreground);
+  --trees-border-color-override: var(--border);
+  --trees-scrollbar-thumb-override: var(--scrollbar-thumb);
+}
+
+/* Pierre paints sticky rows and truncation fades with the tree's background, so it can't go transparent:
+   inside a popover it takes the popover's surface. */
+[data-slot='popover-content'] .changed-files-tree {
+  --trees-bg-override: var(--popover);
+}

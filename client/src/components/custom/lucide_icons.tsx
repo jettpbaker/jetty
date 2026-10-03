@@ -1,4 +1,8 @@
 export {
+  CircleSlashIcon,
+  CircleIcon,
+  CircleDashedIcon,
+  CircleCheckIcon,
   CircleDotIcon,
   DiffIcon,
   GitBranchIcon,

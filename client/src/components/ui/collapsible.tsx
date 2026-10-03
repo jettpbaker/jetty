@@ -9,12 +9,18 @@ function CollapsibleTrigger({ ...props }: CollapsiblePrimitive.Trigger.Props) {
   return <CollapsiblePrimitive.Trigger data-slot='collapsible-trigger' {...props} />
 }
 
-function CollapsibleContent({ className, ...props }: CollapsiblePrimitive.Panel.Props) {
+function CollapsibleContent({
+  className,
+  fast = false,
+  ...props
+}: CollapsiblePrimitive.Panel.Props & { fast?: boolean }) {
   return (
     <CollapsiblePrimitive.Panel
       data-slot='collapsible-content'
       className={cn(
         'h-(--collapsible-panel-height) overflow-hidden opacity-100 transition-[height,opacity] duration-(--motion-disclosure-open-duration) ease-(--motion-disclosure-ease) data-ending-style:duration-(--motion-disclosure-close-duration) data-starting-style:h-0 data-starting-style:opacity-60 data-ending-style:h-0 data-ending-style:opacity-0 motion-reduce:transition-none',
+        fast &&
+          'duration-(--motion-disclosure-fast-open-duration) data-ending-style:duration-(--motion-disclosure-fast-close-duration)',
         className
       )}
       {...props}

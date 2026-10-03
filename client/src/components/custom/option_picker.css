@@ -43,3 +43,7 @@
 .search-picker [data-slot='input-group-addon'] svg {
   opacity: 1;
 }
+
+.picker-glyph svg {
+  color: currentColor !important;
+}

@@ -18,6 +18,8 @@
   --motion-sidebar-ease: cubic-bezier(0.25, 1, 0.5, 1);
   --motion-disclosure-open-duration: 250ms;
   --motion-disclosure-close-duration: 200ms;
+  --motion-disclosure-fast-open-duration: 200ms;
+  --motion-disclosure-fast-close-duration: 150ms;
   --motion-disclosure-ease: cubic-bezier(0.25, 1, 0.5, 1);
   --motion-popup-duration: 150ms;
   --motion-popup-ease: cubic-bezier(0.19, 1, 0.22, 1);
@@ -35,6 +37,9 @@
   --tint-c: 0;
   /* Pale surfaces show chroma far more than dark ones. */
   --tint: calc(var(--tint-c) * 0.5);
+  --border-raised: var(--border);
+  --diff-surface: oklch(0.99 0 0);
+  --faint-foreground: oklch(from var(--muted-foreground) l c h / 50%);
   --border: oklch(0.86 var(--tint) var(--tint-h));
   --scrollbar-thumb: oklch(0.86 var(--tint) var(--tint-h));
   --muted: oklch(0.935 var(--tint) var(--tint-h));
@@ -79,6 +84,8 @@
 }
 
 .dark {
+  --border-raised: oklch(1 0 0 / 10%);
+  --diff-surface: oklch(0.225 0 0);
   --status-attention: oklch(0.765 0.145 63);
   --status-success: oklch(0.698 0.125 158.358);
   --pr-closed: oklch(0.655 0.201 23.018);
@@ -115,6 +122,7 @@
 }
 
 @theme inline {
+  --color-faint-foreground: var(--faint-foreground);
   --color-status-attention: var(--status-attention);
   --color-status-working: var(--status-working);
   --color-status-error: var(--status-error);

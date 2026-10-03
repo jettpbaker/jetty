@@ -60,3 +60,12 @@ export function QueuedStatusIcon(props: StatusIconProps) {
     </svg>
   )
 }
+
+// The waiting ring at the discs' size, for counts that sit beside them.
+export function SkippedStatusIcon(props: StatusIconProps) {
+  return (
+    <svg width={16} height={16} viewBox='0 0 14 14' fill='none' {...props}>
+      <circle cx='7' cy='7' r='5.75' stroke='currentColor' strokeWidth='1.5' />
+    </svg>
+  )
+}

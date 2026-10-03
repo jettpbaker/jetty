@@ -193,3 +193,84 @@ export const WalletIcon = hugeIcon(shapes.WalletIcon)
 export const WrenchIcon = hugeIcon(shapes.WrenchIcon)
 export const ZoomInAreaIcon = hugeIcon(shapes.ZoomInAreaIcon)
 export const ZoomOutAreaIcon = hugeIcon(shapes.ZoomOutAreaIcon)
+
+export const ArrowTurnBackwardIcon = hugeIcon(shapes.ArrowTurnBackwardIcon)
+
+export const CheckListIcon = hugeIcon(shapes.CheckListIcon)
+
+export const KanbanIcon = hugeIcon(shapes.KanbanIcon)
+
+export const Tag01Icon = hugeIcon(shapes.Tag01Icon)
+
+export const UserCircleIcon = hugeIcon(shapes.UserCircleIcon)
+
+export const FilterIcon = hugeIcon(shapes.FilterIcon)
+
+export const FilterHorizontalIcon = hugeIcon(shapes.FilterHorizontalIcon)
+
+export const FolderAddIcon = hugeIcon(shapes.FolderAddIcon)
+
+export const ViewOffIcon = hugeIcon(shapes.ViewOffIcon)
+
+export const ArrowLeft02Icon = hugeIcon(shapes.ArrowLeft02Icon)
+
+export const ArrowRight02Icon = hugeIcon(shapes.ArrowRight02Icon)
+
+export const TextBoldIcon = hugeIcon(shapes.TextBoldIcon)
+
+export const TextItalicIcon = hugeIcon(shapes.TextItalicIcon)
+
+export const ArrowDown02Icon = hugeIcon(shapes.ArrowDown02Icon)
+
+export const SignalFullIcon = hugeIcon(shapes.SignalFullIcon)
+
+export const SignalHighIcon = hugeIcon(shapes.SignalHighIcon)
+
+export const SignalMediumIcon = hugeIcon(shapes.SignalMediumIcon)
+
+export const SignalLowIcon = hugeIcon(shapes.SignalLowIcon)
+
+export const SignalNoIcon = hugeIcon(shapes.SignalNoIcon)
+
+export const TextStrikethroughIcon = hugeIcon(shapes.TextStrikethroughIcon)
+
+export const TextWrapIcon = hugeIcon(shapes.TextWrapIcon)
+
+export const Heading01Icon = hugeIcon(shapes.Heading01Icon)
+
+export const Heading02Icon = hugeIcon(shapes.Heading02Icon)
+
+export const Heading03Icon = hugeIcon(shapes.Heading03Icon)
+
+export const LeftToRightListNumberIcon = hugeIcon(shapes.LeftToRightListNumberIcon)
+
+export const QuoteDownIcon = hugeIcon(shapes.QuoteDownIcon)
+
+export const MinusSignIcon = hugeIcon(shapes.MinusSignIcon)
+
+export const Download04Icon = hugeIcon(shapes.Download04Icon)
+
+// A glyph as an SVG data URL for CSS masks, where a component can't render (inside Pierre's shadow
+// roots). Drawn as the components draw it: 1.125× its slot, with a 1.333px line at `size`.
+function hugeIconMask(shape: IconSvgElement, size: number) {
+  const line = (1.333333 * 21.333333) / size
+  const paths = shape
+    .map(([tag, attrs]) => {
+      const props = Object.entries(attrs)
+        .filter(([name]) => name !== 'key')
+        .map(([name, value]) => {
+          const attr = name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+          return `${attr}="${name === 'strokeWidth' ? line : value === 'currentColor' ? 'black' : value}"`
+        })
+      return `<${tag} ${props.join(' ')}/>`
+    })
+    .join('')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="1.333333 1.333333 21.333333 21.333333" fill="none">${paths}</svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
+export const hugeIconMasks = {
+  arrowUp03: hugeIconMask(shapes.ArrowUp03Icon, 12),
+  arrowDown03: hugeIconMask(shapes.ArrowDown03Icon, 12),
+  arrowUpDown: hugeIconMask(shapes.ArrowUpDownIcon, 12),
+}
