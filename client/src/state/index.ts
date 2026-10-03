@@ -9,6 +9,7 @@ export {
   useProjectFile,
   useThreadDiff,
   useThreadDiffFetch,
+  useToolsSettled,
 } from './diff'
 export {
   useDraft,

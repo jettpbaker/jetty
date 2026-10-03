@@ -1,3 +1,4 @@
+import type { ThreadItem } from '@jetty/shared/items'
 import type { DiffScope, ThreadMeta } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
@@ -7,7 +8,7 @@ import { useCallback, useContext, useEffect, useRef } from 'react'
 
 import { useChrome } from './chrome'
 import { connectionAtom } from './connection'
-import { useThread } from './threads'
+import { threadAtom, useThread } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
   const [threadId, scope] = key.split('\0') as [string, DiffScope]
@@ -19,7 +20,8 @@ const diffAtom = Atom.family((key: string) => {
 })
 
 // A refresh cancels the request before it, and the Overview and Changes refresh together
-// (opening the pane, the end of a turn), so refreshes in one task share one request.
+// (opening the pane, settled tool calls, the end of a turn), so refreshes in one task share one
+// request.
 const refreshing = new Set<string>()
 
 function refreshDiff(registry: AtomRegistry.AtomRegistry, key: string) {
@@ -31,13 +33,57 @@ function refreshDiff(registry: AtomRegistry.AtomRegistry, key: string) {
 
 const liveStatuses = new Set(['starting', 'running', 'awaiting_approval'])
 
+function finishedToolCalls(items: readonly ThreadItem[]) {
+  let count = 0
+  for (const item of items) if (item.kind === 'tool_call' && item.status !== 'running') count++
+  return count
+}
+
+// Any tool call may have changed files (agents edit through a shell as much as through edit
+// tools), so once a live thread's tool calls stop finishing for a second, its diff is due a
+// refresh. A turn's end refreshes the diff anyway, so it drops one still waiting.
+const toolsSettledAtom = Atom.family((threadId: string) =>
+  Atom.make((get) => {
+    let finished: number | undefined
+    let settled = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    get.addFinalizer(() => clearTimeout(timer))
+    get.subscribe(
+      threadAtom(threadId),
+      (state) => {
+        if (!state) return
+        const count = finishedToolCalls(state.items)
+        if (!liveStatuses.has(state.status)) clearTimeout(timer)
+        else if (finished !== undefined && count !== finished) {
+          clearTimeout(timer)
+          timer = setTimeout(() => get.setSelf(++settled), 1000)
+        }
+        finished = count
+      },
+      { immediate: true }
+    )
+    return settled
+  })
+)
+
+// Calls back each time the thread's tool calls settle, without rendering.
+export function useToolsSettled(threadId: string, onSettled: () => void) {
+  const registry = useContext(RegistryContext)
+  useEffect(() => {
+    const atom = toolsSettledAtom(threadId)
+    // Subscribing alone doesn't build an atom.
+    registry.get(atom)
+    return registry.subscribe(atom, onSettled)
+  }, [registry, threadId, onSettled])
+}
+
 // Worktree threads show everything since their base commit; local ones only uncommitted edits.
 export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
   return thread?.environment === 'worktree' ? 'branch' : 'uncommitted'
 }
 
 // Mount only while the diff is on screen: a cached diff renders at once and is
-// refreshed behind it, and every finished turn refreshes it again.
+// refreshed behind it, and settled tool calls and every finished turn refresh it again.
 export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
   const key = `${threadId}\0${scope ?? defaultDiffScope(meta)}`
@@ -47,6 +93,7 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const live = liveStatuses.has(useThread(threadId)?.status ?? 'idle')
   const cachedOnMount = useRef(!AsyncResult.isInitial(result))
   const wasLive = useRef(live)
+  useToolsSettled(threadId, refresh)
 
   useEffect(() => {
     if (cachedOnMount.current) refresh()
@@ -65,17 +112,17 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
 
 const fetchedAfterTurn = new Map<string, number>()
 
-// Loads a thread's diff into the cache without showing it, again once a later turn has ended.
+// Loads a thread's diff into the cache without showing it, again once a later turn has ended
+// or when `fresh`.
 export function useThreadDiffFetch() {
   const registry = useContext(RegistryContext)
   return useCallback(
-    (threadId: string, scope: DiffScope, turnEndedAt: number | undefined) => {
+    (threadId: string, scope: DiffScope, turnEndedAt: number | undefined, fresh = false) => {
       const key = `${threadId}\0${scope}`
       const atom = diffAtom(key)
-      if (turnEndedAt !== undefined && fetchedAfterTurn.get(key) !== turnEndedAt) {
-        fetchedAfterTurn.set(key, turnEndedAt)
-        refreshDiff(registry, key)
-      }
+      const turnEnded = turnEndedAt !== undefined && fetchedAfterTurn.get(key) !== turnEndedAt
+      if (turnEnded) fetchedAfterTurn.set(key, turnEndedAt)
+      if (turnEnded || fresh) refreshDiff(registry, key)
       return Effect.runPromise(AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }))
     },
     [registry]

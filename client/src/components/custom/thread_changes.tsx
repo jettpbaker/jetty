@@ -8,8 +8,9 @@ import {
   useDiffFileLoader,
   useThreadDiff,
   useThreadDiffFetch,
+  useToolsSettled,
 } from '@/state'
-import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 import type { FileTarget } from './file_link'
 
@@ -61,9 +62,9 @@ function PatchViewer({
   )
 }
 
-// Once the thread has painted, and again after each turn, its diff, the viewer and the first
-// files' highlighting load behind it, so opening Changes paints them at once, coloured. No
-// scope, no prefetch.
+// Once the thread has painted, again when its tool calls settle, and after each turn, its diff,
+// the viewer and the first files' highlighting load behind it, so opening Changes paints them at
+// once, coloured. No scope, no prefetch.
 export function useThreadChangesPrefetch(
   threadId: string,
   scope: DiffScope | undefined,
@@ -76,6 +77,10 @@ export function useThreadChangesPrefetch(
       () => void prefetchChanges(fetchDiff(threadId, scope, turnEndedAt)).catch(() => {})
     )
   }, [fetchDiff, threadId, scope, turnEndedAt])
+  const refetch = useCallback(() => {
+    if (scope) void prefetchChanges(fetchDiff(threadId, scope, turnEndedAt, true)).catch(() => {})
+  }, [fetchDiff, threadId, scope, turnEndedAt])
+  useToolsSettled(threadId, refetch)
 }
 
 // Each diff is parsed once, however often its thread is revisited.
