@@ -1632,6 +1632,7 @@ function TitleEditor({
 }) {
   return (
     <span
+      key={title}
       tabIndex={disabled ? -1 : 0}
       role='textbox'
       aria-label='Pull request title'
