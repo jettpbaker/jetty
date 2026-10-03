@@ -130,3 +130,4 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   refreshes fully every 30s).
 - Perf lab: exact frame counts need Chrome's 120 Hz begin-frame control, which
   is Linux-only (headless Chrome in Docker). A separate spike.
+- Design pass on toasts (sonner), in the sketchpad first.
