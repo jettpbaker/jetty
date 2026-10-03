@@ -50,49 +50,63 @@ function Thread() {
   const archiveThread = useArchiveThread()
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
   const agent = agents.find((entry) => entry.id === tab)
+  // Until the thread loads, a thread that has never started a turn is taken to be empty.
+  const empty = overlay.empty && (thread !== undefined || !meta?.turnStartedAt)
   const composer = (
     <ThreadComposer
       key={threadId}
       threadId={threadId}
       items={overlay.serverItems}
       running={overlay.running}
-      rows={overlay.empty ? 2 : 1}
-      ambient={overlay.empty}
+      rows={empty ? 2 : 1}
+      ambient={empty}
+      loading={!thread}
       provider={meta?.provider}
       projectPath={projectPath}
       projectTitle={project?.title}
     />
   )
   if (chrome && !meta) return <ThreadNotFound />
+  if (!meta && !thread && overlay.empty)
+    return (
+      <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
+        <PageSidebarTrigger standalone />
+        <p className='px-6 py-6 text-sm text-muted-foreground'>Loading…</p>
+      </section>
+    )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      {overlay.empty && <PageSidebarTrigger standalone />}
-      {overlay.empty ? (
-        thread ? (
-          <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
-        ) : (
-          <p className='px-6 py-6 text-sm text-muted-foreground'>Loading…</p>
-        )
+      {empty && <PageSidebarTrigger standalone />}
+      {empty ? (
+        <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
       ) : (
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             context={thread?.context ?? null}
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
-          <ThreadList
-            key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
-            threadId={threadId}
-            items={overlay.items}
-            status={
-              agent ? (agent.status === 'running' ? 'running' : 'idle') : (thread?.status ?? 'idle')
-            }
-            running={agent ? false : overlay.running}
-            outcomes={agent ? undefined : thread?.turnOutcomes}
-            projectPath={projectPath}
-            provider={meta?.provider}
-            agentId={agent?.id}
-            onSelectAgent={setTab}
-          />
+          {thread || !overlay.empty ? (
+            <ThreadList
+              key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
+              threadId={threadId}
+              items={overlay.items}
+              status={
+                agent
+                  ? agent.status === 'running'
+                    ? 'running'
+                    : 'idle'
+                  : (thread?.status ?? 'idle')
+              }
+              running={agent ? false : overlay.running}
+              outcomes={agent ? undefined : thread?.turnOutcomes}
+              projectPath={projectPath}
+              provider={meta?.provider}
+              agentId={agent?.id}
+              onSelectAgent={setTab}
+            />
+          ) : (
+            <div className='min-h-0 flex-1' />
+          )}
           {!agent && composer}
         </ThreadDetailsLayout>
       )}

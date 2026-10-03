@@ -55,6 +55,7 @@ export function ThreadComposer({
   running,
   rows,
   ambient = false,
+  loading = false,
   provider = 'claude',
   projectPath,
   projectTitle,
@@ -64,6 +65,8 @@ export function ThreadComposer({
   running: boolean
   rows: number
   ambient?: boolean
+  // Sending waits for the thread: it matches the prompt against the thread's earlier messages.
+  loading?: boolean
   provider?: string
   projectPath?: string
   projectTitle?: string
@@ -367,7 +370,7 @@ export function ThreadComposer({
               ? 'Queue a follow-up while the agent works'
               : 'Ask for follow-up changes',
           sendLabel: running ? (item ? 'Queue as a follow-up' : 'Queue') : 'Send',
-          sendDisabled: (!threadId && !projectId) || needsModel ? true : undefined,
+          sendDisabled: (!threadId && !projectId) || needsModel || loading ? true : undefined,
           onSubmit: () => submit(),
           onKeyDown: keyHandler((event) => {
             if (event.key !== 'Escape' || !editing) return false
