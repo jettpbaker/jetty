@@ -6,6 +6,12 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 - Design rebuilt Settings (sidebar nav, merged Models page) after our port.
   Ignoring until Jett says otherwise.
+- PR view E (sketchpad `pr_redesign/jetty_style.tsx`). Agreed for the port:
+  mark generated files on the server (`git check-attr linguist-generated`, then
+  known lock/minified/source-map/protobuf names, then a `@generated` /
+  `Code generated … DO NOT EDIT` header) so Hide generated works; read GitHub's
+  real `viewerDefaultMergeMethod` for the merge button's "last used"; and give
+  the Changes tab the same diff skin (Jetty's status green/red).
 
 ## later
 
