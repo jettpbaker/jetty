@@ -49,6 +49,10 @@
   sketchpad's version if it hasn't been ported yet; else a shadcn/ui or AI Elements
   component if one fits; else compose one from
   shadcn primitives; truly custom only when all fail, and say so in the commit.
+- Search dropdowns share one shell, `OptionPicker`'s `search-picker`: a flat
+  `rounded-sm p-0` popover, a borderless `CommandInput` row, a `Separator`, then the
+  results. Results that aren't Command items (a file tree) still sit under that input
+  row — never a bordered `Input` in a padded popover.
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue") — never hidden. They're reminders of
   what's still wanted, not clutter.
