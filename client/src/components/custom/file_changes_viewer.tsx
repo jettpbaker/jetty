@@ -53,6 +53,17 @@ export function FileChangesViewer({
   const [hydrated, setHydrated] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
+  const diffs = useMemo(() => new Set(changes.map((file) => file.diff)), [changes])
+  const currentDiffs = useRef(diffs)
+  currentDiffs.current = diffs
+  useEffect(() => {
+    function prune(previous: ReadonlyMap<FileDiffMetadata, FileDiffMetadata>) {
+      const next = new Map([...previous].filter(([diff]) => diffs.has(diff)))
+      return next.size === previous.size ? previous : next
+    }
+    setHydrated(prune)
+    setNoContext(prune)
+  }, [diffs])
   const models = useMemo(() => {
     let lines = 0
     return [...changes].sort(byTreeOrder).map((file): ChangedFile => {
@@ -88,11 +99,19 @@ export function FileChangesViewer({
             if (!patchMatchesContents(diff, contents))
               throw new Error(`Patch does not match file contents for ${diff.name}`)
             const files = loadedFiles(diff, contents)
-            setHydrated((previous) => new Map(previous).set(diff, hydratedDiff(diff, files)))
+            setHydrated((previous) =>
+              currentDiffs.current.has(diff)
+                ? new Map(previous).set(diff, hydratedDiff(diff, files))
+                : previous
+            )
             return files
           })
           .catch((error) => {
-            setNoContext((previous) => new Map(previous).set(diff, withoutContext(diff)))
+            setNoContext((previous) =>
+              currentDiffs.current.has(diff)
+                ? new Map(previous).set(diff, withoutContext(diff))
+                : previous
+            )
             throw error
           })
         requests.set(diff, request)
