@@ -4,7 +4,7 @@ export const pullRequestStateFields = `updatedAt commits(last:1) { nodes { commi
 
 export const checkRollupFields = `commits(last:1) { nodes { commit {
   oid statusCheckRollup { state contexts(first:100) {
-    pageInfo { hasNextPage }
+    totalCount pageInfo { hasNextPage }
     nodes { __typename
       ... on CheckRun { id name status conclusion detailsUrl startedAt completedAt
         checkSuite { app { name } workflowRun { workflow { name } } } }
@@ -24,6 +24,12 @@ export const pullRequestGraphqlFields = `
       ... on Bot { login avatarUrl url }
       ... on Team { slug name avatarUrl organization { login } }
     }
+  } }
+  latestReviews(first:100) { pageInfo { hasNextPage } nodes {
+    state author { __typename login avatarUrl url }
+  } }
+  latestOpinionatedReviews(first:100) { pageInfo { hasNextPage } nodes {
+    state author { __typename login avatarUrl url }
   } }
   closingIssuesReferences(first:100) { pageInfo { hasNextPage } nodes {
     number title url state stateReason repository { nameWithOwner }
@@ -64,8 +70,9 @@ export function string(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
 }
 
+// GitHub's connection nodes are nullable: a node it couldn't resolve comes back as null.
 export function nodes(value: unknown): unknown[] {
-  return (record(value).nodes as unknown[] | undefined) ?? []
+  return ((record(value).nodes as unknown[] | undefined) ?? []).filter((node) => node != null)
 }
 
 // GitHub names the review bot `Copilot` on comments and `copilot-pull-request-reviewer[bot]` on
@@ -96,12 +103,16 @@ function reviewerKind(login: string): PullRequestReviewer['kind'] {
   return login === 'Copilot' || login.endsWith('[bot]') ? 'bot' : 'user'
 }
 
-export function mapReviewers(pull: unknown, reviews: readonly unknown[]) {
+export function mapReviewers(pull: unknown) {
+  const reviews = [
+    ...nodes(record(pull).latestReviews),
+    ...nodes(record(pull).latestOpinionatedReviews),
+  ]
   const reviewers = new Map<string, PullRequestReviewer>()
   for (const value of reviews) {
     const review = record(value)
     if (review.state === 'PENDING') continue
-    const actor = githubUser(review.user)
+    const actor = githubUser(review.author)
     const state = review.state as PullRequestReviewer['latestReviewState']
     reviewers.set(actor.login.toLowerCase(), {
       ...actor,
@@ -156,6 +167,8 @@ export function mapPullRequestGraphql(value: unknown) {
   const rollup = record(commit.statusCheckRollup)
   const truncatedConnections = [
     'reviewRequests',
+    'latestReviews',
+    'latestOpinionatedReviews',
     'closingIssuesReferences',
     'reviewThreads',
   ].filter((field) => record(record(pull[field]).pageInfo).hasNextPage === true)
@@ -167,6 +180,10 @@ export function mapPullRequestGraphql(value: unknown) {
     headSha: string(commit.oid),
     checks: nodes(rollup.contexts),
     checkRollupState: string(rollup.state),
+    checkRunsTotalCount:
+      typeof record(rollup.contexts).totalCount === 'number'
+        ? (record(rollup.contexts).totalCount as number)
+        : undefined,
     truncatedConnections,
     closingIssuesReferences: nodes(pull.closingIssuesReferences).map((value) => {
       const issue = record(value)

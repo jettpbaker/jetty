@@ -9,9 +9,10 @@ checks, `pullRequestStateFields` for change detection), `pullRequestGraphqlQuery
 
 The new snapshot data is additive, so stored snapshots from older versions
 still decode. `reviewRequests` contains pending users, bots and teams;
-`reviewers` also includes people who have reviewed (from the REST reviews, last
-review per login wins). `state: AWAITING` overrides an older review when someone
-is explicitly requested again, while `latestReviewState` preserves that prior
+`reviewers` uses GraphQL `latestReviews` with `latestOpinionatedReviews` overriding
+plain comments, so a comment after an approval does not hide the approval. REST
+reviews remain the bounded activity history. `state: AWAITING` overrides an older
+review when someone is explicitly requested again, while `latestReviewState` preserves that prior
 review. Logins keep GitHub's casing and bots keep REST's `[bot]` suffix, so a
 reviewer matches across REST and GraphQL. Copilot, which GitHub names `Copilot`
 on comments and `copilot-pull-request-reviewer[bot]` on reviews and requests,
@@ -24,7 +25,13 @@ carry names as well as their existing identity fields. The existing assignable
 user search remains separate, with a five-minute cache; suggestions are not
 another search endpoint. Mergeability preserves GitHub's enum values.
 Top-level conversation comments (`issueComments`) come from the same query,
-newest 100, keeping REST's `[bot]` login suffix.
+newest 100, keeping REST's `[bot]` login suffix. Checks stop at GitHub's first
+100; past that `checkRunsTotalCount` and the rollup state carry the rest.
+
+When GitHub answers with errors on some fields, those fields keep their previous
+value: the server keeps the last raw `pullRequest` per PR and query shape and
+copies the errored fields back before mapping. An error that nulls the whole PR
+keeps the previous read; only GitHub's `NOT_FOUND` reads as not found.
 
 ## Refresh policy
 

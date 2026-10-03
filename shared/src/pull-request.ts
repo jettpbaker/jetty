@@ -62,7 +62,7 @@ export const GitHubPullRequest = Schema.Struct({
   commits: Schema.Int,
   comments: Schema.Int,
   review_comments: Schema.Int,
-  mergeable_state: Schema.Literals(['clean', 'blocked', 'dirty', 'unstable', 'unknown']),
+  mergeable_state: Schema.Literals(['clean', 'blocked', 'dirty', 'unstable', 'behind', 'unknown']),
   requested_reviewers: Schema.Array(GitHubUser),
   labels: Schema.Array(Schema.Struct({ name: Schema.String })),
 })
@@ -148,6 +148,7 @@ export const PullRequestData = Schema.Struct({
   issueComments: Schema.optional(Schema.Array(GitHubIssueComment)),
   checkRuns: Schema.Array(GitHubCheckRun),
   checkRollupState: Schema.optional(Schema.String),
+  checkRunsTotalCount: Schema.optional(Schema.Int),
   commits: Schema.Array(GitHubCommit),
   files: Schema.Array(GitHubFile),
   closingIssuesReferences: Schema.Array(

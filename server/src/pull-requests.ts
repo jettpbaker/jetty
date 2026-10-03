@@ -514,9 +514,22 @@ async function fetchGraphqlBatch(
     await ghApi('graphql', '-f', `query=${pullRequestGraphqlQuery(refs, fields)}`)
   )
   const data = record(response.data)
-  return refs.map((_, index) => {
-    const value = record(data[`p${index}`]).pullRequest
-    if (!value) return new GhFailure('not_found', 'Pull request not found or access denied')
+  const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+  return refs.map((ref, index) => {
+    const alias = `p${index}`
+    const failed = errors.filter((error) => Array.isArray(error.path) && error.path[0] === alias)
+    if (failed.some((error) => error.type === 'NOT_FOUND'))
+      return new GhFailure('not_found', 'Pull request not found or access denied')
+    const value = keepFailedFields(
+      prKey(ref),
+      fields,
+      record(data[alias]).pullRequest,
+      failed.map((error) => error.path as unknown[])
+    )
+    if (!value)
+      return failed.length
+        ? new GhFailure('unavailable', 'GitHub could not read this pull request')
+        : new GhFailure('not_found', 'Pull request not found or access denied')
     const graph = mapPullRequestGraphql(value)
     const comparison = record(record(graph.pull.baseRef).compare)
     const behindBy = comparison.behindBy
@@ -528,6 +541,41 @@ async function fetchGraphqlBatch(
           : null,
     }
   })
+}
+
+// The last raw `pullRequest` read per PR and query shape. When GitHub answers with errors on some
+// fields, those fields keep their previous value instead of reading as empty; when an error nulls
+// the whole PR, the previous read stands in for it.
+const lastPulls = new Map<string, Record<string, unknown>>()
+
+function keepFailedFields(
+  key: string,
+  fields: string,
+  value: unknown,
+  paths: readonly unknown[][]
+) {
+  const previous = lastPulls.get(`${key}\0${fields}`)
+  const pull = value ? { ...record(value) } : paths.length ? previous : undefined
+  if (!pull) return undefined
+  if (value && previous)
+    for (const path of paths) {
+      const field = path[2]
+      // Checks read for an older head would pass for the new one, so they only carry over unmoved.
+      if (field === 'commits' && 'headRefOid' in pull && headOid(previous) !== pull.headRefOid)
+        continue
+      if (typeof field === 'string' && field in previous) pull[field] = previous[field]
+    }
+  if (paths.length)
+    console.warn(
+      `[pr-fetch] ${key} kept previous ${paths.map((path) => path.slice(2).join('.')).join(', ')}`
+    )
+  if (lastPulls.size >= 500 && !previous) lastPulls.clear()
+  lastPulls.set(`${key}\0${fields}`, pull)
+  return pull
+}
+
+function headOid(pull: Record<string, unknown>) {
+  return record(record(nodes(pull.commits)[0]).commit).oid
 }
 
 async function ghPages(path: string): Promise<unknown[]> {
@@ -624,10 +672,10 @@ async function fetchPullRequest(ref: PullRequestRef, first: Graph): Promise<Pull
   const permissions = record(repository.permissions)
   const state = enumValue(
     pull.mergeable_state,
-    ['clean', 'blocked', 'dirty', 'unstable'],
+    ['clean', 'blocked', 'dirty', 'unstable', 'behind'],
     'unknown'
   )
-  const reviewers = mapReviewers(graph.pull, reviews)
+  const reviewers = mapReviewers(graph.pull)
   const { requestedUsers, requestedTeams } = requestedReviewers(reviewers.reviewRequests)
   const fixture = {
     pull: {
@@ -666,6 +714,7 @@ async function fetchPullRequest(ref: PullRequestRef, first: Graph): Promise<Pull
     issueComments: graph.issueComments,
     checkRuns: mapCheckRuns(graph.checks),
     checkRollupState: graph.checkRollupState,
+    checkRunsTotalCount: graph.checkRunsTotalCount,
     commits: commits.map((value) => {
       const item = record(value)
       const commit = record(item.commit)
@@ -1155,6 +1204,11 @@ export function createPullRequests(store: Store, hub: Hub) {
         ...snapshot.data,
         checkRuns: mapCheckRuns(graph.checks),
         checkRollupState: graph.checkRollupState,
+        checkRunsTotalCount: graph.checkRunsTotalCount,
+        truncatedConnections: [
+          ...(snapshot.data.truncatedConnections ?? []).filter((field) => field !== 'checkRuns'),
+          ...graph.truncatedConnections.filter((field) => field === 'checkRuns'),
+        ],
       }
       yield* publish(ref, { ...snapshot, data }, fetchedRevision)
     })
