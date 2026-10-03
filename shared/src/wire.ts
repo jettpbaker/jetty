@@ -157,6 +157,23 @@ export const PullRequestListItem = Schema.Struct({
   url: Schema.String,
   state: Schema.Literals(['draft', 'open', 'merged', 'closed']),
   checks: Schema.optional(Schema.Literals(['pending', 'success', 'failure'])),
+  author: Schema.optional(
+    Schema.Struct({
+      login: Schema.String,
+      avatar_url: Schema.String,
+      name: Schema.optional(Schema.String),
+    })
+  ),
+  additions: Schema.optional(Schema.Int),
+  deletions: Schema.optional(Schema.Int),
+  labels: Schema.optional(
+    Schema.Array(Schema.Struct({ name: Schema.String, color: Schema.String }))
+  ),
+  reviewDecision: Schema.optional(
+    Schema.NullOr(Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']))
+  ),
+  mergeable: Schema.optional(Schema.Literals(['MERGEABLE', 'CONFLICTING', 'UNKNOWN'])),
+  mergeStateStatus: Schema.optional(Schema.String),
   updatedAt: Schema.Int,
 })
 export type PullRequestListItem = Schema.Schema.Type<typeof PullRequestListItem>

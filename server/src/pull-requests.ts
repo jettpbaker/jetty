@@ -2224,6 +2224,7 @@ function listItem(value: unknown): PullRequestListItem | null {
       .statusCheckRollup
   )
   const checks = checkStates[string(rollup.state)]
+  const { login, avatar_url, name } = user(node.author)
   return {
     repo,
     number,
@@ -2237,6 +2238,16 @@ function listItem(value: unknown): PullRequestListItem | null {
           ? 'draft'
           : 'open',
     ...(checks ? { checks } : {}),
+    author: { login, avatar_url, ...(name ? { name } : {}) },
+    additions: Number(node.additions) || 0,
+    deletions: Number(node.deletions) || 0,
+    labels: nodes(node.labels).map((value) => {
+      const label = record(value)
+      return { name: string(label.name), color: string(label.color) }
+    }),
+    reviewDecision: (node.reviewDecision ?? null) as PullRequestListItem['reviewDecision'],
+    mergeable: node.mergeable as PullRequestListItem['mergeable'],
+    mergeStateStatus: string(node.mergeStateStatus),
     updatedAt: Date.parse(string(node.updatedAt)) || 0,
   }
 }
@@ -2245,6 +2256,9 @@ export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[])
   const searches = tabs.flatMap(listSearches)
   const fields = `issueCount nodes { ... on PullRequest {
     number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
+    author { ${actorFields} }
+    additions deletions labels(first:100) { nodes { name color } }
+    reviewDecision mergeable mergeStateStatus
     commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
   } }`
   return {

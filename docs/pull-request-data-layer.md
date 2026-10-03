@@ -117,6 +117,13 @@ Additional connection/file pages add requests. Checks-only changes cost detectio
 plus a checks query. Diff content remains lazy behind the existing `diffFile`
 RPC; changing the new view's hydration policy belongs to its client port.
 
+PR list refreshes still cost one GraphQL request: the two searches for a tab
+share one query, and concurrent tab refreshes share that request too. The search
+nodes now include creator names/avatars, diff totals, up to 100 labels, review
+decision, and mergeability alongside the check rollup. There are no per-PR or
+per-author reads. New wire fields are optional so cached lists still decode.
+Live verification reported 4 GraphQL points for one tab and 8 for both together.
+
 ## Operations
 
 All writes use the existing semaphore, pending-operation publication, revision
