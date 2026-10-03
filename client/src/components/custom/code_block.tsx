@@ -31,6 +31,16 @@ type CodeProps = {
 
 // Streamdown sets these and then shiki's colours, which are invalid there and never apply.
 const preStyle = { '--sdm-bg': 'transparent', '--sdm-fg': 'inherit' } as CSSProperties
+// Streamdown skips an off-screen block (content-visibility: auto) as a 200 px guess, so the thread
+// list measured it short and it grew on screen. Here only the body of a block sure to reach its cap
+// (every line is at least 20 px) is skipped, as a placeholder exactly the cap's height.
+const containerStyle = { contentVisibility: 'visible', contain: 'content' } as const
+
+function bodyStyle(maxHeight: number | string, lines: number): CSSProperties | undefined {
+  if (!maxHeight) return undefined
+  if (typeof maxHeight === 'string' || lines * 20 < maxHeight) return { maxHeight }
+  return { maxHeight, contentVisibility: 'auto', containIntrinsicHeight: `${maxHeight}px` }
+}
 
 // Streamdown's code block, starting from the cached highlight so a revisit renders once.
 function useHighlightedHtml(code: string, language: string, numbered: boolean) {
@@ -120,7 +130,12 @@ function CodeBlock({
   const body = useFollowEnd(isAnimating, capped, html)
   const [lines, mounted] = usePatchedLines(html)
   return (
-    <CodeBlockContainer dir='ltr' isIncomplete={incomplete} language={language}>
+    <CodeBlockContainer
+      dir='ltr'
+      isIncomplete={incomplete}
+      language={language}
+      style={containerStyle}
+    >
       <CodeBlockHeader language={language} />
       <div className='pointer-events-none sticky top-2 z-10 -mt-10 flex h-8 items-center justify-end'>
         <div
@@ -140,7 +155,7 @@ function CodeBlock({
         )}
         data-language={language}
         data-streamdown='code-block-body'
-        style={capped ? { maxHeight: codeBlockMaxHeight } : undefined}
+        style={bodyStyle(codeBlockMaxHeight, html.length)}
         {...rest}
       >
         <pre
