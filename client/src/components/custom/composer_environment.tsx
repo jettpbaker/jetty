@@ -1,5 +1,5 @@
 import { LaptopIcon } from '@/components/custom/huge_icons'
-import { GitBranchIcon } from '@/components/custom/lucide_icons'
+import { FolderGit2Icon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -22,7 +22,7 @@ export function ComposerEnvironment({
   onValueChange: (value: Environment) => void
   worktreeDisabled?: string
 }) {
-  const Icon = value === 'local' ? LaptopIcon : GitBranchIcon
+  const Icon = value === 'local' ? LaptopIcon : FolderGit2Icon
   const label = value === 'local' ? 'Local' : 'Worktree'
 
   return (
@@ -43,7 +43,7 @@ export function ComposerEnvironment({
         >
           <DisabledTooltip reason={worktreeDisabled} side='right'>
             <DropdownMenuRadioItem value='worktree' disabled={worktreeDisabled !== undefined}>
-              <GitBranchIcon className='text-muted-foreground' />
+              <FolderGit2Icon className='text-muted-foreground' />
               Worktree
             </DropdownMenuRadioItem>
           </DisabledTooltip>
