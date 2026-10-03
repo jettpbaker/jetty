@@ -6,9 +6,9 @@ import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
-import { usePullRequestList, useRefreshPullRequestList } from '@/state'
-import { useNavigate } from '@tanstack/react-router'
-import { useState, type ReactNode } from 'react'
+import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList } from '@/state'
+import { Link } from '@tanstack/react-router'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { ListFilterMenu } from './grouped_list_controls'
 import {
@@ -74,21 +74,38 @@ const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNo
   closed: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3.5 text-pr-merged' /> },
 }
 
+const openedRows: Partial<Record<PullRequestListTab, string>> = {}
+
 export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const { list, refreshing } = usePullRequestList(tab)
   const refresh = useRefreshPullRequestList()
-  const navigate = useNavigate()
+  const prefetch = usePrefetchPullRequest()
+  const hover = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [opened, setOpened] = useState(() => ({ ...openedRows }))
   const now = useNow(60_000)
   const pulls = list?.items ?? []
   const failure = list && list.status !== 'ready' && list.status !== 'loading'
   function onSelect(pull: PullRequestListItem) {
-    const [owner = '', repo = ''] = pull.repo.split('/')
     perf.start('pr.open', { pr: pull.number })
-    void navigate({
-      to: '/pull-requests/$owner/$repo/$number',
-      params: { owner, repo, number: String(pull.number) },
-    })
+    openedRows[tab] = pull.url
+    setOpened({ ...openedRows })
   }
+  function onRowHover(pull: PullRequestListItem | null) {
+    if (hover.current !== null) clearTimeout(hover.current)
+    hover.current = pull
+      ? setTimeout(() => {
+          hover.current = null
+          prefetch(pull)
+        }, 50)
+      : null
+  }
+  useEffect(
+    () => () => {
+      if (hover.current !== null) clearTimeout(hover.current)
+      hover.current = null
+    },
+    [tab, prefetch]
+  )
   const [included, setIncluded] = useState(pullRequestGroupOrder)
   const rows = pulls
     .filter((pull) => included.includes(pullRequestGroup(pull)))
@@ -291,6 +308,17 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               `${pullRequestIdentifier(pull)}, ${pull.title}, by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}, ${pullRequestReason(pull)}`
             }
             onSelect={onSelect}
+            onRowHover={onRowHover}
+            selectedKey={opened[tab]}
+            renderRow={(pull) => {
+              const [owner = '', repo = ''] = pull.repo.split('/')
+              return (
+                <Link
+                  to='/pull-requests/$owner/$repo/$number'
+                  params={{ owner, repo, number: String(pull.number) }}
+                />
+              )
+            }}
             empty={pulls.length ? 'No pull requests match these filters.' : 'No pull requests'}
           />
           {list.truncated && (

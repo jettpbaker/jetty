@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { useRender } from '@base-ui/react/use-render'
 import {
   useId,
   useLayoutEffect,
@@ -7,6 +8,8 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
+  type ReactElement,
+  type ComponentProps,
 } from 'react'
 
 import { ArrowRight01Icon } from './huge_icons'
@@ -42,6 +45,8 @@ type GroupedTableProps<T> = {
   rowLabel: (row: T) => string
   selectedKey?: string | number
   onSelect?: (row: T) => void
+  onRowHover?: (row: T | null) => void
+  renderRow?: (row: T) => ReactElement
   empty?: string
 }
 
@@ -54,6 +59,8 @@ export function GroupedTable<T>({
   rowLabel,
   selectedKey,
   onSelect,
+  onRowHover,
+  renderRow,
   empty = 'No results.',
 }: GroupedTableProps<T>) {
   const root = useRef<HTMLDivElement>(null)
@@ -98,9 +105,9 @@ export function GroupedTable<T>({
     const step = { ArrowDown: 1, ArrowUp: -1, j: 1, k: -1 }[event.key]
     if (step === undefined && event.key !== 'Home' && event.key !== 'End') return
     const targets = Array.from(
-      root.current.querySelectorAll<HTMLButtonElement>('[data-table-focus]')
+      root.current.querySelectorAll<HTMLElement>('[data-table-focus]')
     ).filter((target) => !target.closest('[hidden]'))
-    const index = targets.indexOf(document.activeElement as HTMLButtonElement)
+    const index = targets.indexOf(document.activeElement as HTMLElement)
     const next =
       event.key === 'Home'
         ? 0
@@ -115,12 +122,13 @@ export function GroupedTable<T>({
   }
 
   return (
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard navigation delegates to the table's native buttons
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard navigation delegates to the table's native controls
     <div
       ref={root}
       className='grouped-table scrollbar-subtle'
       aria-label={label}
       onKeyDown={moveFocus}
+      onScroll={() => onRowHover?.(null)}
     >
       <div className='grouped-table-columns' data-wide={wide} aria-hidden={!wide}>
         <div className='grouped-table-grid' style={gridStyle}>
@@ -189,8 +197,8 @@ export function GroupedTable<T>({
               {group.rows.map((row) => (
                 // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup
                 <div role='listitem' key={rowKey(row)}>
-                  <button
-                    type='button'
+                  <GroupedTableRow
+                    render={renderRow?.(row)}
                     data-table-focus
                     className='grouped-table-grid grouped-table-row'
                     style={gridStyle}
@@ -198,6 +206,8 @@ export function GroupedTable<T>({
                     aria-current={rowKey(row) === selectedKey || undefined}
                     aria-label={rowLabel(row)}
                     onClick={() => onSelect?.(row)}
+                    onPointerEnter={() => onRowHover?.(row)}
+                    onPointerLeave={() => onRowHover?.(null)}
                   >
                     {columns.map((column) => (
                       <span
@@ -210,7 +220,7 @@ export function GroupedTable<T>({
                         {column.render(row, { collapsed })}
                       </span>
                     ))}
-                  </button>
+                  </GroupedTableRow>
                 </div>
               ))}
             </div>
@@ -222,6 +232,17 @@ export function GroupedTable<T>({
       )}
     </div>
   )
+}
+
+function GroupedTableRow({
+  render,
+  ...props
+}: { render?: ReactElement } & ComponentProps<'button'>) {
+  return useRender({
+    defaultTagName: 'button',
+    render,
+    props: { ...props, type: render ? undefined : 'button' },
+  })
 }
 
 export function GroupedTableTitle({
