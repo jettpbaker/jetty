@@ -50,8 +50,10 @@ function Thread() {
   const archiveThread = useArchiveThread()
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
   const agent = agents.find((entry) => entry.id === tab)
-  // Until the thread loads, a thread that has never started a turn is taken to be empty.
-  const empty = overlay.empty && (thread !== undefined || !meta?.turnStartedAt)
+  // Until the thread loads, a thread that has never started a turn is taken to be empty. Threads
+  // from before turn times were recorded only have their provider to show for it.
+  const started = meta?.turnStartedAt !== undefined || meta?.provider !== undefined
+  const empty = overlay.empty && (thread !== undefined || !started)
   const composer = (
     <ThreadComposer
       key={threadId}
