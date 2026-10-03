@@ -31,6 +31,7 @@ import {
 import { createPortal } from 'react-dom'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
+import { DiffLoading } from './diff_loading'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { LivePullRequestView } from './pull_request_view'
@@ -70,6 +71,20 @@ export function ThreadDetailsLayout({
   }, [])
   const [chatSlot, setChatSlot] = useState<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
+  // The pane paints at the click and its heavy tabs mount a frame later, so a slow diff never holds it back.
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const frame = requestAnimationFrame(() => {
+      timer = setTimeout(() => setReady(true))
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timer)
+      setReady(false)
+    }
+  }, [open])
   const [available, setAvailable] = useState(0)
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
@@ -331,14 +346,17 @@ export function ThreadDetailsLayout({
               aria-hidden={tab !== 'changes'}
               className='details-tab-panel'
             >
-              {open && (
-                <ThreadChanges
-                  key={threadId}
-                  threadId={threadId}
-                  target={requestedFile}
-                  onTarget={settleFile}
-                />
-              )}
+              {open &&
+                (ready ? (
+                  <ThreadChanges
+                    key={threadId}
+                    threadId={threadId}
+                    target={requestedFile}
+                    onTarget={settleFile}
+                  />
+                ) : (
+                  <DiffLoading />
+                ))}
             </TabsContent>
             <TabsContent
               keepMounted
@@ -362,7 +380,7 @@ export function ThreadDetailsLayout({
                   aria-hidden={tab !== id}
                   className='details-tab-panel'
                 >
-                  {open && (
+                  {open && ready && (
                     <Activity mode={tab === id ? 'visible' : 'hidden'}>
                       <LivePullRequestView threadId={threadId} link={link} />
                     </Activity>
@@ -378,9 +396,12 @@ export function ThreadDetailsLayout({
                 aria-hidden={tab !== 'file'}
                 className='details-tab-panel'
               >
-                {open && (
-                  <ThreadFile key={viewedFile.path} threadId={threadId} target={viewedFile} />
-                )}
+                {open &&
+                  (ready ? (
+                    <ThreadFile key={viewedFile.path} threadId={threadId} target={viewedFile} />
+                  ) : (
+                    <DiffLoading label='Loading file' />
+                  ))}
               </TabsContent>
             )}
           </div>
@@ -393,6 +414,7 @@ export function ThreadDetailsLayout({
       narrow,
       expanded,
       open,
+      ready,
       threadId,
       childThreads,
       pullRequests,

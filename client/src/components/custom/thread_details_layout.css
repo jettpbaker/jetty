@@ -5,22 +5,12 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  transition: grid-template-columns var(--motion-sidebar-open-duration) var(--motion-sidebar-ease);
-}
-.thread-details-layout[data-details-open='false'] {
-  transition-duration: var(--motion-sidebar-close-duration);
 }
 .thread-details-layout[data-resizing] {
-  transition: none;
   user-select: none;
 }
 .thread-details-layout[data-resizing] * {
   cursor: col-resize !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .thread-details-layout {
-    transition: none;
-  }
 }
 
 .thread-details-resize {
@@ -39,30 +29,13 @@
 
 .thread-details-layout .details-pane {
   border-left: 1px solid transparent;
-  transition: border-color 0s;
 }
 .thread-details-layout[data-details-open='true']:not([data-details-full]) .details-pane {
   border-left-color: var(--border);
-  transition-delay: 50ms;
-}
-@media (prefers-reduced-motion: reduce) {
-  .thread-details-layout[data-details-open='true']:not([data-details-full]) .details-pane {
-    transition-delay: 0s;
-  }
 }
 
-/* Eases in step with the pane so the header's trailing controls never pass under the toggle. */
-.thread-details-layout:not([data-details-full]) .thread-conversation-header {
-  transition: padding-right var(--motion-sidebar-close-duration) var(--motion-sidebar-ease);
-}
 .thread-details-layout[data-details-open='true'] .thread-conversation-header {
   padding-right: 8px;
-  transition-duration: var(--motion-sidebar-open-duration);
-}
-@media (prefers-reduced-motion: reduce) {
-  .thread-details-layout .thread-conversation-header {
-    transition: none;
-  }
 }
 
 .details-tab-track {
