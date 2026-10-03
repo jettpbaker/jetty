@@ -2257,7 +2257,7 @@ export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[])
   const fields = `issueCount nodes { ... on PullRequest {
     number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
     author { ${actorFields} }
-    additions deletions labels(first:100) { nodes { name color } }
+    additions deletions labels(first:10) { nodes { name color } }
     reviewDecision mergeable mergeStateStatus
     commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
   } }`
@@ -2407,22 +2407,35 @@ export function createPullRequestLists(store: Store, hub: Hub) {
       const refs = (list.items ?? []).filter(itemChecksRunning)
       yield* Effect.gen(function* () {
         const graphs = yield* Effect.tryPromise({
-          try: () => fetchGraphqlBatch(refs, pullRequestStateFields),
+          try: () =>
+            fetchGraphqlBatch(
+              refs,
+              `${pullRequestStateFields} reviewDecision mergeable mergeStateStatus`
+            ),
           catch: (error) => new StoreError('internal', String(error)),
         })
-        const checks = new Map<string, PullRequestListItem['checks']>()
+        const states = new Map<
+          string,
+          Pick<PullRequestListItem, 'checks' | 'reviewDecision' | 'mergeable' | 'mergeStateStatus'>
+        >()
         for (const [index, ref] of refs.entries()) {
           const graph = graphs[index]!
           if (!(graph instanceof GhFailure))
-            checks.set(prKey(ref), checkStates[graph.checkRollupState])
+            states.set(prKey(ref), {
+              checks: checkStates[graph.checkRollupState],
+              reviewDecision: (graph.reviewDecision ??
+                null) as PullRequestListItem['reviewDecision'],
+              mergeable: graph.pull.mergeable as PullRequestListItem['mergeable'],
+              mergeStateStatus: string(graph.pull.mergeStateStatus),
+            })
         }
         const current = yield* store.getPullRequestList(tab)
         const updated = decorate(
           {
             ...current,
             items: current.items?.map((item) => {
-              const state = checks.get(prKey(item))
-              return state ? { ...item, checks: state } : item
+              const state = states.get(prKey(item))
+              return state ? { ...item, ...state } : item
             }),
           },
           activity
