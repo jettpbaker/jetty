@@ -28,6 +28,24 @@ Top-level conversation comments (`issueComments`) come from the same query,
 newest 100, keeping REST's `[bot]` login suffix. Checks stop at GitHub's first
 100; past that `checkRunsTotalCount` and the rollup state carry the rest.
 
+The optional `references` array resolves description mentions (`#123` and
+`owner/repo#123`) as issues or PRs, with repository, number, kind, state, title
+and URL. Fenced and inline code, duplicates and the PR itself are excluded;
+each description is capped at 30 references. Issues use the closing-issue state
+fold; PRs use `open`, `draft`, `merged` or `closed`. Unresolvable items are omitted.
+Normal refreshes add aliases from the cached body's reference list to the existing
+GraphQL query. First loads and edits fetch newly mentioned targets in one small
+follow-up before publishing, including the immediate refresh after any write.
+Null targets count as attempted, so they do not trigger repeated follow-ups.
+Reference aliases are separate from PR aliases, keeping their NOT_FOUND and field
+errors out of PR error handling. There is currently no description write operation.
+
+Reference reads have no connections, so they add no primary rate-limit cost to
+the existing query; the reference-only follow-up costs the one-point minimum.
+GitHub's [point calculation](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#predicting-the-point-value-of-a-query)
+counts connection requests, divides by 100 and rounds, with a minimum of one.
+The existing `[pr-rate]` log still records the returned `rateLimit.cost`.
+
 When GitHub answers with errors on some fields, those fields keep their previous
 value: the server keeps the last raw `pullRequest` per PR and query shape and
 copies the errored fields back before mapping. An error that nulls the whole PR

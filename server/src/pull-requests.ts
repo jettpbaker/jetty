@@ -26,6 +26,7 @@ import { PullRequestData } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { Hub } from './hub'
+import type { PullRequestReference } from './pull-request-graphql'
 import type { Store } from './store'
 
 import {
@@ -33,13 +34,17 @@ import {
   checkRollupFields,
   copilotWriteLogin,
   githubUser as user,
+  findPullRequestReferences,
   mapPullRequestGraphql,
+  mapPullRequestReferences,
   mapReviewers,
   pullRequestGraphqlFields,
   pullRequestGraphqlQuery,
+  pullRequestReferenceFields,
   pullRequestStateFields,
   nodes,
   record,
+  referenceKey,
   string,
 } from './pull-request-graphql'
 import { StoreError } from './store'
@@ -507,7 +512,10 @@ export async function pullRequestDiffFile(params: {
 type Graph = Exclude<Awaited<ReturnType<typeof fetchGraphqlBatch>>[number], GhFailure>
 
 async function fetchGraphqlBatch(
-  refs: readonly (PullRequestRef & { headSha?: string })[],
+  refs: readonly (PullRequestRef & {
+    headSha?: string
+    references?: readonly PullRequestReference[]
+  })[],
   fields = pullRequestGraphqlFields
 ) {
   const response = record(
@@ -535,6 +543,8 @@ async function fetchGraphqlBatch(
     const behindBy = comparison.behindBy
     return {
       ...graph,
+      referenceTargets: ref.references ?? [],
+      references: mapPullRequestReferences(data, ref.references ?? [], index),
       behindBy:
         record(comparison.headTarget).oid === graph.pull.headRefOid && typeof behindBy === 'number'
           ? behindBy
@@ -658,7 +668,11 @@ async function fetchPullRequest(ref: PullRequestRef, first: Graph): Promise<Pull
   const retried =
     first.pull.headRefOid === headSha
       ? first
-      : (await fetchGraphqlBatch([{ ...ref, headSha }]).catch(() => []))[0]
+      : (
+          await fetchGraphqlBatch([{ ...ref, headSha, references: first.referenceTargets }]).catch(
+            () => []
+          )
+        )[0]
   const graph = retried && !(retried instanceof GhFailure) ? retried : first
   const headMoved = graph.pull.headRefOid !== headSha
   const [reviews, reviewComments, commits, files, repo] = await Promise.all([
@@ -677,6 +691,28 @@ async function fetchPullRequest(ref: PullRequestRef, first: Graph): Promise<Pull
   )
   const reviewers = mapReviewers(graph.pull)
   const { requestedUsers, requestedTeams } = requestedReviewers(reviewers.reviewRequests)
+  const targets = findPullRequestReferences(string(pull.body), ref)
+  const queried = new Set(graph.referenceTargets.map(referenceKey))
+  const missing = targets.filter((target) => !queried.has(referenceKey(target)))
+  let references = graph.references
+  if (missing.length) {
+    try {
+      const response = record(
+        await ghApi(
+          'graphql',
+          '-f',
+          `query=query {
+        rateLimit { cost remaining resetAt }
+        ${pullRequestReferenceFields(missing, 0)}
+      }`
+        )
+      )
+      references = [...references, ...mapPullRequestReferences(response.data, missing, 0)]
+    } catch (error) {
+      console.warn(`[pr-fetch] ${prKey(ref)} could not resolve references: ${String(error)}`)
+    }
+  }
+  const wanted = new Set(targets.map(referenceKey))
   const fixture = {
     pull: {
       ...pull,
@@ -733,6 +769,7 @@ async function fetchPullRequest(ref: PullRequestRef, first: Graph): Promise<Pull
       }
     }),
     closingIssuesReferences: graph.closingIssuesReferences,
+    references: references.filter((reference) => wanted.has(referenceKey(reference))),
     suggestedReviewers: graph.suggestedReviewers,
     ...reviewers,
     mergeable: graph.pull.mergeable,
@@ -933,7 +970,11 @@ export function createPullRequests(store: Store, hub: Hub) {
     const refs = await Promise.all(
       batch.map(async (job) => {
         const cached = await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))
-        return { ...job.ref, headSha: cached.data?.pull.head.sha }
+        return {
+          ...job.ref,
+          headSha: cached.data?.pull.head.sha,
+          references: findPullRequestReferences(cached.data?.pull.body ?? '', job.ref),
+        }
       })
     )
     let graphs: (Graph | GhFailure)[]

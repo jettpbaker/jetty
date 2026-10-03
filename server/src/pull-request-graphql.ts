@@ -1,4 +1,109 @@
-import type { PullRequestReviewer, ReviewerCandidate } from '@jetty/shared/pull-request'
+import type {
+  PullRequestData,
+  PullRequestReviewer,
+  ReviewerCandidate,
+} from '@jetty/shared/pull-request'
+
+export type PullRequestReference = { repo: string; number: number }
+
+export function referenceKey(ref: PullRequestReference) {
+  return `${ref.repo.toLowerCase()}#${ref.number}`
+}
+
+export function findPullRequestReferences(body: string, pull: PullRequestReference) {
+  let fence = ''
+  const prose: string[] = []
+  for (const line of body.split('\n')) {
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line)
+    if (fence) {
+      if (
+        marker &&
+        marker[1]![0] === fence[0] &&
+        marker[1]!.length >= fence.length &&
+        !marker[2]!.trim()
+      )
+        fence = ''
+      prose.push('')
+    } else if (marker && !(marker[1]![0] === '`' && marker[2]!.includes('`'))) {
+      fence = marker[1]!
+      prose.push('')
+    } else prose.push(line)
+  }
+  const text = prose.join('\n').replace(/(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)/g, ' ')
+  const references = new Map<string, PullRequestReference>()
+  // #123, owner/repo#123, and full GitHub issue or PR links, which the view shows as the same chips.
+  const shorthand = text.matchAll(/(?<![\w/#&])(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/g)
+  const links = text.matchAll(
+    /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:issues|pull)\/(\d+)\b/g
+  )
+  for (const match of [...shorthand, ...links]) {
+    const ref = { repo: match[1] ?? pull.repo, number: Number(match[2]) }
+    if (
+      !Number.isSafeInteger(ref.number) ||
+      ref.number <= 0 ||
+      referenceKey(ref) === referenceKey(pull)
+    )
+      continue
+    references.set(referenceKey(ref), ref)
+    if (references.size === 30) break
+  }
+  return [...references.values()]
+}
+
+export function pullRequestReferenceFields(refs: readonly PullRequestReference[], index: number) {
+  return refs
+    .map((ref, referenceIndex) => {
+      const [owner, name] = ref.repo.split('/')
+      return `r${index}_${referenceIndex}: repository(owner:${JSON.stringify(owner)},name:${JSON.stringify(name)}) {
+      issueOrPullRequest(number:${ref.number}) { __typename
+        ... on Issue { number title url state stateReason }
+        ... on PullRequest { number title url state isDraft merged }
+      }
+    }`
+    })
+    .join('\n')
+}
+
+function issueState(issue: Record<string, unknown>): 'open' | 'completed' | 'not_planned' {
+  return issue.state === 'OPEN' || issue.stateReason === 'REOPENED'
+    ? 'open'
+    : issue.stateReason === 'NOT_PLANNED' || issue.stateReason === 'DUPLICATE'
+      ? 'not_planned'
+      : 'completed'
+}
+
+export function mapPullRequestReferences(
+  data: unknown,
+  refs: readonly PullRequestReference[],
+  index: number
+) {
+  const references: NonNullable<PullRequestData['references']>[number][] = []
+  for (const [referenceIndex, ref] of refs.entries()) {
+    const item = record(record(record(data)[`r${index}_${referenceIndex}`]).issueOrPullRequest)
+    const fields = {
+      ...ref,
+      number: Number(item.number),
+      title: string(item.title),
+      url: string(item.url),
+    }
+    if (item.__typename === 'Issue')
+      references.push({ ...fields, kind: 'issue', state: issueState(item) })
+    else if (item.__typename === 'PullRequest')
+      references.push({
+        ...fields,
+        kind: 'pull',
+        state:
+          item.merged === true || item.state === 'MERGED'
+            ? 'merged'
+            : item.state === 'CLOSED'
+              ? 'closed'
+              : item.isDraft === true
+                ? 'draft'
+                : 'open',
+      })
+  }
+  return references
+}
 
 export const pullRequestStateFields = `updatedAt commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
 
@@ -42,7 +147,12 @@ export const pullRequestGraphqlFields = `
 `
 
 export function pullRequestGraphqlQuery(
-  refs: readonly { repo: string; number: number; headSha?: string }[],
+  refs: readonly {
+    repo: string
+    number: number
+    headSha?: string
+    references?: readonly PullRequestReference[]
+  }[],
   fields = pullRequestGraphqlFields
 ) {
   return `query { rateLimit { cost remaining resetAt }
@@ -54,7 +164,8 @@ export function pullRequestGraphqlQuery(
           : ''
         return `p${index}: repository(owner:${JSON.stringify(owner)},name:${JSON.stringify(name)}) {
         pullRequest(number:${ref.number}) { ${fields} ${comparison} }
-      }`
+      }
+      ${pullRequestReferenceFields(ref.references ?? [], index)}`
       })
       .join('\n')}
   }`
@@ -192,12 +303,7 @@ export function mapPullRequestGraphql(value: unknown) {
         title: string(issue.title),
         url: string(issue.url),
         repository: { nameWithOwner: string(record(issue.repository).nameWithOwner) },
-        state:
-          issue.state === 'OPEN'
-            ? 'open'
-            : issue.stateReason === 'NOT_PLANNED' || issue.stateReason === 'DUPLICATE'
-              ? 'not_planned'
-              : 'completed',
+        state: issueState(issue),
       }
     }),
     issueComments: nodes(pull.comments).map((value) => {

@@ -151,6 +151,28 @@ export const PullRequestData = Schema.Struct({
   checkRunsTotalCount: Schema.optional(Schema.Int),
   commits: Schema.Array(GitHubCommit),
   files: Schema.Array(GitHubFile),
+  references: Schema.optional(
+    Schema.Array(
+      Schema.Union([
+        Schema.Struct({
+          repo: Schema.String,
+          number: Schema.Int,
+          kind: Schema.Literal('issue'),
+          state: Schema.Literals(['open', 'completed', 'not_planned']),
+          title: Schema.String,
+          url: Schema.String,
+        }),
+        Schema.Struct({
+          repo: Schema.String,
+          number: Schema.Int,
+          kind: Schema.Literal('pull'),
+          state: Schema.Literals(['open', 'draft', 'merged', 'closed']),
+          title: Schema.String,
+          url: Schema.String,
+        }),
+      ])
+    )
+  ),
   closingIssuesReferences: Schema.Array(
     Schema.Struct({
       number: Schema.Int,
