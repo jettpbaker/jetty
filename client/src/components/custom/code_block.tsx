@@ -33,12 +33,17 @@ type CodeProps = {
 const preStyle = { '--sdm-bg': 'transparent', '--sdm-fg': 'inherit' } as CSSProperties
 // Streamdown skips an off-screen block (content-visibility: auto) as a 200 px guess, so the thread
 // list measured it short and it grew on screen. Here only the body of a block sure to reach its cap
-// (every line is at least 20 px) is skipped, as a placeholder exactly the cap's height.
+// (every line is at least 20 px) is skipped, as a placeholder exactly the cap's height. Never while
+// streaming: skipping resets the body's scroll, which stops it following the end.
 const containerStyle = { contentVisibility: 'visible', contain: 'content' } as const
 
-function bodyStyle(maxHeight: number | string, lines: number): CSSProperties | undefined {
+function bodyStyle(
+  maxHeight: number | string,
+  lines: number,
+  streaming: boolean
+): CSSProperties | undefined {
   if (!maxHeight) return undefined
-  if (typeof maxHeight === 'string' || lines * 20 < maxHeight) return { maxHeight }
+  if (streaming || typeof maxHeight === 'string' || lines * 20 < maxHeight) return { maxHeight }
   return { maxHeight, contentVisibility: 'auto', containIntrinsicHeight: `${maxHeight}px` }
 }
 
@@ -155,7 +160,7 @@ function CodeBlock({
         )}
         data-language={language}
         data-streamdown='code-block-body'
-        style={bodyStyle(codeBlockMaxHeight, html.length)}
+        style={bodyStyle(codeBlockMaxHeight, html.length, isAnimating)}
         {...rest}
       >
         <pre
