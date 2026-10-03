@@ -47,10 +47,27 @@ function tokenHtml(token: Token) {
   return `<span class="${className}"${styleAttribute}>${escapeHtml(token.content)}</span>`
 }
 
+// Whitespace shows no colour, so it joins a neighbouring token instead of costing a span: themes
+// that colour spaces apart from the code around them otherwise double a block's DOM.
+function foldWhitespace(line: Token[]) {
+  const folded: Token[] = []
+  let lead = ''
+  for (const token of line) {
+    const last = folded.at(-1)
+    if (token.content.trim() || token.bgColor || token.htmlStyle?.['background-color']) {
+      folded.push(lead ? { ...token, content: lead + token.content } : token)
+      lead = ''
+    } else if (last) folded[folded.length - 1] = { ...last, content: last.content + token.content }
+    else lead += token.content
+  }
+  if (lead) folded.push({ content: lead })
+  return folded
+}
+
 export function linesHtml(lines: Token[][], numbered: boolean) {
   return lines.map((line) => {
     const empty = line.length === 0 || (line.length === 1 && line[0]!.content === '')
-    return `<span class="${numbered ? numberedLineClass : lineClass}">${empty ? '\n' : line.map(tokenHtml).join('')}</span>`
+    return `<span class="${numbered ? numberedLineClass : lineClass}">${empty ? '\n' : foldWhitespace(line).map(tokenHtml).join('')}</span>`
   })
 }
 
