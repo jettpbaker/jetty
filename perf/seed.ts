@@ -105,7 +105,12 @@ export async function seedHome(opts: { tree: Tree; dir: string; gh: GhMode }): P
   }
 }
 
-async function seedThread(client: Client, projectId: string, title: string, turns: string[]) {
+export async function seedThread(
+  client: Client,
+  projectId: string,
+  title: string,
+  turns: string[]
+) {
   const id = crypto.randomUUID()
   await client.request('thread.create', { id, projectId, environment: 'local' })
   const sub = client.subscribeThread({ threadId: id })
