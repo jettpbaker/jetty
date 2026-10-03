@@ -1,123 +1,156 @@
 # Pull request data layer
 
-`server/src/pull-request-graphql.ts` exports the field selections
-(`pullRequestGraphqlFields` for a full refresh, `checkRollupFields` for running
-checks, `pullRequestStateFields` for change detection), `pullRequestGraphqlQuery`,
-`mapPullRequestGraphql`, and `mapReviewers`. List queries and mapping live in
-`server/src/pull-requests.ts` as `pullRequestListGraphqlQuery` and
-`mapPullRequestList`.
+`server/src/pull-request-graphql.ts` defines full, checks-only, and state query
+selections and maps GitHub actors, reviewers, and references.
+`server/src/pull-requests.ts` loads snapshots, paginates connections, caches file
+metadata and commit diffs, schedules reads, and serializes writes.
 
-The new snapshot data is additive, so stored snapshots from older versions
-still decode. `reviewRequests` contains pending users, bots and teams;
-`reviewers` uses GraphQL `latestReviews` with `latestOpinionatedReviews` overriding
-plain comments, so a comment after an approval does not hide the approval. REST
-reviews remain the bounded activity history. `state: AWAITING` overrides an older
-review when someone is explicitly requested again, while `latestReviewState` preserves that prior
-review. Logins keep GitHub's casing and bots keep REST's `[bot]` suffix, so a
-reviewer matches across REST and GraphQL. Copilot, which GitHub names `Copilot`
-on comments and `copilot-pull-request-reviewer[bot]` on reviews and requests,
-is one reviewer with login `Copilot`; writes send the bot login. Team identities
-use `organization/slug`, and include `asCodeOwner`.
+## Snapshot reads
 
-Closing issues carry repository identity and `open`, `completed` or
-`not_planned` state. REOPENED is open; DUPLICATE is not planned. Suggested users
-carry names as well as their existing identity fields. The existing assignable
-user search remains separate, with a five-minute cache; suggestions are not
-another search endpoint. Mergeability preserves GitHub's enum values.
-Top-level conversation comments (`issueComments`) come from the same query,
-newest 100, keeping REST's `[bot]` login suffix. Checks stop at GitHub's first
-100; past that `checkRunsTotalCount` and the rollup state carry the rest.
+A full load reads PR metadata, author and merged-by names, reviews, native review
+threads and their comments, conversation comments, commit history and parent
+counts, status events, file viewed state, repository merge settings, the real
+`viewerDefaultMergeMethod`, the authenticated viewer, and `viewerCanUpdate` in
+one GraphQL query. Checks retain a bare name, their run/status discriminator,
+workflow, event, description (`CheckRun.summary` or `StatusContext.description`),
+and `isRequired(pullRequestNumber:)`.
 
-The optional `references` array resolves description mentions (`#123` and
-`owner/repo#123`) as issues or PRs, with repository, number, kind, state, title
-and URL. Fenced and inline code, duplicates and the PR itself are excluded;
-each description is capped at 30 references. Issues use the closing-issue state
-fold; PRs use `open`, `draft`, `merged` or `closed`. Unresolvable items are omitted.
-Normal refreshes add aliases from the cached body's reference list to the existing
-GraphQL query. First loads and edits fetch newly mentioned targets in one small
-follow-up before publishing, including the immediate refresh after any write.
-Null targets count as attempted, so they do not trigger repeated follow-ups.
-Reference aliases are separate from PR aliases, keeping their NOT_FOUND and field
-errors out of PR error handling. There is currently no description write operation.
+Reviews, threads, nested thread replies, conversation comments, commit history,
+status timeline, and viewed-file connections follow cursors until exhausted.
+Reviewer requests, latest reviews, latest opinionated reviews, labels, closing
+issues, and check contexts remain capped at 100. `truncatedConnections` reports
+any remaining pages; check totals and the authoritative rollup remain available.
+Status events are chronological. The first ready/draft event determines whether
+the PR opened as a draft; without one, its current draft flag determines that.
 
-Reference reads have no connections, so they add no primary rate-limit cost to
-the existing query; the reference-only follow-up costs the one-point minimum.
-GitHub's [point calculation](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#predicting-the-point-value-of-a-query)
-counts connection requests, divides by 100 and rounds, with a minimum of one.
-The existing `[pr-rate]` log still records the returned `rateLimit.cost`.
+REST supplies file patches, with ETags per page and Link pagination up to
+GitHub's 3,000-file limit. A full load reuses previous patches when both head and
+base SHAs match, while always taking viewed states freshly from GraphQL. Legacy
+snapshots lacking file flags receive classification on their next full load.
 
-When GitHub answers with errors on some fields, those fields keep their previous
-value: the server keeps the last raw `pullRequest` per PR and query shape and
-copies the errored fields back before mapping. An error that nulls the whole PR
-keeps the previous read; only GitHub's `NOT_FOUND` reads as not found.
+One additional GraphQL query batches distinct parent directories as aliased
+repository objects. Head-side files use the head repository and SHA; removed
+files use the base repository and SHA. Each tree entry supplies `isGenerated`
+and its blob's `isBinary`. Results are cached by repository, SHA, and directory.
+The same query verifies head and base after the REST patch pages. If either
+moved, the server retries the full read once and refuses a second mixed revision.
+Even when directory metadata is cached, fetching patch pages requires this
+revision check. GitHub's flags are used directly rather than inferred from a
+missing patch, extension, or byte sample.
+
+All added schema fields are optional, so stored snapshots still decode. Live
+loads fill them. Actor selections include `... on User { name }`; there are no
+per-user REST requests. Bot logins retain `[bot]`, and Copilot is normalized to
+one display identity while writes use its GitHub bot login.
+
+`reviewers` combines latest reviews with latest opinionated reviews, so a
+comment after approval preserves that approval. Re-requested reviewers show
+`AWAITING` with the previous verdict in `latestReviewState`. Team identities use
+`organization/slug` and retain CODEOWNERS provenance. Reviewer candidate search
+remains separate and cached for five minutes.
+
+Description mentions resolve as typed issue/PR references, excluding fenced and
+inline code, duplicates, and self-references, with a 30-reference bound. Cached
+body references join the main query as aliases; newly discovered targets require
+one follow-up. Unresolvable targets are omitted. Closing issues retain repository
+identity and open/completed/not-planned states.
+
+Partial GraphQL errors retain previously read fields where possible. Data tied
+to a different head is not carried over. Failed full reads retain the last good
+stored snapshot. `behindBy` uses the cached head and live base comparison; it is
+null on a cold read or when that head no longer matches.
 
 ## Refresh policy
 
-| Context             | PR refresh                    | Running checks only              |
-| ------------------- | ----------------------------- | -------------------------------- |
-| Focused PR view     | 30 seconds                    | 10 seconds                       |
-| Blurred PR view     | 2 minutes                     | 30 seconds                       |
-| Linked PRs          | On change, detected every 30s | Rollup state in the same query   |
-| PR list tabs        | 2 minutes, batched search     | 30 seconds, aliased rollup reads |
-| Hidden clients      | Paused                        | Paused                           |
-| Closed or merged PR | 30 minutes                    | Paused                           |
+| Context          | Change detection        | Running checks            |
+| ---------------- | ----------------------- | ------------------------- |
+| Focused PR       | 30 seconds              | 10 seconds                |
+| Blurred PR       | 2 minutes               | 30 seconds                |
+| Linked PRs       | 30 seconds              | Rollup in the state query |
+| PR list tabs     | 2-minute batched search | 30-second batched rollup  |
+| Hidden clients   | Paused                  | Paused                    |
+| Closed/merged PR | 30 minutes              | Paused                    |
 
-Linked PRs (the sidebar marks) share one aliased query for every active link
-that reads `updatedAt` and the check rollup state; a PR is fully refreshed only
-when either differs from its stored snapshot. That query costs about one point
-regardless of how many PRs are linked.
+Visible refreshes first read `updatedAt`, head/base SHAs, and the check rollup.
+Metadata or revision changes trigger a full load; rollup-only changes patch
+checks through the checks query. Running checks also keep their faster refresh
+cadence, since individual runs may change without changing the rollup. Visible
+PRs receive a full safety refresh after five minutes (or their longer normal
+cadence), catching viewer-only changes such as marks made on GitHub.
 
-A visible client keeps shared data fresh for hidden clients too. Subscriptions
-send cached state first, and later updates arrive as hub pushes; the poll timer
-itself emits nothing. Browser focus/visibility is wired in the connection layer,
-without changing components. The server wakes every five seconds to check
-deadlines; that timer does not itself call GitHub.
+Detection requests share batches and in-flight work, and reuse a detection made
+within the last five seconds across link and visible monitors. Full reads retain
+the existing visible/prefetch queue and batch limits. Subscriptions render cached
+state first. Snapshot publication is serialized; reads overlapping a write are
+discarded by the revision guard.
 
-Concurrent full refresh jobs batch into one aliased GraphQL query, while
-retaining the existing visible/prefetch priority limits. A fetch publishes its
-own result, so a subscription restarting mid-fetch (focus, blur, navigation)
-never drops it. In-flight REST reads are shared and use ETags. Existing REST
-PR/history/files/repository reads remain for the current view's data; new
-metadata, conversation comments and checks share the GraphQL read.
-Concurrent list tabs use a single aliased search query. Snapshot publication is
-serialized, and revisions discard reads that overlap our writes.
+Rate-limit health exposes GraphQL cost/remaining/reset, REST remaining/reset,
+backoff deadlines, and cadences. Budgets below 500 slow polling fourfold.
+Exhaustion honours reset; secondary limits honour Retry-After or exponential
+backoff from one to fifteen minutes.
 
-GraphQL connections are bounded at 100. `truncatedConnections` names omitted
-pages; review threads fetch only the root comment, with resolution inherited by
-REST replies. The overall check rollup remains available even if individual
-checks are truncated. REST history retains its existing five-page bound.
-`behindBy` is obtained inside the same query using the cached head SHA and live
-base ref. It is null on the first read, if comparison is unavailable, or when
-that SHA no longer matches the PR's head. A push landing between the GraphQL
-and REST reads of one refresh re-reads the GraphQL half once at the new head; a
-second push inside that window leaves the checks briefly stale until the next
-poll.
+## Request counts
 
-Both PR and list snapshots expose `rateLimit`: GraphQL cost/remaining/reset,
-REST remaining/reset, backoff deadline, full cadence, and check cadence. Either
-budget below 500 slows cadence fourfold. Exhaustion honours reset, secondary
-limits honour Retry-After, and absent guidance starts exponential backoff at
-60 seconds (capped at 15 minutes). Writes run one at a time, queueing rather
-than failing, and the last queued write to a PR refreshes it immediately after
-its request completes, unless GitHub requires backoff. Limit and cadence
-changes are logged with `[pr-rate]`.
+Counts below assume one page per connection, stable revisions, no newly discovered
+body references, and cold directory metadata where a diff revision changes.
+Concurrent PRs can share GraphQL requests. ETag 304s still count as requests.
+
+| Action                                     | Before |                                                      After |
+| ------------------------------------------ | -----: | ---------------------------------------------------------: |
+| Cold PR open                               |      7 | 3: full GraphQL + REST patches + metadata/revision GraphQL |
+| Unchanged visible refresh                  |      7 |                                     1: batched state query |
+| Visible refresh after a new commit         |      7 |                        4: detection + the 3-call full load |
+| Safety/manual full refresh, same head/base |      7 |                 1: full GraphQL, reusing patches and flags |
+| Diff tab, F cold files needing full text   | 1 + 2F |                                                     1 + 2F |
+| Diff tab, warm content cache               |      0 |                                                          0 |
+
+Additional connection/file pages add requests. Checks-only changes cost detection
+plus a checks query. Diff content remains lazy behind the existing `diffFile`
+RPC; changing the new view's hydration policy belongs to its client port.
 
 ## Operations
 
-- `pullRequest.updateTitle { repo, number, title }`: optimistically publishes the
-  cached title, PATCHes GitHub, rolls back on rejection, then refreshes.
-- `pullRequest.merge { repo, number, sha, mergeMethod? }`: defaults to squash,
-  sends the head SHA guard, and exposes `pendingOperation: merge`. HTTP 405
-  explains merge requirements; HTTP 409 asks the user to refresh the moved head.
-- `pullRequest.setReviewRequest { repo, number, login, requested, kind? }`:
-  preserves existing user calls, accepts bots, and uses `kind: team` with a team
-  slug. Copilot writes use `copilot-pull-request-reviewer[bot]`. Changes are
-  optimistic, roll back on rejection, and refresh after the write. A secondary
-  rate limit on a write reports the backoff rather than a permissions error.
-- `pullRequest.uploadAttachment { repo, name, mimeType, base64data }`: returns
-  `{ url }`, without posting a comment or editing a PR body. Images are limited
-  to 10 MiB; videos to 48 MiB within the existing RPC payload budget. Supporting
-  GitHub's full 100 MiB video allowance would require a streamed transport.
+All writes use the existing semaphore, pending-operation publication, revision
+increments, optimistic patches, and rollback. Title edits, new comments, replies,
+thread resolution, and viewed marks confirm from the response without a full
+refresh. Body edits first patch the body, then refresh derived references and
+closing issues. State, merge, and reviewer writes refresh their wider dependent
+metadata. A failed write refreshes after rollback, since a multi-step transition
+may already have reopened the PR. Only the final queued write performs a needed
+refresh. Snapshot patches also push linked sidebar metadata.
+
+- `pullRequest.updateTitle { repo, number, title }` PATCHes the title.
+- `pullRequest.updateBody { repo, number, body }` PATCHes Markdown unchanged.
+- `pullRequest.setState { repo, number, state }` accepts open/draft/closed.
+  Close/reopen use REST; draft/ready use GraphQL. A closed PR reopens before
+  converting to the requested draft state. Merged PRs reject state changes.
+- `pullRequest.comment { repo, number, body }` adds a conversation comment with
+  its authoritative ID, timestamps, URL, and named author.
+- `pullRequest.reply { repo, number, commentId, body }` replies to the root review
+  comment and preserves thread context on the response patch.
+- `pullRequest.resolveThread { repo, number, threadId, resolved }` resolves or
+  unresolves the native thread and patches every comment in it.
+- `pullRequest.setViewed { repo, number, path, viewed }` marks/unmarks a file using
+  the PR node ID and patches its viewed state.
+- `pullRequest.commitFiles { repo, sha }` lazily reads a commit's own file changes
+  against its first parent. REST pages and classification run once per repository
+  and immutable SHA; successful results and concurrent work are cached forever.
+  It returns `{ files, parentSha }`, with null for a root commit's parent.
+- `pullRequest.merge { repo, number, sha, mergeMethod? }` retains the head guard
+  and squash default. HTTP 405 reports merge requirements; 409 reports a moved head.
+- `pullRequest.setReviewRequest { repo, number, login, requested, kind? }` retains
+  user/bot/team support, optimistic requests, undo, and authoritative refresh.
+- `pullRequest.uploadAttachment { repo, name, mimeType, base64data }` returns a URL
+  without posting or editing. Existing image/video limits remain unchanged.
+
+## Live verification
+
+The production query and introspection verified `TreeEntry.isGenerated`,
+`Blob.isBinary`, `CheckRun.isRequired`, `StatusContext.isRequired`, workflow event,
+repository merge flags/preference, viewer/update permission, actor names, native
+thread anchors and comments, commit parents, file viewed state, and timeline
+status events against `jettpbaker/pr-lab`. Mutation verification uses disposable
+PRs only; fixtures #1–#5 remain read-only.
 
 ## Attachment investigation
 
