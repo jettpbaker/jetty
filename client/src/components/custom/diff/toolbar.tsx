@@ -41,7 +41,13 @@ export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
   useLayoutEffect(() => {
     const element = view.current
     if (!element) return
-    const observer = new ResizeObserver(([entry]) => setNarrow(entry!.contentRect.width < 720))
+    // Measured before the first paint so bodies don't mount unwrapped and flip; a hidden pane
+    // (width 0) keeps its last answer instead of flipping when shown.
+    function measure(width: number) {
+      if (width > 0) setNarrow(width < 720)
+    }
+    measure(element.clientWidth)
+    const observer = new ResizeObserver(([entry]) => measure(entry!.contentRect.width))
     observer.observe(element)
     return () => observer.disconnect()
   }, [view])
