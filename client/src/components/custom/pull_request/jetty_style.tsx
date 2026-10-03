@@ -1491,7 +1491,7 @@ function MergeButton({
         <span
           className={cn('col-start-1 row-start-1 flex items-center gap-1', !merging && 'invisible')}
         >
-          <Spinner className='size-3.5' />
+          {merging ? <Spinner className='size-3.5' /> : <span className='size-3.5' />}
           Merging
         </span>
       </span>
