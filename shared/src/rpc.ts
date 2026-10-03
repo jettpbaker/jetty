@@ -79,7 +79,6 @@ export const JettyRpcs = RpcGroup.make(
   unary('pullRequest.resolveThread'),
   unary('pullRequest.setViewed'),
   unary('pullRequest.commitFiles'),
-
   unary('pullRequest.uploadAttachment'),
   unary('pullRequestList.refresh'),
   unary('queue.add'),

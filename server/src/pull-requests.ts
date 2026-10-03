@@ -320,7 +320,7 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
   checkBackoff()
   const restGet = args.length === 1 && args[0] !== 'graphql' && body === undefined
   const key = args[0]!
-  const cached = restGet ? restCache.get(key) : undefined
+  const cached = restGet ? cacheRead(restCache, key) : undefined
   const { out, detail, code } = await gh(
     [
       'api',
@@ -381,14 +381,20 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
       /rate limit|abuse detection/i.test(message)
     )
       throw new GhFailure('rate_limited', message || 'GitHub rate limit reached', status)
+    if (
+      args.includes('graphql') &&
+      Array.isArray(errors) &&
+      errors.some((error) => ['FORBIDDEN', 'NOT_FOUND'].includes(string(record(error).type)))
+    )
+      throw new GhFailure('not_found', 'GitHub denied this operation', 403)
     if (status === 404)
       throw new GhFailure('not_found', 'Pull request not found or access denied', status)
     throw new GhFailure('unavailable', message || 'GitHub API is unavailable', status)
   }
-  if (restGet && headerText) restNext.set(key, /rel="next"/.test(headers.get('link') ?? ''))
+  if (restGet && headerText)
+    cacheWrite(restNext, key, /rel="next"/.test(headers.get('link') ?? ''), 512)
   if (restGet && headers.get('etag')) {
-    restCache.set(key, { etag: headers.get('etag')!, value })
-    if (restCache.size > 512) restCache.delete(restCache.keys().next().value!)
+    cacheWrite(restCache, key, { etag: headers.get('etag')!, value }, 512)
   }
   return value
 }
@@ -409,7 +415,22 @@ export async function ghApi(...args: string[]): Promise<unknown> {
 type DiffContents = string | null | { unavailable: 'tooLarge' | 'binary' }
 
 const maxDiffContentsBytes = 1024 * 1024
-const maxCachedDiffContents = 64
+
+function cacheRead<T>(cache: Map<string, T>, key: string) {
+  const value = cache.get(key)
+  if (value !== undefined) {
+    cache.delete(key)
+    cache.set(key, value)
+  }
+  return value
+}
+
+function cacheWrite<T>(cache: Map<string, T>, key: string, value: T, limit = 64) {
+  cache.delete(key)
+  cache.set(key, value)
+  if (cache.size > limit) cache.delete(cache.keys().next().value!)
+}
+
 const diffContentsCache = new Map<string, Promise<DiffContents>>()
 const mergeBaseCache = new Map<string, Promise<string>>()
 
@@ -445,12 +466,10 @@ async function fetchDiffContents(repo: string, sha: string, path: string): Promi
 
 function cachedDiffContents(repo: string, sha: string, path: string) {
   const key = `${repo}\0${sha}\0${path}`
-  const existing = diffContentsCache.get(key)
+  const existing = cacheRead(diffContentsCache, key)
   if (existing) return existing
   const pending = fetchDiffContents(repo, sha, path)
-  diffContentsCache.set(key, pending)
-  if (diffContentsCache.size > maxCachedDiffContents)
-    diffContentsCache.delete(diffContentsCache.keys().next().value!)
+  cacheWrite(diffContentsCache, key, pending)
   pending.catch(() => {
     if (diffContentsCache.get(key) === pending) diffContentsCache.delete(key)
   })
@@ -459,7 +478,7 @@ function cachedDiffContents(repo: string, sha: string, path: string) {
 
 function cachedMergeBase(repo: string, baseSha: string, headSha: string) {
   const key = `${repo}\0${baseSha}\0${headSha}`
-  const existing = mergeBaseCache.get(key)
+  const existing = cacheRead(mergeBaseCache, key)
   if (existing) return existing
   const pending = ghApi(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`).then(
     (response) => {
@@ -468,8 +487,7 @@ function cachedMergeBase(repo: string, baseSha: string, headSha: string) {
       return sha
     }
   )
-  mergeBaseCache.set(key, pending)
-  if (mergeBaseCache.size > 64) mergeBaseCache.delete(mergeBaseCache.keys().next().value!)
+  cacheWrite(mergeBaseCache, key, pending)
   pending.catch(() => {
     if (mergeBaseCache.get(key) === pending) mergeBaseCache.delete(key)
   })
@@ -519,42 +537,49 @@ async function fetchGraphqlBatch(
   const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
   return Promise.all(
     refs.map(async (ref, index) => {
-      const alias = `p${index}`
-      const failed = errors.filter((error) => Array.isArray(error.path) && error.path[0] === alias)
-      if (failed.some((error) => error.type === 'NOT_FOUND'))
-        return new GhFailure('not_found', 'Pull request not found or access denied')
-      const value = keepFailedFields(
-        prKey(ref),
-        fields,
-        record(data[alias]).pullRequest,
-        failed.map((error) => error.path as unknown[])
-      )
-      if (!value)
-        return failed.length
-          ? new GhFailure('unavailable', 'GitHub could not read this pull request')
-          : new GhFailure('not_found', 'Pull request not found or access denied')
-      if (fields === pullRequestGraphqlFields) await paginatePullRequest(ref, value)
-      const graph = mapPullRequestGraphql(value)
-      const comparison = record(record(graph.pull.baseRef).compare)
-      const behindBy = comparison.behindBy
-      return {
-        ...graph,
-        viewer: user(data.viewer),
-        referenceTargets: ref.references ?? [],
-        references: mapPullRequestReferences(data, ref.references ?? [], index),
-        behindBy:
-          record(comparison.headTarget).oid === graph.pull.headRefOid &&
-          typeof behindBy === 'number'
-            ? behindBy
-            : null,
+      try {
+        const alias = `p${index}`
+        const failed = errors.filter(
+          (error) => Array.isArray(error.path) && error.path[0] === alias
+        )
+        if (failed.some((error) => error.type === 'NOT_FOUND'))
+          return new GhFailure('not_found', 'Pull request not found or access denied')
+        const value = keepFailedFields(
+          prKey(ref),
+          fields,
+          record(data[alias]).pullRequest,
+          failed.map((error) => error.path as unknown[])
+        )
+        if (!value)
+          return failed.length
+            ? new GhFailure('unavailable', 'GitHub could not read this pull request')
+            : new GhFailure('not_found', 'Pull request not found or access denied')
+        if (fields === pullRequestGraphqlFields) await paginatePullRequest(ref, value)
+        cacheWrite(lastPulls, `${prKey(ref)}\0${fields}`, value, 32)
+        const graph = mapPullRequestGraphql(value)
+        const comparison = record(record(graph.pull.baseRef).compare)
+        const behindBy = comparison.behindBy
+        return {
+          ...graph,
+          viewer: user(data.viewer),
+          referenceTargets: ref.references ?? [],
+          references: mapPullRequestReferences(data, ref.references ?? [], index),
+          behindBy:
+            record(comparison.headTarget).oid === graph.pull.headRefOid &&
+            typeof behindBy === 'number'
+              ? behindBy
+              : null,
+        }
+      } catch (error) {
+        return error instanceof GhFailure
+          ? error
+          : new GhFailure('unavailable', 'GitHub could not read this pull request')
       }
     })
   )
 }
 
-// The last raw `pullRequest` read per PR and query shape. When GitHub answers with errors on some
-// fields, those fields keep their previous value instead of reading as empty; when an error nulls
-// the whole PR, the previous read stands in for it.
+// Bounded raw reads preserve fields when GitHub returns partial errors.
 const lastPulls = new Map<string, Record<string, unknown>>()
 
 function keepFailedFields(
@@ -563,28 +588,32 @@ function keepFailedFields(
   value: unknown,
   paths: readonly unknown[][]
 ) {
-  const previous = lastPulls.get(`${key}\0${fields}`)
-  const pull = value ? { ...record(value) } : paths.length ? previous : undefined
+  const previous = cacheRead(lastPulls, `${key}\0${fields}`)
+  const pull = structuredClone(value ? record(value) : paths.length ? previous : undefined)
   if (!pull) return undefined
   if (value && previous)
     for (const path of paths) {
       const field = path[2]
-      // Checks read for an older head would pass for the new one, so they only carry over unmoved.
-      if (
-        ['commits', 'commitHistory', 'files', 'reviewThreads'].includes(String(field)) &&
-        'headRefOid' in pull &&
-        headOid(previous) !== pull.headRefOid
-      )
-        continue
-      if (typeof field === 'string' && field in previous) pull[field] = previous[field]
+      if (typeof field === 'string' && field in previous && canKeepField(previous, pull, field))
+        pull[field] = structuredClone(previous[field])
     }
   if (paths.length)
     console.warn(
       `[pr-fetch] ${key} kept previous ${paths.map((path) => path.slice(2).join('.')).join(', ')}`
     )
-  if (lastPulls.size >= 500 && !previous) lastPulls.clear()
-  lastPulls.set(`${key}\0${fields}`, pull)
   return pull
+}
+
+function canKeepField(
+  previous: Record<string, unknown>,
+  pull: Record<string, unknown>,
+  field: string
+) {
+  return (
+    !['commits', 'commitHistory', 'files', 'reviewThreads'].includes(field) ||
+    !('headRefOid' in pull) ||
+    (previous.headRefOid ?? headOid(previous)) === pull.headRefOid
+  )
 }
 
 function headOid(pull: Record<string, unknown>) {
@@ -604,8 +633,27 @@ async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unk
           `query=${pullRequestGraphqlQuery([ref], connectionField(field, cursor))}`
         )
       )
-      if (response.errors)
-        throw new GhFailure('unavailable', 'GitHub could not paginate pull request data')
+      const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+      const failed = errors.filter((error) => Array.isArray(error.path) && error.path[0] === 'p0')
+      if (failed.length) {
+        const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
+        if (
+          !previous?.[field] ||
+          !canKeepField(previous, pull, field) ||
+          failed.some(
+            (error) => (error.path as unknown[])[2] !== field || error.type === 'NOT_FOUND'
+          )
+        )
+          throw new GhFailure('unavailable', 'GitHub could not paginate pull request data')
+        const restored = keepFailedFields(
+          prKey(ref),
+          pullRequestGraphqlFields,
+          pull,
+          failed.map((error) => error.path as unknown[])
+        )
+        pull[field] = restored![field]
+        break
+      }
       const next = record(record(record(record(response.data).p0).pullRequest)[field])
       if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
         throw new GhFailure('unavailable', 'GitHub returned an incomplete connection page')
@@ -631,8 +679,20 @@ async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unk
       }`
         )
       )
-      if (response.errors)
-        throw new GhFailure('unavailable', 'GitHub could not paginate review comments')
+      const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+      if (errors.some((error) => Array.isArray(error.path) && error.path[0] === 'node')) {
+        const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
+        const saved =
+          previous &&
+          previous.headRefOid === pull.headRefOid &&
+          !errors.some((error) => error.type === 'NOT_FOUND')
+            ? nodes(previous.reviewThreads).find((value) => record(value).id === thread.id)
+            : undefined
+        if (!record(saved).comments)
+          throw new GhFailure('unavailable', 'GitHub could not paginate review comments')
+        thread.comments = structuredClone(record(saved).comments)
+        break
+      }
       const next = record(record(record(response.data).node).comments)
       if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
         throw new GhFailure('unavailable', 'GitHub returned an incomplete review comment page')
@@ -651,7 +711,7 @@ async function ghPages(path: string): Promise<unknown[]> {
     const result = await ghApi(endpoint)
     if (!Array.isArray(result)) throw new GhFailure('unavailable', 'Invalid GitHub file list')
     items.push(...result)
-    if (restNext.get(endpoint) === false || result.length < 100) break
+    if (cacheRead(restNext, endpoint) === false || result.length < 100) break
   }
   return items
 }
@@ -742,7 +802,6 @@ function mapFile(value: unknown): PullRequestData['files'][number] {
       ? { previous_filename: file.previous_filename }
       : {}),
     ...(typeof file.patch === 'string' ? { patch: file.patch } : {}),
-    viewed: 'UNVIEWED',
   }
 }
 
@@ -791,7 +850,12 @@ async function classifyFiles(
     const key = `${sourceRepo.toLowerCase()}\0${sha}\0${dir}`
     directories.set(key, { repo: sourceRepo, sha, dir })
   }
-  const missing = [...directories].filter(([key]) => !treeFlags.has(key))
+  const directoryFlags = new Map<string, Map<string, FileFlags>>()
+  for (const [key] of directories) {
+    const cached = cacheRead(treeFlags, key)
+    if (cached) directoryFlags.set(key, cached)
+  }
+  const missing = [...directories].filter(([key]) => !directoryFlags.has(key))
   let revisionMatches = true
   if (missing.length || ref) {
     const [owner, name] = repo.split('/')
@@ -839,7 +903,8 @@ async function classifyFiles(
           generated: entry.isGenerated === true,
         })
       }
-      treeFlags.set(key, flags)
+      directoryFlags.set(key, flags)
+      cacheWrite(treeFlags, key, flags)
     }
   }
   return {
@@ -848,7 +913,9 @@ async function classifyFiles(
       const sha = file.status === 'removed' ? baseSha : headSha
       const dir = file.filename.slice(0, Math.max(0, file.filename.lastIndexOf('/')))
       const sourceRepo = file.status === 'removed' ? repo : headRepo
-      const flags = treeFlags.get(`${sourceRepo.toLowerCase()}\0${sha}\0${dir}`)?.get(file.filename)
+      const flags = directoryFlags
+        .get(`${sourceRepo.toLowerCase()}\0${sha}\0${dir}`)
+        ?.get(file.filename)
       return { ...file, binary: flags?.binary ?? false, generated: flags?.generated ?? false }
     }),
   }
@@ -863,7 +930,7 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
   if (!validRepo(repo) || !/^[a-f0-9]{40,64}$/i.test(sha))
     throw new StoreError('invalid_params', 'Invalid commit')
   const key = `${repo.toLowerCase()}\0${sha.toLowerCase()}`
-  const cached = commitFilesCache.get(key)
+  const cached = cacheRead(commitFilesCache, key)
   if (cached) return cached
   async function load() {
     const files: PullRequestData['files'][number][] = []
@@ -875,14 +942,16 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
         parentSha = string(record((result.parents as unknown[] | undefined)?.[0]).sha) || null
       const values = (result.files as unknown[] | undefined) ?? []
       files.push(...values.map(mapFile))
-      if (restNext.get(endpoint) === false || values.length < 100) break
+      if (cacheRead(restNext, endpoint) === false || values.length < 100) break
     }
     const classified = await classifyFiles(repo, sha, parentSha, files)
     return { files: classified.files, parentSha }
   }
   const promise = load()
-  commitFilesCache.set(key, promise)
-  void promise.catch(() => commitFilesCache.delete(key))
+  cacheWrite(commitFilesCache, key, promise)
+  void promise.catch(() => {
+    if (commitFilesCache.get(key) === promise) commitFilesCache.delete(key)
+  })
   return promise
 }
 
@@ -895,12 +964,18 @@ async function fetchPullRequest(
   const pull = graph.pull
   const headSha = string(pull.headRefOid)
   const baseSha = string(pull.baseRefOid)
-  const reuseFiles = previous?.pull.head.sha === headSha && previous.pull.base.sha === baseSha
+  const reuseFiles =
+    previous?.pull.head.sha === headSha &&
+    previous.pull.changed_files === Number(pull.changedFiles) &&
+    previous.pull.additions === Number(pull.additions) &&
+    previous.pull.deletions === Number(pull.deletions)
+  const sameBase = previous?.pull.base.sha === baseSha
   let files = reuseFiles
     ? previous.files
     : (await ghPages(`repos/${ref.repo}/pulls/${ref.number}/files`)).map(mapFile)
   if (
     !reuseFiles ||
+    !sameBase ||
     files.some((file) => typeof file.binary !== 'boolean' || typeof file.generated !== 'boolean')
   ) {
     const classified = await classifyFiles(
@@ -908,7 +983,7 @@ async function fetchPullRequest(
       headSha,
       baseSha,
       files,
-      reuseFiles ? undefined : ref,
+      reuseFiles && sameBase ? undefined : ref,
       string(record(pull.headRepository).nameWithOwner, ref.repo)
     )
     if (!classified.revisionMatches) {
@@ -976,7 +1051,9 @@ async function fetchPullRequest(
   )
   const reviewComments = nodes(pull.reviewThreads).flatMap((value) => {
     const thread = record(value)
-    return nodes(thread.comments).map((comment) => mapReviewComment(comment, thread))
+    return nodes(thread.comments)
+      .filter((comment) => record(comment).state !== 'PENDING')
+      .map((comment) => mapReviewComment(comment, thread))
   })
   const mergeStates = {
     CLEAN: 'clean',
@@ -1061,8 +1138,10 @@ async function fetchPullRequest(
     mergeStateStatus: string(pull.mergeStateStatus, 'UNKNOWN'),
     behindBy: graph.behindBy,
     truncatedConnections: [
-      ...graph.truncatedConnections,
-      ...(Number(pull.changedFiles) > files.length ? ['files'] : []),
+      ...new Set([
+        ...graph.truncatedConnections,
+        ...(Number(pull.changedFiles) > files.length ? ['files'] : []),
+      ]),
     ],
     requestedTeams,
     reviewDecision:
@@ -1548,16 +1627,13 @@ export function createPullRequests(store: Store, hub: Hub) {
         const graph = graphs[index]!
         const snapshot = yield* get(ref)
         if (graph instanceof GhFailure) continue
-        if (!snapshot.data) {
-          yield* refresh(ref)
-          continue
-        }
         if (
+          !snapshot.data ||
           string(graph.pull.updatedAt) !== snapshot.data.pull.updated_at ||
           graph.headSha !== snapshot.data.pull.head.sha ||
           string(graph.pull.baseRefOid) !== snapshot.data.pull.base.sha
         )
-          yield* refresh(ref)
+          void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
         else if (graph.checkRollupState !== snapshot.data.checkRollupState)
           yield* refreshChecks(ref)
       }
@@ -1626,9 +1702,9 @@ export function createPullRequests(store: Store, hub: Hub) {
     ref: PullRequestRef,
     operation: NonNullable<PullRequestSnapshot['pendingOperation']>,
     optimistic: (data: PullRequestData) => PullRequestData,
-    send: (data: PullRequestData | undefined) => Promise<unknown>,
+    send: (data: PullRequestData) => Promise<unknown>,
     confirm: (data: PullRequestData, response: unknown) => PullRequestData = (data) => data,
-    refreshAfter = true
+    options: { refreshAfter?: boolean } = {}
   ) {
     const key = prKey(ref)
     const applied = Effect.gen(function* () {
@@ -1643,12 +1719,14 @@ export function createPullRequests(store: Store, hub: Hub) {
       const previous = yield* publication.withPermit(
         Effect.gen(function* () {
           const snapshot = yield* get(ref)
+          if (!snapshot.data?.pull.node_id)
+            return yield* Effect.fail(new StoreError('internal', 'Pull request is unavailable'))
           pendingOperations.set(key, operation)
           revisions.set(key, revision(key) + 1)
-          return snapshot
+          return { ...snapshot, data: snapshot.data }
         })
       )
-      function save(data: PullRequestData | undefined) {
+      function save(data: PullRequestData) {
         return publication.withPermit(
           Effect.gen(function* () {
             const snapshot = { ...previous, data }
@@ -1662,8 +1740,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         )
       }
       yield* Effect.gen(function* () {
-        if (previous.data) yield* save(optimistic(previous.data))
-        else hub.pushPullRequest(decorate(previous))
+        yield* save(optimistic(previous.data))
         const result = yield* Effect.tryPromise({
           try: () => send(previous.data),
           catch: writeError,
@@ -1686,7 +1763,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
     return Effect.suspend(() => {
       queuedWrites.set(key, (queuedWrites.get(key) ?? 0) + 1)
-      if (refreshAfter) writesNeedRefresh.add(key)
+      if (options.refreshAfter !== false) writesNeedRefresh.add(key)
       return writing.withPermit(applied).pipe(
         Effect.onExit((exit) =>
           Effect.gen(function* () {
@@ -1730,7 +1807,7 @@ export function createPullRequests(store: Store, hub: Hub) {
           updated_at: string(record(result).updated_at, data.pull.updated_at),
         },
       }),
-      false
+      { refreshAfter: false }
     )
   }
 
@@ -1750,25 +1827,11 @@ export function createPullRequests(store: Store, hub: Hub) {
         ...data,
         pull: {
           ...data.pull,
-          body: string(record(result).body),
+          body: string(record(result).body, body),
           updated_at: string(record(result).updated_at, data.pull.updated_at),
         },
       })
     )
-  }
-
-  async function pullNode(ref: PullRequestRef, data?: PullRequestData) {
-    if (data?.pull.node_id)
-      return {
-        id: data.pull.node_id,
-        state: data.pull.state === 'open' ? 'OPEN' : 'CLOSED',
-        isDraft: data.pull.draft,
-        merged: data.pull.merged,
-      }
-    const [graph] = await fetchGraphqlBatch([ref], 'id state isDraft merged')
-    if (!graph || graph instanceof GhFailure)
-      throw graph ?? new StoreError('invalid_params', 'Pull request is unavailable')
-    return graph.pull
   }
 
   async function mutate(name: string, input: Record<string, unknown>, fields: string) {
@@ -1783,11 +1846,15 @@ export function createPullRequests(store: Store, hub: Hub) {
         })
       )
     )
-    if (response.errors)
+    if (Array.isArray(response.errors)) {
+      const errors = response.errors.map(record)
+      if (errors.some((error) => error.type === 'FORBIDDEN' || error.type === 'NOT_FOUND'))
+        throw writeError(new GhFailure('not_found', '', 403))
       throw new StoreError(
         'invalid_params',
-        (response.errors as unknown[]).map((error) => string(record(error).message)).join('; ')
+        errors.map((error) => string(error.message)).join('; ') || 'GitHub rejected this operation'
       )
+    }
     const result = record(record(response.data)[name])
     if (!Object.keys(result).length)
       throw new StoreError('internal', 'GitHub returned no mutation result')
@@ -1806,8 +1873,19 @@ export function createPullRequests(store: Store, hub: Hub) {
           draft: state === 'closed' ? data.pull.draft : state === 'draft',
         },
       }),
-      async (data) => {
-        const pull = await pullNode(ref, data)
+      async () => {
+        const response = record(
+          await ghApi(
+            'graphql',
+            '-f',
+            `query=${pullRequestGraphqlQuery([ref], 'id state isDraft merged')}`
+          )
+        )
+        if (response.errors)
+          throw new GhFailure('unavailable', 'GitHub could not read pull request state')
+        const pull = record(record(record(response.data).p0).pullRequest)
+        if (!pull.id)
+          throw new GhFailure('not_found', 'Pull request not found or access denied', 404)
         if (pull.merged === true)
           throw new StoreError('invalid_params', 'A merged pull request cannot change state')
         if (state === 'closed' || pull.state === 'CLOSED') {
@@ -1844,8 +1922,9 @@ export function createPullRequests(store: Store, hub: Hub) {
       async (data) =>
         mutate(
           'addComment',
-          { subjectId: (await pullNode(ref, data)).id, body },
-          `commentEdge { node { databaseId body createdAt url author { ${actorFields} } } }`
+          { subjectId: data.pull.node_id, body },
+          `subject { ... on PullRequest { updatedAt } }
+          commentEdge { node { databaseId body createdAt url author { ${actorFields} } } }`
         ),
       (data, response) => {
         const comment = record(record(record(response).commentEdge).node)
@@ -1859,10 +1938,14 @@ export function createPullRequests(store: Store, hub: Hub) {
         return {
           ...data,
           issueComments: [...(data.issueComments ?? []), entry],
-          pull: { ...data.pull, comments: data.pull.comments + 1 },
+          pull: {
+            ...data.pull,
+            comments: data.pull.comments + 1,
+            updated_at: string(record(record(response).subject).updatedAt, data.pull.updated_at),
+          },
         }
       },
-      false
+      { refreshAfter: false }
     )
   }
 
@@ -1874,7 +1957,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       'comment',
       (data) => data,
       (data) => {
-        const root = data?.reviewComments.find((entry) => entry.id === commentId)
+        const root = data.reviewComments.find((entry) => entry.id === commentId)
         if (!root || root.in_reply_to_id)
           throw new StoreError(
             'invalid_params',
@@ -1908,15 +1991,14 @@ export function createPullRequests(store: Store, hub: Hub) {
           created_at: string(comment.created_at),
           html_url: string(comment.html_url),
           in_reply_to_id: commentId,
-          pull_request_review_id: Number(comment.pull_request_review_id),
+          pull_request_review_id: Number(comment.pull_request_review_id) || 0,
         }
         return {
           ...data,
           reviewComments: [...data.reviewComments, entry],
           pull: { ...data.pull, review_comments: data.pull.review_comments + 1 },
         }
-      },
-      false
+      }
     )
   }
 
@@ -1935,7 +2017,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       'thread',
       (data) => patch(data, resolved),
       async (data) => {
-        if (data && !data.reviewComments.some((comment) => comment.thread_id === threadId))
+        if (!data.reviewComments.some((comment) => comment.thread_id === threadId))
           throw new StoreError(
             'invalid_params',
             'Review thread does not belong to this pull request'
@@ -1947,7 +2029,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         )
       },
       (data, response) => patch(data, record(record(response).thread).isResolved === true),
-      false
+      { refreshAfter: false }
     )
   }
 
@@ -1969,16 +2051,16 @@ export function createPullRequests(store: Store, hub: Hub) {
       'viewed',
       patch,
       async (data) => {
-        if (data && !data.files.some((file) => file.filename === path))
+        if (!data.files.some((file) => file.filename === path))
           throw new StoreError('invalid_params', 'File does not belong to this pull request')
         return mutate(
           viewed ? 'markFileAsViewed' : 'unmarkFileAsViewed',
-          { pullRequestId: (await pullNode(ref, data)).id, path },
+          { pullRequestId: data.pull.node_id, path },
           'pullRequest { id }'
         )
       },
       patch,
-      false
+      { refreshAfter: false }
     )
   }
 

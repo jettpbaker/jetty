@@ -107,7 +107,7 @@ export function mapPullRequestReferences(
 
 export const actorFields = `__typename login avatarUrl url ... on User { name }`
 export const pageFields = `totalCount pageInfo { hasNextPage endCursor }`
-export const reviewCommentFields = `databaseId body path line diffHunk createdAt url
+export const reviewCommentFields = `databaseId state body path line diffHunk createdAt url
   author { ${actorFields} } replyTo { databaseId } pullRequestReview { databaseId }`
 
 export const pullRequestConnections = {
@@ -153,7 +153,7 @@ export const checkRollupFields = `commits(last:1) { nodes { commit {
 
 export const pullRequestGraphqlFields = `
   id number title body state isDraft merged mergedAt url createdAt updatedAt
-  headRefName headRefOid baseRefName baseRefOid additions deletions changedFiles totalCommentsCount
+  headRefName headRefOid baseRefName baseRefOid additions deletions changedFiles
   author { ${actorFields} } mergedBy { ${actorFields} } viewerCanUpdate
   headRepository { nameWithOwner } baseRepository { nameWithOwner }
   repository { mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerDefaultMergeMethod viewerPermission }
@@ -305,12 +305,6 @@ export function mapReviewers(pull: unknown) {
 
 export function mapPullRequestGraphql(value: unknown) {
   const pull = record(value)
-  const resolved = new Map<number, boolean>()
-  for (const value of nodes(pull.reviewThreads)) {
-    const thread = record(value)
-    for (const comment of nodes(thread.comments))
-      resolved.set(Number(record(comment).databaseId), thread.isResolved === true)
-  }
   const commit = record(record(nodes(pull.commits)[0]).commit)
   const rollup = record(commit.statusCheckRollup)
   const truncatedConnections = [
@@ -326,7 +320,6 @@ export function mapPullRequestGraphql(value: unknown) {
     'comments',
     'labels',
   ].filter((field) => record(record(pull[field]).pageInfo).hasNextPage === true)
-  if (record(record(pull.comments).pageInfo).hasPreviousPage) truncatedConnections.push('comments')
   for (const value of nodes(pull.reviewThreads)) {
     const thread = record(value)
     if (record(record(thread.comments).pageInfo).hasNextPage)
@@ -335,7 +328,6 @@ export function mapPullRequestGraphql(value: unknown) {
   if (record(record(rollup.contexts).pageInfo).hasNextPage) truncatedConnections.push('checkRuns')
   return {
     pull,
-    resolved,
     headSha: string(commit.oid),
     checks: nodes(rollup.contexts),
     checkRollupState: string(rollup.state),
