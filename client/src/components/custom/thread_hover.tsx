@@ -91,6 +91,7 @@ export function ThreadHoverCard({
       payload={<ThreadHoverContent {...content} />}
       delay={group.open ? 0 : 500}
       closeDelay={100}
+      {...pressProps(() => group.handle.close())}
     />
   )
 }
