@@ -173,7 +173,31 @@ function checkOrder(run: GitHubCheckRun) {
   return 3
 }
 
-function checksSummary(runs: readonly GitHubCheckRun[]) {
+function checksVerdict(data: Pick<PullRequestData, 'checkRuns' | 'checkRollupState'>) {
+  switch (data.checkRollupState) {
+    case 'ERROR':
+    case 'FAILURE':
+      return 'failing'
+    case 'EXPECTED':
+    case 'PENDING':
+      return 'pending'
+    case 'SUCCESS':
+      return 'passed'
+  }
+  if (data.checkRuns.some(failed)) return 'failing'
+  if (data.checkRuns.some((run) => run.status !== 'completed')) return 'pending'
+  return 'passed'
+}
+
+// Past GitHub's first 100 checks the counts are partial, so the summary gives the rollup's verdict.
+function checksSummary(data: PullRequestData) {
+  if (data.truncatedConnections?.includes('checkRuns')) {
+    const verdict = checksVerdict(data)
+    if (verdict === 'failing') return 'Checks failing'
+    if (verdict === 'pending') return 'Checks in progress'
+    return 'All checks passed'
+  }
+  const runs = data.checkRuns
   const counts = [0, 0, 0, 0]
   for (const run of runs) {
     const index = checkOrder(run)
@@ -198,8 +222,28 @@ function patchedRequests(
 
 function reviewerEntries(
   pull: GitHubPullRequest,
-  reviews: readonly GitHubReview[]
+  reviews: readonly GitHubReview[],
+  reviewers?: PullRequestData['reviewers']
 ): { user: GitHubUser; state: ReviewerState }[] {
+  if (reviewers) {
+    const requested = new Set(pull.requested_reviewers.map((user) => user.login.toLowerCase()))
+    const entries: { user: GitHubUser; state: ReviewerState }[] = reviewers
+      .filter((reviewer) => reviewer.kind !== 'team' && reviewer.login !== pull.user.login)
+      .map((reviewer) => ({
+        user: reviewer,
+        state: requested.has(reviewer.login.toLowerCase())
+          ? ('AWAITING' as const)
+          : (reviewer.latestReviewState ?? ('COMMENTED' as const)),
+      }))
+    for (const user of pull.requested_reviewers) {
+      if (!entries.some((entry) => entry.user.login.toLowerCase() === user.login.toLowerCase()))
+        entries.push({
+          user,
+          state: 'AWAITING',
+        })
+    }
+    return entries
+  }
   const latest = new Map<string, GitHubReview>()
   for (const review of reviews) {
     const current = latest.get(review.user.login)
@@ -500,11 +544,13 @@ function allowedMergeOptions(data: PullRequestData) {
 function mergeBlocker(data: PullRequestData) {
   const { mergeable_state } = data.pull
   if (mergeable_state === 'dirty') return 'Resolve merge conflicts first'
+  if (mergeable_state === 'behind') return 'Branch is out of date'
   if (mergeable_state === 'blocked') {
-    if (data.checkRuns.some(failed)) return 'Some checks are failing'
-    if (data.checkRuns.some((run) => run.status !== 'completed')) return 'Checks are still running'
+    if (checksVerdict(data) === 'failing') return 'Some checks are failing'
+    if (checksVerdict(data) === 'pending') return 'Checks are still running'
     if (data.reviewDecision === 'CHANGES_REQUESTED') return 'Changes were requested'
     if (data.reviewDecision === 'REVIEW_REQUIRED') return 'Awaiting an approving review'
+    return 'Blocked by branch protection'
   }
   return 'Coming soon'
 }
@@ -706,7 +752,11 @@ export function PullRequestView({
   const patches = useReviewRequestPatches(link)
   const setReviewRequest = useSetReviewRequest()
   const requested = patchedRequests(pull.requested_reviewers, patches)
-  const reviewers = reviewerEntries({ ...pull, requested_reviewers: requested }, reviews)
+  const reviewers = reviewerEntries(
+    { ...pull, requested_reviewers: requested },
+    reviews,
+    data.reviewers
+  )
   const body = pull.body.trim()
   useLayoutEffect(() => perf.rendered('pr.open', { pr: link.number }), [link.number])
   useLayoutEffect(() => perf.rendered('pr.diff', { warm: true }), [pane])
@@ -945,7 +995,7 @@ export function PullRequestView({
                 Checks
                 {checkRuns.length > 0 && (
                   <span className='font-mono font-normal text-muted-foreground'>
-                    {checksSummary(checkRuns)}
+                    {checksSummary(data)}
                   </span>
                 )}
               </h2>
@@ -983,6 +1033,18 @@ export function PullRequestView({
               ) : (
                 <p className='text-sm text-muted-foreground'>No checks.</p>
               )}
+              {data.truncatedConnections?.includes('checkRuns') &&
+                data.checkRunsTotalCount !== undefined && (
+                  <a
+                    href={`${pull.html_url}/checks`}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='text-sm text-muted-foreground hover:underline'
+                  >
+                    +{Math.max(0, data.checkRunsTotalCount - checkRuns.length)} more checks on
+                    GitHub
+                  </a>
+                )}
             </section>
           </div>
         </div>
