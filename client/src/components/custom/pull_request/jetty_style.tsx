@@ -61,6 +61,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
+import { contentKey } from '@/lib/hash'
+import { whenIdle } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
@@ -99,7 +101,8 @@ import type {
   PrUser,
 } from './adapter'
 
-import { loadDiffWorkerPool, DiffWorkerPoolProvider } from '../diff_worker_pool'
+import { primeDiffHighlights, DiffWorkerPoolProvider } from '../diff_worker_pool'
+import { parseFileChanges } from '../file_diff_model'
 import { githubUser, prFile } from './adapter'
 import { syntaxTheme } from './cursor_themes'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
@@ -108,6 +111,7 @@ import {
   countLabel,
   duration,
   excerpt,
+  filePatch,
   failed,
   DiffStyleContext,
   DiffWrapContext,
@@ -1191,6 +1195,21 @@ function byTreeOrder(a: PrFile, b: PrFile) {
     return x[i]!.localeCompare(y[i]!, undefined, { sensitivity: 'base', numeric: true })
   }
 }
+async function primePrDiffs(files: PrFile[], revision: string) {
+  const diffs = []
+  let lines = 0
+  for (const file of [...files].sort(byTreeOrder)) {
+    if (lines >= 100) break
+    if (file.binary || file.generated || !file.patch) continue
+    const text = filePatch(file)
+    const diff = parseFileChanges(text, `${revision}:${contentKey(text)}`)[0]?.diff
+    if (!diff) continue
+    diffs.push(diff)
+    lines += diff.unifiedLineCount
+  }
+  await primeDiffHighlights(diffs, syntaxTheme)
+}
+
 // On a narrow view (the PR in the thread's side panel) the file tree becomes Capy's file menu: the
 // Files button opens a filterable tree with each file's line counts, and picking one scrolls to it.
 // The tree merges a folder whose only child is a folder into one row ("services / notifications").
@@ -1885,9 +1904,14 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
             )
           : []),
       ]
+  const revision = `${ref.repo}:${commit?.sha ?? pr.data.pull.head.sha}:${commitFiles.data?.parentSha ?? pr.data.pull.base.sha}`
   useEffect(() => {
-    if (painted) void loadDiffWorkerPool(syntaxTheme)
-  }, [painted])
+    if (painted)
+      return whenIdle(() => {
+        const files = commitSha ? (commitFiles.data?.files.map(prFile) ?? []) : pr.files
+        void primePrDiffs(files, revision).catch(() => {})
+      })
+  }, [painted, pr.files, revision, commitSha, commitFiles.data])
   useLayoutEffect(() => {
     if (tab === 'diff') perf.rendered('pr.diff')
   }, [tab])
@@ -1908,9 +1932,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     <StatusChange value={setState}>
       <DiffStyleContext value={diffStyle}>
         <DiffWrapContext value={wrap}>
-          <PrDiffRevisionContext
-            value={`${ref.repo}:${commit?.sha ?? pr.data.pull.head.sha}:${commitFiles.data?.parentSha ?? pr.data.pull.base.sha}`}
-          >
+          <PrDiffRevisionContext value={revision}>
             <PrDiffLoaderContext value={loadFile}>
               <DiffWorkerPoolProvider themes={syntaxTheme}>
                 <div

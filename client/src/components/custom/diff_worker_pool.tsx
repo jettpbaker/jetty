@@ -88,8 +88,11 @@ const firstPaintLines = 100
 
 // The workers highlight the files a view paints first into the pool's cache, so it paints them
 // coloured, and they compile those grammars before the view opens. The diffs need cache keys.
-export async function primeDiffHighlights(diffs: readonly FileDiffMetadata[]) {
-  const pool = await loadDiffWorkerPool()
+export async function primeDiffHighlights(
+  diffs: readonly FileDiffMetadata[],
+  themes: ThemesType = diffThemes
+) {
+  const pool = await loadDiffWorkerPool(themes)
   if (!pool?.isWorkingPool()) return
   let lines = 0
   for (const diff of diffs) {
