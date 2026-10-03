@@ -456,7 +456,8 @@ function requestPullRequest<E>(
   registry: Registry,
   ref: PullRequestRef,
   request: (connection: Connection) => Effect.Effect<PullRequestSnapshot, E>,
-  apply: OptimisticPatch['apply']
+  apply: OptimisticPatch['apply'],
+  failure: string
 ) {
   const key = pullRequestKey(ref)
   const patch = { apply }
@@ -470,8 +471,14 @@ function requestPullRequest<E>(
     .then(
       () => true,
       (error: unknown) => {
-        toast.error("Couldn't save pull request", {
-          description: error instanceof Error ? error.message : undefined,
+        toast.error(failure, {
+          description:
+            error !== null &&
+            typeof error === 'object' &&
+            'message' in error &&
+            typeof error.message === 'string'
+              ? error.message
+              : undefined,
         })
         return false
       }
@@ -493,7 +500,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
         registry,
         ref,
         (connection) => connection.request('pullRequest.updateTitle', { ...ref, title }),
-        (data) => ({ ...data, pull: { ...data.pull, title } })
+        (data) => ({ ...data, pull: { ...data.pull, title } }),
+        "Couldn't save the title"
       )
     }
     function body(body: string) {
@@ -502,7 +510,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
         registry,
         ref,
         (connection) => connection.request('pullRequest.updateBody', { ...ref, body }),
-        (data) => ({ ...data, pull: { ...data.pull, body } })
+        (data) => ({ ...data, pull: { ...data.pull, body } }),
+        "Couldn't save the description"
       )
     }
     function state(state: 'open' | 'draft' | 'closed') {
@@ -517,7 +526,12 @@ export function usePullRequestActions(ref: PullRequestRef) {
             state: state === 'closed' ? 'closed' : 'open',
             draft: state === 'draft',
           },
-        })
+        }),
+        state === 'draft'
+          ? "Couldn't convert to draft"
+          : state === 'closed'
+            ? "Couldn't close the pull request"
+            : "Couldn't open the pull request for review"
       )
     }
     function merge(method: PullRequestData['viewerDefaultMergeMethod'], sha: string) {
@@ -527,7 +541,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
         registry,
         ref,
         (connection) => connection.request('pullRequest.merge', { ...ref, sha, mergeMethod }),
-        (data) => data
+        (data) => data,
+        "Couldn't merge"
       )
     }
     function viewed(path: string, viewed: boolean) {
@@ -540,7 +555,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
           files: data.files.map((file) =>
             file.filename === path ? { ...file, viewed: viewed ? 'VIEWED' : 'UNVIEWED' } : file
           ),
-        })
+        }),
+        viewed ? "Couldn't mark the file viewed" : "Couldn't mark the file unviewed"
       )
     }
     function resolve(threadId: string, resolved: boolean) {
@@ -554,7 +570,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
           reviewComments: data.reviewComments.map((comment) =>
             comment.thread_id === threadId ? { ...comment, resolved } : comment
           ),
-        })
+        }),
+        resolved ? "Couldn't resolve the thread" : "Couldn't reopen the thread"
       )
     }
     function comment(body: string, commentId?: number) {
@@ -584,7 +601,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
           (data) =>
             (data.issueComments ?? []).filter(sameComment).length >= expected
               ? data
-              : { ...data, issueComments: [...(data.issueComments ?? []), comment] }
+              : { ...data, issueComments: [...(data.issueComments ?? []), comment] },
+          "Couldn't post comment"
         )
       const root = data.reviewComments.find((entry) => entry.id === commentId)
       if (!root) return Promise.resolve(false)
@@ -603,7 +621,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
                   ...data.reviewComments,
                   { ...root, ...comment, in_reply_to_id: commentId },
                 ],
-              }
+              },
+        "Couldn't post reply"
       )
     }
     async function upload(file: File) {
