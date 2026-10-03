@@ -113,6 +113,19 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.updateTitle': ({ repo, number }) =>
             Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.updateBody': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.setState': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.comment': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.reply': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.resolveThread': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.setViewed': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequest.commitFiles': () => Effect.succeed({ files: [], parentSha: null }),
           'pullRequest.merge': ({ repo, number }) =>
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.uploadAttachment': () =>

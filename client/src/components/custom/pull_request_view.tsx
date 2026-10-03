@@ -1033,7 +1033,7 @@ export function PullRequestView({
                           <CheckStatusIcon run={run} />
                         </RowIcon>
                         <span className='min-w-0 flex-1 truncate'>
-                          {run.name}
+                          {run.workflow ? `${run.workflow} / ${run.name}` : run.name}
                           <span className='sr-only'>, {checkResult(run)}</span>
                         </span>
                         <span className='w-16 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
@@ -1045,7 +1045,7 @@ export function PullRequestView({
                             size='sm'
                             className='px-0'
                             nativeButton={false}
-                            aria-label={`${run.name} details`}
+                            aria-label={`${run.workflow ? `${run.workflow} / ${run.name}` : run.name} details`}
                             render={externalLink(run.html_url)}
                           >
                             Details

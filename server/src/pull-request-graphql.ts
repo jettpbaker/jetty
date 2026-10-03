@@ -105,44 +105,80 @@ export function mapPullRequestReferences(
   return references
 }
 
-export const pullRequestStateFields = `updatedAt commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
+export const actorFields = `__typename login avatarUrl url ... on User { name }`
+export const pageFields = `totalCount pageInfo { hasNextPage endCursor }`
+export const reviewCommentFields = `databaseId body path line diffHunk createdAt url
+  author { ${actorFields} } replyTo { databaseId } pullRequestReview { databaseId }`
+
+export const pullRequestConnections = {
+  comments: `nodes { databaseId body createdAt url author { ${actorFields} } }`,
+  reviews: `nodes { databaseId state body submittedAt url author { ${actorFields} } }`,
+  reviewThreads: `nodes { id isResolved isOutdated path line diffSide startLine
+    comments(first:100) { ${pageFields} nodes { ${reviewCommentFields} } } }`,
+  commitHistory: `nodes { commit { oid message authoredDate url author { name user { ${actorFields} } }
+    parents(first:1) { totalCount } } }`,
+  files: `nodes { path viewerViewedState }`,
+  timelineItems: `nodes { __typename
+    ... on ReadyForReviewEvent { createdAt actor { ${actorFields} } }
+    ... on ConvertToDraftEvent { createdAt actor { ${actorFields} } }
+    ... on ClosedEvent { createdAt actor { ${actorFields} } }
+    ... on ReopenedEvent { createdAt actor { ${actorFields} } }
+  }`,
+} as const
+
+export function connectionField(field: string, after?: string) {
+  const name = field === 'commitHistory' ? 'commitHistory: commits' : field
+  const types =
+    field === 'timelineItems'
+      ? ',itemTypes:[READY_FOR_REVIEW_EVENT,CONVERT_TO_DRAFT_EVENT,CLOSED_EVENT,REOPENED_EVENT]'
+      : ''
+  return `${name}(first:100${after ? `,after:${JSON.stringify(after)}` : ''}${types}) {
+    ${pageFields} ${pullRequestConnections[field as keyof typeof pullRequestConnections]}
+  }`
+}
+
+export const pullRequestStateFields = `updatedAt headRefOid baseRefOid commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
 
 export const checkRollupFields = `commits(last:1) { nodes { commit {
   oid statusCheckRollup { state contexts(first:100) {
-    totalCount pageInfo { hasNextPage }
+    ${pageFields}
     nodes { __typename
-      ... on CheckRun { id name status conclusion detailsUrl startedAt completedAt
-        checkSuite { app { name } workflowRun { workflow { name } } } }
-      ... on StatusContext { id context state targetUrl updatedAt }
+      ... on CheckRun { id name status conclusion detailsUrl startedAt completedAt summary
+        isRequired(pullRequestNumber:PR_NUMBER)
+        checkSuite { app { name } workflowRun { event workflow { name } } } }
+      ... on StatusContext { id context state targetUrl updatedAt description isRequired(pullRequestNumber:PR_NUMBER) }
     }
   } }
 } } }`
 
 export const pullRequestGraphqlFields = `
-  updatedAt headRefOid mergeable mergeStateStatus reviewDecision
-  comments(last:100) { pageInfo { hasPreviousPage } nodes {
-    databaseId body createdAt url author { __typename login avatarUrl url }
-  } }
-  reviewRequests(first:100) { pageInfo { hasNextPage } nodes {
+  id number title body state isDraft merged mergedAt url createdAt updatedAt
+  headRefName headRefOid baseRefName baseRefOid additions deletions changedFiles totalCommentsCount
+  author { ${actorFields} } mergedBy { ${actorFields} } viewerCanUpdate
+  headRepository { nameWithOwner } baseRepository { nameWithOwner }
+  repository { mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerDefaultMergeMethod viewerPermission }
+  labels(first:100) { ${pageFields} nodes { name } }
+  mergeable mergeStateStatus reviewDecision
+  ${Object.keys(pullRequestConnections)
+    .map((field) => connectionField(field))
+    .join('\n')}
+  reviewRequests(first:100) { ${pageFields} nodes {
     asCodeOwner requestedReviewer { __typename
       ... on User { login name avatarUrl url }
       ... on Bot { login avatarUrl url }
       ... on Team { slug name avatarUrl organization { login } }
     }
   } }
-  latestReviews(first:100) { pageInfo { hasNextPage } nodes {
-    state author { __typename login avatarUrl url }
+  latestReviews(first:100) { ${pageFields} nodes {
+    state author { ${actorFields} }
   } }
-  latestOpinionatedReviews(first:100) { pageInfo { hasNextPage } nodes {
-    state author { __typename login avatarUrl url }
+  latestOpinionatedReviews(first:100) { ${pageFields} nodes {
+    state author { ${actorFields} }
   } }
-  closingIssuesReferences(first:100) { pageInfo { hasNextPage } nodes {
+  closingIssuesReferences(first:100) { ${pageFields} nodes {
     number title url state stateReason repository { nameWithOwner }
   } }
   suggestedReviewers { reviewer { login name avatarUrl url } }
-  reviewThreads(first:100) { pageInfo { hasNextPage } nodes {
-    isResolved comments(first:1) { nodes { databaseId } }
-  } }
   ${checkRollupFields}
 `
 
@@ -156,6 +192,7 @@ export function pullRequestGraphqlQuery(
   fields = pullRequestGraphqlFields
 ) {
   return `query { rateLimit { cost remaining resetAt }
+    ${fields === pullRequestGraphqlFields ? `viewer { ${actorFields} }` : ''}
     ${refs
       .map((ref, index) => {
         const [owner, name] = ref.repo.split('/')
@@ -163,7 +200,7 @@ export function pullRequestGraphqlQuery(
           ? `baseRef { compare(headRef:${JSON.stringify(ref.headSha)}) { behindBy headTarget { oid } } }`
           : ''
         return `p${index}: repository(owner:${JSON.stringify(owner)},name:${JSON.stringify(name)}) {
-        pullRequest(number:${ref.number}) { ${fields} ${comparison} }
+        pullRequest(number:${ref.number}) { ${fields.replaceAll('PR_NUMBER', String(ref.number))} ${comparison} }
       }
       ${pullRequestReferenceFields(ref.references ?? [], index)}`
       })
@@ -282,8 +319,19 @@ export function mapPullRequestGraphql(value: unknown) {
     'latestOpinionatedReviews',
     'closingIssuesReferences',
     'reviewThreads',
+    'reviews',
+    'commitHistory',
+    'files',
+    'timelineItems',
+    'comments',
+    'labels',
   ].filter((field) => record(record(pull[field]).pageInfo).hasNextPage === true)
   if (record(record(pull.comments).pageInfo).hasPreviousPage) truncatedConnections.push('comments')
+  for (const value of nodes(pull.reviewThreads)) {
+    const thread = record(value)
+    if (record(record(thread.comments).pageInfo).hasNextPage)
+      truncatedConnections.push(`reviewThreads.${string(thread.id)}.comments`)
+  }
   if (record(record(rollup.contexts).pageInfo).hasNextPage) truncatedConnections.push('checkRuns')
   return {
     pull,

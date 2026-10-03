@@ -43,6 +43,8 @@ export const GitHubActivity = Schema.Literals(['focused', 'blurred', 'hidden'])
 export type GitHubActivity = Schema.Schema.Type<typeof GitHubActivity>
 
 export const GitHubPullRequest = Schema.Struct({
+  node_id: Schema.optional(Schema.String),
+  merged_by: Schema.optional(Schema.NullOr(GitHubUser)),
   number: Schema.Int,
   title: Schema.String,
   state: Schema.Literals(['open', 'closed']),
@@ -77,6 +79,11 @@ export const GitHubReview = Schema.Struct({
 })
 
 export const GitHubReviewComment = Schema.Struct({
+  diff_hunk: Schema.optional(Schema.String),
+  thread_id: Schema.optional(Schema.String),
+  outdated: Schema.optional(Schema.Boolean),
+  side: Schema.optional(Schema.Literals(['LEFT', 'RIGHT'])),
+  start_line: Schema.optional(Schema.NullOr(Schema.Int)),
   id: Schema.Int,
   user: GitHubUser,
   body: Schema.String,
@@ -98,6 +105,11 @@ export const GitHubIssueComment = Schema.Struct({
 })
 
 export const GitHubCheckRun = Schema.Struct({
+  kind: Schema.optional(Schema.Literals(['run', 'status'])),
+  workflow: Schema.optional(Schema.NullOr(Schema.String)),
+  event: Schema.optional(Schema.NullOr(Schema.String)),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  required: Schema.optional(Schema.Boolean),
   id: Schema.Union([Schema.Int, Schema.String]),
   name: Schema.String,
   status: Schema.Literals(['queued', 'in_progress', 'completed']),
@@ -121,6 +133,7 @@ export const GitHubCheckRun = Schema.Struct({
 })
 
 export const GitHubCommit = Schema.Struct({
+  parents: Schema.optional(Schema.Int),
   sha: Schema.String,
   commit: Schema.Struct({
     message: Schema.String,
@@ -131,6 +144,9 @@ export const GitHubCommit = Schema.Struct({
 })
 
 export const GitHubFile = Schema.Struct({
+  viewed: Schema.optional(Schema.Literals(['VIEWED', 'UNVIEWED', 'DISMISSED'])),
+  binary: Schema.optional(Schema.Boolean),
+  generated: Schema.optional(Schema.Boolean),
   sha: Schema.String,
   filename: Schema.String,
   status: Schema.Literals(['added', 'removed', 'modified', 'renamed']),
@@ -142,6 +158,18 @@ export const GitHubFile = Schema.Struct({
 })
 
 export const PullRequestData = Schema.Struct({
+  statusEvents: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        kind: Schema.Literals(['ready_for_review', 'converted_to_draft', 'closed', 'reopened']),
+        actor: Schema.NullOr(GitHubUser),
+        at: Schema.String,
+      })
+    )
+  ),
+  openedAsDraft: Schema.optional(Schema.Boolean),
+  viewer: Schema.optional(GitHubUser),
+  viewerCanUpdate: Schema.optional(Schema.Boolean),
   pull: GitHubPullRequest,
   reviews: Schema.Array(GitHubReview),
   reviewComments: Schema.Array(GitHubReviewComment),

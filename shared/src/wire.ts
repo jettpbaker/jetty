@@ -5,6 +5,7 @@ import { SessionStatus } from './events'
 import { ApprovalDecision, Attachment } from './items'
 import {
   GitHubActivity,
+  GitHubFile,
   GitHubRateLimitHealth,
   PullRequestData,
   ReviewerCandidate,
@@ -140,7 +141,9 @@ export const PullRequestSnapshot = Schema.Struct({
   refreshedAt: Schema.optional(Schema.Int),
   data: Schema.optional(PullRequestData),
   rateLimit: Schema.optional(GitHubRateLimitHealth),
-  pendingOperation: Schema.optional(Schema.Literals(['title', 'merge', 'reviews'])),
+  pendingOperation: Schema.optional(
+    Schema.Literals(['title', 'merge', 'reviews', 'body', 'state', 'comment', 'thread', 'viewed'])
+  ),
 })
 export type PullRequestSnapshot = Schema.Schema.Type<typeof PullRequestSnapshot>
 
@@ -452,6 +455,56 @@ export const methods = {
   'pullRequest.updateTitle': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int, title: Schema.String }),
     result: PullRequestSnapshot,
+  },
+  'pullRequest.updateBody': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int, body: Schema.String }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.setState': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      state: Schema.Literals(['open', 'draft', 'closed']),
+    }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.comment': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int, body: Schema.String }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.reply': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      commentId: Schema.Int,
+      body: Schema.String,
+    }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.resolveThread': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      threadId: Schema.String,
+      resolved: Schema.Boolean,
+    }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.setViewed': {
+    params: Schema.Struct({
+      repo: Schema.String,
+      number: Schema.Int,
+      path: Schema.String,
+      viewed: Schema.Boolean,
+    }),
+    result: PullRequestSnapshot,
+  },
+  'pullRequest.commitFiles': {
+    params: Schema.Struct({ repo: Schema.String, sha: Schema.String }),
+    result: Schema.Struct({
+      files: Schema.Array(GitHubFile),
+      parentSha: Schema.NullOr(Schema.String),
+    }),
   },
   'pullRequest.merge': {
     params: Schema.Struct({

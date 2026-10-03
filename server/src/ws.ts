@@ -26,6 +26,7 @@ import {
   createPullRequests,
   githubConnection,
   pullRequestDiffFile,
+  pullRequestCommitFiles,
   validPullRequestRef,
   validRepo,
 } from './pull-requests'
@@ -398,6 +399,42 @@ export function createRpcHandlers(
           Effect.flatMap(() => pullRequests.updateTitle(ref, title)),
           Effect.mapError(wireError)
         ),
+      'pullRequest.updateBody': ({ body, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.updateBody(ref, body)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.setState': ({ state, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.setState(ref, state)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.comment': ({ body, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.comment(ref, body)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.reply': ({ commentId, body, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.reply(ref, commentId, body)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.resolveThread': ({ threadId, resolved, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.resolveThread(ref, threadId, resolved)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.setViewed': ({ path, viewed, ...ref }) =>
+        checkedRef(ref).pipe(
+          Effect.flatMap(() => pullRequests.setViewed(ref, path, viewed)),
+          Effect.mapError(wireError)
+        ),
+      'pullRequest.commitFiles': ({ repo, sha }) =>
+        Effect.tryPromise({
+          try: () => pullRequestCommitFiles(repo, sha),
+          catch: (error) =>
+            error instanceof StoreError ? error : new StoreError('internal', String(error)),
+        }).pipe(Effect.mapError(wireError)),
       'pullRequest.merge': ({ sha, mergeMethod, ...ref }) =>
         checkedRef(ref).pipe(
           Effect.flatMap(() => pullRequests.merge(ref, sha, mergeMethod)),
