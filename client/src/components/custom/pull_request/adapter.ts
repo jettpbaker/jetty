@@ -233,13 +233,17 @@ export function adaptPullRequest(data: PullRequestData): PrPull {
       date: commit.commit.author.date,
       parents: commit.parents ?? 1,
     })),
-    reviewers: (data.reviewers ?? data.reviewRequests ?? []).map((reviewer) => ({
-      user: prUser(reviewer),
-      state: reviewer.requested
-        ? 'REQUESTED'
-        : (reviewer.latestReviewState ?? reviewer.state ?? 'COMMENTED'),
-      ...(reviewer.kind === 'team' ? { team: { codeOwner: reviewer.asCodeOwner } } : {}),
-    })),
+    reviewers: (data.reviewers ?? data.reviewRequests ?? [])
+      .filter((reviewer) => reviewer.state !== 'PENDING')
+      .map((reviewer) => ({
+        user: prUser(reviewer),
+        state: reviewer.requested
+          ? 'REQUESTED'
+          : reviewer.state === 'DISMISSED'
+            ? 'DISMISSED'
+            : (reviewer.latestReviewState ?? reviewer.state ?? 'COMMENTED'),
+        ...(reviewer.kind === 'team' ? { team: { codeOwner: reviewer.asCodeOwner } } : {}),
+      })),
     data,
   }
 }

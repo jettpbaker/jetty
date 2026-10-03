@@ -303,6 +303,7 @@ const verdictBadges: Record<string, { tone: string; glyph: ReactNode }> = {
   },
 }
 function VerdictBadge({ state }: { state: string }) {
+  if (state === 'DISMISSED') return null
   const { tone, glyph } = verdictBadges[state] ?? verdictBadges.COMMENTED!
   return (
     <span aria-hidden className={cn('absolute -right-1 -bottom-0.5 z-10 size-3', tone)}>
@@ -429,6 +430,7 @@ const quoted = (body: string) =>
 
 // Capy names a reviewer's state in its picker, capitalised: Commented, Approved…
 const capyWords: Record<string, string> = {
+  DISMISSED: '',
   APPROVED: 'Approved',
   CHANGES_REQUESTED: 'Changes requested',
   COMMENTED: 'Commented',
