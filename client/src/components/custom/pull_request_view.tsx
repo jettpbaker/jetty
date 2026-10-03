@@ -9,9 +9,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { perf } from '@/perf'
-import { useChrome } from '@/state/chrome'
 import {
   usePullRequest,
+  usePullRequestThreads,
   useRefreshPullRequest,
   usePullRequestActions,
   useReviewRequestPatches,
@@ -38,6 +38,7 @@ import { AfterPrPaint, PrRuntimeContext } from './pull_request/runtime'
 import './thread_details_layout.css'
 
 type LinkedThread = { id: string; title: string }
+const noThreads: readonly LinkedThread[] = []
 
 function externalLink(url: string) {
   return <a aria-label='Open in GitHub' href={url} target='_blank' rel='noreferrer' />
@@ -107,7 +108,7 @@ export function PullRequestView({
   data,
   link,
   standalone = false,
-  threads = [],
+  threads = noThreads,
   threadId,
 }: {
   data: PullRequestData
@@ -144,17 +145,19 @@ export function PullRequestView({
       reviewers: [...reviewers.values()],
     })
   }, [data, patches])
+  const runtime = useMemo(
+    () => ({
+      ref: link,
+      actions,
+      threads,
+      more: <MoreMenu link={link} threadId={threadId} />,
+      sidebar: standalone ? <PageSidebarTrigger /> : null,
+    }),
+    [link, actions, threads, threadId, standalone]
+  )
   useLayoutEffect(() => perf.rendered('pr.open'), [])
   return (
-    <PrRuntimeContext
-      value={{
-        ref: link,
-        actions,
-        threads,
-        more: <MoreMenu link={link} threadId={threadId} />,
-        sidebar: standalone ? <PageSidebarTrigger /> : null,
-      }}
-    >
+    <PrRuntimeContext value={runtime}>
       <AfterPrPaint>
         <JettyStyle pr={pr} />
       </AfterPrPaint>
@@ -183,17 +186,7 @@ export function LivePullRequestView({
   standalone?: boolean
 }) {
   const { snapshot, refreshing } = usePullRequest(link)
-  const chromeThreads = useChrome()?.threads
-  const linkedThreads = useMemo(
-    () =>
-      threads ??
-      (chromeThreads ?? []).filter((thread) =>
-        thread.pullRequests?.some(
-          (entry) => entry.repo === link.repo && entry.number === link.number
-        )
-      ),
-    [threads, chromeThreads, link.repo, link.number]
-  )
+  const linkedThreads = usePullRequestThreads(link)
   const refresh = useRefreshPullRequest()
   const failure = snapshot && snapshot.status !== 'ready' && snapshot.status !== 'loading'
   if (snapshot?.data)
@@ -204,7 +197,7 @@ export function LivePullRequestView({
           data={snapshot.data}
           link={link}
           standalone={standalone}
-          threads={linkedThreads}
+          threads={threads ?? linkedThreads}
           threadId={threadId}
         />
       </MediaLightboxProvider>

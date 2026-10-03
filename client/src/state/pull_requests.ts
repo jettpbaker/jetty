@@ -16,7 +16,7 @@ import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
 import { useCallback, useContext, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useChrome } from './chrome'
+import { chromeAtom, useChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -77,6 +77,30 @@ const summaryAtom = Atom.family((key: string) =>
         ?.pull
   )
 )
+
+type LinkedThread = { id: string; title: string }
+const chromeThreadsAtom = Atom.map(chromeAtom, (chrome) => chrome?.threads)
+
+const linkedThreadsAtom = Atom.family((key: string) =>
+  Atom.readable((get) => {
+    const { repo, number } = parseKey(key)
+    return (get(chromeThreadsAtom) ?? [])
+      .filter((thread) =>
+        thread.pullRequests?.some((link) => link.repo === repo && link.number === number)
+      )
+      .map(({ id, title }) => ({ id, title }))
+  }).pipe(
+    Atom.withEquality<LinkedThread[]>(
+      (a, b) =>
+        a.length === b.length &&
+        a.every((thread, index) => thread.id === b[index]!.id && thread.title === b[index]!.title)
+    )
+  )
+)
+
+export function usePullRequestThreads(ref: PullRequestRef) {
+  return useAtomValue(linkedThreadsAtom(pullRequestKey(ref)))
+}
 
 export function usePullRequestSummary(ref: PullRequestRef) {
   return useAtomValue(summaryAtom(pullRequestKey(ref)))
