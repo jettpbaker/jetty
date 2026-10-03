@@ -41,6 +41,10 @@
 - Performance is the #1 UX value. Interactions render synchronously from local
   state; the network is never on the critical path of a click. Thread switching
   must be instant — cached state first, catch-up patches after.
+- Keep `:has()` (and Tailwind's `has-*` / `group-has-*`) off high-level containers.
+  Chrome restyles an anchor's whole subtree on inserts below it, so one rule on the
+  app shell restyles the entire app on every DOM change. Anchor it on the smallest
+  element that needs it.
 - Components come from a strict ladder: an existing component in this repo, or the
   sketchpad's version if it hasn't been ported yet; else a shadcn/ui or AI Elements
   component if one fits; else compose one from
