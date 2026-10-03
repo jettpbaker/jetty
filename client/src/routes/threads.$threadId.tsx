@@ -109,7 +109,8 @@ function Thread() {
           ) : (
             <div className='min-h-0 flex-1' />
           )}
-          {!agent && composer}
+          {/* A thread left on a subagent's tab reopens there, where there's no composer. */}
+          {!agent && (thread || tab === MAIN_TAB) && composer}
         </ThreadDetailsLayout>
       )}
     </section>
