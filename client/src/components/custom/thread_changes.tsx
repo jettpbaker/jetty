@@ -52,7 +52,6 @@ function PatchViewer({
   }, [target, files, onTarget])
   return (
     <FileChangesViewer
-      embedded
       scope={scope}
       onScopeChange={onScopeChange}
       files={files}

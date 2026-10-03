@@ -30,8 +30,6 @@ export function FileChangesViewer({
   onScopeChange,
   files: changes,
   footer,
-  embedded = false,
-  layout = 'panel',
   loadFile,
   reveal,
 }: {
@@ -39,8 +37,6 @@ export function FileChangesViewer({
   onScopeChange?: (scope: DiffScope) => void
   files: FileChange[]
   footer?: ReactNode
-  embedded?: boolean
-  layout?: 'panel' | 'page'
   loadFile?: LoadDiffFile
   reveal?: { path: string }
 }) {
@@ -161,8 +157,6 @@ export function FileChangesViewer({
         <DiffWorkerPoolProvider themes={syntaxTheme}>
           <div
             ref={root}
-            data-embedded={embedded}
-            data-layout={layout}
             className='@container flex h-full min-h-0 flex-col overflow-hidden bg-background'
           >
             {onScopeChange && (

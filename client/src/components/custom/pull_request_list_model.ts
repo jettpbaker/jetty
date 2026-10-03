@@ -52,15 +52,3 @@ export function pullRequestReason(pull: PullRequestListItem) {
   if (pull.mergeStateStatus === 'BLOCKED') return 'Blocked by branch protection'
   return 'Checking mergeability'
 }
-
-export function formatRelativeDate(iso: string, now = Date.now()) {
-  const elapsed = Math.max(0, now - new Date(iso).getTime())
-  const minutes = Math.round(elapsed / 60_000)
-  if (minutes < 1) return 'now'
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h`
-  const days = Math.round(hours / 24)
-  if (days < 30) return `${days}d`
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(iso))
-}

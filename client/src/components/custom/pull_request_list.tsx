@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
+import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
 import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList } from '@/state'
@@ -35,7 +36,6 @@ import {
 } from './lucide_icons'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { PersonAvatar } from './person_avatar'
-import { formatRelativeDate } from './pull_request_list_model'
 import {
   pullRequestGroup,
   pullRequestGroupLabel,
@@ -229,7 +229,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           className='font-mono text-xs text-muted-foreground tabular-nums'
           title={new Date(pull.updatedAt).toLocaleString()}
         >
-          {formatRelativeDate(new Date(pull.updatedAt).toISOString(), now)}
+          {formatAge(pull.updatedAt, now)}
         </span>
       ),
     },
