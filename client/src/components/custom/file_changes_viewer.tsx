@@ -68,6 +68,7 @@ export function FileChangesViewer({
         status: file.status === 'deleted' ? 'removed' : file.status,
         additions: file.diff.hunks.reduce((n, hunk) => n + hunk.additionLines, 0),
         deletions: file.diff.hunks.reduce((n, hunk) => n + hunk.deletionLines, 0),
+        binary: file.diff.hunks.length === 0 && file.diff.type !== 'rename-pure',
         diff: file.diff,
         initiallyNear,
       }
