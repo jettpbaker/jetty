@@ -1,3 +1,4 @@
+import type { Connection } from '@/net/connection'
 import type { PullRequestData } from '@jetty/shared/pull-request'
 import type {
   PullRequestLink,
@@ -44,10 +45,18 @@ const liveAtom = Atom.family((key: string) =>
   }).pipe(Atom.setIdleTTL('5 seconds'))
 )
 
+type OptimisticPatch = { apply: (data: PullRequestData) => PullRequestData }
+const patchesAtom = Atom.family((_key: string) =>
+  Atom.make<readonly OptimisticPatch[]>([]).pipe(Atom.keepAlive)
+)
 const snapshotAtom = Atom.family((key: string) =>
   Atom.readable((get) => {
-    const cached = get(cacheAtom(key))
-    return AsyncResult.getOrElse(get(liveAtom(key)), () => cached)
+    get(liveAtom(key))
+    const snapshot = get(cacheAtom(key))
+    if (!snapshot?.data) return snapshot
+    const patches = get(patchesAtom(key))
+    if (!patches.length) return snapshot
+    return { ...snapshot, data: patches.reduce((data, patch) => patch.apply(data), snapshot.data) }
   })
 )
 
@@ -429,11 +438,226 @@ function unlinkPullRequest(
   link: PullRequestRef & { url: string }
 ) {
   hideTab(registry, threadId, pullRequestKey(link))
-  run(registry, (connection) =>
-    connection.request('pullRequest.unlink', { threadId, reference: link.url })
+  run(
+    registry,
+    (connection) => connection.request('pullRequest.unlink', { threadId, reference: link.url }),
+    () => {
+      showTab(registry, threadId, pullRequestKey(link))
+      toast.error("Couldn't unlink pull request")
+    }
   )
 }
 
 export function useUnlinkPullRequest() {
   return useAction(unlinkPullRequest)
+}
+
+function requestPullRequest<E>(
+  registry: Registry,
+  ref: PullRequestRef,
+  request: (connection: Connection) => Effect.Effect<PullRequestSnapshot, E>,
+  apply: OptimisticPatch['apply']
+) {
+  const key = pullRequestKey(ref)
+  const patch = { apply }
+  registry.update(patchesAtom(key), (patches) => [...patches, patch])
+  return Effect.runPromise(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(
+      Effect.flatMap(request),
+      Effect.tap((snapshot) => Effect.sync(() => registry.set(cacheAtom(key), snapshot)))
+    )
+  )
+    .then(
+      () => true,
+      (error: unknown) => {
+        toast.error("Couldn't save pull request", {
+          description: error instanceof Error ? error.message : undefined,
+        })
+        return false
+      }
+    )
+    .finally(() =>
+      registry.update(patchesAtom(key), (patches) => patches.filter((entry) => entry !== patch))
+    )
+}
+
+let optimisticCommentId = 0
+
+export function usePullRequestActions(ref: PullRequestRef) {
+  const registry = useContext(RegistryContext)
+  const { repo, number } = ref
+  return useMemo(() => {
+    const ref = { repo, number }
+    function title(title: string) {
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) => connection.request('pullRequest.updateTitle', { ...ref, title }),
+        (data) => ({ ...data, pull: { ...data.pull, title } })
+      )
+    }
+    function body(body: string) {
+      if (/blob:/i.test(body)) return Promise.resolve(false)
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) => connection.request('pullRequest.updateBody', { ...ref, body }),
+        (data) => ({ ...data, pull: { ...data.pull, body } })
+      )
+    }
+    function state(state: 'open' | 'draft' | 'closed') {
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) => connection.request('pullRequest.setState', { ...ref, state }),
+        (data) => ({
+          ...data,
+          pull: {
+            ...data.pull,
+            state: state === 'closed' ? 'closed' : 'open',
+            draft: state === 'draft',
+          },
+        })
+      )
+    }
+    function merge(method: PullRequestData['viewerDefaultMergeMethod'], sha: string) {
+      const mergeMethod = method === 'MERGE' ? 'merge' : method === 'REBASE' ? 'rebase' : 'squash'
+      // Keep GitHub's authoritative state until the merge completes; the button enters busy locally.
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) => connection.request('pullRequest.merge', { ...ref, sha, mergeMethod }),
+        (data) => data
+      )
+    }
+    function viewed(path: string, viewed: boolean) {
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) => connection.request('pullRequest.setViewed', { ...ref, path, viewed }),
+        (data) => ({
+          ...data,
+          files: data.files.map((file) =>
+            file.filename === path ? { ...file, viewed: viewed ? 'VIEWED' : 'UNVIEWED' } : file
+          ),
+        })
+      )
+    }
+    function resolve(threadId: string, resolved: boolean) {
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) =>
+          connection.request('pullRequest.resolveThread', { ...ref, threadId, resolved }),
+        (data) => ({
+          ...data,
+          reviewComments: data.reviewComments.map((comment) =>
+            comment.thread_id === threadId ? { ...comment, resolved } : comment
+          ),
+        })
+      )
+    }
+    function comment(body: string, commentId?: number) {
+      const data = registry.get(snapshotAtom(pullRequestKey(ref)))?.data
+      if (!data?.viewer || /blob:/i.test(body)) return Promise.resolve(false)
+      const comment = {
+        id: --optimisticCommentId,
+        user: data.viewer,
+        body,
+        created_at: new Date().toISOString(),
+        html_url: '',
+      }
+      const sameComment = (entry: { user: GitHubUser; body: string }) =>
+        entry.user.login === comment.user.login && entry.body === body
+      const expected =
+        (commentId === undefined
+          ? (data.issueComments ?? [])
+          : data.reviewComments.filter(
+              (entry) => entry.id === commentId || entry.in_reply_to_id === commentId
+            )
+        ).filter(sameComment).length + 1
+      if (commentId === undefined)
+        return requestPullRequest(
+          registry,
+          ref,
+          (connection) => connection.request('pullRequest.comment', { ...ref, body }),
+          (data) =>
+            (data.issueComments ?? []).filter(sameComment).length >= expected
+              ? data
+              : { ...data, issueComments: [...(data.issueComments ?? []), comment] }
+        )
+      const root = data.reviewComments.find((entry) => entry.id === commentId)
+      if (!root) return Promise.resolve(false)
+      return requestPullRequest(
+        registry,
+        ref,
+        (connection) => connection.request('pullRequest.reply', { ...ref, body, commentId }),
+        (data) =>
+          data.reviewComments
+            .filter((entry) => entry.id === commentId || entry.in_reply_to_id === commentId)
+            .filter(sameComment).length >= expected
+            ? data
+            : {
+                ...data,
+                reviewComments: [
+                  ...data.reviewComments,
+                  { ...root, ...comment, in_reply_to_id: commentId },
+                ],
+              }
+      )
+    }
+    async function upload(file: File) {
+      const base64data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result).split(',')[1]!)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      })
+      const attachment = await Effect.runPromise(
+        AtomRegistry.getResult(registry, connectionAtom).pipe(
+          Effect.flatMap((connection) =>
+            connection.request('pullRequest.uploadAttachment', {
+              repo: ref.repo,
+              name: file.name,
+              mimeType: file.type,
+              base64data,
+            })
+          )
+        )
+      )
+      return { src: attachment.url }
+    }
+    return { title, body, state, merge, viewed, resolve, comment, upload }
+  }, [registry, repo, number])
+}
+
+const commitFilesAtom = Atom.family((key: string) =>
+  Atom.make((get) => {
+    const split = key.indexOf('\n')
+    return get.result(connectionAtom).pipe(
+      Effect.flatMap((connection) =>
+        connection.request('pullRequest.commitFiles', {
+          repo: key.slice(0, split),
+          sha: key.slice(split + 1),
+        })
+      )
+    )
+  }).pipe(Atom.setIdleTTL('30 minutes'))
+)
+
+export function usePullRequestCommitFiles(repo: string, sha: string | null) {
+  const registry = useContext(RegistryContext)
+  const atom = useMemo(
+    () =>
+      sha
+        ? commitFilesAtom(`${repo}\n${sha}`)
+        : Atom.make(AsyncResult.initial<ResultOf<'pullRequest.commitFiles'>>()),
+    [repo, sha]
+  )
+  const result = useAtomValue(atom)
+  return {
+    data: AsyncResult.isSuccess(result) ? result.value : undefined,
+    failed: AsyncResult.isFailure(result),
+    retry: () => registry.refresh(atom),
+  }
 }

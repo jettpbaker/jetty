@@ -524,6 +524,7 @@ function slashAt(editor: Editor): Slash | null {
 }
 
 export function DescriptionEditor({
+  disabled = false,
   identity,
   onSave,
   onUpload,
@@ -532,7 +533,8 @@ export function DescriptionEditor({
   attachSlot,
 }: {
   identity: string
-  onSave?: (markdown: string) => void
+  disabled?: boolean
+  onSave?: (markdown: string) => void | Promise<boolean>
   onUpload?: UploadAttachment
   body: string
   references?: IssueReferences
@@ -542,6 +544,7 @@ export function DescriptionEditor({
     <MediaLightboxProvider>
       <MarkdownEditor
         key={identity}
+        disabled={disabled}
         initial={body}
         label='Pull request description'
         placeholder='Add description…'
@@ -562,6 +565,7 @@ export type UploadAttachment = (file: File) => Promise<UploadedAttachment>
 // The slash menu uses ARIA options while ProseMirror retains keyboard focus in the editor.
 /* oxlint-disable jsx-a11y/prefer-tag-over-role */
 export function MarkdownEditor({
+  disabled = false,
   initial,
   label,
   placeholder,
@@ -573,10 +577,11 @@ export function MarkdownEditor({
   attachSlot,
 }: {
   initial: string
+  disabled?: boolean
   label: string
   placeholder: string
-  onSave?: (markdown: string) => void
-  onSubmit?: (markdown: string) => void
+  onSave?: (markdown: string) => void | Promise<boolean>
+  onSubmit?: (markdown: string) => void | Promise<boolean>
   onUpload?: UploadAttachment
   references?: IssueReferences
   // Markdown to append and focus, as Quote reply does; a new id appends again.
@@ -634,13 +639,21 @@ export function MarkdownEditor({
   // What the editor wrote for the body as loaded, so a save happens only after a real edit: re-serialising
   // can normalise a body (GitHub's \r\n line endings, spacing) without anyone changing it.
   const unchanged = useRef<string>(null)
+  const dirty = useRef(false)
   function save(editor: Editor) {
     clearTimeout(timer.current)
-    if (pendingUploads.current.size) return
+    if (disabled || pendingUploads.current.size) return
     const markdown = markdownOf(editor)
     if (markdown === unchanged.current) return
+    const previous = unchanged.current
     unchanged.current = markdown
-    callbacks.current.onSave?.(markdown)
+    const saving = callbacks.current.onSave?.(markdown)
+    if (saving instanceof Promise)
+      void saving.then((ok) => {
+        if (editor.isDestroyed || unchanged.current !== markdown) return
+        if (ok) dirty.current = markdownOf(editor) !== markdown
+        else unchanged.current = previous
+      })
     setSaved(markdown)
   }
   function updateMenu(editor: Editor) {
@@ -711,6 +724,7 @@ export function MarkdownEditor({
     }
   }
   const editor = useEditor({
+    editable: !disabled,
     extensions: extensions(placeholder, references),
     content: saved,
     contentType: 'markdown',
@@ -788,6 +802,7 @@ export function MarkdownEditor({
       unchanged.current = markdownOf(editor)
     },
     onUpdate({ editor }) {
+      dirty.current = true
       clearTimeout(timer.current)
       timer.current = setTimeout(() => save(editor), 800)
       updateMenu(editor)
@@ -806,6 +821,22 @@ export function MarkdownEditor({
         editor.view.dispatch(editor.state.tr.setMeta(bubbleKey, 'hide'))
     },
   })
+  const loaded = useRef(initial)
+  useEffect(() => {
+    if (!editor || loaded.current === initial || onSubmit) return
+    const clean =
+      !dirty.current &&
+      markdownOf(editor) === unchanged.current &&
+      pendingUploads.current.size === 0
+    loaded.current = initial
+    if (!clean) return
+    editor.commands.setContent(initial, { contentType: 'markdown', emitUpdate: false })
+    unchanged.current = markdownOf(editor)
+    setSaved(initial)
+  }, [editor, initial, onSubmit])
+  useEffect(() => {
+    editor?.setEditable(!disabled)
+  }, [editor, disabled])
   const marks = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -872,14 +903,21 @@ export function MarkdownEditor({
   // Whitespace alone isn't a comment: the same check gates the send button and ⌘↵.
   const empty = useEditorState({
     editor,
-    selector: ({ editor }) => !!onSubmit && !markdownOf(editor).trim(),
+    selector: ({ editor }) =>
+      !!onSubmit && (disabled || pendingUploads.current.size > 0 || !markdownOf(editor).trim()),
   })
   function submit() {
     if (!editor) return
     const markdown = markdownOf(editor)
-    if (!markdown.trim()) return
-    callbacks.current.onSubmit?.(markdown)
+    if (disabled || pendingUploads.current.size || !markdown.trim() || /blob:/i.test(markdown))
+      return
+    const submitted = callbacks.current.onSubmit?.(markdown)
     editor.commands.clearContent(true)
+    if (submitted instanceof Promise)
+      void submitted.then((ok) => {
+        if (!ok && !editor.isDestroyed)
+          editor.commands.insertContentAt(0, markdown + '\n\n', { contentType: 'markdown' })
+      })
   }
   if (!editor) return null
   const commands = [
@@ -944,7 +982,7 @@ export function MarkdownEditor({
     },
   ].filter((command) => command.label.toLowerCase().includes(slash?.query.toLowerCase() ?? ''))
   function choose(index: number) {
-    if (!slash || !commands[index]) return
+    if (disabled || !slash || !commands[index]) return
     editor.chain().focus().deleteRange({ from: slash.from, to: slash.to }).run()
     commands[index].run()
     setSlash(null)
@@ -980,6 +1018,7 @@ export function MarkdownEditor({
           >
             <input
               ref={(input) => focusWhenShown(input)}
+              disabled={disabled}
               aria-label='Link URL'
               placeholder='Enter link URL'
               value={link}
@@ -1018,6 +1057,7 @@ export function MarkdownEditor({
                   variant='ghost'
                   size='icon-sm'
                   className='rounded-menu-item'
+                  disabled={disabled}
                   aria-label='Remove link'
                   onClick={() => {
                     closeLink()
@@ -1048,6 +1088,7 @@ export function MarkdownEditor({
               variant='ghost'
               size='icon-sm'
               className='rounded-menu-item'
+              disabled={disabled}
               aria-label='Edit link'
               onClick={() => openLink(marks.href ?? '')}
             >
@@ -1057,6 +1098,7 @@ export function MarkdownEditor({
               variant='ghost'
               size='icon-sm'
               className='rounded-menu-item'
+              disabled={disabled}
               aria-label='Remove link'
               onClick={() => editor.chain().extendMarkRange('link').unsetLink().run()}
             >
@@ -1104,6 +1146,7 @@ export function MarkdownEditor({
               },
             ].map(({ label, mark, icon: Icon, run }) => (
               <Button
+                disabled={disabled}
                 key={mark}
                 variant='ghost'
                 size='icon-sm'
@@ -1176,6 +1219,7 @@ export function MarkdownEditor({
         )}
       <input
         ref={input}
+        disabled={disabled || !onUpload}
         type='file'
         multiple
         accept='.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm'
@@ -1197,6 +1241,7 @@ export function MarkdownEditor({
             variant='ghost'
             size='icon-xs'
             className='-my-1 text-muted-foreground opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
+            disabled={disabled || !onUpload}
             aria-label='Attach image or video'
             title='Attach image or video'
             onClick={pickFiles}
@@ -1211,6 +1256,7 @@ export function MarkdownEditor({
             variant='ghost'
             size='icon'
             className='text-muted-foreground'
+            disabled={disabled || !onUpload}
             aria-label='Attach image or video'
             onClick={pickFiles}
           >
