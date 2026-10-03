@@ -52,8 +52,9 @@ import {
 } from '@/state'
 import { Link } from '@tanstack/react-router'
 import {
-  lazy,
   Suspense,
+  use,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
@@ -86,35 +87,69 @@ import { ReviewerPicker } from './reviewer_picker'
 import { prPresentation } from './thread_pull_request'
 import './thread_details_layout.css'
 
-const PullRequestDiff = lazy(async () => {
-  const [{ FileChangesViewer }, { parseFileChanges }, { preloadHighlighter }] = await Promise.all([
+type DiffViewer = {
+  FileChangesViewer: typeof import('./file_changes_viewer').FileChangesViewer
+  parseFileChanges: typeof import('./file_diff_model').parseFileChanges
+}
+
+let diffViewer: DiffViewer | undefined
+let diffViewerLoad: Promise<DiffViewer> | undefined
+const compiledLanguages = new Set<string>()
+
+function loadDiffViewer() {
+  diffViewerLoad ??= Promise.all([
     import('./file_changes_viewer'),
     import('./file_diff_model'),
     import('@pierre/diffs'),
-  ])
-  await preloadHighlighter({
-    themes: ['pierre-dark-soft', 'pierre-light-soft'],
-    langs: ['typescript', 'tsx'],
-    preferredHighlighter: 'shiki-wasm',
+  ]).then(async ([{ FileChangesViewer }, { parseFileChanges }, { preloadHighlighter }]) => {
+    await preloadHighlighter({
+      themes: ['pierre-dark-soft', 'pierre-light-soft'],
+      langs: ['typescript', 'tsx'],
+      preferredHighlighter: 'shiki-wasm',
+    })
+    return (diffViewer = { FileChangesViewer, parseFileChanges })
   })
-  function PullRequestDiff({
-    files,
-    repo,
-    baseSha,
-    headSha,
-  }: {
-    files: readonly GitHubFile[]
-    repo: string
-    baseSha?: string
-    headSha: string
-  }) {
-    const changes = useMemo(() => parseFileChanges(filesPatch(files)), [files])
-    const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
-    useLayoutEffect(() => perf.rendered('pr.diff'), [])
-    return <FileChangesViewer embedded layout='page' files={changes} loadFile={loadFile} />
+  return diffViewerLoad
+}
+
+// Shiki compiles a grammar's regexes as it first meets them, which was most of the first Diff
+// render, so the prefetch also tokenizes some of each language's changed lines.
+async function prefetchDiff(files: readonly GitHubFile[]) {
+  await loadDiffViewer()
+  const { getFiletypeFromFileName, getSharedHighlighter } = await import('@pierre/diffs')
+  for (const { filename, patch } of files) {
+    const lang = getFiletypeFromFileName(filename)
+    if (patch === undefined || lang === 'text' || compiledLanguages.has(lang)) continue
+    compiledLanguages.add(lang)
+    const highlighter = await getSharedHighlighter({
+      themes: ['pierre-dark-soft', 'pierre-light-soft'],
+      langs: [lang],
+      preferredHighlighter: 'shiki-wasm',
+    })
+    const lines = patch.split('\n', 200).filter((line) => !line.startsWith('@@'))
+    highlighter.codeToTokensBase(lines.map((line) => line.slice(1)).join('\n'), { lang })
   }
-  return { default: PullRequestDiff }
-})
+}
+
+function PullRequestDiff({
+  files,
+  repo,
+  baseSha,
+  headSha,
+}: {
+  files: readonly GitHubFile[]
+  repo: string
+  baseSha?: string
+  headSha: string
+}) {
+  // use() suspends on a promise it hasn't seen even once it has settled, so a loaded viewer is
+  // read directly.
+  const { FileChangesViewer, parseFileChanges } = diffViewer ?? use(loadDiffViewer())
+  const changes = useMemo(() => parseFileChanges(filesPatch(files)), [files, parseFileChanges])
+  const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
+  useLayoutEffect(() => perf.rendered('pr.diff'), [])
+  return <FileChangesViewer embedded layout='page' files={changes} loadFile={loadFile} />
+}
 
 // GitHub returns one hunk-only patch per file; the viewer reads a git patch.
 function filesPatch(files: readonly GitHubFile[]) {
@@ -760,6 +795,16 @@ export function PullRequestView({
   const body = pull.body.trim()
   useLayoutEffect(() => perf.rendered('pr.open', { pr: link.number }), [link.number])
   useLayoutEffect(() => perf.rendered('pr.diff', { warm: true }), [pane])
+  // The diff mounts once its panel is shown: the file tree measures its scrollbar as it connects.
+  useLayoutEffect(() => {
+    if (pane === 'diff') setDiffSeen(true)
+  }, [pane])
+  useEffect(() => {
+    // Once the Overview has painted, so clicking Diff renders straight away. Safari has no
+    // requestIdleCallback.
+    const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : setTimeout
+    idle(() => void prefetchDiff(files).catch(() => {}))
+  }, [files])
 
   function toggleReviewer(user: GitHubUser, on: boolean) {
     setReviewRequest(link, user, on)
@@ -775,7 +820,6 @@ export function PullRequestView({
       onValueChange={(value) => {
         if (value === 'info' || value === 'diff') setPane(value)
         if (value === 'diff') perf.start('pr.diff', { pr: pull.number, warm: diffSeen })
-        if (value === 'diff') setDiffSeen(true)
       }}
       render={<section aria-label={pull.title} />}
       data-perf-region='pr-panel'

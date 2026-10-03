@@ -9,6 +9,8 @@ const journey: Journey = {
   case: '1',
   async setup(ctx) {
     await open(ctx, `/pull-requests/${prRepo}/1`, `${hasText(prTitle)} && ${diffTab}`)
+    // Someone reads the Overview before opening the diff.
+    await Bun.sleep(1000)
   },
   async act(ctx) {
     await click(ctx.page, diffTab, 'the Diff tab')
