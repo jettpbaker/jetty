@@ -15,6 +15,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } 
 import type { FileTarget } from './file_link'
 
 import { ChangesScopePicker } from './changes_scope'
+import { byTreeOrder } from './diff/model'
 import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
 
 // A file link lands here first; `found` says whether it's among the changed files.
@@ -90,8 +91,13 @@ async function prefetchChanges(diff: Promise<{ diff: string }>) {
   const result = await diff
   if (result.diff === '' || prefetched.has(result)) return
   prefetched.add(result)
-  const { parseFileChanges } = await diffViewer.preload()
-  await primeDiffHighlights(parseFileChanges(result.diff).map((file) => file.diff))
+  const { parseFileChanges, syntaxTheme } = await diffViewer.preload()
+  await primeDiffHighlights(
+    parseFileChanges(result.diff)
+      .sort(byTreeOrder)
+      .map((file) => file.diff),
+    syntaxTheme
+  )
 }
 
 const loading = <DiffLoading />

@@ -2811,7 +2811,7 @@ export const cursorLight: ThemeRegistration = {
   ],
 }
 
-// The diffs' syntax theme. Its diff colours give way to Jetty's status colours (shared.tsx's diffCSS).
+// The diffs' syntax theme. Its diff colours give way to Jetty's status colours (body.tsx's diffCSS).
 registerCustomTheme('cursor-dark', () => Promise.resolve(cursorDark))
 registerCustomTheme('cursor-light', () => Promise.resolve(cursorLight))
 export const syntaxTheme = { dark: 'cursor-dark', light: 'cursor-light' } as const

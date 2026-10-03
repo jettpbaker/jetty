@@ -1,33 +1,18 @@
 import type { DiffScope } from '@jetty/shared/wire'
-import type { CodeViewOptions, FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
+import type { FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  SidebarLeft01Icon,
-} from '@/components/custom/huge_icons'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useResolvedTheme } from '@/lib/theme'
-import { CodeView, type CodeViewHandle, type CodeViewItem } from '@pierre/diffs/react'
-import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees'
-import { FileTree, useFileTree } from '@pierre/trees/react'
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { ChangesScopePicker } from './changes_scope'
-import { diffThemes } from './diff_worker_pool'
-import { DisabledTooltip } from './disabled_tooltip'
+import { charmedSprite } from './charmed_icons'
+import { DiffBody } from './diff/body'
+import { syntaxTheme } from './diff/cursor_themes'
+import { DiffFileCard } from './diff/file_card'
+import { DiffFileList } from './diff/file_list'
+import { byTreeOrder, DiffStyleContext, DiffWrapContext, type DiffFile } from './diff/model'
+import { DiffToolbar, useDiffWrap } from './diff/toolbar'
+import { DiffWorkerPoolProvider, firstPaintLines } from './diff_worker_pool'
 import {
-  diffItem,
   hydratedDiff,
   loadedFiles,
   patchMatchesContents,
@@ -35,244 +20,10 @@ import {
   type FileChange,
   type LoadDiffFile,
 } from './file_diff_model'
-import { ScrollOverlay } from './scroll_overlay'
-import './file_changes_viewer.css'
 
-// Matches menu items (`h-menu-item-compact`).
-const treeRowHeight = 26
 const filePrefetchConcurrency = 4
-// trees.software rotates the chevron slot -90deg when collapsed.
-const treeCaretSprite =
-  '<svg aria-hidden="true" width="0" height="0"><symbol id="jetty-caret-down" viewBox="1.333333 1.333333 21.333333 21.333333"><path fill="none" stroke="currentColor" stroke-width="1.333" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9"/></symbol><symbol id="jetty-empty" viewBox="0 0 6 6"></symbol></svg>'
-const treeIcons = {
-  set: 'complete',
-  colored: true,
-  spriteSheet: treeCaretSprite,
-  remap: {
-    'file-tree-icon-chevron': {
-      name: 'jetty-caret-down',
-      width: 12,
-      height: 12,
-      viewBox: '1.333333 1.333333 21.333333 21.333333',
-    },
-    // Every folder in a PR tree contains changes, so the "has changes" dot carries no information.
-    'file-tree-icon-dot': { name: 'jetty-empty', width: 6, height: 6, viewBox: '0 0 6 6' },
-  },
-} as const
-// `unsafeCSS` is the library's documented escape hatch (@layer unsafe). Sidebar rows keep label text in
-// --foreground and only colour the trailing status mark, so undo the library's label tint.
-const treeUnsafeCSS = [
-  '[role="treeitem"][data-item-focused="true"]:not(:focus-visible)::before { outline: none; }',
-  '[data-item-git-status] > [data-item-section="content"] { color: inherit; }',
-  '[data-item-section="git"] { font-size: var(--text-xs); }',
-  // A flattened directory chain reads as one path truncated at its end, not a truncation per segment.
-  '[data-item-flattened-subitems] { display: inline; white-space: nowrap; }',
-  '[data-item-flattened-subitem] :is([data-truncate-container], [data-truncate-grid], [data-truncate-grid] > :first-child, [data-truncate-content="visible"]) { display: contents; }',
-  '[data-item-flattened-subitem] :is([data-truncate-content="overflow"], [data-truncate-marker-cell]) { display: none; }',
-].join('\n')
-const separatorUnsafeCSS = `
-  [data-separator="line-info"] {
-    height: 26px;
-    min-height: 26px;
-    margin-block: 0;
-    box-sizing: border-box;
-    background: transparent;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-  [data-separator="line-info"] [data-separator-wrapper],
-  [data-separator="line-info"] [data-separator-content],
-  [data-separator="line-info"] [data-expand-button] {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    min-width: 0;
-    min-height: 0;
-    padding: 0;
-    margin: 0;
-  }
-  [data-separator="line-info"] [data-separator-wrapper] {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    display: flex;
-    align-items: center;
-    height: 100%;
-  }
-  [data-separator="line-info"] [data-expand-all-button] { display: none; }
-  [data-separator="line-info"] [data-expand-up] [data-icon] { transform: scaleY(-1); }
-  [data-separator="line-info"] [data-expand-down] [data-icon] { transform: none; }
-  [data-gutter] [data-separator="line-info"] [data-separator-wrapper] {
-    justify-content: center;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-    padding-left: 2ch;
-    padding-right: 1ch;
-  }
-  [data-gutter] [data-separator="line-info"] [data-separator-content] { display: none; }
-  [data-gutter] [data-separator="line-info"] [data-expand-button]:not([data-expand-all-button]) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    align-self: center;
-    width: 16px;
-    height: 16px;
-    color: var(--muted-foreground);
-  }
-  [data-gutter] [data-separator-wrapper][data-separator-multi-button] [data-expand-button]:not([data-expand-all-button]) {
-    height: 10px;
-  }
-  [data-gutter] [data-separator-wrapper][data-separator-multi-button] [data-expand-down] {
-    margin-top: -2px;
-  }
-  [data-gutter] [data-separator="line-info"] [data-expand-button] svg {
-    width: 12px;
-    height: 12px;
-  }
-  [data-additions] [data-gutter] [data-separator="line-info"] [data-expand-button] { display: none; }
-  [data-content] [data-separator="line-info"] [data-separator-wrapper] {
-    justify-content: flex-start;
-    padding-inline: 1ch;
-    width: 100%;
-  }
-  [data-content] [data-separator="line-info"] [data-expand-button] { display: none; }
-  [data-content] [data-separator="line-info"] [data-separator-content] {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    min-width: 0;
-    gap: 1ch;
-    font-size: var(--text-xs);
-    text-decoration: none;
-  }
-  [data-content] [data-separator="line-info"] [data-separator-content]::before,
-  [data-content] [data-separator="line-info"] [data-separator-content]::after {
-    content: "";
-    height: 0.5px;
-    background-color: var(--muted-foreground);
-  }
-  [data-content] [data-separator="line-info"] [data-separator-content]::before {
-    flex: none;
-    width: 12px;
-  }
-  [data-content] [data-separator="line-info"] [data-separator-content]::after {
-    flex: 1 1 auto;
-    min-width: 1ch;
-  }
-  [data-content] [data-unmodified-lines] {
-    flex: none;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
-  [data-additions] [data-content] [data-separator-content] { display: none; }
-  [data-separator="line-info"][data-row-hover] {
-    background-color: var(--accent);
-    color: var(--foreground);
-    fill: currentColor;
-  }
-  [data-gutter] [data-separator="line-info"][data-row-hover] [data-expand-button]:not([data-expand-all-button]),
-  [data-separator="line-info"][data-row-hover] [data-expand-up],
-  [data-separator="line-info"][data-row-hover] [data-expand-down],
-  [data-separator="line-info"][data-row-hover] [data-expand-both],
-  [data-separator="line-info"][data-row-hover] [data-unmodified-lines] {
-    color: var(--foreground);
-    fill: currentColor;
-  }
-  [data-gutter] [data-separator="line-info"][data-row-hover] [data-expand-button] svg,
-  [data-gutter] [data-separator="line-info"][data-row-hover] [data-icon] {
-    color: var(--foreground);
-    fill: currentColor;
-  }
-`
 
-export function diffViewOptions(
-  themeType: 'light' | 'dark',
-  {
-    split = false,
-    loadDiffFiles,
-    lineNumbers = true,
-  }: {
-    split?: boolean
-    loadDiffFiles?: CodeViewOptions<undefined, undefined>['loadDiffFiles']
-    lineNumbers?: boolean
-  }
-): CodeViewOptions<undefined, undefined> {
-  return {
-    diffStyle: split ? 'split' : 'unified',
-    theme: diffThemes,
-    themeType,
-    preferredHighlighter: 'shiki-wasm',
-    stickyHeaders: true,
-    itemMetrics: {
-      diffHeaderHeight: 36,
-      lineHeight: 20,
-      hunkSeparatorHeight: lineNumbers ? 26 : 4,
-    },
-    layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
-    hunkSeparators: lineNumbers ? 'line-info' : 'simple',
-    disableLineNumbers: !lineNumbers,
-    expansionLineCount: 20,
-    loadDiffFiles,
-    unsafeCSS: `
-      [data-diffs-header] { height: 36px; min-height: 36px; box-sizing: border-box; background-color: var(--background); border-bottom: 1px solid var(--border); }
-      [data-diffs-header]::before {
-        content: ''; position: absolute; inset: -1px 0 auto; height: 1px; pointer-events: none;
-        background: linear-gradient(var(--border), var(--border)), var(--background);
-      }
-      [data-diffs-header] [data-change-icon] { display: none; }
-      [data-diffs-header]:hover { --file-icon-opacity: 0; --file-chevron-opacity: 1; }
-      ${separatorUnsafeCSS}
-    `,
-    overflow: split ? 'wrap' : 'scroll',
-  }
-}
-
-export function useCollapsedFiles(initial: () => Set<string>) {
-  const [collapsedFiles, setCollapsedFiles] = useState(initial)
-  const renderFilePrefix = useCallback(
-    (item: { id: string; collapsed?: boolean }) => (
-      <FileCollapseButton
-        path={item.id}
-        collapsed={item.collapsed ?? false}
-        onToggle={() =>
-          setCollapsedFiles((previous) => {
-            const next = new Set(previous)
-            if (next.has(item.id)) next.delete(item.id)
-            else next.add(item.id)
-            return next
-          })
-        }
-      />
-    ),
-    []
-  )
-  const expand = useCallback(
-    (path: string) =>
-      setCollapsedFiles((previous) => {
-        if (!previous.has(path)) return previous
-        const next = new Set(previous)
-        next.delete(path)
-        return next
-      }),
-    []
-  )
-  return { collapsedFiles, renderFilePrefix, expand }
-}
-
-function separatorFromEvent(event: PointerEvent) {
-  for (const node of event.composedPath()) {
-    if (
-      node instanceof Element &&
-      node.getAttribute('data-separator') === 'line-info' &&
-      node.hasAttribute('data-expand-index')
-    ) {
-      return node
-    }
-  }
-  return null
-}
+type ChangedFile = DiffFile & { diff: FileDiffMetadata; initiallyNear: boolean }
 
 export function FileChangesViewer({
   scope = 'uncommitted',
@@ -293,27 +44,38 @@ export function FileChangesViewer({
   loadFile?: LoadDiffFile
   reveal?: { path: string }
 }) {
-  const resolvedTheme = useResolvedTheme()
-  const { collapsedFiles, renderFilePrefix, expand } = useCollapsedFiles(() => new Set())
+  const root = useRef<HTMLDivElement>(null)
+  const paneId = useId()
+  const [pane, setPane] = useState(true)
+  const [filter, setFilter] = useState('')
+  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified')
+  const [wrap, setWrap] = useDiffWrap(root)
+  const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set())
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
   const [hydrated, setHydrated] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
-  const scrollViewport = useRef<HTMLDivElement>(null)
-  const scrollId = useId()
-  const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
-  const items = useMemo(
-    () =>
-      changes.map((file) =>
-        diffItem(
-          file.path,
-          hydrated.get(file.diff) ?? noContext.get(file.diff) ?? file.diff,
-          collapsedFiles.has(file.path)
-        )
-      ),
-    [changes, collapsedFiles, hydrated, noContext]
+  const models = useMemo(() => {
+    let lines = 0
+    return [...changes].sort(byTreeOrder).map((file): ChangedFile => {
+      const initiallyNear = lines < firstPaintLines
+      lines += file.diff.unifiedLineCount
+      return {
+        path: file.path,
+        previousPath: file.diff.prevName,
+        status: file.status === 'deleted' ? 'removed' : file.status,
+        additions: file.diff.hunks.reduce((n, hunk) => n + hunk.additionLines, 0),
+        deletions: file.diff.hunks.reduce((n, hunk) => n + hunk.deletionLines, 0),
+        diff: file.diff,
+        initiallyNear,
+      }
+    })
+  }, [changes])
+  const files = useMemo(
+    () => models.filter((file) => file.path.toLowerCase().includes(filter.toLowerCase())),
+    [models, filter]
   )
   // One request per diff revision, shared by the prefetch and the expand click.
   const loadDiffFiles = useMemo(() => {
@@ -364,271 +126,126 @@ export function FileChangesViewer({
       active = false
     }
   }, [changes, loadDiffFiles])
+  const [selected, setSelected] = useState<string | null>(null)
+  const [scrolledTo, setInView] = useState<string | null>(null)
+  const inView = files.some((file) => file.path === scrolledTo)
+    ? scrolledTo
+    : (files[0]?.path ?? null)
+  const active = useRef(inView)
+  active.current = inView
   const selectFile = useCallback((path: string) => {
     setSelected(path)
-    viewer.current?.scrollTo({ type: 'item', id: path, align: 'start', behavior: 'instant' })
+    setInView(path)
+    root.current
+      ?.querySelector<HTMLElement>(`section[id="${CSS.escape(`linear-file-${path}`)}"]`)
+      ?.scrollIntoView({ block: 'start', behavior: 'instant' })
   }, [])
-  const [selected, setSelected] = useState(changes[0]?.path)
   useEffect(() => {
     if (!reveal) return
-    expand(reveal.path)
-    selectFile(reveal.path)
-  }, [reveal, expand, selectFile])
-  const [treeOpen, setTreeOpen] = useState(layout === 'page')
-  const treeId = useId()
-  const treeToggle = (
-    <Button
-      variant='ghost-text'
-      size='icon-sm'
-      className="aria-expanded:text-muted-foreground not-disabled:hover:aria-expanded:text-foreground [&_svg:not([class*='size-'])]:size-4"
-      aria-label={treeOpen ? 'Collapse file tree' : 'Expand file tree'}
-      aria-expanded={treeOpen}
-      aria-controls={treeId}
-      onClick={() => setTreeOpen((open) => !open)}
-    >
-      <SidebarLeft01Icon className={layout === 'panel' ? '-scale-x-100' : undefined} />
-    </Button>
-  )
-  const [mode, setMode] = useState('unified')
-  const [wide, setWide] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const file = changes.find((entry) => entry.path === selected) ?? changes[0]
-  const split = wide && mode === 'split'
-  const diffOptions = useMemo(
-    () => diffViewOptions(resolvedTheme, { split, loadDiffFiles }),
-    [split, resolvedTheme, loadDiffFiles]
-  )
-  useLayoutEffect(() => {
-    if (!root.current) return
-    const observer = new ResizeObserver(([entry]) => setWide(entry!.contentRect.width >= 900))
-    observer.observe(root.current)
-    return () => observer.disconnect()
-  }, [])
+    setFilter('')
+    setCollapsedFiles((previous) => {
+      if (!previous.has(reveal.path)) return previous
+      const next = new Set(previous)
+      next.delete(reveal.path)
+      return next
+    })
+    setSelected(reveal.path)
+  }, [reveal])
   useEffect(() => {
-    const node = root.current
-    if (!node) return
-    const painted: Element[] = []
-    function clear() {
-      for (const row of painted) row.removeAttribute('data-row-hover')
-      painted.length = 0
-    }
-    function paint(separator: Element) {
-      const index = separator.getAttribute('data-expand-index')
-      const container = separator.closest('[data-code]')
-      if (index == null || !container) return
-      clear()
-      for (const row of container.querySelectorAll(
-        `[data-separator="line-info"][data-expand-index="${CSS.escape(index)}"]`
-      )) {
-        row.setAttribute('data-row-hover', '')
-        painted.push(row)
-      }
-    }
-    function prefetch(separator: Element) {
-      const shadow = separator.getRootNode()
-      if (!(shadow instanceof ShadowRoot)) return
-      const item = viewer.current
-        ?.getInstance()
-        ?.getRenderedItems()
-        .find((rendered) => rendered.element === shadow.host)
-      if (item?.type === 'diff' && item.item.fileDiff.isPartial)
-        void loadDiffFiles?.(item.item.fileDiff)
-    }
-    function onMove(event: PointerEvent) {
-      const separator = separatorFromEvent(event)
-      if (separator && painted.includes(separator)) return
-      if (!separator) {
-        clear()
-        return
-      }
-      prefetch(separator)
-      paint(separator)
-    }
-    function onLeave() {
-      clear()
-    }
-    node.addEventListener('pointermove', onMove)
-    node.addEventListener('pointerleave', onLeave)
-    return () => {
-      node.removeEventListener('pointermove', onMove)
-      node.removeEventListener('pointerleave', onLeave)
-      clear()
-    }
-  }, [file, loadDiffFiles])
-  if (!file) return <p className='p-4 text-sm text-muted-foreground'>No changed files.</p>
+    if (selected) selectFile(selected)
+  }, [selected, reveal, filter, selectFile])
   return (
-    <div
-      ref={root}
-      data-embedded={embedded}
-      data-layout={layout}
-      className='file-changes-viewer overflow-hidden border border-border bg-background'
-    >
-      <header
-        className={`flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border ${layout === 'page' ? 'px-6' : 'pl-2 pr-3'}`}
-      >
-        <div className='flex min-w-0 items-center gap-2 text-xs'>
-          {layout === 'page' && treeToggle}
-          {layout === 'panel' && onScopeChange && (
-            <ChangesScopePicker value={scope} onChange={onScopeChange} />
-          )}
-        </div>
-        <div className='flex items-center gap-2'>
-          <Tabs
-            value={split ? 'split' : 'unified'}
-            onValueChange={(value) => {
-              if (value === 'unified' || value === 'split') setMode(value)
-            }}
+    <DiffStyleContext value={diffStyle}>
+      <DiffWrapContext value={wrap}>
+        <DiffWorkerPoolProvider themes={syntaxTheme}>
+          <div
+            ref={root}
+            data-embedded={embedded}
+            data-layout={layout}
+            className='@container flex h-full min-h-0 flex-col overflow-hidden bg-background'
           >
-            <TabsList variant='line' aria-label='Diff layout' className='h-7 gap-1 p-0'>
-              <TabsTrigger
-                value='unified'
-                className='details-header-tab h-auto rounded-sm px-2 py-1 text-xs'
-                aria-label='Unified diff'
+            {onScopeChange && (
+              <div className='flex h-9 shrink-0 items-center border-b border-border pl-2'>
+                <ChangesScopePicker value={scope} onChange={onScopeChange} />
+              </div>
+            )}
+            <div className='flex min-h-0 flex-1 flex-col pt-3'>
+              <DiffToolbar
+                files={files}
+                total={models.length}
+                pane={pane}
+                paneId={paneId}
+                onPaneChange={setPane}
+                filter={filter}
+                onFilter={setFilter}
+                inView={inView}
+                onSelect={selectFile}
+                diffStyle={diffStyle}
+                onDiffStyleChange={setDiffStyle}
+                toggles={[['Wrap lines', wrap, setWrap]]}
+              />
+              <DiffFileList
+                files={files}
+                pane={pane}
+                paneId={paneId}
+                filter={filter}
+                onFilter={setFilter}
+                selected={selected}
+                inView={inView}
+                onInView={setInView}
+                onSelect={(path) => {
+                  if (path !== active.current) selectFile(path)
+                }}
               >
-                Unified
-              </TabsTrigger>
-              <DisabledTooltip
-                reason={wide ? undefined : 'Widen the viewer to use split diff'}
-                wrap='inline-flex'
-              >
-                <TabsTrigger
-                  value='split'
-                  className='details-header-tab h-auto rounded-sm px-2 py-1 text-xs disabled:pointer-events-auto disabled:cursor-not-allowed aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed aria-disabled:hover:text-muted-foreground dark:aria-disabled:hover:text-muted-foreground'
-                  disabled={!wide}
-                  aria-label='Split diff'
-                >
-                  Split
-                </TabsTrigger>
-              </DisabledTooltip>
-            </TabsList>
-          </Tabs>
-          {layout === 'panel' && treeToggle}
-        </div>
-      </header>
-      <div className='file-changes-body' data-tree-open={treeOpen}>
-        <section
-          id={scrollId}
-          aria-label='File diffs'
-          className='relative isolate flex min-h-0 min-w-0 flex-col'
-        >
-          <CodeView
-            ref={viewer}
-            containerRef={scrollViewport}
-            items={items}
-            className='diff-scroll-viewport min-h-0 flex-1 overflow-auto'
-            options={diffOptions}
-            renderHeaderPrefix={renderFilePrefix}
-            renderHeaderMetadata={renderNotShown}
-          />
-          <ScrollOverlay viewport={scrollViewport} controls={scrollId} />
-          {footer}
-        </section>
-        <nav
-          id={treeId}
-          inert={!treeOpen}
-          aria-hidden={!treeOpen || undefined}
-          aria-label='Changed files'
-          className='file-changes-list min-h-0 min-w-0 overflow-hidden'
-        >
-          <div className='file-changes-list-pane'>
-            <ChangedFilesTree
-              key={changes.map(({ path, status }) => `${status}:${path}`).join()}
-              files={changes}
-              selected={file.path}
-              onSelect={selectFile}
+                {files.map((file) => (
+                  <DiffFileCard
+                    key={file.path}
+                    file={file}
+                    initiallyNear={file.initiallyNear}
+                    open={!collapsedFiles.has(file.path)}
+                    collapsed={collapsedFiles.has(file.path)}
+                    onToggle={() =>
+                      setCollapsedFiles((previous) => {
+                        const next = new Set(previous)
+                        if (next.has(file.path)) next.delete(file.path)
+                        else next.add(file.path)
+                        return next
+                      })
+                    }
+                    height={Math.max(80, file.diff.unifiedLineCount * 20 + 32)}
+                  >
+                    {() =>
+                      file.diff.hunks.length === 0 ? (
+                        <p className='p-4 text-xs text-muted-foreground'>
+                          {file.diff.type === 'rename-pure'
+                            ? 'No textual changes · renamed file'
+                            : 'Diff not shown'}
+                        </p>
+                      ) : (
+                        <div className='min-w-0 overflow-x-auto'>
+                          <DiffBody
+                            diff={hydrated.get(file.diff) ?? noContext.get(file.diff) ?? file.diff}
+                            loadDiffFiles={loadDiffFiles}
+                          />
+                        </div>
+                      )
+                    }
+                  </DiffFileCard>
+                ))}
+                {!files.length && (
+                  <p className='p-6 text-xs text-muted-foreground'>No files match this view</p>
+                )}
+              </DiffFileList>
+            </div>
+            {footer}
+            <svg
+              aria-hidden='true'
+              className='absolute size-0 overflow-hidden'
+              dangerouslySetInnerHTML={{ __html: charmedSprite }}
             />
           </div>
-        </nav>
-      </div>
-    </div>
-  )
-}
-
-// Binary and oversized files come through with no hunks to draw.
-function renderNotShown(item: CodeViewItem<undefined>) {
-  if (item.type !== 'diff') return null
-  const diff = item.fileDiff
-  if (diff.hunks.length > 0 || diff.type === 'rename-pure') return null
-  return <span className='text-xs text-muted-foreground'>Diff not shown</span>
-}
-
-function ChangedFilesTree({
-  files,
-  selected,
-  onSelect,
-}: {
-  files: FileChange[]
-  selected: string
-  onSelect: (path: string) => void
-}) {
-  const { model } = useFileTree({
-    paths: files.map((file) => file.path),
-    initialExpansion: 'open',
-    itemHeight: treeRowHeight,
-    icons: treeIcons,
-    unsafeCSS: treeUnsafeCSS,
-    initialSelectedPaths: [selected],
-    gitStatus: files.map(({ path, status }) => ({ path, status })),
-    onSelectionChange: (paths) => {
-      const path = paths.findLast((path) => files.some((file) => file.path === path))
-      if (path) onSelect(path)
-    },
-  })
-  return (
-    <FileTree
-      model={model}
-      className='changed-files-tree h-full w-full'
-      onPointerMove={(event) => {
-        const row = event.nativeEvent
-          .composedPath()
-          .find((node) => node instanceof HTMLElement && node.dataset.type === 'item')
-        event.currentTarget.title =
-          (row instanceof HTMLElement && row.dataset.itemPath?.replace(/\/$/, '')) || ''
-      }}
-    />
-  )
-}
-
-const fileIconResolver = createFileTreeIconResolver('standard')
-const fileIconSprite = getBuiltInSpriteSheet('standard')
-
-function FileCollapseButton({
-  path,
-  collapsed,
-  onToggle,
-}: {
-  path: string
-  collapsed: boolean
-  onToggle: () => void
-}) {
-  const icon = fileIconResolver.resolveIcon('file-tree-icon-file', path)
-  const iconMarkup = useMemo(() => {
-    const start = fileIconSprite.indexOf(`<symbol id="${icon.name}"`)
-    if (start < 0) return ''
-    const end = fileIconSprite.indexOf('</symbol>', start)
-    return fileIconSprite
-      .slice(start, end + 9)
-      .replace(`<symbol id="${icon.name}"`, '<svg')
-      .replace('</symbol>', '</svg>')
-  }, [icon.name])
-  const Chevron = collapsed ? ArrowDown01Icon : ArrowRight01Icon
-  return (
-    <Button
-      variant='ghost-text'
-      size='icon'
-      className='file-collapse-button relative aria-expanded:text-muted-foreground'
-      aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${path}`}
-      aria-expanded={!collapsed}
-      onClick={onToggle}
-      data-collapsed={collapsed}
-    >
-      <span
-        className='file-language-icon absolute size-5'
-        data-language={icon.token}
-        aria-hidden='true'
-        dangerouslySetInnerHTML={{ __html: iconMarkup }}
-      />
-      <Chevron className='file-collapse-chevron absolute' aria-hidden='true' />
-    </Button>
+        </DiffWorkerPoolProvider>
+      </DiffWrapContext>
+    </DiffStyleContext>
   )
 }

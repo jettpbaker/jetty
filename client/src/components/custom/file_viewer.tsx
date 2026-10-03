@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef } from 'react'
 
 import type { FileTarget } from './file_link'
 
-import { diffViewOptions, useCollapsedFiles } from './file_changes_viewer'
+import { diffViewOptions, useCollapsedFiles } from './code_view'
 import { ScrollOverlay } from './scroll_overlay'
 
 let lastVersion = 0

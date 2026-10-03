@@ -1,9 +1,4 @@
-import { ChangedFilesTree } from '@/components/custom/changed_files_tree'
-import {
-  charmedExtensions,
-  charmedFileNames,
-  charmedSprite,
-} from '@/components/custom/charmed_icons'
+import { charmedSprite } from '@/components/custom/charmed_icons'
 import {
   ErrorStatusIcon,
   SkippedStatusIcon,
@@ -18,7 +13,6 @@ import {
   Copy01Icon,
   File01Icon,
   MoreVerticalIcon,
-  SidebarLeftIcon,
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { InProgressIcon } from '@/components/custom/in_progress_icon'
@@ -28,7 +22,6 @@ import {
   CircleSlashIcon,
   GitCommitHorizontalIcon,
   GitMergeIcon,
-  Settings2Icon,
 } from '@/components/custom/lucide_icons'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
@@ -45,20 +38,16 @@ import {
 } from '@/components/ui/command'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
-import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { contentKey } from '@/lib/hash'
@@ -101,10 +90,14 @@ import type {
   PrUser,
 } from './adapter'
 
+import { syntaxTheme } from '../diff/cursor_themes'
+import { DiffFileCard } from '../diff/file_card'
+import { DiffFileList } from '../diff/file_list'
+import { byTreeOrder } from '../diff/model'
+import { DiffToolbar, useDiffWrap } from '../diff/toolbar'
 import { primeDiffHighlights, DiffWorkerPoolProvider } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
 import { githubUser, prFile } from './adapter'
-import { syntaxTheme } from './cursor_themes'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import {
   checkCounts,
@@ -130,8 +123,7 @@ import {
 } from './runtime'
 import '@/components/custom/charmed_icons.css'
 
-import './file_card.css'
-import { Ago, Body, Comment, Counts, Diff, Section } from './shared'
+import { Ago, Body, Comment, Diff, Section } from './shared'
 
 function Hint({
   text = 'Coming soon',
@@ -201,81 +193,6 @@ function Composer({
         />
       </div>
     </div>
-  )
-}
-// File icons are Charmed Icons' Soft palette, drawn from the sprite JettyStyle renders once, scaled up
-// from their native 16px to 20.
-function FileGlyph({ file }: { file: PrFile }) {
-  return (
-    <span data-charmed='soft' className='inline-flex size-5 shrink-0'>
-      <CharmedFileIcon path={file.path} />
-    </span>
-  )
-}
-function CharmedFileIcon({ path }: { path: string }) {
-  const name = (path.split('/').at(-1) ?? path).toLowerCase()
-  let icon = Object.hasOwn(charmedFileNames, name) ? charmedFileNames[name] : undefined
-  if (!icon) {
-    const parts = name.split('.')
-    for (let i = 1; i < parts.length; i++) {
-      const extension = parts.slice(i).join('.')
-      if (Object.hasOwn(charmedExtensions, extension)) {
-        icon = charmedExtensions[extension]
-        break
-      }
-    }
-  }
-  return (
-    <svg aria-hidden='true' className='size-full'>
-      <use href={`#ci-${icon ?? '_file'}`} />
-    </svg>
-  )
-}
-const basename = (path: string) => path.split('/').at(-1) ?? path
-function Filename({ file, rename = false }: { file: PrFile; rename?: boolean }) {
-  const name = basename(file.path)
-  const directory = file.path.slice(0, -name.length)
-  const old = file.previousPath && basename(file.previousPath)
-  let suffix = 0
-  if (old)
-    while (
-      suffix < Math.min(old.length, name.length) &&
-      old.at(-suffix - 1) === name.at(-suffix - 1)
-    )
-      suffix++
-  // One line, never two: the folder path wraps onto a clipped second line, so it shows whole or not at all.
-  return (
-    <span
-      className='flex h-[1lh] min-w-0 flex-1 flex-wrap overflow-hidden font-mono text-xs'
-      title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}
-    >
-      {rename && old ? (
-        <span className='max-w-full truncate'>
-          <span className='bg-status-error/10 text-status-error'>
-            {old.slice(0, old.length - suffix)}
-          </span>
-          {old.slice(old.length - suffix)}
-          <span className='text-muted-foreground'> → </span>
-          <span className='bg-status-success/10 text-status-success'>
-            {name.slice(0, name.length - suffix)}
-          </span>
-          {name.slice(name.length - suffix)}
-        </span>
-      ) : (
-        <span
-          className={cn(
-            'max-w-full truncate',
-            file.status === 'added' && 'text-status-success',
-            file.status === 'removed' && 'text-muted-foreground line-through'
-          )}
-        >
-          {name}
-        </span>
-      )}
-      {directory && (
-        <span className='ml-2 text-muted-foreground @max-[720px]:hidden'>{directory}</span>
-      )}
-    </span>
   )
 }
 type Reviewer = { user: PrUser; state: string; team?: { codeOwner: boolean } }
@@ -1181,20 +1098,6 @@ function InlineThreads({ threads, author }: { threads: PrThread[]; author?: PrUs
     </div>
   )
 }
-// The file tree's order (folders before files at each level, then by name), so the diffs read in the
-// order the tree lists them.
-function byTreeOrder(a: PrFile, b: PrFile) {
-  if (a.path === b.path) return 0
-  const x = a.path.split('/')
-  const y = b.path.split('/')
-  for (let i = 0; ; i++) {
-    if (x[i] === y[i]) continue
-    const xFolder = i < x.length - 1
-    const yFolder = i < y.length - 1
-    if (xFolder !== yFolder) return xFolder ? -1 : 1
-    return x[i]!.localeCompare(y[i]!, undefined, { sensitivity: 'base', numeric: true })
-  }
-}
 async function primePrDiffs(files: PrFile[], revision: string) {
   const diffs = []
   let lines = 0
@@ -1210,97 +1113,6 @@ async function primePrDiffs(files: PrFile[], revision: string) {
   await primeDiffHighlights(diffs, syntaxTheme)
 }
 
-// On a narrow view (the PR in the thread's side panel) the file tree becomes Capy's file menu: the
-// Files button opens a filterable tree with each file's line counts, and picking one scrolls to it.
-// The tree merges a folder whose only child is a folder into one row ("services / notifications").
-function treeRows(paths: string[]) {
-  const children = new Map<string, Set<string>>()
-  for (const path of paths) {
-    const parts = path.split('/')
-    for (let i = 1; i < parts.length; i++) {
-      const parent = parts.slice(0, i).join('/')
-      children.set(parent, (children.get(parent) ?? new Set()).add(parts.slice(0, i + 1).join('/')))
-    }
-  }
-  const files = new Set(paths)
-  const folders = [...children.values()].filter(
-    (kids) => kids.size > 1 || files.has([...kids][0]!)
-  ).length
-  return paths.length + folders
-}
-
-function FilesMenu({
-  files,
-  total,
-  filter,
-  onFilter,
-  inView,
-  onSelect,
-}: {
-  files: PrFile[]
-  total: number
-  filter: string
-  onFilter: (filter: string) => void
-  inView: string | null
-  onSelect: (path: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant='ghost'
-            size='sm'
-            className='rounded-sm font-normal @min-[720px]:hidden'
-          />
-        }
-      >
-        Files {files.length === total ? total : `${files.length} of ${total}`}
-        <ArrowDown01Icon className='size-3.5 text-muted-foreground' />
-      </PopoverTrigger>
-      <PopoverContent
-        align='start'
-        className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
-      >
-        <PopoverTitle className='sr-only'>Files</PopoverTitle>
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder='Search files'
-            aria-label='Search files'
-            value={filter}
-            onValueChange={onFilter}
-          />
-        </Command>
-        <Separator />
-        {/* The tree scrolls inside a fixed height: a row per file and per folder, capped. */}
-        <div
-          style={{
-            height: Math.min(360, treeRows(files.map((f) => f.path)) * 28 + 8),
-          }}
-        >
-          <ChangedFilesTree
-            key={files.map((f) => f.path).join()}
-            icons='charmed'
-            markers='names'
-            files={files.map((f) => ({
-              path: f.path,
-              status: f.status === 'removed' ? 'deleted' : f.status,
-            }))}
-            counts={Object.fromEntries(
-              files.map((f) => [f.path, { additions: f.additions, deletions: f.deletions }])
-            )}
-            selected={inView}
-            onSelect={(path) => {
-              setOpen(false)
-              onSelect(path)
-            }}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
 // Diff one commit at a time, as on GitHub: the menu picks a commit or all of them, and while one is
 // picked the arrows step through the rest.
 function CommitPicker({
@@ -1474,19 +1286,7 @@ function FileCard({
   hideGenerated: boolean
   commit?: PrCommit
 }) {
-  const card = useRef<HTMLElement>(null)
-  const [near, setNear] = useState(false)
   const [height] = useState(() => Math.max(80, (file.patch?.split('\n').length ?? 4) * 20 + 32))
-  useEffect(() => {
-    const element = card.current
-    if (!element) return
-    const observer = new IntersectionObserver(
-      ([entry]) => setNear((near) => near || entry!.isIntersecting),
-      { root: element.closest('[aria-label="File diffs"]'), rootMargin: '800px 0px' }
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
   const [showGenerated, setShowGenerated] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const open = !viewed && !collapsed
@@ -1497,94 +1297,54 @@ function FileCard({
     <InlineThreads threads={threads} author={pr.viewer} />
   )
   return (
-    <section
-      ref={card}
-      id={`linear-file-${file.path}`}
-      data-open={open || undefined}
-      className='file-card relative scroll-mt-3 overflow-clip rounded-md'
-    >
-      {/* Sticky while its file scrolls by. The card's border is drawn by its header and body, so a stuck
-          header still reads as the top of a card; the page-coloured backing fills its rounded corners so
-          code scrolling under can't show there. The card clips to its rounded outline, which rounds a
-          header pushed off by the card's end (file_card.css). */}
-      <div className='sticky top-0 z-10 bg-background'>
-        <header
-          className={cn(
-            'file-card-header flex min-h-11 items-center gap-2 border border-border bg-muted/30 px-3 py-2',
-            open ? 'rounded-t-md' : 'rounded-md'
+    <DiffFileCard
+      file={file}
+      open={open}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((value) => !value)}
+      beforeCounts={
+        !!openThreads && (
+          <span className='inline-flex items-center gap-1 font-mono text-xs text-muted-foreground'>
+            <VerdictGlyph state='COMMENTED' className='size-3.5' />
+            {openThreads}
+          </span>
+        )
+      }
+      actions={
+        <>
+          {!commit && (
+            <label
+              htmlFor={`viewed-${file.path}`}
+              className='flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground'
+            >
+              <Checkbox
+                id={`viewed-${file.path}`}
+                aria-label={`Mark ${file.path} viewed`}
+                checked={viewed}
+                onCheckedChange={onViewed}
+              />
+              <span className='@max-[400px]:hidden'>Viewed</span>
+            </label>
           )}
-        >
-          {/* The file's icon turns into its collapse chevron on hover, as in the Changes view. */}
-          <Button
-            variant='ghost-text'
-            size='icon-sm'
-            className='group/collapse relative -my-1 -ml-1'
-            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${file.path}`}
-            aria-expanded={!collapsed}
-            onClick={() => setCollapsed((value) => !value)}
-          >
-            <span className='absolute inline-flex group-hover/collapse:opacity-0 group-focus-visible/collapse:opacity-0'>
-              <FileGlyph file={file} />
-            </span>
-            {collapsed ? (
-              <ArrowRight01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
-            ) : (
-              <ArrowDown01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
-            )}
-          </Button>
-          <Filename file={file} rename />
-          <div className='ml-auto flex shrink-0 items-center gap-3'>
-            {!!openThreads && (
-              <span className='inline-flex items-center gap-1 font-mono text-xs text-muted-foreground'>
-                <VerdictGlyph state='COMMENTED' className='size-3.5' />
-                {openThreads}
-              </span>
-            )}
-            {file.binary ? (
-              <span className='font-mono text-xs text-muted-foreground'>Binary</span>
-            ) : (
-              <Counts files={[file]} />
-            )}
-            {!commit && (
-              <label
-                htmlFor={`viewed-${file.path}`}
-                className='flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground'
-              >
-                <Checkbox
-                  id={`viewed-${file.path}`}
-                  aria-label={`Mark ${file.path} viewed`}
-                  checked={viewed}
-                  onCheckedChange={onViewed}
-                />
-                <span className='@max-[400px]:hidden'>Viewed</span>
-              </label>
-            )}
-            <FileMenu file={file} pr={pr} at={commit?.sha} />
-          </div>
-        </header>
-      </div>
-      {open && (
-        <div className='file-card-body overflow-clip border border-t-0 border-border'>
-          {!near ? (
-            <div
-              aria-hidden='true'
-              style={{
-                height: file.binary
-                  ? 164
-                  : file.generated && hideGenerated && !showGenerated
-                    ? 48
-                    : comments
-                      ? Math.max(
-                          80,
-                          threads.reduce(
-                            (height, thread) => height + 120 + thread.comments.length * 100,
-                            0
-                          )
-                        )
-                      : height,
-              }}
-            />
-          ) : file.binary ? (
+          <FileMenu file={file} pr={pr} at={commit?.sha} />
+        </>
+      }
+      height={
+        file.binary
+          ? 164
+          : file.generated && hideGenerated && !showGenerated
+            ? 48
+            : comments
+              ? Math.max(
+                  80,
+                  threads.reduce((height, thread) => height + 120 + thread.comments.length * 100, 0)
+                )
+              : height
+      }
+    >
+      {() => (
+        <>
+          {file.binary ? (
             <div className='flex flex-col items-center gap-4 py-12'>
               <div className='flex h-10 w-16 items-center justify-center rounded-sm border border-border bg-muted'>
                 <File01Icon className='size-5 text-muted-foreground' />
@@ -1624,13 +1384,12 @@ function FileCard({
           ) : (
             <Diff file={file} threads={threads} renderThreads={renderThreads} />
           )}
-          {near && file.binary && threads.length > 0 && (
+          {file.binary && threads.length > 0 && (
             <div className='border-t border-border px-4 py-3'>{renderThreads(threads)}</div>
           )}
-        </div>
+        </>
       )}
-      <div aria-hidden='true' className='file-card-tail' />
-    </section>
+    </DiffFileCard>
   )
 }
 
@@ -1828,19 +1587,8 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
   const [hideGenerated, setHideGenerated] = useState(true)
-  // Narrow (the right sidebar) wraps long lines unless the menu says otherwise; same breakpoint as the
-  // file tree's switch to a dropdown.
   const view = useRef<HTMLDivElement>(null)
-  const [narrow, setNarrow] = useState(false)
-  const [wrapChoice, setWrapChoice] = useState<boolean | null>(null)
-  const wrap = wrapChoice ?? narrow
-  useLayoutEffect(() => {
-    const element = view.current
-    if (!element) return
-    const observer = new ResizeObserver(([entry]) => setNarrow(entry!.contentRect.width < 720))
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
+  const [wrap, setWrapChoice] = useDiffWrap(view)
   const [hideViewed, setHideViewed] = useState(false)
   const viewed = useMemo(
     () => new Set(pr.files.filter((file) => file.viewed).map((file) => file.path)),
@@ -2087,35 +1835,52 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   }
                   {diffSeen && (
                     <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'diff' && 'hidden')}>
-                      <div className='mx-4 flex shrink-0 flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-2 py-1.5'>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className={`rounded-sm font-normal @max-[720px]:hidden ${pane ? 'bg-accent' : ''}`}
-                          aria-expanded={pane}
-                          aria-controls='linear-file-pane'
-                          {...pressProps(() => setPane(!pane))}
-                        >
-                          <SidebarLeftIcon className='size-3.5' />
-                          Files{' '}
-                          {files.length === changed.length
-                            ? files.length
-                            : `${files.length} of ${changed.length}`}
-                        </Button>
-                        <FilesMenu
-                          files={files}
-                          total={changed.length}
-                          filter={filter}
-                          onFilter={setFilter}
-                          inView={inView}
-                          onSelect={(path) => {
-                            setSelected(path)
-                            setInView(path)
-                            document
-                              .getElementById(`linear-file-${path}`)
-                              ?.scrollIntoView({ block: 'start' })
-                          }}
-                        />
+                      <DiffToolbar
+                        files={files}
+                        total={changed.length}
+                        pane={pane}
+                        paneId='linear-file-pane'
+                        onPaneChange={setPane}
+                        filter={filter}
+                        onFilter={setFilter}
+                        inView={inView}
+                        onSelect={(path) => {
+                          setSelected(path)
+                          setInView(path)
+                          document
+                            .getElementById(`linear-file-${path}`)
+                            ?.scrollIntoView({ block: 'start' })
+                        }}
+                        diffStyle={diffStyle}
+                        onDiffStyleChange={setDiffStyle}
+                        toggles={[
+                          ['Hide generated', hideGenerated, setHideGenerated],
+                          ['Hide viewed', hideViewed, setHideViewed],
+                          ['Wrap lines', wrap, setWrapChoice],
+                        ]}
+                        filters={
+                          <>
+                            {['all', 'comments'].map((value) => (
+                              <Button
+                                key={value}
+                                variant='ghost'
+                                size='sm'
+                                aria-pressed={mode === value}
+                                disabled={!!commit && value === 'comments'}
+                                className={`rounded-sm px-3 font-normal ${mode === value ? 'bg-accent' : 'text-muted-foreground'}`}
+                                onClick={() => {
+                                  setMode(value)
+                                  setSelected(null)
+                                }}
+                              >
+                                {value === 'all'
+                                  ? 'All'
+                                  : `Comments ${pr.threads.filter((t) => !t.resolved).length}`}
+                              </Button>
+                            ))}
+                          </>
+                        }
+                      >
                         <CommitPicker
                           commits={pr.commits}
                           value={commit}
@@ -2125,174 +1890,65 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             if (sha) setMode('all')
                           }}
                         />
-                        <div className='ml-auto flex items-center gap-1' aria-label='Diff filter'>
-                          {['all', 'comments'].map((value) => (
-                            <Button
-                              key={value}
-                              variant='ghost'
-                              size='sm'
-                              aria-pressed={mode === value}
-                              disabled={!!commit && value === 'comments'}
-                              className={`rounded-sm px-3 font-normal ${mode === value ? 'bg-accent' : 'text-muted-foreground'}`}
-                              onClick={() => {
-                                setMode(value)
-                                setSelected(null)
-                              }}
-                            >
-                              {value === 'all'
-                                ? 'All'
-                                : `Comments ${pr.threads.filter((t) => !t.resolved).length}`}
-                            </Button>
-                          ))}
-                          {/* The thread list's filter menu: a muted Settings2 button, a radio group, then switch rows. */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button
-                                  variant='ghost'
-                                  tone='muted'
-                                  size='icon-sm'
-                                  aria-label='Diff display options'
-                                />
-                              }
-                            >
-                              <Settings2Icon className='size-3.5' aria-hidden='true' />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end' className='w-44'>
-                              <DropdownMenuRadioGroup
-                                value={diffStyle}
-                                onValueChange={(value) => {
-                                  if (value === 'unified' || value === 'split') setDiffStyle(value)
-                                }}
-                              >
-                                <DropdownMenuLabel>View</DropdownMenuLabel>
-                                <DropdownMenuRadioItem value='unified'>
-                                  Unified
-                                </DropdownMenuRadioItem>
-                                <DropdownMenuRadioItem value='split'>Split</DropdownMenuRadioItem>
-                              </DropdownMenuRadioGroup>
-                              <DropdownMenuSeparator />
-                              {(
-                                [
-                                  ['Hide generated', hideGenerated, setHideGenerated],
-                                  ['Hide viewed', hideViewed, setHideViewed],
-                                  ['Wrap lines', wrap, setWrapChoice],
-                                ] as const
-                              ).map(([label, checked, set]) => (
-                                <DropdownMenuCheckboxItem
-                                  key={label}
-                                  className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-                                  checked={checked}
-                                  onCheckedChange={set}
-                                  closeOnClick={false}
-                                >
-                                  {label}
-                                  <Switch
-                                    render={<span />}
-                                    size='sm'
-                                    checked={checked}
-                                    tabIndex={-1}
-                                    aria-hidden='true'
-                                    className='pointer-events-none ml-auto'
-                                  />
-                                </DropdownMenuCheckboxItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      <div className='flex min-h-0 flex-1 pt-3'>
-                        {pane && (
-                          <nav
-                            id='linear-file-pane'
-                            aria-label='Changed files'
-                            className='flex w-[260px] shrink-0 flex-col pr-1.5 pb-4 pl-3 @max-[720px]:hidden'
-                          >
-                            <Input
-                              aria-label='Filter files'
-                              placeholder='Filter files…'
-                              value={filter}
-                              onChange={(e) => setFilter(e.target.value)}
-                              className='mb-2 h-8 text-xs'
-                            />
-                            <div className='-mx-1.5 min-h-0 flex-1'>
-                              <ChangedFilesTree
-                                key={`${commitSha}:${files.map((f) => f.path).join()}`}
-                                icons='charmed'
-                                markers='names'
-                                files={files.map((f) => ({
-                                  path: f.path,
-                                  status: f.status === 'removed' ? 'deleted' : f.status,
-                                }))}
-                                comments={
-                                  commit
-                                    ? undefined
-                                    : Object.fromEntries(
-                                        files.map((f) => [
-                                          f.path,
-                                          pr.threads.filter((t) => t.path === f.path && !t.resolved)
-                                            .length,
-                                        ])
-                                      )
-                                }
-                                selected={selected}
-                                active={inView}
-                                onSelect={(path) => {
-                                  if (path === inViewRef.current) return
-                                  setSelected(path)
-                                  setInView(path)
-                                  document
-                                    .getElementById(`linear-file-${path}`)
-                                    ?.scrollIntoView({ block: 'start' })
-                                }}
-                              />
-                            </div>
-                          </nav>
+                      </DiffToolbar>
+                      <DiffFileList
+                        files={files}
+                        pane={pane}
+                        paneId='linear-file-pane'
+                        treeKey={commitSha ?? ''}
+                        filter={filter}
+                        onFilter={setFilter}
+                        selected={selected}
+                        inView={inView}
+                        onInView={setInView}
+                        onSelect={(path) => {
+                          if (path === inViewRef.current) return
+                          setSelected(path)
+                          setInView(path)
+                          document
+                            .getElementById(`linear-file-${path}`)
+                            ?.scrollIntoView({ block: 'start' })
+                        }}
+                        comments={
+                          commit
+                            ? undefined
+                            : Object.fromEntries(
+                                files.map((f) => [
+                                  f.path,
+                                  pr.threads.filter((t) => t.path === f.path && !t.resolved).length,
+                                ])
+                              )
+                        }
+                      >
+                        {files.map((f) => (
+                          <FileCard
+                            key={`${commitSha}-${f.path}`}
+                            file={f}
+                            pr={pr}
+                            commit={commit}
+                            comments={mode === 'comments'}
+                            hideGenerated={hideGenerated}
+                            viewed={viewed.has(f.path)}
+                            onViewed={(checked) => void actions.viewed(f.path, checked)}
+                          />
+                        ))}
+                        {commit && !commitFiles.data && (
+                          <p className='p-6 text-xs text-muted-foreground'>
+                            {commitFiles.failed ? (
+                              <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
+                                Couldn't load commit files · Retry
+                              </Button>
+                            ) : (
+                              'Loading commit files…'
+                            )}
+                          </p>
                         )}
-                        <main
-                          aria-label='File diffs'
-                          onScroll={(e) => {
-                            const top = e.currentTarget.getBoundingClientRect().top + 24
-                            const section = [
-                              ...e.currentTarget.querySelectorAll<HTMLElement>(
-                                'section[id^=linear-file-]'
-                              ),
-                            ].find((s) => s.getBoundingClientRect().bottom > top)
-                            const path = section?.id.slice('linear-file-'.length) ?? null
-                            if (path !== inViewRef.current) setInView(path)
-                          }}
-                          className='scrollbar-subtle min-w-0 flex-1 space-y-3 overflow-auto pr-4 pb-4 pl-3 @max-[720px]:pl-4'
-                        >
-                          {files.map((f) => (
-                            <FileCard
-                              key={`${commitSha}-${f.path}`}
-                              file={f}
-                              pr={pr}
-                              commit={commit}
-                              comments={mode === 'comments'}
-                              hideGenerated={hideGenerated}
-                              viewed={viewed.has(f.path)}
-                              onViewed={(checked) => void actions.viewed(f.path, checked)}
-                            />
-                          ))}
-                          {commit && !commitFiles.data && (
-                            <p className='p-6 text-xs text-muted-foreground'>
-                              {commitFiles.failed ? (
-                                <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
-                                  Couldn't load commit files · Retry
-                                </Button>
-                              ) : (
-                                'Loading commit files…'
-                              )}
-                            </p>
-                          )}
-                          {!files.length && (!commit || !!commitFiles.data) && (
-                            <p className='p-6 text-xs text-muted-foreground'>
-                              No files match this view
-                            </p>
-                          )}
-                        </main>
-                      </div>
+                        {!files.length && (!commit || !!commitFiles.data) && (
+                          <p className='p-6 text-xs text-muted-foreground'>
+                            No files match this view
+                          </p>
+                        )}
+                      </DiffFileList>
                     </div>
                   )}
 

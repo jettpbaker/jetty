@@ -5,8 +5,8 @@ import { useMemo, useRef } from 'react'
 
 import type { ProposedChanges } from './composer_strip_model'
 
+import { diffViewOptions, useCollapsedFiles } from './code_view'
 import { primeDiffHighlights } from './diff_worker_pool'
-import { diffViewOptions, useCollapsedFiles } from './file_changes_viewer'
 import { diffItem, parseFileChanges } from './file_diff_model'
 import { ScrollOverlay } from './scroll_overlay'
 

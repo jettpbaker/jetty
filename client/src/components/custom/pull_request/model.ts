@@ -2,10 +2,7 @@ import { createContext } from 'react'
 
 import type { PrCheck, PrFile, PrPull, PrThread, PrUser } from './adapter'
 
-// How diffs lay out; a view provides "split" to switch every diff under it.
-export const DiffStyleContext = createContext<'unified' | 'split'>('unified')
-// Whether long lines wrap instead of scrolling sideways.
-export const DiffWrapContext = createContext(false)
+export { DiffStyleContext, DiffWrapContext } from '../diff/model'
 // Quote reply: hands a comment's markdown to the conversation's comment box.
 export const QuoteContext = createContext<(body: string) => void>(() => {})
 

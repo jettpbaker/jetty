@@ -76,15 +76,19 @@ export const diffViewer = preloadable(() =>
   Promise.all([
     import('./file_changes_viewer'),
     import('./file_diff_model'),
-    loadDiffWorkerPool(),
-  ]).then(([{ FileChangesViewer }, { parseFileChanges }]) => ({
+    import('./diff/cursor_themes').then(async ({ syntaxTheme }) => {
+      await loadDiffWorkerPool(syntaxTheme)
+      return syntaxTheme
+    }),
+  ]).then(([{ FileChangesViewer }, { parseFileChanges }, syntaxTheme]) => ({
     FileChangesViewer,
     parseFileChanges,
+    syntaxTheme,
   }))
 )
 
 // About a screen of diff and the viewer's overscroll.
-const firstPaintLines = 100
+export const firstPaintLines = 100
 
 // The workers highlight the files a view paints first into the pool's cache, so it paints them
 // coloured, and they compile those grammars before the view opens. The diffs need cache keys.
