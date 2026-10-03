@@ -35,7 +35,7 @@ export function mergeReason(pr: PrPull) {
   const data = pr.data
   if (pr.state === 'draft') return 'Draft · publish when ready for review.'
   if (pr.state === 'closed' || pr.state === 'merged') return 'This pull request is closed.'
-  if (!data.viewerCanUpdate) return "You don't have permission to merge this pull request."
+  if (data.viewerCanUpdate === false) return "You don't have permission to merge this pull request."
   if (!pr.mergeMethods.length) return 'No merge methods available.'
   if (
     data.mergeable === 'CONFLICTING' ||
