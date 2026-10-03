@@ -1948,7 +1948,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           size='sm'
                           className='rounded-sm'
                           disabled={!pr.data.viewerCanUpdate}
-                          {...pressProps(() => setState('open'))}
+                          onClick={() => setState('open')}
                         >
                           Ready for review
                         </Button>
