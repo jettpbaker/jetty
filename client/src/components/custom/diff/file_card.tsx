@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -8,6 +9,35 @@ import { ArrowDown01Icon, ArrowRight01Icon } from '../huge_icons'
 import { FileGlyph, Filename } from './file_name'
 import '../charmed_icons.css'
 import './file_card.css'
+
+export function DiffViewed({
+  file,
+  checked,
+  onCheckedChange,
+}: {
+  file: DiffFile
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <label
+      htmlFor={`viewed-${file.path}`}
+      className={cn(
+        'inline-flex h-4 cursor-pointer items-center gap-1.5 text-xs leading-4',
+        checked ? 'text-foreground' : 'text-muted-foreground'
+      )}
+    >
+      <Checkbox
+        id={`viewed-${file.path}`}
+        aria-label={`Mark ${file.path} viewed`}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        className='size-3.5'
+      />
+      <span className='@max-[400px]:hidden'>Viewed</span>
+    </label>
+  )
+}
 
 export function DiffCounts({ files }: { files: Pick<DiffFile, 'additions' | 'deletions'>[] }) {
   return (

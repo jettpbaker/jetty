@@ -27,7 +27,6 @@ import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Command,
@@ -91,10 +90,10 @@ import type {
 } from './adapter'
 
 import { syntaxTheme } from '../diff/cursor_themes'
-import { DiffFileCard } from '../diff/file_card'
+import { DiffFileCard, DiffViewed } from '../diff/file_card'
 import { DiffFileList } from '../diff/file_list'
 import { byTreeOrder } from '../diff/model'
-import { DiffToolbar, useDiffWrap } from '../diff/toolbar'
+import { DiffToolbar, DiffToolbarButton, useDiffWrap } from '../diff/toolbar'
 import { primeDiffHighlights, DiffWorkerPoolProvider } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
 import { githubUser, prFile } from './adapter'
@@ -1130,26 +1129,18 @@ function CommitPicker({
     <div className='flex min-w-0 items-center gap-0.5'>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='sm'
-              className={cn('min-w-0 rounded-sm font-normal', value && 'bg-accent')}
-            />
-          }
+          render={<DiffToolbarButton className={cn('min-w-0', value && 'text-foreground')} />}
         >
-          {value && value.parents > 1 ? (
-            <GitMergeIcon className='size-3.5' />
-          ) : (
-            <GitCommitHorizontalIcon className='size-3.5' />
-          )}
+          {value && value.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
           {value ? (
             <>
               <span className='font-mono text-muted-foreground'>{value.sha.slice(0, 7)}</span>
-              <span className='max-w-64 truncate'>{subject(value)}</span>
+              <span className='max-w-64 truncate @max-[720px]:hidden'>{subject(value)}</span>
             </>
           ) : (
-            `Commits ${commits.length}`
+            <>
+              Commits <span className='text-muted-foreground tabular-nums'>{commits.length}</span>
+            </>
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start' className='w-80 max-w-[calc(100vw-24px)]'>
@@ -1312,20 +1303,7 @@ function FileCard({
       }
       actions={
         <>
-          {!commit && (
-            <label
-              htmlFor={`viewed-${file.path}`}
-              className='flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground'
-            >
-              <Checkbox
-                id={`viewed-${file.path}`}
-                aria-label={`Mark ${file.path} viewed`}
-                checked={viewed}
-                onCheckedChange={onViewed}
-              />
-              <span className='@max-[400px]:hidden'>Viewed</span>
-            </label>
-          )}
+          {!commit && <DiffViewed file={file} checked={viewed} onCheckedChange={onViewed} />}
           <FileMenu file={file} pr={pr} at={commit?.sha} />
         </>
       }
@@ -1863,19 +1841,26 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             {['all', 'comments'].map((value) => (
                               <Button
                                 key={value}
-                                variant='ghost'
+                                variant='ghost-text'
                                 size='sm'
                                 aria-pressed={mode === value}
                                 disabled={!!commit && value === 'comments'}
-                                className={`rounded-sm px-3 font-normal ${mode === value ? 'bg-accent' : 'text-muted-foreground'}`}
+                                className='px-2 font-normal'
                                 onClick={() => {
                                   setMode(value)
                                   setSelected(null)
                                 }}
                               >
-                                {value === 'all'
-                                  ? 'All'
-                                  : `Comments ${pr.threads.filter((t) => !t.resolved).length}`}
+                                {value === 'all' ? (
+                                  'All'
+                                ) : (
+                                  <>
+                                    Comments
+                                    <span className='text-muted-foreground tabular-nums'>
+                                      {pr.threads.filter((t) => !t.resolved).length}
+                                    </span>
+                                  </>
+                                )}
                               </Button>
                             ))}
                           </>

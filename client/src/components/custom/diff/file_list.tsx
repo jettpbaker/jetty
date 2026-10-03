@@ -1,9 +1,9 @@
-import { Input } from '@/components/ui/input'
 import { useRef, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
 
 import { ChangedFilesTree } from '../changed_files_tree'
+import { DiffFileFilter } from './file_filter'
 
 export function DiffFileList({
   files,
@@ -42,13 +42,9 @@ export function DiffFileList({
           aria-label='Changed files'
           className='flex w-[260px] shrink-0 flex-col pr-1.5 pb-4 pl-3 @max-[720px]:hidden'
         >
-          <Input
-            aria-label='Filter files'
-            placeholder='Filter files…'
-            value={filter}
-            onChange={(e) => onFilter(e.target.value)}
-            className='mb-2 h-8 text-xs'
-          />
+          <div className='mb-2'>
+            <DiffFileFilter value={filter} onChange={onFilter} />
+          </div>
           <div className='-mx-1.5 min-h-0 flex-1'>
             <ChangedFilesTree
               key={`${treeKey}:${files.map((f) => f.path).join()}`}

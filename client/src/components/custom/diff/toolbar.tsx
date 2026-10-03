@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button'
-import { Command, CommandInput } from '@/components/ui/command'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -11,9 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { pressProps } from '@/lib/press'
+import { cn } from '@/lib/utils'
 import { useState, useLayoutEffect, type RefObject, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
@@ -21,6 +20,18 @@ import type { DiffFile } from './model'
 import { ChangedFilesTree } from '../changed_files_tree'
 import { ArrowDown01Icon, SidebarLeftIcon } from '../huge_icons'
 import { Settings2Icon } from '../lucide_icons'
+import { DiffFileFilter } from './file_filter'
+
+export function DiffToolbarButton({ className, ...props }: React.ComponentProps<typeof Button>) {
+  return (
+    <Button
+      variant='ghost-text'
+      size='sm'
+      className={cn('gap-1.5 rounded-sm font-normal', className)}
+      {...props}
+    />
+  )
+}
 
 type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
 
@@ -69,18 +80,19 @@ export function DiffToolbar({
   filters?: ReactNode
 }) {
   return (
-    <div className='mx-4 flex shrink-0 flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-2 py-1.5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        className={`rounded-sm font-normal @max-[720px]:hidden ${pane ? 'bg-accent' : ''}`}
+    <div className='mr-4 ml-3 flex h-7 shrink-0 items-center gap-2 @max-[720px]:ml-4'>
+      <DiffToolbarButton
+        className='@max-[720px]:hidden'
         aria-expanded={pane}
         aria-controls={paneId}
         {...pressProps(() => onPaneChange(!pane))}
       >
-        <SidebarLeftIcon className='size-3.5' />
-        Files {files.length === total ? files.length : `${files.length} of ${total}`}
-      </Button>
+        <SidebarLeftIcon />
+        Files
+        <span className='text-muted-foreground tabular-nums'>
+          {files.length === total ? total : `${files.length} of ${total}`}
+        </span>
+      </DiffToolbarButton>
       <FilesMenu
         files={files}
         total={total}
@@ -90,8 +102,15 @@ export function DiffToolbar({
         onSelect={onSelect}
       />
       {children}
-      <div className='ml-auto flex items-center gap-1' aria-label='Diff filter'>
-        {filters}
+      <div className='ml-auto flex shrink-0 items-center gap-2' aria-label='Diff filter'>
+        {filters && (
+          <fieldset
+            aria-label='Files to show'
+            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm [&>button[aria-pressed=true]]:bg-background [&>button[aria-pressed=true]]:text-foreground [&>button[aria-pressed=true]]:shadow-xs'
+          >
+            {filters}
+          </fieldset>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -99,11 +118,12 @@ export function DiffToolbar({
                 variant='ghost'
                 tone='muted'
                 size='icon-sm'
+                className='rounded-sm'
                 aria-label='Diff display options'
               />
             }
           >
-            <Settings2Icon className='size-3.5' aria-hidden='true' />
+            <Settings2Icon aria-hidden='true' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-44'>
             <DropdownMenuRadioGroup
@@ -177,32 +197,19 @@ function FilesMenu({
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant='ghost'
-            size='sm'
-            className='rounded-sm font-normal @min-[720px]:hidden'
-          />
-        }
-      >
-        Files {files.length === total ? total : `${files.length} of ${total}`}
-        <ArrowDown01Icon className='size-3.5 text-muted-foreground' />
+      <PopoverTrigger render={<DiffToolbarButton className='@min-[720px]:hidden' />}>
+        Files
+        <span className='text-muted-foreground tabular-nums'>
+          {files.length === total ? total : `${files.length} of ${total}`}
+        </span>
+        <ArrowDown01Icon />
       </PopoverTrigger>
       <PopoverContent
         align='start'
         className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
       >
         <PopoverTitle className='sr-only'>Files</PopoverTitle>
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder='Search files'
-            aria-label='Search files'
-            value={filter}
-            onValueChange={onFilter}
-          />
-        </Command>
-        <Separator />
+        <DiffFileFilter value={filter} onChange={onFilter} />
         {/* The tree scrolls inside a fixed height: a row per file and per folder, capped. */}
         <div
           style={{
