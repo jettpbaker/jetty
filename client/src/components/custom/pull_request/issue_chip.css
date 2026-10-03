@@ -1,0 +1,78 @@
+/* An issue reference: GitHub's issue glyph and its number, tinted by the issue's state. The
+   description's #123 decorations and the Issues row share it. The glyphs are Lucide's circle-dot,
+   circle-check and circle-slash, as CSS masks so a text decoration can carry them. */
+.issue-chip {
+  --chip: var(--muted-foreground);
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><circle cx='12' cy='12' r='1'/></svg>");
+  border-radius: 4px;
+  padding: 0.0625em 0.35em 0.0625em 0.3em;
+  white-space: nowrap;
+  background: color-mix(in oklch, var(--chip) 16%, transparent);
+  color: oklch(from var(--chip) min(l, 0.5) c h);
+  box-decoration-break: clone;
+}
+.dark .issue-chip {
+  color: oklch(from var(--chip) max(l, 0.75) c h);
+}
+.issue-chip::before {
+  content: '';
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.25em;
+  vertical-align: -0.12em;
+  background: var(--chip);
+  mask: var(--chip-icon) center / contain no-repeat;
+}
+.issue-chip[data-state='open'] {
+  --chip: var(--pr-open);
+}
+.issue-chip[data-state='completed'] {
+  --chip: var(--pr-merged);
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='m9 12 2 2 4-4'/></svg>");
+}
+.issue-chip[data-state='not_planned'] {
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9 15 15 9'/></svg>");
+}
+
+/* A referenced PR wears its state's glyph and colour, as in the PR view's header. */
+.issue-chip[data-kind='pull'] {
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='18' cy='18' r='3'/><circle cx='6' cy='6' r='3'/><path d='M13 6h3a2 2 0 0 1 2 2v7'/><path d='M6 9v12'/></svg>");
+}
+.issue-chip[data-kind='pull'][data-state='open'] {
+  --chip: var(--pr-open);
+}
+.issue-chip[data-kind='pull'][data-state='draft'] {
+  --chip: var(--pr-draft);
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='18' cy='18' r='3'/><circle cx='6' cy='6' r='3'/><path d='M18 6V5'/><path d='M18 11v-1'/><path d='M6 9v12'/></svg>");
+}
+.issue-chip[data-kind='pull'][data-state='merged'] {
+  --chip: var(--pr-merged);
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='18' cy='18' r='3'/><circle cx='6' cy='6' r='3'/><path d='M6 21V9a9 9 0 0 0 9 9'/></svg>");
+}
+.issue-chip[data-kind='pull'][data-state='closed'] {
+  --chip: var(--pr-closed);
+  --chip-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m15.5 3.5 5 5'/><path d='m15.5 8.5 5-5'/><path d='M18 11.62V15'/><path d='M6 9v12'/><circle cx='18' cy='18' r='3'/><circle cx='6' cy='6' r='3'/></svg>");
+}
+/* No state to show (typed but not saved, a failed lookup, a repo we can't see): a plain neutral chip,
+   so it never passes for an open issue. */
+.issue-chip[data-state='unknown'] {
+  padding-inline: 0.35em;
+}
+.issue-chip[data-state='unknown']::before {
+  display: none;
+}
+
+/* A bare issue or PR link's URL text, shown as its chip instead. The chip is a ProseMirror widget, and
+   ProseMirror's own CSS resets non-editable elements to white-space: normal. */
+.issue-chip-url {
+  display: none;
+}
+.ProseMirror .issue-chip[contenteditable='false'] {
+  white-space: nowrap;
+}
+
+.description-document .issue-chip[data-href] {
+  cursor: pointer;
+}

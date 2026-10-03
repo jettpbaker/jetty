@@ -1,0 +1,47 @@
+/* A stuck file header stays put until the next card's header has slid over it, and leaves only once
+   hidden: each card but the last is stretched 58px (the gap and a header) over the next by a spacer,
+   since a sticky element is held inside its parent's content box, and the next card is pulled back
+   up with a negative margin, so nothing moves. The stretched card's clip no longer meets its body,
+   so the body rounds its own bottom corners. */
+.file-card:not(:last-child) {
+  --file-card-tail: 3.625rem;
+  margin-bottom: -2.875rem;
+}
+.file-card:not(:last-child) > .file-card-tail {
+  height: var(--file-card-tail);
+}
+.file-card:not(:last-child) .file-card-body {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+/* The last card has nothing to cover its header, so its end pushes the header off. The card clips to
+   its rounded outline (overflow clip, which keeps the header sticky), which rounds the pushed header's
+   bottom corners: plain geometry, in step with any scroll speed. Under the clip its body's corners
+   are square, and the border's two arcs are drawn once, by the card, above the body and the header. */
+.file-card:last-child[data-open]::before,
+.file-card:last-child[data-open]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  z-index: 11;
+  width: var(--radius-md);
+  height: var(--radius-md);
+  pointer-events: none;
+}
+.file-card:last-child[data-open]::before {
+  left: 0;
+  background: radial-gradient(
+    circle at 100% 0,
+    transparent calc(var(--radius-md) - 1.25px),
+    var(--border) calc(var(--radius-md) - 0.75px)
+  );
+}
+.file-card:last-child[data-open]::after {
+  right: 0;
+  background: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--radius-md) - 1.25px),
+    var(--border) calc(var(--radius-md) - 0.75px)
+  );
+}

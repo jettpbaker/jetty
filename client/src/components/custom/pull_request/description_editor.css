@@ -1,0 +1,157 @@
+@reference '../../../index.css';
+
+.description-document {
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.description-document > * + * {
+  margin-top: 8px;
+}
+/* A heading that opens the document sits flush, like any first line. */
+.description-document > :first-child {
+  margin-top: 0;
+}
+.description-document ul {
+  list-style: disc inside;
+  white-space: normal;
+}
+.description-document ol {
+  list-style: decimal inside;
+  white-space: normal;
+}
+.description-document li {
+  padding-block: 4px;
+}
+.description-document li > p {
+  display: inline;
+}
+.description-document li ul,
+.description-document li ol {
+  padding-left: 24px;
+}
+.description-document code {
+  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-sm;
+}
+.description-document a:not([data-slot='button']) {
+  @apply wrap-anywhere font-medium text-primary underline;
+}
+/* Scaled from Linear's 22/19/17 over a 15px body to Jetty's 14px, staying under the 24px PR title. */
+.description-document h1 {
+  @apply mt-6 mb-2 text-xl font-semibold;
+}
+.description-document h2 {
+  @apply mt-5 mb-1.5 text-lg font-semibold;
+}
+.description-document h3 {
+  @apply mt-5 mb-1.5 text-base font-semibold;
+}
+.description-document blockquote {
+  @apply my-4 border-l-4 border-muted-foreground/30 pl-4 text-muted-foreground italic;
+}
+.description-document hr {
+  @apply my-6 border-border;
+}
+.description-document pre {
+  margin: 0;
+  white-space: pre;
+}
+.description-document pre code {
+  padding: 0;
+  font-size: inherit;
+  background: transparent;
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+.description-document p.is-editor-empty:first-child::before {
+  @apply text-muted-foreground;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.description-document ul[data-type='taskList'] {
+  list-style: none;
+}
+.description-document ul[data-type='taskList'] > li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.description-document ul[data-type='taskList'] > li > div {
+  flex: 1;
+  min-width: 0;
+}
+.description-document ul[data-type='taskList'] > li > label {
+  flex: none;
+  user-select: none;
+}
+.description-document ul[data-type='taskList'] > li input {
+  @apply size-3.5 rounded-sm border border-input accent-primary;
+  cursor: pointer;
+}
+.description-document ul[data-type='taskList'] > li[data-checked='true'] > div {
+  @apply text-muted-foreground;
+}
+.description-media img {
+  display: block;
+  object-fit: contain;
+}
+.description-document .ProseMirror-gapcursor {
+  display: none;
+}
+.description-document .ProseMirror-gapcursor:after {
+  content: '';
+  display: block;
+  width: 20px;
+  border-top: 1px solid currentColor;
+}
+.description-document.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
+/* Tables are a bordered card: a header band flush across the top, hairlines between rows. The
+   corner cells carry the radius because a table doesn't clip its cells to its own. */
+.description-document .tableWrapper {
+  @apply scrollbar-subtle overflow-x-auto;
+}
+/* Set off from the prose around it, as a blockquote and a code block are, at any depth (a quoted
+   table too), except against the edge of its container. */
+.description-document .tableWrapper {
+  @apply my-4 first:mt-0 last:mb-0;
+}
+.description-document table {
+  @apply w-full rounded-md border border-border text-xs tabular-nums;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.description-document th {
+  @apply h-8 border-b border-border px-3 text-left font-normal whitespace-nowrap text-muted-foreground;
+  background: color-mix(in oklch, var(--muted) 60%, var(--background));
+}
+.description-document tr:first-child > th:first-child {
+  border-top-left-radius: calc(var(--radius-md) - 1px);
+}
+.description-document tr:first-child > th:last-child {
+  border-top-right-radius: calc(var(--radius-md) - 1px);
+}
+.description-document td {
+  @apply border-b border-border px-3 py-2 align-top;
+}
+.description-document tr:last-child > td {
+  @apply border-b-0;
+}
+.description-document th > p,
+.description-document td > p {
+  margin: 0;
+}
+.description-document .selectedCell {
+  @apply bg-primary/10;
+}
+.description-document table code {
+  @apply px-1 py-px text-xs wrap-anywhere;
+}
+
+.description-document a {
+  cursor: pointer;
+}
