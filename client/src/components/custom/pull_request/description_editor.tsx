@@ -1165,8 +1165,11 @@ export function MarkdownEditor({
   function submit() {
     if (!editor) return
     const markdown = markdownOf(editor)
-    if (disabled || pendingUploads.current.size || !markdown.trim() || /blob:/i.test(markdown))
+    if (disabled || pendingUploads.current.size || !markdown.trim()) return
+    if (/\]\(blob:|src=["']blob:/i.test(markdown)) {
+      toast.error("Couldn't post comment", { description: 'Finish uploading attachments first.' })
       return
+    }
     const submitted = callbacks.current.onSubmit?.(markdown)
     editor.commands.clearContent(true)
     if (submitted instanceof Promise)

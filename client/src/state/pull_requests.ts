@@ -505,7 +505,12 @@ export function usePullRequestActions(ref: PullRequestRef) {
       )
     }
     function body(body: string) {
-      if (/blob:/i.test(body)) return Promise.resolve(false)
+      if (/\]\(blob:|src=["']blob:/i.test(body)) {
+        toast.error("Couldn't save the description", {
+          description: 'Finish uploading attachments first.',
+        })
+        return Promise.resolve(false)
+      }
       return requestPullRequest(
         registry,
         ref,
@@ -576,7 +581,13 @@ export function usePullRequestActions(ref: PullRequestRef) {
     }
     function comment(body: string, commentId?: number) {
       const data = registry.get(snapshotAtom(pullRequestKey(ref)))?.data
-      if (!data?.viewer || /blob:/i.test(body)) return Promise.resolve(false)
+      if (!data?.viewer) return Promise.resolve(false)
+      if (/\]\(blob:|src=["']blob:/i.test(body)) {
+        toast.error(commentId === undefined ? "Couldn't post comment" : "Couldn't post reply", {
+          description: 'Finish uploading attachments first.',
+        })
+        return Promise.resolve(false)
+      }
       const comment = {
         id: --optimisticCommentId,
         user: data.viewer,
