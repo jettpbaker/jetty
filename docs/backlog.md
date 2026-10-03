@@ -123,9 +123,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   installed CLI; the SDK is just the protocol client).
 - Code block syntax colours: chat and description code blocks (sketchpad
   `src/components/custom/code_block.tsx`, not ported) hardcode
-  `pierre-light-soft` / `pierre-dark-soft`. Once Jett picks the PR view's theme
-  (the study in the sketchpad's `pr_redesign/syntax_themes.ts`), use it for code
-  blocks too so code looks the same everywhere.
+  `pierre-light-soft` / `pierre-dark-soft`. Jett picked Cursor's theme for the PR
+  view's diffs (the sketchpad's `pr_redesign/cursor_themes.ts`, with Jetty's
+  diff colours over it); use it for code blocks too so code looks the same
+  everywhere.
 - Jetty bot avatar (sketchpad `/components/bot`, not ported): when bots land,
   call Jett's own bot Sauron.
 - Binary files in the PR diff read `-0 +0` beside "Diff not shown". The header
