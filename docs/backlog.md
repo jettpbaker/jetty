@@ -11,7 +11,9 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   known lock/minified/source-map/protobuf names, then a `@generated` /
   `Code generated … DO NOT EDIT` header) so Hide generated works; read GitHub's
   real `viewerDefaultMergeMethod` for the merge button's "last used"; and give
-  the Changes tab the same diff skin (Jetty's status green/red).
+  the Changes tab the same diff skin (Jetty's status green/red). The checks
+  list's design pass (jettpbaker/jetty-issues#11) is done there: grouped
+  Failing / Running / Successful, skipped folded into one row.
 
 ## later
 
@@ -32,10 +34,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
   plus an optional precheck command Jetty runs host-side; Orca's automations
   --precheck pattern) that survives restarts and works for every provider.
-- Redesign the agent question card's answer options (composer_strip.tsx):
-  multi-select answers use a checkbox and single-select a radio, filled when
-  selected. Needs a proper design pass in the sketchpad (they were flagged in
-  the icon swap).
+- Redesign the agent question card's answer options (composer_strip.tsx). Of
+  four sketchpad looks, Jett liked Tint best (no leading mark; the pick is
+  tinted with a trailing tick), so the sketchpad's composer strip uses it for
+  now. Still needs a proper redesign with Jett in the loop before it's ported.
 - Per-worktree dev server ports (after worktrees v1, which ignores ports): Jetty
   gives each live worktree a slot number (JETTY_WORKTREE_SLOT, lowest free) and
   a project's setup script derives a port block from it (base + slot * 20, one
@@ -119,7 +121,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 - Grok doesn't report context usage, so its ring stays empty.
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
-- PR checks list design pass: jettpbaker/jetty-issues#11.
 - Code block syntax colours: chat and description code blocks (sketchpad
   `src/components/custom/code_block.tsx`, not ported) hardcode
   `pierre-light-soft` / `pierre-dark-soft`. Once Jett picks the PR view's theme
@@ -136,4 +137,9 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   refreshes fully every 30s).
 - Perf lab: exact frame counts need Chrome's 120 Hz begin-frame control, which
   is Linux-only (headless Chrome in Docker). A separate spike.
-- Design pass on toasts (sonner), in the sketchpad first.
+- Design pass on toasts (sonner), with Jett; not a priority. A first study is
+  in the sketchpad at `/components/toasts` (Today, Card, Pill).
+- Issues over GitHub Projects, with Jett. A first study is in the sketchpad at
+  `/components/issues-projects`: a per-Project mapping gives fields roles
+  (status category, priority level, type, sidebar section, row details), with
+  List, Sidebar, Board and Setup looks over two fake Projects.
