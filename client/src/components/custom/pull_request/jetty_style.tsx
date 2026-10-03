@@ -1855,9 +1855,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     return () => document.removeEventListener('keydown', handleKey)
   }, [])
   useEffect(() => {
-    if (tab === 'diff' && selected)
+    if (selected)
       document.getElementById(`linear-file-${selected}`)?.scrollIntoView({ block: 'nearest' })
-  }, [tab, selected, mode])
+  }, [selected])
   const commitFiles = usePullRequestCommitFiles(ref.repo, commit?.sha ?? null)
   const loadFile = usePullRequestDiffFileLoader(
     ref.repo,
