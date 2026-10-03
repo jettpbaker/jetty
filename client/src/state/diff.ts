@@ -18,6 +18,17 @@ const diffAtom = Atom.family((key: string) => {
   ).pipe(Atom.setIdleTTL('10 minutes'))
 })
 
+// A refresh cancels the request before it, and the Overview and Changes refresh together
+// (opening the pane, the end of a turn), so refreshes in one task share one request.
+const refreshing = new Set<string>()
+
+function refreshDiff(registry: AtomRegistry.AtomRegistry, key: string) {
+  if (refreshing.has(key)) return
+  refreshing.add(key)
+  queueMicrotask(() => refreshing.delete(key))
+  registry.refresh(diffAtom(key))
+}
+
 const liveStatuses = new Set(['starting', 'running', 'awaiting_approval'])
 
 // Worktree threads show everything since their base commit; local ones only uncommitted edits.
@@ -29,9 +40,10 @@ export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
 // refreshed behind it, and every finished turn refreshes it again.
 export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
-  const atom = diffAtom(`${threadId}\0${scope ?? defaultDiffScope(meta)}`)
-  const result = useAtomValue(atom)
-  const refresh = useAtomRefresh(atom)
+  const key = `${threadId}\0${scope ?? defaultDiffScope(meta)}`
+  const result = useAtomValue(diffAtom(key))
+  const registry = useContext(RegistryContext)
+  const refresh = useCallback(() => refreshDiff(registry, key), [registry, key])
   const live = liveStatuses.has(useThread(threadId)?.status ?? 'idle')
   const cachedOnMount = useRef(!AsyncResult.isInitial(result))
   const wasLive = useRef(live)
@@ -62,7 +74,7 @@ export function useThreadDiffFetch() {
       const atom = diffAtom(key)
       if (turnEndedAt !== undefined && fetchedAfterTurn.get(key) !== turnEndedAt) {
         fetchedAfterTurn.set(key, turnEndedAt)
-        registry.refresh(atom)
+        refreshDiff(registry, key)
       }
       return Effect.runPromise(AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }))
     },
