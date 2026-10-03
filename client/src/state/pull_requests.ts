@@ -596,7 +596,8 @@ export function usePullRequestActions(ref: PullRequestRef) {
         html_url: '',
       }
       const sameComment = (entry: { user: GitHubUser; body: string }) =>
-        entry.user.login === comment.user.login && entry.body === body
+        entry.user.login === comment.user.login &&
+        entry.body.replace(/\r\n/g, '\n') === body.replace(/\r\n/g, '\n')
       const expected =
         (commentId === undefined
           ? (data.issueComments ?? [])
