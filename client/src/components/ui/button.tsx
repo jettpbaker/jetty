@@ -23,7 +23,8 @@ const buttonVariants = cva(
       },
       tone: {
         default: '',
-        muted: 'text-muted-foreground not-disabled:hover:text-foreground aria-expanded:text-foreground',
+        muted:
+          'text-muted-foreground not-disabled:hover:text-foreground aria-expanded:text-foreground',
       },
       size: {
         default:
