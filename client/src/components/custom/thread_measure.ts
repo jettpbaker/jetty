@@ -19,6 +19,8 @@ import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
 const font = '14px "Geist Variable"'
 const lineHeight = 23
+// Geist's mean advance at 14px, for rough line counts that skip text layout.
+const charWidth = 6.5
 type Measured = { text: string; prepared: PreparedText; width?: number; height: number }
 const cache = new Map<string, Measured>()
 
@@ -27,7 +29,16 @@ export function clearTextMeasure() {
   collapsibleTexts.clear()
 }
 
-function textHeight(id: string, text: string, width: number, preWrap: boolean) {
+function roughHeight(text: string, width: number, preWrap: boolean) {
+  const perLine = Math.max(1, Math.floor(width / charWidth))
+  let lines = 0
+  for (const line of preWrap ? text.split('\n') : [text])
+    lines += Math.max(1, Math.ceil(line.length / perLine))
+  return lines * lineHeight
+}
+
+function textHeight(id: string, text: string, width: number, preWrap: boolean, rough: boolean) {
+  if (rough) return roughHeight(text, width, preWrap)
   let entry = cache.get(id)
   if (!entry || entry.text !== text) {
     entry = {
@@ -44,16 +55,17 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean) {
   return entry.height
 }
 
-function captionHeight(id: string, caption: string | undefined, width: number) {
-  return caption ? textHeight(`${id}:caption`, caption, width, false) + 8 : 0
+function captionHeight(id: string, caption: string | undefined, width: number, rough: boolean) {
+  return caption ? textHeight(`${id}:caption`, caption, width, false, rough) + 8 : 0
 }
 
-export function estimateRow(row: ThreadRow, width: number) {
+// Rough estimates count lines from text length instead of laying the text out.
+export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
     case 'user': {
       const { text, attachments } = row.item
       const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))
-      const full = text ? textHeight(row.id, text, width * 0.8, true) : 0
+      const full = text ? textHeight(row.id, text, width * 0.8, true, rough) : 0
       let height =
         28 +
         (full > collapseAfterHeight
@@ -67,30 +79,33 @@ export function estimateRow(row: ThreadRow, width: number) {
     }
     case 'assistant':
     case 'plan':
-      return textHeight(row.id, row.item.text, width, false) + 8
+      return textHeight(row.id, row.item.text, width, false, rough) + 8
     case 'work': {
       if (workEnded(row.status)) return 30
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
-        if (entry.type === 'text') height += textHeight(entry.id, entry.text, width - 16, false) + 4
+        if (entry.type === 'text')
+          height += textHeight(entry.id, entry.text, width - 16, false, rough) + 4
         else height += 28
         if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
-          height += Math.min(72, textHeight(entry.id, entry.summary, width, true))
+          height += Math.min(72, textHeight(entry.id, entry.summary, width, true, rough))
       }
       return height
     }
     case 'error':
-      return textHeight(row.id, row.message, width * 0.8, true) + 24
+      return textHeight(row.id, row.message, width * 0.8, true, rough) + 24
     case 'gallery':
       return (
         (row.item.images.length === 1
           ? (fittedSize(row.item.images[0]!, width, INLINE_IMAGE_MAX_HEIGHT)?.height ??
             INLINE_IMAGE_MAX_HEIGHT)
           : galleryHeight(row.item.images.length, width)) +
-        captionHeight(row.id, row.item.caption, width)
+        captionHeight(row.id, row.item.caption, width, rough)
       )
     case 'video':
-      return videoHeight(row.item.video, width) + captionHeight(row.id, row.item.caption, width)
+      return (
+        videoHeight(row.item.video, width) + captionHeight(row.id, row.item.caption, width, rough)
+      )
     case 'subagents':
       return 44 + 50 * row.agents.length
     case 'workflow':

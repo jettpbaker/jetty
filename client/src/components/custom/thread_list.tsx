@@ -28,10 +28,13 @@ import { cn } from '@/lib/utils'
 import { useRevealRow } from '@/state'
 import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 
 const pinSlack = 96
 // Keeps a jumped-to message below the conversation's top blur.
 const jumpClearance = 96
+// A first open lays out this many window heights of rows exactly; the rest start rough.
+const exactViewports = 3
 
 // Where each conversation was left, so coming back to it restores the reading position.
 // No anchor means it was at the bottom and should stay stuck there.
@@ -58,6 +61,24 @@ function anchorAt(virtualizer: Virtualizer<HTMLDivElement, Element>) {
   const offset = virtualizer.scrollOffset ?? 0
   const item = virtualizer.getVirtualItemForOffset(offset)
   return item && { key: String(item.key), offset: offset - item.start }
+}
+
+// Rows above where a first open lands, which start with rough estimates and are refined when idle.
+function roughRows(rows: readonly ThreadRow[], width: number) {
+  const ids = new Set<string>()
+  let height = 0
+  for (let index = rows.length - 1; index >= 0; index--) {
+    if (height < exactViewports * window.innerHeight) height += estimateRow(rows[index]!, width)
+    else ids.add(rows[index]!.id)
+  }
+  return ids
+}
+
+// Safari has no requestIdleCallback; a short timeout with a frame's budget stands in.
+function whenIdle(callback: (until: number) => void) {
+  if ('requestIdleCallback' in window)
+    requestIdleCallback((deadline) => callback(performance.now() + deadline.timeRemaining()))
+  else setTimeout(() => callback(performance.now() + 8), 16)
 }
 
 function contentWidth(scrollerWidth: number) {
@@ -222,6 +243,7 @@ export function ThreadList({
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(!saved || saved.index === -1)
   const [width, setWidth] = useState(saved?.width ?? 660)
+  const [rough, setRough] = useState(() => (saved ? new Set<string>() : roughRows(rows, width)))
   const [gutter, setGutter] = useState(0)
   const [fontsReady, setFontsReady] = useState(false)
 
@@ -249,13 +271,16 @@ export function ThreadList({
 
   // A new key function makes the virtualizer re-estimate every unmeasured row, so it changes
   // only when an estimate can.
-  // oxlint-disable-next-line react-hooks/exhaustive-deps -- width and fontsReady feed the estimates
-  const getItemKey = useCallback((index: number) => rows[index]!.id, [rows, width, fontsReady])
+  const getItemKey = useCallback(
+    (index: number) => rows[index]!.id,
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- width, fontsReady and rough feed the estimates
+    [rows, width, fontsReady, rough]
+  )
 
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: (index) => estimateRow(rows[index]!, width),
+    estimateSize: (index) => estimateRow(rows[index]!, width, rough.has(rows[index]!.id)),
     overscan: 10,
     gap: 12,
     paddingStart: 24,
@@ -313,11 +338,65 @@ export function ThreadList({
 
   const turns = useTurns(rows)
   const latestRows = useRef(rows)
+  const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = rows
+    latestWidth.current = width
   })
+
+  // Lays out the rough rows when idle, then swaps in their exact estimates in one commit, keeping
+  // the top visible row in place. A list left early keeps refining, so a revisit finds them cached.
+  const finishRefining = useRef<() => void>(undefined)
+  useEffect(() => {
+    if (rough.size === 0) return
+    let index = 0
+    let active = true
+    function refine(until: number) {
+      const rows = latestRows.current
+      for (; index < rows.length && performance.now() < until; index++)
+        if (rough.has(rows[index]!.id)) estimateRow(rows[index]!, latestWidth.current)
+      return index === rows.length
+    }
+    function apply() {
+      active = false
+      finishRefining.current = undefined
+      const rows = latestRows.current
+      const width = latestWidth.current
+      const top = virtualizer.getVirtualItemForOffset(virtualizer.scrollOffset ?? 0)?.index ?? 0
+      let shift = 0
+      for (const [index, row] of rows.entries()) {
+        if (!rough.has(row.id) || virtualizer.itemSizeCache.has(row.id)) continue
+        const size = estimateRow(row, width, true)
+        // A mounted row whose estimate matched its measurement keeps that size.
+        if (virtualizer.elementsCache.get(row.id)?.isConnected)
+          virtualizer.itemSizeCache.set(row.id, size)
+        else if (index < top) shift += estimateRow(row, width) - size
+      }
+      // Moved before the commit, so it renders the rows that stay on screen.
+      virtualizer.scrollOffset = (virtualizer.scrollOffset ?? 0) + shift
+      flushSync(() => setRough(new Set()))
+      if (shift && !pinned.current) virtualizer.scrollToOffset(virtualizer.scrollOffset)
+    }
+    function step(until: number) {
+      if (!refine(until) || (active && virtualizer.isScrolling && !pinned.current))
+        return whenIdle(step)
+      if (active) apply()
+    }
+    finishRefining.current = () => {
+      refine(Infinity)
+      apply()
+    }
+    void document.fonts.ready.then(() => whenIdle(step))
+    return () => {
+      active = false
+      finishRefining.current = undefined
+    }
+  }, [rough, virtualizer])
+
   const jumpTo = useCallback(
     (index: number) => {
+      // A jump lands by estimate, so it needs the exact ones.
+      finishRefining.current?.()
       const item = virtualizer.measurementsCache[index]
       if (!item) return
       pinned.current = false
