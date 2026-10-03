@@ -127,7 +127,11 @@ async function prefetchDiff(files: readonly GitHubFile[]) {
       preferredHighlighter: 'shiki-wasm',
     })
     const lines = patch.split('\n', 200).filter((line) => !line.startsWith('@@'))
-    highlighter.codeToTokensBase(lines.map((line) => line.slice(1)).join('\n'), { lang })
+    // The viewer's own cap: a minified line would otherwise block for Shiki's 500 ms limit.
+    highlighter.codeToTokensBase(lines.map((line) => line.slice(1)).join('\n'), {
+      lang,
+      tokenizeMaxLineLength: 1000,
+    })
   }
 }
 
