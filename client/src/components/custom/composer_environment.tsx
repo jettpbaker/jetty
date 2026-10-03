@@ -1,5 +1,4 @@
-import { LaptopIcon } from '@/components/custom/huge_icons'
-import { FolderGit2Icon } from '@/components/custom/lucide_icons'
+import { FolderGit2Icon, LaptopIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,

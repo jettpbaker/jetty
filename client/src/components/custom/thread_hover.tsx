@@ -14,8 +14,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { LaptopIcon } from './huge_icons'
-import { FolderGit2Icon } from './lucide_icons'
+import { FolderGit2Icon, LaptopIcon } from './huge_icons'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'

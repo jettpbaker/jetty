@@ -56,10 +56,11 @@
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue") — never hidden. They're reminders of
   what's still wanted, not clutter.
-- Icons are Lucide for git and issue concepts (branches, PRs, commits, diffs, the
-  worktree folder) and Hugeicons stroke-rounded for everything else, carets
-  included. Deliberate Lucide exceptions outside git: `Settings2` (the thread
-  list's filter button). Lucide is imported only in `lucide_icons.tsx`, Hugeicons
+- Icons are Lucide for git and issue concepts (branches, PRs, commits, diffs) and
+  Hugeicons stroke-rounded for everything else, carets included. Deliberate
+  Lucide exceptions outside git: `Settings2` (the thread list's filter button).
+  Deliberate Hugeicons exception inside git: the worktree folder (`FolderGit2`),
+  whose folder matches the project folder it sits beside. Lucide is imported only in `lucide_icons.tsx`, Hugeicons
   only in `huge_icons.tsx`, which wraps each glyph; oxlint bans both packs
   everywhere else, and Phosphor and Octicons outright. Registry components arrive
   speaking lucide — swap their non-git icons to Hugeicons when adding them.
