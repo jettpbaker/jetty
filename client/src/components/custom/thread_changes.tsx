@@ -1,5 +1,6 @@
 import type { DiffScope } from '@jetty/shared/wire'
 
+import { DiffLoading } from '@/components/custom/diff_loading'
 import { whenIdle } from '@/lib/preload'
 import {
   defaultDiffScope,
@@ -88,7 +89,7 @@ async function prefetchChanges(diff: Promise<{ diff: string }>) {
   await primeDiffHighlights(parseFileChanges(result.diff).map((file) => file.diff))
 }
 
-const loading = <p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>
+const loading = <DiffLoading />
 
 export function ThreadChanges({
   threadId,

@@ -1,3 +1,4 @@
+import { DiffLoading } from '@/components/custom/diff_loading'
 import { useProjectFile } from '@/state'
 import { lazy, Suspense } from 'react'
 
@@ -10,7 +11,7 @@ const FileViewer = lazy(async () => {
   return { default: FileViewer }
 })
 
-const loading = <p className='p-4 text-xs text-muted-foreground'>Loading file…</p>
+const loading = <DiffLoading label='Loading file' />
 
 export function ThreadFile({ threadId, target }: { threadId: string; target: FileTarget }) {
   const { file, failed } = useProjectFile(threadId, target.path)

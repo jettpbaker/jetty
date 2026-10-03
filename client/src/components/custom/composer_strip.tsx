@@ -1,6 +1,7 @@
 import type { Draft, QuestionProgress } from '@/state'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
+import { DiffLoading } from '@/components/custom/diff_loading'
 import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
@@ -381,9 +382,7 @@ export function ApprovalStrip({
       {ctl.expanded &&
         !ctl.confirming &&
         (changes ? (
-          <Suspense
-            fallback={<div className='h-9 rounded-sm border border-border bg-background' />}
-          >
+          <Suspense fallback={<DiffLoading />}>
             <ProposedDiff id={changesId} changes={changes} />
           </Suspense>
         ) : (

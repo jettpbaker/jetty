@@ -1,6 +1,7 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 
 import { SuccessStatusIcon, ErrorStatusIcon } from '@/components/custom/circle_status_icon'
+import { DiffLoading } from '@/components/custom/diff_loading'
 import {
   RefreshIcon,
   LinkSquare02Icon,
@@ -86,8 +87,8 @@ import {
   type ReviewThread,
 } from './pull_request_model'
 import { ReviewerPicker } from './reviewer_picker'
-import { prPresentation } from './thread_pull_request'
 import './thread_details_layout.css'
+import { prPresentation } from './thread_pull_request'
 
 // The patch GitHub returns is fixed by the two commits, but the PR and its files arrive in
 // separate requests, and a push between them pairs one head with another's files, so the key
@@ -1074,9 +1075,7 @@ export function PullRequestView({
       </TabsContent>
       <TabsContent keepMounted value='diff' className='min-h-0 overflow-hidden pt-4'>
         {diffSeen && (
-          <Suspense
-            fallback={<p className='p-4 text-xs text-muted-foreground'>Loading changes…</p>}
-          >
+          <Suspense fallback={<DiffLoading />}>
             <PullRequestDiff
               files={files}
               commits={diffCommits}
