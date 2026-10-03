@@ -210,16 +210,25 @@ export function Diff({
   }, [loadFile, suggestion, patch, diff, file.path, file.previousPath])
   const shown = context && context.diff === diff ? context.shown : diff
   const wrap = useContext(DiffWrapContext)
-  const anchored = threads.filter(
-    (t) =>
-      (renderThreads || !t.resolved) &&
-      !t.outdated &&
-      t.line !== null &&
-      visibleLines({
-        ...file,
-        status: t.side === 'LEFT' ? 'removed' : 'modified',
-        patch: patch ?? file.patch,
-      }).has(t.line)
+  const threadPatch = patch ?? file.patch
+  const lines = useMemo(
+    () => ({
+      LEFT: visibleLines({ status: 'removed', patch: threadPatch }),
+      RIGHT: visibleLines({ status: 'modified', patch: threadPatch }),
+    }),
+    [threadPatch]
+  )
+  const showResolved = !!renderThreads
+  const anchored = useMemo(
+    () =>
+      threads.filter(
+        (thread) =>
+          (showResolved || !thread.resolved) &&
+          !thread.outdated &&
+          thread.line !== null &&
+          lines[thread.side].has(thread.line)
+      ),
+    [threads, lines, showResolved]
   )
   const annotations: DiffLineAnnotation<PrThread[]>[] = [
     ...new Set(anchored.map((t) => `${t.side}:${t.line}`)),

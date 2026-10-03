@@ -1460,9 +1460,7 @@ function FileCard({
 }) {
   const card = useRef<HTMLElement>(null)
   const [near, setNear] = useState(false)
-  const [height, setHeight] = useState(() =>
-    Math.max(80, (file.patch?.split('\n').length ?? 4) * 20 + 32)
-  )
+  const [height] = useState(() => Math.max(80, (file.patch?.split('\n').length ?? 4) * 20 + 32))
   useEffect(() => {
     const element = card.current
     if (!element) return
@@ -1473,16 +1471,6 @@ function FileCard({
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-  const body = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    const element = body.current
-    if (!element || !near) return
-    const observer = new ResizeObserver(([entry]) =>
-      setHeight(entry!.borderBoxSize[0]?.blockSize ?? entry!.contentRect.height)
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [near])
   const [showGenerated, setShowGenerated] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const open = !viewed && !collapsed
@@ -1560,7 +1548,7 @@ function FileCard({
         </header>
       </div>
       {open && (
-        <div ref={body} className='file-card-body overflow-clip border border-t-0 border-border'>
+        <div className='file-card-body overflow-clip border border-t-0 border-border'>
           {!near ? (
             <div
               aria-hidden='true'

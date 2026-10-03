@@ -114,7 +114,7 @@ export function excerpt(t: PrThread) {
   return `@@ -${oldStart},${selected.filter((l) => !l.startsWith('+')).length} +${newStart},${selected.filter((l) => !l.startsWith('-')).length} @@\n${selected.join('\n')}`
 }
 
-export function visibleLines(file: PrFile) {
+export function visibleLines(file: Pick<PrFile, 'status' | 'patch'>) {
   const lines = new Set<number>()
   let line = 0
   const removed = file.status === 'removed'
