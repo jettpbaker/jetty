@@ -1,21 +1,19 @@
-import type { HighlighterCore } from 'shiki/core'
+import type { HighlighterCore, ThemeRegistration } from 'shiki/core'
 
 import { linesHtml, type HighlightRequest } from '@/components/custom/code_html'
 import { languages } from '@/lib/shiki-langs'
-import { resolveTheme } from '@pierre/diffs'
+import pierreDarkSoft from '@pierre/theme/pierre-dark-soft'
+import pierreLightSoft from '@pierre/theme/pierre-light-soft'
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
-const themes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
-const core: Promise<HighlighterCore> = createCore()
-
-async function createCore() {
-  return createHighlighterCore({
-    themes: await Promise.all([resolveTheme(themes.light), resolveTheme(themes.dark)]),
-    langs: [],
-    engine: createJavaScriptRegexEngine({ forgiving: true }),
-  })
-}
+// Pierre's resolveTheme refuses to run in a worker, so the themes come straight from its package.
+const themes = { light: pierreLightSoft.name, dark: pierreDarkSoft.name }
+const core: Promise<HighlighterCore> = createHighlighterCore({
+  themes: [pierreLightSoft as ThemeRegistration, pierreDarkSoft as ThemeRegistration],
+  langs: [],
+  engine: createJavaScriptRegexEngine({ forgiving: true }),
+})
 const queue: HighlightRequest[] = []
 let draining = false
 
