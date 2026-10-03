@@ -8,11 +8,17 @@ import {
   VolumeHighIcon,
   VolumeMute02Icon,
 } from '@/components/custom/huge_icons'
-import { fittedStyle, INLINE_IMAGE_MAX_HEIGHT, mediaUrl } from '@/components/custom/media_layout'
+import { MediaActions } from '@/components/custom/media_actions'
+import {
+  fittedStyle,
+  INLINE_IMAGE_MAX_HEIGHT,
+  mediaUrl,
+  useVideoSize,
+} from '@/components/custom/media_layout'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
-import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
+import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 // Survive the virtualizer unmounting a row: a video scrolled back into view resumes where it paused.
@@ -21,17 +27,24 @@ let playing: HTMLVideoElement | null = null
 
 const idleDelay = 2000
 
-function formatTime(seconds: number) {
-  const whole = Math.floor(seconds)
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
-}
-
-export function VideoMessage({ video, caption }: { video: Attachment; caption?: string }) {
+export function VideoMessage({
+  video,
+  caption,
+  align = 'start',
+}: {
+  video: Attachment
+  caption?: string
+  align?: 'start' | 'center'
+}) {
   return (
     <Message align='start'>
       <MessageContent>
         <figure className='flex flex-col gap-2'>
-          <VideoPlayer video={video} />
+          <VideoPlayer
+            video={video}
+            className={align === 'center' ? 'mx-auto' : undefined}
+            actions
+          />
           {caption ? (
             <figcaption className='text-sm text-muted-foreground'>{caption}</figcaption>
           ) : null}
@@ -41,7 +54,19 @@ export function VideoMessage({ video, caption }: { video: Attachment; caption?: 
   )
 }
 
-export function VideoPlayer({ video, onError }: { video: Attachment; onError?: () => void }) {
+export function VideoPlayer({
+  video,
+  src,
+  className,
+  actions = false,
+  onError,
+}: {
+  video: Attachment
+  src?: string
+  className?: string
+  actions?: boolean
+  onError?: () => void
+}) {
   const frame = useRef<HTMLDivElement>(null)
   const media = useRef<HTMLVideoElement>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -51,7 +76,8 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
   const [awake, setAwake] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [duration, setDuration] = useState<number>()
-  const fitted = fittedStyle(video, INLINE_IMAGE_MAX_HEIGHT)
+  const probed = useVideoSize(src ?? mediaUrl(video), !video.width)
+  const fitted = fittedStyle(video.width ? video : { ...video, ...probed }, INLINE_IMAGE_MAX_HEIGHT)
 
   useEffect(() => {
     const element = media.current
@@ -93,8 +119,9 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
       ref={frame}
       data-controls={controls ? 'shown' : 'hidden'}
       className={cn(
-        'group/video relative overflow-hidden rounded-lg bg-black data-[controls=hidden]:cursor-none [&:fullscreen]:rounded-none',
-        fitted ? 'max-w-full' : 'aspect-video max-h-120 w-full'
+        'group/video group/media relative overflow-hidden rounded-md bg-black data-[controls=hidden]:cursor-none [&:fullscreen]:rounded-none',
+        fitted ? 'max-w-full' : 'aspect-video max-h-120 w-full',
+        className
       )}
       style={fitted}
       onPointerMove={wake}
@@ -104,7 +131,7 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
       <video
         ref={media}
         // The fragment paints the resume frame (or the first one) instead of a black box.
-        src={`${mediaUrl(video)}#t=${positions.get(video.id) ?? 0.001}`}
+        src={`${src ?? mediaUrl(video)}#t=${positions.get(video.id) ?? 0.001}`}
         preload='metadata'
         playsInline
         tabIndex={-1}
@@ -131,47 +158,38 @@ export function VideoPlayer({ video, onError }: { video: Attachment; onError?: (
         onClick={toggle}
       >
         {!started && (
-          <span className='grid size-12 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-transform group-hover/video:scale-105 motion-reduce:transition-none'>
+          <span className='grid size-12 place-items-center rounded-full bg-black/35 text-white backdrop-blur-md backdrop-saturate-150 transition-transform group-hover/video:scale-105 motion-reduce:transition-none'>
             <PlayIcon filled className='size-5' />
           </span>
         )}
       </button>
-      {!started && duration !== undefined && (
-        <span className='pointer-events-none absolute right-2 bottom-2 rounded-sm bg-black/60 px-1.5 py-0.5 text-xs text-white tabular-nums'>
-          {formatTime(duration)}
-        </span>
-      )}
-      {started && (
-        <div className='dark absolute inset-x-0 bottom-0 flex items-center gap-1 bg-linear-to-t from-black/85 via-black/55 to-transparent p-1.5 pt-14 text-foreground opacity-0 transition-opacity group-has-focus-visible/video:opacity-100 group-data-[controls=shown]/video:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100'>
+      {
+        // The same frosted glass as MediaActions, floating inside the frame; before the first play it
+        // shows with the timeline at the start.
+        <div className='dark absolute inset-x-2 bottom-2 flex items-center gap-0.5 rounded-sm bg-black/35 p-0.5 text-foreground opacity-0 backdrop-blur-md backdrop-saturate-150 transition-opacity group-has-focus-visible/video:opacity-100 group-data-[controls=shown]/video:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100'>
           <Button
             variant='ghost'
-            size='icon'
+            size='icon-sm'
+            className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
             aria-label={paused ? 'Play' : 'Pause'}
             onClick={toggle}
           >
             {paused ? <PlayIcon filled /> : <PauseIcon filled />}
           </Button>
           <Scrubber media={media} duration={duration} />
+          <Volume media={media} muted={muted} />
           <Button
             variant='ghost'
-            size='icon'
-            aria-label={muted ? 'Unmute' : 'Mute'}
-            onClick={() => {
-              if (media.current) media.current.muted = !media.current.muted
-            }}
-          >
-            {muted ? <VolumeMute02Icon /> : <VolumeHighIcon />}
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
+            size='icon-sm'
+            className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
           >
             {fullscreen ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
           </Button>
         </div>
-      )}
+      }
+      {actions && <MediaActions src={src ?? mediaUrl(video)} name={video.name} video />}
     </div>
   )
 }
@@ -212,27 +230,98 @@ function Scrubber({
   }, [media])
 
   return (
-    <>
-      <span className='px-1 text-xs whitespace-nowrap tabular-nums'>
-        {formatTime(time)}
-        {duration === undefined ? null : (
-          <span className='text-muted-foreground'> / {formatTime(duration)}</span>
-        )}
-      </span>
-      <Slider
-        aria-label='Seek'
-        className='mx-2 flex-1 [&_[data-slot=slider-range]]:bg-foreground [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-track]]:bg-foreground/25'
-        min={0}
-        max={duration ?? 1}
-        step={(duration ?? 1) / 100}
-        value={Math.min(time, duration ?? 0)}
-        disabled={duration === undefined}
-        onValueChange={(value) => {
-          const next = Array.isArray(value) ? value[0]! : value
-          if (media.current) media.current.currentTime = next
-          setTime(next)
+    <MediaSlider
+      label='Seek'
+      className='mx-2 flex-1'
+      max={duration ?? 1}
+      value={Math.min(time, duration ?? 0)}
+      disabled={duration === undefined}
+      onChange={(next) => {
+        if (media.current) media.current.currentTime = next
+        setTime(next)
+      }}
+    />
+  )
+}
+
+// Short demos, so the volume starts at half; the slider slides out of the speaker on hover or focus.
+function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; muted: boolean }) {
+  const [volume, setVolume] = useState(0.5)
+  useEffect(() => {
+    if (media.current) media.current.volume = volume
+  }, [media, volume])
+  const silent = muted || volume === 0
+  return (
+    <div className='group/volume flex items-center'>
+      <Button
+        variant='ghost'
+        size='icon-sm'
+        className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
+        aria-label={silent ? 'Unmute' : 'Mute'}
+        onClick={() => {
+          const element = media.current
+          if (!element) return
+          if (!silent) element.muted = true
+          else {
+            if (volume === 0) setVolume(0.5)
+            element.muted = false
+          }
         }}
-      />
-    </>
+      >
+        {silent ? <VolumeMute02Icon /> : <VolumeHighIcon />}
+      </Button>
+      <div className='w-0 overflow-hidden transition-[width] duration-150 group-has-[:focus-visible]/volume:w-18 group-hover/volume:w-18 motion-reduce:transition-none'>
+        <MediaSlider
+          label='Volume'
+          className='mr-2 ml-1 w-15'
+          max={1}
+          value={silent ? 0 : volume}
+          onChange={(next) => {
+            setVolume(next)
+            if (media.current) media.current.muted = next === 0
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// A thin track and a small white tick, quieter than the app's slider on top of footage.
+function MediaSlider({
+  label,
+  max,
+  value,
+  disabled,
+  className,
+  onChange,
+}: {
+  label: string
+  max: number
+  value: number
+  disabled?: boolean
+  className?: string
+  onChange: (value: number) => void
+}) {
+  return (
+    <SliderPrimitive.Root
+      className={className}
+      min={0}
+      max={max}
+      step={max / 100}
+      value={value}
+      disabled={disabled}
+      thumbAlignment='edge'
+      onValueChange={(next) => onChange(Array.isArray(next) ? next[0]! : next)}
+    >
+      <SliderPrimitive.Control className='relative flex h-5 w-full cursor-pointer touch-none items-center select-none'>
+        <SliderPrimitive.Track className='relative h-1 w-full overflow-hidden rounded-full bg-white/20'>
+          <SliderPrimitive.Indicator className='h-full bg-white/80' />
+        </SliderPrimitive.Track>
+        <SliderPrimitive.Thumb
+          aria-label={label}
+          className='block h-3 w-1 rounded-full bg-white outline-none focus-visible:ring-2 focus-visible:ring-white/50'
+        />
+      </SliderPrimitive.Control>
+    </SliderPrimitive.Root>
   )
 }

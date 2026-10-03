@@ -64,7 +64,7 @@ export function MediaLightboxProvider({ children }: { children: ReactNode }) {
 const inset = 64
 const ease = [0.32, 0.72, 0, 1] as const
 const openTransition = { duration: 0.3, ease }
-const closeTransition = { duration: 0.22, ease }
+const closeTransition = { duration: 0.18, ease }
 const zoomTransition = { duration: 0.2, ease }
 
 type Size = { width: number; height: number }
@@ -136,11 +136,16 @@ function MediaLightbox({
   onIndexChange: (index: number) => void
   onClose: () => void
 }) {
+  const [closing, setClosing] = useState(false)
+  function close() {
+    setClosing(true)
+    onClose()
+  }
   return (
-    <Dialog open={group !== null} onOpenChange={(open) => !open && onClose()}>
-      <AnimatePresence>
+    <Dialog open={group !== null || closing} onOpenChange={(open) => !open && close()}>
+      <AnimatePresence onExitComplete={() => setClosing(false)}>
         {group && (
-          <Lightbox key='lightbox' group={group} onIndexChange={onIndexChange} onClose={onClose} />
+          <Lightbox key='lightbox' group={group} onIndexChange={onIndexChange} onClose={close} />
         )}
       </AnimatePresence>
     </Dialog>

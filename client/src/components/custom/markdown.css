@@ -1,0 +1,7 @@
+/* GitHub task items render their checkbox in place of the bullet. */
+[data-streamdown='list-item']:has(> input[type='checkbox']) {
+  list-style: none;
+}
+[data-streamdown='list-item'] > input[type='checkbox'] {
+  margin-right: 0.5rem;
+}

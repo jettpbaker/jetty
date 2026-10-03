@@ -1,6 +1,7 @@
 import type { HighlightRequest } from '@/components/custom/code_html'
 
 import { resolveLanguage } from '@/lib/shiki-langs'
+import { getSharedHighlighter, type DiffsHighlighter, type SupportedLanguages } from '@pierre/diffs'
 
 // Tokenising runs in a worker so a thread full of code doesn't block the page.
 let worker: Worker | undefined
@@ -61,4 +62,26 @@ export function highlightHtml(
   }
   const request: HighlightRequest = { key, code, lang: resolveLanguage(language), numbered }
   worker.postMessage(request)
+}
+
+const themes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
+
+let highlighter: DiffsHighlighter | undefined
+
+export function loadLanguages(langs: string[]) {
+  return getSharedHighlighter({
+    themes: [themes.light, themes.dark],
+    langs: langs as SupportedLanguages[],
+  }).then((loaded) => {
+    highlighter = loaded
+  })
+}
+
+// Undefined until the language has loaded; an unknown language never highlights.
+export function highlightTokens(code: string, lang: string) {
+  try {
+    return highlighter?.codeToTokens(code, { lang, themes, defaultColor: false }).tokens
+  } catch {
+    return undefined
+  }
 }

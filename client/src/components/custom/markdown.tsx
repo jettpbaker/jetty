@@ -1,9 +1,19 @@
 import { CodePre } from '@/components/custom/code_block'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
 import { GithubMedia, githubMediaTags, rehypeGithubMedia } from '@/components/custom/github_media'
-import { MarkdownTable } from '@/components/custom/markdown_table'
+import {
+  MarkdownTable,
+  MarkdownTableBody,
+  MarkdownTableCell,
+  MarkdownTableHead,
+  MarkdownTableHeader,
+  MarkdownTableRow,
+} from '@/components/custom/markdown_table'
+import { cn } from '@/lib/utils'
+
+import './markdown.css'
 import { toJsxRuntime } from 'hast-util-to-jsx-runtime'
-import { useState, type ReactElement } from 'react'
+import { useState, type ComponentProps, type ReactElement } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 import remarkBreaks from 'remark-breaks'
 import remarkParse from 'remark-parse'
@@ -11,6 +21,7 @@ import remarkRehype from 'remark-rehype'
 import {
   Block,
   type BlockProps,
+  type ExtraProps,
   defaultRehypePlugins,
   defaultRemarkPlugins,
   Streamdown,
@@ -23,6 +34,20 @@ const remarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBreaks, rem
 const components = {
   pre: CodePre,
   table: MarkdownTable,
+  thead: MarkdownTableHead,
+  tbody: MarkdownTableBody,
+  tr: MarkdownTableRow,
+  th: MarkdownTableHeader,
+  td: MarkdownTableCell,
+  code: ({ node: _node, className, children, ...props }: ComponentProps<'code'> & ExtraProps) => (
+    <code
+      className={cn('rounded bg-muted px-1.5 py-0.5 font-mono text-sm', className)}
+      data-streamdown='inline-code'
+      {...props}
+    >
+      {children}
+    </code>
+  ),
   'file-link': FileLink,
   'github-media': GithubMedia,
 }

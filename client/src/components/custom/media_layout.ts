@@ -1,11 +1,15 @@
 import type { Attachment } from '@jetty/shared/items'
 
+import { useEffect, useState } from 'react'
+
 export const INLINE_IMAGE_MAX_HEIGHT = 480
 export const BUBBLE_THUMBNAIL_SIZE = 48
 export const GALLERY_GAP = 8
 
 export function mediaUrl(attachment: Attachment) {
-  return attachment.id.startsWith('blob:') || attachment.id.startsWith('/')
+  return attachment.id.startsWith('blob:') ||
+    attachment.id.startsWith('/') ||
+    /^https?:\/\//.test(attachment.id)
     ? attachment.id
     : `/attachments/${attachment.id}`
 }
@@ -45,4 +49,34 @@ export function galleryHeight(count: number, width: number) {
   const rows = Math.ceil(count / columns)
   const cell = (width - GALLERY_GAP * (columns - 1)) / columns
   return rows * cell * 0.75 + (rows - 1) * GALLERY_GAP
+}
+
+type Size = { width: number; height: number }
+const probedSizes = new Map<string, Promise<Size>>()
+
+// Videos with no recorded dimensions read them from the file, once per source.
+export function useVideoSize(src: string, enabled = true) {
+  const [size, setSize] = useState<Size>()
+  useEffect(() => {
+    if (!enabled) return
+    let live = true
+    let probed = probedSizes.get(src)
+    if (!probed) {
+      probed = new Promise((resolve) => {
+        const probe = document.createElement('video')
+        probe.preload = 'metadata'
+        probe.onloadedmetadata = () =>
+          resolve({ width: probe.videoWidth, height: probe.videoHeight })
+        probe.src = src
+      })
+      probedSizes.set(src, probed)
+    }
+    void probed.then((found) => {
+      if (live) setSize(found)
+    })
+    return () => {
+      live = false
+    }
+  }, [src, enabled])
+  return size
 }

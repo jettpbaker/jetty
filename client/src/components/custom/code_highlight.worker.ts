@@ -2,17 +2,20 @@ import type { HighlighterCore } from 'shiki/core'
 
 import { linesHtml, type HighlightRequest } from '@/components/custom/code_html'
 import { languages } from '@/lib/shiki-langs'
-import githubDark from '@shikijs/themes/github-dark'
-import githubLight from '@shikijs/themes/github-light'
+import { resolveTheme } from '@pierre/diffs'
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
-const themes = { light: githubLight.name, dark: githubDark.name }
-const core: Promise<HighlighterCore> = createHighlighterCore({
-  themes: [githubLight, githubDark],
-  langs: [],
-  engine: createJavaScriptRegexEngine({ forgiving: true }),
-})
+const themes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
+const core: Promise<HighlighterCore> = createCore()
+
+async function createCore() {
+  return createHighlighterCore({
+    themes: await Promise.all([resolveTheme(themes.light), resolveTheme(themes.dark)]),
+    langs: [],
+    engine: createJavaScriptRegexEngine({ forgiving: true }),
+  })
+}
 const queue: HighlightRequest[] = []
 let draining = false
 

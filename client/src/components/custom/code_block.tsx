@@ -1,5 +1,9 @@
 import { cachedHtml, highlightHtml } from '@/components/custom/code_highlight'
 import { plainHtml } from '@/components/custom/code_html'
+
+import './code_block.css'
+import { Copy01Icon, Tick02Icon } from '@/components/custom/huge_icons'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
   cloneElement,
@@ -12,14 +16,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import {
-  CodeBlockContainer,
-  CodeBlockCopyButton,
-  CodeBlockDownloadButton,
-  CodeBlockHeader,
-  StreamdownContext,
-  useIsCodeFenceIncomplete,
-} from 'streamdown'
+import { StreamdownContext } from 'streamdown'
 
 type CodeProps = {
   className?: string
@@ -29,15 +26,8 @@ type CodeProps = {
   'data-block'?: string
 }
 
-// Streamdown sets these and then shiki's colours, which are invalid there and never apply.
-const preStyle = { '--sdm-bg': 'transparent', '--sdm-fg': 'inherit' } as CSSProperties
-// Streamdown skips an off-screen block (content-visibility: auto) as a 200 px guess, so the thread
-// list measured it short and it grew on screen. Here only the body of a block sure to reach its cap
-// (every line is at least 20 px) is skipped, as a placeholder exactly the cap's height. Never while
-// streaming: skipping resets the body's scroll, which stops it following the end.
-const containerStyle = { contentVisibility: 'visible', contain: 'content' } as const
-// Streamdown's buttons transition-all, so every restyle also fires no-op transitions (scrollbar-color).
-const actionClass = 'transition-[color,opacity]'
+const shellLangs = new Set(['bash', 'sh', 'shell', 'zsh', 'console'])
+const well = 'bg-[color-mix(in_oklch,var(--muted)_60%,var(--background))]'
 
 function bodyStyle(
   maxHeight: number | string,
@@ -69,15 +59,23 @@ function useHighlightedHtml(code: string, language: string, numbered: boolean) {
 
 // A block mounts with its lines in one innerHTML. Later results replace only the lines from the
 // first changed one, so a selection above a streaming end survives it.
-function usePatchedLines(html: readonly string[]) {
+function usePatchedLines(html: readonly string[], command: boolean) {
   const code = useRef<HTMLElement>(null)
+  const shownElement = useRef<HTMLElement | null>(null)
   const shown = useRef(html)
   const [mounted] = useState(() => ({ __html: html.join('') }))
   useLayoutEffect(() => {
     const element = code.current
     const previous = shown.current
     shown.current = html
-    if (!element || previous === html) return
+    if (!element) return
+    const remounted = shownElement.current !== null && shownElement.current !== element
+    shownElement.current = element
+    if (remounted) {
+      element.innerHTML = html.join('')
+      return
+    }
+    if (previous === html) return
     let same = 0
     while (same < html.length && previous[same] === html[same]) same++
     if (same === 0) {
@@ -86,13 +84,13 @@ function usePatchedLines(html: readonly string[]) {
     }
     while (element.childNodes.length > same) element.lastChild!.remove()
     if (same < html.length) element.insertAdjacentHTML('beforeend', html.slice(same).join(''))
-  }, [html])
+  }, [html, command])
   return [code, mounted] as const
 }
 
 // A capped block follows its streaming end unless the reader has scrolled up in it.
 function useFollowEnd(streaming: boolean, capped: boolean, html: readonly string[]) {
-  const body = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLPreElement>(null)
   const atEnd = useRef(true)
   useEffect(() => {
     const element = body.current
@@ -114,12 +112,10 @@ function useFollowEnd(streaming: boolean, capped: boolean, html: readonly string
   return body
 }
 
-// Mirrors Streamdown 2.6.0's code block body (markup, classes, follow-to-end), so it can paint from
-// cached HTML. Re-check it against Streamdown's on upgrade.
-function CodeBlock({
+function WorkerCodeBlock({
   className,
   code,
-  meta,
+  meta: _meta,
   ...rest
 }: {
   className?: string
@@ -129,61 +125,42 @@ function CodeBlock({
 }) {
   const { codeBlockMaxHeight, isAnimating } = useContext(StreamdownContext)
   const language = className?.match(/language-([^\s]+)/)?.[1] ?? ''
-  const startLine = Number(meta.match(/startLine=(\d+)/)?.[1] ?? 1)
-  const numbered = !/\bnoLineNumbers\b/.test(meta)
-  const incomplete = useIsCodeFenceIncomplete()
+  const numbered = false
   const html = useHighlightedHtml(code.replace(/\n+$/, ''), language, numbered)
   const capped = Boolean(codeBlockMaxHeight)
-  const body = useFollowEnd(isAnimating, capped, html)
-  const [lines, mounted] = usePatchedLines(html)
-  return (
-    <CodeBlockContainer
-      dir='ltr'
-      isIncomplete={incomplete}
-      language={language}
-      style={containerStyle}
-    >
-      <CodeBlockHeader language={language} />
-      <div className='pointer-events-none sticky top-2 z-10 -mt-10 flex h-8 items-center justify-end'>
-        <div
-          className='pointer-events-auto flex shrink-0 items-center gap-2 rounded-md border border-sidebar bg-sidebar/80 px-1.5 py-1 supports-[backdrop-filter]:bg-sidebar/70 supports-[backdrop-filter]:backdrop-blur'
-          data-streamdown='code-block-actions'
-        >
-          <CodeBlockDownloadButton className={actionClass} code={code} language={language} />
-          <CodeBlockCopyButton className={actionClass} code={code} />
-        </div>
+  const command = shellLangs.has(language) && !code.trimEnd().includes('\n')
+  const body = useFollowEnd(isAnimating, capped && !command, html)
+  const [lines, mounted] = usePatchedLines(html, command)
+  const content = <code className='font-mono' ref={lines} dangerouslySetInnerHTML={mounted} />
+  if (command)
+    return (
+      <div className={cn('my-3 flex h-9 items-center gap-2 rounded-md pr-1 pl-3 text-xs', well)}>
+        <span aria-hidden className='font-mono text-faint-foreground select-none'>
+          $
+        </span>
+        <pre className='scrollbar-subtle min-w-0 flex-1 overflow-x-auto'>{content}</pre>
+        <CopyCodeButton code={code} />
       </div>
-      <div
+    )
+  return (
+    <CodeWell copy={<CopyCodeButton code={code} />}>
+      <pre
         ref={body}
         className={cn(
-          className,
-          capped && 'overflow-y-auto',
-          'overflow-x-auto rounded-md border border-border bg-background p-4 text-sm'
+          'scrollbar-subtle overflow-x-auto px-3 py-2.5 text-xs leading-5',
+          capped && 'overflow-y-auto'
         )}
-        data-language={language}
-        data-streamdown='code-block-body'
         style={bodyStyle(codeBlockMaxHeight, html.length, isAnimating)}
         {...rest}
       >
-        <pre
-          className={cn(
-            className,
-            'bg-[var(--sdm-bg,inherit)] dark:bg-[var(--shiki-dark-bg,var(--sdm-bg,inherit))]'
-          )}
-          style={preStyle}
-        >
-          <code
-            ref={lines}
-            className={numbered ? '[counter-increment:line_0] [counter-reset:line]' : undefined}
-            style={
-              numbered && startLine > 1 ? { counterReset: `line ${startLine - 1}` } : undefined
-            }
-            dangerouslySetInnerHTML={mounted}
-          />
-        </pre>
-      </div>
-    </CodeBlockContainer>
+        {content}
+      </pre>
+    </CodeWell>
   )
+}
+
+export function CodeBlock({ code, lang }: { code: string; lang: string }) {
+  return <WorkerCodeBlock code={code} className={`language-${lang}`} meta='' />
 }
 
 export function CodePre({ children }: { children?: ReactNode }) {
@@ -192,11 +169,57 @@ export function CodePre({ children }: { children?: ReactNode }) {
   if (node?.tagName !== 'code') return cloneElement(children, { 'data-block': 'true' })
   const meta = node.properties?.metastring
   return (
-    <CodeBlock
+    <WorkerCodeBlock
       {...rest}
       className={className}
       code={typeof code === 'string' ? code : ''}
       meta={typeof meta === 'string' ? meta : ''}
     />
+  )
+}
+
+export function CopyCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 1200)
+    return () => clearTimeout(timer)
+  }, [copied])
+  return (
+    <Button
+      variant='ghost'
+      tone='muted'
+      size='icon-xs'
+      aria-label={copied ? 'Copied' : 'Copy code'}
+      onClick={() => {
+        void navigator.clipboard.writeText(code)
+        setCopied(true)
+      }}
+    >
+      {copied ? <Tick02Icon /> : <Copy01Icon />}
+    </Button>
+  )
+}
+
+// The well and hover corner on their own, for the description editor's editable code block.
+export function CodeWell({
+  copy,
+  className,
+  children,
+}: {
+  copy: ReactNode
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={cn('group/code relative my-3 rounded-md', well, className)}>
+      {children}
+      <div
+        contentEditable={false}
+        className='absolute top-0 right-0 rounded-tr-md bg-inherit p-1.5 opacity-0 transition-opacity group-focus-within/code:opacity-100 group-hover/code:opacity-100'
+      >
+        {copy}
+      </div>
+    </div>
   )
 }

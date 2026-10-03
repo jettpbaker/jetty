@@ -1,4 +1,4 @@
-import { UserAdd01Icon } from '@/components/custom/huge_icons'
+import { RefreshIcon, UserAdd01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -10,7 +10,7 @@ import {
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { usePrefetchReviewerCandidates, useReviewerCandidates } from '@/state'
-import { useEffect, useRef, useState } from 'react'
+import { cloneElement, useEffect, useRef, useState, type ReactElement } from 'react'
 
 import type { GitHubUser } from './pull_request_model'
 
@@ -26,12 +26,16 @@ export function ReviewerPicker({
   requested,
   suggested,
   disabledReason,
+  trigger,
+  current,
   onToggle,
 }: {
   repo: string
   author: string
   requested: readonly GitHubUser[]
   suggested: readonly GitHubUser[]
+  trigger?: ReactElement
+  current?: readonly { user: GitHubUser; label: string; word: string; team?: boolean }[]
   disabledReason?: string
   onToggle: (user: GitHubUser, requested: boolean) => void
 }) {
@@ -41,16 +45,20 @@ export function ReviewerPicker({
   if (disabledReason)
     return (
       <DisabledTooltip reason={disabledReason} wrap='flex'>
-        <Button
-          variant='ghost'
-          tone='muted'
-          size='icon'
-          className='h-7'
-          aria-label='Request review'
-          disabled
-        >
-          <UserAdd01Icon />
-        </Button>
+        {trigger ? (
+          cloneElement(trigger as ReactElement<{ disabled?: boolean }>, { disabled: true })
+        ) : (
+          <Button
+            variant='ghost'
+            tone='muted'
+            size='icon'
+            className='h-7'
+            aria-label='Request review'
+            disabled
+          >
+            <UserAdd01Icon />
+          </Button>
+        )}
       </DisabledTooltip>
     )
 
@@ -60,9 +68,9 @@ export function ReviewerPicker({
         aria-label='Request review'
         onPointerEnter={() => prefetch(repo)}
         onFocus={() => prefetch(repo)}
-        render={<Button variant='ghost' tone='muted' size='icon' className='h-7' />}
+        render={trigger ?? <Button variant='ghost' tone='muted' size='icon' className='h-7' />}
       >
-        <UserAdd01Icon />
+        {trigger ? undefined : <UserAdd01Icon />}
       </PopoverTrigger>
       <PopoverContent
         align='start'
@@ -75,6 +83,7 @@ export function ReviewerPicker({
           requested={requested}
           suggested={suggested}
           onToggle={onToggle}
+          current={current}
         />
       </PopoverContent>
     </Popover>
@@ -93,11 +102,13 @@ function ReviewerResults({
   requested,
   suggested,
   onToggle,
+  current,
 }: {
   repo: string
   author: string
   requested: readonly GitHubUser[]
   suggested: readonly GitHubUser[]
+  current?: readonly { user: GitHubUser; label: string; word: string; team?: boolean }[]
   onToggle: (user: GitHubUser, requested: boolean) => void
 }) {
   const [query, setQuery] = useState('')
@@ -115,6 +126,10 @@ function ReviewerResults({
   }, [search, truncated])
   const searched = useReviewerCandidates(repo, truncated ? serverSearch : '')
 
+  const listed = new Set(current?.map(({ user }) => user.login))
+  const reviewing = (current ?? []).filter(
+    ({ user, label }) => matches(user, search) || label.toLowerCase().includes(search)
+  )
   const people = new Map<string, Person>()
   for (const person of [
     ...requested,
@@ -122,7 +137,8 @@ function ReviewerResults({
     ...(everyone.list?.candidates ?? []),
     ...(searched.list?.candidates ?? []),
   ])
-    if (person.login !== author && !people.has(person.login)) people.set(person.login, person)
+    if (person.login !== author && !listed.has(person.login) && !people.has(person.login))
+      people.set(person.login, person)
   const requestedLogins = new Set(requested.map((user) => user.login))
   const suggestedLogins = new Set(suggested.map((user) => user.login))
   const results = [...people.values()].filter((person) => matches(person, search))
@@ -137,7 +153,7 @@ function ReviewerResults({
       people: results.filter((p) => !requestedLogins.has(p.login) && !suggestedLogins.has(p.login)),
     },
   ].filter((group) => group.people.length > 0)
-  const labelled = groups.some((group) => group.heading === 'Suggested')
+  const labelled = !!current || groups.some((group) => group.heading === 'Suggested')
   const loading = !everyone.list && !everyone.failed
 
   return (
@@ -164,6 +180,36 @@ function ReviewerResults({
       <Separator />
       <CommandList>
         <div className='picker-results'>
+          {!!reviewing.length && (
+            <CommandGroup heading='Reviewers'>
+              {reviewing.map(({ user, label, word, team }) => (
+                <CommandItem
+                  key={user.login}
+                  value={`reviewer:${user.login}`}
+                  onSelect={() => onToggle(user, true)}
+                >
+                  <PersonAvatar
+                    login={label}
+                    src={user.avatar_url || undefined}
+                    className={
+                      team
+                        ? 'size-4 shrink-0 rounded-menu-item [&>*]:rounded-menu-item'
+                        : 'size-4 shrink-0'
+                    }
+                  />
+                  <span className='truncate'>{label}</span>
+                  {/* The trailing slot: CommandItem hides its own check when one is present. */}
+                  <span
+                    data-slot='command-shortcut'
+                    className='ml-auto flex shrink-0 items-center gap-1.5 text-muted-foreground'
+                  >
+                    {word}
+                    <RefreshIcon aria-label='Re-request review' />
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
           {groups.map((group) => (
             <CommandGroup key={group.heading ?? 'requested'} heading={labelled && group.heading}>
               {group.people.map((person) => {
@@ -189,7 +235,7 @@ function ReviewerResults({
               })}
             </CommandGroup>
           ))}
-          {groups.length === 0 && (
+          {groups.length === 0 && !reviewing.length && (
             <p className='px-3 py-2 text-xs text-muted-foreground'>
               {loading
                 ? 'Loading…'

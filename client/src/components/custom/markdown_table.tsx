@@ -1,103 +1,127 @@
-import { ArrowExpand01Icon } from '@/components/custom/huge_icons'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
-import { useContext, useEffect, useRef, useState, type ComponentProps } from 'react'
+import type { ExtraProps } from 'streamdown'
+
+import { Button } from '@/components/ui/button'
+import { cn } from 'cn'
 import {
-  StreamdownContext,
-  TableCopyDropdown,
-  TableDownloadDropdown,
-  type ExtraProps,
-} from 'streamdown'
+  Children,
+  createContext,
+  isValidElement,
+  useContext,
+  useState,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 
-const maxHeight = 300
+type Props<T extends keyof React.JSX.IntrinsicElements> = ComponentProps<T> & ExtraProps
 
-// Streamdown's table with its fullscreen view moved onto our Dialog, which traps focus,
-// hides the page behind it from assistive tech, and hands focus back on close.
+const align = 'text-left [&[align=center]]:text-center [&[align=right]]:text-right'
+const well = 'bg-[color-mix(in_oklch,var(--muted)_60%,var(--background))]'
+// A bordered card, full width; a table whose content can't fit grows past the column and scrolls.
+// Separate borders, or the rounded border doesn't draw. Inline code steps down to the table's size and
+// wraps rather than running into the next column.
+const table =
+  'w-full border-separate border-spacing-0 rounded-md border border-border text-xs tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere'
+
+// Long tables show this many rows behind a "Show all" toggle; two over isn't worth hiding.
+const rowLimit = 8
+const RowLimit = createContext<number | undefined>(undefined)
+
+function bodyRows(children: ReactNode) {
+  const body = Children.toArray(children).filter(isValidElement).at(-1) as
+    | ReactElement<{ children?: ReactNode }>
+    | undefined
+  return Children.toArray(body?.props.children).filter(isValidElement)
+}
+
 export function MarkdownTable({
-  children,
-  className,
   node: _node,
+  className: _className,
+  children,
   ...props
-}: ComponentProps<'table'> & ExtraProps) {
-  const { isAnimating } = useContext(StreamdownContext)
-  const [fullscreen, setFullscreen] = useState(false)
-  const scroller = useStickToBottom(isAnimating, children)
-
+}: Props<'table'>) {
+  const [all, setAll] = useState(false)
+  const count = bodyRows(children).length
+  const long = count > rowLimit + 2
   return (
-    <div
-      className='my-4 flex flex-col gap-2 rounded-lg border border-border bg-sidebar p-2'
-      data-streamdown='table-wrapper'
-    >
-      <div className='flex items-center justify-end gap-1'>
-        <TableCopyDropdown />
-        <TableDownloadDropdown />
-        <button
-          type='button'
-          className='cursor-pointer p-1 text-muted-foreground transition-all hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
-          disabled={isAnimating}
-          title='View fullscreen'
-          aria-label='View fullscreen'
-          onClick={() => setFullscreen(true)}
-        >
-          <ArrowExpand01Icon size={14} />
-        </button>
+    <div className='my-4'>
+      <div className='scrollbar-subtle scroll-fade-x overflow-x-auto'>
+        <RowLimit value={long && !all ? rowLimit : undefined}>
+          <table className={table} {...props}>
+            {children}
+          </table>
+        </RowLimit>
       </div>
-      <div
-        ref={scroller}
-        className='border-collapse overflow-x-auto overflow-y-auto rounded-md border border-border bg-background'
-        style={{ maxHeight }}
-      >
-        <table
-          className={cn('w-full divide-y divide-border', className)}
-          data-streamdown='table'
-          {...props}
+      {long && (
+        <Button
+          variant='ghost-text'
+          size='xs'
+          className='mt-1 -ml-1 px-1'
+          aria-expanded={all}
+          onClick={() => setAll(!all)}
         >
-          {children}
-        </table>
-      </div>
-      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent className='inset-0 flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 ring-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100'>
-          <DialogTitle className='sr-only'>Table</DialogTitle>
-          <div className='flex h-full min-h-0 flex-col' data-streamdown='table-wrapper'>
-            <div className='flex items-center justify-end gap-1 p-4 pr-14'>
-              <TableCopyDropdown />
-              <TableDownloadDropdown />
-            </div>
-            <div className='flex-1 overflow-auto p-4 pt-0 [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10'>
-              <table
-                className='w-full border-collapse border border-border'
-                data-streamdown='table'
-              >
-                {children}
-              </table>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          {all ? 'Show fewer rows' : `Show all ${count} rows`}
+        </Button>
+      )}
     </div>
   )
 }
 
-// While the table streams in, keep its capped scroller pinned to the newest row unless
-// the reader has scrolled up.
-function useStickToBottom(streaming: boolean, content: unknown) {
-  const scroller = useRef<HTMLDivElement>(null)
-  const pinned = useRef(true)
+export function MarkdownTableBody({
+  node: _node,
+  className: _className,
+  children,
+  ...props
+}: Props<'tbody'>) {
+  const limit = useContext(RowLimit)
+  const rows = Children.toArray(children).filter(isValidElement)
+  return (
+    <tbody className='[&>tr:last-child>td]:border-b-0' {...props}>
+      {limit === undefined ? rows : rows.slice(0, limit)}
+    </tbody>
+  )
+}
 
-  useEffect(() => {
-    const element = scroller.current
-    if (!element) return
-    function onScroll() {
-      pinned.current = element!.scrollHeight - element!.scrollTop - element!.clientHeight < 8
-    }
-    element.addEventListener('scroll', onScroll, { passive: true })
-    return () => element.removeEventListener('scroll', onScroll)
-  }, [])
+// The bare elements, without Streamdown's own table classes.
+export function MarkdownTableHead({
+  node: _node,
+  className: _className,
+  ...props
+}: Props<'thead'>) {
+  return <thead {...props} />
+}
 
-  useEffect(() => {
-    if (!streaming) pinned.current = true
-    else if (pinned.current) scroller.current?.scrollTo({ top: scroller.current.scrollHeight })
-  }, [streaming, content])
+export function MarkdownTableRow({ node: _node, className: _className, ...props }: Props<'tr'>) {
+  return <tr {...props} />
+}
 
-  return scroller
+// The header row is a band on the code-block well, flush across the top. Its corner cells carry the
+// radius, since a table doesn't clip its cells to its own.
+export function MarkdownTableHeader({ node: _node, className: _className, ...props }: Props<'th'>) {
+  return (
+    <th
+      className={cn(
+        'h-8 border-b border-border px-3 font-normal whitespace-nowrap text-muted-foreground first:rounded-tl-[calc(var(--radius-md)-1px)] last:rounded-tr-[calc(var(--radius-md)-1px)]',
+        well,
+        align
+      )}
+      {...props}
+    />
+  )
+}
+
+// Long prose wraps at 24rem so one wordy cell can't stretch the whole table.
+export function MarkdownTableCell({
+  node: _node,
+  className: _className,
+  children,
+  ...props
+}: Props<'td'>) {
+  return (
+    <td className={cn('border-b border-border px-3 py-2 align-top', align)} {...props}>
+      <div className='max-w-96 [[align=center]>&]:mx-auto [[align=right]>&]:ml-auto'>
+        {children}
+      </div>
+    </td>
+  )
 }

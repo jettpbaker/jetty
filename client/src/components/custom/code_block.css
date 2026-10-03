@@ -1,0 +1,8 @@
+.code-block-tokens span[style] {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+}
+.dark .code-block-tokens span[style] {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+}
