@@ -1600,7 +1600,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   }, [])
   useEffect(() => {
     if (selected)
-      document.getElementById(`linear-file-${selected}`)?.scrollIntoView({ block: 'nearest' })
+      view.current
+        ?.querySelector<HTMLElement>(`section[id="${CSS.escape(`linear-file-${selected}`)}"]`)
+        ?.scrollIntoView({ block: 'nearest' })
   }, [selected])
   const commitFiles = usePullRequestCommitFiles(ref.repo, commit?.sha ?? null)
   const loadFile = usePullRequestDiffFileLoader(
@@ -1825,8 +1827,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         onSelect={(path) => {
                           setSelected(path)
                           setInView(path)
-                          document
-                            .getElementById(`linear-file-${path}`)
+                          view.current
+                            ?.querySelector<HTMLElement>(
+                              `section[id="${CSS.escape(`linear-file-${path}`)}"]`
+                            )
                             ?.scrollIntoView({ block: 'start' })
                         }}
                         diffStyle={diffStyle}
@@ -1890,8 +1894,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           if (path === inViewRef.current) return
                           setSelected(path)
                           setInView(path)
-                          document
-                            .getElementById(`linear-file-${path}`)
+                          view.current
+                            ?.querySelector<HTMLElement>(
+                              `section[id="${CSS.escape(`linear-file-${path}`)}"]`
+                            )
                             ?.scrollIntoView({ block: 'start' })
                         }}
                         comments={
