@@ -35,7 +35,6 @@ import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { adaptPullRequest } from './pull_request/adapter'
 import { JettyStyle } from './pull_request/jetty_style'
 import { AfterPrPaint, PrRuntimeContext } from './pull_request/runtime'
-import './thread_details_layout.css'
 
 type LinkedThread = { id: string; title: string }
 const noThreads: readonly LinkedThread[] = []

@@ -1,5 +1,4 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
-import type { FileDiffContentsLoader } from '@pierre/diffs'
 
 import { pullRequestState } from '../pull_request_model'
 
@@ -96,7 +95,6 @@ export type PrPull = {
   reviewers: { user: PrUser; state: string; team?: { codeOwner: boolean } }[]
   data: PullRequestData
 }
-export type LoadPrDiff = FileDiffContentsLoader
 
 export function prUser(user: PullRequestData['pull']['user']): PrUser {
   return { login: user.login, name: user.name ?? null, avatarUrl: user.avatar_url }

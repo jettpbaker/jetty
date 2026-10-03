@@ -3,8 +3,6 @@ import type { DiffLineAnnotation, FileDiffMetadata } from '@pierre/diffs'
 import { hugeIconMasks } from '@/components/custom/huge_icons'
 import { Markdown } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { contentKey } from '@/lib/hash'
 import { useResolvedTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
@@ -25,8 +23,6 @@ import {
 import { syntaxTheme } from './cursor_themes'
 import {
   ago,
-  countLabel,
-  excerpt,
   filePatch,
   DiffStyleContext,
   DiffWrapContext,
@@ -253,9 +249,7 @@ export function Diff({
       <div className='min-w-0 overflow-x-auto'>
         <p className='p-4 text-xs text-muted-foreground'>{unavailable}</p>
         {!!threads.length && (
-          <div className='border-t border-border px-4 py-3'>
-            {renderThreads ? renderThreads(threads) : <Threads threads={threads} />}
-          </div>
+          <div className='border-t border-border px-4 py-3'>{renderThreads?.(threads)}</div>
         )}
       </div>
     )
@@ -275,7 +269,7 @@ export function Diff({
           // Reaches back over the line numbers to where the change bar ends, and stops the same 4px short
           // of the right edge, so the card sits in the code.
           <div className='-ml-[calc(var(--diffs-column-number-width,0px)-4px)] py-2 pr-1 font-sans text-foreground'>
-            {renderThreads ? renderThreads(metadata) : <Threads threads={metadata} />}
+            {renderThreads?.(metadata)}
           </div>
         )}
         options={{
@@ -291,9 +285,7 @@ export function Diff({
         }}
       />
       {remaining.length > 0 && (
-        <div className='border-t border-border px-4 py-3'>
-          {renderThreads ? renderThreads(remaining) : <Threads threads={remaining} />}
-        </div>
+        <div className='border-t border-border px-4 py-3'>{renderThreads?.(remaining)}</div>
       )}
     </div>
   )
@@ -386,75 +378,6 @@ export function Comment({
       <div className={cn(reply && 'pl-7')}>
         <Body body={comment.body} thread={thread} />
       </div>
-    </div>
-  )
-}
-function Thread({ thread }: { thread: PrThread }) {
-  return (
-    <div className='overflow-hidden rounded-sm border border-border'>
-      <div className='flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs'>
-        <span className='min-w-0 break-all font-mono'>
-          {thread.path}:{thread.line ?? '—'}
-        </span>
-        <span className='shrink-0 text-muted-foreground'>
-          {thread.resolved ? 'Resolved' : countLabel(thread.comments.length, 'comment')}
-          {thread.outdated ? ' · Outdated' : ''}
-        </span>
-      </div>
-      <Diff
-        file={{
-          path: thread.path,
-          status: 'modified',
-          additions: 0,
-          deletions: 0,
-          generated: false,
-          binary: false,
-          changes: 0,
-          viewed: false,
-        }}
-        patch={excerpt(thread)}
-      />
-      <div className='divide-y divide-border px-3'>
-        {thread.comments.map((c) => (
-          <Comment key={c.id} comment={c} thread={thread} />
-        ))}
-      </div>
-      {!thread.resolved && (
-        <div className='border-t border-border px-3 py-1'>
-          <Tooltip>
-            <TooltipTrigger render={<span className='inline-flex' />}>
-              <Button disabled variant='ghost-text' size='sm' className='px-0'>
-                Fix in a thread
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-    </div>
-  )
-}
-function Threads({ threads }: { threads: PrThread[] }) {
-  const open = threads.filter((t) => !t.resolved)
-  const resolved = threads.filter((t) => t.resolved)
-  return (
-    <div className='space-y-3'>
-      {open.map((t) => (
-        <Thread key={t.id} thread={t} />
-      ))}
-      {resolved.length > 0 && (
-        <details className='border-y border-border py-2'>
-          <summary className='cursor-pointer text-xs text-muted-foreground'>
-            {resolved.length} resolved
-          </summary>
-          <div className='mt-3 space-y-3'>
-            {resolved.map((t) => (
-              <Thread key={t.id} thread={t} />
-            ))}
-          </div>
-        </details>
-      )}
-      {!threads.length && <p className='text-xs text-muted-foreground'>No review threads</p>}
     </div>
   )
 }

@@ -29,7 +29,7 @@ import {
   INLINE_IMAGE_MAX_HEIGHT,
   useVideoSize,
 } from '@/components/custom/media_layout'
-import { MediaLightboxProvider, useOpenMedia } from '@/components/custom/media_lightbox'
+import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { VideoPlayer } from '@/components/custom/video_message'
 import { Button } from '@/components/ui/button'
 import { InputGroupButton } from '@/components/ui/input-group'
@@ -755,19 +755,17 @@ export function DescriptionEditor({
   attachSlot?: HTMLElement | null
 }) {
   return (
-    <MediaLightboxProvider>
-      <DeferredMarkdownEditor
-        key={identity}
-        disabled={disabled}
-        initial={body}
-        label='Pull request description'
-        placeholder='Add description…'
-        onSave={onSave}
-        onUpload={onUpload}
-        references={references}
-        attachSlot={attachSlot}
-      />
-    </MediaLightboxProvider>
+    <DeferredMarkdownEditor
+      key={identity}
+      disabled={disabled}
+      initial={body}
+      label='Pull request description'
+      placeholder='Add description…'
+      onSave={onSave}
+      onUpload={onUpload}
+      references={references}
+      attachSlot={attachSlot}
+    />
   )
 }
 

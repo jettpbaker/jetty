@@ -30,7 +30,6 @@ import {
   GitMergeIcon,
   Settings2Icon,
 } from '@/components/custom/lucide_icons'
-import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
@@ -180,28 +179,24 @@ function Composer({
 }) {
   const { actions } = usePrRuntime()
   return (
-    <>
-      <div className={cn('flex w-full items-start gap-2 py-2', reply ? 'px-3' : 'px-2.5')}>
-        <PersonAvatar
-          login={author?.login ?? 'ghost'}
-          src={author?.avatarUrl || undefined}
-          className='mt-1 size-5'
+    <div className={cn('flex w-full items-start gap-2 py-2', reply ? 'px-3' : 'px-2.5')}>
+      <PersonAvatar
+        login={author?.login ?? 'ghost'}
+        src={author?.avatarUrl || undefined}
+        className='mt-1 size-5'
+      />
+      <div className='min-w-0 flex-1'>
+        <DeferredMarkdownEditor
+          initial=''
+          label={reply ? 'Reply' : 'Comment'}
+          placeholder={reply ? 'Leave a reply…' : 'Leave a comment…'}
+          disabled={!author || (reply && (thread?.comments[0]?.id ?? 0) <= 0)}
+          onSubmit={(body) => actions.comment(body, thread?.comments[0]?.id)}
+          onUpload={actions.upload}
+          quote={quote}
         />
-        <div className='min-w-0 flex-1'>
-          <MediaLightboxProvider>
-            <DeferredMarkdownEditor
-              initial=''
-              label={reply ? 'Reply' : 'Comment'}
-              placeholder={reply ? 'Leave a reply…' : 'Leave a comment…'}
-              disabled={!author || (reply && (thread?.comments[0]?.id ?? 0) <= 0)}
-              onSubmit={(body) => actions.comment(body, thread?.comments[0]?.id)}
-              onUpload={actions.upload}
-              quote={quote}
-            />
-          </MediaLightboxProvider>
-        </div>
       </div>
-    </>
+    </div>
   )
 }
 // File icons are Charmed Icons' Soft palette, drawn from the sprite JettyStyle renders once, scaled up
