@@ -175,10 +175,13 @@ export function adaptPullRequest(data: PullRequestData): PrPull {
     mergedAt: pull.merged_at,
     mergedBy: pull.merged_by ? prUser(pull.merged_by) : null,
     openedAsDraft: data.openedAsDraft ?? pull.draft,
-    statusEvents: (data.statusEvents ?? []).map((event) => ({
-      ...event,
-      actor: event.actor ? prUser(event.actor) : { login: 'ghost', name: null, avatarUrl: '' },
-    })),
+    // GitHub records a merge as a close too; the merge already has its own activity row.
+    statusEvents: (data.statusEvents ?? [])
+      .filter((event) => !(event.kind === 'closed' && event.at === pull.merged_at))
+      .map((event) => ({
+        ...event,
+        actor: event.actor ? prUser(event.actor) : { login: 'ghost', name: null, avatarUrl: '' },
+      })),
     mergeMethods: methods,
     viewerDefaultMergeMethod: data.viewerDefaultMergeMethod,
     issues: data.closingIssuesReferences.map((issue) => ({
