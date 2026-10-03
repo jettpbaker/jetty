@@ -169,18 +169,15 @@ export function Diff({
   const loadFile = useContext(PrDiffLoaderContext)
   const loadDiffFiles = useMemo(() => {
     if (!loadFile || suggestion || patch !== undefined) return undefined
-    let pending: ReturnType<NonNullable<typeof loadFile>> | undefined
     return async (diff: import('@pierre/diffs').FileDiffMetadata) => {
-      pending ??= loadFile(file.path, file.previousPath)
       try {
-        const contents = await pending
+        const contents = await loadFile(file.path, file.previousPath)
         if ('unavailable' in contents)
           throw new Error(`Diff context unavailable: ${contents.unavailable}`)
         if (!patchMatchesContents(diff, contents))
           throw new Error('Diff context no longer matches this patch')
         return loadedFiles(diff, contents)
       } catch (error) {
-        pending = undefined
         toast.error(error instanceof Error ? error.message : 'Could not load diff context')
         throw error
       }

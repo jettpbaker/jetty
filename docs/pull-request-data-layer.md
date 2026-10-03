@@ -114,8 +114,13 @@ Concurrent PRs can share GraphQL requests. ETag 304s still count as requests.
 | Diff tab, warm content cache               |      0 |                                                          0 |
 
 Additional connection/file pages add requests. Checks-only changes cost detection
-plus a checks query. Diff content remains lazy behind the existing `diffFile`
-RPC; changing the new view's hydration policy belongs to its client port.
+plus a checks query. A PR file body mounts lazily as it approaches the viewport, then fetches full
+contents through `diffFile` so its folds and trailing context are exact. Mount
+prefetch and fold expansion share one in-flight request and cached result per
+repository, base/head revision, and path (including the previous path for renames).
+The client retains each revision's cache for 30 minutes of idleness; failed
+requests are removed so expansion can retry. Scrolling away keeps mounted bodies
+and reply drafts alive.
 
 PR list refreshes still cost one GraphQL request: the two searches for a tab
 share one query, and concurrent tab refreshes share that request too. The search

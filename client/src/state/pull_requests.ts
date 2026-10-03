@@ -91,6 +91,12 @@ export function usePullRequest(ref: PullRequestRef) {
   return { snapshot, refreshing }
 }
 
+const diffFilesAtom = Atom.family((_revision: string) =>
+  Atom.make(() => new Map<string, Promise<ResultOf<'pullRequest.diffFile'>>>()).pipe(
+    Atom.setIdleTTL('30 minutes')
+  )
+)
+
 export function usePullRequestDiffFileLoader(
   repo: string,
   baseSha: string | undefined,
@@ -100,7 +106,11 @@ export function usePullRequestDiffFileLoader(
   const load = useCallback(
     (path: string, prevPath?: string) => {
       if (!baseSha) throw new Error('Base commit unavailable')
-      return Effect.runPromise(
+      const files = registry.get(diffFilesAtom(JSON.stringify([repo, baseSha, headSha])))
+      const key = JSON.stringify([path, prevPath])
+      const cached = files.get(key)
+      if (cached) return cached
+      const loading = Effect.runPromise(
         AtomRegistry.getResult(registry, connectionAtom).pipe(
           Effect.flatMap((connection) =>
             connection.request('pullRequest.diffFile', {
@@ -112,7 +122,12 @@ export function usePullRequestDiffFileLoader(
             })
           )
         )
-      )
+      ).catch((error: unknown) => {
+        files.delete(key)
+        throw error
+      })
+      files.set(key, loading)
+      return loading
     },
     [registry, repo, baseSha, headSha]
   )
