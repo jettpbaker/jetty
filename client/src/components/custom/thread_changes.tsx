@@ -6,21 +6,17 @@ import { lazy, Suspense, useLayoutEffect, useMemo, useState } from 'react'
 import type { FileTarget } from './file_link'
 
 import { ChangesScopePicker } from './changes_scope'
+import { loadDiffWorkerPool } from './diff_worker_pool'
 
 // A file link lands here first; `found` says whether it's among the changed files.
 type OnTarget = (target: FileTarget, found: boolean) => void
 
 const PatchViewer = lazy(async () => {
-  const [{ FileChangesViewer }, { parseFileChanges }, { preloadHighlighter }] = await Promise.all([
+  const [{ FileChangesViewer }, { parseFileChanges }] = await Promise.all([
     import('./file_changes_viewer'),
     import('./file_diff_model'),
-    import('@pierre/diffs'),
+    loadDiffWorkerPool(),
   ])
-  await preloadHighlighter({
-    themes: ['pierre-dark-soft', 'pierre-light-soft'],
-    langs: ['typescript', 'tsx'],
-    preferredHighlighter: 'shiki-wasm',
-  })
   function PatchViewer({
     threadId,
     patch,

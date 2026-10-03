@@ -26,9 +26,16 @@ const statuses = {
   'rename-changed': 'renamed',
 } as const
 
-export function parseFileChanges(patch: string): FileChange[] {
-  return parsePatchFiles(patch).flatMap(({ files }) =>
-    files.map((diff) => ({ path: diff.name, status: statuses[diff.type], diff }))
+// The diff worker pool caches a file's highlighting by its key, so a key must change with the
+// content. Git's index line names both blobs; a patch without one (GitHub's) can pass a prefix
+// that changes whenever it does.
+export function parseFileChanges(patch: string, cacheKey?: string): FileChange[] {
+  return parsePatchFiles(patch, cacheKey).flatMap(({ files }) =>
+    files.map((diff) => {
+      if (diff.prevObjectId && diff.newObjectId)
+        diff.cacheKey ??= `${diff.prevName ?? diff.name}:${diff.name}:${diff.prevObjectId}..${diff.newObjectId}`
+      return { path: diff.name, status: statuses[diff.type], diff }
+    })
   )
 }
 

@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/custom/app_shell'
+import { DiffWorkerPoolProvider } from '@/components/custom/diff_worker_pool'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { StateProvider } from '@/state'
@@ -10,9 +11,11 @@ function Root() {
   return (
     <StateProvider>
       <TooltipProvider>
-        <AppShell>
-          <Outlet />
-        </AppShell>
+        <DiffWorkerPoolProvider>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+        </DiffWorkerPoolProvider>
         <Toaster position='top-center' />
       </TooltipProvider>
     </StateProvider>

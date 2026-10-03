@@ -3,7 +3,12 @@ import { lazy, Suspense } from 'react'
 
 import type { FileTarget } from './file_link'
 
-const FileViewer = lazy(async () => ({ default: (await import('./file_viewer')).FileViewer }))
+import { loadDiffWorkerPool } from './diff_worker_pool'
+
+const FileViewer = lazy(async () => {
+  const [{ FileViewer }] = await Promise.all([import('./file_viewer'), loadDiffWorkerPool()])
+  return { default: FileViewer }
+})
 
 const loading = <p className='p-4 text-xs text-muted-foreground'>Loading file…</p>
 

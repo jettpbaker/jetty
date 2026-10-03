@@ -24,6 +24,7 @@ import {
 } from 'react'
 
 import { ChangesScopePicker } from './changes_scope'
+import { diffThemes } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
 import {
   diffItem,
@@ -200,7 +201,7 @@ export function diffViewOptions(
 ): CodeViewOptions<undefined, undefined> {
   return {
     diffStyle: split ? 'split' : 'unified',
-    theme: { light: 'pierre-light-soft', dark: 'pierre-dark-soft' },
+    theme: diffThemes,
     themeType,
     preferredHighlighter: 'shiki-wasm',
     stickyHeaders: true,

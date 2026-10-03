@@ -63,6 +63,7 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 
+import { loadDiffWorkerPool } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { Markdown } from './markdown'
@@ -94,54 +95,44 @@ type DiffViewer = {
 
 let diffViewer: DiffViewer | undefined
 let diffViewerLoad: Promise<DiffViewer> | undefined
-const compiledLanguages = new Set<string>()
 
 function loadDiffViewer() {
   diffViewerLoad ??= Promise.all([
     import('./file_changes_viewer'),
     import('./file_diff_model'),
-    import('@pierre/diffs'),
-  ]).then(async ([{ FileChangesViewer }, { parseFileChanges }, { preloadHighlighter }]) => {
-    await preloadHighlighter({
-      themes: ['pierre-dark-soft', 'pierre-light-soft'],
-      langs: ['typescript', 'tsx'],
-      preferredHighlighter: 'shiki-wasm',
-    })
-    return (diffViewer = { FileChangesViewer, parseFileChanges })
-  })
+    loadDiffWorkerPool(),
+  ]).then(
+    ([{ FileChangesViewer }, { parseFileChanges }]) =>
+      (diffViewer = { FileChangesViewer, parseFileChanges })
+  )
   return diffViewerLoad
 }
 
-// Shiki compiles a grammar's regexes as it first meets them, which was most of the first Diff
-// render, so the prefetch also tokenizes some of each language's changed lines.
-async function prefetchDiff(files: readonly GitHubFile[]) {
-  await loadDiffViewer()
-  const { getFiletypeFromFileName, getSharedHighlighter } = await import('@pierre/diffs')
-  for (const { filename, patch } of files) {
-    const lang = getFiletypeFromFileName(filename)
-    if (patch === undefined || lang === 'text' || compiledLanguages.has(lang)) continue
-    compiledLanguages.add(lang)
-    const highlighter = await getSharedHighlighter({
-      themes: ['pierre-dark-soft', 'pierre-light-soft'],
-      langs: [lang],
-      preferredHighlighter: 'shiki-wasm',
-    })
-    const lines = patch.split('\n', 200).filter((line) => !line.startsWith('@@'))
-    // The viewer's own cap: a minified line would otherwise block for Shiki's 500 ms limit.
-    highlighter.codeToTokensBase(lines.map((line) => line.slice(1)).join('\n'), {
-      lang,
-      tokenizeMaxLineLength: 1000,
-    })
+// About a screen of diff and the viewer's overscroll.
+const firstPaintLines = 100
+
+// The workers highlight the files Diff paints first into the pool's cache, so Diff paints them
+// coloured, and they compile those grammars before the click.
+async function prefetchDiff(files: readonly GitHubFile[], cacheKey: string) {
+  const [{ parseFileChanges }, pool] = await Promise.all([loadDiffViewer(), loadDiffWorkerPool()])
+  if (!pool?.isWorkingPool()) return
+  let lines = 0
+  for (const { diff } of parseFileChanges(filesPatch(files), cacheKey)) {
+    if (lines >= firstPaintLines) break
+    lines += diff.unifiedLineCount
+    void pool.primeDiffHighlightCache(diff).catch(() => {})
   }
 }
 
 function PullRequestDiff({
   files,
+  cacheKey,
   repo,
   baseSha,
   headSha,
 }: {
   files: readonly GitHubFile[]
+  cacheKey: string
   repo: string
   baseSha?: string
   headSha: string
@@ -149,7 +140,10 @@ function PullRequestDiff({
   // use() suspends on a promise it hasn't seen even once it has settled, so a loaded viewer is
   // read directly.
   const { FileChangesViewer, parseFileChanges } = diffViewer ?? use(loadDiffViewer())
-  const changes = useMemo(() => parseFileChanges(filesPatch(files)), [files, parseFileChanges])
+  const changes = useMemo(
+    () => parseFileChanges(filesPatch(files), cacheKey),
+    [files, cacheKey, parseFileChanges]
+  )
   const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
   useLayoutEffect(() => perf.rendered('pr.diff'), [])
   return <FileChangesViewer embedded layout='page' files={changes} loadFile={loadFile} />
@@ -803,12 +797,14 @@ export function PullRequestView({
   useLayoutEffect(() => {
     if (pane === 'diff') setDiffSeen(true)
   }, [pane])
+  // The patch GitHub returns is fixed by the two commits.
+  const diffCacheKey = `${link.repo}@${pull.base.sha}..${pull.head.sha}`
   useEffect(() => {
     // Once the Overview has painted, so clicking Diff renders straight away. Safari has no
     // requestIdleCallback.
     const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : setTimeout
-    idle(() => void prefetchDiff(files).catch(() => {}))
-  }, [files])
+    idle(() => void prefetchDiff(files, diffCacheKey).catch(() => {}))
+  }, [files, diffCacheKey])
 
   function toggleReviewer(user: GitHubUser, on: boolean) {
     setReviewRequest(link, user, on)
@@ -1104,6 +1100,7 @@ export function PullRequestView({
           >
             <PullRequestDiff
               files={files}
+              cacheKey={diffCacheKey}
               repo={link.repo}
               baseSha={pull.base.sha}
               headSha={pull.head.sha}

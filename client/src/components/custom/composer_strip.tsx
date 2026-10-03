@@ -32,6 +32,7 @@ import {
 import type { Approval, Question, Source, Todo } from './composer_strip_model'
 
 import { NeedsInputIcon } from './circle_status_icon'
+import { loadDiffWorkerPool } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { mediaUrl } from './media_layout'
@@ -269,15 +270,8 @@ function ApprovalActions({ ctl, typed }: { ctl: ApprovalControl; typed: boolean 
 let proposedDiff: Promise<{ default: typeof import('./proposed_diff').ProposedDiff }> | undefined
 
 function loadProposedDiff() {
-  proposedDiff ??= Promise.all([import('./proposed_diff'), import('@pierre/diffs')]).then(
-    async ([{ ProposedDiff }, { preloadHighlighter }]) => {
-      await preloadHighlighter({
-        themes: ['pierre-dark-soft', 'pierre-light-soft'],
-        langs: ['typescript', 'tsx'],
-        preferredHighlighter: 'shiki-wasm',
-      })
-      return { default: ProposedDiff }
-    }
+  proposedDiff ??= Promise.all([import('./proposed_diff'), loadDiffWorkerPool()]).then(
+    ([{ ProposedDiff }]) => ({ default: ProposedDiff })
   )
   return proposedDiff
 }
