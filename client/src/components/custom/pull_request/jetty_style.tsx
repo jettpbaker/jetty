@@ -18,7 +18,7 @@ import {
   Copy01Icon,
   File01Icon,
   MoreVerticalIcon,
-  SidebarLeft01Icon,
+  SidebarLeftIcon,
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { InProgressIcon } from '@/components/custom/in_progress_icon'
@@ -2096,7 +2096,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           aria-controls='linear-file-pane'
                           {...pressProps(() => setPane(!pane))}
                         >
-                          <SidebarLeft01Icon className='size-3.5' />
+                          <SidebarLeftIcon className='size-3.5' />
                           Files{' '}
                           {files.length === changed.length
                             ? files.length
