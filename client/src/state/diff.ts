@@ -51,12 +51,21 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
   }
 }
 
-// Loads a thread's diff into the cache without showing it.
+const fetchedAfterTurn = new Map<string, number>()
+
+// Loads a thread's diff into the cache without showing it, again once a later turn has ended.
 export function useThreadDiffFetch() {
   const registry = useContext(RegistryContext)
   return useCallback(
-    (threadId: string, scope: DiffScope) =>
-      Effect.runPromise(AtomRegistry.getResult(registry, diffAtom(`${threadId}\0${scope}`))),
+    (threadId: string, scope: DiffScope, turnEndedAt: number | undefined) => {
+      const key = `${threadId}\0${scope}`
+      const atom = diffAtom(key)
+      if (turnEndedAt !== undefined && fetchedAfterTurn.get(key) !== turnEndedAt) {
+        fetchedAfterTurn.set(key, turnEndedAt)
+        registry.refresh(atom)
+      }
+      return Effect.runPromise(AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }))
+    },
     [registry]
   )
 }

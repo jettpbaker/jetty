@@ -87,7 +87,8 @@ export function ThreadDetailsLayout({
   // An open pane has Changes mounted already.
   useThreadChangesPrefetch(
     threadId,
-    meta && !open && !changesDisabled ? defaultDiffScope(meta) : undefined
+    meta && !open && !changesDisabled ? defaultDiffScope(meta) : undefined,
+    meta?.turnEndedAt
   )
   const tabs = useRef<DetailsTabsHandle>(null)
   // A file link goes to Changes first, and on to its own tab if it isn't a changed file.

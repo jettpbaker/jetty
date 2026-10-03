@@ -60,14 +60,21 @@ function PatchViewer({
   )
 }
 
-// Once the thread has painted, its diff, the viewer and the first files' highlighting load
-// behind it, so opening Changes paints them at once, coloured. No scope, no prefetch.
-export function useThreadChangesPrefetch(threadId: string, scope: DiffScope | undefined) {
+// Once the thread has painted, and again after each turn, its diff, the viewer and the first
+// files' highlighting load behind it, so opening Changes paints them at once, coloured. No
+// scope, no prefetch.
+export function useThreadChangesPrefetch(
+  threadId: string,
+  scope: DiffScope | undefined,
+  turnEndedAt: number | undefined
+) {
   const fetchDiff = useThreadDiffFetch()
   useEffect(() => {
     if (!scope) return
-    return whenIdle(() => void prefetchChanges(fetchDiff(threadId, scope)).catch(() => {}))
-  }, [fetchDiff, threadId, scope])
+    return whenIdle(
+      () => void prefetchChanges(fetchDiff(threadId, scope, turnEndedAt)).catch(() => {})
+    )
+  }, [fetchDiff, threadId, scope, turnEndedAt])
 }
 
 // Each diff is parsed once, however often its thread is revisited.
