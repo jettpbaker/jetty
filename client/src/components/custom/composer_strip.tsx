@@ -17,17 +17,10 @@ import {
 } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useId,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from 'react'
+import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
 
 import type { Approval, Question, Source, Todo } from './composer_strip_model'
 
@@ -267,16 +260,14 @@ function ApprovalActions({ ctl, typed }: { ctl: ApprovalControl; typed: boolean 
   )
 }
 
-let proposedDiff: Promise<{ default: typeof import('./proposed_diff').ProposedDiff }> | undefined
+const proposedDiff = preloadable(() =>
+  Promise.all([import('./proposed_diff'), loadDiffWorkerPool()]).then(([module]) => module)
+)
 
-function loadProposedDiff() {
-  proposedDiff ??= Promise.all([import('./proposed_diff'), loadDiffWorkerPool()]).then(
-    ([{ ProposedDiff }]) => ({ default: ProposedDiff })
-  )
-  return proposedDiff
+function ProposedDiff(props: ComponentProps<typeof import('./proposed_diff').ProposedDiff>) {
+  const loaded = proposedDiff.useLoaded()
+  return <loaded.ProposedDiff {...props} />
 }
-
-const ProposedDiff = lazy(loadProposedDiff)
 
 function FullTarget({ item }: { item: Approval }) {
   return (
@@ -309,10 +300,15 @@ export function ApprovalStrip({
 }) {
   const changesId = useId()
   const { changes } = item
-  // The diff chunk loads while the request is read, so expanding it doesn't wait.
+  // The diff loads and highlights while the request is read, so it expands coloured.
+  const patch = changes?.patch
   useEffect(() => {
-    if (changes) void loadProposedDiff()
-  }, [changes])
+    if (patch !== undefined)
+      void proposedDiff
+        .preload()
+        .then(({ primeProposedDiff }) => primeProposedDiff(patch))
+        .catch(() => {})
+  }, [patch])
   return (
     <FlushShell>
       {header}

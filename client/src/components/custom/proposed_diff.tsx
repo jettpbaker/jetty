@@ -1,16 +1,27 @@
+import { contentKey } from '@/lib/hash'
 import { useResolvedTheme } from '@/lib/theme'
 import { CodeView } from '@pierre/diffs/react'
 import { useMemo, useRef } from 'react'
 
 import type { ProposedChanges } from './composer_strip_model'
 
+import { primeDiffHighlights } from './diff_worker_pool'
 import { diffViewOptions, useCollapsedFiles } from './file_changes_viewer'
 import { diffItem, parseFileChanges } from './file_diff_model'
 import { ScrollOverlay } from './scroll_overlay'
 
+// A proposed patch names no blobs, so its cache key hashes the patch.
+function parseProposedChanges(patch: string) {
+  return parseFileChanges(patch, contentKey(patch))
+}
+
+export function primeProposedDiff(patch: string) {
+  return primeDiffHighlights(parseProposedChanges(patch).map((file) => file.diff))
+}
+
 export function ProposedDiff({ id, changes }: { id: string; changes: ProposedChanges }) {
   const themeType = useResolvedTheme()
-  const files = useMemo(() => parseFileChanges(changes.patch), [changes.patch])
+  const files = useMemo(() => parseProposedChanges(changes.patch), [changes.patch])
   // Only the first file opens, so a many-file change still reads as a list.
   const { collapsedFiles, renderFilePrefix } = useCollapsedFiles(
     () => new Set(files.slice(1).map((file) => file.path))
