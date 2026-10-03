@@ -10,8 +10,6 @@ import { toast } from 'sonner'
 import type { PrComment, PrFile, PrThread } from './adapter'
 
 import { DiffBody } from '../diff/body'
-import { syntaxTheme } from '../diff/cursor_themes'
-import { useDiffWorkerPool } from '../diff_worker_pool'
 import {
   hydratedDiff,
   loadedFiles,
@@ -66,7 +64,6 @@ export function Diff({
   renderThreads?: (threads: PrThread[]) => ReactNode
   suggestion?: boolean
 }) {
-  const pool = useDiffWorkerPool(syntaxTheme)
   const revision = useContext(PrDiffRevisionContext)
   const hasPatch = patch === undefined ? file.patch : patch
   const text = filePatch(file, patch)
@@ -163,13 +160,6 @@ export function Diff({
           <div className='border-t border-border px-4 py-3'>{renderThreads?.(threads)}</div>
         )}
       </div>
-    )
-  if (!pool)
-    return (
-      <div
-        aria-hidden='true'
-        style={{ height: Math.max(40, (patch ?? file.patch ?? '').split('\n').length * 20) }}
-      />
     )
   return (
     <div className='min-w-0 overflow-x-auto'>

@@ -4,7 +4,7 @@ import { useResolvedTheme } from '@/lib/theme'
 import { FileDiff } from '@pierre/diffs/react'
 import { useContext, type ReactNode } from 'react'
 
-import { useDiffWorkerPool } from '../diff_worker_pool'
+import { useDiffWorkerPoolLoading } from '../diff_worker_pool'
 import { hugeIconMasks } from '../huge_icons'
 import { syntaxTheme } from './cursor_themes'
 import { DiffStyleContext, DiffWrapContext } from './model'
@@ -93,11 +93,11 @@ export function DiffBody<T = undefined>({
   annotations?: DiffLineAnnotation<T>[]
   renderAnnotation?: (annotation: DiffLineAnnotation<T>) => ReactNode
 }) {
-  const pool = useDiffWorkerPool(syntaxTheme)
+  const loading = useDiffWorkerPoolLoading(syntaxTheme)
   const diffStyle = useContext(DiffStyleContext)
   const wrap = useContext(DiffWrapContext)
   const resolvedTheme = useResolvedTheme()
-  if (!pool)
+  if (loading)
     return <div aria-hidden='true' style={{ height: Math.max(40, diff.unifiedLineCount * 20) }} />
   return (
     <FileDiff

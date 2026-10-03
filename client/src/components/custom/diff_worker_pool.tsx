@@ -8,6 +8,7 @@ import { useSyncExternalStore, type ReactNode } from 'react'
 export const diffThemes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
 
 type PoolEntry = {
+  settled: boolean
   pool?: WorkerPoolManager
   loading?: Promise<WorkerPoolManager | undefined>
   listeners: Set<() => void>
@@ -18,7 +19,7 @@ function poolEntry(themes: ThemesType) {
   const key = `${themes.light}:${themes.dark}`
   let entry = pools.get(key)
   if (!entry) {
-    entry = { listeners: new Set() }
+    entry = { settled: false, listeners: new Set() }
     pools.set(key, entry)
   }
   return entry
@@ -31,19 +32,23 @@ export function loadDiffWorkerPool(themes: ThemesType = diffThemes) {
     import('@pierre/diffs/worker'),
     import('@pierre/diffs/worker/worker.js?worker'),
     import('@pierre/diffs').then(({ resolveThemes }) => resolveThemes([themes.light, themes.dark])),
-  ]).then(
-    async ([{ WorkerPoolManager }, { default: DiffsWorker }]) => {
-      const created = new WorkerPoolManager(
-        { workerFactory: () => new DiffsWorker(), poolSize: 2 },
-        { theme: themes, preferredHighlighter: 'shiki-wasm' }
-      )
-      await created.initialize().catch(() => {})
-      entry.pool = created
+  ])
+    .then(
+      async ([{ WorkerPoolManager }, { default: DiffsWorker }]) => {
+        const created = new WorkerPoolManager(
+          { workerFactory: () => new DiffsWorker(), poolSize: 2 },
+          { theme: themes, preferredHighlighter: 'shiki-wasm' }
+        )
+        await created.initialize().catch(() => {})
+        entry.pool = created
+        return created
+      },
+      () => undefined
+    )
+    .finally(() => {
+      entry.settled = true
       for (const listener of entry.listeners) listener()
-      return created
-    },
-    () => undefined
-  )
+    })
   return entry.loading
 }
 
@@ -57,6 +62,19 @@ export function useDiffWorkerPool(themes: ThemesType = diffThemes) {
       }
     },
     () => entry.pool
+  )
+}
+
+export function useDiffWorkerPoolLoading(themes: ThemesType = diffThemes) {
+  const entry = poolEntry(themes)
+  return useSyncExternalStore(
+    (listener) => {
+      entry.listeners.add(listener)
+      return () => {
+        entry.listeners.delete(listener)
+      }
+    },
+    () => !entry.settled
   )
 }
 
