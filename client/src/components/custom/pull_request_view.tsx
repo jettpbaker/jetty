@@ -1,1092 +1,162 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 
-import { SuccessStatusIcon, ErrorStatusIcon } from '@/components/custom/circle_status_icon'
-import { DiffLoading } from '@/components/custom/diff_loading'
-import {
-  RefreshIcon,
-  LinkSquare02Icon,
-  ArrowDown01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Tick02Icon,
-  InformationCircleIcon,
-  Unlink01Icon,
-  MinusSignCircleIcon,
-  Cancel01Icon,
-  UserGroupIcon,
-} from '@/components/custom/huge_icons'
-import {
-  GitBranchIcon,
-  GitCommitHorizontalIcon,
-  GitPullRequestIcon,
-  DiffIcon,
-  GitMergeIcon,
-  CircleDotIcon,
-  WorkflowIcon,
-} from '@/components/custom/lucide_icons'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
+  DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useNow } from '@/hooks/use-now'
-import { contentKey } from '@/lib/hash'
-import { whenIdle } from '@/lib/preload'
-import { pressProps } from '@/lib/press'
-import { formatAgo, formatDuration } from '@/lib/time'
-import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
+import { useChrome } from '@/state/chrome'
 import {
-  useLinkPullRequest,
   usePullRequest,
-  usePullRequestDiffFileLoader,
   useRefreshPullRequest,
+  usePullRequestActions,
   useReviewRequestPatches,
-  useSetReviewRequest,
   useUnlinkPullRequest,
+  useLinkPullRequest,
+  pullRequestKey,
   type PullRequestRef,
-} from '@/state'
-import { Link } from '@tanstack/react-router'
-import {
-  Suspense,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from 'react'
+} from '@/state/pull_requests'
+import { useMemo, useLayoutEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
-import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
-import { DisabledTooltip } from './disabled_tooltip'
-import { InProgressIcon } from './in_progress_icon'
-import { Markdown } from './markdown'
+import {
+  MoreVerticalIcon,
+  RefreshIcon,
+  LinkSquare02Icon,
+  Copy01Icon,
+  Unlink01Icon,
+} from './huge_icons'
 import { MediaLightboxProvider } from './media_lightbox'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
-import { PersonAvatar } from './person_avatar'
-import {
-  prActivity,
-  pullRequestState,
-  type ClosingIssueReference,
-  type GitHubCheckRun,
-  type GitHubCommit,
-  type GitHubFile,
-  type GitHubPullRequest,
-  type GitHubReview,
-  type GitHubUser,
-  type MergeMethod,
-  type PrActivityItem,
-  type ReviewThread,
-} from './pull_request_model'
-import { ReviewerPicker } from './reviewer_picker'
+import { adaptPullRequest } from './pull_request/adapter'
+import { JettyStyle } from './pull_request/jetty_style'
+import { PrRuntimeContext } from './pull_request/runtime'
 import './thread_details_layout.css'
-import { prPresentation } from './thread_pull_request'
-
-// The patch GitHub returns is fixed by the two commits, but the PR and its files arrive in
-// separate requests, and a push between them pairs one head with another's files, so the key
-// hashes the patch too.
-function parsePullRequestDiff(
-  parseFileChanges: typeof import('./file_diff_model').parseFileChanges,
-  files: readonly GitHubFile[],
-  commits: string
-) {
-  const patch = filesPatch(files)
-  return parseFileChanges(patch, `${commits}:${contentKey(patch)}`)
-}
-
-async function prefetchDiff(files: readonly GitHubFile[], commits: string) {
-  const { parseFileChanges } = await diffViewer.preload()
-  const changes = parsePullRequestDiff(parseFileChanges, files, commits)
-  await primeDiffHighlights(changes.map(({ diff }) => diff))
-}
-
-function PullRequestDiff({
-  files,
-  commits,
-  repo,
-  baseSha,
-  headSha,
-}: {
-  files: readonly GitHubFile[]
-  commits: string
-  repo: string
-  baseSha?: string
-  headSha: string
-}) {
-  const { FileChangesViewer, parseFileChanges } = diffViewer.useLoaded()
-  const changes = useMemo(
-    () => parsePullRequestDiff(parseFileChanges, files, commits),
-    [files, commits, parseFileChanges]
-  )
-  const loadFile = usePullRequestDiffFileLoader(repo, baseSha, headSha)
-  useLayoutEffect(() => perf.rendered('pr.diff'), [])
-  return <FileChangesViewer embedded layout='page' files={changes} loadFile={loadFile} />
-}
-
-// GitHub returns one hunk-only patch per file; the viewer reads a git patch.
-function filesPatch(files: readonly GitHubFile[]) {
-  let patch = ''
-  for (const file of files) {
-    const before = file.previous_filename ?? file.filename
-    const header = [`diff --git a/${before} b/${file.filename}`]
-    if (file.status === 'added') header.push('new file mode 100644')
-    if (file.status === 'removed') header.push('deleted file mode 100644')
-    // The parser only reads a git rename from its similarity line; GitHub doesn't send the score.
-    if (file.status === 'renamed')
-      header.push(
-        `similarity index ${file.changes ? 50 : 100}%`,
-        `rename from ${before}`,
-        `rename to ${file.filename}`
-      )
-    if (file.patch !== undefined)
-      header.push(
-        `--- ${file.status === 'added' ? '/dev/null' : `a/${before}`}`,
-        `+++ ${file.status === 'removed' ? '/dev/null' : `b/${file.filename}`}`,
-        file.patch
-      )
-    patch += `${header.join('\n')}\n`
-  }
-  return patch
-}
-
-type PrPane = 'info' | 'diff'
-
-function TimeAgo({ at }: { at: string }) {
-  const now = useNow(60_000)
-  return formatAgo(Date.parse(at), now)
-}
-
-function checkDuration(run: GitHubCheckRun) {
-  if (run.status === 'queued') return 'Queued'
-  if (run.status === 'in_progress' || !run.completed_at) return 'Running'
-  if (run.conclusion === 'skipped') return ''
-  const seconds = (Date.parse(run.completed_at) - Date.parse(run.started_at)) / 1000
-  return Number.isNaN(seconds) ? '' : formatDuration(Math.max(0, seconds))
-}
-
-function failed(run: GitHubCheckRun) {
-  return (
-    run.conclusion === 'failure' ||
-    run.conclusion === 'timed_out' ||
-    run.conclusion === 'action_required' ||
-    run.conclusion === 'startup_failure'
-  )
-}
-
-function checkOrder(run: GitHubCheckRun) {
-  if (failed(run)) return 0
-  if (run.status !== 'completed') return 1
-  if (run.conclusion === 'success') return 2
-  return 3
-}
-
-function checksVerdict(data: Pick<PullRequestData, 'checkRuns' | 'checkRollupState'>) {
-  switch (data.checkRollupState) {
-    case 'ERROR':
-    case 'FAILURE':
-      return 'failing'
-    case 'EXPECTED':
-    case 'PENDING':
-      return 'pending'
-    case 'SUCCESS':
-      return 'passed'
-  }
-  if (data.checkRuns.some(failed)) return 'failing'
-  if (data.checkRuns.some((run) => run.status !== 'completed')) return 'pending'
-  return 'passed'
-}
-
-// Past GitHub's first 100 checks the counts are partial, so the summary gives the rollup's verdict.
-function checksSummary(data: PullRequestData) {
-  if (data.truncatedConnections?.includes('checkRuns')) {
-    const verdict = checksVerdict(data)
-    if (verdict === 'failing') return 'Checks failing'
-    if (verdict === 'pending') return 'Checks in progress'
-    return 'All checks passed'
-  }
-  const runs = data.checkRuns
-  const counts = [0, 0, 0, 0]
-  for (const run of runs) {
-    const index = checkOrder(run)
-    counts[index] = (counts[index] ?? 0) + 1
-  }
-  return ['failing', 'in progress', 'successful', 'skipped']
-    .flatMap((label, index) => (counts[index] ? [`${counts[index]} ${label}`] : []))
-    .join(', ')
-}
-
-type ReviewerState = GitHubReview['state'] | 'AWAITING'
-
-function patchedRequests(
-  users: readonly GitHubUser[],
-  patches: ReadonlyMap<string, { user: GitHubUser; requested: boolean }>
-) {
-  const requested = users.filter((user) => patches.get(user.login)?.requested !== false)
-  for (const { user, requested: on } of patches.values())
-    if (on && !requested.some((entry) => entry.login === user.login)) requested.push(user)
-  return requested
-}
-
-function reviewerEntries(
-  pull: GitHubPullRequest,
-  reviews: readonly GitHubReview[],
-  reviewers?: PullRequestData['reviewers']
-): { user: GitHubUser; state: ReviewerState }[] {
-  if (reviewers) {
-    const requested = new Set(pull.requested_reviewers.map((user) => user.login.toLowerCase()))
-    const entries: { user: GitHubUser; state: ReviewerState }[] = reviewers
-      .filter((reviewer) => reviewer.kind !== 'team' && reviewer.login !== pull.user.login)
-      .map((reviewer) => ({
-        user: reviewer,
-        state: requested.has(reviewer.login.toLowerCase())
-          ? ('AWAITING' as const)
-          : (reviewer.latestReviewState ?? ('COMMENTED' as const)),
-      }))
-    for (const user of pull.requested_reviewers) {
-      if (!entries.some((entry) => entry.user.login.toLowerCase() === user.login.toLowerCase()))
-        entries.push({
-          user,
-          state: 'AWAITING',
-        })
-    }
-    return entries
-  }
-  const latest = new Map<string, GitHubReview>()
-  for (const review of reviews) {
-    const current = latest.get(review.user.login)
-    if (!current || Date.parse(review.submitted_at) >= Date.parse(current.submitted_at))
-      latest.set(review.user.login, review)
-  }
-  const entries: { user: GitHubUser; state: ReviewerState }[] = []
-  const seen = new Set<string>()
-  for (const review of reviews) {
-    if (seen.has(review.user.login) || review.user.login === pull.user.login) continue
-    seen.add(review.user.login)
-    const latestReview = latest.get(review.user.login)
-    if (latestReview) entries.push({ user: latestReview.user, state: latestReview.state })
-  }
-  for (const user of pull.requested_reviewers) {
-    if (seen.has(user.login)) continue
-    seen.add(user.login)
-    entries.push({ user, state: 'AWAITING' })
-  }
-  return entries
-}
-
-const conclusionLabel: Record<NonNullable<GitHubCheckRun['conclusion']>, string> = {
-  success: 'Passed',
-  failure: 'Failed',
-  neutral: 'Neutral',
-  cancelled: 'Cancelled',
-  skipped: 'Skipped',
-  timed_out: 'Timed out',
-  action_required: 'Action required',
-  stale: 'Stale',
-  startup_failure: 'Startup failure',
-}
-
-function checkResult(run: GitHubCheckRun) {
-  if (run.status === 'in_progress') return 'Running'
-  if (run.status === 'queued' || !run.conclusion) return 'Queued'
-  return conclusionLabel[run.conclusion]
-}
-
-function CheckStatusIcon({ run }: { run: GitHubCheckRun }) {
-  if (run.status === 'in_progress')
-    return <InProgressIcon className='shrink-0 text-status-working' />
-  if (run.status === 'queued') return <InProgressIcon className='shrink-0 text-status-working' />
-  if (run.conclusion === 'success')
-    return <SuccessStatusIcon className='size-4 shrink-0 text-tick-complete' />
-  if (failed(run)) return <ErrorStatusIcon className='size-4 shrink-0 text-pr-closed' />
-  return <MinusSignCircleIcon className='size-4 shrink-0 text-muted-foreground' />
-}
-
-const reviewCopy: Partial<Record<GitHubReview['state'], { label: string; color: string }>> = {
-  APPROVED: { label: 'approved', color: 'text-status-success' },
-  CHANGES_REQUESTED: { label: 'requested changes', color: 'text-status-attention' },
-  COMMENTED: { label: 'commented', color: 'text-muted-foreground' },
-  DISMISSED: { label: 'dismissed', color: 'text-muted-foreground' },
-}
-
-function externalLink(href: string) {
-  return ({ children, ...props }: ComponentProps<'a'>) => (
-    <a {...props} href={href} target='_blank' rel='noreferrer'>
-      {children}
-    </a>
-  )
-}
-
-function RowIcon({ children }: { children: ReactNode }) {
-  return (
-    <span aria-hidden='true' className='flex size-4 shrink-0 items-center justify-center'>
-      {children}
-    </span>
-  )
-}
-
-function CommitRow({ commit, inset = false }: { commit: GitHubCommit; inset?: boolean }) {
-  return (
-    <li className='flex h-8 items-center gap-2 text-sm'>
-      {inset ? <span className='w-4 shrink-0' aria-hidden /> : null}
-      <RowIcon>
-        <GitCommitHorizontalIcon className='size-4 text-muted-foreground' />
-      </RowIcon>
-      <span className='min-w-0 flex-1 truncate'>{commit.commit.message.split('\n')[0]}</span>
-      <span className='shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
-        {commit.sha.slice(0, 7)}
-      </span>
-    </li>
-  )
-}
-
-function CommitGroup({ commits }: { commits: GitHubCommit[] }) {
-  const first = commits[0]
-  if (!first) return null
-  if (commits.length === 1)
-    return (
-      <ol>
-        <CommitRow commit={first} />
-      </ol>
-    )
-  const author = first.author?.login ?? first.commit.author.name
-  const last = commits.at(-1) ?? first
-  return (
-    <Collapsible className='flex flex-col'>
-      <CollapsibleTrigger
-        render={
-          <Button
-            variant='ghost-text'
-            className='group/commits h-8 w-full justify-start gap-2 rounded-sm px-0 font-normal text-foreground'
-          />
-        }
-      >
-        <RowIcon>
-          <ArrowRight01Icon className='size-3 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/commits:rotate-90 motion-reduce:transition-none' />
-        </RowIcon>
-        <span className='min-w-0 flex-1 truncate text-left text-sm'>
-          {author} added {commits.length} commits
-        </span>
-        <span className='shrink-0 text-right text-xs text-muted-foreground'>
-          <TimeAgo at={last.commit.author.date} />
-        </span>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <ol className='flex flex-col'>
-          {commits.map((commit) => (
-            <CommitRow key={commit.sha} commit={commit} inset />
-          ))}
-        </ol>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-function ReviewEvent({ review }: { review: GitHubReview }) {
-  const copy = reviewCopy[review.state]
-  if (!copy) return null
-  return (
-    <CommentEvent
-      user={review.user}
-      label={copy.label}
-      color={copy.color}
-      at={review.submitted_at}
-      body={review.body}
-    />
-  )
-}
-
-function CommentEvent({
-  user,
-  label,
-  color,
-  at,
-  body,
-}: {
-  user: GitHubUser
-  label: string
-  color: string
-  at: string
-  body: string
-}) {
-  const text = body.trim()
-  return (
-    <div className='flex gap-2'>
-      <PersonAvatar login={user.login} src={user.avatar_url} className='size-5 shrink-0' />
-      <div className='flex min-w-0 flex-1 flex-col gap-1'>
-        <div className='flex min-h-5 items-baseline gap-2 text-xs'>
-          <span className='font-medium'>{user.login}</span>
-          <span className={color}>{label}</span>
-          <span className='text-muted-foreground'>
-            <TimeAgo at={at} />
-          </span>
-        </div>
-        {text ? <Markdown githubMedia>{text}</Markdown> : null}
-      </div>
-    </div>
-  )
-}
-
-function MergedEvent({ user, at }: { user: GitHubUser; at: string }) {
-  return (
-    <div className='flex h-8 items-center gap-2 text-sm'>
-      <RowIcon>
-        <GitMergeIcon className='size-4 text-pr-merged' />
-      </RowIcon>
-      <span className='min-w-0 flex-1 truncate'>{user.login} merged</span>
-      <span className='shrink-0 text-right text-xs text-muted-foreground'>
-        <TimeAgo at={at} />
-      </span>
-    </div>
-  )
-}
-
-function ActivityItem({ item }: { item: PrActivityItem }) {
-  if (item.kind === 'commits') return <CommitGroup commits={item.commits} />
-  if (item.kind === 'review') return <ReviewEvent review={item.review} />
-  if (item.kind === 'comment')
-    return (
-      <CommentEvent
-        user={item.comment.user}
-        label='commented'
-        color='text-muted-foreground'
-        at={item.comment.created_at}
-        body={item.comment.body}
-      />
-    )
-  if (item.kind === 'thread') return <ReviewThreadCard thread={item.thread} />
-  return <MergedEvent user={item.user} at={item.at} />
-}
-
-function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
-  return (
-    <Collapsible
-      defaultOpen={!thread.resolved}
-      className='flex flex-col overflow-hidden rounded-lg border border-border'
-    >
-      <CollapsibleTrigger
-        render={
-          <Button
-            variant='ghost'
-            className='group/thread h-8 w-full justify-start gap-2 rounded-b-none px-3 font-normal'
-          />
-        }
-      >
-        <ArrowRight01Icon className='size-3 shrink-0 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/thread:rotate-90 motion-reduce:transition-none' />
-        <span className='min-w-0 flex-1 truncate text-left font-mono text-xs'>
-          {thread.path}
-          {thread.line != null ? `:${thread.line}` : ''}
-        </span>
-        <span className='font-mono text-xs text-muted-foreground'>{thread.comments.length}</span>
-        {thread.resolved && <Badge variant='secondary'>Resolved</Badge>}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <ol className='flex flex-col gap-3 border-t border-border p-3'>
-          {thread.comments.map((comment) => (
-            <li key={comment.id} className='flex gap-2'>
-              <PersonAvatar
-                login={comment.user.login}
-                src={comment.user.avatar_url}
-                className='size-5 shrink-0'
-              />
-              <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                <div className='flex items-baseline gap-2 text-xs'>
-                  <span className='font-medium'>{comment.user.login}</span>
-                  <span className='text-muted-foreground'>
-                    <TimeAgo at={comment.created_at} />
-                  </span>
-                </div>
-                <Markdown githubMedia>{comment.body}</Markdown>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-function ClosingIssueLink({ issue }: { issue: ClosingIssueReference }) {
-  return (
-    <a
-      href={issue.url}
-      target='_blank'
-      rel='noreferrer'
-      className='min-w-0 truncate hover:underline'
-    >
-      {issue.title}
-    </a>
-  )
-}
-
-const mergeMethodOptions: { method: MergeMethod; label: string; description: string }[] = [
-  {
-    method: 'MERGE',
-    label: 'Create a merge commit',
-    description: 'Adds all commits via a merge commit',
-  },
-  {
-    method: 'SQUASH',
-    label: 'Squash & merge',
-    description: 'Combines commits into one on the base branch',
-  },
-  {
-    method: 'REBASE',
-    label: 'Rebase & merge',
-    description: 'Rebases commits onto the base branch',
-  },
-]
-
-function allowedMergeOptions(data: PullRequestData) {
-  const allowedByMethod: Record<MergeMethod, boolean> = {
-    MERGE: data.mergeCommitAllowed,
-    SQUASH: data.squashMergeAllowed,
-    REBASE: data.rebaseMergeAllowed,
-  }
-  return mergeMethodOptions.filter((option) => allowedByMethod[option.method])
-}
-
-// Merging isn't built yet, so the button explains the first thing that would block it on GitHub.
-// Only `blocked` means branch protection is in the way; `unstable` is failing optional checks,
-// which GitHub still lets you merge past.
-function mergeBlocker(data: PullRequestData) {
-  const { mergeable_state } = data.pull
-  if (mergeable_state === 'dirty') return 'Resolve merge conflicts first'
-  if (mergeable_state === 'behind') return 'Branch is out of date'
-  if (mergeable_state === 'blocked') {
-    if (checksVerdict(data) === 'failing') return 'Some checks are failing'
-    if (checksVerdict(data) === 'pending') return 'Checks are still running'
-    if (data.reviewDecision === 'CHANGES_REQUESTED') return 'Changes were requested'
-    if (data.reviewDecision === 'REVIEW_REQUIRED') return 'Awaiting an approving review'
-    return 'Blocked by branch protection'
-  }
-  return 'Coming soon'
-}
-
-function MergeAction({
-  data,
-  state,
-}: {
-  data: PullRequestData
-  state: ReturnType<typeof pullRequestState>
-}) {
-  const options = allowedMergeOptions(data)
-  const [selected, setSelected] = useState<MergeMethod>(
-    () =>
-      options.find((option) => option.method === data.viewerDefaultMergeMethod)?.method ??
-      options[0]?.method ??
-      'SQUASH'
-  )
-  const current = options.find((option) => option.method === selected) ?? options[0]
-
-  if (state === 'merged' || state === 'closed') {
-    return (
-      <DisabledTooltip
-        reason={state === 'closed' ? "Closed pull requests can't be merged" : undefined}
-        wrap='flex'
-      >
-        <Button size='sm' variant='outline' className='rounded-sm' disabled>
-          {prPresentation[state].label}
-        </Button>
-      </DisabledTooltip>
-    )
-  }
-
-  if (state === 'draft') {
-    return (
-      <DisabledTooltip reason='Coming soon' wrap='flex'>
-        <Button size='sm' className='h-7 rounded-sm' disabled>
-          <GitPullRequestIcon data-icon='inline-start' />
-          Ready for review
-        </Button>
-      </DisabledTooltip>
-    )
-  }
-
-  if (!current) {
-    return (
-      <DisabledTooltip reason='Coming soon' wrap='flex'>
-        <Button size='sm' className='h-7 rounded-sm' disabled>
-          Merge
-        </Button>
-      </DisabledTooltip>
-    )
-  }
-
-  const primary = (
-    <Button
-      size='sm'
-      className={cn('h-7 rounded-sm', options.length > 1 && 'rounded-r-none')}
-      disabled
-    >
-      <GitMergeIcon data-icon='inline-start' />
-      {current.label}
-    </Button>
-  )
-
-  const blocked = (
-    <DisabledTooltip reason={mergeBlocker(data)} wrap='flex'>
-      {primary}
-    </DisabledTooltip>
-  )
-
-  if (options.length === 1) return blocked
-
-  return (
-    <div className='flex'>
-      {blocked}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              size='sm'
-              className='h-7 w-7 rounded-sm rounded-l-none border-l border-primary-foreground/20 px-0'
-            />
-          }
-          aria-label='Select merge method'
-        >
-          <ArrowDown01Icon />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-max min-w-56'>
-          <DropdownMenuRadioGroup
-            value={current.method}
-            onValueChange={(value) => {
-              if (value === 'MERGE' || value === 'SQUASH' || value === 'REBASE') setSelected(value)
-            }}
-          >
-            {options.map((option) => (
-              <DropdownMenuRadioItem
-                key={option.method}
-                value={option.method}
-                className='h-auto! py-2'
-              >
-                <span className='flex flex-col gap-0.5 pr-2'>
-                  <span>
-                    {option.label}
-                    {option.method === data.viewerDefaultMergeMethod ? ' (repository default)' : ''}
-                  </span>
-                  <span className='whitespace-nowrap text-muted-foreground'>
-                    {option.description}
-                  </span>
-                </span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  )
-}
 
 type LinkedThread = { id: string; title: string }
 
-function ReviewerBadge({
-  user,
-  state,
-  pending,
-  team,
-  onRemove,
-}: {
-  user: GitHubUser
-  state: ReviewerState
-  pending: boolean
-  team?: boolean
-  onRemove?: () => void
-}) {
+function externalLink(url: string) {
+  return <a aria-label='Open in GitHub' href={url} target='_blank' rel='noreferrer' />
+}
+
+function UnlinkItem({ threadId, link }: { threadId: string; link: PullRequestAddress }) {
+  const unlink = useUnlinkPullRequest()
+  const relink = useLinkPullRequest()
   return (
-    <Badge
-      variant='outline'
-      aria-busy={pending}
-      className={cn(
-        'group/reviewer h-6 gap-1.5 pl-1 pr-2 font-normal [&>svg]:size-3.5!',
-        pending && 'opacity-60'
-      )}
+    <DropdownMenuItem
+      onClick={() => {
+        unlink(threadId, link)
+        toast('Pull request unlinked', {
+          action: {
+            label: 'Undo',
+            onClick: () =>
+              void relink(threadId, link.url).then((error) => {
+                if (error) toast.error(error)
+              }),
+          },
+        })
+      }}
     >
-      <span className='grid size-4 place-items-center *:[grid-area:1/1]'>
-        <PersonAvatar
-          login={user.login}
-          src={user.avatar_url}
-          className={cn(
-            'size-4',
-            onRemove && 'group-hover/reviewer:opacity-0 group-has-focus-visible/reviewer:opacity-0'
-          )}
-        />
-        {onRemove && (
-          <button
-            type='button'
-            aria-label={`Remove ${user.login} as reviewer`}
-            className='flex size-4 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/reviewer:opacity-100'
-            onClick={onRemove}
+      <Unlink01Icon />
+      Unlink from thread
+    </DropdownMenuItem>
+  )
+}
+
+function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: string }) {
+  const refresh = useRefreshPullRequest()
+  const { refreshing } = usePullRequest(link)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant='ghost' size='icon-sm' aria-label='More' />}>
+        <MoreVerticalIcon />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        <DropdownMenuGroup>
+          <DropdownMenuItem disabled={refreshing} onClick={() => refresh(link)}>
+            <RefreshIcon />
+            Refresh
+          </DropdownMenuItem>
+          <DropdownMenuItem render={externalLink(link.url)}>
+            <LinkSquare02Icon />
+            Open in GitHub
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              void navigator.clipboard.writeText(link.url).then(
+                () => toast('Link copied'),
+                () => toast.error("Couldn't copy link")
+              )
+            }
           >
-            <Cancel01Icon className='size-3' />
-          </button>
-        )}
-      </span>
-      <span className={cn(!team && 'relative -top-px')}>{user.login}</span>
-      {state === 'APPROVED' && <Tick02Icon className='text-status-success' />}
-    </Badge>
+            <Copy01Icon />
+            Copy link
+          </DropdownMenuItem>
+          {threadId && <UnlinkItem threadId={threadId} link={link} />}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
 export function PullRequestView({
   data,
   link,
-  repo,
-  actions,
+  standalone = false,
   threads = [],
+  threadId,
 }: {
   data: PullRequestData
-  link: PullRequestRef
-  repo?: string
-  actions?: ReactNode
+  link: PullRequestAddress
+  standalone?: boolean
   threads?: readonly LinkedThread[]
+  threadId?: string
 }) {
-  const {
-    pull,
-    reviews,
-    reviewComments,
-    issueComments,
-    checkRuns,
-    commits,
-    files,
-    closingIssuesReferences,
-  } = data
-  const [pane, setPane] = useState<PrPane>('info')
-  const [diffSeen, setDiffSeen] = useState(false)
-  const state = pullRequestState(pull)
-  const presentation = prPresentation[state]
-  const Icon = presentation.icon
-  const activity = prActivity({ pull, reviews, reviewComments, issueComments, commits })
+  const actions = usePullRequestActions(link)
   const patches = useReviewRequestPatches(link)
-  const setReviewRequest = useSetReviewRequest()
-  const requested = patchedRequests(pull.requested_reviewers, patches)
-  const reviewers = reviewerEntries(
-    { ...pull, requested_reviewers: requested },
-    reviews,
-    data.reviewers
-  )
-  const body = pull.body.trim()
-  useLayoutEffect(() => perf.rendered('pr.open', { pr: link.number }), [link.number])
-  useLayoutEffect(() => perf.rendered('pr.diff', { warm: true }), [pane])
-  // The diff mounts once its panel is shown: the file tree measures its scrollbar as it connects.
-  useLayoutEffect(() => {
-    if (pane === 'diff') setDiffSeen(true)
-  }, [pane])
-  const diffCommits = `${link.repo}@${pull.base.sha}..${pull.head.sha}`
-  // Once the Overview has painted, so clicking Diff renders straight away.
-  useEffect(
-    () => whenIdle(() => void prefetchDiff(files, diffCommits).catch(() => {})),
-    [files, diffCommits]
-  )
-
-  function toggleReviewer(user: GitHubUser, on: boolean) {
-    setReviewRequest(link, user, on)
-    if (on) return
-    toast('Review request removed', {
-      action: { label: 'Undo', onClick: () => setReviewRequest(link, user, true) },
+  const pr = useMemo(() => {
+    const reviewers = new Map(
+      (data.reviewers ?? data.reviewRequests ?? []).map((reviewer) => [reviewer.login, reviewer])
+    )
+    const requested = new Map(data.pull.requested_reviewers.map((user) => [user.login, user]))
+    for (const [login, patch] of patches) {
+      if (patch.requested) requested.set(login, patch.user)
+      else requested.delete(login)
+      const current = reviewers.get(login)
+      if (current) reviewers.set(login, { ...current, requested: patch.requested })
+      else if (patch.requested)
+        reviewers.set(login, {
+          ...patch.user,
+          kind: 'user',
+          asCodeOwner: false,
+          requested: true,
+          state: 'AWAITING',
+          latestReviewState: null,
+        })
+    }
+    return adaptPullRequest({
+      ...data,
+      pull: { ...data.pull, requested_reviewers: [...requested.values()] },
+      reviewers: [...reviewers.values()],
     })
-  }
-
+  }, [data, patches])
+  useLayoutEffect(() => perf.rendered('pr.open'), [])
   return (
-    <Tabs
-      value={pane}
-      onValueChange={(value) => {
-        if (value === 'info' || value === 'diff') setPane(value)
-        if (value === 'diff') perf.start('pr.diff', { pr: pull.number, warm: diffSeen })
+    <PrRuntimeContext
+      value={{
+        ref: link,
+        actions,
+        threads,
+        more: <MoreMenu link={link} threadId={threadId} />,
+        sidebar: standalone ? <PageSidebarTrigger /> : null,
       }}
-      render={<section aria-label={pull.title} />}
-      data-perf-region='pr-panel'
-      className='relative h-full min-h-0 w-full gap-0'
     >
-      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 pt-4'>
-        <div className='flex min-w-0 items-center gap-2'>
-          <PageSidebarTrigger />
-          {repo && (
-            <p className='flex min-w-0 items-center gap-1.5 text-sm'>
-              <span className='truncate font-medium' title={repo}>
-                <span className='hidden sm:inline'>{repo.slice(0, repo.indexOf('/') + 1)}</span>
-                {repo.slice(repo.indexOf('/') + 1)}
-              </span>
-              <span className='font-mono text-xs text-muted-foreground tabular-nums'>
-                #{pull.number}
-              </span>
-            </p>
-          )}
-          <TabsList
-            variant='line'
-            aria-label='Pull request view'
-            className='h-7 shrink-0 gap-1 p-0'
-          >
-            <TabsTrigger
-              value='info'
-              className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
-            >
-              <InformationCircleIcon data-icon='inline-start' />
-              Info
-            </TabsTrigger>
-            <TabsTrigger
-              value='diff'
-              className="details-header-tab h-auto rounded-sm px-2 py-1 text-xs [&_svg:not([class*='size-'])]:size-3"
-            >
-              <DiffIcon data-icon='inline-start' />
-              Diff
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        <div className='ml-auto flex shrink-0 items-center gap-2'>
-          <MergeAction key={pull.number} data={data} state={state} />
-          <div className='flex items-center'>
-            {actions}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    tone='muted'
-                    size='icon'
-                    className='h-7'
-                    nativeButton={false}
-                    aria-label='Open on GitHub'
-                    render={externalLink(pull.html_url)}
-                  />
-                }
-              >
-                <LinkSquare02Icon />
-              </TooltipTrigger>
-              <TooltipContent>Open on GitHub</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </div>
-      <TabsContent keepMounted value='info' className='min-h-0'>
-        <div className='scroll-fade-y scrollbar-subtle [scrollbar-gutter:stable_both-edges] h-full overflow-y-auto overscroll-contain'>
-          <h1 className='mx-auto w-full max-w-[708px] shrink-0 px-6 pt-4 text-base font-medium leading-normal'>
-            {pull.title}
-          </h1>
-          <div className='mx-auto flex w-full max-w-[708px] flex-col px-6 pb-6 pt-2'>
-            <dl className='grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-1 text-xs'>
-              <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                <GitBranchIcon className='size-3 shrink-0' />
-                Branch
-              </dt>
-              <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-2'>
-                <span className='flex min-w-0 items-center gap-1 font-mono'>
-                  <span className='truncate'>{pull.base.ref}</span>
-                  <ArrowLeft01Icon className='icon-optical-down size-2.5 shrink-0 text-muted-foreground' />
-                  <span className='truncate'>{pull.head.ref}</span>
-                </span>
-                <span className='shrink-0 font-mono tabular-nums'>
-                  <span className='text-status-success'>+{pull.additions}</span>{' '}
-                  <span className='text-status-error'>−{pull.deletions}</span>
-                </span>
-              </dd>
-              <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                <GitPullRequestIcon className='size-3 shrink-0' />
-                Status
-              </dt>
-              <dd className='m-0 flex min-h-7 items-center gap-1.5'>
-                {state === 'merged' ? (
-                  <>
-                    <Icon className={cn('size-3', presentation.color)} />
-                    {presentation.label}
-                  </>
-                ) : (
-                  <DisabledTooltip reason='Coming soon'>
-                    <span className='flex items-center gap-1.5'>
-                      <Icon className={cn('size-3', presentation.color)} />
-                      {presentation.label}
-                    </span>
-                  </DisabledTooltip>
-                )}
-              </dd>
-              {closingIssuesReferences.length > 0 && (
-                <>
-                  <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                    <CircleDotIcon className='size-3 shrink-0' />
-                    {closingIssuesReferences.length === 1 ? 'Issue' : 'Issues'}
-                  </dt>
-                  <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
-                    {closingIssuesReferences.map((issue) => (
-                      <ClosingIssueLink key={issue.url} issue={issue} />
-                    ))}
-                  </dd>
-                </>
-              )}
-              {threads.length > 0 && (
-                <>
-                  <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                    <WorkflowIcon className='size-3 shrink-0' />
-                    {threads.length === 1 ? 'Thread' : 'Threads'}
-                  </dt>
-                  <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
-                    {threads.map((thread) => (
-                      <Link
-                        key={thread.id}
-                        to='/threads/$threadId'
-                        params={{ threadId: thread.id }}
-                        className='min-w-0 truncate hover:underline'
-                      >
-                        {thread.title}
-                      </Link>
-                    ))}
-                  </dd>
-                </>
-              )}
-              <dt className='flex min-h-7 items-center gap-1.5 text-muted-foreground'>
-                <UserGroupIcon className='size-3 shrink-0' />
-                Reviewers
-              </dt>
-              <dd className='m-0 flex min-h-7 min-w-0 flex-wrap items-center gap-1.5'>
-                {reviewers.map((entry) => (
-                  <ReviewerBadge
-                    key={entry.user.login}
-                    user={entry.user}
-                    state={entry.state}
-                    pending={patches.get(entry.user.login)?.requested === true}
-                    onRemove={
-                      data.viewerCanRequestReviews !== false &&
-                      requested.some((user) => user.login === entry.user.login)
-                        ? () => toggleReviewer(entry.user, false)
-                        : undefined
-                    }
-                  />
-                ))}
-                {data.requestedTeams?.map((team) => (
-                  <ReviewerBadge
-                    key={`team:${team.name}`}
-                    user={{ login: team.name, avatar_url: team.avatar_url, html_url: '' }}
-                    state='AWAITING'
-                    pending={false}
-                    team
-                  />
-                ))}
-                <ReviewerPicker
-                  repo={link.repo}
-                  author={pull.user.login}
-                  requested={requested}
-                  suggested={data.suggestedReviewers}
-                  disabledReason={
-                    data.viewerCanRequestReviews === false ? 'Requires write access' : undefined
-                  }
-                  onToggle={toggleReviewer}
-                />
-              </dd>
-              {data.reviewDecision === 'REVIEW_REQUIRED' && (
-                <dd className='col-start-2 m-0 text-muted-foreground'>Approving review required</dd>
-              )}
-              {data.reviewDecision === 'CHANGES_REQUESTED' && (
-                <dd className='col-start-2 m-0 text-status-error'>Changes requested</dd>
-              )}
-            </dl>
-
-            <section className='flex flex-col gap-3 pt-6'>
-              <h2 className='flex items-center justify-between text-xs font-medium text-muted-foreground'>
-                Description
-              </h2>
-              {body ? (
-                <Markdown githubMedia>{body}</Markdown>
-              ) : (
-                <p className='text-sm text-muted-foreground'>No description.</p>
-              )}
-            </section>
-
-            <section className='flex flex-col gap-3 pt-6'>
-              <h2 className='flex items-center justify-between text-xs font-medium text-muted-foreground'>
-                Activity
-              </h2>
-              {activity.length > 0 ? (
-                <ol className='flex flex-col gap-3'>
-                  {activity.map((item) => (
-                    <li key={item.id}>
-                      <ActivityItem item={item} />
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className='text-sm text-muted-foreground'>No activity yet.</p>
-              )}
-            </section>
-
-            <section className='flex flex-col gap-3 pt-6'>
-              <h2 className='flex items-center justify-between text-xs font-medium text-muted-foreground'>
-                Checks
-                {checkRuns.length > 0 && (
-                  <span className='font-mono font-normal text-muted-foreground'>
-                    {checksSummary(data)}
-                  </span>
-                )}
-              </h2>
-              {checkRuns.length > 0 ? (
-                <ul className='flex flex-col'>
-                  {[...checkRuns]
-                    .sort((left, right) => checkOrder(left) - checkOrder(right))
-                    .map((run) => (
-                      <li key={run.id} className='flex h-8 items-center gap-2 text-sm'>
-                        <RowIcon>
-                          <CheckStatusIcon run={run} />
-                        </RowIcon>
-                        <span className='min-w-0 flex-1 truncate'>
-                          {run.workflow ? `${run.workflow} / ${run.name}` : run.name}
-                          <span className='sr-only'>, {checkResult(run)}</span>
-                        </span>
-                        <span className='w-16 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground'>
-                          {checkDuration(run)}
-                        </span>
-                        {run.html_url && (
-                          <Button
-                            variant='ghost-text'
-                            size='sm'
-                            className='px-0'
-                            nativeButton={false}
-                            aria-label={`${run.workflow ? `${run.workflow} / ${run.name}` : run.name} details`}
-                            render={externalLink(run.html_url)}
-                          >
-                            Details
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <p className='text-sm text-muted-foreground'>No checks.</p>
-              )}
-              {data.truncatedConnections?.includes('checkRuns') &&
-                data.checkRunsTotalCount !== undefined && (
-                  <a
-                    href={`${pull.html_url}/checks`}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='text-sm text-muted-foreground hover:underline'
-                  >
-                    +{Math.max(0, data.checkRunsTotalCount - checkRuns.length)} more checks on
-                    GitHub
-                  </a>
-                )}
-            </section>
-          </div>
-        </div>
-      </TabsContent>
-      <TabsContent keepMounted value='diff' className='min-h-0 overflow-hidden pt-4'>
-        {diffSeen && (
-          <Suspense fallback={<DiffLoading />}>
-            <PullRequestDiff
-              files={files}
-              commits={diffCommits}
-              repo={link.repo}
-              baseSha={pull.base.sha}
-              headSha={pull.head.sha}
-            />
-          </Suspense>
-        )}
-      </TabsContent>
-    </Tabs>
+      <JettyStyle pr={pr} />
+    </PrRuntimeContext>
   )
 }
 
@@ -1097,72 +167,6 @@ const unavailableTitle = {
 }
 
 type PullRequestAddress = PullRequestRef & { url: string }
-
-function RefreshButton({ link, error }: { link: PullRequestRef; error?: string }) {
-  const refresh = useRefreshPullRequest()
-  const { refreshing } = usePullRequest(link)
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            className={cn('h-7', error && !refreshing && 'text-destructive')}
-            aria-label='Refresh'
-            {...pressProps(() => refresh(link))}
-          />
-        }
-      >
-        <RefreshIcon
-          className={cn(
-            refreshing && 'animate-spin [animation-duration:700ms] motion-reduce:animate-none'
-          )}
-        />
-      </TooltipTrigger>
-      <TooltipContent>
-        {error && !refreshing ? `Couldn't refresh: ${error}` : 'Refresh'}
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
-function UnlinkButton({ threadId, link }: { threadId: string; link: PullRequestAddress }) {
-  const unlink = useUnlinkPullRequest()
-  const relink = useLinkPullRequest()
-  function unlinkWithUndo() {
-    unlink(threadId, link)
-    toast('Pull request unlinked', {
-      action: {
-        label: 'Undo',
-        onClick: () =>
-          void relink(threadId, link.url).then((error) => {
-            if (error) toast.error(error)
-          }),
-      },
-    })
-  }
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            className='h-7'
-            aria-label='Unlink from thread'
-            onClick={unlinkWithUndo}
-          />
-        }
-      >
-        <Unlink01Icon />
-      </TooltipTrigger>
-      <TooltipContent>Unlink from thread</TooltipContent>
-    </Tooltip>
-  )
-}
 
 // The thread's details tab and the full page both show a PR through this.
 export function LivePullRequestView({
@@ -1177,22 +181,29 @@ export function LivePullRequestView({
   standalone?: boolean
 }) {
   const { snapshot, refreshing } = usePullRequest(link)
+  const chromeThreads = useChrome()?.threads
+  const linkedThreads = useMemo(
+    () =>
+      threads ??
+      (chromeThreads ?? []).filter((thread) =>
+        thread.pullRequests?.some(
+          (entry) => entry.repo === link.repo && entry.number === link.number
+        )
+      ),
+    [threads, chromeThreads, link.repo, link.number]
+  )
   const refresh = useRefreshPullRequest()
   const failure = snapshot && snapshot.status !== 'ready' && snapshot.status !== 'loading'
   if (snapshot?.data)
     return (
       <MediaLightboxProvider>
         <PullRequestView
+          key={pullRequestKey(link)}
           data={snapshot.data}
           link={link}
-          repo={standalone ? link.repo : undefined}
-          threads={threads}
-          actions={
-            <>
-              <RefreshButton link={link} error={failure ? snapshot.error : undefined} />
-              {threadId && <UnlinkButton threadId={threadId} link={link} />}
-            </>
-          }
+          standalone={standalone}
+          threads={linkedThreads}
+          threadId={threadId}
         />
       </MediaLightboxProvider>
     )
@@ -1212,7 +223,7 @@ export function LivePullRequestView({
       <Button variant='ghost' size='sm' nativeButton={false} render={externalLink(link.url)}>
         Open on GitHub
       </Button>
-      {threadId && <UnlinkButton threadId={threadId} link={link} />}
+      {threadId && <MoreMenu threadId={threadId} link={link} />}
     </PullRequestUnavailable>
   )
 }

@@ -1,4 +1,4 @@
-import type { FileDiffMetadata } from '@pierre/diffs'
+import type { FileDiffMetadata, ThemesType } from '@pierre/diffs'
 import type { WorkerPoolManager } from '@pierre/diffs/worker'
 
 import { preloadable } from '@/lib/preload'
@@ -7,45 +7,67 @@ import { useSyncExternalStore, type ReactNode } from 'react'
 
 export const diffThemes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
 
-let pool: WorkerPoolManager | undefined
-let poolLoad: Promise<WorkerPoolManager | undefined> | undefined
-const listeners = new Set<() => void>()
+type PoolEntry = {
+  pool?: WorkerPoolManager
+  loading?: Promise<WorkerPoolManager | undefined>
+  listeners: Set<() => void>
+}
+const pools = new Map<string, PoolEntry>()
 
-// Diff views highlight in workers. The pool starts with the first view that needs it, keeping the
-// highlighter out of the app's first load, and views wait for it: one that mounts before the pool
-// is ready paints blank. A pool whose workers fail leaves highlighting on the main thread.
-export function loadDiffWorkerPool() {
-  poolLoad ??= Promise.all([
+function poolEntry(themes: ThemesType) {
+  const key = `${themes.light}:${themes.dark}`
+  let entry = pools.get(key)
+  if (!entry) {
+    entry = { listeners: new Set() }
+    pools.set(key, entry)
+  }
+  return entry
+}
+
+// Theme resolution stays on the main thread; Pierre sends resolved registrations to its workers.
+export function loadDiffWorkerPool(themes: ThemesType = diffThemes) {
+  const entry = poolEntry(themes)
+  entry.loading ??= Promise.all([
     import('@pierre/diffs/worker'),
     import('@pierre/diffs/worker/worker.js?worker'),
+    import('@pierre/diffs').then(({ resolveThemes }) => resolveThemes([themes.light, themes.dark])),
   ]).then(
     async ([{ WorkerPoolManager }, { default: DiffsWorker }]) => {
       const created = new WorkerPoolManager(
-        // Only the files on screen highlight at once, and each worker compiles every grammar it
-        // meets for itself.
         { workerFactory: () => new DiffsWorker(), poolSize: 2 },
-        // Shiki's JavaScript regex engine can hang on a pathological line.
-        { theme: diffThemes, preferredHighlighter: 'shiki-wasm' }
+        { theme: themes, preferredHighlighter: 'shiki-wasm' }
       )
       await created.initialize().catch(() => {})
-      pool = created
-      for (const listener of listeners) listener()
+      entry.pool = created
+      for (const listener of entry.listeners) listener()
       return created
     },
     () => undefined
   )
-  return poolLoad
+  return entry.loading
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
+export function useDiffWorkerPool(themes: ThemesType = diffThemes) {
+  const entry = poolEntry(themes)
+  return useSyncExternalStore(
+    (listener) => {
+      entry.listeners.add(listener)
+      return () => {
+        entry.listeners.delete(listener)
+      }
+    },
+    () => entry.pool
+  )
 }
 
-export function DiffWorkerPoolProvider({ children }: { children: ReactNode }) {
-  const value = useSyncExternalStore(subscribe, () => pool)
+export function DiffWorkerPoolProvider({
+  children,
+  themes = diffThemes,
+}: {
+  children: ReactNode
+  themes?: ThemesType
+}) {
+  const value = useDiffWorkerPool(themes)
   return <WorkerPoolContext value={value}>{children}</WorkerPoolContext>
 }
 
