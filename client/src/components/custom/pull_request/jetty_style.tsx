@@ -1092,7 +1092,8 @@ function ActivityThreads({ threads, author }: { threads: PrThread[]; author?: Pr
 function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser }) {
   const { actions } = usePrRuntime()
   const [expanded, setExpanded] = useState(!thread.resolved)
-  const label = `${expanded ? 'Collapse' : 'Expand'} ${thread.path}:${thread.line} conversation`
+  const place = thread.line === null ? thread.path : `${thread.path}:${thread.line}`
+  const label = `${expanded ? 'Collapse' : 'Expand'} ${place} conversation`
   function resolve(resolved: boolean) {
     void actions.resolve(thread.id, resolved)
     setExpanded(!resolved)
@@ -1111,7 +1112,7 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
           <span
             className={`min-w-0 flex-1 truncate font-mono ${thread.resolved ? 'text-muted-foreground' : ''}`}
           >
-            {thread.path}:{thread.line}
+            {place}
           </span>
           {thread.resolved ? (
             <SuccessStatusIcon
