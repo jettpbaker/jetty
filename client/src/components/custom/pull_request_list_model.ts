@@ -9,10 +9,6 @@ export const pullRequestGroupLabel: Record<PullRequestGroup, string> = {
   closed: 'Closed',
 }
 
-export function pullRequestGroup(pull: PullRequestListItem): PullRequestGroup {
-  return pull.state
-}
-
 export function pullRequestIdentifier(pull: PullRequestListItem) {
   return `${pull.repo.split('/').at(-1)}#${pull.number}`
 }

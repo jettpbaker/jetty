@@ -44,7 +44,6 @@ import {
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { PersonAvatar } from './person_avatar'
 import {
-  pullRequestGroup,
   pullRequestGroupLabel,
   pullRequestGroupOrder,
   pullRequestIdentifier,
@@ -119,14 +118,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   )
   const [included, setIncluded] = useState(pullRequestGroupOrder)
   const rows = pulls
-    .filter((pull) => included.includes(pullRequestGroup(pull)))
+    .filter((pull) => included.includes(pull.state))
     .toSorted((a, b) => b.updatedAt - a.updatedAt)
   const groups: TableGroup<PullRequestListItem>[] = pullRequestGroupOrder
     .map((group) => ({
       id: group,
       label: pullRequestGroupLabel[group],
       ...groupPresentation[group],
-      rows: rows.filter((pull) => pullRequestGroup(pull) === group),
+      rows: rows.filter((pull) => pull.state === group),
       defaultCollapsed: group === 'closed' || group === 'merged',
     }))
     .filter((group) => group.rows.length)
@@ -294,7 +293,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             </TooltipContent>
           </Tooltip>
           <ListFilterMenu
-            label='Needs doing'
+            label='State'
             choices={pullRequestGroupOrder.map((value) => ({
               value,
               label: pullRequestGroupLabel[value],
