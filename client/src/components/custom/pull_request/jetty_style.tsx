@@ -1089,7 +1089,10 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
   const [expanded, setExpanded] = useState(!thread.resolved)
   const trigger = useRef<HTMLButtonElement>(null)
   const place = thread.line === null ? thread.path : `${thread.path}:${thread.line}`
-  const label = `${expanded ? 'Collapse' : 'Expand'} ${place} conversation`
+  const status = [thread.outdated && 'outdated', thread.resolved ? 'resolved' : 'open'].filter(
+    Boolean
+  )
+  const label = `${expanded ? 'Collapse' : 'Expand'} ${place} conversation, ${status.join(', ')}`
   function resolve(resolved: boolean) {
     void actions.resolve(thread.id, resolved)
     setExpanded(!resolved)
