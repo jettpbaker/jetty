@@ -47,6 +47,7 @@ import {
   pullRequestGroupLabel,
   pullRequestGroupOrder,
   pullRequestIdentifier,
+  pullRequestSignals,
   type PullRequestGroup,
 } from './pull_request_list_model'
 
@@ -315,7 +316,12 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             groups={groups}
             rowKey={(pull) => pull.url}
             rowLabel={(pull) =>
-              `${pullRequestIdentifier(pull)}, ${pull.title}, by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}, ${pull.state}`
+              [
+                pullRequestIdentifier(pull),
+                pull.title,
+                `by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`,
+                ...pullRequestSignals(pull),
+              ].join(', ')
             }
             onSelect={onSelect}
             onRowHover={onRowHover}
