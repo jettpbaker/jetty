@@ -2378,7 +2378,7 @@ function listItem(value: unknown): PullRequestListItem | null {
 export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[]) {
   const searches = tabs.flatMap(listSearches)
   const fields = `issueCount nodes { ... on PullRequest {
-    number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
+    id number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
     author { ${actorFields} }
     additions deletions labels(first:10) { nodes { name color } }
     reviewDecision mergeable mergeStateStatus
@@ -2415,6 +2415,95 @@ export function mapPullRequestList(value: unknown, tabIndex = 0) {
   }
 }
 
+function listSignature(value: unknown, tabIndex = 0) {
+  const data = record(record(value).data)
+  const searches = []
+  const since = Date.parse(recentSince())
+  for (let index = tabIndex * 2; index < tabIndex * 2 + 2; index++) {
+    const result = record(data[`s${index}`])
+    searches.push({
+      count: result.issueCount,
+      items: nodes(result)
+        .filter((node) => !(Date.parse(string(record(node).closedAt)) < since))
+        .map((value) => {
+          const node = record(value)
+          return [
+            node.id,
+            node.number,
+            record(node.repository).nameWithOwner,
+            node.updatedAt,
+            node.closedAt,
+            node.state,
+            node.isDraft,
+            node.reviewDecision,
+            node.mergeStateStatus,
+            node.mergeable,
+            record(record(record(nodes(node.commits)[0]).commit).statusCheckRollup).state ?? null,
+          ]
+        })
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+    })
+  }
+  return JSON.stringify(searches)
+}
+
+async function probePullRequestLists(ids: readonly string[]) {
+  const tabs = ['for-you', 'created'] as const
+  const searches = tabs.flatMap(listSearches)
+  // New identities force a full read; only cached PRs need a checks connection.
+  // nodes(ids:) avoids multiplying that connection by each search's requested size.
+  const response = await ghApi(
+    'graphql',
+    '-f',
+    `query=query {
+    rateLimit { cost remaining resetAt }
+    ${searches
+      .map(
+        (search, index) => `s${index}: search(
+      query:${JSON.stringify(search)},type:ISSUE,first:${listLimit}
+    ) {
+      issueCount nodes { ... on PullRequest {
+        id number repository { nameWithOwner } updatedAt closedAt state isDraft
+        reviewDecision mergeStateStatus mergeable
+      } }
+    }`
+      )
+      .join('\n')}
+    ${Array.from(
+      { length: Math.ceil(ids.length / 100) },
+      (_, index) => `c${index}: nodes(
+      ids:${JSON.stringify(ids.slice(index * 100, (index + 1) * 100))}
+    ) { ... on PullRequest {
+      id commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
+    } }`
+    ).join('\n')}
+
+  }`
+  )
+  const data = record(record(response).data)
+  const commits = new Map<string, unknown>()
+  for (let index = 0; index < Math.ceil(ids.length / 100); index++) {
+    const pulls = data[`c${index}`]
+    if (!Array.isArray(pulls)) throw new Error('GitHub list probe is incomplete')
+    for (const value of pulls) {
+      const pull = record(value)
+      if (pull.id && pull.commits) commits.set(string(pull.id), pull.commits)
+    }
+  }
+  const known = new Set(ids)
+  for (const [index] of searches.entries()) {
+    const result = record(data[`s${index}`])
+    if (!Array.isArray(result.nodes)) throw new Error('GitHub list probe is incomplete')
+    for (const value of nodes(result)) {
+      const node = record(value)
+      node.commits = commits.get(string(node.id))
+      if (known.has(string(node.id)) && !node.commits)
+        throw new Error('GitHub list probe is incomplete')
+    }
+  }
+  return new Map(tabs.map((tab, index) => [tab, listSignature(response, index)]))
+}
+
 async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   const { searches, query } = pullRequestListGraphqlQuery(tabs)
   const response = await ghApi(
@@ -2423,14 +2512,28 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
     `query=${query}`,
     ...searches.flatMap((search, index) => ['-f', `q${index}=${search}`])
   )
-  return tabs.map(
-    (tab, index): PullRequestList => ({
+  return tabs.map((tab, index) => ({
+    signature: listSignature(response, index),
+    ids: [index * 2, index * 2 + 1].flatMap((search) =>
+      nodes(record(record(response).data)[`s${search}`]).map((node) => string(record(node).id))
+    ),
+    list: {
       tab,
       status: 'ready',
       ...mapPullRequestList(response, index),
       refreshedAt: Date.now(),
-    })
-  )
+    } satisfies PullRequestList,
+  }))
+}
+
+function failedList(tab: PullRequestListTab, error: unknown): PullRequestList {
+  return {
+    tab,
+    status:
+      error instanceof GhFailure && error.kind === 'rate_limited' ? 'rate_limited' : 'unavailable',
+    error: error instanceof GhFailure ? error.message : 'GitHub API is unavailable',
+    refreshedAt: Date.now(),
+  }
 }
 
 export function createPullRequestLists(
@@ -2440,6 +2543,27 @@ export function createPullRequestLists(
   scope: Scope.Scope
 ) {
   const listCadence = 30_000
+  const signatures = new Map<PullRequestListTab, string>()
+  const checksIds = new Map<PullRequestListTab, string[]>()
+  let probeInFlight: ReturnType<typeof probePullRequestLists> | undefined
+  let probedAt = 0
+  let probed = new Map<PullRequestListTab, string>()
+
+  function probe(maxAge: number) {
+    if (probeInFlight) return probeInFlight
+    if (probedAt && Date.now() - probedAt < maxAge * cadenceMultiplier())
+      return Promise.resolve(probed)
+    probeInFlight = probePullRequestLists([...new Set([...checksIds.values()].flat())])
+      .then((result) => {
+        probed = result
+        probedAt = Date.now()
+        return result
+      })
+      .finally(() => {
+        probeInFlight = undefined
+      })
+    return probeInFlight
+  }
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
   const publication = {
@@ -2476,21 +2600,16 @@ export function createPullRequestLists(
           (lists) => {
             for (const [index, [tab, resolve]] of batch.entries()) {
               inFlight.delete(tab)
-              resolve(lists[index]!)
+              const result = lists[index]!
+              signatures.set(tab, result.signature)
+              checksIds.set(tab, result.ids)
+              resolve(result.list)
             }
           },
           (error) => {
             for (const [tab, resolve] of batch) {
               inFlight.delete(tab)
-              resolve({
-                tab,
-                status:
-                  error instanceof GhFailure && error.kind === 'rate_limited'
-                    ? 'rate_limited'
-                    : 'unavailable',
-                error: error instanceof GhFailure ? error.message : 'GitHub API is unavailable',
-                refreshedAt: Date.now(),
-              })
+              resolve(failedList(tab, error))
             }
           }
         )
@@ -2505,7 +2624,22 @@ export function createPullRequestLists(
       if (backingOff()) return cached
       if (cached.refreshedAt && Date.now() - cached.refreshedAt < maxAge * cadenceMultiplier())
         return cached
-      yield* store.savePullRequestList(yield* Effect.promise(() => load(tab)))
+      const loaded = yield* Effect.tryPromise({
+        try: () => probe(maxAge),
+        catch: (error) => error,
+      }).pipe(
+        Effect.matchEffect({
+          onFailure: (error) => Effect.succeed(failedList(tab, error)),
+          onSuccess: (changes) => {
+            const unchanged =
+              cached.status === 'ready' && cached.items && signatures.get(tab) === changes.get(tab)
+            return unchanged
+              ? Effect.succeed({ ...cached, refreshedAt: Date.now() })
+              : Effect.promise(() => load(tab))
+          },
+        })
+      )
+      yield* store.savePullRequestList(loaded)
       // The stored list keeps the last good items when this read failed.
       const list = yield* store.getPullRequestList(tab)
       const decorated = decorate(list)
