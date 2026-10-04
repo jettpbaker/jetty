@@ -2,6 +2,7 @@ import type { ThreadRow } from '@/components/custom/thread_rows'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
 
+import { markdownText } from '@/components/custom/markdown'
 import { Tooltip, TooltipContent } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -236,7 +237,9 @@ export const ThreadMinimap = memo(function ThreadMinimap({
         >
           <p className='truncate font-medium'>{preview?.title}</p>
           {preview?.reply && (
-            <p className='mt-0.5 line-clamp-3 text-muted-foreground'>{preview.reply}</p>
+            <p className='mt-0.5 line-clamp-3 text-muted-foreground'>
+              {markdownText(preview.reply)}
+            </p>
           )}
         </TooltipContent>
       </Tooltip>
