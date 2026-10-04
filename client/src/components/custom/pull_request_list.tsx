@@ -42,7 +42,6 @@ import {
   pullRequestGroupLabel,
   pullRequestGroupOrder,
   pullRequestIdentifier,
-  pullRequestReason,
   type PullRequestGroup,
 } from './pull_request_list_model'
 
@@ -56,23 +55,19 @@ const unavailableTitle = {
 }
 
 const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNode }> = {
-  ready: {
+  open: {
     color: 'var(--pr-open)',
     icon: <GitPullRequestIcon className='size-3.5 text-pr-open' />,
-  },
-  attention: {
-    color: 'var(--destructive)',
-    icon: <Alert02Icon className='size-3.5 text-destructive' />,
-  },
-  waiting: {
-    color: 'var(--status-attention)',
-    icon: <Clock01Icon className='size-3.5 text-status-attention' />,
   },
   draft: {
     color: 'var(--muted-foreground)',
     icon: <GitPullRequestDraftIcon className='size-3.5 text-muted-foreground' />,
   },
-  closed: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3.5 text-pr-merged' /> },
+  merged: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3.5 text-pr-merged' /> },
+  closed: {
+    color: 'var(--destructive)',
+    icon: <GitPullRequestClosedIcon className='size-3.5 text-destructive' />,
+  },
 }
 
 const openedRows: Partial<Record<PullRequestListTab, string>> = {}
@@ -117,7 +112,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       label: pullRequestGroupLabel[group],
       ...groupPresentation[group],
       rows: rows.filter((pull) => pullRequestGroup(pull) === group),
-      defaultCollapsed: group === 'closed',
+      defaultCollapsed: group === 'closed' || group === 'merged',
     }))
     .filter((group) => group.rows.length)
   const columns: GroupedColumn<PullRequestListItem>[] = [
@@ -306,7 +301,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             groups={groups}
             rowKey={(pull) => pull.url}
             rowLabel={(pull) =>
-              `${pullRequestIdentifier(pull)}, ${pull.title}, by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}, ${pullRequestReason(pull)}`
+              `${pullRequestIdentifier(pull)}, ${pull.title}, by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}, ${pull.state}`
             }
             onSelect={onSelect}
             onRowHover={onRowHover}
