@@ -11,7 +11,7 @@
 .grouped-table-grid {
   display: grid;
   align-items: center;
-  padding-inline: 12px;
+  padding-inline: 8px;
   transition: grid-template-columns var(--table-duration) var(--table-ease);
 }
 .grouped-table-columns {
@@ -34,7 +34,7 @@
   height: 28px;
 }
 .grouped-table-group + .grouped-table-group {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .grouped-table-heading {
   position: sticky;
@@ -63,10 +63,10 @@
 }
 .grouped-table-group-button[data-slot='button'] {
   width: 100%;
-  height: 36px;
+  height: 28px;
   justify-content: flex-start;
   gap: 8px;
-  padding-inline: 12px;
+  padding-inline: 8px;
   border-radius: 6px;
   font-size: 12px;
 }
@@ -74,17 +74,17 @@
   transform: rotate(90deg);
 }
 .grouped-table-rows {
-  padding-top: 3px;
+  padding-top: 2px;
 }
 .grouped-table-rows[hidden] {
   display: none;
 }
 .grouped-table-rows > div + div {
-  margin-top: 2px;
+  margin-top: 0;
 }
 .grouped-table-row {
   width: 100%;
-  height: 44px;
+  height: 32px;
   border: 0;
   border-radius: 6px;
   background: transparent;
