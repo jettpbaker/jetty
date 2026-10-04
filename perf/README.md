@@ -88,30 +88,11 @@ the lab's. Each checkout's home persists in `~/Library/Caches/jetty-sandbox/<che
 ```sh
 bun perf record-gh --huge
 bun perf run -n 3 --journey pr.diff/huge,pr.scroll/huge
-bun perf analyze pr.diff/huge
-bun perf analyze pr.scroll/huge
 ```
 
-Records `oven-sh/bun#30412` into `~/Library/Caches/jetty-perf/gh-huge`, never into
-committed fixtures. Both cases skip with a recording command when that cache has no
-completed recording. They are excluded from default runs and leave the golden seed
-and baselines alone. Common GitHub calls fall back to the committed fixtures. Re-record
-after changing GitHub queries; an interrupted recording has no completion marker.
-
-`pr.diff/huge` loads the Overview before measurement, clicks Diff, and waits for the
-first file's line elements plus two animation frames. Its wall time comes from the lab's
-DOM condition, not the app's PR journey record. `pr.scroll/huge` starts from that painted
-diff and sends ten wheel inputs, 200 ms apart (600, 600, 1200, 1200, 2400, 2400, −1200,
-−1200, −600, −600 px), then allows 300 ms to paint. Both use the normal 4× CPU throttle.
-
-Huge runs also report JS heap, browser node count (including shadow DOM and detached
-nodes), and server RSS. CDP supplies UTF-8 `wsWireBytes`, setup traffic, and the largest
-message; the existing app `wsBytes` counter counts string code units. Scroll reports long tasks, total blocking time (sum of each
-long task's duration above 50 ms), maximum animation-frame gap, and missed frames
-estimated against a 60 Hz budget. These are main-thread responsiveness measurements,
-not compositor dropped-frame counts. `blankFrames` uses an IntersectionObserver to track visible diff bodies and samples
-frames with an unmounted placeholder, loading body, or mounted diff missing its line elements; it
-excludes intentional binary/generated-file messages. `scrollDistance` checks that the
-wheel sequence actually moved the diff surface. Each iteration's counters live in
-`runs.ndjson`, alongside the usual report. Recording logs time and byte size for each
-GitHub call and total fetch time, snapshot size, and server memory per refresh.
+`oven-sh/bun#30412` (2,188 files, +1M lines) is too big to commit, so `--huge` records it
+into `~/Library/Caches/jetty-perf/gh-huge`; other calls fall back to the committed
+fixtures. Both cases skip until it's recorded and never run by default. `pr.diff/huge`
+times the Diff tab to the first painted file; `pr.scroll/huge` sends ten wheel inputs and
+reports long tasks, total blocking time, the longest frame gap and frames with a blank
+diff. Re-record after changing GitHub queries.
