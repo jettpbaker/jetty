@@ -6,14 +6,19 @@
 import { connect } from '@jetty/server/src/rpc-test-client'
 import { existsSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { freePort, repoRoot, startServer } from './app'
 import { cloneHome, goldenHome, prRepo, seedHome, seedThread } from './seed'
 
 const replay = process.argv.includes('--replay')
 const fresh = process.argv.includes('--fresh')
-const dir = join(homedir(), 'Library/Caches/jetty-sandbox', replay ? 'replay' : 'live')
+const dir = join(
+  homedir(),
+  'Library/Caches/jetty-sandbox',
+  basename(repoRoot),
+  replay ? 'replay' : 'live'
+)
 const home = join(dir, 'home')
 const seeded = join(dir, 'seed.json')
 const tree = { label: 'sandbox', dir: repoRoot, sha: 'live', dispose: async () => {} }

@@ -79,5 +79,6 @@ the Mac awake while running. Run one lab at a time.
 agent) and Vite on free ports, on a home seeded like the lab's plus threads linked to
 pr-lab's `sandbox`-labelled PRs (failing, running, draft, conflicting, closed, and a big
 reviewed one). GitHub is real, so merging and reviewing there really happens; #1–#5 stay
-the lab's. The home persists in `~/Library/Caches/jetty-sandbox/live`; `--fresh` reseeds it.
+the lab's. Each checkout's home persists in `~/Library/Caches/jetty-sandbox/<checkout>/live`;
+`--fresh` reseeds it.
 `--replay` runs a fresh copy of the golden home on the recorded fixtures instead, offline.
