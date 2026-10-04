@@ -238,11 +238,6 @@ async function gh(args: string[], input?: string) {
     return { out, detail: err.trim(), code }
   } catch {
     throw new GhFailure('unavailable', 'GitHub API is unavailable')
-  } finally {
-    fetchTimings.getStore()?.push({
-      call: args.filter((arg) => !arg.startsWith('query=')).join(' '),
-      ms: Math.round(performance.now() - started),
-    })
   }
 }
 
@@ -340,6 +335,7 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
   const restGet = args.length === 1 && args[0] !== 'graphql' && body === undefined
   const key = args[0]!
   const cached = restGet ? cacheRead(restCache, key) : undefined
+  const started = performance.now()
   const { out, detail, code } = await gh(
     [
       'api',
@@ -351,6 +347,8 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
       ...(body === undefined ? [] : ['--input', '-']),
     ],
     body
+  ).finally(() =>
+    fetchTimings.getStore()?.push({ call: key, ms: Math.round(performance.now() - started) })
   )
   const split = out.search(/\r?\n\r?\n/)
   const headerText = split >= 0 ? out.slice(0, split) : ''
