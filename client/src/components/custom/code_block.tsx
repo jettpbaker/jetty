@@ -2,7 +2,7 @@ import { cachedHtml, highlightHtml } from '@/components/custom/code_highlight'
 import { plainHtml } from '@/components/custom/code_html'
 
 import './code_block.css'
-import { Copy01Icon, Tick02Icon } from '@/components/custom/huge_icons'
+import { Copy01Icon, Tick02Icon, TextWrapIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -27,7 +27,8 @@ type CodeProps = {
 }
 
 const shellLangs = new Set(['bash', 'sh', 'shell', 'zsh', 'console'])
-const well = 'bg-[color-mix(in_oklch,var(--muted)_60%,var(--background))]'
+const well =
+  '[--code-surface:color-mix(in_oklch,var(--muted)_60%,var(--background))] bg-(--code-surface)'
 
 function bodyStyle(
   maxHeight: number | string,
@@ -125,6 +126,18 @@ function WorkerCodeBlock({
 }) {
   const { codeBlockMaxHeight, isAnimating } = useContext(StreamdownContext)
   const language = className?.match(/language-([^\s]+)/)?.[1] ?? ''
+  const [wrapped, setWrapped] = useState(false)
+  const wrapButton = (
+    <Button
+      variant='ghost'
+      size='icon-xs'
+      aria-label='Wrap lines'
+      aria-pressed={wrapped}
+      onClick={() => setWrapped((value) => !value)}
+    >
+      <TextWrapIcon />
+    </Button>
+  )
   const numbered = false
   const html = useHighlightedHtml(code.replace(/\n+$/, ''), language, numbered)
   const capped = Boolean(codeBlockMaxHeight)
@@ -134,21 +147,42 @@ function WorkerCodeBlock({
   const content = <code className='font-mono' ref={lines} dangerouslySetInnerHTML={mounted} />
   if (command)
     return (
-      <div className={cn('my-3 flex h-9 items-center gap-2 rounded-md pr-1 pl-3 text-xs', well)}>
+      <div
+        className={cn(
+          'my-3 flex min-h-9 items-center gap-2 rounded-md py-1.5 pr-1 pl-3 text-xs',
+          well
+        )}
+      >
         <span aria-hidden className='font-mono text-faint-foreground select-none'>
           $
         </span>
-        <pre className='scrollbar-subtle min-w-0 flex-1 overflow-x-auto'>{content}</pre>
+        <pre
+          className={cn(
+            'scrollbar-subtle min-w-0 flex-1 overflow-x-auto',
+            wrapped && 'whitespace-pre-wrap wrap-anywhere'
+          )}
+        >
+          {content}
+        </pre>
+        {wrapButton}
         <CopyCodeButton code={code} />
       </div>
     )
   return (
-    <CodeWell copy={<CopyCodeButton code={code} />}>
+    <CodeWell
+      copy={
+        <>
+          {wrapButton}
+          <CopyCodeButton code={code} />
+        </>
+      }
+    >
       <pre
         ref={body}
         className={cn(
           'scrollbar-subtle overflow-x-auto px-3 py-2.5 text-xs leading-5',
-          capped && 'overflow-y-auto'
+          capped && 'overflow-y-auto',
+          wrapped && 'whitespace-pre-wrap wrap-anywhere'
         )}
         style={bodyStyle(codeBlockMaxHeight, html.length, isAnimating)}
         {...rest}
@@ -216,7 +250,7 @@ export function CodeWell({
       {children}
       <div
         contentEditable={false}
-        className='absolute top-0 right-0 rounded-tr-md bg-inherit p-1.5 opacity-0 transition-opacity group-focus-within/code:opacity-100 group-hover/code:opacity-100'
+        className='absolute top-0 right-0 flex gap-0.5 rounded-tr-md bg-(--code-surface) p-1.5 opacity-0 transition-opacity group-focus-within/code:opacity-100 group-hover/code:opacity-100 before:absolute before:inset-y-0 before:right-full before:w-6 before:bg-linear-to-r before:from-transparent before:to-(--code-surface)'
       >
         {copy}
       </div>
