@@ -57,6 +57,7 @@ export function DiffFileCard({
   actions,
   height,
   initiallyNear = false,
+  deferHeader = false,
   children,
 }: {
   file: DiffFile
@@ -67,6 +68,7 @@ export function DiffFileCard({
   actions?: ReactNode
   height: number
   initiallyNear?: boolean
+  deferHeader?: boolean
   children: () => ReactNode
 }) {
   const card = useRef<HTMLElement>(null)
@@ -88,42 +90,46 @@ export function DiffFileCard({
       data-open={open || undefined}
       className='file-card relative scroll-mt-3 overflow-clip rounded-md'
     >
-      <div className='sticky top-0 z-10 bg-background'>
-        <header
-          className={cn(
-            'file-card-header flex min-h-11 items-center gap-2 border border-border bg-muted/30 px-3 py-2',
-            open ? 'rounded-t-md' : 'rounded-md'
-          )}
-        >
-          <Button
-            variant='ghost-text'
-            size='icon-sm'
-            className='group/collapse relative -my-1 -ml-1'
-            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${file.path}`}
-            aria-expanded={!collapsed}
-            onClick={onToggle}
+      {deferHeader && !near ? (
+        <div aria-hidden='true' className='h-11' />
+      ) : (
+        <div className='sticky top-0 z-10 bg-background'>
+          <header
+            className={cn(
+              'file-card-header flex min-h-11 items-center gap-2 border border-border bg-muted/30 px-3 py-2',
+              open ? 'rounded-t-md' : 'rounded-md'
+            )}
           >
-            <span className='absolute inline-flex group-hover/collapse:opacity-0 group-focus-visible/collapse:opacity-0'>
-              <FileGlyph file={file} />
-            </span>
-            {collapsed ? (
-              <ArrowRight01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
-            ) : (
-              <ArrowDown01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
-            )}
-          </Button>
-          <Filename file={file} rename />
-          <div className='ml-auto flex shrink-0 items-center gap-3'>
-            {beforeCounts}
-            {file.binary ? (
-              <span className='font-mono text-xs text-muted-foreground'>Binary</span>
-            ) : (
-              <DiffCounts files={[file]} />
-            )}
-            {actions}
-          </div>
-        </header>
-      </div>
+            <Button
+              variant='ghost-text'
+              size='icon-sm'
+              className='group/collapse relative -my-1 -ml-1'
+              aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${file.path}`}
+              aria-expanded={!collapsed}
+              onClick={onToggle}
+            >
+              <span className='absolute inline-flex group-hover/collapse:opacity-0 group-focus-visible/collapse:opacity-0'>
+                <FileGlyph file={file} />
+              </span>
+              {collapsed ? (
+                <ArrowRight01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
+              ) : (
+                <ArrowDown01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
+              )}
+            </Button>
+            <Filename file={file} rename />
+            <div className='ml-auto flex shrink-0 items-center gap-3'>
+              {beforeCounts}
+              {file.binary ? (
+                <span className='font-mono text-xs text-muted-foreground'>Binary</span>
+              ) : (
+                <DiffCounts files={[file]} />
+              )}
+              {actions}
+            </div>
+          </header>
+        </div>
+      )}
       {open && (
         <div className='file-card-body overflow-clip border border-t-0 border-border'>
           {near ? children() : <div aria-hidden='true' style={{ height }} />}

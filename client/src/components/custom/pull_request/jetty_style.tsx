@@ -1266,6 +1266,8 @@ function FileCard({
   file,
   pr,
   threads,
+  deferHeader,
+  initiallyNear,
   comments,
   viewed,
   onViewed,
@@ -1275,6 +1277,8 @@ function FileCard({
   file: PrFile
   pr: PrPull
   threads: PrThread[]
+  deferHeader: boolean
+  initiallyNear: boolean
   comments: boolean
   viewed: boolean
   onViewed: (checked: boolean) => void
@@ -1301,6 +1305,8 @@ function FileCard({
   return (
     <DiffFileCard
       file={file}
+      deferHeader={deferHeader}
+      initiallyNear={initiallyNear}
       open={open}
       collapsed={collapsed}
       onToggle={() => setCollapsed((value) => !value)}
@@ -1936,10 +1942,12 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         }}
                         comments={commit ? undefined : commentCounts}
                       >
-                        {files.map((f) => (
+                        {files.map((f, index) => (
                           <FileCard
                             key={`${commitSha}-${f.path}`}
                             file={f}
+                            deferHeader={files.length > 100}
+                            initiallyNear={index < 8}
                             pr={pr}
                             threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
                             commit={commit}
