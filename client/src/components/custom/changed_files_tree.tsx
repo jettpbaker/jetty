@@ -6,6 +6,7 @@ import {
   charmedFileNames,
   charmedSprite,
 } from '@/components/custom/charmed_icons'
+import { hugeIconMasks } from '@/components/custom/huge_icons'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import { useEffect, useRef } from 'react'
 
@@ -79,8 +80,13 @@ const namesUnsafeCSS = [
   '[data-item-section="spacing-item"] { opacity: 1; }',
   '[data-item-type="folder"] > [data-item-section="content"] { color: var(--muted-foreground); }',
 ].join('\n')
-const badgeUnsafeCSS =
-  '[data-item-type="file"] > [data-item-section="decoration"] > span { height: 18px; padding-inline: 6px; border-radius: 6px; background: var(--accent); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }'
+// The library lets the decoration column shrink to nothing beside a long name; a comment count
+// keeps its width and the name truncates instead.
+const badgeUnsafeCSS = [
+  '[data-item-type="file"] > [data-item-section="decoration"] { flex: 1 0 auto; }',
+  '[data-item-type="file"] > [data-item-section="decoration"] > span { gap: 3px; height: 18px; padding-inline: 5px 6px; border-radius: 6px; background: var(--accent); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }',
+  `[data-item-type="file"] > [data-item-section="decoration"] > span::before { content: ""; flex: none; width: 12px; height: 12px; background: currentColor; mask: ${hugeIconMasks.bubbleChat} center / 12px no-repeat; }`,
+].join('\n')
 const countsUnsafeCSS =
   '[data-item-type="file"] > [data-item-section="decoration"] > span { gap: 6px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }'
 // `unsafeCSS` is the library's documented escape hatch (@layer unsafe). Sidebar rows keep label text in
