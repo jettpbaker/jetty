@@ -332,8 +332,12 @@ function prefetchPullRequestList(registry: Registry, tab: PullRequestListTab) {
     connection.request('pullRequestList.prefetch', { tab }).pipe(
       Effect.tap((snapshots) =>
         Effect.sync(() => {
-          for (const snapshot of snapshots)
-            registry.set(cacheAtom(pullRequestKey(snapshot)), snapshot)
+          // The warm answers once every row is read; an open PR's live push may be newer by then.
+          for (const snapshot of snapshots) {
+            const cache = cacheAtom(pullRequestKey(snapshot))
+            if ((registry.get(cache)?.refreshedAt ?? 0) < (snapshot.refreshedAt ?? 0))
+              registry.set(cache, snapshot)
+          }
         })
       )
     )
