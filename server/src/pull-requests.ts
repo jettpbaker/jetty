@@ -12,6 +12,7 @@ import type {
 
 import { PullRequestData } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 import type { Hub } from './hub'
 import type { PullRequestReference } from './pull-request-graphql'
@@ -206,6 +207,9 @@ class GhFailure extends Error {
   }
 }
 
+type GhTiming = { call: string; ms: number }
+const fetchTimings = new AsyncLocalStorage<GhTiming[]>()
+
 async function gh(args: string[], input?: string) {
   const bin = Bun.which('gh')
   if (!bin) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
@@ -234,6 +238,11 @@ async function gh(args: string[], input?: string) {
     return { out, detail: err.trim(), code }
   } catch {
     throw new GhFailure('unavailable', 'GitHub API is unavailable')
+  } finally {
+    fetchTimings.getStore()?.push({
+      call: args.filter((arg) => !arg.startsWith('query=')).join(' '),
+      ms: Math.round(performance.now() - started),
+    })
   }
 }
 
@@ -1430,9 +1439,10 @@ export function createPullRequests(store: Store, hub: Hub) {
         }
       })
     )
+    const sharedTimings: GhTiming[] = []
     let graphs: (Graph | GhFailure)[]
     try {
-      graphs = await fetchGraphqlBatch(refs)
+      graphs = await fetchTimings.run(sharedTimings, () => fetchGraphqlBatch(refs))
     } catch (error) {
       const failure =
         error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
@@ -1440,6 +1450,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     }
     await Promise.all(
       batch.map(async (job, index) => {
+        const timings = [...sharedTimings]
         let snapshot: PullRequestSnapshot
         try {
           const graph = graphs[index]!
@@ -1447,10 +1458,12 @@ export function createPullRequests(store: Store, hub: Hub) {
           snapshot = {
             ...job.ref,
             status: 'ready',
-            data: await fetchPullRequest(
-              job.ref,
-              graph,
-              (await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))).data
+            data: await fetchTimings.run(timings, async () =>
+              fetchPullRequest(
+                job.ref,
+                graph,
+                (await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))).data
+              )
             ),
             refreshedAt: Date.now(),
           }
@@ -1464,6 +1477,15 @@ export function createPullRequests(store: Store, hub: Hub) {
             refreshedAt: Date.now(),
           }
         }
+        const totalMs = Date.now() - startedAt
+        if (totalMs > 1000)
+          console.info(
+            `[pr-fetch] ${job.key} total=${totalMs}ms slowest=${timings
+              .toSorted((a, b) => b.ms - a.ms)
+              .slice(0, 3)
+              .map(({ call, ms }) => `${call} ${ms}ms`)
+              .join('; ')}`
+          )
         if (process.env.JETTY_PR_FETCH_DEBUG === '1')
           console.debug(
             `[pr-fetch] ${job.key} ${job.priority} batch=${batch.length} wait=${startedAt - job.queuedAt}ms fetch=${Date.now() - startedAt}ms snapshotBytes=${Buffer.byteLength(JSON.stringify(snapshot))} memory=${JSON.stringify(process.memoryUsage())}`
