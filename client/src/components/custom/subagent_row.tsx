@@ -65,7 +65,7 @@ export function SubagentRow({
       aria-label={`${agent.title}, ${status}, ${agent.model}${agent.effort ? `, ${agent.effort}` : ''}`}
       data-overflow-hover
       className={cn(
-        'grid h-auto w-full min-w-0 grid-cols-[28px_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-0.5 overflow-hidden rounded-menu-item px-2.5 py-1.5 text-left font-normal active:translate-y-0',
+        'grid h-auto w-full min-w-0 grid-cols-[28px_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-0.5 overflow-hidden rounded-menu-item px-2.5 py-1.5 text-left font-normal',
         selected && 'bg-accent'
       )}
       style={

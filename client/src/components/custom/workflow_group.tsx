@@ -135,7 +135,7 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
     <Collapsible defaultOpen={running} className='w-full min-w-0'>
       <CollapsibleTrigger
         render={<Button variant='ghost' />}
-        className='group/workflow flex h-auto min-h-9 w-full items-center justify-start gap-2 rounded-sm px-2.5 py-2 text-sm font-normal active:translate-y-0'
+        className='group/workflow flex h-auto min-h-9 w-full items-center justify-start gap-2 rounded-sm px-2.5 py-2 text-sm font-normal'
       >
         <ArrowRight01Icon className='size-3 shrink-0 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/workflow:rotate-90 motion-reduce:transition-none' />
         <span

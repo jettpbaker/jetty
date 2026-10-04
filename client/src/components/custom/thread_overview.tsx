@@ -227,7 +227,7 @@ function Section({
     <Collapsible open={open} onOpenChange={onOpenChange} className='min-w-0'>
       <CollapsibleTrigger
         render={<Button variant='secondary' size='sm' />}
-        className='group/section w-full justify-start gap-2 rounded-sm px-2.5 active:translate-y-0'
+        className='group/section w-full justify-start gap-2 rounded-sm px-2.5'
       >
         {label}
         <span className='font-mono font-normal text-muted-foreground tabular-nums'>{count}</span>
@@ -247,7 +247,7 @@ function ChangedFileRow({ file, onOpen }: { file: ChangedFile; onOpen: () => voi
       variant='ghost'
       onClick={onOpen}
       title={file.path}
-      className='h-7 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-normal active:translate-y-0'
+      className='h-7 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-normal'
     >
       <span className='shrink-0 text-foreground'>{file.path.slice(slash + 1)}</span>
       <span className='min-w-0 truncate text-xs text-muted-foreground'>

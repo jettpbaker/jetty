@@ -184,7 +184,7 @@ function CreatedRow({
       onClick={() => open(child)}
       onPointerEnter={() => prefetch.enter(child.id)}
       onPointerLeave={() => prefetch.leave(child.id)}
-      className='flex h-7 w-full min-w-0 items-center gap-2 rounded-sm px-2.5 text-left text-sm font-normal active:translate-y-0'
+      className='flex h-7 w-full min-w-0 items-center gap-2 rounded-sm px-2.5 text-left text-sm font-normal'
     >
       <span className='flex shrink-0 items-center gap-1.5 text-muted-foreground'>
         <WorkflowIcon className='size-3' />

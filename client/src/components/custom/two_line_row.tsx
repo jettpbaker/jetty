@@ -24,7 +24,7 @@ export function TwoLineRow({
       variant={variant}
       {...props}
       className={cn(
-        'h-auto w-full min-w-0 flex-col items-stretch gap-1.5 rounded-sm px-2.5 py-1.5 text-left font-normal active:translate-y-0',
+        'h-auto w-full min-w-0 flex-col items-stretch gap-1.5 rounded-sm px-2.5 py-1.5 text-left font-normal',
         className
       )}
     >

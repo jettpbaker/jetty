@@ -132,7 +132,6 @@ function WorkerCodeBlock({
       variant='ghost'
       size='icon-xs'
       tone='muted'
-      className='active:translate-y-0'
       aria-label='Wrap lines'
       aria-pressed={wrapped}
       onClick={() => setWrapped((value) => !value)}
