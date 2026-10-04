@@ -1099,8 +1099,7 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
       <CollapsibleTrigger
         ref={trigger}
         render={<button aria-label={label} />}
-        className='flex w-full flex-col gap-1.5 px-3 py-2.5 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring'
-        aria-label={label}
+        className='flex w-full flex-col gap-1.5 px-3 py-2.5 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
       >
         <span className='flex w-full items-center gap-2 text-xs'>
           <ArrowDown01Icon
