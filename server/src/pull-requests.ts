@@ -2426,6 +2426,10 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
 export function createPullRequestLists(store: Store, hub: Hub) {
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
+  const publication = {
+    'for-you': Semaphore.makeUnsafe(1),
+    created: Semaphore.makeUnsafe(1),
+  }
   const queued = new Map<PullRequestListTab, (list: PullRequestList) => void>()
   let flushQueued = false
 
@@ -2485,13 +2489,22 @@ export function createPullRequestLists(store: Store, hub: Hub) {
   function refresh(tab: PullRequestListTab, maxAge = 0) {
     return Effect.gen(function* () {
       const cached = yield* get(tab)
-      if (cached.refreshedAt && Date.now() - cached.refreshedAt < maxAge) return cached
+      if (backingOff()) return cached
+      if (cached.refreshedAt && Date.now() - cached.refreshedAt < maxAge * cadenceMultiplier())
+        return cached
       yield* store.savePullRequestList(yield* Effect.promise(() => load(tab)))
       // The stored list keeps the last good items when this read failed.
       const list = yield* store.getPullRequestList(tab)
       const decorated = decorate(list)
       hub.pushPullRequestList(decorated)
       return decorated
+    }).pipe(publication[tab].withPermit)
+  }
+
+  function refreshOnArrival() {
+    return Effect.forEach(['for-you', 'created'] as const, (tab) => refresh(tab, 10_000), {
+      concurrency: 'unbounded',
+      discard: true,
     })
   }
 
@@ -2564,6 +2577,7 @@ export function createPullRequestLists(store: Store, hub: Hub) {
   return {
     get,
     refresh,
+    refreshOnArrival,
     refreshIfStale,
     poll,
   }

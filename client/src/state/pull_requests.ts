@@ -369,17 +369,8 @@ export function useRefreshPullRequestList() {
   return useAction(refreshPullRequestList)
 }
 
-const listArrivalAtom = Atom.make(0).pipe(Atom.keepAlive)
-
 function refreshPullRequestListsOnArrival(registry: Registry) {
-  const now = Date.now()
-  if (now - registry.get(listArrivalAtom) < 30_000) return
-  const tabs = (['for-you', 'created'] as const).filter(
-    (tab) => now - (registry.get(listCacheAtom(tab))?.refreshedAt ?? 0) >= 30_000
-  )
-  if (!tabs.length) return
-  registry.set(listArrivalAtom, now)
-  for (const tab of tabs) refreshPullRequestList(registry, tab, 30_000)
+  for (const tab of ['for-you', 'created'] as const) refreshPullRequestList(registry, tab, 10_000)
 }
 
 export function useRefreshPullRequestListsOnArrival() {

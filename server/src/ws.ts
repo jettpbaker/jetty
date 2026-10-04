@@ -220,6 +220,11 @@ export function createRpcHandlers(
           hub.withChromePublication(
             Effect.gen(function* () {
               yield* hub.watchGithubActivity(activity)
+              if (activity !== 'hidden')
+                yield* pullRequestLists.refreshOnArrival().pipe(
+                  Effect.catch(() => Effect.void),
+                  Effect.forkIn(admissionScope)
+                )
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
               const usage = getUsage()
