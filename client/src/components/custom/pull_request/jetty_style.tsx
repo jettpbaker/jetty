@@ -1188,6 +1188,9 @@ function CommitPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  // Search only earns its row on long histories; without it the list takes focus so arrows still work.
+  const searchable = commits.length > 10
+  const list = useRef<HTMLDivElement>(null)
   const index = value ? commits.indexOf(value) : -1
   const subject = (commit: PrCommit) => commit.message.split('\n')[0] ?? ''
   const results = commits.filter((commit) =>
@@ -1220,16 +1223,21 @@ function CommitPicker({
         <PopoverContent
           align='start'
           className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
+          initialFocus={searchable ? undefined : list}
         >
           <PopoverTitle className='sr-only'>Commits</PopoverTitle>
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder='Search commits…'
-              aria-label='Search commits'
-              value={query}
-              onValueChange={setQuery}
-            />
-            <Separator />
+          <Command ref={list} tabIndex={-1} shouldFilter={false} className='outline-none'>
+            {searchable && (
+              <>
+                <CommandInput
+                  placeholder='Search commits…'
+                  aria-label='Search commits'
+                  value={query}
+                  onValueChange={setQuery}
+                />
+                <Separator />
+              </>
+            )}
             <CommandList>
               <div className='picker-results'>
                 <CommandGroup>
