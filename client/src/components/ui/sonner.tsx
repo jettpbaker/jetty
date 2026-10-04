@@ -2,7 +2,7 @@ import {
   Alert02Icon,
   CheckmarkCircle02Icon,
   InformationCircleIcon,
-  RefreshIcon,
+  Refresh01Icon,
   CancelCircleIcon,
 } from '@/components/custom/huge_icons'
 import { useResolvedTheme } from '@/lib/theme'
@@ -20,7 +20,7 @@ function Toaster({ ...props }: ToasterProps) {
         info: <InformationCircleIcon className='size-4' />,
         warning: <Alert02Icon className='size-4' />,
         error: <CancelCircleIcon className='size-4' />,
-        loading: <RefreshIcon className='size-4 animate-spin' />,
+        loading: <Refresh01Icon className='size-4 animate-spin' />,
       }}
       style={
         {

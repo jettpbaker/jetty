@@ -26,7 +26,7 @@ import {
   type GroupedColumn,
   type TableGroup,
 } from './grouped_table'
-import { RefreshIcon } from './huge_icons'
+import { Refresh01Icon } from './huge_icons'
 import { Clock01Icon, Tag01Icon, UserIcon, CheckListIcon, CancelCircleIcon } from './huge_icons'
 import {
   Alert02Icon,
@@ -280,7 +280,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 />
               }
             >
-              <RefreshIcon
+              <Refresh01Icon
                 className={cn(
                   refreshing && 'animate-spin [animation-duration:700ms] motion-reduce:animate-none'
                 )}

@@ -26,7 +26,7 @@ import { toast } from 'sonner'
 
 import {
   MoreVerticalIcon,
-  RefreshIcon,
+  Refresh01Icon,
   LinkSquare02Icon,
   Copy01Icon,
   Unlink01Icon,
@@ -79,7 +79,7 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
       <DropdownMenuContent align='end'>
         <DropdownMenuGroup>
           <DropdownMenuItem disabled={refreshing} onClick={() => refresh(link)}>
-            <RefreshIcon />
+            <Refresh01Icon />
             Refresh
           </DropdownMenuItem>
           <DropdownMenuItem render={externalLink(link.url)}>

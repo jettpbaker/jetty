@@ -6,7 +6,7 @@ import {
   Robot01Icon,
   DashboardSquare01Icon,
   Folder01Icon,
-  RefreshIcon,
+  Refresh01Icon,
 } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -112,7 +112,7 @@ export function SettingsView() {
                     disabled={refreshing}
                     onClick={() => refresh(true)}
                   >
-                    <RefreshIcon className={cn(refreshing && 'motion-safe:animate-spin')} />
+                    <Refresh01Icon className={cn(refreshing && 'motion-safe:animate-spin')} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Refresh models</TooltipContent>

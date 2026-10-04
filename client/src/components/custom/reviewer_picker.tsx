@@ -1,4 +1,4 @@
-import { RefreshIcon, UserAdd01Icon } from '@/components/custom/huge_icons'
+import { Refresh01Icon, UserAdd01Icon } from '@/components/custom/huge_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import {
@@ -205,7 +205,7 @@ function ReviewerResults({
                     className='ml-auto flex shrink-0 items-center gap-1.5 text-muted-foreground'
                   >
                     {word}
-                    <RefreshIcon aria-label='Re-request review' />
+                    <Refresh01Icon aria-label='Re-request review' />
                   </span>
                 </CommandItem>
               ))}

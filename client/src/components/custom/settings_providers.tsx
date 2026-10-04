@@ -1,6 +1,6 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
-import { Tick02Icon, Copy01Icon, RefreshIcon } from '@/components/custom/huge_icons'
+import { Tick02Icon, Copy01Icon, Refresh01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { copilotModels } from '@/lib/loadout'
@@ -201,7 +201,7 @@ export function SettingsProviders({
               className='-ml-2 h-7 w-fit rounded-sm'
               onClick={() => setMessage('No CLI connection in this design preview.')}
             >
-              <RefreshIcon className='size-3' />
+              <Refresh01Icon className='size-3' />
               Check connection
             </Button>
             {message && (

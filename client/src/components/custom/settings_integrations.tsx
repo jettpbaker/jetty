@@ -1,6 +1,6 @@
 import { GithubIcon } from '@/components/custom/github_icon'
 import {
-  RefreshIcon,
+  Refresh01Icon,
   ArrowUpRight01Icon,
   Tick02Icon,
   Copy01Icon,
@@ -100,7 +100,7 @@ function GitHubConnection() {
             }
           >
             <ActionIcon>
-              <RefreshIcon />
+              <Refresh01Icon />
             </ActionIcon>
           </TooltipTrigger>
           <TooltipContent>Check connection</TooltipContent>
@@ -144,7 +144,7 @@ function GitHubConnection() {
         >
           Retry
           <ActionIcon>
-            <RefreshIcon />
+            <Refresh01Icon />
           </ActionIcon>
         </Button>
       ) : null}
