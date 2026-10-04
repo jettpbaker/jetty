@@ -41,6 +41,7 @@ export type PrThread = {
   resolved: boolean
   outdated: boolean
   diffHunk: string
+  reviewId: number
   comments: PrComment[]
 }
 export type PrReview = {
@@ -147,6 +148,7 @@ export function adaptPullRequest(data: PullRequestData): PrPull {
         resolved: root.resolved === true,
         outdated: root.outdated === true,
         diffHunk: root.diff_hunk ?? '',
+        reviewId: root.pull_request_review_id,
         comments: [],
       }
       threads.set(id, thread)

@@ -838,27 +838,21 @@ function Properties({ pr }: { pr: PrPull }) {
 }
 
 // GitHub emits empty reviews for each inline reply. Fold a consecutive run into
-// its author's review, keeping its thread IDs so later reviews aren't double-counted.
+// its author's review, keeping their IDs so each thread lands on its review's card.
 function reviewGroups(pr: PrPull) {
-  const result: { review: PrReview; end: string; threads: PrThread[] }[] = []
+  const result: { review: PrReview; ids: number[]; end: string; threads: PrThread[] }[] = []
   for (const review of [...pr.reviews].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt))) {
     const last = result.at(-1)
     const interrupted =
       last &&
       pr.conversation.some((c) => c.createdAt > last.end && c.createdAt <= review.submittedAt)
-    if (!review.body.trim() && last?.review.author.login === review.author.login && !interrupted)
+    if (!review.body.trim() && last?.review.author.login === review.author.login && !interrupted) {
       last.end = review.submittedAt
-    else result.push({ review, end: review.submittedAt, threads: [] })
+      last.ids.push(review.id)
+    } else result.push({ review, ids: [review.id], end: review.submittedAt, threads: [] })
   }
-  for (const thread of pr.threads) {
-    const first = thread.comments[0]
-    if (!first) continue
-    const candidates = result.filter((g) => g.review.author.login === first.author.login)
-    const group =
-      candidates.find((g) => first.createdAt >= g.review.submittedAt && first.createdAt <= g.end) ??
-      candidates.filter((g) => g.review.submittedAt <= first.createdAt).at(-1)
-    group?.threads.push(thread)
-  }
+  for (const thread of pr.threads)
+    result.find((group) => group.ids.includes(thread.reviewId))?.threads.push(thread)
   return result
 }
 // Like GitHub: adjacent commits fold into one "added N commits" run; any other event ends it.
