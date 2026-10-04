@@ -17,8 +17,10 @@ import {
   type Counters,
 } from './counters'
 import { openPage, viewport, type Page } from './driver'
+import { hasHugeFixtures } from './huge'
 import { quiet, type Ctx, type Journey } from './journey'
 import { journeyId, journeys as allJourneys } from './journeys'
+import { hugeJourneys } from './journeys/pr-huge'
 import { cloneHome, goldenHome, type Golden } from './seed'
 import { createSourceMapper, type SourceMapper } from './sourcemap'
 
@@ -95,12 +97,20 @@ export type RunOptions = {
 
 export function selectJourneys(filter?: string) {
   const picked = filter
-    ? allJourneys.filter((journey) =>
-        filter.split(',').some((part) => journeyId(journey) === part || journey.name === part)
+    ? [...allJourneys, ...hugeJourneys].filter((journey) =>
+        filter
+          .split(',')
+          .some((part) => journeyId(journey) === part || (!journey.optIn && journey.name === part))
       )
     : allJourneys
   if (picked.length === 0) throw new Error(`no journey matches ${filter}`)
-  return picked
+  return picked.filter((journey) => {
+    if (!journey.optIn || hasHugeFixtures()) return true
+    console.log(
+      `skipping ${journeyId(journey)}: huge fixtures missing; run bun perf record-gh --huge`
+    )
+    return false
+  })
 }
 
 // Laptop hygiene: on battery the CPU clocks down, and a busy machine (other agents building)
@@ -200,18 +210,26 @@ async function waitForJourney(page: Page, journey: Journey, ctx: Ctx) {
       )
       .catch(() => null)
     for (const record of state?.records ?? []) {
-      if (record.k === 'journey' && record.n === journey.name) return { record, others }
+      if (!journey.domOnly && record.k === 'journey' && record.n === journey.name)
+        return { record, others }
       others.push(record)
     }
     // Without the module the DOM condition ends the journey. With it, the condition is only
     // a fallback for a record that never comes, reported rather than waited on forever.
     if (state && (!state.module || Date.now() - started > 300)) {
       const done = await page.evaluate<boolean>(`!!(${journey.done(ctx)})`).catch(() => false)
-      if (done && !state.module) return { record: null, others }
+      if (done && (journey.domOnly || !state.module)) {
+        if (journey.domOnly)
+          await page.evaluate(
+            'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+          )
+        return { record: null, others }
+      }
       if (done) doneAt ||= Date.now()
       if (doneAt && Date.now() - doneAt > 1000) return { record: null, others, missing: true }
     }
-    if (Date.now() - started > 20_000) throw new Error(`${journeyId(journey)} did not finish`)
+    if (Date.now() - started > (journey.optIn ? 60_000 : 20_000))
+      throw new Error(`${journeyId(journey)} did not finish`)
     await Bun.sleep(state?.module ? 20 : 50)
   }
 }
@@ -261,6 +279,19 @@ export async function iterate(
     warmup: opts.warmup,
   }
   const page = await preparePage(server.origin)
+  let wireBytes = 0
+  let largestMessage = 0
+  const stopWire = journey.optIn
+    ? page.on<{ response: { opcode: number; payloadData: string } }>(
+        'Network.webSocketFrameReceived',
+        ({ response }) => {
+          if (response.opcode !== 1) return
+          const bytes = Buffer.byteLength(response.payloadData)
+          wireBytes += bytes
+          largestMessage = Math.max(largestMessage, bytes)
+        }
+      )
+    : undefined
   const socket = watchSocket(page)
   const ctx: Ctx = { page, origin: server.origin, fixtures: variant.golden.fixtures, rpc, vars: {} }
   const id = journeyId(journey)
@@ -270,6 +301,7 @@ export async function iterate(
     await quiet(page)
     if (!journey.navigates) await socket.clear(variant.spans.get(id) ?? 2000)
     await page.evaluate('window.__jettyPerf?.take(), 0')
+    const setupWireBytes = wireBytes
     const before = journey.navigates ? emptySnapshot : await snapshot(page)
     await takeCoverage(page, server.origin, variant.mapper)
     const tracing = opts.trace ? await startTrace(page) : null
@@ -290,7 +322,22 @@ export async function iterate(
       : undefined
     if (tracing) await tracing.stop(opts.trace!)
     const { record } = finished
-    const counters = { ...delta(before, after), jsCalls: coverage.calls }
+    const counters: Counters = {
+      ...delta(before, after),
+      jsCalls: coverage.calls,
+      ...(await journey.metrics?.(ctx)),
+    }
+    if (journey.optIn) {
+      counters.wsWireBytes = wireBytes - setupWireBytes
+      counters.setupWsWireBytes = setupWireBytes
+      counters.largestWsMessageBytes = largestMessage
+      counters.jsHeapBytes = after.metrics.JSHeapUsedSize ?? 0
+      counters.browserNodes = after.metrics.Nodes ?? 0
+      const rss = Bun.spawnSync(['ps', '-o', 'rss=', '-p', String(server.pid)])
+        .stdout.toString()
+        .trim()
+      counters.serverRssBytes = Number(rss) * 1024
+    }
     const phases: Counters = {}
     for (const phase of ['input', 'local', 'rendered', 'painted', 'caughtUp'])
       if (typeof record?.a?.[phase] === 'number') phases[phase] = record.a[phase]
@@ -322,6 +369,7 @@ export async function iterate(
       error: error instanceof Error ? error.message : String(error),
     }
   } finally {
+    stopWire?.()
     await page.close()
     await journey.cleanup?.(ctx).catch(() => undefined)
   }
@@ -382,6 +430,8 @@ export function outDir() {
 // order alternates each iteration (A B, B A, …) so drift hits both equally.
 export async function runJourneys(opts: RunOptions) {
   const journeys = selectJourneys(opts.filter)
+  if (!journeys.length)
+    return { results: [], journeys, variants: opts.variants.map((variant) => variant.label) }
   const variants: Variant[] = []
   const results: Iteration[] = []
   const runs = join(opts.out, 'runs.ndjson')

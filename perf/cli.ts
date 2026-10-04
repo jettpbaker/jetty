@@ -6,6 +6,7 @@ import { prepareTree } from './app'
 import { tier2 } from './counters'
 import { journeyId } from './journeys'
 import { recordGh } from './record-gh'
+import { recordHuge } from './record-huge'
 import {
   baselinePath,
   frameBatched,
@@ -38,7 +39,7 @@ const usage = `bun perf <command>
   noise            A/A run of one build; writes the wall-clock noise floor to baseline.json
   ratchet          lower perf/budgets.json ceilings to the baseline
   analyze <id>     trace one journey (e.g. thread.switch/long) → trace-summary.md
-  record-gh        re-record the fake gh's GitHub fixtures (needs gh auth)
+  record-gh [--huge] re-record the fake gh's GitHub fixtures (needs gh auth)
   seed [--force]   build (or rebuild) the golden JETTY_HOME
 
 <ids> is a comma list of journeys (thread.switch) or cases (thread.switch/long).`
@@ -207,6 +208,7 @@ switch (command) {
       throw new Error('usage: bun perf analyze <journey/case>, e.g. thread.switch/long')
     await checkMachine()
     const [journey] = selectJourneys(id)
+    if (!journey) break
     const out = outDir()
     const variant = await prepareVariant('head', undefined, { profiling: true })
     try {
@@ -235,7 +237,7 @@ switch (command) {
     break
   }
   case 'record-gh':
-    await recordGh(outDir())
+    await (rest.includes('--huge') ? recordHuge(outDir()) : recordGh(outDir()))
     break
   case 'seed': {
     const tree = await prepareTree('seed')

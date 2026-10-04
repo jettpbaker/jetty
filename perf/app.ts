@@ -120,6 +120,7 @@ export type GhMode = { mode: 'replay' | 'record'; misses?: string }
 
 export type Server = {
   port: number
+  pid: number
   origin: string
   home: string
   stop(): Promise<void>
@@ -179,6 +180,7 @@ export async function startServer(opts: {
   }
   return {
     port,
+    pid: child.pid,
     origin,
     home: opts.home,
     async stop() {

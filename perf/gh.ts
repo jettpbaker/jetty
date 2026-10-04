@@ -1,7 +1,7 @@
 // Fake `gh` (run through perf/bin/gh on the lab server's PATH). Replays recorded responses
 // keyed by normalised arguments and stdin; in record mode it runs the real gh once and saves
 // what it said. A replay miss fails like an unreachable API and is logged for the lab.
-import { appendFileSync, mkdirSync, readdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 type Fixture = { args: string[]; stdin?: string; code: number; stdout: string; stderr: string }
@@ -24,19 +24,21 @@ const slug = args
   .replace(/^-|-$/g, '')
 
 function redact(text: string) {
-  return text.replace(/\bgh[opsur]_[A-Za-z0-9_]+/g, 'gh*_REDACTED')
+  return text
+    .replace(/\bgh[opsur]_[A-Za-z0-9_]+/g, 'gh*_REDACTED')
+    .replace(/([?&]token=)[A-Za-z0-9_]+/g, '$1REDACTED')
 }
 
-function emit(fixture: Pick<Fixture, 'code' | 'stdout' | 'stderr'>): never {
-  process.stdout.write(fixture.stdout)
-  process.stderr.write(fixture.stderr)
+async function emit(fixture: Pick<Fixture, 'code' | 'stdout' | 'stderr'>): Promise<never> {
+  await Bun.write(Bun.stdout, fixture.stdout)
+  await Bun.write(Bun.stderr, fixture.stderr)
   process.exit(fixture.code)
 }
 
 if (mode === 'record') {
   const real = process.env.PERF_GH_REAL
-  if (!real) emit({ code: 1, stdout: '', stderr: 'perf gh: no real gh to record from\n' })
-  const child = Bun.spawn([real, ...Bun.argv.slice(2)], {
+  if (!real) await emit({ code: 1, stdout: '', stderr: 'perf gh: no real gh to record from\n' })
+  const child = Bun.spawn([real!, ...Bun.argv.slice(2)], {
     stdin: stdin ? new Blob([stdin]) : 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -55,13 +57,21 @@ if (mode === 'record') {
   }
   mkdirSync(dir, { recursive: true })
   await Bun.write(join(dir, `${slug}-${hash}.json`), `${JSON.stringify(fixture, null, 2)}\n`)
-  emit({ code, stdout, stderr })
+  await emit({ code, stdout, stderr })
 }
 
-const name = readdirSync(dir).find((file) => file.endsWith(`-${hash}.json`))
+const fallback = join(import.meta.dir, 'fixtures/gh')
+const directory = [dir, fallback].find(
+  (path) => existsSync(path) && readdirSync(path).some((file) => file.endsWith(`-${hash}.json`))
+)
+const name = directory && readdirSync(directory).find((file) => file.endsWith(`-${hash}.json`))
 if (!name) {
   if (process.env.PERF_GH_MISSES)
     appendFileSync(process.env.PERF_GH_MISSES, `${JSON.stringify({ args, hash })}\n`)
-  emit({ code: 1, stdout: '', stderr: `perf gh: no recorded response for ${slug} (${hash})\n` })
+  await emit({
+    code: 1,
+    stdout: '',
+    stderr: `perf gh: no recorded response for ${slug} (${hash})\n`,
+  })
 }
-emit(await Bun.file(join(dir, name)).json())
+await emit(await Bun.file(join(directory!, name!)).json())

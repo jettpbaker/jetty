@@ -28,12 +28,13 @@ export async function recordGh(out: string) {
     )
     for (const journey of journeys) {
       const result = await iterate(variant, journey, { iteration: 0, warmup: true, out })
+      if (result.error) throw new Error(`${journeyId(journey)}: ${result.error}`)
       console.log(`${journeyId(journey)}: ${result.error ?? 'recorded'}`)
     }
     const pr = journeys.find((journey) => journey.name === 'pr.diff')!
-    for (const number of prNumbers) {
+    for (const number of [...prNumbers, 5]) {
       // Borrow a journey's page setup, then walk the PR's tabs.
-      await iterate(
+      const result = await iterate(
         variant,
         {
           ...pr,
@@ -53,6 +54,7 @@ export async function recordGh(out: string) {
         },
         { iteration: 0, warmup: true, out }
       )
+      if (result.error) throw new Error(`PR #${number}: ${result.error}`)
       console.log(`PR #${number}: recorded`)
     }
   } finally {
@@ -63,4 +65,4 @@ export async function recordGh(out: string) {
   console.log(`${readdirSync(fixtures).length} fixtures in ${fixtures}`)
 }
 
-const diffTab = `[...document.querySelectorAll('[role=tab]')].find((tab) => tab.textContent.trim() === 'Diff')`
+const diffTab = `[...document.querySelectorAll('nav[aria-label="Pull request view"] button')].find((tab) => tab.textContent.trim() === 'Diff')`

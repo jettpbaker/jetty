@@ -16,6 +16,9 @@ export type Journey = {
   name: string
   // The fixture it runs on. Several cases per journey give a held-out set for hillclimbing.
   case: string
+  optIn?: boolean
+  domOnly?: boolean
+  metrics?(ctx: Ctx): Promise<Record<string, number>>
   // act() loads a new document, so counters start from zero instead of a delta.
   navigates?: boolean
   // Server environment for this journey; servers are shared between journeys with equal env.
