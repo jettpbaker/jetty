@@ -36,7 +36,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot='dropdown-menu-content'
           className={cn(
-            'z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-sm bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-border outline-none data-[side=bottom]:slide-in-from-top-1 data-[side=inline-end]:slide-in-from-left-1 data-[side=inline-start]:slide-in-from-right-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-(--motion-popup-enter) motion-reduce:animate-none data-open:fade-in-60 data-closed:animate-none data-closed:overflow-hidden',
+            'z-50 max-h-(--available-height) w-max min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-sm bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-border outline-none data-[side=bottom]:slide-in-from-top-1 data-[side=inline-end]:slide-in-from-left-1 data-[side=inline-start]:slide-in-from-right-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-(--motion-popup-enter) motion-reduce:animate-none data-open:fade-in-60 data-closed:animate-none data-closed:overflow-hidden',
             className
           )}
           {...props}
@@ -85,7 +85,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 data-[variant=destructive]:*:[svg]:text-destructive",
+        "group/dropdown-menu-item relative flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 data-[variant=destructive]:*:[svg]:text-destructive",
         className
       )}
       {...props}
@@ -136,7 +136,7 @@ function DropdownMenuSubTrigger({
         if (!props.disabled) openSubmenu()
       }}
       className={cn(
-        "flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
       )}
       {...props}
@@ -185,7 +185,7 @@ function DropdownMenuCheckboxItem({
       data-slot='dropdown-menu-checkbox-item'
       data-inset={inset}
       className={cn(
-        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
       )}
       checked={checked}
@@ -223,7 +223,7 @@ function DropdownMenuRadioItem({
       data-inset={inset}
       closeOnClick={closeOnClick}
       className={cn(
-        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
       )}
       {...props}
