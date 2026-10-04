@@ -1092,15 +1092,18 @@ function ActivityThreads({ threads, author }: { threads: PrThread[]; author?: Pr
 function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser }) {
   const { actions } = usePrRuntime()
   const [expanded, setExpanded] = useState(!thread.resolved)
+  const trigger = useRef<HTMLButtonElement>(null)
   const place = thread.line === null ? thread.path : `${thread.path}:${thread.line}`
   const label = `${expanded ? 'Collapse' : 'Expand'} ${place} conversation`
   function resolve(resolved: boolean) {
     void actions.resolve(thread.id, resolved)
     setExpanded(!resolved)
+    trigger.current?.focus()
   }
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded}>
       <CollapsibleTrigger
+        ref={trigger}
         render={<button aria-label={label} />}
         className='flex w-full flex-col gap-1.5 px-3 py-2.5 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring'
         aria-label={label}
