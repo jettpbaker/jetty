@@ -1942,6 +1942,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         <Hint key={value} text={value === 'overview' ? 'Overview · 1' : 'Diff · 2'}>
                           <Button
                             variant='ghost'
+                            tone='muted'
                             size='sm'
                             aria-pressed={tab === value}
                             className='rounded-sm font-normal'

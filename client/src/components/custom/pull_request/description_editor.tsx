@@ -1410,6 +1410,7 @@ export function MarkdownEditor({
                 disabled={disabled}
                 key={mark}
                 variant='ghost'
+                tone='muted'
                 size='icon-sm'
                 className='rounded-menu-item'
                 aria-label={label}

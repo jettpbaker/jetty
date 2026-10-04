@@ -256,6 +256,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               <Button
                 key={value}
                 variant='ghost'
+                tone='muted'
                 size='sm'
                 aria-pressed={tab === value}
                 className='rounded-sm font-normal'
