@@ -39,6 +39,7 @@ function IconGrid({ selected, onSelect }: { selected?: string; onSelect: (name: 
             size='icon'
             aria-label={option.label}
             aria-pressed={option.name === selected}
+            className='aria-pressed:bg-accent'
             onClick={() => onSelect(option.name)}
           >
             <option.icon />

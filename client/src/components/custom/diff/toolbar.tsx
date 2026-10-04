@@ -112,7 +112,7 @@ export function DiffToolbar({
         {filters && (
           <fieldset
             aria-label='Files to show'
-            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm'
+            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm [&>button[aria-pressed=true]]:bg-background [&>button[aria-pressed=true]]:shadow-xs'
           >
             {filters}
           </fieldset>

@@ -1945,7 +1945,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             tone='muted'
                             size='sm'
                             aria-pressed={tab === value}
-                            className='rounded-sm font-normal'
+                            className='rounded-sm font-normal aria-pressed:bg-accent'
                             {...pressProps(() => {
                               if (value === 'diff') perf.start('pr.diff')
                               setTab(value)

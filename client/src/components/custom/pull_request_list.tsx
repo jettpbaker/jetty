@@ -259,7 +259,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 tone='muted'
                 size='sm'
                 aria-pressed={tab === value}
-                className='rounded-sm font-normal'
+                className='rounded-sm font-normal aria-pressed:bg-accent'
                 {...pressProps(() => onTabChange(value))}
               >
                 {value === 'for-you' ? 'For you' : 'Created'}
