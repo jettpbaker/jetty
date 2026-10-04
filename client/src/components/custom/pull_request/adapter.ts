@@ -26,6 +26,7 @@ export type PrFile = {
   deletions: number
   changes: number
   patch?: string
+  patchDeferred?: boolean
   binary: boolean
   generated: boolean
   viewed: boolean
@@ -116,6 +117,7 @@ export function prFile(file: PullRequestData['files'][number]): PrFile {
     deletions: file.deletions,
     changes: file.changes,
     patch: file.patch,
+    patchDeferred: file.patchDeferred,
     binary: file.binary === true,
     generated: file.generated === true,
     viewed: file.viewed === 'VIEWED',

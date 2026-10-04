@@ -155,6 +155,7 @@ export const GitHubFile = Schema.Struct({
   changes: Schema.Int,
   previous_filename: Schema.optional(Schema.String),
   patch: Schema.optional(Schema.String),
+  patchDeferred: Schema.optional(Schema.Boolean),
 })
 
 export const PullRequestData = Schema.Struct({

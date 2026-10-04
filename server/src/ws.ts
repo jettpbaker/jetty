@@ -9,7 +9,7 @@ import type {
 
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
-import { Effect, Fiber, Schema, Stream } from 'effect'
+import { Cause, Effect, Fiber, Schema, Stream } from 'effect'
 
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
@@ -137,7 +137,18 @@ export function createRpcHandlers(
 
     function refreshInBackground(ref: { repo: string; number: number }) {
       return pullRequests.refreshIfStale(ref).pipe(
-        Effect.catch(() => Effect.void),
+        Effect.catchCause((cause) =>
+          Effect.gen(function* () {
+            yield* Effect.logWarning(cause)
+            yield* store.savePullRequest({
+              ...ref,
+              status: 'unavailable',
+              error: String(Cause.squash(cause)),
+              refreshedAt: Date.now(),
+            })
+            hub.pushPullRequest(yield* pullRequests.get(ref))
+          }).pipe(Effect.catchCause((cause) => Effect.logError(cause)))
+        ),
         Effect.forkIn(admissionScope)
       )
     }

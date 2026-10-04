@@ -209,6 +209,7 @@ class GhFailure extends Error {
 async function gh(args: string[], input?: string) {
   const bin = Bun.which('gh')
   if (!bin) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
+  const started = performance.now()
   try {
     const child = Bun.spawn([bin, ...args], {
       stdin: input === undefined ? 'ignore' : new Blob([input]),
@@ -221,6 +222,15 @@ async function gh(args: string[], input?: string) {
       new Response(child.stderr).text(),
       child.exited,
     ])
+    if (process.env.JETTY_PR_FETCH_DEBUG === '1')
+      console.debug(
+        `[pr-gh] ${
+          args
+            .find((arg) => arg.startsWith('query='))
+            ?.replace(/\s+/g, ' ')
+            .slice(0, 180) ?? args.join(' ')
+        } code=${code} ms=${Math.round(performance.now() - started)} bytes=${Buffer.byteLength(out)}`
+      )
     return { out, detail: err.trim(), code }
   } catch {
     throw new GhFailure('unavailable', 'GitHub API is unavailable')
@@ -517,8 +527,25 @@ export async function pullRequestDiffFile(params: {
   ])
   if (typeof before === 'object' && before) return before
   if (typeof after === 'object' && after) return after
-  if (before === null || after === null) return { unavailable: 'missing' as const }
+  if (before === null && after === null) return { unavailable: 'missing' as const }
   return { before, after }
+}
+
+async function queryGraphql(query: string): Promise<unknown> {
+  for (const size of [100, 50, 25, 10]) {
+    try {
+      return await ghApi('graphql', '-f', `query=${query.replaceAll('first:100', `first:${size}`)}`)
+    } catch (error) {
+      if (
+        !(error instanceof GhFailure) ||
+        error.kind !== 'unavailable' ||
+        size === 10 ||
+        !query.includes('first:100')
+      )
+        throw error
+    }
+  }
+  throw new GhFailure('unavailable', 'GitHub could not read pull request data')
 }
 
 type Graph = Exclude<Awaited<ReturnType<typeof fetchGraphqlBatch>>[number], GhFailure>
@@ -530,9 +557,7 @@ async function fetchGraphqlBatch(
   })[],
   fields = pullRequestGraphqlFields
 ) {
-  const response = record(
-    await ghApi('graphql', '-f', `query=${pullRequestGraphqlQuery(refs, fields)}`)
-  )
+  const response = record(await queryGraphql(pullRequestGraphqlQuery(refs, fields)))
   const data = record(response.data)
   const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
   return Promise.all(
@@ -621,46 +646,44 @@ function headOid(pull: Record<string, unknown>) {
 }
 
 async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unknown>) {
-  for (const field of Object.keys(pullRequestConnections)) {
-    const connection = record(pull[field])
-    while (record(connection.pageInfo).hasNextPage === true) {
-      const cursor = string(record(connection.pageInfo).endCursor)
-      if (!cursor) break
-      const response = record(
-        await ghApi(
-          'graphql',
-          '-f',
-          `query=${pullRequestGraphqlQuery([ref], connectionField(field, cursor))}`
+  await Promise.all(
+    Object.keys(pullRequestConnections).map(async (field) => {
+      const connection = record(pull[field])
+      while (record(connection.pageInfo).hasNextPage === true) {
+        const cursor = string(record(connection.pageInfo).endCursor)
+        if (!cursor) break
+        const response = record(
+          await queryGraphql(pullRequestGraphqlQuery([ref], connectionField(field, cursor)))
         )
-      )
-      const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
-      const failed = errors.filter((error) => Array.isArray(error.path) && error.path[0] === 'p0')
-      if (failed.length) {
-        const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
-        if (
-          !previous?.[field] ||
-          !canKeepField(previous, pull, field) ||
-          failed.some(
-            (error) => (error.path as unknown[])[2] !== field || error.type === 'NOT_FOUND'
+        const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+        const failed = errors.filter((error) => Array.isArray(error.path) && error.path[0] === 'p0')
+        if (failed.length) {
+          const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
+          if (
+            !previous?.[field] ||
+            !canKeepField(previous, pull, field) ||
+            failed.some(
+              (error) => (error.path as unknown[])[2] !== field || error.type === 'NOT_FOUND'
+            )
           )
-        )
-          throw new GhFailure('unavailable', 'GitHub could not paginate pull request data')
-        const restored = keepFailedFields(
-          prKey(ref),
-          pullRequestGraphqlFields,
-          pull,
-          failed.map((error) => error.path as unknown[])
-        )
-        pull[field] = restored![field]
-        break
+            throw new GhFailure('unavailable', 'GitHub could not paginate pull request data')
+          const restored = keepFailedFields(
+            prKey(ref),
+            pullRequestGraphqlFields,
+            pull,
+            failed.map((error) => error.path as unknown[])
+          )
+          pull[field] = restored![field]
+          break
+        }
+        const next = record(record(record(record(response.data).p0).pullRequest)[field])
+        if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
+          throw new GhFailure('unavailable', 'GitHub returned an incomplete connection page')
+        connection.nodes = [...nodes(connection), ...nodes(next)]
+        connection.pageInfo = next.pageInfo
       }
-      const next = record(record(record(record(response.data).p0).pullRequest)[field])
-      if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
-        throw new GhFailure('unavailable', 'GitHub returned an incomplete connection page')
-      connection.nodes = [...nodes(connection), ...nodes(next)]
-      connection.pageInfo = next.pageInfo
-    }
-  }
+    })
+  )
   for (const value of nodes(pull.reviewThreads)) {
     const thread = record(value)
     const connection = record(thread.comments)
@@ -704,13 +727,35 @@ async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unk
 
 const restNext = new Map<string, boolean>()
 
-async function ghPages(path: string): Promise<unknown[]> {
+async function ghPages(path: string, total?: number): Promise<unknown[]> {
   const items: unknown[] = []
   for (let page = 1; page <= 30; page++) {
     const endpoint = `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${page}`
     const result = await ghApi(endpoint)
     if (!Array.isArray(result)) throw new GhFailure('unavailable', 'Invalid GitHub file list')
     items.push(...result)
+    if (page === 1 && total && total > 100 && cacheRead(restNext, endpoint) !== false) {
+      const pages = Array.from(
+        { length: Math.min(30, Math.ceil(total / 100)) - 1 },
+        (_, index) => index + 2
+      )
+      const rest = await Effect.runPromise(
+        Effect.forEach(
+          pages,
+          (next) =>
+            Effect.promise(async () => {
+              const result = await ghApi(
+                `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${next}`
+              )
+              if (!Array.isArray(result))
+                throw new GhFailure('unavailable', 'Invalid GitHub file list')
+              return result
+            }),
+          { concurrency: 4 }
+        )
+      )
+      return [...items, ...rest.flat()]
+    }
     if (cacheRead(restNext, endpoint) === false || result.length < 100) break
   }
   return items
@@ -857,15 +902,22 @@ async function classifyFiles(
   }
   const missing = [...directories].filter(([key]) => !directoryFlags.has(key))
   let revisionMatches = true
-  if (missing.length || ref) {
+  const batches = []
+  const batchSize = missing.length > 20 ? 5 : 20
+  for (let offset = 0; offset < missing.length; offset += batchSize)
+    batches.push(missing.slice(offset, offset + batchSize))
+  if (!batches.length && ref) batches.push([])
+  async function loadFlags(batch: typeof missing) {
     const [owner, name] = repo.split('/')
-    const response = record(
-      await ghApi(
-        'graphql',
-        '-f',
-        `query=query {
+    let response: Record<string, unknown>
+    try {
+      response = record(
+        await ghApi(
+          'graphql',
+          '-f',
+          `query=query {
       rateLimit { cost remaining resetAt }
-      ${missing
+      ${batch
         .map(([, item], index) => {
           const [sourceOwner, sourceName] = item.repo.split('/')
           return `d${index}: repository(owner:${JSON.stringify(sourceOwner)},name:${JSON.stringify(sourceName)}) {
@@ -883,16 +935,24 @@ async function classifyFiles(
           : ''
       }
     }`
+        )
       )
-    )
+    } catch (error) {
+      if (!(error instanceof GhFailure) || error.kind !== 'unavailable' || batch.length < 2)
+        throw error
+      const middle = Math.ceil(batch.length / 2)
+      await loadFlags(batch.slice(0, middle))
+      await loadFlags(batch.slice(middle))
+      return
+    }
     if (response.errors) throw new GhFailure('unavailable', 'GitHub could not read file metadata')
     const result = record(response.data)
     const repository = record(result.repository)
     if (ref) {
       const pull = record(repository.pullRequest)
-      revisionMatches = pull.headRefOid === headSha && pull.baseRefOid === baseSha
+      revisionMatches &&= pull.headRefOid === headSha && pull.baseRefOid === baseSha
     }
-    for (const [index, [key]] of missing.entries()) {
+    for (const [index, [key]] of batch.entries()) {
       const flags = new Map<string, FileFlags>()
       for (const value of (record(record(result[`d${index}`]).object).entries as
         | unknown[]
@@ -907,6 +967,12 @@ async function classifyFiles(
       cacheWrite(treeFlags, key, flags)
     }
   }
+  await Effect.runPromise(
+    Effect.forEach(batches, (batch) => Effect.promise(() => loadFlags(batch)), {
+      concurrency: 4,
+      discard: true,
+    })
+  )
   return {
     revisionMatches,
     files: files.map((file) => {
@@ -955,6 +1021,19 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
   return promise
 }
 
+function inlinePatches(files: PullRequestData['files']) {
+  let remaining = 1024 * 1024
+  return files.map((file) => {
+    const bytes = Buffer.byteLength(file.patch ?? '')
+    if (bytes <= remaining) {
+      remaining -= bytes
+      return file
+    }
+    const { patch: _patch, ...metadata } = file
+    return { ...metadata, patchDeferred: true }
+  })
+}
+
 async function fetchPullRequest(
   ref: PullRequestRef,
   graph: Graph,
@@ -972,7 +1051,9 @@ async function fetchPullRequest(
   const sameBase = previous?.pull.base.sha === baseSha
   let files = reuseFiles
     ? previous.files
-    : (await ghPages(`repos/${ref.repo}/pulls/${ref.number}/files`)).map(mapFile)
+    : (await ghPages(`repos/${ref.repo}/pulls/${ref.number}/files`, Number(pull.changedFiles))).map(
+        mapFile
+      )
   if (
     !reuseFiles ||
     !sameBase ||
@@ -1123,7 +1204,7 @@ async function fetchPullRequest(
         parents: Number(record(commit.parents).totalCount),
       }
     }),
-    files,
+    files: inlinePatches(files),
     statusEvents,
     openedAsDraft: firstDraftEvent
       ? firstDraftEvent.kind === 'ready_for_review'
@@ -1323,9 +1404,18 @@ export function createPullRequests(store: Store, hub: Hub) {
     if (!jobs.delete(job.key)) return
     if (job.priority === 'prefetch') activePrefetches--
     else activeVisible--
-    void Effect.runPromise(publish(job.ref, fetched, job.revision)).then(job.resolve, () =>
-      job.resolve(undefined)
-    )
+    void Effect.runPromise(publish(job.ref, fetched, job.revision)).then(job.resolve, (error) => {
+      console.error(`[pr-fetch] ${job.key} publication failed`, error)
+      if (job.revision !== revision(job.key)) return job.resolve(undefined)
+      const failed: PullRequestSnapshot = {
+        ...job.ref,
+        status: 'unavailable',
+        error: String(error),
+        refreshedAt: Date.now(),
+      }
+      hub.pushPullRequest(failed)
+      job.resolve(failed)
+    })
   }
 
   async function fetchBatch(batch: Job[]) {
@@ -1376,7 +1466,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         }
         if (process.env.JETTY_PR_FETCH_DEBUG === '1')
           console.debug(
-            `[pr-fetch] ${job.key} ${job.priority} batch=${batch.length} wait=${startedAt - job.queuedAt}ms fetch=${Date.now() - startedAt}ms`
+            `[pr-fetch] ${job.key} ${job.priority} batch=${batch.length} wait=${startedAt - job.queuedAt}ms fetch=${Date.now() - startedAt}ms snapshotBytes=${Buffer.byteLength(JSON.stringify(snapshot))} memory=${JSON.stringify(process.memoryUsage())}`
           )
         finish(job, snapshot)
       })

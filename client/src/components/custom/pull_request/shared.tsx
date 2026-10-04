@@ -1,9 +1,8 @@
-import type { DiffLineAnnotation, FileDiffMetadata } from '@pierre/diffs'
-
 import { Markdown } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { contentKey } from '@/lib/hash'
 import { cn } from '@/lib/utils'
+import { parseDiffFromFile, type DiffLineAnnotation, type FileDiffMetadata } from '@pierre/diffs'
 import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
@@ -67,12 +66,52 @@ export function Diff({
   const revision = useContext(PrDiffRevisionContext)
   const hasPatch = patch === undefined ? file.patch : patch
   const text = filePatch(file, patch)
-  const diff = useMemo(
+  const parsed = useMemo(
     () =>
       hasPatch ? parseFileChanges(text, `${revision}:${contentKey(text)}`)[0]?.diff : undefined,
     [text, revision, hasPatch]
   )
   const loadFile = useContext(PrDiffLoaderContext)
+  const [deferred, setDeferred] = useState<{
+    revision: string
+    diff?: FileDiffMetadata
+    error?: string
+  }>()
+  useEffect(() => {
+    if (!file.patchDeferred || !loadFile || patch !== undefined) return
+    let active = true
+    loadFile(file.path, file.previousPath)
+      .then((contents) => {
+        if (!active) return
+        if ('unavailable' in contents) {
+          setDeferred({ revision, error: `Diff unavailable: ${contents.unavailable}` })
+          return
+        }
+        const oldFile =
+          contents.before === null
+            ? null
+            : {
+                name: file.previousPath ?? file.path,
+                contents: contents.before,
+                cacheKey: `${revision}:${file.path}:before`,
+              }
+        const newFile =
+          contents.after === null
+            ? null
+            : {
+                name: file.path,
+                contents: contents.after,
+                cacheKey: `${revision}:${file.path}:after`,
+              }
+        setDeferred({ revision, diff: parseDiffFromFile(oldFile, newFile) })
+      })
+      .catch(() => active && setDeferred({ revision, error: 'Diff unavailable' }))
+    return () => {
+      active = false
+    }
+  }, [file.patchDeferred, file.path, file.previousPath, loadFile, patch, revision])
+  const loaded = deferred?.revision === revision ? deferred : undefined
+  const diff = parsed ?? loaded?.diff
   const loadDiffFiles = useMemo(() => {
     if (!loadFile || suggestion || patch !== undefined) return undefined
     return async (diff: import('@pierre/diffs').FileDiffMetadata) => {
@@ -145,13 +184,15 @@ export function Diff({
   const remaining = threads.filter((t) => !anchored.includes(t))
   const unavailable = file.binary
     ? 'Binary file · preview unavailable'
-    : !hasPatch
-      ? file.status === 'renamed' && file.changes === 0
-        ? 'No textual changes · renamed file'
-        : 'Diff unavailable'
-      : !diff
-        ? 'Diff unavailable'
-        : undefined
+    : file.patchDeferred && !diff
+      ? (loaded?.error ?? 'Loading diff…')
+      : !hasPatch && !diff
+        ? file.status === 'renamed' && file.changes === 0
+          ? 'No textual changes · renamed file'
+          : 'Diff unavailable'
+        : !diff
+          ? 'Diff unavailable'
+          : undefined
   if (unavailable)
     return (
       <div className='min-w-0 overflow-x-auto'>
