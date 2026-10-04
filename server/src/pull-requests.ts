@@ -1478,7 +1478,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         const totalMs = Date.now() - startedAt
         if (totalMs > 1000)
           console.info(
-            `[pr-fetch] ${job.key} total=${totalMs}ms slowest=${timings
+            `[pr-fetch] ${job.key} ${job.priority} total=${totalMs}ms slowest=${timings
               .toSorted((a, b) => b.ms - a.ms)
               .slice(0, 3)
               .map(({ call, ms }) => `${call} ${ms}ms`)
