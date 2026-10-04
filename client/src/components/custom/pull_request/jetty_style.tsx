@@ -1136,18 +1136,26 @@ function InlineThreads({ threads, author }: { threads: PrThread[]; author?: PrUs
     <div className='space-y-3'>
       {threads.filter((t) => !isResolved(t)).map((t) => content(t))}
       {!!resolved.length && (
-        <details
-          className={cn('group overflow-hidden rounded-md border-[0.5px] border-border', raised)}
+        <Collapsible
+          className={cn(
+            'overflow-hidden rounded-md border-[0.5px] border-border [--motion-disclosure-open-duration:180ms] [--motion-disclosure-close-duration:140ms]',
+            raised
+          )}
         >
-          <summary className='flex cursor-pointer list-none items-center gap-2 p-3 text-xs text-muted-foreground'>
+          <CollapsibleTrigger
+            render={<Button variant='ghost-text' />}
+            className='group/resolved flex h-auto w-full cursor-pointer justify-start gap-2 rounded-none border-0 p-3 text-xs font-normal active:translate-y-0'
+          >
             <SuccessStatusIcon className='size-3.5 shrink-0 text-status-success' />
             {count} resolved comments from {authors.join(', ')}
-            <ArrowDown01Icon className='ml-auto size-3.5 group-open:rotate-180' />
-          </summary>
-          <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
-            {resolved.map((t) => content(t, true))}
-          </div>
-        </details>
+            <ArrowDown01Icon className='ml-auto size-3.5 transition-transform duration-140 ease-(--motion-disclosure-ease) group-data-panel-open/resolved:rotate-180 group-data-panel-open/resolved:duration-180 motion-reduce:transition-none' />
+          </CollapsibleTrigger>
+          <CollapsibleContent className='data-starting-style:opacity-0 motion-reduce:transition-opacity motion-reduce:data-starting-style:h-(--collapsible-panel-height) motion-reduce:data-ending-style:h-(--collapsible-panel-height)'>
+            <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
+              {resolved.map((t) => content(t, true))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   )
