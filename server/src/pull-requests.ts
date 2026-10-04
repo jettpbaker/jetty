@@ -2337,10 +2337,6 @@ const checkStates: Record<string, PullRequestListItem['checks']> = {
   EXPECTED: 'pending',
 }
 
-function itemChecksRunning(item: PullRequestListItem) {
-  return item.checks === 'pending' && (item.state === 'open' || item.state === 'draft')
-}
-
 function listItem(value: unknown): PullRequestListItem | null {
   const node = record(value)
   const repo = string(record(node.repository).nameWithOwner).toLowerCase()
@@ -2443,6 +2439,7 @@ export function createPullRequestLists(
   pulls: ReturnType<typeof createPullRequests>,
   scope: Scope.Scope
 ) {
+  const listCadence = 30_000
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
   const publication = {
@@ -2456,10 +2453,7 @@ export function createPullRequestLists(
     const paused = activity === 'hidden' || backingOff()
     return {
       ...list,
-      rateLimit: githubRateLimitHealth(
-        paused ? null : 120_000 * cadenceMultiplier(),
-        !paused && list.items?.some(itemChecksRunning) ? 30_000 * cadenceMultiplier() : null
-      ),
+      rateLimit: githubRateLimitHealth(paused ? null : listCadence * cadenceMultiplier()),
     }
   }
 
@@ -2543,64 +2537,15 @@ export function createPullRequestLists(
       const list = decorate(yield* store.getPullRequestList(tab), activity)
       const maxAge = list.rateLimit?.cadenceMs
       if (!maxAge || (list.refreshedAt && Date.now() - list.refreshedAt < maxAge)) return list
-      return yield* refresh(tab)
+      return yield* refresh(tab, listCadence)
     })
   }
 
-  const lastCheckRefresh = new Map<PullRequestListTab, number>()
-  const checkingTabs = new Set<PullRequestListTab>()
-
-  function poll(tab: PullRequestListTab, activity: GitHubActivity) {
-    return Effect.gen(function* () {
-      const list = yield* refreshIfStale(tab, activity)
-      const interval = list.rateLimit?.checksCadenceMs
-      if (
-        !interval ||
-        checkingTabs.has(tab) ||
-        Date.now() - (lastCheckRefresh.get(tab) ?? list.refreshedAt ?? 0) < interval
-      )
-        return
-      checkingTabs.add(tab)
-      lastCheckRefresh.set(tab, Date.now())
-      const refs = (list.items ?? []).filter(itemChecksRunning)
-      yield* Effect.gen(function* () {
-        const graphs = yield* Effect.tryPromise({
-          try: () =>
-            fetchGraphqlBatch(
-              refs,
-              `${pullRequestStateFields} reviewDecision mergeable mergeStateStatus`
-            ),
-          catch: (error) => new StoreError('internal', String(error)),
-        })
-        const states = new Map<
-          string,
-          Pick<PullRequestListItem, 'checks' | 'reviewDecision' | 'mergeable' | 'mergeStateStatus'>
-        >()
-        for (const [index, ref] of refs.entries()) {
-          const graph = graphs[index]!
-          if (!(graph instanceof GhFailure))
-            states.set(prKey(ref), {
-              checks: checkStates[graph.checkRollupState],
-              reviewDecision: (graph.reviewDecision ??
-                null) as PullRequestListItem['reviewDecision'],
-              mergeable: graph.pull.mergeable as PullRequestListItem['mergeable'],
-              mergeStateStatus: string(graph.pull.mergeStateStatus),
-            })
-        }
-        const current = yield* store.getPullRequestList(tab)
-        const updated = decorate(
-          {
-            ...current,
-            items: current.items?.map((item) => {
-              const state = states.get(prKey(item))
-              return state ? { ...item, ...state } : item
-            }),
-          },
-          activity
-        )
-        yield* store.savePullRequestList(updated)
-        hub.pushPullRequestList(updated)
-      }).pipe(Effect.ensuring(Effect.sync(() => checkingTabs.delete(tab))))
+  function poll() {
+    const activity = hub.githubActivity()
+    return Effect.forEach(['for-you', 'created'] as const, (tab) => refreshIfStale(tab, activity), {
+      concurrency: 'unbounded',
+      discard: true,
     })
   }
 

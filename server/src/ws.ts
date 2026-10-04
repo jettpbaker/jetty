@@ -155,6 +155,11 @@ export function createRpcHandlers(
 
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
     const pullRequestLists = createPullRequestLists(store, hub, pullRequests, admissionScope)
+    yield* Stream.tick('5 seconds').pipe(
+      Stream.mapEffect(() => pullRequestLists.poll().pipe(Effect.catch(() => Effect.void))),
+      Stream.runDrain,
+      Effect.forkIn(admissionScope)
+    )
 
     function checkedRef(ref: {
       repo: string
@@ -495,16 +500,7 @@ export function createRpcHandlers(
               Effect.catch(() => Effect.void),
               Effect.forkIn(admissionScope)
             )
-            const periodic = Stream.tick('5 seconds').pipe(
-              Stream.mapEffect(() =>
-                pullRequestLists.poll(tab, activity).pipe(Effect.catch(() => Effect.void))
-              ),
-              Stream.drain
-            )
-            return Stream.concat(
-              Stream.succeed(list),
-              Stream.merge(Stream.fromQueue(queue), periodic)
-            )
+            return Stream.concat(Stream.succeed(list), Stream.fromQueue(queue))
           }).pipe(Effect.mapError(wireError))
         ),
       'queue.add': (params) =>
