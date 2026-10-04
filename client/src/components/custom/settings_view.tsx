@@ -9,8 +9,8 @@ import {
   Refresh01Icon,
 } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import { useModelRefresh } from '@/state/models'
 import { useProviderUsage } from '@/state/provider-usage'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
@@ -112,7 +112,7 @@ export function SettingsView() {
                     disabled={refreshing}
                     onClick={() => refresh(true)}
                   >
-                    <Refresh01Icon className={cn(refreshing && 'motion-safe:animate-spin')} />
+                    {refreshing ? <Spinner className='size-3' /> : <Refresh01Icon />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Refresh models</TooltipContent>

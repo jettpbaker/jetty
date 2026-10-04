@@ -2,9 +2,9 @@ import {
   Alert02Icon,
   CheckmarkCircle02Icon,
   InformationCircleIcon,
-  Refresh01Icon,
   CancelCircleIcon,
 } from '@/components/custom/huge_icons'
+import { Spinner } from '@/components/ui/spinner'
 import { useResolvedTheme } from '@/lib/theme'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
@@ -20,7 +20,7 @@ function Toaster({ ...props }: ToasterProps) {
         info: <InformationCircleIcon className='size-4' />,
         warning: <Alert02Icon className='size-4' />,
         error: <CancelCircleIcon className='size-4' />,
-        loading: <Refresh01Icon className='size-4 animate-spin' />,
+        loading: <Spinner />,
       }}
       style={
         {

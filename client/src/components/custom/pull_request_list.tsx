@@ -2,6 +2,7 @@ import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire
 
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { whenIdle } from '@/lib/preload'
@@ -281,11 +282,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 />
               }
             >
-              <Refresh01Icon
-                className={cn(
-                  refreshing && 'animate-spin [animation-duration:700ms] motion-reduce:animate-none'
-                )}
-              />
+              {refreshing ? <Spinner /> : <Refresh01Icon />}
             </TooltipTrigger>
             <TooltipContent>
               {failure && !refreshing ? `Couldn't refresh: ${list.error}` : 'Refresh'}
