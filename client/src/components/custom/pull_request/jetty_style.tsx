@@ -26,6 +26,7 @@ import {
   GitCommitHorizontalIcon,
   GitMergeIcon,
 } from '@/components/custom/lucide_icons'
+import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
@@ -1122,7 +1123,9 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
         </span>
         {!expanded && (
           <span className='flex w-full items-center gap-2 pl-5 text-xs text-muted-foreground'>
-            <span className='min-w-0 flex-1 truncate'>{thread.comments[0]?.body}</span>
+            <span className='min-w-0 flex-1 truncate'>
+              {markdownText(thread.comments[0]?.body ?? '')}
+            </span>
             <span
               className='inline-flex shrink-0 items-center gap-1 font-mono'
               aria-label={`${thread.comments.length} comments`}

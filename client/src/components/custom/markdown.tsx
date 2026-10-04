@@ -162,3 +162,29 @@ export function Markdown({
     </Streamdown>
   )
 }
+
+type TextNode = { type: string; value?: string; lang?: string | null; children?: TextNode[] }
+
+const textParser = unified().use(remarkParse).use(remarkPlugins)
+const phrasing = new Set([
+  'paragraph',
+  'heading',
+  'emphasis',
+  'strong',
+  'delete',
+  'link',
+  'linkReference',
+  'tableCell',
+])
+
+function nodeText(node: TextNode): string {
+  if (node.type === 'code') return node.lang === 'suggestion' ? 'Suggested change' : 'Code block'
+  if (node.type === 'text' || node.type === 'inlineCode') return node.value ?? ''
+  if (node.type === 'break') return ' '
+  return (node.children ?? []).map(nodeText).join(phrasing.has(node.type) ? '' : ' ')
+}
+
+// One line of plain text for a preview: images and HTML drop out, code blocks become a label.
+export function markdownText(markdown: string) {
+  return nodeText(textParser.parse(markdown)).replace(/\s+/g, ' ').trim()
+}
