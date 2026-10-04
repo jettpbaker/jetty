@@ -62,6 +62,8 @@ import {
 import { Link } from '@tanstack/react-router'
 import {
   cloneElement,
+  memo,
+  useCallback,
   createContext,
   isValidElement,
   useContext,
@@ -1281,7 +1283,7 @@ function FileCard({
   initiallyNear: boolean
   comments: boolean
   viewed: boolean
-  onViewed: (checked: boolean) => void
+  onViewed: (path: string, checked: boolean) => void
   hideGenerated: boolean
   commit?: PrCommit
 }) {
@@ -1320,7 +1322,13 @@ function FileCard({
       }
       actions={
         <>
-          {!commit && <DiffViewed file={file} checked={viewed} onCheckedChange={onViewed} />}
+          {!commit && (
+            <DiffViewed
+              file={file}
+              checked={viewed}
+              onCheckedChange={(checked) => void onViewed(file.path, checked)}
+            />
+          )}
           <FileMenu file={file} pr={pr} at={commit?.sha} />
         </>
       }
@@ -1387,6 +1395,8 @@ function FileCard({
     </DiffFileCard>
   )
 }
+
+const MemoizedFileCard = memo(FileCard)
 
 // Plain text edited in place, on one line. GitHub requires a title, so an empty one snaps back.
 // The title edits in place without changing its heading typography.
@@ -1567,6 +1577,8 @@ function MergeButton({
   )
 }
 
+const MemoizedActivity = memo(Activity)
+
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
   const { actions, ref, more, sidebar } = usePrRuntime()
@@ -1590,6 +1602,13 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     [pr.files]
   )
   const [selected, setSelected] = useState<string | null>(null)
+  const showComments = useCallback(() => {
+    setMode('comments')
+    setFilter('')
+    setHideViewed(false)
+    setSelected(null)
+    setTab('diff')
+  }, [])
   const [commitSha, setCommitSha] = useState<string | null>(null)
   // The file at the top of the diff as it scrolls; the tree's selection follows it.
   const [scrolledTo, setInView] = useState<string | null>(null)
@@ -1691,6 +1710,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
         ),
     [changed, commit, mode, threadsByPath, hideViewed, viewed, filter]
   )
+  const FileCardComponent = pr.files.length > 100 ? MemoizedFileCard : FileCard
   const inView = files.some((f) => f.path === scrolledTo) ? scrolledTo : (files[0]?.path ?? null)
   inViewRef.current = inView
   const reason = mergeReason(pr)
@@ -1832,16 +1852,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               />
                             </Section>
                             <Section title='Activity' className='flex flex-1 flex-col'>
-                              <Activity
-                                pr={pr}
-                                onComments={() => {
-                                  setMode('comments')
-                                  setFilter('')
-                                  setHideViewed(false)
-                                  setSelected(null)
-                                  setTab('diff')
-                                }}
-                              />
+                              <MemoizedActivity pr={pr} onComments={showComments} />
                             </Section>
                           </div>
                         </main>
@@ -1943,18 +1954,18 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         comments={commit ? undefined : commentCounts}
                       >
                         {files.map((f, index) => (
-                          <FileCard
+                          <FileCardComponent
                             key={`${commitSha}-${f.path}`}
                             file={f}
                             deferHeader={files.length > 100}
-                            initiallyNear={index < 8}
+                            initiallyNear={files.length > 100 && index < 8}
                             pr={pr}
                             threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
                             commit={commit}
                             comments={mode === 'comments'}
                             hideGenerated={hideGenerated}
                             viewed={viewed.has(f.path)}
-                            onViewed={(checked) => void actions.viewed(f.path, checked)}
+                            onViewed={actions.viewed}
                           />
                         ))}
                         {commit && !commitFiles.data && (
