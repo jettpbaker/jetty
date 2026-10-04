@@ -63,7 +63,7 @@ const components = {
   td: MarkdownTableCell,
   code: ({ node: _node, className, children, ...props }: ComponentProps<'code'> & ExtraProps) => (
     <code
-      className={cn('rounded bg-muted px-1.5 py-0.5 font-mono text-sm', className)}
+      className={cn('inline-code rounded px-1.5 py-0.5 font-mono text-sm', className)}
       data-streamdown='inline-code'
       {...props}
     >

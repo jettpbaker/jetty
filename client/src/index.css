@@ -6,6 +6,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@utility inline-code {
+  background-color: color-mix(in oklch, currentColor 8%, transparent);
+}
+
 :root {
   --shimmer-spread: calc(1.5ch + 20px);
   --shimmer-duration: 1.5s;

@@ -34,7 +34,7 @@
   padding-left: 24px;
 }
 .description-document code {
-  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-sm;
+  @apply inline-code rounded px-1.5 py-0.5 font-mono text-sm;
 }
 .description-document a:not([data-slot='button']) {
   @apply wrap-anywhere font-medium text-primary underline;

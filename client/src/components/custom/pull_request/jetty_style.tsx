@@ -1916,11 +1916,11 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                   <span className='text-muted-foreground'>
                                     {pr.state === 'merged' ? 'merged into' : 'wants to merge into'}
                                   </span>{' '}
-                                  <code className='rounded bg-muted px-1 py-px font-mono text-xs wrap-anywhere'>
+                                  <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
                                     {pr.base}
                                   </code>{' '}
                                   <span className='text-muted-foreground'>from</span>{' '}
-                                  <code className='rounded bg-muted px-1 py-px font-mono text-xs wrap-anywhere'>
+                                  <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
                                     {pr.head}
                                   </code>{' '}
                                   <Ago
