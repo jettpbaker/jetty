@@ -73,7 +73,7 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
   const { refreshing } = usePullRequest(link)
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant='ghost' size='icon-sm' aria-label='More' />}>
+      <DropdownMenuTrigger render={<Button variant='ghost' size='icon' aria-label='More' />}>
         <MoreVerticalIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
