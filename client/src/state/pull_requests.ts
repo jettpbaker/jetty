@@ -327,6 +327,23 @@ export function usePullRequestList(tab: PullRequestListTab) {
   return { list, refreshing }
 }
 
+function prefetchPullRequestList(registry: Registry, tab: PullRequestListTab) {
+  run(registry, (connection) =>
+    connection.request('pullRequestList.prefetch', { tab }).pipe(
+      Effect.tap((snapshots) =>
+        Effect.sync(() => {
+          for (const snapshot of snapshots)
+            registry.set(cacheAtom(pullRequestKey(snapshot)), snapshot)
+        })
+      )
+    )
+  )
+}
+
+export function usePrefetchPullRequestList() {
+  return useAction(prefetchPullRequestList)
+}
+
 function refreshPullRequestList(registry: Registry, tab: PullRequestListTab) {
   const key = `list:${tab}`
   if (registry.get(refreshingAtom).has(key)) return

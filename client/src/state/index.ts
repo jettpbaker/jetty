@@ -46,6 +46,7 @@ export {
   useLinkPullRequest,
   useOpenPullRequest,
   usePrefetchPullRequest,
+  usePrefetchPullRequestList,
   usePrefetchReviewerCandidates,
   usePullRequest,
   usePullRequestDiffFileLoader,

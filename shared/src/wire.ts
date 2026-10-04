@@ -549,6 +549,10 @@ export const methods = {
     }),
     result: PullRequestSnapshot,
   },
+  'pullRequestList.prefetch': {
+    params: Schema.Struct({ tab: PullRequestListTab }),
+    result: Schema.Array(PullRequestSnapshot),
+  },
   'pullRequestList.refresh': {
     params: Schema.Struct({ tab: PullRequestListTab }),
     result: PullRequestList,

@@ -4,11 +4,17 @@ import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
+import { whenIdle } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
-import { usePrefetchPullRequest, usePullRequestList, useRefreshPullRequestList } from '@/state'
+import {
+  usePrefetchPullRequest,
+  usePrefetchPullRequestList,
+  usePullRequestList,
+  useRefreshPullRequestList,
+} from '@/state'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -76,6 +82,15 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const { list, refreshing } = usePullRequestList(tab)
   const refresh = useRefreshPullRequestList()
   const prefetch = usePrefetchPullRequest()
+  const prefetchList = usePrefetchPullRequestList()
+  const warmed = useRef(new Set<PullRequestListTab>())
+  useEffect(() => {
+    if (list?.status !== 'ready' || warmed.current.has(tab)) return
+    return whenIdle(() => {
+      warmed.current.add(tab)
+      prefetchList(tab)
+    })
+  }, [list?.status, tab, prefetchList])
   const hover = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [opened, setOpened] = useState(() => ({ ...openedRows }))
   const now = useNow(60_000)

@@ -1374,11 +1374,18 @@ export function createPullRequests(store: Store, hub: Hub) {
   const visibleLimit = 3
   const prefetchLimit = 2
   const queuedPrefetchLimit = 4
+  type GraphRead = { graphs: (Graph | GhFailure)[]; timings: GhTiming[]; startedAt: number }
+  type GraphSource = () => Promise<{
+    graph: Graph | GhFailure
+    timings: GhTiming[]
+    startedAt: number
+  }>
   type Job = {
     ref: PullRequestRef
     key: string
     priority: 'visible' | 'prefetch'
     queuedAt: number
+    graphSource?: GraphSource
     started: boolean
     revision: number
     promise: Promise<PullRequestSnapshot | undefined>
@@ -1388,6 +1395,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   const revisions = new Map<string, number>()
   const pendingOperations = new Map<string, NonNullable<PullRequestSnapshot['pendingOperation']>>()
   const publication = Semaphore.makeUnsafe(1)
+  const listPrefetching = Semaphore.makeUnsafe(1)
   // One GitHub write at a time, so quick reviewer picks and an Undo queue rather than fail.
   // Only the last queued write to a PR refreshes it, once for all of them.
   const writing = Semaphore.makeUnsafe(1)
@@ -1427,33 +1435,53 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  async function fetchBatch(batch: Job[]) {
+  async function readGraphs(refs: readonly PullRequestRef[]): Promise<GraphRead> {
     const startedAt = Date.now()
-    const refs = await Promise.all(
-      batch.map(async (job) => {
-        const cached = await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))
+    const cachedRefs = await Promise.all(
+      refs.map(async (ref) => {
+        const cached = await Effect.runPromise(store.getPullRequest(ref.repo, ref.number))
         return {
-          ...job.ref,
+          ...ref,
           headSha: cached.data?.pull.head.sha,
-          references: findPullRequestReferences(cached.data?.pull.body ?? '', job.ref),
+          references: findPullRequestReferences(cached.data?.pull.body ?? '', ref),
         }
       })
     )
-    const sharedTimings: GhTiming[] = []
-    let graphs: (Graph | GhFailure)[]
+    const timings: GhTiming[] = []
     try {
-      graphs = await fetchTimings.run(sharedTimings, () => fetchGraphqlBatch(refs))
+      return {
+        graphs: await fetchTimings.run(timings, () => fetchGraphqlBatch(cachedRefs)),
+        timings,
+        startedAt,
+      }
     } catch (error) {
       const failure =
         error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
-      graphs = batch.map(() => failure)
+      return { graphs: refs.map(() => failure), timings, startedAt }
     }
+  }
+
+  async function fetchBatch(batch: Job[]) {
+    const startedAt = Date.now()
+    const regular = batch.filter((job) => !job.graphSource)
+    const reading = regular.length ? readGraphs(regular.map((job) => job.ref)) : undefined
+    const reads = await Promise.all(
+      batch.map(async (job) => {
+        if (job.graphSource) return job.graphSource()
+        const read = (await reading)!
+        return {
+          graph: read.graphs[regular.indexOf(job)]!,
+          timings: read.timings,
+          startedAt: read.startedAt,
+        }
+      })
+    )
     await Promise.all(
       batch.map(async (job, index) => {
+        const { graph, timings: sharedTimings } = reads[index]!
         const timings = [...sharedTimings]
         let snapshot: PullRequestSnapshot
         try {
-          const graph = graphs[index]!
           if (graph instanceof GhFailure) throw graph
           snapshot = {
             ...job.ref,
@@ -1477,7 +1505,7 @@ export function createPullRequests(store: Store, hub: Hub) {
             refreshedAt: Date.now(),
           }
         }
-        const totalMs = Date.now() - startedAt
+        const totalMs = Date.now() - Math.min(startedAt, reads[index]!.startedAt)
         if (totalMs > 1000)
           console.info(
             `[pr-fetch] ${job.key} total=${totalMs}ms slowest=${timings
@@ -1529,7 +1557,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  function schedule(ref: PullRequestRef, priority: Job['priority']) {
+  function schedule(ref: PullRequestRef, priority: Job['priority'], graphSource?: GraphSource) {
     const key = prKey(ref)
     if (pendingOperations.has(key)) return Promise.resolve(undefined)
     const existing = jobs.get(key)
@@ -1546,6 +1574,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     }
     if (
       priority === 'prefetch' &&
+      !graphSource &&
       queue.filter((job) => job.priority === 'prefetch').length >= queuedPrefetchLimit
     )
       return Promise.resolve(undefined)
@@ -1558,6 +1587,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       key,
       priority,
       queuedAt: Date.now(),
+      graphSource,
       started: false,
       revision: revision(key),
       promise,
@@ -1677,6 +1707,48 @@ export function createPullRequests(store: Store, hub: Hub) {
         return cached
       return (yield* Effect.promise(() => schedule(ref, 'prefetch'))) ?? cached
     })
+  }
+
+  function prefetchList(tab: PullRequestListTab) {
+    return listPrefetching.withPermit(
+      Effect.gen(function* () {
+        const list = yield* store.getPullRequestList(tab)
+        const rows = (list.items ?? [])
+          .filter((pull) => pull.state === 'open')
+          .toSorted((a, b) => b.updatedAt - a.updatedAt)
+          .slice(0, 10)
+        const refs: PullRequestRef[] = []
+        for (const ref of rows) {
+          const cached = yield* get(ref)
+          const interval = cadence(cached.data?.pull.state === 'closed', 'blurred', true)
+          if (
+            interval !== null &&
+            !jobs.has(prKey(ref)) &&
+            !pendingOperations.has(prKey(ref)) &&
+            (!cached.refreshedAt || Date.now() - cached.refreshedAt >= interval)
+          )
+            refs.push({ repo: ref.repo, number: ref.number })
+        }
+        if (!refs.length) return []
+        let reading: Promise<GraphRead> | undefined
+        // Share metadata across the list; the queue still hydrates only two prefetches at once.
+        const snapshots = yield* Effect.promise(() =>
+          Promise.all(
+            refs.map((ref, index) =>
+              schedule(ref, 'prefetch', async () => {
+                const read = await (reading ??= readGraphs(refs))
+                return {
+                  graph: read.graphs[index]!,
+                  timings: read.timings,
+                  startedAt: read.startedAt,
+                }
+              })
+            )
+          )
+        )
+        return snapshots.filter((snapshot) => snapshot !== undefined)
+      })
+    )
   }
 
   // One cheap query notices change on every linked PR; only changed ones pay for a full read.
@@ -2279,6 +2351,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     get,
     refresh,
     prefetch,
+    prefetchList,
     refreshIfStale,
     refreshChangedLinks,
     setReviewRequest,

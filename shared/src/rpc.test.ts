@@ -132,6 +132,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.succeed({ url: 'https://github.com/user-attachments/assets/example' }),
           'pullRequest.subscribe': ({ repo, number }) =>
             Stream.succeed({ repo, number, status: 'loading' as const }),
+          'pullRequestList.prefetch': () => Effect.succeed([]),
           'pullRequestList.refresh': ({ tab }) =>
             Effect.succeed({ tab, status: 'loading' as const }),
           'pullRequestList.subscribe': ({ tab }) =>

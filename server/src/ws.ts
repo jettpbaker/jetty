@@ -476,6 +476,8 @@ export function createRpcHandlers(
             )
           }).pipe(Effect.mapError(wireError))
         ),
+      'pullRequestList.prefetch': ({ tab }) =>
+        pullRequests.prefetchList(tab).pipe(Effect.mapError(wireError)),
       'pullRequestList.refresh': ({ tab }) =>
         pullRequestLists.refresh(tab).pipe(Effect.mapError(wireError)),
       'pullRequestList.subscribe': ({ tab, activity = 'focused' }) =>
