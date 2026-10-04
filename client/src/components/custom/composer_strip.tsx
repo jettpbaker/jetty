@@ -1,7 +1,6 @@
 import type { Draft, QuestionProgress } from '@/state'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
-import { DiffLoading } from '@/components/custom/diff_loading'
 import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
@@ -16,6 +15,7 @@ import {
   Edit03Icon,
   Cancel01Icon,
 } from '@/components/custom/huge_icons'
+import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
@@ -382,7 +382,7 @@ export function ApprovalStrip({
       {ctl.expanded &&
         !ctl.confirming &&
         (changes ? (
-          <Suspense fallback={<DiffLoading />}>
+          <Suspense fallback={<Loading />}>
             <ProposedDiff id={changesId} changes={changes} />
           </Suspense>
         ) : (

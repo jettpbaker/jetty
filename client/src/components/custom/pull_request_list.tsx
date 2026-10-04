@@ -1,5 +1,6 @@
 import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire'
 
+import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
@@ -336,7 +337,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           </Button>
         </div>
       ) : (
-        <p className='p-4 text-xs text-muted-foreground'>Loading pull requests…</p>
+        <Loading label='Loading pull requests…' />
       )}
     </div>
   )

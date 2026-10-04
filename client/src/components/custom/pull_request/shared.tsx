@@ -1,3 +1,4 @@
+import { Loading } from '@/components/custom/loading'
 import { Markdown } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { contentKey } from '@/lib/hash'
@@ -205,7 +206,11 @@ export function Diff({
   if (unavailable)
     return (
       <div className='min-w-0 overflow-x-auto'>
-        <p className='p-4 text-xs text-muted-foreground'>{unavailable}</p>
+        {unavailable === 'Loading diff…' ? (
+          <Loading label={unavailable} />
+        ) : (
+          <p className='p-4 text-xs text-muted-foreground'>{unavailable}</p>
+        )}
         {!!threads.length && (
           <div className='border-t border-border px-4 py-3'>{renderThreads?.(threads)}</div>
         )}

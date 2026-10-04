@@ -1,5 +1,6 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 
+import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -201,7 +202,7 @@ export function LivePullRequestView({
         />
       </MediaLightboxProvider>
     )
-  if (!failure) return <p className='p-4 text-xs text-muted-foreground'>Loading pull request…</p>
+  if (!failure) return <Loading label='Loading pull request…' />
   return (
     <PullRequestUnavailable
       title={unavailableTitle[snapshot.status]}

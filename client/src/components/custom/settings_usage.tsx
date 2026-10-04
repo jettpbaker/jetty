@@ -1,6 +1,7 @@
 import type { ProviderUsage } from '@jetty/shared/wire'
 
 import { UndoIcon } from '@/components/custom/huge_icons'
+import { Loading } from '@/components/custom/loading'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEffect, useState } from 'react'
 
@@ -97,10 +98,10 @@ export function SettingsUsage({
   }, [])
   const visible = usage.filter((item) => enabled[item.provider] && item.connected)
   if (visible.length === 0)
-    return (
-      <p className='text-xs text-muted-foreground'>
-        {failed ? 'Usage unavailable.' : 'Loading usage…'}
-      </p>
+    return failed ? (
+      <p className='text-xs text-muted-foreground'>Usage unavailable.</p>
+    ) : (
+      <Loading label='Loading usage…' />
     )
   return (
     <div className='settings-usage'>

@@ -1,4 +1,5 @@
 import { PencilEdit02Icon } from '@/components/custom/huge_icons'
+import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
 import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
@@ -73,7 +74,7 @@ function Thread() {
     return (
       <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
         <PageSidebarTrigger standalone />
-        <p className='px-6 py-6 text-sm text-muted-foreground'>Loading…</p>
+        <Loading label='Loading thread…' />
       </section>
     )
   return (

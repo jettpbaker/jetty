@@ -16,6 +16,7 @@ import {
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { InProgressIcon } from '@/components/custom/in_progress_icon'
+import { Loading } from '@/components/custom/loading'
 import {
   CircleCheckIcon,
   CircleDotIcon,
@@ -1969,15 +1970,15 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           />
                         ))}
                         {commit && !commitFiles.data && (
-                          <p className='p-6 text-xs text-muted-foreground'>
+                          <div className='text-xs text-muted-foreground'>
                             {commitFiles.failed ? (
                               <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
                                 Couldn't load commit files · Retry
                               </Button>
                             ) : (
-                              'Loading commit files…'
+                              <Loading label='Loading commit files…' />
                             )}
-                          </p>
+                          </div>
                         )}
                         {!files.length && (!commit || !!commitFiles.data) && (
                           <p className='p-6 text-xs text-muted-foreground'>

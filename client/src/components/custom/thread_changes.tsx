@@ -1,6 +1,6 @@
 import type { DiffScope } from '@jetty/shared/wire'
 
-import { DiffLoading } from '@/components/custom/diff_loading'
+import { Loading } from '@/components/custom/loading'
 import { whenIdle } from '@/lib/preload'
 import {
   defaultDiffScope,
@@ -99,7 +99,7 @@ async function prefetchChanges(diff: Promise<{ diff: string }>) {
   )
 }
 
-const loading = <DiffLoading />
+const loading = <Loading />
 
 export function ThreadChanges({
   threadId,

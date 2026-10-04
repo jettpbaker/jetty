@@ -31,8 +31,8 @@ import {
 import { createPortal } from 'react-dom'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
-import { DiffLoading } from './diff_loading'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
+import { Loading } from './loading'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { LivePullRequestView } from './pull_request_view'
 import { ThreadChanges, useThreadChangesPrefetch } from './thread_changes'
@@ -355,7 +355,7 @@ export function ThreadDetailsLayout({
                     onTarget={settleFile}
                   />
                 ) : (
-                  <DiffLoading />
+                  <Loading />
                 ))}
             </TabsContent>
             <TabsContent
@@ -400,7 +400,7 @@ export function ThreadDetailsLayout({
                   (ready ? (
                     <ThreadFile key={viewedFile.path} threadId={threadId} target={viewedFile} />
                   ) : (
-                    <DiffLoading label='Loading file' />
+                    <Loading label='Loading file' />
                   ))}
               </TabsContent>
             )}

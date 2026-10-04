@@ -1,4 +1,5 @@
 import { RefreshIcon, UserAdd01Icon } from '@/components/custom/huge_icons'
+import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -236,15 +237,17 @@ function ReviewerResults({
             </CommandGroup>
           ))}
           {groups.length === 0 && !reviewing.length && (
-            <p className='px-3 py-2 text-xs text-muted-foreground'>
-              {loading
-                ? 'Loading…'
-                : everyone.failed
-                  ? "Couldn't load people"
-                  : search
-                    ? 'No matches'
-                    : 'No one to request'}
-            </p>
+            <div className='px-3 py-2 text-xs text-muted-foreground'>
+              {loading ? (
+                <Loading label='Loading people…' />
+              ) : everyone.failed ? (
+                "Couldn't load people"
+              ) : search ? (
+                'No matches'
+              ) : (
+                'No one to request'
+              )}
+            </div>
           )}
         </div>
       </CommandList>
