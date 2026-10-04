@@ -30,3 +30,23 @@ createRoot(document.getElementById('root')!).render(
     <RouterProvider router={router} />
   </StrictMode>
 )
+
+function preloadMainRoutes() {
+  for (const id of [
+    '/threads/$threadId',
+    '/pull-requests/',
+    '/pull-requests/$owner/$repo/$number',
+    '/settings',
+  ] as const) {
+    void router.loadRouteChunk(router.routesById[id])?.catch(() => {})
+  }
+}
+
+window.addEventListener(
+  'load',
+  () => {
+    if ('requestIdleCallback' in window) window.requestIdleCallback(preloadMainRoutes)
+    else setTimeout(preloadMainRoutes, 0)
+  },
+  { once: true }
+)

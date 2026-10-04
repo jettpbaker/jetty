@@ -20,4 +20,16 @@ function threadOpen(target: keyof typeof lastText): Journey {
   }
 }
 
-export default [threadOpen('long'), threadOpen('code')]
+const fromNew: Journey = {
+  name: 'thread.open',
+  case: 'from-new',
+  async setup(ctx) {
+    await open(ctx, '/', `${composer} && ${row('small')}`)
+  },
+  async act(ctx) {
+    await click(ctx.page, row('small'), 'the small row')
+  },
+  done: () => hasText('Thanks, that helps.'),
+}
+
+export default [threadOpen('long'), threadOpen('code'), fromNew]
