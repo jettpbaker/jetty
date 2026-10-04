@@ -7,7 +7,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @utility inline-code {
-  background-color: color-mix(in oklch, currentColor 8%, transparent);
+  background-color: color-mix(in oklch, var(--primary) 12%, transparent);
+  color: color-mix(in oklab, var(--primary) 35%, currentColor);
 }
 
 :root {
