@@ -600,7 +600,10 @@ function selectionPath(node: Selection['anchorNode'], root: HTMLElement | null) 
   return node === root ? path : undefined
 }
 
-export function DeferredMarkdownEditor(props: ComponentProps<typeof MarkdownEditor>) {
+export function DeferredMarkdownEditor({
+  deferUntilFocus = false,
+  ...props
+}: ComponentProps<typeof MarkdownEditor> & { deferUntilFocus?: boolean }) {
   const painted = useContext(PrPaintedContext)
   const [ready, setReady] = useState(false)
   const host = useRef<HTMLDivElement>(null)
@@ -613,13 +616,14 @@ export function DeferredMarkdownEditor(props: ComponentProps<typeof MarkdownEdit
   }, [])
   if (props.quote && !ready) setReady(true)
   const markup = useMemo(() => {
-    if (ready || (painted && !pointer.current) || props.quote) return
+    if (ready || (painted && !deferUntilFocus && !pointer.current) || props.quote) return
     if (props.onSubmit && !props.initial)
       return `<p${props.disabled ? '' : ` data-placeholder="${props.placeholder.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}" class="is-empty is-editor-empty"`}><br class="ProseMirror-trailingBreak"></p>`
     return descriptionMarkup(props.initial)
   }, [
     ready,
     painted,
+    deferUntilFocus,
     props.initial,
     props.onSubmit,
     props.disabled,

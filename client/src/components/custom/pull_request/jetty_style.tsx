@@ -65,7 +65,6 @@ import { Link } from '@tanstack/react-router'
 import {
   cloneElement,
   memo,
-  useCallback,
   createContext,
   isValidElement,
   useContext,
@@ -170,7 +169,9 @@ function Composer({
   reply = false,
   thread,
   quote,
+  deferUntilFocus = false,
 }: {
+  deferUntilFocus?: boolean
   author?: PrUser
   reply?: boolean
   thread?: PrThread
@@ -186,6 +187,7 @@ function Composer({
       />
       <div className='min-w-0 flex-1'>
         <DeferredMarkdownEditor
+          deferUntilFocus={deferUntilFocus}
           initial=''
           label={reply ? 'Reply' : 'Comment'}
           placeholder={reply ? 'Leave a reply…' : 'Leave a comment…'}
@@ -962,7 +964,7 @@ function StateGlyph({ state }: { state: PrPull['state'] }) {
   return <Icon className={`size-3.5 shrink-0 ${color}`} />
 }
 
-function Activity({ pr, onComments }: { pr: PrPull; onComments: () => void }) {
+function Activity({ pr }: { pr: PrPull }) {
   const [quote, setQuote] = useState<{ markdown: string; id: number }>()
   const quoteReply = (body: string) => <QuoteReply body={body} />
   const events: { key: string; at: string; content?: ReactNode; commit?: PrCommit }[] = [
@@ -1028,18 +1030,8 @@ function Activity({ pr, onComments }: { pr: PrPull; onComments: () => void }) {
                 {review.body.trim() && <span className='ml-auto'>{quoteReply(review.body)}</span>}
               </div>
               {review.body.trim() && <Body body={review.body} />}
-              {!!threads.length && (
-                <Button
-                  variant='ghost-text'
-                  size='sm'
-                  className='h-auto px-0 font-normal'
-                  onClick={onComments}
-                >
-                  ↪ {threads.filter((t) => t.resolved).length} of {threads.length} code comments
-                  resolved
-                </Button>
-              )}
             </div>
+            {!!threads.length && <ActivityThreads threads={threads} author={pr.viewer} />}
           </div>
         ),
     })),
@@ -1087,6 +1079,121 @@ function Activity({ pr, onComments }: { pr: PrPull; onComments: () => void }) {
     </QuoteContext>
   )
 }
+function ActivityThreads({ threads, author }: { threads: PrThread[]; author?: PrUser }) {
+  return (
+    <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
+      {threads.map((thread) => (
+        <ActivityThread key={thread.id} thread={thread} author={author} />
+      ))}
+    </div>
+  )
+}
+
+function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser }) {
+  const { actions } = usePrRuntime()
+  const [expanded, setExpanded] = useState(!thread.resolved)
+  const label = `${expanded ? 'Collapse' : 'Expand'} ${thread.path}:${thread.line} conversation`
+  function resolve(resolved: boolean) {
+    void actions.resolve(thread.id, resolved)
+    setExpanded(!resolved)
+  }
+  return (
+    <Collapsible open={expanded} onOpenChange={setExpanded}>
+      <CollapsibleTrigger
+        render={<button aria-label={label} />}
+        className='flex w-full flex-col gap-1.5 px-3 py-2.5 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring'
+        aria-label={label}
+      >
+        <span className='flex w-full items-center gap-2 text-xs'>
+          <ArrowDown01Icon
+            className={`size-3 shrink-0 text-muted-foreground ${expanded ? '' : '-rotate-90'}`}
+          />
+          <span
+            className={`min-w-0 flex-1 truncate font-mono ${thread.resolved ? 'text-muted-foreground' : ''}`}
+          >
+            {thread.path}:{thread.line}
+          </span>
+          {thread.resolved ? (
+            <SuccessStatusIcon
+              className='size-3.5 shrink-0 text-status-success'
+              aria-label='Resolved'
+            />
+          ) : (
+            <span className='inline-flex shrink-0 items-center gap-1 text-foreground'>Open</span>
+          )}
+        </span>
+        {!expanded && (
+          <span className='flex w-full items-center gap-2 pl-5 text-xs text-muted-foreground'>
+            <span className='min-w-0 flex-1 truncate'>{thread.comments[0]?.body}</span>
+            <span
+              className='inline-flex shrink-0 items-center gap-1 font-mono'
+              aria-label={`${thread.comments.length} comments`}
+            >
+              <VerdictGlyph state='COMMENTED' className='size-3.5' />
+              {thread.comments.length}
+            </span>
+          </span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className='overflow-hidden border-y-[0.5px] border-border bg-background'>
+          <Diff
+            file={{
+              path: thread.path,
+              status: 'modified',
+              additions: 0,
+              deletions: 0,
+              binary: false,
+              generated: false,
+              changes: 0,
+              viewed: false,
+            }}
+            patch={excerpt(thread)}
+            snippet
+          />
+        </div>
+        <div className='divide-y-[0.5px] divide-border *:px-3'>
+          {thread.comments.map((comment, i) => (
+            <Comment
+              key={comment.id}
+              comment={comment}
+              thread={thread}
+              reply={i > 0}
+              menu={
+                i === 0 && !thread.resolved ? (
+                  <ResolveThread
+                    disabled={thread.id.startsWith('comment:')}
+                    resolved={thread.resolved}
+                    onResolve={() => resolve(true)}
+                  />
+                ) : undefined
+              }
+            />
+          ))}
+        </div>
+        <div className='border-t-[0.5px] border-border'>
+          {thread.resolved ? (
+            <div className='flex justify-end px-3 py-1'>
+              <Button
+                variant='ghost-text'
+                size='sm'
+                className='px-0 font-normal'
+                onClick={() => resolve(false)}
+              >
+                Reopen
+              </Button>
+            </div>
+          ) : (
+            author && (
+              <Composer key={author.login} author={author} thread={thread} reply deferUntilFocus />
+            )
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 function InlineThreads({ threads, author }: { threads: PrThread[]; author?: PrUser }) {
   const { actions } = usePrRuntime()
   const isResolved = (thread: PrThread) => thread.resolved
@@ -1709,13 +1816,6 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     [pr.files]
   )
   const [selected, setSelected] = useState<string | null>(null)
-  const showComments = useCallback(() => {
-    setMode('comments')
-    setFilter('')
-    setHideViewed(false)
-    setSelected(null)
-    setTab('diff')
-  }, [])
   const [commitSha, setCommitSha] = useState<string | null>(null)
   // The file at the top of the diff as it scrolls; the tree's selection follows it.
   const [scrolledTo, setInView] = useState<string | null>(null)
@@ -1956,7 +2056,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               />
                             </Section>
                             <Section title='Activity' className='flex flex-1 flex-col'>
-                              <MemoizedActivity pr={pr} onComments={showComments} />
+                              <MemoizedActivity pr={pr} />
                             </Section>
                           </div>
                         </main>

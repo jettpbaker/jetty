@@ -57,12 +57,14 @@ export function Diff({
   threads = [],
   renderThreads,
   suggestion = false,
+  snippet = false,
 }: {
   file: PrFile
   patch?: string
   threads?: PrThread[]
   renderThreads?: (threads: PrThread[]) => ReactNode
   suggestion?: boolean
+  snippet?: boolean
 }) {
   const revision = useContext(PrDiffRevisionContext)
   const hasPatch = patch === undefined ? file.patch : patch
@@ -217,11 +219,12 @@ export function Diff({
       </div>
     )
   return (
-    <div className='min-w-0 overflow-x-auto'>
+    <div className={cn('min-w-0 overflow-x-auto', snippet && '@container/diff')}>
       <DiffBody
         diff={shown!}
         loadDiffFiles={loadDiffFiles}
         suggestion={suggestion}
+        snippet={snippet}
         annotations={annotations}
         renderAnnotation={({ metadata }) => (
           <div className='-ml-[calc(var(--diffs-column-number-width,0px)-4px)] py-2 pr-1 font-sans text-foreground'>

@@ -84,12 +84,14 @@ export function DiffBody<T = undefined>({
   diff,
   loadDiffFiles,
   suggestion = false,
+  snippet = false,
   annotations,
   renderAnnotation,
 }: {
   diff: FileDiffMetadata
   loadDiffFiles?: (diff: FileDiffMetadata) => Promise<FileDiffLoadedFiles>
   suggestion?: boolean
+  snippet?: boolean
   annotations?: DiffLineAnnotation<T>[]
   renderAnnotation?: (annotation: DiffLineAnnotation<T>) => ReactNode
 }) {
@@ -110,7 +112,7 @@ export function DiffBody<T = undefined>({
         theme: syntaxTheme,
         themeType: resolvedTheme === 'dark' ? 'dark' : 'light',
         disableFileHeader: true,
-        hunkSeparators: suggestion ? 'simple' : 'line-info',
+        hunkSeparators: snippet || suggestion ? 'simple' : 'line-info',
         overflow: wrap ? 'wrap' : 'scroll',
         unsafeCSS: diffCSS + foldCSS,
       }}
