@@ -358,8 +358,11 @@ const capyWords: Record<string, string> = {
 
 // Capy's take: each reviewer as an avatar and name. The row opens the picker, which lists them first.
 function ReviewerList({ people, children }: { people: Reviewer[]; children: ReactNode }) {
+  const overflow = people.length > 3
+  const shown = overflow ? people.slice(0, 3) : people
+  const remaining = people.slice(3)
   return (
-    <div className='px-1'>
+    <div className={cn('px-1', overflow && 'flex min-w-0 items-center gap-2 [&>span]:min-w-0')}>
       {isValidElement<{ trigger?: ReactElement; current?: unknown }>(children) &&
         cloneElement(children, {
           current: people.map(({ user, state, team }) => ({
@@ -369,10 +372,20 @@ function ReviewerList({ people, children }: { people: Reviewer[]; children: Reac
             team: !!team,
           })),
           trigger: (
-            <Button variant='ghost' size='sm' className='-mx-1 h-7 gap-3 px-0.75 font-normal'>
-              {people.map(({ user, state, team }) => (
-                <span key={user.login} className='inline-flex items-center gap-2'>
-                  <span className='relative'>
+            <Button
+              variant='ghost'
+              size='sm'
+              className={cn(
+                '-mx-1 h-7 gap-3 px-0.75 font-normal',
+                overflow && 'w-max min-w-0 shrink'
+              )}
+            >
+              {shown.map(({ user, state, team }) => (
+                <span
+                  key={user.login}
+                  className={cn('inline-flex items-center gap-2', overflow && 'min-w-0')}
+                >
+                  <span className='relative shrink-0'>
                     <PersonAvatar
                       login={personName(user)}
                       src={user.avatarUrl || undefined}
@@ -380,12 +393,50 @@ function ReviewerList({ people, children }: { people: Reviewer[]; children: Reac
                     />
                     <VerdictBadge state={state} />
                   </span>
-                  {personName(user)}
+                  {overflow ? (
+                    <span className='truncate'>{personName(user)}</span>
+                  ) : (
+                    personName(user)
+                  )}
                 </span>
               ))}
             </Button>
           ),
         })}
+      {overflow && (
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant='secondary'
+                size='xs'
+                className='rounded-full font-normal'
+                aria-label={`${remaining.length} more reviewers`}
+              />
+            }
+          >
+            +{remaining.length}
+          </PopoverTrigger>
+          <PopoverContent align='start' className='w-64 max-w-[calc(100vw-24px)] gap-0 p-1'>
+            <PopoverTitle className='sr-only'>More reviewers</PopoverTitle>
+            <ul className='scrollbar-subtle max-h-64 overflow-y-auto'>
+              {remaining.map(({ user, state, team }) => (
+                <li key={user.login} className='flex h-7 min-w-0 items-center gap-2 px-2 text-xs'>
+                  <span className='relative shrink-0'>
+                    <PersonAvatar
+                      login={personName(user)}
+                      src={user.avatarUrl || undefined}
+                      className={cn('size-4', team && 'rounded-menu-item [&>*]:rounded-menu-item')}
+                    />
+                    <VerdictBadge state={state} />
+                  </span>
+                  <span className='truncate'>{personName(user)}</span>
+                </li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   )
 }
