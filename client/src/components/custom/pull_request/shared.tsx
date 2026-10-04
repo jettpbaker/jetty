@@ -250,7 +250,7 @@ function threadLine(thread: PrThread) {
 export function Body({
   body,
   thread,
-  className = 'text-sm leading-6',
+  className = 'pr-comment-markdown text-sm leading-relaxed',
 }: {
   body: string
   thread?: PrThread

@@ -31,8 +31,30 @@ import 'streamdown/styles.css'
 import { unified, type PluggableList } from 'unified'
 
 const remarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBreaks, remarkFileLinks]
+function MarkdownImage({
+  node: _node,
+  src,
+  alt,
+  className,
+  ...props
+}: ComponentProps<'img'> & ExtraProps) {
+  const source = src?.replace(
+    /^(https:\/\/github\.githubassets\.com\/static\/images\/icons\/copilot-code-review\/(?:medium|low)-v2-light)\.png$/,
+    '$1.svg'
+  )
+  return (
+    <img
+      {...props}
+      src={source}
+      alt={alt ?? ''}
+      className={cn('inline-block max-w-full align-middle', className)}
+    />
+  )
+}
+
 const components = {
   pre: CodePre,
+  img: MarkdownImage,
   table: MarkdownTable,
   thead: MarkdownTableHead,
   tbody: MarkdownTableBody,

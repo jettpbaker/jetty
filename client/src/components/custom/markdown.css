@@ -6,3 +6,20 @@
   margin-right: 0.5rem;
   vertical-align: middle;
 }
+
+.pr-comment-markdown h1 {
+  font-size: 2em;
+}
+.pr-comment-markdown h2 {
+  font-size: 1.5em;
+}
+.pr-comment-markdown h3 {
+  font-size: 1.25em;
+}
+.pr-comment-markdown :is(h1, h2, h3) {
+  margin-block: 1em 0.5em;
+  line-height: 1.25;
+}
+.pr-comment-markdown > :first-child {
+  margin-top: 0;
+}
