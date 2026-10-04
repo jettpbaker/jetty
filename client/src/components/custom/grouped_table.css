@@ -91,7 +91,7 @@
   color: var(--foreground);
   text-align: left;
   font-size: 13px;
-  cursor: default;
+  cursor: pointer;
   outline: none;
 }
 .grouped-table-row[data-selected='true'] {

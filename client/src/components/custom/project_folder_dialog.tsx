@@ -147,5 +147,5 @@ function addLabel({ target, activeIsUp }: ReturnType<typeof useFolderPicker>) {
 }
 
 const row =
-  'flex h-10 cursor-default items-center gap-3 rounded-lg px-3 text-13 select-none hover:bg-muted data-[selected=true]:bg-accent [&_svg]:size-4 [&_svg]:shrink-0'
+  'flex h-10 cursor-pointer items-center gap-3 rounded-lg px-3 text-13 select-none hover:bg-muted data-[selected=true]:bg-accent [&_svg]:size-4 [&_svg]:shrink-0'
 const tag = 'ml-auto pl-4 text-xs text-muted-foreground'

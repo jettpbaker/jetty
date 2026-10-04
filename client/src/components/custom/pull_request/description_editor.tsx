@@ -1453,7 +1453,7 @@ export function MarkdownEditor({
                     }}
                     aria-selected={index === active}
                     data-selected={index === active}
-                    className='flex h-menu-item-compact cursor-default items-center gap-2 rounded-menu-item px-2 text-xs select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:size-3 [&_svg]:shrink-0'
+                    className='flex h-menu-item-compact cursor-pointer items-center gap-2 rounded-menu-item px-2 text-xs select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:size-3 [&_svg]:shrink-0'
                     onMouseMove={() => setActive(index)}
                     onClick={() => choose(index)}
                   >
