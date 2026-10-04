@@ -47,3 +47,26 @@
 .picker-glyph svg {
   color: currentColor !important;
 }
+
+.commit-picker-graph [data-slot='command-item'] {
+  height: 28px;
+}
+.commit-picker-node::before,
+.commit-picker-node::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  height: 8px;
+  background: var(--border);
+}
+.commit-picker-node::before {
+  bottom: 100%;
+}
+.commit-picker-node::after {
+  top: 100%;
+}
+.commit-picker-graph [data-slot='command-item']:first-child .commit-picker-node::before,
+.commit-picker-graph [data-slot='command-item']:last-child .commit-picker-node::after {
+  display: none;
+}

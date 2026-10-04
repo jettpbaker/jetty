@@ -16,6 +16,8 @@ import {
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { InProgressIcon } from '@/components/custom/in_progress_icon'
+
+import '../option_picker.css'
 import { Loading } from '@/components/custom/loading'
 import {
   CircleCheckIcon,
@@ -42,7 +44,6 @@ import {
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
@@ -1126,12 +1127,23 @@ function CommitPicker({
   value: PrCommit | undefined
   onChange: (sha: string | null) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const index = value ? commits.indexOf(value) : -1
-  const subject = (commit: PrCommit) => commit.message.split('\n')[0]
+  const subject = (commit: PrCommit) => commit.message.split('\n')[0] ?? ''
+  const results = commits.filter((commit) =>
+    `${subject(commit)} ${commit.sha}`.toLowerCase().includes(query.trim().toLowerCase())
+  )
   return (
     <div className='flex min-w-0 items-center gap-0.5'>
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (next) setQuery('')
+        }}
+      >
+        <PopoverTrigger
           render={<DiffToolbarButton className={cn('min-w-0', value && 'text-foreground')} />}
         >
           {value && value.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
@@ -1145,45 +1157,72 @@ function CommitPicker({
               Commits <span className='text-muted-foreground tabular-nums'>{commits.length}</span>
             </>
           )}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start' className='w-80 max-w-[calc(100vw-24px)]'>
-          <DropdownMenuRadioGroup
-            value={value?.sha ?? 'all'}
-            onValueChange={(sha) => onChange(sha === 'all' ? null : sha)}
-          >
-            <DropdownMenuRadioItem value='all' className='h-auto! py-2'>
-              <span className='flex flex-col gap-0.5'>
-                All commits
-                <span className='text-muted-foreground'>
-                  {countLabel(commits.length, 'commit')}
-                </span>
-              </span>
-            </DropdownMenuRadioItem>
-            <DropdownMenuSeparator />
-            {commits.map((commit) => (
-              <DropdownMenuRadioItem
-                key={commit.sha}
-                value={commit.sha}
-                className='h-auto! items-start py-2'
-              >
-                {commit.parents > 1 ? (
-                  <GitMergeIcon className='mt-0.5 size-3.5 shrink-0 text-muted-foreground' />
-                ) : (
-                  <GitCommitHorizontalIcon className='mt-0.5 size-3.5 shrink-0 text-muted-foreground' />
-                )}
-                <span className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='truncate'>{subject(commit)}</span>
-                  <span className='flex gap-2 text-muted-foreground'>
-                    <span className='font-mono'>{commit.sha.slice(0, 7)}</span>
-                    {commit.author}
-                    <Ago at={commit.date} raised />
-                  </span>
-                </span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverTrigger>
+        <PopoverContent
+          align='start'
+          className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
+        >
+          <PopoverTitle className='sr-only'>Commits</PopoverTitle>
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder='Search commits…'
+              aria-label='Search commits'
+              value={query}
+              onValueChange={setQuery}
+            />
+            <Separator />
+            <CommandList>
+              <div className='picker-results'>
+                <CommandGroup>
+                  <CommandItem
+                    value='All commits'
+                    data-checked={!value}
+                    onSelect={() => {
+                      setOpen(false)
+                      onChange(null)
+                    }}
+                  >
+                    <GitCommitHorizontalIcon />
+                    All commits
+                    <span
+                      data-slot='command-shortcut'
+                      className='ml-auto text-muted-foreground tabular-nums'
+                    >
+                      {commits.length}
+                    </span>
+                  </CommandItem>
+                </CommandGroup>
+                <Separator />
+                <CommandGroup className='commit-picker-graph'>
+                  {results.map((commit) => (
+                    <CommandItem
+                      key={commit.sha}
+                      value={commit.sha}
+                      keywords={[subject(commit)]}
+                      data-checked={value?.sha === commit.sha}
+                      onSelect={() => {
+                        setOpen(false)
+                        onChange(commit.sha)
+                      }}
+                    >
+                      <span className='commit-picker-node relative flex shrink-0 items-center text-muted-foreground'>
+                        {commit.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
+                      </span>
+                      <span className='min-w-0 flex-1 truncate'>{subject(commit)}</span>
+                      <span
+                        data-slot='command-shortcut'
+                        className='ml-auto font-mono text-muted-foreground'
+                      >
+                        {commit.sha.slice(0, 7)}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </div>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
       {value && (
         <>
           <Hint text='Previous commit'>
