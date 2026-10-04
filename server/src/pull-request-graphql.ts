@@ -319,7 +319,12 @@ export function mapPullRequestGraphql(value: unknown) {
     'timelineItems',
     'comments',
     'labels',
-  ].filter((field) => record(record(pull[field]).pageInfo).hasNextPage === true)
+  ].filter(
+    (field) =>
+      record(record(pull[field]).pageInfo).hasNextPage === true ||
+      (field === 'commitHistory' &&
+        Number(record(pull[field]).totalCount) > nodes(pull[field]).length)
+  )
   for (const value of nodes(pull.reviewThreads)) {
     const thread = record(value)
     if (record(record(thread.comments).pageInfo).hasNextPage)
