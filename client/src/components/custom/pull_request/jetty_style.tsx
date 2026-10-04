@@ -1144,7 +1144,7 @@ function InlineThreads({ threads, author }: { threads: PrThread[]; author?: PrUs
         >
           <CollapsibleTrigger
             render={<Button variant='ghost-text' />}
-            className='group/resolved flex h-auto w-full cursor-pointer justify-start gap-2 rounded-none border-0 p-3 text-xs font-normal active:translate-y-0'
+            className='group/resolved flex h-auto w-full justify-start gap-2 rounded-none border-0 p-3 text-xs font-normal focus-visible:ring-inset active:translate-y-0'
           >
             <SuccessStatusIcon className='size-3.5 shrink-0 text-status-success' />
             {count} resolved comments from {authors.join(', ')}
