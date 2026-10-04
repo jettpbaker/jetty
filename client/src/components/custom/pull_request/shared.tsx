@@ -219,7 +219,7 @@ export function Diff({
       </div>
     )
   return (
-    <div className={cn('min-w-0 overflow-x-auto', snippet && '@container/diff')}>
+    <div className='min-w-0 overflow-x-auto'>
       <DiffBody
         diff={shown!}
         loadDiffFiles={loadDiffFiles}
