@@ -258,10 +258,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 variant='ghost'
                 size='sm'
                 aria-pressed={tab === value}
-                className={cn(
-                  'rounded-sm font-normal',
-                  tab === value ? 'bg-accent text-foreground' : 'text-muted-foreground'
-                )}
+                className='rounded-sm font-normal'
                 {...pressProps(() => onTabChange(value))}
               >
                 {value === 'for-you' ? 'For you' : 'Created'}

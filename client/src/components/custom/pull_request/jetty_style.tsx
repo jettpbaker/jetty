@@ -1844,10 +1844,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             variant='ghost'
                             size='sm'
                             aria-pressed={tab === value}
-                            className={cn(
-                              'rounded-sm font-normal',
-                              tab === value ? 'bg-accent text-foreground' : 'text-muted-foreground'
-                            )}
+                            className='rounded-sm font-normal'
                             {...pressProps(() => {
                               if (value === 'diff') perf.start('pr.diff')
                               setTab(value)
