@@ -154,7 +154,7 @@ export function createRpcHandlers(
     }
 
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
-    const pullRequestLists = createPullRequestLists(store, hub)
+    const pullRequestLists = createPullRequestLists(store, hub, pullRequests, admissionScope)
 
     function checkedRef(ref: {
       repo: string

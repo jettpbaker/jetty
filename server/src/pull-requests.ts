@@ -1368,7 +1368,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   type Job = {
     ref: PullRequestRef
     key: string
-    priority: 'visible' | 'prefetch'
+    priority: 'visible' | 'arrival' | 'prefetch'
     queuedAt: number
     started: boolean
     revision: number
@@ -1402,7 +1402,7 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   function finish(job: Job, fetched: PullRequestSnapshot) {
     if (!jobs.delete(job.key)) return
-    if (job.priority === 'prefetch') activePrefetches--
+    if (job.priority !== 'visible') activePrefetches--
     else activeVisible--
     void Effect.runPromise(publish(job.ref, fetched, job.revision)).then(job.resolve, (error) => {
       console.error(`[pr-fetch] ${job.key} publication failed`, error)
@@ -1484,11 +1484,13 @@ export function createPullRequests(store: Store, hub: Hub) {
         let index =
           activeVisible < visibleLimit ? queue.findIndex((job) => job.priority === 'visible') : -1
         if (index < 0 && activePrefetches < prefetchLimit)
+          index = queue.findIndex((job) => job.priority === 'arrival')
+        if (index < 0 && activePrefetches < prefetchLimit)
           index = queue.findIndex((job) => job.priority === 'prefetch')
         if (index < 0) break
         const job = queue.splice(index, 1)[0]!
         job.started = true
-        if (job.priority === 'prefetch') activePrefetches++
+        if (job.priority !== 'visible') activePrefetches++
         else activeVisible++
         batch.push(job)
       }
@@ -1512,12 +1514,14 @@ export function createPullRequests(store: Store, hub: Hub) {
     if (pendingOperations.has(key)) return Promise.resolve(undefined)
     const existing = jobs.get(key)
     if (existing) {
-      if (priority === 'visible' && existing.priority === 'prefetch') {
+      if (priority === 'visible' && existing.priority !== 'visible') {
         if (existing.started) {
           activePrefetches--
           activeVisible++
         }
         existing.priority = 'visible'
+      } else if (priority === 'arrival' && existing.priority === 'prefetch') {
+        existing.priority = 'arrival'
       }
       drain()
       return existing.promise
@@ -1525,7 +1529,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     if (
       priority === 'prefetch' &&
       capped &&
-      queue.filter((job) => job.priority === 'prefetch').length >= queuedPrefetchLimit
+      queue.filter((job) => job.priority !== 'visible').length >= queuedPrefetchLimit
     )
       return Promise.resolve(undefined)
     let resolve!: Job['resolve']
@@ -1661,19 +1665,29 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  // A list's newest open rows join the prefetch queue past its cap; it still reads two at a time.
-  function prefetchList(tab: PullRequestListTab) {
+  // List warming bypasses the hover queue's cap, but shares its two-read concurrency limit.
+  function prefetchList(tab: PullRequestListTab, arrivals: readonly PullRequestRef[] = []) {
     return Effect.gen(function* () {
       const list = yield* store.getPullRequestList(tab)
       const rows = (list.items ?? [])
         .filter((pull) => pull.state === 'open')
         .toSorted((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, 10)
-      const due: PullRequestRef[] = []
-      for (const { repo, number } of rows)
-        if (prefetchDue(yield* get({ repo, number }))) due.push({ repo, number })
+      const due: { ref: PullRequestRef; priority: 'arrival' | 'prefetch' }[] = []
+      const arrivalKeys = new Set(arrivals.map(prKey))
+      const seen = new Set<string>()
+      for (const ref of [...arrivals, ...rows]) {
+        const key = prKey(ref)
+        if (seen.has(key)) continue
+        seen.add(key)
+        if (prefetchDue(yield* get(ref)))
+          due.push({
+            ref,
+            priority: arrivalKeys.has(key) ? 'arrival' : 'prefetch',
+          })
+      }
       const snapshots = yield* Effect.promise(() =>
-        Promise.all(due.map((ref) => schedule(ref, 'prefetch', false)))
+        Promise.all(due.map(({ ref, priority }) => schedule(ref, priority, false)))
       )
       return snapshots.filter((snapshot) => snapshot !== undefined)
     })
@@ -2423,7 +2437,12 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   )
 }
 
-export function createPullRequestLists(store: Store, hub: Hub) {
+export function createPullRequestLists(
+  store: Store,
+  hub: Hub,
+  pulls: ReturnType<typeof createPullRequests>,
+  scope: Scope.Scope
+) {
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
   const publication = {
@@ -2496,6 +2515,17 @@ export function createPullRequestLists(store: Store, hub: Hub) {
       // The stored list keeps the last good items when this read failed.
       const list = yield* store.getPullRequestList(tab)
       const decorated = decorate(list)
+      if (list.status === 'ready') {
+        const previous = new Set((cached.items ?? []).map(prKey))
+        const arrivals = cached.items
+          ? (list.items ?? []).filter((item) => !previous.has(prKey(item)))
+          : []
+        if (!cached.items || arrivals.length)
+          yield* pulls.prefetchList(tab, arrivals).pipe(
+            Effect.catch(() => Effect.void),
+            Effect.forkIn(scope)
+          )
+      }
       hub.pushPullRequestList(decorated)
       return decorated
     }).pipe(publication[tab].withPermit)
