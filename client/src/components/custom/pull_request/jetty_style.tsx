@@ -1277,7 +1277,16 @@ function FileCard({
   hideGenerated: boolean
   commit?: PrCommit
 }) {
-  const [height] = useState(() => Math.max(80, (file.patch?.split('\n').length ?? 4) * 20 + 32))
+  const [height] = useState(() =>
+    Math.max(
+      80,
+      (file.patchDeferred
+        ? file.additions + file.deletions + 4
+        : (file.patch?.split('\n').length ?? 4)) *
+        20 +
+        32
+    )
+  )
   const [showGenerated, setShowGenerated] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const open = !viewed && !collapsed

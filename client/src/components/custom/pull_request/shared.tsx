@@ -103,7 +103,9 @@ export function Diff({
                 contents: contents.after,
                 cacheKey: `${revision}:${file.path}:after`,
               }
-        setDeferred({ revision, diff: parseDiffFromFile(oldFile, newFile) })
+        const diff = parseDiffFromFile(oldFile, newFile)
+        diff.cacheKey ??= `${revision}:${file.path}`
+        setDeferred({ revision, diff })
       })
       .catch(() => active && setDeferred({ revision, error: 'Diff unavailable' }))
     return () => {
@@ -152,13 +154,20 @@ export function Diff({
   }, [loadFile, suggestion, patch, diff, file.path, file.previousPath])
   const shown = context && context.diff === diff ? context.shown : diff
   const threadPatch = patch ?? file.patch
-  const lines = useMemo(
-    () => ({
+  const lines = useMemo(() => {
+    const lines = {
       LEFT: visibleLines({ status: 'removed', patch: threadPatch }),
       RIGHT: visibleLines({ status: 'modified', patch: threadPatch }),
-    }),
-    [threadPatch]
-  )
+    }
+    if (threadPatch || !file.patchDeferred || !diff) return lines
+    for (const hunk of diff.hunks) {
+      for (let line = hunk.deletionStart; line < hunk.deletionStart + hunk.deletionCount; line++)
+        lines.LEFT.add(line)
+      for (let line = hunk.additionStart; line < hunk.additionStart + hunk.additionCount; line++)
+        lines.RIGHT.add(line)
+    }
+    return lines
+  }, [threadPatch, file.patchDeferred, diff])
   const showResolved = !!renderThreads
   const anchored = useMemo(
     () =>
