@@ -1110,6 +1110,7 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
           >
             {place}
           </span>
+          {thread.outdated && <span className='shrink-0 text-muted-foreground'>Outdated</span>}
           {thread.resolved ? (
             <SuccessStatusIcon
               className='size-3.5 shrink-0 text-status-success'
