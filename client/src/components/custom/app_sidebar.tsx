@@ -414,7 +414,7 @@ export function AppSidebar() {
       <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
         <Button
           variant='ghost'
-          className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground not-disabled:hover:bg-sidebar-accent not-disabled:hover:text-foreground not-disabled:active:not-aria-[haspopup]:translate-y-0 aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+          className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground not-disabled:hover:bg-sidebar-accent not-disabled:hover:text-foreground active:translate-y-0 aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
           aria-current={onSettings ? 'page' : undefined}
           aria-label='Settings'
           {...pressProps(openSettings)}
