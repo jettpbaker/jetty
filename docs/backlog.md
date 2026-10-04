@@ -14,6 +14,23 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   the Changes tab the same diff skin (Jetty's status green/red). The checks
   list's design pass (jettpbaker/jetty-issues#11) is done there: grouped
   Failing / Running / Successful, skipped folded into one row.
+- Picks waiting until the ported UI is polished (sketchpad on :5174):
+  - Command palette, two looks: `/components/command-palette`, or in the app
+    preview `/components/app?palette=a|b`.
+  - Settings redesign, two looks (A Document, B Window): `/components/settings`,
+    or `/components/app?settings=a|b`.
+  - Issues view (`/components/issues`, `/components/issue-page`), keybind chips
+    (`/components/keybinds`), and PR view E's review flows (comment from the
+    gutter, start a review, suggest, submit with a verdict).
+  - PR description edits are last-writer-wins across devices; an "edited
+    elsewhere" guard is possible.
+  - ⌥1–9 opens pinned threads; the alternative is driving tabs.
+- Failing and running checks on sidebar thread rows:
+  `/components/thread-row-checks`. Red already means a closed PR, so the mark
+  can't just turn red. C (a separate failure disc and count) was recommended,
+  but its running ring is the working-agent glyph and could read as "agent busy".
+- An icon for the PR overview's Thread row: `/components/icon-picks` (thread
+  section). B (Message multiple 01) was recommended.
 
 ## later
 
@@ -30,7 +47,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   stack model in the GitHub client.
 - Accept `#<PR number>` as a worktree ref by fetching the PR head.
 - Continue work on an existing branch.
-- Command palette: removed in the v2 skeleton; no design yet.
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
   plus an optional precheck command Jetty runs host-side; Orca's automations
   --precheck pattern) that survives restarts and works for every provider.
