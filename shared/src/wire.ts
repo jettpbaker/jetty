@@ -554,7 +554,7 @@ export const methods = {
     result: Schema.Array(PullRequestSnapshot),
   },
   'pullRequestList.refresh': {
-    params: Schema.Struct({ tab: PullRequestListTab }),
+    params: Schema.Struct({ tab: PullRequestListTab, maxAge: Schema.optional(Schema.Number) }),
     result: PullRequestList,
   },
   'pullRequestList.subscribe': {

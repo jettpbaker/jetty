@@ -478,8 +478,8 @@ export function createRpcHandlers(
         ),
       'pullRequestList.prefetch': ({ tab }) =>
         pullRequests.prefetchList(tab).pipe(Effect.mapError(wireError)),
-      'pullRequestList.refresh': ({ tab }) =>
-        pullRequestLists.refresh(tab).pipe(Effect.mapError(wireError)),
+      'pullRequestList.refresh': ({ tab, maxAge }) =>
+        pullRequestLists.refresh(tab, maxAge).pipe(Effect.mapError(wireError)),
       'pullRequestList.subscribe': ({ tab, activity = 'focused' }) =>
         Stream.unwrap(
           Effect.gen(function* () {

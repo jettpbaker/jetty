@@ -348,13 +348,18 @@ export function usePrefetchPullRequestList() {
   return useAction(prefetchPullRequestList)
 }
 
-function refreshPullRequestList(registry: Registry, tab: PullRequestListTab) {
+function refreshPullRequestList(registry: Registry, tab: PullRequestListTab, maxAge?: number) {
   const key = `list:${tab}`
   if (registry.get(refreshingAtom).has(key)) return
   setRefreshing(registry, key, true)
   run(registry, (connection) =>
-    connection.request('pullRequestList.refresh', { tab }).pipe(
-      Effect.tap((list) => Effect.sync(() => registry.set(listCacheAtom(tab), list))),
+    connection.request('pullRequestList.refresh', { tab, maxAge }).pipe(
+      Effect.tap((list) =>
+        Effect.sync(() => {
+          registry.set(listCacheAtom(tab), list)
+          if (list.status === 'ready') prefetchPullRequestList(registry, tab)
+        })
+      ),
       Effect.ensuring(Effect.sync(() => setRefreshing(registry, key, false)))
     )
   )
@@ -362,6 +367,23 @@ function refreshPullRequestList(registry: Registry, tab: PullRequestListTab) {
 
 export function useRefreshPullRequestList() {
   return useAction(refreshPullRequestList)
+}
+
+const listArrivalAtom = Atom.make(0).pipe(Atom.keepAlive)
+
+function refreshPullRequestListsOnArrival(registry: Registry) {
+  const now = Date.now()
+  if (now - registry.get(listArrivalAtom) < 30_000) return
+  const tabs = (['for-you', 'created'] as const).filter(
+    (tab) => now - (registry.get(listCacheAtom(tab))?.refreshedAt ?? 0) >= 30_000
+  )
+  if (!tabs.length) return
+  registry.set(listArrivalAtom, now)
+  for (const tab of tabs) refreshPullRequestList(registry, tab, 30_000)
+}
+
+export function useRefreshPullRequestListsOnArrival() {
+  return useAction(refreshPullRequestListsOnArrival)
 }
 
 // Which PR tabs a thread's details pane shows. The newest link shows until it's closed;

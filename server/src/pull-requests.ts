@@ -2482,8 +2482,10 @@ export function createPullRequestLists(store: Store, hub: Hub) {
     return promise
   }
 
-  function refresh(tab: PullRequestListTab) {
+  function refresh(tab: PullRequestListTab, maxAge = 0) {
     return Effect.gen(function* () {
+      const cached = yield* get(tab)
+      if (cached.refreshedAt && Date.now() - cached.refreshedAt < maxAge) return cached
       yield* store.savePullRequestList(yield* Effect.promise(() => load(tab)))
       // The stored list keeps the last good items when this read failed.
       const list = yield* store.getPullRequestList(tab)

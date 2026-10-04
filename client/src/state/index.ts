@@ -55,6 +55,7 @@ export {
   usePullRequestTabs,
   useRefreshPullRequest,
   useRefreshPullRequestList,
+  useRefreshPullRequestListsOnArrival,
   useReviewRequestPatches,
   useReviewerCandidates,
   useSetReviewRequest,

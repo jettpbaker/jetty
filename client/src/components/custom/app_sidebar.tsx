@@ -40,6 +40,7 @@ import {
   useThreadJourney,
   useThreadRowPrefetch,
   useRenameThread,
+  useRefreshPullRequestListsOnArrival,
   type Chrome,
 } from '@/state'
 import { useWorktreeChanges } from '@/state/worktrees'
@@ -147,6 +148,7 @@ export function AppSidebar() {
   const chrome = useChrome()
   const now = useNow(60_000)
   const navigate = useNavigate()
+  const refreshPullRequestLists = useRefreshPullRequestListsOnArrival()
   const router = useRouter()
   const selectedId = useParams({ strict: false }).threadId
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
@@ -303,7 +305,11 @@ export function AppSidebar() {
                 variant='ghost'
                 className={navigationButtonClass}
                 aria-current={onPullRequests ? 'page' : undefined}
-                {...pressProps(() => navigate({ to: '/pull-requests' }))}
+                onPointerEnter={refreshPullRequestLists}
+                {...pressProps(() => {
+                  refreshPullRequestLists()
+                  void navigate({ to: '/pull-requests' })
+                })}
               >
                 <GitPullRequestIcon className='size-3' />
                 Pull requests
