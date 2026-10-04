@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
 
@@ -32,6 +32,13 @@ export function DiffFileList({
   comments?: Record<string, number>
   children: ReactNode
 }) {
+  const scroller = useRef<HTMLElement>(null)
+  const sections = useRef<HTMLElement[]>([])
+  useEffect(() => {
+    sections.current = [
+      ...(scroller.current?.querySelectorAll<HTMLElement>('section[id^=linear-file-]') ?? []),
+    ]
+  }, [files])
   const active = useRef(inView)
   active.current = inView
   return (
@@ -63,13 +70,18 @@ export function DiffFileList({
         </nav>
       )}
       <main
+        ref={scroller}
         aria-label='File diffs'
-        onScroll={(e) => {
-          const top = e.currentTarget.getBoundingClientRect().top + 24
-          const section = [
-            ...e.currentTarget.querySelectorAll<HTMLElement>('section[id^=linear-file-]'),
-          ].find((s) => s.getBoundingClientRect().bottom > top)
-          const path = section?.id.slice('linear-file-'.length) ?? null
+        onScroll={(event) => {
+          const top = event.currentTarget.getBoundingClientRect().top + 24
+          let low = 0
+          let high = sections.current.length
+          while (low < high) {
+            const middle = (low + high) >>> 1
+            if (sections.current[middle]!.getBoundingClientRect().bottom > top) high = middle
+            else low = middle + 1
+          }
+          const path = sections.current[low]?.id.slice('linear-file-'.length) ?? null
           if (path !== active.current) onInView(path)
         }}
         className='scrollbar-subtle min-w-0 flex-1 space-y-3 overflow-auto pr-4 pb-4 pl-3 @max-[720px]:pl-4'

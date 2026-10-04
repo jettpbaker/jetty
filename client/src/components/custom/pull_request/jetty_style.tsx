@@ -1260,9 +1260,12 @@ function FileMenu({ file, pr, at }: { file: PrFile; pr: PrPull; at?: string }) {
     </DropdownMenu>
   )
 }
+const noThreads: PrThread[] = []
+
 function FileCard({
   file,
   pr,
+  threads,
   comments,
   viewed,
   onViewed,
@@ -1271,6 +1274,7 @@ function FileCard({
 }: {
   file: PrFile
   pr: PrPull
+  threads: PrThread[]
   comments: boolean
   viewed: boolean
   onViewed: (checked: boolean) => void
@@ -1290,8 +1294,6 @@ function FileCard({
   const [showGenerated, setShowGenerated] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const open = !viewed && !collapsed
-  // Review threads sit on the PR's latest code, so a single commit's diff shows none of them.
-  const threads = commit ? [] : pr.threads.filter((t) => t.path === file.path)
   const openThreads = threads.filter((t) => !t.resolved).length
   const renderThreads = (threads: PrThread[]) => (
     <InlineThreads threads={threads} author={pr.viewer} />
@@ -1619,28 +1621,47 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     commit ? (commitFiles.data?.parentSha ?? undefined) : pr.data.pull.base.sha,
     commit?.sha ?? pr.data.pull.head.sha
   )
-  const missingPaths = [...new Set(pr.threads.map((thread) => thread.path))].filter(
-    (path) => !pr.files.some((file) => file.path === path)
+  const threadsByPath = useMemo(() => {
+    const grouped = new Map<string, PrThread[]>()
+    for (const thread of pr.threads) {
+      const threads = grouped.get(thread.path)
+      if (threads) threads.push(thread)
+      else grouped.set(thread.path, [thread])
+    }
+    return grouped
+  }, [pr.threads])
+  const commentCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        [...threadsByPath].map(([path, threads]) => [
+          path,
+          threads.filter((thread) => !thread.resolved).length,
+        ])
+      ),
+    [threadsByPath]
   )
-  const changed = commit
-    ? (commitFiles.data?.files.map(prFile) ?? [])
-    : [
-        ...pr.files,
-        ...(mode === 'comments'
-          ? missingPaths.map(
-              (path): PrFile => ({
-                path,
-                status: 'modified',
-                additions: 0,
-                deletions: 0,
-                changes: 0,
-                binary: false,
-                generated: false,
-                viewed: false,
-              })
-            )
-          : []),
-      ]
+  const changed = useMemo(() => {
+    if (commit) return commitFiles.data?.files.map(prFile) ?? []
+    if (mode !== 'comments') return pr.files
+    const paths = new Set(pr.files.map((file) => file.path))
+    return [
+      ...pr.files,
+      ...[...threadsByPath.keys()]
+        .filter((path) => !paths.has(path))
+        .map(
+          (path): PrFile => ({
+            path,
+            status: 'modified',
+            additions: 0,
+            deletions: 0,
+            changes: 0,
+            binary: false,
+            generated: false,
+            viewed: false,
+          })
+        ),
+    ]
+  }, [commit, commitFiles.data, mode, pr.files, threadsByPath])
   const revision = `${ref.repo}:${commit?.sha ?? pr.data.pull.head.sha}:${commitFiles.data?.parentSha ?? pr.data.pull.base.sha}`
   useEffect(() => {
     if (painted)
@@ -1652,14 +1673,18 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   useLayoutEffect(() => {
     if (tab === 'diff') perf.rendered('pr.diff')
   }, [tab])
-  const files = [...changed]
-    .sort(byTreeOrder)
-    .filter(
-      (f) =>
-        (commit || mode === 'all' || pr.threads.some((t) => t.path === f.path)) &&
-        (!hideViewed || !viewed.has(f.path)) &&
-        f.path.toLowerCase().includes(filter.toLowerCase())
-    )
+  const files = useMemo(
+    () =>
+      [...changed]
+        .sort(byTreeOrder)
+        .filter(
+          (file) =>
+            (commit || mode === 'all' || threadsByPath.has(file.path)) &&
+            (!hideViewed || !viewed.has(file.path)) &&
+            file.path.toLowerCase().includes(filter.toLowerCase())
+        ),
+    [changed, commit, mode, threadsByPath, hideViewed, viewed, filter]
+  )
   const inView = files.some((f) => f.path === scrolledTo) ? scrolledTo : (files[0]?.path ?? null)
   inViewRef.current = inView
   const reason = mergeReason(pr)
@@ -1909,22 +1934,14 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             )
                             ?.scrollIntoView({ block: 'start' })
                         }}
-                        comments={
-                          commit
-                            ? undefined
-                            : Object.fromEntries(
-                                files.map((f) => [
-                                  f.path,
-                                  pr.threads.filter((t) => t.path === f.path && !t.resolved).length,
-                                ])
-                              )
-                        }
+                        comments={commit ? undefined : commentCounts}
                       >
                         {files.map((f) => (
                           <FileCard
                             key={`${commitSha}-${f.path}`}
                             file={f}
                             pr={pr}
+                            threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
                             commit={commit}
                             comments={mode === 'comments'}
                             hideGenerated={hideGenerated}
