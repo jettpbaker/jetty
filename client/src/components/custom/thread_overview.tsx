@@ -277,13 +277,13 @@ function ChangedFileRow({ file, onOpen }: { file: ChangedFile; onOpen: () => voi
       variant='ghost'
       onClick={onOpen}
       title={file.path}
-      className='h-7 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-normal'
+      className='h-7 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-mono text-xs font-normal'
     >
       <span className='shrink-0 text-foreground'>{file.path.slice(slash + 1)}</span>
-      <span className='min-w-0 truncate text-xs text-muted-foreground'>
+      <span className='min-w-0 truncate text-muted-foreground'>
         {file.path.slice(0, slash + 1)}
       </span>
-      <span className='ml-auto flex shrink-0 gap-1.5 font-mono text-xs tabular-nums'>
+      <span className='ml-auto flex shrink-0 gap-1.5 tabular-nums'>
         <span className='text-status-success'>+{file.added}</span>
         <span className='text-status-error'>−{file.removed}</span>
       </span>
