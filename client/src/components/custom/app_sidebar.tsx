@@ -58,7 +58,6 @@ import {
   KeybindTooltip,
   keybinds,
   appShortcut,
-  inDialog,
   type Keybind,
 } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
@@ -163,13 +162,16 @@ export const AppSidebar = memo(function AppSidebar() {
             {
               hotkey: binding.hotkey,
               callback: (event: KeyboardEvent) => {
-                if (!inDialog(event)) openThread(thread)
+                // ⌥-digit glyphs stay available in every text field except the composer.
+                if (!appShortcut(event)) return
+                event.preventDefault()
+                openThread(thread)
               },
             },
           ]
         : []
     }),
-    { requireReset: true, ignoreInputs: true }
+    { requireReset: true, ignoreInputs: false, preventDefault: false }
   )
 
   useHotkey(
