@@ -83,7 +83,7 @@
   --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);
   --status-error-wash: color-mix(in oklch, var(--status-error) 16%, transparent);
   --pr-open: var(--status-success);
-  --pr-running: oklch(0.68 0.138 90);
+  --pr-running: oklch(0.73 0.155 83);
   --pr-draft: oklch(0.697 0.003 286.325);
   --pr-merged: oklch(0.552 0.148 276.827);
   --pr-closed: oklch(0.6 0.2 23.018);
