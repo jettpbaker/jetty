@@ -314,12 +314,15 @@ export function observeRateLimit(headers: Headers, body: unknown, status: number
   )
 }
 
+function backoffFailure() {
+  return new GhFailure(
+    'rate_limited',
+    `GitHub rate limit reached; retry after ${new Date(rateHealth.backoffUntil!).toISOString()}`
+  )
+}
+
 export function checkBackoff() {
-  if (backingOff())
-    throw new GhFailure(
-      'rate_limited',
-      `GitHub rate limit reached; retry after ${new Date(rateHealth.backoffUntil!).toISOString()}`
-    )
+  if (backingOff()) throw backoffFailure()
 }
 
 type ApiRequest = { method: string; path: string; body?: string }
@@ -2932,8 +2935,17 @@ export function createPullRequestLists(
     }
   }
 
+  // A list that never loaded can't while GitHub backs off, so it says why instead of loading.
   function get(tab: PullRequestListTab) {
-    return store.getPullRequestList(tab).pipe(Effect.map((list) => decorate(list)))
+    return store
+      .getPullRequestList(tab)
+      .pipe(
+        Effect.map((list) =>
+          decorate(
+            list.status === 'loading' && backingOff() ? failedList(tab, backoffFailure()) : list
+          )
+        )
+      )
   }
 
   function load(tab: PullRequestListTab) {
