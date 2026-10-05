@@ -157,9 +157,7 @@ function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
   const prefetch = useThreadRowPrefetch()
   const meta = chrome?.threads.find((thread) => thread.id === id)
   if (!chrome || !meta) return fallback
-  // A thread that has gone idle has finished its run.
-  const status = threadStatus(meta.status, meta.readyForReview)
-  const look = statusPresentation[status === 'idle' ? 'done' : status]
+  const look = statusPresentation[threadStatus(meta.status, meta.readyForReview)]
   const [first, ...rest] = shorten(meta.title).split(' ')
   return (
     <PreviewCard.Root>
