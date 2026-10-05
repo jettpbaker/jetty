@@ -14,6 +14,7 @@ import {
 } from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
 
+import { copyOpened, readBounded } from './file-bytes'
 import { git, gitStream } from './git-process'
 import { StoreError } from './store'
 
@@ -177,8 +178,16 @@ function readHead(root: string, path: string, baseCommit = 'HEAD') {
     const size = yield* git(root, ['cat-file', '-s', `${baseCommit}:./${path}`])
     if (size.code !== 0) return null
     if (Number(size.out) > MAX_CONTENTS_BYTES) return tooLarge
-    const { out, code } = yield* git(root, ['cat-file', 'blob', `${baseCommit}:./${path}`])
+    const chunks: string[] = []
+    let bytes = 0
+    const code = yield* gitStream(root, ['cat-file', 'blob', `${baseCommit}:./${path}`], (text) => {
+      if (bytes > MAX_CONTENTS_BYTES) return
+      bytes += Buffer.byteLength(text)
+      if (bytes <= MAX_CONTENTS_BYTES) chunks.push(text)
+    })
     if (code !== 0) return null
+    if (bytes > MAX_CONTENTS_BYTES) return tooLarge
+    const out = chunks.join('')
     return out.includes('\0') ? binary : out
   })
 }
@@ -197,12 +206,12 @@ function readWorkingTree(root: string, repoPath: string) {
     // Git diffs a symlink's target path, never the file it points at.
     const link = yield* fs.readLink(file).pipe(Effect.option)
     if (Option.isSome(link)) return link.value
-    const stat = yield* fs.stat(file).pipe(Effect.option)
-    if (Option.isNone(stat) || stat.value.type !== 'File') return null
-    if (Number(stat.value.size) > MAX_CONTENTS_BYTES) return tooLarge
-    const bytes = yield* fs.readFile(file).pipe(Effect.option)
-    if (Option.isNone(bytes)) return null
-    return bytes.value.includes(0) ? binary : new TextDecoder().decode(bytes.value)
+    const current = yield* Effect.promise(() =>
+      readCurrent(path.join(dir.value, path.basename(file))).catch(() => undefined)
+    )
+    if (!current) return null
+    if (current.text !== undefined) return new TextDecoder().decode(current.bytes)
+    return 'contents' in current.file ? current.file.contents : current.file
   })
 }
 
@@ -336,7 +345,7 @@ async function readOpened({
 }): Promise<Opened> {
   if (!stats.isFile()) throw new StoreError('invalid_params', 'Not a regular file')
   if (stats.size > MAX_CONTENTS_BYTES) return { file: tooLarge }
-  return decode(await handle.readFile())
+  return decode(await readBounded(handle, MAX_CONTENTS_BYTES))
 }
 
 type Current = Opened & { mode?: number; handle?: FileHandle }
@@ -416,7 +425,7 @@ function inTurn<A>(folder: string, save: () => Promise<A>) {
 
 // Writes `bytes` to a new synced sibling of the real path `file` and returns its path; undefined
 // when the folder is no longer where `file` resolved.
-async function writeSibling(file: string, bytes: Buffer, mode: number | undefined) {
+async function writeSibling(file: string, source: Buffer | FileHandle, mode: number | undefined) {
   const temp = join(dirname(file), `.${randomUUID()}.jetty-save`)
   // Owner-only until it takes the file's mode, so a private file's text is never readable by
   // others in the sibling. A new file's sibling is created as the file would be.
@@ -431,7 +440,8 @@ async function writeSibling(file: string, bytes: Buffer, mode: number | undefine
     // what shows it went there, not through a symlink swapped in since. The rename finds it
     // through the same path, so it can only land beside it.
     if ((await realpath(temp).catch(() => undefined)) !== temp) return undefined
-    await handle.writeFile(bytes)
+    if (Buffer.isBuffer(source)) await handle.writeFile(source)
+    else await copyOpened(source, handle)
     if (mode !== undefined) await handle.chmod(mode & 0o7777)
     await handle.sync()
     written = true
@@ -440,13 +450,6 @@ async function writeSibling(file: string, bytes: Buffer, mode: number | undefine
     await handle.close()
     if (!written) await unlink(temp).catch(() => {})
   }
-}
-
-// All of the file `handle` has open, from its start.
-async function readAll(handle: FileHandle) {
-  const bytes = Buffer.alloc((await handle.stat()).size)
-  const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
-  return bytes.subarray(0, bytesRead)
 }
 
 // Writes a synced sibling and renames it over the real path `file`, so a failed save leaves the
@@ -476,10 +479,14 @@ async function replaceFile(
     await rename(temp, file)
     renamed = true
     if (!now.handle) return { saved: true }
-    const displaced = await readAll(now.handle)
+    const displaced = await readBounded(now.handle, MAX_CONTENTS_BYTES)
     const theirs = decode(displaced)
     if (holds(theirs, base)) return { saved: true }
-    const back = await writeSibling(file, displaced, now.mode)
+    const back = await writeSibling(
+      file,
+      displaced.length > MAX_CONTENTS_BYTES ? now.handle : displaced,
+      now.mode
+    )
     if (back) await rename(back, file)
     return { conflict: theirs.file }
   } finally {
