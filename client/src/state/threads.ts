@@ -43,10 +43,13 @@ export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
     const resume = get(resumeAtom(threadId))
     const state = AsyncResult.getOrElse(get(liveAtom(threadId)), () => resume)
-    const tasks =
-      get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.backgroundTasks ?? []
+    const thread = get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
     if (!state) return state
-    const status = backgroundStatus(state.status, tasks)
+    const status = backgroundStatus(
+      state.status,
+      thread?.backgroundTasks ?? [],
+      thread?.waitingForChildren
+    )
     return status === state.status ? state : { ...state, status }
   })
 )

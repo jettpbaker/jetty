@@ -7,6 +7,7 @@ import type {
   ProviderModel,
   ProviderCapabilities,
   UploadAttachment,
+  ThreadMeta,
 } from '@jetty/shared/wire'
 
 import { findProviderModel } from '@jetty/shared/model-name'
@@ -106,6 +107,8 @@ export function createOrchestrator({
   return Effect.gen(function* () {
     const scope = yield* Effect.scope
     let closing = false
+    const lifecycle = Semaphore.makeUnsafe(1)
+    hub.setThreads(yield* store.listThreads())
     const threads = new Map<
       string,
       {
@@ -136,6 +139,128 @@ export function createOrchestrator({
         threads.set(threadId, value)
       }
       return value
+    }
+
+    function interruptAdmittedThread(threadId: string) {
+      return Effect.gen(function* () {
+        const agent = yield* agentForThread(threadId)
+        if (!state(threadId).turnId) return
+        yield* setQueuePaused(threadId, true)
+        yield* agent.interrupt(threadId)
+      })
+    }
+
+    function stopThread(threadId: string) {
+      return state(threadId).admission.withPermit(stopAdmittedThread(threadId))
+    }
+
+    function stopAdmittedThread(threadId: string) {
+      return Effect.gen(function* () {
+        yield* store.suppressReport(threadId)
+        yield* setQueuePaused(threadId, true)
+        const agent = yield* agentForThread(threadId)
+        yield* interruptAdmittedThread(threadId)
+        if (agent.stopWorkflow) {
+          const current = yield* store.getThreadState(threadId)
+          for (const item of current.items)
+            if (item.kind === 'workflow' && item.status === 'running')
+              yield* agent.stopWorkflow(threadId, item.taskId)
+        }
+        if (agent.stopBackgroundTasks) yield* agent.stopBackgroundTasks(threadId)
+        while (state(threadId).turnId || !state(threadId).ready) yield* Effect.sleep(10)
+      })
+    }
+
+    function withTreeAdmission<A, E>(
+      readTree: Effect.Effect<readonly ThreadMeta[], StoreError>,
+      action: (tree: readonly ThreadMeta[]) => Effect.Effect<A, E>
+    ) {
+      return Effect.suspend(() => {
+        const admitted = new Set<string>()
+        function admit(): Effect.Effect<A, E | StoreError> {
+          return Effect.gen(function* () {
+            const tree = yield* readTree
+            const next = tree.find((thread) => !admitted.has(thread.id))
+            if (!next) return yield* action(tree)
+            return yield* state(next.id).admission.withPermit(
+              Effect.gen(function* () {
+                admitted.add(next.id)
+                return yield* admit()
+              })
+            )
+          })
+        }
+        return admit()
+      })
+    }
+
+    function archiveThread(threadId: string, archived: boolean) {
+      return lifecycle.withPermit(
+        Effect.gen(function* () {
+          yield* withTreeAdmission(
+            archived ? store.threadTree(threadId) : store.archiveGroup(threadId),
+            (tree) =>
+              Effect.gen(function* () {
+                if (tree[0]!.archived === archived) return
+                const group = archived ? tree.filter((thread) => !thread.archived) : tree
+                if (archived) {
+                  yield* checkTreeClean(tree)
+                  for (const thread of tree) yield* stopAdmittedThread(thread.id)
+                  yield* checkTreeClean(tree)
+                  if (worktrees) {
+                    for (const thread of group)
+                      yield* Effect.tryPromise(() => worktrees.cleanUp(thread.id))
+                    yield* checkTreeClean(tree)
+                    for (const thread of [...group].reverse())
+                      yield* Effect.tryPromise(() => worktrees.remove(thread.id, false, true))
+                  }
+                }
+                yield* hub.withChromePublication(
+                  store
+                    .transaction(
+                      Effect.gen(function* () {
+                        for (const thread of group) yield* store.archiveThread(thread.id, archived)
+                        if (archived)
+                          yield* store.setArchiveGroup(
+                            group.map((thread) => thread.id),
+                            threadId
+                          )
+                      })
+                    )
+                    .pipe(
+                      Effect.andThen(
+                        Effect.gen(function* () {
+                          for (const thread of group)
+                            hub.pushChrome({
+                              type: 'thread.upserted',
+                              thread: yield* store.requireThread(thread.id),
+                            })
+                        })
+                      )
+                    )
+                )
+                if (!archived && worktrees)
+                  for (const thread of group)
+                    yield* Effect.tryPromise((signal) => worktrees.prepare(thread.id, signal))
+              })
+          )
+        })
+      )
+    }
+
+    function checkTreeClean(tree: readonly ThreadMeta[]) {
+      return Effect.gen(function* () {
+        if (!worktrees) return
+        for (const thread of tree) {
+          if (yield* Effect.tryPromise(() => worktrees.dirty(thread.id)))
+            return yield* Effect.fail(
+              new StoreError(
+                'conflict',
+                `Cannot archive thread ${thread.title} (${thread.id}): commit or discard uncommitted worktree changes first`
+              )
+            )
+        }
+      })
     }
 
     function publish(threadId: string, appended: AppendedEvent) {
@@ -426,13 +551,23 @@ export function createOrchestrator({
     }
 
     function startTurnEffect(input: StartTurnInput) {
+      return Effect.gen(function* () {
+        if (!input.queued && (yield* store.requireThread(input.threadId)).archived)
+          yield* archiveThread(input.threadId, false)
+        return yield* startAdmittedTurn(input)
+      })
+    }
+
+    function startAdmittedTurn(input: StartTurnInput) {
       return Effect.scoped(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              let thread = yield* store.requireThread(input.threadId)
+              const thread = yield* store.requireThread(input.threadId)
               if (thread.archived && !input.queued)
-                thread = yield* store.archiveThread(thread.id, false)
+                return yield* Effect.fail(
+                  new StoreError('conflict', 'Thread was archived before the turn could start')
+                )
               const resumeQueue = !input.queued || (input.sendNow && input.resumeQueue !== false)
               let fromCreator = false
               if (input.queued) {
@@ -919,7 +1054,13 @@ export function createOrchestrator({
             const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}`
             if (checked.get(thread.id) === key) continue
             checked.set(thread.id, key)
-            yield* store.reportSettledChild(thread.id)
+            yield* locked(
+              thread.id,
+              Effect.gen(function* () {
+                const result = yield* store.reportSettledChild(thread.id)
+                if ('note' in result && result.note) yield* publish(thread.id, result.note)
+              })
+            )
           }
           for (const thread of yield* store.listThreads()) {
             if (closing) return
@@ -1002,17 +1143,10 @@ export function createOrchestrator({
           )
         ).pipe(Effect.forkIn(scope), Effect.asVoid)
       },
+      stopThread,
+      archiveThread,
       interrupt(threadId: string) {
-        return Effect.suspend(() => {
-          return state(threadId).admission.withPermit(
-            Effect.gen(function* () {
-              const agent = yield* agentForThread(threadId)
-              if (!state(threadId).turnId) return
-              yield* setQueuePaused(threadId, true)
-              yield* agent.interrupt(threadId)
-            })
-          )
-        })
+        return state(threadId).admission.withPermit(interruptAdmittedThread(threadId))
       },
       stopBackgroundTasks(threadId: string, taskId?: string) {
         return Effect.gen(function* () {
@@ -1082,43 +1216,38 @@ export function createOrchestrator({
         })
       },
       deleteThread(threadId: string) {
-        return Effect.suspend(() => {
-          const live = state(threadId)
-          // Same lock order as a turn's writes: admission, publication, chrome.
-          return live.admission.withPermit(
-            Effect.gen(function* () {
-              // Before the publication and chrome locks, which a slow script would hold up.
-              if (worktrees && !live.turnId)
-                yield* Effect.tryPromise(() => worktrees.cleanUp(threadId)).pipe(
-                  Effect.catch((error) => Effect.logWarning(`Archive script failed: ${error}`))
-                )
-              return yield* live.publication.withPermit(
-                hub.withChromePublication(
-                  Effect.gen(function* () {
-                    yield* flushDelta(threadId)
-                    yield* store.requireThread(threadId)
-                    // A persisted activeTurnId can outlive a crash; only a live turn blocks delete.
-                    if (live.turnId)
-                      return yield* Effect.fail(
-                        new StoreError('conflict', 'Cannot delete a thread while a turn is running')
-                      )
-                    if (worktrees)
-                      yield* Effect.tryPromise({
-                        try: () => worktrees.remove(threadId, true),
-                        catch: (error) => new StoreError('internal', String(error)),
-                      })
-                    const attachmentIds = yield* store.deleteThread(threadId)
-                    if (attachments)
-                      yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {
-                        discard: true,
-                      })
-                    hub.pushChrome({ type: 'thread.removed', threadId })
-                  }).pipe(Effect.uninterruptible)
-                )
-              )
-            })
-          )
-        })
+        return lifecycle.withPermit(
+          Effect.gen(function* () {
+            yield* withTreeAdmission(store.threadTree(threadId), (tree) =>
+              Effect.gen(function* () {
+                for (const thread of tree) yield* stopAdmittedThread(thread.id)
+                for (const thread of [...tree].reverse()) {
+                  if (worktrees)
+                    yield* Effect.tryPromise(() => worktrees.cleanUp(thread.id)).pipe(
+                      Effect.catch((error) => Effect.logWarning(`Archive script failed: ${error}`))
+                    )
+                  yield* locked(
+                    thread.id,
+                    Effect.gen(function* () {
+                      yield* flushDelta(thread.id)
+                      if (worktrees)
+                        yield* Effect.tryPromise({
+                          try: () => worktrees.remove(thread.id, true),
+                          catch: (error) => new StoreError('internal', String(error)),
+                        })
+                      const attachmentIds = yield* store.deleteThread(thread.id)
+                      if (attachments)
+                        yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {
+                          discard: true,
+                        })
+                      hub.pushChrome({ type: 'thread.removed', threadId: thread.id })
+                    })
+                  )
+                }
+              })
+            )
+          })
+        )
       },
       isActive(threadId: string) {
         return Effect.gen(function* () {

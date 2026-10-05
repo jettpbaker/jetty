@@ -232,6 +232,7 @@ export function createRpcHandlers(
                 )
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
+              hub.setThreads(threads)
               const usage = getUsage()
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
@@ -269,7 +270,8 @@ export function createRpcHandlers(
         Effect.gen(function* () {
           yield* requireProject(params.projectId)
           for (const thread of yield* store.listThreads())
-            if (thread.projectId === params.projectId) yield* orch.deleteThread(thread.id)
+            if (thread.projectId === params.projectId && (yield* store.getThread(thread.id)))
+              yield* orch.deleteThread(thread.id)
           yield* mutation(
             store
               .deleteProject(params.projectId)
@@ -311,25 +313,9 @@ export function createRpcHandlers(
           return { thread }
         }).pipe(Effect.mapError(wireError)),
       'thread.archive': (params) =>
-        orch.withAdmission(
-          params.threadId,
-          Effect.gen(function* () {
-            if (yield* orch.isActive(params.threadId))
-              return yield* Effect.fail(
-                new StoreError('conflict', 'Cannot archive while a turn is running')
-              )
-            if (params.archived) {
-              yield* fromPromise(() => worktrees.remove(params.threadId)).pipe(Effect.interruptible)
-              yield* upsertThread(store.archiveThread(params.threadId, true))
-            } else {
-              yield* upsertThread(store.archiveThread(params.threadId, false))
-              yield* fromPromise((signal) => worktrees.prepare(params.threadId, signal)).pipe(
-                Effect.interruptible
-              )
-            }
-            return null
-          }).pipe(Effect.mapError(wireError))
-        ),
+        orch
+          .archiveThread(params.threadId, params.archived)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'thread.rename': (params) =>
         upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>

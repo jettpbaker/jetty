@@ -431,8 +431,8 @@ export function createStore() {
     function reportSettledChild(threadId: string) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
-        if (thread.createdBy !== 'agent' || !thread.parentThreadId) return false
-        if (!(yield* notifiesParent(threadId))) return false
+        if (thread.createdBy !== 'agent' || !thread.parentThreadId) return { delivered: false }
+        if (!(yield* notifiesParent(threadId))) return { delivered: false }
         const { state } = yield* loadThread(threadId)
         if (
           state.activeTurnId ||
@@ -442,21 +442,35 @@ export function createStore() {
               (item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running'
           )
         )
-          return false
+          return { delivered: false }
         const turn = yield* latestFinishedTurn(threadId)
-        if (!turn || turn.initiator_thread_id !== thread.parentThreadId) return false
+        if (!turn || turn.initiator_thread_id !== thread.parentThreadId) return { delivered: false }
         const reportId = `report:${threadId}:${turn.turn_id}`
         const [existing] = yield* sql`SELECT 1 FROM orchestration_requests
           WHERE caller_id = ${threadId} AND request_id = ${reportId} AND operation = 'report'`
-        if (existing) return false
+        if (existing) return { delivered: false }
         const parent = yield* getThread(thread.parentThreadId)
         const hop = turn.hop + 1
         if (!parent || parent.archived || hop > 20) {
-          yield* Effect.logWarning(
-            `Report from ${threadId} dropped: ${hop > 20 ? 'message hop limit exceeded' : 'parent is archived or missing'}`
-          )
+          const reason =
+            hop > 20
+              ? 'message hop limit exceeded'
+              : parent
+                ? 'parent is archived'
+                : 'parent is missing'
+          yield* Effect.logWarning(`Report from ${threadId} dropped: ${reason}`)
+          const note = yield* append(threadId, {
+            type: 'item.started',
+            item: {
+              id: newId(),
+              turnId: turn.turn_id,
+              createdAt: Date.now(),
+              kind: 'error',
+              message: `Report to parent was not delivered: ${reason}.`,
+            },
+          })
           yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: thread.parentThreadId })})`
-          return false
+          return { delivered: false, note }
         }
         const event = JSON.parse(turn.payload_json) as Extract<
           ThreadEvent,
@@ -520,7 +534,7 @@ export function createStore() {
             from: { threadId, title: thread.title },
           })
         yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id, messageId })})`
-        return true
+        return { delivered: true }
       }).pipe(atomically, Effect.mapError(storeError))
     }
 
@@ -839,6 +853,40 @@ export function createStore() {
         )
       },
       reportSettledChild,
+      suppressReport(threadId: string) {
+        return Effect.gen(function* () {
+          const thread = yield* requireThread(threadId)
+          const { state } = yield* loadThread(threadId)
+          const turnId = state.activeTurnId ?? (yield* latestFinishedTurn(threadId))?.turn_id
+          if (!turnId || !thread.parentThreadId) return
+          const reportId = `report:${threadId}:${turnId}`
+          yield* sql`INSERT OR IGNORE INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: thread.parentThreadId })})`
+        }).pipe(atomically, Effect.mapError(storeError))
+      },
+      threadTree(threadId: string) {
+        return Effect.gen(function* () {
+          yield* requireThread(threadId)
+          const rows = yield* sql<ThreadRow>`WITH RECURSIVE tree AS (
+            SELECT * FROM threads WHERE id = ${threadId}
+            UNION ALL SELECT t.* FROM threads t JOIN tree p ON t.parent_thread_id = p.id
+          ) SELECT * FROM tree`
+          return rows.map(rowToThread)
+        }).pipe(Effect.mapError(storeError))
+      },
+      archiveGroup(threadId: string) {
+        return Effect.gen(function* () {
+          const root = yield* requireThread(threadId)
+          const rows =
+            yield* sql<ThreadRow>`SELECT * FROM threads WHERE archive_group = ${threadId}`
+          return [root, ...rows.filter((row) => row.id !== threadId).map(rowToThread)]
+        }).pipe(Effect.mapError(storeError))
+      },
+      setArchiveGroup(threadIds: readonly string[], group: string | null) {
+        return sql`UPDATE threads SET archive_group = ${group} WHERE id IN ${sql.in(threadIds)}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       beginDelivery(threadId: string, turnId: string, hop: number, messageId?: string) {
         return Effect.gen(function* () {
           const entry = yield* loadThread(threadId)
@@ -1005,7 +1053,7 @@ export function createStore() {
       archiveThread(threadId: string, archived: boolean) {
         return Effect.gen(function* () {
           const existing = yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET archived = ${archived ? 1 : 0} WHERE id = ${threadId}`
+          yield* sql`UPDATE threads SET archived = ${archived ? 1 : 0}, archive_group = CASE WHEN ${archived ? 1 : 0} = 0 THEN NULL ELSE archive_group END WHERE id = ${threadId}`
           return { ...existing, archived }
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },

@@ -16,11 +16,55 @@ import { Effect, Queue, Semaphore } from 'effect'
 export type Hub = ReturnType<typeof createHub>
 
 export function createHub() {
+  const threads = new Map<string, ThreadMeta>()
+  const children = new Map<string, Set<string>>()
   const backgroundTasks = new Map<string, readonly BackgroundTask[]>()
 
   function decorateThread(thread: ThreadMeta): ThreadMeta {
     const tasks = backgroundTasks.get(thread.id) ?? []
-    return { ...thread, backgroundTasks: tasks, status: backgroundStatus(thread.status, tasks) }
+    const waitingForChildren = [...(children.get(thread.id) ?? [])].some((id) => {
+      const child = threads.get(id)
+      if (!child || child.archived) return false
+      const status = decorateThread(child).status
+      return (
+        status === 'starting' ||
+        status === 'running' ||
+        status === 'monitoring' ||
+        status === 'awaiting_approval'
+      )
+    })
+    return {
+      ...thread,
+      backgroundTasks: tasks,
+      waitingForChildren,
+      status: backgroundStatus(thread.status, tasks, waitingForChildren),
+    }
+  }
+
+  function forgetThread(threadId: string) {
+    const parentId = threads.get(threadId)?.parentThreadId
+    if (parentId) {
+      const siblings = children.get(parentId)
+      siblings?.delete(threadId)
+      if (!siblings?.size) children.delete(parentId)
+    }
+    threads.delete(threadId)
+  }
+
+  function rememberThread(thread: ThreadMeta) {
+    forgetThread(thread.id)
+    threads.set(thread.id, thread)
+    if (thread.parentThreadId) {
+      const siblings = children.get(thread.parentThreadId) ?? new Set<string>()
+      siblings.add(thread.id)
+      children.set(thread.parentThreadId, siblings)
+    }
+  }
+
+  function setThreads(values: readonly ThreadMeta[]) {
+    threads.clear()
+    children.clear()
+    for (const thread of values) rememberThread(thread)
   }
 
   const chromePublication = Semaphore.makeUnsafe(1)
@@ -50,9 +94,28 @@ export function createHub() {
     Set<Queue.Queue<PullRequestList, WireError>>
   >()
 
-  function pushChrome(data: ChromePushData) {
-    if (data.type === 'thread.upserted') data = { ...data, thread: decorateThread(data.thread) }
+  function offerChrome(data: ChromePushData) {
     for (const queue of chromeSubs) Queue.offerUnsafe(queue, data)
+  }
+
+  function pushChrome(data: ChromePushData) {
+    let parentId: string | undefined
+    if (data.type === 'thread.upserted') {
+      rememberThread(data.thread)
+      parentId = data.thread.parentThreadId
+      data = { ...data, thread: decorateThread(data.thread) }
+    } else if (data.type === 'thread.removed') {
+      parentId = threads.get(data.threadId)?.parentThreadId
+      forgetThread(data.threadId)
+      backgroundTasks.delete(data.threadId)
+    }
+    offerChrome(data)
+    while (parentId) {
+      const parent = threads.get(parentId)
+      if (!parent) break
+      offerChrome({ type: 'thread.upserted', thread: decorateThread(parent) })
+      parentId = parent.parentThreadId
+    }
   }
 
   function pushThread(threadId: string, update: Extract<ThreadUpdate, { type: 'event' }>) {
@@ -142,6 +205,7 @@ export function createHub() {
 
   return {
     decorateThread,
+    setThreads,
     watchGithubActivity,
     githubActivity,
     setBackgroundTasks(threadId: string, tasks: readonly BackgroundTask[]) {

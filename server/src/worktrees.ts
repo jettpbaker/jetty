@@ -488,7 +488,7 @@ export function createWorktrees(
     await runScript('archive', archive, folder, scriptEnv(folder, record?.slot ?? null))
   }
 
-  async function remove(threadId: string, deleting = false) {
+  async function remove(threadId: string, deleting = false, cleanedUp = false) {
     const { thread, project } = await locate(threadId)
     if (thread.environment !== 'worktree') return
     if (preparations.has(threadId)) throw new StoreError('conflict', 'Worktree setup is running')
@@ -496,7 +496,7 @@ export function createWorktrees(
     if (!deleting) {
       if ((await exists(folder)) && (await changes(folder)))
         throw new StoreError('conflict', dirtyArchive)
-      await cleanUp(threadId)
+      if (!cleanedUp) await cleanUp(threadId)
     }
     await serialized(project.path, async () => {
       const record = await run(store.getWorktree(threadId))

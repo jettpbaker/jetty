@@ -214,8 +214,14 @@ export const BackgroundTask = Schema.Struct({
 })
 export type BackgroundTask = Schema.Schema.Type<typeof BackgroundTask>
 
-export function backgroundStatus(status: SessionStatus, tasks: readonly BackgroundTask[]) {
-  return tasks.length && (status === 'idle' || status === 'error') ? 'monitoring' : status
+export function backgroundStatus(
+  status: SessionStatus,
+  tasks: readonly BackgroundTask[],
+  waitingForChildren = false
+) {
+  return (tasks.length || waitingForChildren) && (status === 'idle' || status === 'error')
+    ? 'monitoring'
+    : status
 }
 
 export const ThreadMeta = Schema.Struct({
@@ -233,6 +239,7 @@ export const ThreadMeta = Schema.Struct({
   title: Schema.String,
   status: SessionStatus,
   backgroundTasks: Schema.optional(Schema.Array(BackgroundTask)),
+  waitingForChildren: Schema.optional(Schema.Boolean),
   queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,
   pinned: Schema.Boolean,

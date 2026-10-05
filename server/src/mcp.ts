@@ -103,6 +103,21 @@ export function createMcpHandler(
       })
     }
 
+    function ownChild(identity: McpIdentity, threadId: string) {
+      return Effect.gen(function* () {
+        const caller = yield* accessible(identity, identity.threadId)
+        const target = yield* store.requireThread(threadId)
+        if (target.projectId !== caller.projectId || target.parentThreadId !== caller.id)
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              'Only your own direct child threads can be stopped or archived'
+            )
+          )
+        return target
+      })
+    }
+
     function accessLevel(thread: { provider?: string; model?: string }, mode?: string) {
       if (findProviderModel(models() ?? [], thread.provider, thread.model)?.autoMode === false)
         return 0
@@ -200,7 +215,8 @@ export function createMcpHandler(
           const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
           if (previous) return previous
         }
-        if ((input.environment ?? caller.environment) === 'local') return yield* create
+        if ((input.environment ?? caller.environment) === 'local')
+          return yield* orch.withAdmission(caller.id, create)
         const project = yield* store.getProject(caller.projectId)
         if (!project || !worktrees)
           return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
@@ -216,7 +232,7 @@ export function createMcpHandler(
               error instanceof Error ? error.message : String(error)
             ),
         })
-        return yield* create
+        return yield* orch.withAdmission(caller.id, create)
       })
     }
 
@@ -457,22 +473,13 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            'Archive a thread in your project, other than your own, once its work is merged or no longer needed (e.g. a finished child or warm-up thread). Same as archiving in the UI: it leaves the sidebar. Worktrees must be clean: commit or discard changes first. Archive removes the folder and keeps the branch; unarchive restores it.',
+            'Archive one of your own direct child threads and all its descendants, stopping their work without reports back. All worktrees must be clean; archive removes their folders and keeps their branches, and Undo restores the threads archived together.',
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
           invoke(
             Effect.gen(function* () {
-              if (threadId === identity.threadId)
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', "A thread can't archive itself")
-                )
-              const caller = yield* accessible(identity, identity.threadId)
-              const target = yield* store.requireThread(threadId)
-              if (target.projectId !== caller.projectId)
-                return yield* Effect.fail(
-                  new StoreError('not_found', 'Thread not found in caller project')
-                )
+              const target = yield* ownChild(identity, threadId)
               if (target.archived)
                 return yield* Effect.fail(
                   new StoreError('invalid_params', 'Thread is already archived')
@@ -481,6 +488,22 @@ export function createMcpHandler(
                 Effect.mapError((error) => new StoreError(error.code, error.message))
               )
               return { threadId, title: target.title, archived: true }
+            })
+          )
+      )
+      server.registerTool(
+        'stop_thread',
+        {
+          description:
+            'Stop one of your own direct child threads, interrupting its active turn and stopping its background tasks without a report back. Safe to repeat or call when the child is already idle.',
+          inputSchema: { threadId: z.string() },
+        },
+        ({ threadId }) =>
+          invoke(
+            Effect.gen(function* () {
+              yield* ownChild(identity, threadId)
+              yield* orch.stopThread(threadId)
+              return { threadId, stopped: true }
             })
           )
       )
