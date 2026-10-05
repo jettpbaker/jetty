@@ -187,7 +187,6 @@ export function SettingsAppearance() {
                     render={
                       <Button
                         variant='ghost'
-                        tone='muted'
                         size='icon'
                         disabled={uploading}
                         aria-label={label}
@@ -227,7 +226,6 @@ export function SettingsAppearance() {
                 render={
                   <Button
                     variant='ghost'
-                    tone='muted'
                     size='icon'
                     disabled={uploading}
                     aria-label='Remove image'
@@ -261,7 +259,6 @@ export function SettingsAppearance() {
                 render={
                   <Button
                     variant='ghost'
-                    tone='muted'
                     size='icon'
                     disabled={uploading}
                     aria-label='Change video'
@@ -285,7 +282,6 @@ export function SettingsAppearance() {
                 render={
                   <Button
                     variant='ghost'
-                    tone='muted'
                     size='icon'
                     disabled={uploading}
                     aria-label='Remove video'

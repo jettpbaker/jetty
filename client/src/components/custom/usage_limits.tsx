@@ -248,7 +248,6 @@ export function UsagePage({
               render={
                 <Button
                   variant='ghost'
-                  tone='muted'
                   size='icon'
                   aria-label='Refresh usage'
                   aria-busy={refreshing}
@@ -322,7 +321,6 @@ export function UsageBanner({
             render={
               <Button
                 variant='ghost'
-                tone='muted'
                 size='icon'
                 className='-my-1'
                 aria-label='Open Usage'
@@ -336,7 +334,6 @@ export function UsageBanner({
         </Tooltip>
         <Button
           variant='ghost'
-          tone='muted'
           size='icon'
           className='-my-1 -mr-1.5'
           aria-label='Dismiss usage'

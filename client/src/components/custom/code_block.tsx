@@ -151,7 +151,6 @@ function WorkerCodeBlock({
     <Button
       variant='ghost'
       size='icon-xs'
-      tone='muted'
       aria-label='Wrap lines'
       aria-pressed={wrapped}
       onClick={() => setWrapped((value) => !value)}

@@ -16,7 +16,7 @@ function MediaAction(props: ComponentProps<typeof Button> & { label: string }) {
     <Button
       variant='ghost'
       size='icon-sm'
-      className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
+      className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
       aria-label={label}
       {...rest}
     />

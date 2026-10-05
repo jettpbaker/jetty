@@ -51,7 +51,6 @@ export function ComposerAccessMode({
       <DisabledTooltip reason={`${model.name} only supports asking first`} wrap='flex'>
         <Button
           variant='ghost'
-          tone='muted'
           size='icon'
           disabled
           aria-label='Access mode: Asks first'
@@ -70,7 +69,6 @@ export function ComposerAccessMode({
           render={
             <Button
               variant='ghost'
-              tone='muted'
               size='icon'
               className={
                 value === 'full_access'

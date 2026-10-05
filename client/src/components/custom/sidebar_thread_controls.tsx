@@ -60,7 +60,6 @@ export function SidebarThreadControls({
           render={
             <Button
               variant='ghost'
-              tone='muted'
               size='icon-sm'
               className='-mr-1.5 hover:bg-sidebar-accent'
               aria-label={`Thread grouping: ${groupings[grouping]}`}

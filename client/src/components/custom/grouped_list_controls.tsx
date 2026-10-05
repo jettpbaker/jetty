@@ -35,13 +35,7 @@ export function ListFilterMenu<T extends string>({
           render={
             <DropdownMenuTrigger
               render={
-                <Button
-                  variant='ghost'
-                  tone='muted'
-                  size='icon'
-                  className='relative'
-                  aria-label='Filter'
-                />
+                <Button variant='ghost' size='icon' className='relative' aria-label='Filter' />
               }
             />
           }
@@ -85,7 +79,7 @@ export function ListGroupMenu<T extends string>({
         <TooltipTrigger
           render={
             <DropdownMenuTrigger
-              render={<Button variant='ghost' tone='muted' size='icon' aria-label='Group by' />}
+              render={<Button variant='ghost' size='icon' aria-label='Group by' />}
             />
           }
         >

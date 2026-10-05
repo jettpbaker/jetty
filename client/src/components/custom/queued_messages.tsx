@@ -154,15 +154,7 @@ function IconAction({
   return (
     <Tooltip>
       <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon-xs'
-            aria-label={label}
-            onClick={onClick}
-          />
-        }
+        render={<Button variant='ghost' size='icon-xs' aria-label={label} onClick={onClick} />}
       >
         {children}
       </TooltipTrigger>

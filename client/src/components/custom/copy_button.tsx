@@ -21,7 +21,6 @@ export function CopyButton({
   return (
     <Button
       variant='ghost'
-      tone='muted'
       size='icon-xs'
       className={className}
       aria-label={copied ? 'Copied' : label}

@@ -40,6 +40,13 @@ const buttonVariants = cva(
         'icon-lg': 'size-9',
       },
     },
+    compoundVariants: [
+      {
+        variant: 'ghost',
+        size: ['icon', 'icon-xs', 'icon-sm', 'icon-lg'],
+        className: 'text-muted-foreground',
+      },
+    ],
     defaultVariants: {
       variant: 'default',
       tone: 'default',

@@ -170,7 +170,7 @@ export function VideoPlayer({
           <Button
             variant='ghost'
             size='icon-sm'
-            className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
+            className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
             aria-label={paused ? 'Play' : 'Pause'}
             onClick={toggle}
           >
@@ -181,7 +181,7 @@ export function VideoPlayer({
           <Button
             variant='ghost'
             size='icon-sm'
-            className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
+            className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
           >
@@ -256,7 +256,7 @@ function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; m
       <Button
         variant='ghost'
         size='icon-sm'
-        className='rounded-menu-item hover:bg-white/10 not-disabled:hover:bg-white/10'
+        className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
         aria-label={silent ? 'Unmute' : 'Mute'}
         onClick={() => {
           const element = media.current

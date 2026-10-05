@@ -20,7 +20,7 @@ export function ComposerAttach({ onAttach }: { onAttach: (files: File[]) => void
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         aria-label='Add attachment'
-        render={<Button variant='ghost' tone='muted' size='icon' />}
+        render={<Button variant='ghost' size='icon' />}
       >
         <PlusSignIcon />
       </DropdownMenuTrigger>

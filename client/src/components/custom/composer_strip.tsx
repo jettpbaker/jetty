@@ -94,7 +94,6 @@ export function Pager({
     >
       <Button
         variant='ghost'
-        tone='muted'
         size='icon'
         aria-label={`Previous ${noun}`}
         disabled={index === 0}
@@ -107,7 +106,6 @@ export function Pager({
       </span>
       <Button
         variant='ghost'
-        tone='muted'
         size='icon'
         aria-label={`Next ${noun}`}
         disabled={nextDisabled ?? index === total - 1}
@@ -321,7 +319,6 @@ export function ApprovalStrip({
             {ctl.expanded && (
               <Button
                 variant='ghost'
-                tone='muted'
                 size='icon'
                 aria-label={changes ? 'Hide the changes' : 'Hide the full command'}
                 aria-expanded

@@ -172,7 +172,6 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         render={
           <Button
             variant='ghost'
-            tone='muted'
             size='icon'
             aria-label={
               context

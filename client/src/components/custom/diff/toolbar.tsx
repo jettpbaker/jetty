@@ -136,7 +136,6 @@ export function DiffToolbar({
             render={
               <Button
                 variant='ghost'
-                tone='muted'
                 size='icon-sm'
                 className='rounded-sm'
                 aria-label='Diff display options'

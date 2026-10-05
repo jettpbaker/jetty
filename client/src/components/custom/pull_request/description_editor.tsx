@@ -707,7 +707,7 @@ export function DeferredMarkdownEditor({
           <Button
             variant='ghost'
             size='icon-xs'
-            className='-my-1 text-muted-foreground opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
+            className='-my-1 opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
             disabled={props.disabled || !props.onUpload}
             aria-label='Attach image or video'
             title='Attach image or video'
@@ -797,7 +797,6 @@ function ComposerActions({
       <Button
         variant='ghost'
         size='icon'
-        className='text-muted-foreground'
         disabled={disabled || !upload}
         aria-label='Attach image or video'
         onClick={pickFiles}
@@ -1411,7 +1410,6 @@ export function MarkdownEditor({
                 disabled={disabled}
                 key={mark}
                 variant='ghost'
-                tone='muted'
                 size='icon-sm'
                 className='rounded-menu-item'
                 aria-label={label}
@@ -1503,7 +1501,7 @@ export function MarkdownEditor({
           <Button
             variant='ghost'
             size='icon-xs'
-            className='-my-1 text-muted-foreground opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
+            className='-my-1 opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
             disabled={disabled || !onUpload}
             aria-label='Attach image or video'
             title='Attach image or video'

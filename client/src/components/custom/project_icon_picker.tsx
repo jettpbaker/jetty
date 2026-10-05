@@ -35,7 +35,6 @@ function IconGrid({ selected, onSelect }: { selected?: string; onSelect: (name: 
           <Button
             key={option.name}
             variant='ghost'
-            tone='muted'
             size='icon'
             aria-label={option.label}
             aria-pressed={option.name === selected}
@@ -72,14 +71,7 @@ export function ProjectIconPicker({ project }: { project: Project }) {
       }}
     >
       <PopoverTrigger
-        render={
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            aria-label={`Icon for ${project.title}`}
-          />
-        }
+        render={<Button variant='ghost' size='icon' aria-label={`Icon for ${project.title}`} />}
       >
         <ProjectGlyph icon={project.icon} className='size-4' />
       </PopoverTrigger>

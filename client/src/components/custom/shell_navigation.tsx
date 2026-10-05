@@ -62,7 +62,6 @@ export function ShellNavigation() {
       <KeybindTooltip binding={keybinds.sidebar}>
         <SidebarTrigger
           variant='ghost'
-          tone='muted'
           size='icon'
           className='hover:bg-sidebar-accent'
           aria-label={(isMobile ? openMobile : open) ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -75,7 +74,6 @@ export function ShellNavigation() {
       <div className={expanded ? 'flex shrink-0 items-center gap-1' : 'hidden'}>
         <Button
           variant='ghost'
-          tone='muted'
           size='icon'
           className='hover:bg-sidebar-accent'
           aria-label='Go back'
@@ -86,7 +84,6 @@ export function ShellNavigation() {
         </Button>
         <Button
           variant='ghost'
-          tone='muted'
           size='icon'
           className='hover:bg-sidebar-accent'
           aria-label='Go forward'

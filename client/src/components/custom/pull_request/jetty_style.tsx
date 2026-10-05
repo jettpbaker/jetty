@@ -301,7 +301,6 @@ function QuoteReply({ body }: { body: string }) {
           <Button
             variant='ghost'
             size='icon'
-            tone='muted'
             aria-label='Quote reply'
             className='-my-1 -mr-1.5 opacity-0 group-hover/comment:opacity-100 focus-visible:opacity-100'
             onClick={() => quote(body)}
@@ -330,7 +329,6 @@ function ResolveThread({
           <Button
             variant='ghost'
             size='icon'
-            tone='muted'
             disabled={disabled}
             aria-label={resolved ? 'Unresolve conversation' : 'Resolve conversation'}
             className='-my-1 -mr-1.5 opacity-0 group-hover/comment:opacity-100 focus-visible:opacity-100'

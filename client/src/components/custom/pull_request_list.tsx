@@ -254,7 +254,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               render={
                 <Button
                   variant='ghost'
-                  tone='muted'
                   size='icon'
                   className={cn('h-7', failure && !refreshing && 'text-destructive')}
                   aria-label='Refresh'

@@ -49,14 +49,7 @@ export function ReviewerPicker({
         {trigger ? (
           cloneElement(trigger as ReactElement<{ disabled?: boolean }>, { disabled: true })
         ) : (
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            className='h-7'
-            aria-label='Request review'
-            disabled
-          >
+          <Button variant='ghost' size='icon' className='h-7' aria-label='Request review' disabled>
             <UserAdd01Icon />
           </Button>
         )}
@@ -69,7 +62,7 @@ export function ReviewerPicker({
         aria-label='Request review'
         onPointerEnter={() => prefetch(repo)}
         onFocus={() => prefetch(repo)}
-        render={trigger ?? <Button variant='ghost' tone='muted' size='icon' className='h-7' />}
+        render={trigger ?? <Button variant='ghost' size='icon' className='h-7' />}
       >
         {trigger ? undefined : <UserAdd01Icon />}
       </PopoverTrigger>

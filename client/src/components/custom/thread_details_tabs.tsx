@@ -292,13 +292,7 @@ export function ThreadDetailsTabs({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button
-                ref={plus}
-                variant='ghost'
-                tone='muted'
-                size='icon-sm'
-                className='shrink-0 rounded-sm'
-              />
+              <Button ref={plus} variant='ghost' size='icon-sm' className='shrink-0 rounded-sm' />
             }
             aria-label='Open tab'
           >

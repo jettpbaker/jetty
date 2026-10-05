@@ -66,7 +66,6 @@ export function SettingsProjects() {
               <td className='py-3 text-right'>
                 <Button
                   variant='ghost'
-                  tone='muted'
                   size='icon'
                   aria-label={`Delete ${project.title}`}
                   onClick={() => remove(project.id, project.title)}

@@ -444,7 +444,6 @@ export function AppSidebar() {
         <KeybindTooltip binding={keybinds.settings}>
           <Button
             variant='ghost'
-            tone='muted'
             size='icon'
             className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
             aria-label='Settings'
@@ -461,7 +460,6 @@ export function AppSidebar() {
             render={
               <Button
                 variant='ghost'
-                tone='muted'
                 size='icon'
                 className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
                 aria-label='Usage'
