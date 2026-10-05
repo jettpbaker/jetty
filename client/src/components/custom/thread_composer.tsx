@@ -210,7 +210,6 @@ export function ThreadComposer({
     setUsageAsked((asked) => asked + 1)
   }
 
-  // The compiler leaves this component alone, so this memo is still needed.
   const requests = requestItems(items)
   const pending = useMemo(
     () => pendingItems(requests, { provider, projectPath, projectTitle }),
@@ -245,7 +244,8 @@ export function ThreadComposer({
     const next = pending.find((candidate) => candidate.id !== entry.id)
     const parked = next && saved.parked?.[next.id]
     if (!next || parked === undefined || !answering) return
-    const { [next.id]: _, ...rest } = saved.parked ?? {}
+    const rest = { ...saved.parked }
+    delete rest[next.id]
     update({ pendingId: next.id, text: parked, typedFor: next.id, parked: rest })
   }
 
@@ -341,7 +341,8 @@ export function ThreadComposer({
     setLeft(undefined)
     const reply = item && saved.parked?.[item.id]
     if (!item || reply === undefined) return update({ text: '', editing: undefined })
-    const { [item.id]: _, ...parked } = saved.parked ?? {}
+    const parked = { ...saved.parked }
+    delete parked[item.id]
     update({ text: reply, editing: undefined, typedFor: item.id, parked })
   }
 
