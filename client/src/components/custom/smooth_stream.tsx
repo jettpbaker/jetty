@@ -45,7 +45,8 @@ export function fadeStyle(age = 0) {
 
 // A reply that lands in a lump (Claude often sends one written after a tool call all at once)
 // shows a step at a time, like a fast stream: a server batch apart, and all of it within 1.5s.
-const step = { ms: 50, chars: 50, count: 30 }
+// A fast model's batches are smaller than a lump, so they show as they come.
+const step = { ms: 50, chars: 50, count: 30, lump: 200 }
 
 // Where the word at or after `index` starts.
 function wordStart(text: string, index: number) {
@@ -56,17 +57,18 @@ function wordStart(text: string, index: number) {
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 
 // How much of `text` to show, from `from` characters at mount: all of it, unless it has run ahead
-// by more than a step. No `from`, no pacing.
+// by a lump, and then a step at a time until it's within a step. No `from`, no pacing.
 export function usePacedText(text: string, from?: number) {
   const [shown, setShown] = useState(from ?? 0)
+  const [rolling, setRolling] = useState(false)
   const latest = useRef(text)
   useLayoutEffect(() => {
     latest.current = text
   }, [text])
   const behind = from === undefined ? 0 : text.length - shown
-  if (behind < 0 || (behind > 0 && (behind <= step.chars || reducedMotion.matches)))
-    setShown(text.length)
-  const pacing = behind > step.chars && !reducedMotion.matches
+  const pacing = !reducedMotion.matches && behind > (rolling ? step.chars : step.lump)
+  if (pacing !== rolling) setRolling(pacing)
+  if (behind < 0 || (behind > 0 && !pacing)) setShown(text.length)
   useEffect(() => {
     if (!pacing) return
     // Steps keep the size the lump started at, so it lands at an even pace.
