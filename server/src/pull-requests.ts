@@ -2069,7 +2069,9 @@ export function createPullRequests(store: Store, hub: Hub) {
             ...graph.truncatedConnections.filter((field) => field === 'checkRuns'),
           ],
         }
-        yield* publish(ref, { ...snapshot, data }, fetchedRevisions[index]!)
+        // Nothing but checks changed, so the stored PR is current again.
+        const { error: _error, ...current } = snapshot
+        yield* publish(ref, { ...current, status: 'ready', data }, fetchedRevisions[index]!)
       }
     })
   }
@@ -2116,7 +2118,9 @@ export function createPullRequests(store: Store, hub: Hub) {
         } else if (
           graph.checkRollupState !== snapshot.data.checkRollupState ||
           // GitHub settles mergeability lazily; asking again until it does surfaces conflicts.
-          mergeUnknown(snapshot.data)
+          mergeUnknown(snapshot.data) ||
+          // The checks read republishes it as current, clearing a failed full read's notice.
+          snapshot.status !== 'ready'
         )
           checks.push(ref)
       }
