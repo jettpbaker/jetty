@@ -69,6 +69,9 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
+- Chat review in the app: a dev-only route that replays recorded and fixture threads
+  through the app's real chat components, replacing the sketchpad's copy of the chat
+  (`/chat-review`), which drifts and needs re-syncing.
 - PR view: say why a PR is red or yellow. The tab and sidebar glyphs colour by readiness
   (a merge conflict, failing checks, changes requested), but the Status row only says
   "Open". Show the readiness reason there, e.g. "Open · Merge conflict" in red.
