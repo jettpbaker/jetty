@@ -1,4 +1,4 @@
-import { composer, hasText, type Journey } from '../journey'
+import { branchPicked, composer, hasText, type Journey } from '../journey'
 
 function launch(
   name: string,
@@ -20,8 +20,6 @@ function launch(
 }
 
 export default [
-  // The branch picker names its ref once the full branch list lands, which (git underneath)
-  // races the quiet window; counting always includes it.
-  launch('root', () => '/', { settled: `document.querySelector('[aria-label^="From: "]')` }),
+  launch('root', () => '/', { settled: branchPicked }),
   launch('long', (fixtures) => `/threads/${fixtures.threads.long}`, { text: 'Turn 200:' }),
 ]

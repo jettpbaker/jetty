@@ -1,4 +1,4 @@
-import { click, composer, hasText, open, row, type Journey } from '../journey'
+import { branchPicked, click, composer, hasText, open, row, type Journey } from '../journey'
 
 export const lastText = { long: 'Turn 200:', code: 'Review file 8:' } as const
 
@@ -24,7 +24,7 @@ const fromNew: Journey = {
   name: 'thread.open',
   case: 'from-new',
   async setup(ctx) {
-    await open(ctx, '/', `${composer} && ${row('small')}`)
+    await open(ctx, '/', `${composer} && ${row('small')} && ${branchPicked}`)
   },
   async act(ctx) {
     await click(ctx.page, row('small'), 'the small row')

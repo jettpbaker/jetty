@@ -36,6 +36,10 @@ export type Journey = {
 
 export const composer = `document.querySelector('textarea[aria-label="Thread prompt"]')`
 
+// The new-thread page's branch picker names its ref once the full branch list lands, which waits
+// on git: a journey on that page waits for it, or the list's render races the counted window.
+export const branchPicked = `document.querySelector('[aria-label^="From: "]')`
+
 export function row(title: string) {
   return `[...document.querySelectorAll('.thread-row')].find((row) => row.querySelector('.overflow-title-text')?.textContent === ${JSON.stringify(title)})`
 }
