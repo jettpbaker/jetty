@@ -16,9 +16,10 @@ import {
   type TurnInput,
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
+import { createContextPoller } from './context-usage'
 import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
-import { createGrokTranslator } from './grok-translate'
+import { createGrokTranslator, grokContextUsage } from './grok-translate'
 import { jettyInstructions } from './jetty-instructions'
 import { SELF_TOOLS } from './jetty-tools'
 import {
@@ -376,6 +377,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           })
           session.modelId = modelId
           session.effort = session.input.effort
+          const contextPoller = yield* createContextPoller({
+            read: connection.request('_x.ai/session/info', { sessionId }).pipe(
+              Effect.map((reply) => grokContextUsage(object(reply.result))),
+              Effect.orElseSucceed(() => null)
+            ),
+            emit: (usage) => session.emit({ type: 'context.updated', usage }).pipe(Effect.ignore),
+          })
           // Loading replays history; the ledger already owns those messages.
           let startupMcpFailure: string | null = null
           for (const message of yield* Queue.takeAll(connection.messages)) {
@@ -438,6 +446,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   }
                   for (const event of session.translator.translate(update))
                     yield* publish(session, event)
+                  yield* contextPoller.poll()
                   if (
                     update.sessionUpdate === 'turn_completed' &&
                     session.awaitingResult &&
@@ -458,6 +467,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                           }
                     )
                     yield* Deferred.succeed(session.done, undefined)
+                    yield* contextPoller.poll(true)
                   }
                   if (!session.awaitingResult) yield* armIdle(session)
                 }
@@ -512,6 +522,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   session.promptId = undefined
                   yield* session.emit(terminal)
                   yield* Deferred.succeed(session.done, undefined)
+                  yield* contextPoller.poll(true)
                   yield* armIdle(session)
                 }
               })

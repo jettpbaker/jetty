@@ -150,7 +150,6 @@ Everything below is for one combined review of the chat, not separate ports.
   Claude workflows once, automatically; Resume shows only if that fails, you
   stopped it, or it's Grok (same-process resume only). States: Running, Finished,
   Failed, Stopped — no "Interrupted".
-- Grok doesn't report context usage, so its ring stays empty.
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
 - Code block syntax colours: chat and description code blocks (sketchpad

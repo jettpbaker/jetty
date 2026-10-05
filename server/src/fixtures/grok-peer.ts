@@ -26,6 +26,10 @@ for await (const line of createInterface({ input: process.stdin })) {
       agentCapabilities: { loadSession: true },
     })
   else if (m.method === 'authenticate' || m.method === 'session/set_model') result(m.id)
+  else if (m.method === '_x.ai/session/info')
+    result(m.id, {
+      result: { context: { used: 68174, total: 256000, autoCompactThresholdPercent: 80 } },
+    })
   else if (m.method === 'session/new' || m.method === 'session/load') {
     update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'old replay' } })
     result(m.id, { sessionId: 'grok-session', models: { currentModelId: 'real-model' } })

@@ -1,4 +1,4 @@
-import type { ThreadEvent } from '@jetty/shared/events'
+import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
 
@@ -224,6 +224,22 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
     return events
   }
   return { translate, finish, workflows }
+}
+
+// `_x.ai/session/info` backs Grok's /context: `used` is the last request's prompt size.
+export function grokContextUsage(info: Record<string, unknown>): ContextUsage | null {
+  const context = object(info.context)
+  const usedTokens = natural(context.used)
+  const maxTokens = natural(context.total)
+  if (usedTokens <= 0 || maxTokens <= 0) return null
+  const compactPercent = natural(context.autoCompactThresholdPercent)
+  return {
+    usedTokens,
+    maxTokens,
+    ...(compactPercent > 0 ? { compactAt: Math.round((maxTokens * compactPercent) / 100) } : {}),
+    slices: [],
+    asOf: Date.now(),
+  }
 }
 
 function natural(value: unknown): number {
