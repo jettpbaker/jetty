@@ -1,6 +1,7 @@
 import { Copy01Icon, Tick02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 export function CopyButton({
   text,
@@ -24,10 +25,12 @@ export function CopyButton({
       size='icon-xs'
       className={className}
       aria-label={copied ? 'Copied' : label}
-      onClick={() => {
-        void navigator.clipboard.writeText(text)
-        setCopied(true)
-      }}
+      onClick={() =>
+        void navigator.clipboard.writeText(text).then(
+          () => setCopied(true),
+          () => toast.error("Couldn't copy")
+        )
+      }
     >
       {copied ? <Tick02Icon /> : <Copy01Icon />}
     </Button>

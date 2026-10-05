@@ -1840,11 +1840,13 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (
+        e.defaultPrevented ||
         e.metaKey ||
         e.ctrlKey ||
         e.altKey ||
         (e.target instanceof HTMLElement &&
-          (e.target.isContentEditable || e.target.closest('input, textarea, [role=dialog]')))
+          (e.target.isContentEditable ||
+            e.target.closest('input, textarea, [role=dialog], [role=menu], [role=listbox]')))
       )
         return
       if (e.key === '1' || e.key === '2') {

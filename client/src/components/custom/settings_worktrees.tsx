@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { pressProps } from '@/lib/press'
 import { useChrome } from '@/state'
 import { useSetBranchPrefix } from '@/state/worktrees'
 import { useId, useState } from 'react'
@@ -26,7 +25,7 @@ export function SettingsWorktrees() {
           variant='outline'
           size='sm'
           disabled={draft === undefined || draft === prefix}
-          {...pressProps(() => save(draft ?? prefix, () => setDraft(undefined)))}
+          onClick={() => save(draft ?? prefix, () => setDraft(undefined))}
         >
           Save
         </Button>
