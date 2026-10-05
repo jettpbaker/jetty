@@ -14,6 +14,7 @@ export type ToolActivity = {
   id: string
   kind: ToolKind
   name: string
+  // A Jetty tool's own vocabulary; its target names threads or models, so it reads as prose.
   words?: ToolWords
   target: string
   description?: string
@@ -172,6 +173,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
         ? `${current.status === 'failed' ? 'Failed' : 'Stopped'} ${description}`
         : description,
     target,
+    prose: first.words !== undefined,
     complete: completed === calls.length,
     active,
     failed,

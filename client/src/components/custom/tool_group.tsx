@@ -37,7 +37,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
               >
                 {label.verb}
               </span>
-              <RollingText key={label.verb} className='font-mono'>
+              <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
                 {label.target}
               </RollingText>
             </>
