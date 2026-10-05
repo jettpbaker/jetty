@@ -39,11 +39,12 @@ export function fuzzyMatch(path: string, query: string): number | null {
 export function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT) {
   return Effect.gen(function* () {
     if (query.length === 0) return []
-    const { out, code } = yield* git(cwd, ['ls-files'])
+    // -z: real names, not Git's quoted escapes for café.ts or a name with a tab.
+    const { out, code } = yield* git(cwd, ['ls-files', '-z'])
     if (code !== 0) return []
 
     const scored: { path: string; score: number }[] = []
-    for (const path of out.split('\n')) {
+    for (const path of out.split('\0')) {
       if (path.length === 0) continue
       const score = fuzzyMatch(path, query)
       if (score !== null) scored.push({ path, score })

@@ -164,9 +164,13 @@ describe('Effect filesystem services', () => {
           const spawner = ChildProcessSpawner.make((command) =>
             Effect.gen(function* () {
               expect(command._tag).toBe('StandardCommand')
-              if (command._tag === 'StandardCommand') expect(command.args).toEqual(['ls-files'])
+              if (command._tag === 'StandardCommand')
+                expect(command.args).toEqual(['ls-files', '-z'])
               const handle = yield* real.spawn(
-                ChildProcess.make(process.execPath, ['-e', 'console.log("a file;name.ts")'])
+                ChildProcess.make(process.execPath, [
+                  '-e',
+                  'process.stdout.write("a file;name.ts\\0")',
+                ])
               )
               yield* Effect.addFinalizer(() =>
                 Effect.sync(() => {

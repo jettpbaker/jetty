@@ -136,7 +136,8 @@ export function createGithubMedia(home: string) {
       const path = entryPath(key, ext)
       await rename(temp, path)
       entries.set(key, ext)
-      void evict()
+      // In the background: an unhandled rejection here would take the whole server down.
+      void evict().catch((error: unknown) => console.warn(`[github-media] evict ${String(error)}`))
       return { path, mimeType: TYPES[ext].mimeType }
     } finally {
       await file.close().catch(() => {})
