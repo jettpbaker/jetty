@@ -19,7 +19,7 @@ import { useState, useLayoutEffect, type RefObject, type ReactNode } from 'react
 import type { DiffFile } from './model'
 
 import { ChangedFilesTree } from '../changed_files_tree'
-import { ArrowDown01Icon, SidebarLeftIcon } from '../huge_icons'
+import { Files01Icon, SidebarLeftIcon } from '../huge_icons'
 import { Settings2Icon } from '../lucide_icons'
 import { DiffFileFilter } from './file_filter'
 
@@ -113,14 +113,6 @@ export function DiffToolbar({
           {files.length === total ? total : `${files.length} of ${total}`}
         </span>
       </DiffToolbarButton>
-      <FilesMenu
-        files={files}
-        total={total}
-        filter={filter}
-        onFilter={onFilter}
-        inView={inView}
-        onSelect={onSelect}
-      />
       {children}
       <div className='ml-auto flex shrink-0 items-center gap-2' aria-label='Diff filter'>
         {filters && (
@@ -131,6 +123,14 @@ export function DiffToolbar({
             {filters}
           </fieldset>
         )}
+        <FilesMenu
+          files={files}
+          total={total}
+          filter={filter}
+          onFilter={onFilter}
+          inView={inView}
+          onSelect={onSelect}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -218,14 +218,14 @@ function FilesMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={<DiffToolbarButton className='@min-[720px]:hidden' />}>
+        <Files01Icon />
         Files
         <span className='text-muted-foreground tabular-nums'>
           {files.length === total ? total : `${files.length} of ${total}`}
         </span>
-        <ArrowDown01Icon />
       </PopoverTrigger>
       <PopoverContent
-        align='start'
+        align='end'
         className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
       >
         <PopoverTitle className='sr-only'>Files</PopoverTitle>

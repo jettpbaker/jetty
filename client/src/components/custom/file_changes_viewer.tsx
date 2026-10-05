@@ -178,11 +178,6 @@ export function FileChangesViewer({
             ref={root}
             className='@container flex h-full min-h-0 flex-col overflow-hidden bg-background'
           >
-            {onScopeChange && (
-              <div className='flex h-9 shrink-0 items-center border-b border-border pl-2'>
-                <ChangesScopePicker value={scope} onChange={onScopeChange} />
-              </div>
-            )}
             <div className='flex min-h-0 flex-1 flex-col pt-3'>
               <DiffToolbar
                 files={files}
@@ -197,7 +192,9 @@ export function FileChangesViewer({
                 diffStyle={diffStyle}
                 onDiffStyleChange={setDiffStyle}
                 toggles={[['Wrap lines', wrap, setWrap]]}
-              />
+              >
+                {onScopeChange && <ChangesScopePicker value={scope} onChange={onScopeChange} />}
+              </DiffToolbar>
               <DiffFileList
                 files={files}
                 pane={pane}

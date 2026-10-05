@@ -1,5 +1,6 @@
 import type { DiffScope } from '@jetty/shared/wire'
 
+import { DiffIcon, GitBranchIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -21,8 +22,9 @@ export function ChangesScopePicker({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Diff scope: ${label}`}
-        render={<Button variant='ghost' tone='muted' size='sm' className='rounded-sm px-1' />}
+        render={<Button variant='ghost-text' size='sm' className='gap-1.5 rounded-sm' />}
       >
+        {value === 'branch' ? <GitBranchIcon /> : <DiffIcon />}
         {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
