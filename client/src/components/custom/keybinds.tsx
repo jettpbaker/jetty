@@ -37,6 +37,7 @@ export const keybinds = {
     name: 'Toggle thread details',
     modifiers: ['Alt', 'Meta'],
   },
+  pin: { hotkey: 'Mod+Alt+P', label: '⌥⌘P', name: 'Pin thread', modifiers: ['Alt', 'Meta'] },
   pinned: Array.from(
     { length: 9 },
     (_, index): Keybind => ({

@@ -19,6 +19,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
+import { KeybindChip, type Keybind } from './keybinds'
+
 type ActionOverlay = 'closed' | 'menu' | 'edit'
 
 export type ThreadRowActionsProps = {
@@ -28,6 +30,7 @@ export type ThreadRowActionsProps = {
   onArchive: () => void
   onDelete: () => void
   onPin: () => void
+  pinKeybind?: Keybind
   onRename: (title: string) => void
 }
 
@@ -38,6 +41,7 @@ export function ThreadRowActions({
   onArchive,
   onDelete,
   onPin,
+  pinKeybind,
   onRename,
 }: ThreadRowActionsProps) {
   const [overlay, setOverlay] = useState<ActionOverlay>('closed')
@@ -104,6 +108,7 @@ export function ThreadRowActions({
               <DropdownMenuItem onClick={onPin}>
                 <PinIcon filled={pinned} />
                 {pinned ? 'Unpin' : 'Pin'}
+                {pinKeybind && <KeybindChip binding={pinKeybind} className='ml-auto' />}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

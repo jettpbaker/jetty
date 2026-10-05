@@ -175,6 +175,7 @@ export function AppSidebar() {
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query, showPinned, showArchived)
   const pinned = pinnedThreads(threads).slice(0, keybinds.pinned.length)
+  const current = threads.find((thread) => thread.id === selectedId)
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
   const items = groups.flatMap((group) => [
     {
@@ -211,6 +212,14 @@ export function AppSidebar() {
       return thread ? [{ hotkey: binding.hotkey, callback: () => openThread(thread.id) }] : []
     }),
     { requireReset: true, ignoreInputs: true }
+  )
+
+  useHotkey(
+    keybinds.pin.hotkey,
+    (event) => {
+      if (current && !typingOutsideComposer(event)) pinThread(current.id, !current.pinned)
+    },
+    { enabled: current !== undefined, requireReset: true, ignoreInputs: false }
   )
 
   function newThread() {
@@ -423,6 +432,7 @@ export function AppSidebar() {
                           thread.archived ? archiveThread(thread.id, false) : archive(thread.id),
                         onDelete: () => remove(thread.id),
                         onPin: () => pinThread(thread.id, !thread.pinned),
+                        pinKeybind: thread === current ? keybinds.pin : undefined,
                         onRename: (title) => renameThread(thread.id, title),
                       }}
                       onSelect={() => openThread(thread.id)}
