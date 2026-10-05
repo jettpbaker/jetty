@@ -6,21 +6,3 @@
   mask-position: center;
   mask-repeat: no-repeat;
 }
-.provider-icon[data-provider='claude'] {
-  transform: scale(1.2) translateY(-2.0833%);
-}
-/* Temporary: LogoToggles swaps in alternative marks over the inline mask. */
-:root[data-claude-logo='Claude'] .provider-icon[data-provider='claude'] {
-  mask-image: url('/icons/providers/claude-ai.svg') !important;
-  transform: none;
-}
-:root[data-claude-logo='Anthropic'] .provider-icon[data-provider='claude'] {
-  mask-image: url('/icons/providers/anthropic.svg') !important;
-  transform: none;
-}
-:root[data-codex-logo='OpenAI'] .provider-icon[data-provider='codex'] {
-  mask-image: url('/icons/providers/openai.svg') !important;
-}
-:root[data-grok-logo='xAI'] .provider-icon[data-provider='grok'] {
-  mask-image: url('/icons/providers/xai.svg') !important;
-}
