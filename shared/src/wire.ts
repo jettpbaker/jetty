@@ -470,8 +470,8 @@ export const methods = {
   },
   'thread.create': {
     params: Schema.Struct({
-      // An id names the thread's worktree folder too.
-      id: Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]+$/)),
+      // An id names the thread's worktree folder and branch too, within the 255-byte name limit.
+      id: Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/)),
       projectId: Schema.String,
       environment: Schema.optional(Schema.Literals(['local', 'worktree'])),
       ref: Schema.optional(Schema.String),

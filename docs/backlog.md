@@ -179,7 +179,7 @@ Everything below is for one combined review of the chat, not separate ports.
   redirects a new file; a save still splits hard links and drops xattrs/ACLs.
 - Worktrees (`worktrees.ts`, `orchestrator.ts`): the setup watchdog exits with the
   setup shell, so a backgrounded command goes unsupervised and Retry can start a
-  second; long thread ids can't make one.
+  second.
 - Children (`store.ts`, `orchestrator.ts`): a turn whose end fails to save never reports
   after storage recovers.
 - Perf lab: exact frame counts need Chrome's 120 Hz begin-frame control, which
