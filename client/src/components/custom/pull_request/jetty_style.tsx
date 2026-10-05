@@ -1363,13 +1363,8 @@ function CommitPicker({
                     }}
                   >
                     <GitCommitHorizontalIcon />
-                    All commits
-                    <span
-                      data-slot='command-shortcut'
-                      className='ml-auto text-muted-foreground tabular-nums'
-                    >
-                      {commits.length}
-                    </span>
+                    <span className='flex-1'>All commits</span>
+                    <span className='text-muted-foreground tabular-nums'>{commits.length}</span>
                   </CommandItem>
                 </CommandGroup>
                 <Separator />
@@ -1389,10 +1384,7 @@ function CommitPicker({
                         {commit.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
                       </span>
                       <span className='min-w-0 flex-1 truncate'>{subject(commit)}</span>
-                      <span
-                        data-slot='command-shortcut'
-                        className='ml-auto font-mono text-muted-foreground'
-                      >
+                      <span className='font-mono text-muted-foreground'>
                         {commit.sha.slice(0, 7)}
                       </span>
                     </CommandItem>
