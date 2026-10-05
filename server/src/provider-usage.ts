@@ -134,11 +134,18 @@ export function noteClaudeTurnUsage(usage: ProviderUsage) {
   if (usage.identity) claudeTurn = usage
 }
 
+// A sign-in switch writes the token and the account separately, so a read that saw the account
+// change around its token or fetch may be one account's limits under the other's name: it's dropped.
 export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
+  const before = await claudeAccount()
   const oauth = await claudeCredentials()
   const token = string(oauth.accessToken)
   const plan = claudePlan(oauth.subscriptionType, oauth.rateLimitTier)
   const { id, email } = await claudeAccount()
+  const same = (account: { id: string; email: string }) =>
+    account.id === id && account.email === email
+  const unsure: ProviderUsage = { provider: 'claude', connected: true, windows: [], failed: true }
+  if (!same(before)) return unsure
   const metadata = {
     ...(plan ? { plan } : {}),
     ...(email ? { account: email } : {}),
@@ -146,6 +153,8 @@ export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
   }
   if (!token) return { provider: 'claude', connected: false, windows: [], ...metadata }
   const usage = await readClaudeLimits(token, id)
+  if (!same(await claudeAccount())) return unsure
+  if (id && !usage.failed) claudeCache = { account: id, at: usage.asOf ?? Date.now(), usage }
   // A turn's own read is fresher than a cached or rate-limited OAuth one, so a failed OAuth read
   // under it isn't a failed refresh.
   const turn = id && claudeTurn?.identity === id ? claudeTurn : undefined
@@ -166,9 +175,7 @@ async function readClaudeLimits(token: string, account: string): Promise<Provide
     if (!response.ok) throw new Error('Claude usage unavailable')
     const windows = claudeUsageWindows(await response.json())
     if (windows.length === 0) throw new Error('Claude usage unavailable')
-    const usage: ProviderUsage = { provider: 'claude', connected: true, windows, asOf: Date.now() }
-    if (account) claudeCache = { account, at: Date.now(), usage }
-    return usage
+    return { provider: 'claude', connected: true, windows, asOf: Date.now() }
   } catch {
     return {
       ...(cached?.usage ?? { provider: 'claude', connected: true, windows: [] }),
