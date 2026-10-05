@@ -57,6 +57,8 @@ export type Draft = {
   parked?: Readonly<Record<string, string>>
   questions?: Readonly<Record<string, QuestionProgress>>
   target?: DraftTarget
+  // composer images too large to keep through a reload, named until the composer's images change
+  lostImages?: readonly string[]
 }
 
 const StoredTarget = Schema.Struct({
@@ -101,11 +103,14 @@ const StoredImage = Schema.Struct({
   // the unsure send it belongs to; absent, it's the composer's
   messageId: Schema.optional(Schema.String),
 })
+const LostImage = Schema.Struct({ name: Schema.String, lost: Schema.Literal(true) })
 const isStoredDraft = Schema.is(StoredDraft)
 const isStoredImage = Schema.is(StoredImage)
+const isLostImage = Schema.is(LostImage)
 
 // Each tab keeps its own drafts, and they survive its reloads. Images live apart so typing never
-// rewrites them, and only get what sessionStorage (~5M characters) can spare; the rest are dropped.
+// rewrites them, and only get what sessionStorage (~5M characters) can spare; the composer's
+// others come back as names, so it can say they're gone.
 const textsKey = 'jetty.drafts'
 const imagesKey = 'jetty.draft-images'
 const imageBudget = 2_000_000
@@ -159,7 +164,9 @@ function loadDrafts() {
     // A restored image's data URL is its identity, so a picture attached twice comes back once.
     const images = new Map<string, ComposerImage>()
     const unsure = new Map((draft.unsure ?? []).map((entry) => [entry.sent?.messageId, entry]))
+    const lost: string[] = []
     for (const image of stored) {
+      if (isLostImage(image)) lost.push(image.name)
       if (!isStoredImage(image)) continue
       const { messageId, ...rest } = image
       const entry = unsure.get(messageId)
@@ -172,13 +179,14 @@ function loadDrafts() {
       ...draft,
       images: [...images.values()],
       ...(draft.unsure && { unsure: [...unsure.values()] }),
+      ...(lost.length > 0 && { lostImages: lost }),
     })
   }
   return drafts
 }
 
 function persist(key: string, current: Draft, previous: Draft) {
-  const { images, sending: inFlight = [], unsure = [], ...draft } = current
+  const { images, sending: inFlight = [], unsure = [], lostImages = [], ...draft } = current
   const sending = [...unsure, ...inFlight]
   const kept =
     draft.text !== '' ||
@@ -213,7 +221,7 @@ function persist(key: string, current: Draft, previous: Draft) {
   const stored = readStored(imagesKey)
   delete stored[key]
   let room = imageBudget - JSON.stringify(stored).length
-  const saved = []
+  const saved: unknown[] = lostImages.map((name) => ({ name, lost: true }))
   const owned = [
     ...images.map((image) => ({ image, messageId: undefined })),
     ...sending.flatMap((entry) =>
@@ -224,7 +232,11 @@ function persist(key: string, current: Draft, previous: Draft) {
     image: { name, mimeType, sizeBytes, dataUrl, width, height },
     messageId,
   } of owned) {
-    if (!dataUrl || dataUrl.length > room) continue
+    if (!dataUrl) continue
+    if (dataUrl.length > room) {
+      if (!messageId) saved.push({ name, lost: true })
+      continue
+    }
     room -= dataUrl.length
     saved.push({ name, mimeType, sizeBytes, dataUrl, width, height, messageId })
   }

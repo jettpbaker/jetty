@@ -77,6 +77,12 @@ async function encode(file: File, type: ImageType) {
   }
 }
 
+function lostNotice(names: readonly string[] | undefined) {
+  if (!names?.length) return undefined
+  const one = names.length === 1
+  return `${names.join(', ')} ${one ? 'was' : 'were'} too large to keep through the reload. Attach ${one ? 'it' : 'them'} again.`
+}
+
 // A queued message keeps the images it was queued with; an edit changes its text.
 const editingNotice = "Images can't be added while editing a queued message."
 
@@ -87,7 +93,7 @@ export function useImageAttachments(key: string, editing = false) {
   const current = () => read().images
 
   function update(next: readonly ComposerImage[]) {
-    updateDraft({ images: next })
+    updateDraft({ images: next, lostImages: undefined })
   }
 
   function patch(url: string, change: (image: ComposerImage) => ComposerImage | undefined) {
@@ -163,7 +169,8 @@ export function useImageAttachments(key: string, editing = false) {
 
   return {
     images,
-    error: error === editingNotice && !editing ? undefined : error,
+    error:
+      (error === editingNotice && !editing ? undefined : error) ?? lostNotice(draft.lostImages),
     // why images can't be added now
     refused: editing ? editingNotice : undefined,
     ready: images.every((image) => image.dataUrl),
