@@ -4,6 +4,7 @@ import {
   AiFileIcon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
+  ArrowShrink02Icon,
   BookOpenIcon,
   BrainIcon,
   FlashIcon,
@@ -285,13 +286,14 @@ export function useComposerSlash(
       run,
     })
     const picker = (id: ValueCommand) => () => go(range, { section: 'Commands', picking: id })
-    const compactProvider = thread?.provider ?? provider
     const compactReason = !thread?.provider
       ? 'Send a message first'
-      : thread.status !== 'idle' && thread.status !== 'error'
+      : thread.status === 'starting' ||
+          thread.status === 'running' ||
+          thread.status === 'awaiting_approval'
         ? 'Wait for this turn to finish'
-        : !compactProvider || !chrome?.providerCapabilities?.[compactProvider]?.compaction
-          ? 'This provider does not support compaction'
+        : !chrome?.providerCapabilities?.[thread.provider].compaction
+          ? 'This provider can’t compact'
           : ''
     const unset = 'Choose a model first'
     const efforts = model?.efforts.length ?? 0
@@ -332,7 +334,7 @@ export function useComposerSlash(
         'compact',
         'Compact',
         compactReason,
-        <BookOpenIcon />,
+        <ArrowShrink02Icon />,
         undefined,
         () => {
           consume(range)
