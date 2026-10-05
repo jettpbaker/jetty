@@ -43,6 +43,7 @@ export type ThreadRow =
       startedAt?: number
       elapsedSeconds?: number
       restarted?: boolean
+      settingUp?: boolean
     }
   | { kind: 'compaction'; id: string; item: CompactionItem }
   | { kind: 'error'; id: string; message: string }
@@ -319,6 +320,7 @@ export function threadRows(
     loadouts = {},
     projectPath,
     agentId,
+    settingUp = false,
   }: {
     status: SessionStatus
     running: boolean
@@ -326,6 +328,7 @@ export function threadRows(
     loadouts?: Readonly<Record<string, TurnLoadout>>
     projectPath?: string
     agentId?: string
+    settingUp?: boolean
   }
 ): ThreadRow[] {
   // A subagent's requests for input also surface on the main timeline, attributed to it.
@@ -527,6 +530,8 @@ export function threadRows(
     lastWork.startedAt = undefined
     lastWork.elapsedSeconds = undefined
   }
+  // A first message waits on the worktree's setup before the agent starts.
+  if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   return reuseRows(allItems[0], rows)
 }
 

@@ -85,6 +85,7 @@ export function WorkBlock({
   startedAt,
   elapsedSeconds,
   restarted,
+  settingUp,
 }: {
   threadId: string
   activities: readonly WorkActivity[]
@@ -92,24 +93,29 @@ export function WorkBlock({
   startedAt?: number
   elapsedSeconds?: number
   restarted?: boolean
+  settingUp?: boolean
 }) {
-  const runningSeconds = useRunningSeconds(status === 'running' ? startedAt : undefined)
+  const runningSeconds = useRunningSeconds(
+    status === 'running' && !settingUp ? startedAt : undefined
+  )
   const ended = workEnded(status)
   const entries = groupWorkActivities(activities, ended)
   const duration = formatActivityDuration(elapsedSeconds)
-  const heading = restarted
-    ? 'Interrupted — jetty restarted'
-    : status === 'waiting'
-      ? 'Waiting for you'
-      : status === 'running'
-        ? 'Working'
-        : status === 'complete' || status === 'failed'
-          ? 'Worked'
-          : status === 'cancelled'
-            ? 'Work cancelled'
-            : duration
-              ? 'You stopped'
-              : 'You stopped this response'
+  const heading = settingUp
+    ? 'Setting up worktree'
+    : restarted
+      ? 'Interrupted — jetty restarted'
+      : status === 'waiting'
+        ? 'Waiting for you'
+        : status === 'running'
+          ? 'Working'
+          : status === 'complete' || status === 'failed'
+            ? 'Worked'
+            : status === 'cancelled'
+              ? 'Work cancelled'
+              : duration
+                ? 'You stopped'
+                : 'You stopped this response'
   const timing =
     runningSeconds !== undefined ? (
       <span className='inline-flex items-baseline whitespace-pre'>

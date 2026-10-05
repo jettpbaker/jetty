@@ -100,6 +100,7 @@ function Thread() {
                   : (thread?.status ?? 'idle')
               }
               running={agent ? false : overlay.running}
+              settingUp={!agent && meta?.worktree?.state === 'setting_up'}
               outcomes={agent ? undefined : thread?.turnOutcomes}
               loadouts={agent ? undefined : thread?.turnLoadouts}
               projectPath={projectPath}

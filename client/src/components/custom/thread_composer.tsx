@@ -87,7 +87,6 @@ export function ThreadComposer({
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
   const queued = useThreadQueue(threadId)
-  const queue = useMemo(() => queued.filter((entry) => !entry.from), [queued])
   const navigate = useNavigate()
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
@@ -109,6 +108,12 @@ export function ThreadComposer({
     update({ target: { ...read().target, ...patch } })
   }
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
+  const settingUp = meta?.worktree?.state === 'setting_up'
+  // While the worktree sets up, the first message already shows as sent; only follow-ups queue.
+  const queue = useMemo(() => {
+    const own = queued.filter((entry) => !entry.from)
+    return settingUp ? own.slice(1) : own
+  }, [queued, settingUp])
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
 
@@ -375,9 +380,6 @@ export function ThreadComposer({
 
   return (
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
-      {meta?.worktree?.state === 'setting_up' && (
-        <output className='block pb-2 text-xs text-muted-foreground'>Setting up worktree…</output>
-      )}
       {meta?.worktree?.state === 'failed' && (
         <div role='alert' className='flex items-center gap-2 pb-2 text-xs text-destructive'>
           <span>{meta.worktree.error}</span>

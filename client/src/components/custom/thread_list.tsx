@@ -110,7 +110,7 @@ function rowStamp(row: ThreadRow) {
     case 'marker':
       return row.item.kind
     case 'work':
-      return `${row.status}:${row.activities
+      return `${row.status}:${row.settingUp}:${row.activities
         .map((activity) =>
           activity.type === 'text'
             ? `${activity.id}:${activity.text.length}`
@@ -201,6 +201,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         startedAt={row.startedAt}
         elapsedSeconds={row.elapsedSeconds}
         restarted={row.restarted}
+        settingUp={row.settingUp}
       />
     )
   if (row.kind === 'subagents')
@@ -233,6 +234,7 @@ export function ThreadList({
   projectPath,
   provider,
   agentId,
+  settingUp,
   onSelectAgent,
 }: {
   threadId: string
@@ -244,11 +246,13 @@ export function ThreadList({
   projectPath?: string
   provider?: string
   agentId?: string
+  settingUp?: boolean
   onSelectAgent: (id: string) => void
 }) {
   const rows = useMemo(
-    () => threadRows(items, { status, running, outcomes, loadouts, projectPath, agentId }),
-    [items, status, running, outcomes, loadouts, projectPath, agentId]
+    () =>
+      threadRows(items, { status, running, outcomes, loadouts, projectPath, agentId, settingUp }),
+    [items, status, running, outcomes, loadouts, projectPath, agentId, settingUp]
   )
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {
