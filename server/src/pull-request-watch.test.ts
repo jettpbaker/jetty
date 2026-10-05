@@ -220,3 +220,19 @@ test('failed refresh attempts retain the successful comment watermark through re
     (await f.runtime.runPromise(f.store.getPullRequest(ref.repo, ref.number))).dataRefreshedAt
   ).toBeGreaterThan(readAt)
 })
+
+for (const fallback of [false, true]) {
+  test(`an archived PR owner does not suppress its active replacement${fallback ? ' in authored fallback' : ''}`, async () => {
+    const f = await setup()
+    const archived = await f.thread('owner/repo')
+    const active = await f.thread('owner/repo')
+    await f.runtime.runPromise(f.store.archiveThread(archived.id, true))
+    if (fallback) {
+      for (const thread of [archived, active])
+        await f.runtime.runPromise(
+          f.store.setThreadGit(thread.id, { branch: 'main', dirty: false })
+        )
+    }
+    expect((await f.change()).pending?.threadId).toBe(active.id)
+  })
+}

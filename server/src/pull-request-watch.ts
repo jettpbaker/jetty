@@ -288,7 +288,7 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
       if (!headRepo) return undefined
       for (const id of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
         const thread = yield* store.getThread(id)
-        if (!thread) continue
+        if (!thread || thread.archived) continue
         if (!repositories.has(thread.projectId)) {
           const project = yield* store.getProject(thread.projectId)
           repositories.set(
@@ -305,7 +305,7 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
       const thread =
         threads.find((each) => each.worktree?.branch === branch || each.git?.branch === branch) ??
         (authored ? threads[0] : undefined)
-      return thread && !thread.archived ? thread : undefined
+      return thread
     })
   }
 
