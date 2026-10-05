@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useEffect, useRef, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
@@ -17,6 +18,7 @@ export function DiffFileList({
   onInView,
   onSelect,
   comments,
+  listClassName,
   children,
 }: {
   files: DiffFile[]
@@ -30,6 +32,7 @@ export function DiffFileList({
   onInView: (path: string | null) => void
   onSelect: (path: string) => void
   comments?: Record<string, number>
+  listClassName?: string
   children: ReactNode
 }) {
   const scroller = useRef<HTMLElement>(null)
@@ -84,7 +87,10 @@ export function DiffFileList({
           const path = sections.current[low]?.id.slice('linear-file-'.length) ?? null
           if (path !== active.current) onInView(path)
         }}
-        className='scrollbar-subtle min-w-0 flex-1 space-y-3 overflow-auto pr-4 pb-4 pl-3 @max-[720px]:pl-4'
+        className={cn(
+          'scrollbar-subtle min-w-0 flex-1 space-y-3 overflow-auto pr-4 pb-4 pl-3 @max-[720px]:pl-4',
+          listClassName
+        )}
       >
         {children}
       </main>

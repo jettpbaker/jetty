@@ -2163,6 +2163,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             ?.scrollIntoView({ block: 'start' })
                         }}
                         comments={commit ? undefined : commentCounts}
+                        listClassName='space-y-2 px-2 @max-[720px]:pl-2'
                       >
                         {files.map((f, index) => (
                           <FileCardComponent
