@@ -13,10 +13,10 @@ import type {
 import { PullRequestData, rollupChecks } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
-import type { Hub } from './hub'
 import type { PullRequestReference } from './pull-request-graphql'
 import type { Store } from './store'
 
+import { closestActivity, type Hub } from './hub'
 import {
   actorFields,
   connectionField,
@@ -1599,26 +1599,19 @@ function mergeableState(status: unknown) {
   return mergeStates[status as keyof typeof mergeStates] ?? 'unknown'
 }
 
-// Who subscribes to each key, and the closest attention any of them pays.
-function createWatches<K>() {
-  const watches = new Map<K, Map<symbol, GitHubActivity>>()
+// Which windows subscribe to each key, and the closest attention any of them pays.
+function createWatches<K>(activityOf: (client: number) => GitHubActivity) {
+  const watches = new Map<K, Map<symbol, number>>()
   return {
     has: (key: K) => watches.has(key),
     keys: () => [...watches.keys()],
-    activity(key: K): GitHubActivity {
-      const values = [...(watches.get(key)?.values() ?? [])]
-      return values.includes('focused')
-        ? 'focused'
-        : values.includes('blurred')
-          ? 'blurred'
-          : 'hidden'
-    },
-    watch(key: K, state: GitHubActivity) {
+    activity: (key: K) => closestActivity([...(watches.get(key)?.values() ?? [])].map(activityOf)),
+    watch(key: K, client: number) {
       const token = Symbol()
       return Effect.acquireRelease(
         Effect.sync(() => {
           const subscribers = watches.get(key) ?? new Map()
-          subscribers.set(token, state)
+          subscribers.set(token, client)
           watches.set(key, subscribers)
         }),
         () =>
@@ -1665,7 +1658,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   const queue: Job[] = []
   let activeVisible = 0
   let activePrefetches = 0
-  const watches = createWatches<string>()
+  const watches = createWatches<string>(hub.clientActivity)
   const lastChecks = new Map<string, number>()
   const checking = new Set<string>()
   const lastCadences = new Map<string, string>()
@@ -1853,8 +1846,8 @@ export function createPullRequests(store: Store, hub: Hub) {
     )
   }
 
-  function watch(ref: PullRequestRef, state: GitHubActivity) {
-    return watches.watch(prKey(ref), state)
+  function watch(ref: PullRequestRef, client: number) {
+    return watches.watch(prKey(ref), client)
   }
 
   function cadence(closed: boolean, state: GitHubActivity, list: boolean) {
@@ -2861,7 +2854,7 @@ export function createPullRequestLists(
 ) {
   const signatures = new Map<PullRequestListTab, string>()
   const checksIds = new Map<PullRequestListTab, string[]>()
-  const watches = createWatches<PullRequestListTab>()
+  const watches = createWatches<PullRequestListTab>(hub.clientActivity)
   const probed = new Map<PullRequestListTab, { at: number; signature: string }>()
   const probing = new Map<PullRequestListTab, Promise<string>>()
   const queuedProbes = new Map<
@@ -3006,7 +2999,7 @@ export function createPullRequestLists(
     }).pipe(publication[tab].withPermit)
   }
 
-  // Every focus change resubscribes, so this catches up only lists older than the blurred cadence.
+  // Every focus change runs this, so it catches up only lists older than the blurred cadence.
   function refreshOnArrival() {
     return Effect.forEach(['for-you', 'created'] as const, (tab) => refresh(tab, 120_000), {
       concurrency: 'unbounded',
@@ -3014,13 +3007,13 @@ export function createPullRequestLists(
     })
   }
 
-  function refreshIfStale(tab: PullRequestListTab, state: GitHubActivity) {
-    const interval = listInterval(state)
+  function refreshIfStale(tab: PullRequestListTab) {
+    const interval = listInterval(watches.activity(tab))
     return interval ? refresh(tab, interval) : get(tab)
   }
 
   function poll() {
-    return Effect.forEach(watches.keys(), (tab) => refreshIfStale(tab, watches.activity(tab)), {
+    return Effect.forEach(watches.keys(), refreshIfStale, {
       concurrency: 'unbounded',
       discard: true,
     })

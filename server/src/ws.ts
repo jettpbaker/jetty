@@ -227,16 +227,23 @@ export function createRpcHandlers(
             Effect.as(null)
           )
         ),
-      'chrome.subscribe': ({ activity = 'focused' }) =>
+      'github.activity': ({ activity }, { client }) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            yield* hub.watchClientActivity(client.id, activity)
+            if (activity !== 'hidden')
+              yield* pullRequestLists.refreshOnArrival().pipe(
+                Effect.catch(() => Effect.void),
+                Effect.forkIn(admissionScope)
+              )
+            return Stream.never
+          })
+        ),
+      'chrome.subscribe': (_, { client }) =>
         Stream.unwrap(
           hub.withChromePublication(
             Effect.gen(function* () {
-              yield* hub.watchGithubActivity(activity)
-              if (activity !== 'hidden')
-                yield* pullRequestLists.refreshOnArrival().pipe(
-                  Effect.catch(() => Effect.void),
-                  Effect.forkIn(admissionScope)
-                )
+              yield* hub.watchGithubActivity(client.id)
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
               hub.setThreads(threads)
@@ -469,12 +476,12 @@ export function createRpcHandlers(
           try: () => uploadGithubAttachment(params),
           catch: wireError,
         }),
-      'pullRequest.subscribe': ({ activity = 'focused', ...ref }) =>
+      'pullRequest.subscribe': (ref, { client }) =>
         Stream.unwrap(
           Effect.gen(function* () {
             yield* checkedRef(ref)
-            yield* hub.watchGithubActivity(activity)
-            yield* pullRequests.watch(ref, activity)
+            yield* hub.watchGithubActivity(client.id)
+            yield* pullRequests.watch(ref, client.id)
             const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
             const snapshot = yield* pullRequests.get(ref)
             yield* refreshInBackground(ref)
@@ -493,14 +500,14 @@ export function createRpcHandlers(
         pullRequests.prefetchList(tab).pipe(Effect.mapError(wireError)),
       'pullRequestList.refresh': ({ tab, maxAge }) =>
         pullRequestLists.refresh(tab, maxAge).pipe(Effect.mapError(wireError)),
-      'pullRequestList.subscribe': ({ tab, activity = 'focused' }) =>
+      'pullRequestList.subscribe': ({ tab }, { client }) =>
         Stream.unwrap(
           Effect.gen(function* () {
-            yield* hub.watchGithubActivity(activity)
-            yield* pullRequestLists.watch(tab, activity)
+            yield* hub.watchGithubActivity(client.id)
+            yield* pullRequestLists.watch(tab, client.id)
             const queue = yield* hub.subscribePullRequestList(tab)
             const list = yield* pullRequestLists.get(tab)
-            yield* pullRequestLists.refreshIfStale(tab, activity).pipe(
+            yield* pullRequestLists.refreshIfStale(tab).pipe(
               Effect.catch(() => Effect.void),
               Effect.forkIn(admissionScope)
             )

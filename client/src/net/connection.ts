@@ -12,6 +12,7 @@ type UnaryRpcs = Exclude<
   {
     readonly _tag:
       | 'chrome.subscribe'
+      | 'github.activity'
       | 'thread.subscribe'
       | 'pullRequest.subscribe'
       | 'pullRequestList.subscribe'
@@ -117,11 +118,16 @@ export function createConnection(
       return Stream.unwrap(Effect.as(connected.await, stream))
     }
 
+    // The window's attention rides a stream of its own, so a focus change resubscribes nothing else.
+    yield* activityStream().pipe(
+      Stream.switchMap((activity) => online(rpc('github.activity', { activity }))),
+      Stream.retry(reconnect),
+      Stream.runDrain,
+      Effect.forkScoped
+    )
+
     function subscribeChrome() {
-      return activityStream().pipe(
-        Stream.switchMap((activity) => online(rpc('chrome.subscribe', { activity }))),
-        Stream.retry(reconnect)
-      )
+      return online(rpc('chrome.subscribe', {})).pipe(Stream.retry(reconnect))
     }
 
     function subscribeThread(threadId: string, afterSeq?: number) {
@@ -139,19 +145,11 @@ export function createConnection(
     }
 
     function subscribePullRequest(repo: string, number: number) {
-      return activityStream().pipe(
-        Stream.switchMap((activity) =>
-          online(rpc('pullRequest.subscribe', { repo, number, activity }))
-        ),
-        Stream.retry(reconnect)
-      )
+      return online(rpc('pullRequest.subscribe', { repo, number })).pipe(Stream.retry(reconnect))
     }
 
     function subscribePullRequestList(tab: PullRequestListTab) {
-      return activityStream().pipe(
-        Stream.switchMap((activity) => online(rpc('pullRequestList.subscribe', { tab, activity }))),
-        Stream.retry(reconnect)
-      )
+      return online(rpc('pullRequestList.subscribe', { tab })).pipe(Stream.retry(reconnect))
     }
 
     return {

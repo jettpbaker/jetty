@@ -22,7 +22,11 @@ export type ThreadUpdate = Schema.Schema.Type<typeof ThreadUpdate>
 function unary<
   M extends Exclude<
     MethodName,
-    'chrome.subscribe' | 'thread.subscribe' | 'pullRequest.subscribe' | 'pullRequestList.subscribe'
+    | 'chrome.subscribe'
+    | 'github.activity'
+    | 'thread.subscribe'
+    | 'pullRequest.subscribe'
+    | 'pullRequestList.subscribe'
   >,
 >(name: M) {
   return Rpc.make<
@@ -102,6 +106,13 @@ export const JettyRpcs = RpcGroup.make(
   Rpc.make('chrome.subscribe', {
     payload: methods['chrome.subscribe'].params,
     success: ChromePushData,
+    error: WireError,
+    stream: true,
+  }),
+  // Emits nothing: it reports the window's attention for as long as it stays open.
+  Rpc.make('github.activity', {
+    payload: methods['github.activity'].params,
+    success: Schema.Never,
     error: WireError,
     stream: true,
   }),

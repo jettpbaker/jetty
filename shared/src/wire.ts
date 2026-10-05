@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { EffortLevel, SessionStatus } from './events'
@@ -389,8 +389,17 @@ export const methods = {
     result: Schema.Null,
   },
   'chrome.subscribe': {
-    params: Schema.Struct({ activity: Schema.optional(GitHubActivity) }),
+    params: Schema.Record(Schema.String, Schema.Unknown).pipe(
+      Schema.decodeTo(
+        Schema.Struct({}),
+        SchemaTransformation.transform({ decode: () => ({}), encode: () => ({}) })
+      )
+    ),
     result: Schema.Null,
+  },
+  'github.activity': {
+    params: Schema.Struct({ activity: GitHubActivity }),
+    result: Schema.Never,
   },
   'project.create': {
     params: Schema.Struct({ path: Schema.String }),
@@ -627,11 +636,7 @@ export const methods = {
     result: Schema.Struct({ url: Schema.String }),
   },
   'pullRequest.subscribe': {
-    params: Schema.Struct({
-      repo: Schema.String,
-      number: Schema.Int,
-      activity: Schema.optional(GitHubActivity),
-    }),
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
   },
   'pullRequestList.prefetch': {
@@ -643,7 +648,7 @@ export const methods = {
     result: PullRequestList,
   },
   'pullRequestList.subscribe': {
-    params: Schema.Struct({ tab: PullRequestListTab, activity: Schema.optional(GitHubActivity) }),
+    params: Schema.Struct({ tab: PullRequestListTab }),
     result: PullRequestList,
   },
   'thread.subscribe': {

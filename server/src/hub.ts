@@ -16,6 +16,11 @@ import { Effect, Queue, Semaphore } from 'effect'
 
 export type Hub = ReturnType<typeof createHub>
 
+// The closest attention any of them pays.
+export function closestActivity(values: readonly GitHubActivity[]): GitHubActivity {
+  return values.includes('focused') ? 'focused' : values.includes('blurred') ? 'blurred' : 'hidden'
+}
+
 export function createHub() {
   const threads = new Map<string, ThreadMeta>()
   const children = new Map<string, Set<string>>()
@@ -80,23 +85,36 @@ export function createHub() {
 
   const chromePublication = Semaphore.makeUnsafe(1)
   const chromeSubs = new Set<Queue.Queue<ChromePushData, WireError>>()
-  const githubActivities = new Map<symbol, GitHubActivity>()
+  // Each window reports its attention on a stream of its own, so a focus change never
+  // resubscribes its chrome, PR or list streams. Until it reports, it counts as focused.
+  const clientActivities = new Map<number, { token: symbol; activity: GitHubActivity }>()
+  const githubWatchers = new Map<symbol, number>()
 
-  function watchGithubActivity(activity: GitHubActivity) {
+  function watchClientActivity(client: number, activity: GitHubActivity) {
     const token = Symbol()
     return Effect.acquireRelease(
-      Effect.sync(() => githubActivities.set(token, activity)),
-      () => Effect.sync(() => githubActivities.delete(token))
+      Effect.sync(() => clientActivities.set(client, { token, activity })),
+      () =>
+        Effect.sync(() => {
+          if (clientActivities.get(client)?.token === token) clientActivities.delete(client)
+        })
     )
   }
 
-  function githubActivity(): GitHubActivity {
-    const values = [...githubActivities.values()]
-    return values.includes('focused')
-      ? 'focused'
-      : values.includes('blurred')
-        ? 'blurred'
-        : 'hidden'
+  function clientActivity(client: number): GitHubActivity {
+    return clientActivities.get(client)?.activity ?? 'focused'
+  }
+
+  function watchGithubActivity(client: number) {
+    const token = Symbol()
+    return Effect.acquireRelease(
+      Effect.sync(() => githubWatchers.set(token, client)),
+      () => Effect.sync(() => githubWatchers.delete(token))
+    )
+  }
+
+  function githubActivity() {
+    return closestActivity([...githubWatchers.values()].map(clientActivity))
   }
   const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
   const pullRequestSubs = new Map<string, Set<Queue.Queue<PullRequestSnapshot, WireError>>>()
@@ -218,6 +236,8 @@ export function createHub() {
   return {
     decorateThread,
     setThreads,
+    watchClientActivity,
+    clientActivity,
     watchGithubActivity,
     githubActivity,
     setBackgroundTasks(threadId: string, tasks: readonly BackgroundTask[]) {

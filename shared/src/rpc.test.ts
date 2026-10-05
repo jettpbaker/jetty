@@ -11,6 +11,7 @@ test('RPC operations preserve unary schemas and replace subscription messages wi
   for (const [name, rpc] of JettyRpcs.requests) {
     if (
       name === 'chrome.subscribe' ||
+      name === 'github.activity' ||
       name === 'thread.subscribe' ||
       name === 'pullRequest.subscribe' ||
       name === 'pullRequestList.subscribe'
@@ -157,6 +158,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'question.dismiss': () => Effect.succeed(null),
           'chrome.subscribe': () =>
             Stream.succeed({ type: 'snapshot' as const, projects: [], threads: [] }),
+          'github.activity': () => Stream.never,
           'thread.subscribe': ({ threadId }) =>
             threadId === 'missing'
               ? Stream.fail({ code: 'not_found' as const, message: 'Thread not found' })
