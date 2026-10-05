@@ -1,6 +1,7 @@
 import type { PermissionMode, ProviderModel, Skill } from '@jetty/shared/wire'
 
 import {
+  AiFileIcon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   BookOpenIcon,
@@ -11,7 +12,6 @@ import {
   PencilEdit02Icon,
   ShieldCheckIcon,
   ShieldOffIcon,
-  SparklesIcon,
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
@@ -256,22 +256,11 @@ export function useComposerSlash(
     const efforts = model?.efforts.length ?? 0
     const choosable = model?.autoMode !== false
     return [
-      command(
-        'model',
-        'Model',
-        'Switch the model for this thread',
-        <BrainIcon />,
-        name,
-        picker('model')
-      ),
+      command('model', 'Model', '', <BrainIcon />, name, picker('model')),
       command(
         'effort',
         'Effort',
-        efforts
-          ? 'Set how hard the model thinks'
-          : loadout
-            ? `${name} has no effort levels`
-            : unset,
+        efforts ? '' : loadout ? `${name} has no effort levels` : unset,
         <GaugeIcon />,
         loadout?.effort && effortLabels[loadout.effort],
         picker('effort'),
@@ -280,7 +269,7 @@ export function useComposerSlash(
       command(
         'fast',
         'Fast',
-        model?.fast ? 'Trade some depth for speed' : loadout ? `${name} has no fast mode` : unset,
+        model?.fast ? '' : loadout ? `${name} has no fast mode` : unset,
         <FlashIcon filled={loadout?.fast} />,
         model?.fast ? (loadout?.fast ? 'On' : 'Off') : undefined,
         () => {
@@ -292,13 +281,13 @@ export function useComposerSlash(
       command(
         'access',
         'Access',
-        choosable ? 'Choose what runs without asking' : `${model.name} only supports asking first`,
+        choosable ? '' : `${model.name} only supports asking first`,
         <ShieldCheckIcon />,
         choosable ? accessLabels[accessMode] : undefined,
         picker('access'),
         !choosable
       ),
-      command('new', 'New thread', 'Start a fresh thread', <PencilEdit02Icon />, undefined, () => {
+      command('new', 'New thread', '', <PencilEdit02Icon />, undefined, () => {
         consume(range)
         bumpDraft()
         void navigate({ to: '/' })
@@ -316,7 +305,7 @@ export function useComposerSlash(
           name: skill.name,
           description: runsSkills ? skill.description : 'Codex can’t run Claude skills',
           group: 'Skills',
-          icon: <SparklesIcon />,
+          icon: <AiFileIcon />,
           disabled: !runsSkills,
           score: 0,
           run: () => insert(range, skill.name),

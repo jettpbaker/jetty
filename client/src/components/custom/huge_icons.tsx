@@ -26,6 +26,7 @@ function hugeIcon(shape: IconSvgElement): Icon {
   }
 }
 
+export const AiFileIcon = hugeIcon(shapes.AiFileIcon)
 export const Alert02Icon = hugeIcon(shapes.Alert02Icon)
 export const AnchorIcon = hugeIcon(shapes.AnchorIcon)
 export const AppWindowIcon = hugeIcon(shapes.AppWindowIcon)
