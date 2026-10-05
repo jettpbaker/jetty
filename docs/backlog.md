@@ -46,14 +46,11 @@ Everything below is for one combined review of the chat, not separate ports.
 - Automated messages, `/components/auto-messages`: one family for everything
   Jetty or another thread sends into a chat (restart resume and limit, child
   reports, relays, compaction, PR watch wakes, a background command exiting).
-  C's seams are directionally right. Today child reports and the restart
-  continuation render as user-looking relayed bubbles. Agents should get a real
-  Jetty sender (e.g. `<jetty-notice kind="…">`) instead of the restart note's
-  borrowed `from: { self, 'Jetty' }`.
-- Compaction: Compact (the / command) and every automatic compaction leave a
-  placeholder "Conversation compacted · 142.3k → 12k tokens" line. It needs the
-  seam design above, and a "Compacting…" state: a real compaction can take tens
-  of seconds with nothing in the transcript.
+  C's seams are directionally right; compaction's "Compacting" and "Compacted"
+  are ported (`ChatSeam`). Today child reports and the restart continuation
+  render as user-looking relayed bubbles. Agents should get a real Jetty sender
+  (e.g. `<jetty-notice kind="…">`) instead of the restart note's borrowed
+  `from: { self, 'Jetty' }`.
 - Queued messages, `/components/queued-messages`: queued messages as dashed
   bubbles in the transcript instead of the strip above the composer (B, a dashed
   seam with the count or "Paused · Resume", was recommended, with in-place
