@@ -1,0 +1,635 @@
+import type { PermissionMode, ProviderModel, Skill } from '@jetty/shared/wire'
+
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  BookOpenIcon,
+  BrainIcon,
+  FlashIcon,
+  GaugeIcon,
+  KeyboardIcon,
+  PencilEdit02Icon,
+  ShieldCheckIcon,
+  ShieldOffIcon,
+  SparklesIcon,
+  Tick02Icon,
+} from '@/components/custom/huge_icons'
+import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
+import { useAccessMode, useBumpDraft, useLoadouts, useThreadLoadout } from '@/state'
+import { useSkills } from '@/state/skills'
+import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ComponentProps,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  type SyntheticEvent,
+  type UIEvent,
+} from 'react'
+
+import { ProviderGlyph } from './provider_glyph'
+import { activeSlash, matchScore, slashTokens, type SlashQuery } from './slash_model'
+
+export type SlashScope = { threadId?: string; projectId?: string }
+
+type Section = 'Commands' | 'Skills' | 'Claude'
+type ValueCommand = 'model' | 'effort' | 'access'
+type Kind = 'section' | 'back' | 'command' | 'skill' | 'provider' | 'option'
+
+type Entry = {
+  id: string
+  kind: Kind
+  name: string
+  description: string
+  group: string
+  icon?: ReactNode
+  value?: string
+  selected?: boolean
+  disabled?: boolean
+  score: number
+  run: () => void
+}
+
+const accessLabels: Record<PermissionMode, string> = { auto: 'Auto', full_access: 'Full access' }
+const accessDescriptions: Record<PermissionMode, string> = {
+  auto: 'Ask before risky actions',
+  full_access: 'Run anything without asking',
+}
+const commandOrder = ['model', 'effort', 'fast', 'access', 'new']
+const commandLabels: Record<ValueCommand, string> = {
+  model: 'Model',
+  effort: 'Effort',
+  access: 'Access',
+}
+const sections: Section[] = ['Commands', 'Skills', 'Claude']
+const sectionIcons: Record<Section, ReactNode> = {
+  Commands: <KeyboardIcon />,
+  Skills: <BookOpenIcon />,
+  Claude: <ProviderGlyph provider='claude' className='size-3 text-muted-foreground' />,
+}
+
+// Claude Code's own commands. Jetty doesn't show what they print yet, so they stay disabled.
+const claudeCommands = ['compact', 'context', 'init']
+
+/* State */
+
+export function useComposerSlash(
+  text: string,
+  onTextChange: (text: string) => void,
+  textarea: RefObject<HTMLTextAreaElement | null>,
+  { threadId, projectId }: SlashScope = {}
+) {
+  const field = useRef<HTMLDivElement>(null)
+  const mirror = useRef<HTMLDivElement>(null)
+  const anchor = useRef<HTMLSpanElement>(null)
+  const seen = useRef(text)
+  const [caret, setCaret] = useState(text.length)
+  const [focused, setFocused] = useState(false)
+  const [dismissed, setDismissed] = useState<number>()
+  const [section, setSection] = useState<Section>()
+  const [picking, setPicking] = useState<ValueCommand>()
+  const [active, setActive] = useState<number>()
+  const { catalog } = useLoadouts()
+  const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
+  const { accessMode, setAccessMode } = useAccessMode()
+  const { skills: listed, refresh } = useSkills(projectId)
+  const bumpDraft = useBumpDraft()
+  const navigate = useNavigate()
+  const model = loadout && findModel(catalog, loadout)
+  const name = loadout && catalogModelName(catalog, loadout.provider, loadout.model)
+  const models = lockedProvider
+    ? catalog.filter((item) => item.provider === lockedProvider)
+    : catalog
+  const provider = loadout?.provider ?? lockedProvider
+  // Claude and Grok run Claude skills as /name; Codex has its own.
+  const runsSkills = provider !== 'codex'
+  const skills = runsSkills ? listed : []
+
+  const query = activeSlash(text, caret)
+  const open = focused && query !== undefined && dismissed !== query.start
+
+  useEffect(() => {
+    if (open) refresh()
+  }, [open, refresh])
+
+  // Programmatic edits move the caret in state; user edits already match it. Text replaced from
+  // outside (a send, another thread's draft) keeps the caret where the browser put it.
+  useLayoutEffect(() => {
+    const element = textarea.current
+    if (!element) return
+    if (seen.current !== text) {
+      seen.current = text
+      settle(text, element.selectionStart)
+    } else if (element.selectionStart !== caret) element.setSelectionRange(caret, caret)
+  }, [textarea, text, caret])
+
+  function settle(next: string, nextCaret: number) {
+    setCaret(nextCaret)
+    setActive(undefined)
+    if (!activeSlash(next, nextCaret)) {
+      setDismissed(undefined)
+      setSection(undefined)
+      setPicking(undefined)
+    }
+  }
+
+  function update(next: string, nextCaret: number) {
+    seen.current = next
+    onTextChange(next)
+    settle(next, nextCaret)
+  }
+
+  // Skills go into the message, followed by a space for arguments.
+  function insert(range: SlashQuery, name: string) {
+    const after = text.slice(range.end).replace(/^ /, '')
+    const head = `${text.slice(0, range.start)}/${name} `
+    update(head + after, head.length)
+  }
+
+  // Jetty commands apply here, so their slash leaves no trace in the message.
+  function consume(range: SlashQuery) {
+    update(text.slice(0, range.start) + text.slice(range.end), range.start)
+  }
+
+  // Each level change clears what was typed after the slash, so the new list starts unfiltered.
+  function go(
+    range: SlashQuery,
+    next: { section?: Section; picking?: ValueCommand; active?: number }
+  ) {
+    if (range.query)
+      update(`${text.slice(0, range.start)}/${text.slice(range.end)}`, range.start + 1)
+    setSection(next.section)
+    setPicking(next.picking)
+    setActive(next.active)
+  }
+
+  function swapModel(next: ProviderModel) {
+    const { provider, model: id, effort, fast } = equipModel(loadout ?? { fast: false }, next)
+    setLoadout({ provider, model: id, effort, fast })
+  }
+
+  function optionEntries(range: SlashQuery, command: ValueCommand): Entry[] {
+    const option = (
+      id: string,
+      name: string,
+      description: string,
+      selected: boolean,
+      apply: () => void,
+      icon: ReactNode
+    ): Entry => ({
+      id: `${command}:${id}`,
+      kind: 'option',
+      name,
+      description,
+      group: commandLabels[command],
+      icon,
+      selected,
+      score: 0,
+      run: () => {
+        apply()
+        consume(range)
+      },
+    })
+    if (command === 'model')
+      return models.map((entry) =>
+        option(
+          modelKey(entry),
+          modelLabelText(entry),
+          '',
+          model === entry,
+          () => swapModel(entry),
+          <ProviderGlyph provider={entry.provider} className='size-3 text-muted-foreground' />
+        )
+      )
+    if (command === 'effort')
+      return (model?.efforts ?? []).map((effort) =>
+        option(
+          effort,
+          effortLabels[effort],
+          '',
+          effort === loadout?.effort,
+          () => loadout && setLoadout({ ...loadout, effort }),
+          <GaugeIcon />
+        )
+      )
+    return (['auto', 'full_access'] as const).map((mode) =>
+      option(
+        mode,
+        accessLabels[mode],
+        accessDescriptions[mode],
+        mode === accessMode,
+        () => setAccessMode(mode),
+        mode === 'auto' ? <ShieldCheckIcon /> : <ShieldOffIcon />
+      )
+    )
+  }
+
+  function commandEntries(range: SlashQuery): Entry[] {
+    const command = (
+      id: string,
+      name: string,
+      description: string,
+      icon: ReactNode,
+      value: string | undefined,
+      run: () => void,
+      disabled = false
+    ): Entry => ({
+      id: `command:${id}`,
+      kind: 'command',
+      name,
+      description,
+      group: 'Commands',
+      icon,
+      value,
+      disabled,
+      score: 0,
+      run,
+    })
+    const picker = (id: ValueCommand) => () => go(range, { section: 'Commands', picking: id })
+    const unset = 'Choose a model first'
+    const efforts = model?.efforts.length ?? 0
+    const choosable = model?.autoMode !== false
+    return [
+      command(
+        'model',
+        'Model',
+        'Switch the model for this thread',
+        <BrainIcon />,
+        name,
+        picker('model')
+      ),
+      command(
+        'effort',
+        'Effort',
+        efforts
+          ? 'Set how hard the model thinks'
+          : loadout
+            ? `${name} has no effort levels`
+            : unset,
+        <GaugeIcon />,
+        loadout?.effort && effortLabels[loadout.effort],
+        picker('effort'),
+        !efforts
+      ),
+      command(
+        'fast',
+        'Fast',
+        model?.fast ? 'Trade some depth for speed' : loadout ? `${name} has no fast mode` : unset,
+        <FlashIcon filled={loadout?.fast} />,
+        model?.fast ? (loadout?.fast ? 'On' : 'Off') : undefined,
+        () => {
+          consume(range)
+          if (loadout) setLoadout({ ...loadout, fast: !loadout.fast })
+        },
+        !model?.fast
+      ),
+      command(
+        'access',
+        'Access',
+        choosable ? 'Choose what runs without asking' : `${model.name} only supports asking first`,
+        <ShieldCheckIcon />,
+        choosable ? accessLabels[accessMode] : undefined,
+        picker('access'),
+        !choosable
+      ),
+      command('new', 'New thread', 'Start a fresh thread', <PencilEdit02Icon />, undefined, () => {
+        consume(range)
+        bumpDraft()
+        void navigate({ to: '/' })
+      }),
+    ]
+  }
+
+  function itemEntries(range: SlashQuery): Entry[] {
+    return [
+      ...commandEntries(range),
+      ...listed.map(
+        (skill): Entry => ({
+          id: `skill:${skill.name}`,
+          kind: 'skill',
+          name: skill.name,
+          description: runsSkills ? skill.description : 'Codex can’t run Claude skills',
+          group: 'Skills',
+          icon: <SparklesIcon />,
+          disabled: !runsSkills,
+          score: 0,
+          run: () => insert(range, skill.name),
+        })
+      ),
+      ...(range.atStart && provider === 'claude'
+        ? claudeCommands.map(
+            (command): Entry => ({
+              id: `claude:${command}`,
+              kind: 'provider',
+              name: command,
+              description: 'Coming soon',
+              group: 'Claude',
+              icon: <ProviderGlyph provider='claude' className='size-3 text-muted-foreground' />,
+              disabled: true,
+              score: 0,
+              run: () => insert(range, command),
+            })
+          )
+        : []),
+    ]
+  }
+
+  function back(run: () => void): Entry {
+    return { id: 'back', kind: 'back', name: 'Back', description: '', group: '', score: 0, run }
+  }
+
+  // Back lands on the row you came from: the command, or the section (Back is row 0 in a section).
+  function up(range: SlashQuery) {
+    if (picking) go(range, { section: 'Commands', active: commandOrder.indexOf(picking) + 1 })
+    else if (section) go(range, { active: sections.indexOf(section) })
+  }
+
+  function entriesFor(range: SlashQuery): Entry[] {
+    if (picking) return [back(() => up(range)), ...rank(optionEntries(range, picking), range.query)]
+    const items = itemEntries(range)
+    if (section)
+      return [
+        back(() => up(range)),
+        ...rank(
+          items.filter((entry) => entry.group === section),
+          range.query
+        ),
+      ]
+    // Typing straight after the slash searches skills only; commands and Claude's live behind their sections.
+    if (range.query)
+      return rank(
+        items.filter((entry) => entry.group === 'Skills'),
+        range.query
+      )
+    return sections
+      .filter((name) => items.some((entry) => entry.group === name))
+      .map(
+        (name): Entry => ({
+          id: `section:${name}`,
+          kind: 'section',
+          name,
+          description: '',
+          group: name,
+          icon: sectionIcons[name],
+          score: 0,
+          value: String(items.filter((entry) => entry.group === name).length),
+          run: () => go(range, { section: name }),
+        })
+      )
+  }
+
+  const entries = open && query ? entriesFor(query) : []
+  const usable = entries.flatMap((entry, at) => (entry.disabled ? [] : [at]))
+  const first = usable.find((at) => entries[at]?.kind !== 'back') ?? usable[0] ?? -1
+  const index = active !== undefined && usable.includes(active) ? active : first
+  const current = entries[index]
+
+  function step(direction: 1 | -1) {
+    if (!usable.length) return
+    const at = usable.indexOf(index)
+    setActive(usable[(at + direction + usable.length) % usable.length])
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return
+    const element = event.currentTarget
+    const collapsed = element.selectionStart === element.selectionEnd
+    if (open && query) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        step(event.key === 'ArrowDown' ? 1 : -1)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setDismissed(query.start)
+        return
+      }
+      if (event.key === 'Backspace' && collapsed && !query.query && (section || picking)) {
+        event.preventDefault()
+        up(query)
+        return
+      }
+      if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey) {
+        if (current && usable.length) {
+          event.preventDefault()
+          current.run()
+          return
+        }
+        if (event.key === 'Tab') return
+      }
+    }
+    if (event.key === 'Backspace' && collapsed) {
+      const token = chips(text, undefined, skills).find(
+        (entry) => entry.end === element.selectionStart
+      )
+      if (token) {
+        event.preventDefault()
+        update(text.slice(0, token.start) + text.slice(token.end), token.start)
+      }
+    }
+  }
+
+  // The textarea is the menu's combobox.
+  const input = {
+    role: 'combobox',
+    'aria-autocomplete': 'list',
+    'aria-expanded': open,
+    'aria-controls': open ? 'slash-menu' : undefined,
+    'aria-activedescendant': current && `slash-${current.id}`,
+    onChange: (event: ChangeEvent<HTMLTextAreaElement>) =>
+      update(event.target.value, event.target.selectionStart),
+    onSelect: (event: SyntheticEvent<HTMLTextAreaElement>) => {
+      if (event.currentTarget.selectionStart === caret) return
+      setCaret(event.currentTarget.selectionStart)
+      setActive(undefined)
+    },
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+    onScroll: (event: UIEvent<HTMLTextAreaElement>) => {
+      if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop
+    },
+    // Capture, so an open menu takes its keys before the strip's handlers and Enter-to-send.
+    onKeyDownCapture: onKeyDown,
+  } satisfies ComponentProps<'textarea'>
+
+  return {
+    text,
+    caret,
+    query,
+    open,
+    entries,
+    index,
+    skills,
+    field,
+    mirror,
+    anchor,
+    input,
+    setActive,
+  }
+}
+
+export type Slash = ReturnType<typeof useComposerSlash>
+
+function rank(entries: Entry[], query: string) {
+  const scored = entries.flatMap((entry) => {
+    const score = matchScore(entry.name, entry.description, query)
+    return score === undefined ? [] : [{ ...entry, score }]
+  })
+  return scored.sort(
+    (a, b) =>
+      sections.indexOf(a.group as Section) - sections.indexOf(b.group as Section) ||
+      b.score - a.score
+  )
+}
+
+function chips(text: string, query: SlashQuery | undefined, skills: readonly Skill[]) {
+  return slashTokens(text).filter(
+    (token) => token.start !== query?.start && skills.some((skill) => skill.name === token.name)
+  )
+}
+
+/* Mirror: paints chips and argument hints behind the textarea's own text. */
+
+const chipStyle = {
+  background: 'color-mix(in oklch, var(--primary) 16%, transparent)',
+  boxShadow: '0 0 0 2px color-mix(in oklch, var(--primary) 16%, transparent)',
+}
+
+export function SlashMirror({ slash }: { slash: Slash }) {
+  const { text, query, caret, skills } = slash
+  const tokens = chips(text, query, skills)
+  const parts: ReactNode[] = []
+  let at = 0
+  const marks = [
+    ...tokens.map((token) => ({ ...token, anchor: false })),
+    ...(query ? [{ start: query.start, end: query.start, name: '', anchor: true }] : []),
+  ].sort((a, b) => a.start - b.start)
+  for (const mark of marks) {
+    parts.push(text.slice(at, mark.start))
+    if (mark.anchor) parts.push(<span key='anchor' ref={slash.anchor} />)
+    else
+      parts.push(
+        <span key={mark.start} className='rounded-menu-item' style={chipStyle}>
+          {text.slice(mark.start, mark.end)}
+        </span>
+      )
+    at = mark.end
+  }
+  parts.push(text.slice(at))
+
+  const last = tokens.at(-1)
+  const lastSkill = last && skills.find((skill) => skill.name === last.name)
+  const hint =
+    !slash.open &&
+    caret === text.length &&
+    last &&
+    lastSkill?.argument &&
+    text.slice(last.end) === ' '
+      ? lastSkill.argument
+      : undefined
+
+  return (
+    <div
+      ref={slash.mirror}
+      aria-hidden='true'
+      className='pointer-events-none absolute inset-0 scroll-fade-y overflow-hidden px-2.5 py-2 text-base break-words whitespace-pre-wrap text-transparent md:text-sm'
+    >
+      {parts}
+      {hint && <span className='text-muted-foreground'>{hint}</span>}
+      {/* Gives a trailing newline its line, as the textarea does, so the two scroll alike. */}
+      {'​'}
+    </div>
+  )
+}
+
+/* Menu */
+
+export function SlashMenu({ slash }: { slash: Slash }) {
+  const popup = useRef<HTMLDivElement>(null)
+  const list = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const anchor = slash.anchor.current
+    const field = slash.field.current
+    const mirror = slash.mirror.current
+    if (!popup.current || !anchor || !field || !mirror) return
+    popup.current.style.left = `${Math.max(0, Math.min(anchor.offsetLeft - 8, field.offsetWidth - popup.current.offsetWidth))}px`
+    popup.current.style.top = `${anchor.offsetTop - mirror.scrollTop - 6}px`
+  })
+  useLayoutEffect(() => {
+    list.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest' })
+  }, [slash.index, slash.entries.length])
+
+  return (
+    <div
+      ref={popup}
+      className='absolute z-50 w-80 origin-bottom-left -translate-y-full overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border animate-(--motion-popup-enter) slide-in-from-bottom-1 fade-in-60 motion-reduce:animate-none'
+    >
+      <div
+        id='slash-menu'
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup
+        role='listbox'
+        aria-label='Slash commands'
+        ref={list}
+        className='scroll-fade-y scrollbar-subtle max-h-72 scroll-py-1 overflow-y-auto overscroll-contain p-1'
+      >
+        {slash.entries.length === 0 && (
+          <p className='flex h-menu-item-compact items-center px-2 text-xs text-muted-foreground'>
+            No skills match “/{slash.query?.query}”
+          </p>
+        )}
+        {slash.entries.map((entry, index) => (
+          <Row key={entry.id} slash={slash} entry={entry} index={index} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: number }) {
+  const props = {
+    id: `slash-${entry.id}`,
+    role: 'option',
+    'aria-selected': index === slash.index,
+    'aria-disabled': entry.disabled || undefined,
+    'data-active': index === slash.index ? '' : undefined,
+    'data-disabled': entry.disabled ? '' : undefined,
+    onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault(),
+    onMouseMove: () => {
+      if (index !== slash.index && !entry.disabled) slash.setActive(index)
+    },
+    onClick: entry.disabled ? undefined : entry.run,
+  } as const
+  const row =
+    'flex cursor-default items-center gap-2 rounded-menu-item px-2 text-xs select-none data-active:bg-accent data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted-foreground'
+
+  if (entry.kind === 'back')
+    return (
+      <div
+        {...props}
+        className={`${row} h-menu-item-compact text-muted-foreground data-active:text-foreground`}
+      >
+        <ArrowLeft01Icon />
+        Backspace to go back
+      </div>
+    )
+
+  return (
+    <div {...props} className={`${row} h-menu-item-compact`}>
+      {entry.icon}
+      <span className='shrink-0 text-foreground'>{entry.name}</span>
+      <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
+      {entry.kind === 'option' && entry.selected && <Tick02Icon />}
+      {entry.kind !== 'option' && entry.value && (
+        <span className='shrink-0 text-muted-foreground'>{entry.value}</span>
+      )}
+      {entry.kind === 'section' && <ArrowRight01Icon />}
+    </div>
+  )
+}

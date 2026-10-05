@@ -471,6 +471,7 @@ export function ThreadComposer({
         rows={rows}
         ambient={ambient}
         inputRef={input}
+        slash={{ threadId, projectId: projectId ?? meta?.projectId }}
       />
     </div>
   )

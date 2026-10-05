@@ -4,6 +4,12 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
 import { ComposerShadow, useWallpaperUnderComposer } from '@/components/custom/composer_shadow'
+import {
+  SlashMenu,
+  SlashMirror,
+  useComposerSlash,
+  type SlashScope,
+} from '@/components/custom/composer_slash'
 import { StopIcon, ArrowUp02Icon } from '@/components/custom/huge_icons'
 import {
   InputGroup,
@@ -47,6 +53,7 @@ export function Composer({
   rows = 2,
   ambient = false,
   inputRef,
+  slash,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -71,6 +78,8 @@ export function Composer({
   rows?: number
   ambient?: boolean
   inputRef?: RefObject<HTMLTextAreaElement | null>
+  // Where the / menu's skills and model come from.
+  slash?: SlashScope
 }) {
   const root = useRef<HTMLDivElement>(null)
   const wallpaperUnder = useWallpaperUnderComposer()
@@ -79,6 +88,7 @@ export function Composer({
   const empty = !value.trim() && attachments.images.length === 0
   const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stop = running && empty
+  const menu = useComposerSlash(value, onValueChange, textarea, slash)
 
   useLayoutEffect(() => perf.rendered('app.launch'), [])
 
@@ -157,28 +167,33 @@ export function Composer({
             )}
           >
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
-            <InputGroupTextarea
-              ref={textarea}
-              aria-label='Thread prompt'
-              placeholder={placeholder}
-              value={value}
-              onChange={(event) => onValueChange(event.target.value)}
-              onPaste={(event) => {
-                if (event.clipboardData.files.length === 0) return
-                event.preventDefault()
-                attachments.add(event.clipboardData.files)
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-                const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
-                if (!send) return
-                event.preventDefault()
-                if (canSend) send()
-              }}
-              rows={rows}
-              style={{ minHeight: `calc(${rows}lh + 1rem)` }}
-              className='scroll-fade-y scrollbar-subtle max-h-60 min-h-0'
-            />
+            <div ref={menu.field} className='relative w-full'>
+              <SlashMirror slash={menu} />
+              <InputGroupTextarea
+                ref={textarea}
+                aria-label='Thread prompt'
+                {...menu.input}
+                placeholder={placeholder}
+                value={value}
+                onPaste={(event) => {
+                  if (event.clipboardData.files.length === 0) return
+                  event.preventDefault()
+                  attachments.add(event.clipboardData.files)
+                }}
+                onKeyDown={(event) => {
+                  if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return
+                  if (event.nativeEvent.isComposing) return
+                  const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
+                  if (!send) return
+                  event.preventDefault()
+                  if (canSend) send()
+                }}
+                rows={rows}
+                style={{ minHeight: `calc(${rows}lh + 1rem)` }}
+                className='relative scroll-fade-y scrollbar-subtle max-h-60 min-h-0'
+              />
+              {menu.open && <SlashMenu slash={menu} />}
+            </div>
             <InputGroupAddon align='block-end' className='justify-between'>
               <div className='flex items-center gap-0'>
                 <ComposerAttach onAttach={attachments.add} />
