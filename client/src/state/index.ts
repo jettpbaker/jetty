@@ -6,6 +6,7 @@ export { useMarkThreadSeen } from './mutations'
 export {
   defaultDiffScope,
   useDiffFileLoader,
+  useFileSearch,
   useProjectFile,
   useSaveProjectFile,
   useThreadDiff,

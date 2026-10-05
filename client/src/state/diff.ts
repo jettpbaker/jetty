@@ -4,7 +4,7 @@ import type { DiffScope, ThreadMeta } from '@jetty/shared/wire'
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
-import { useCallback, useContext, useEffect, useRef } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useChrome } from './chrome'
@@ -188,6 +188,26 @@ export function useProjectFile(threadId: string, path: string) {
     file: AsyncResult.getOrElse(result, () => undefined),
     failed: AsyncResult.isFailure(result),
   }
+}
+
+const fileSearchAtom = Atom.family((key: string) => {
+  const split = key.indexOf('\0')
+  const params = { projectId: key.slice(0, split), query: key.slice(split + 1), limit: 50 }
+  return Atom.make((get) =>
+    get
+      .result(connectionAtom)
+      .pipe(Effect.flatMap((connection) => connection.request('fs.search', params)))
+  ).pipe(Atom.setIdleTTL('1 minute'))
+})
+
+// The project's tracked files that fuzzy-match the query, best first. The last list stays while
+// the next one loads, so typing never blanks it.
+export function useFileSearch(projectId: string, query: string) {
+  const result = useAtomValue(fileSearchAtom(`${projectId}\0${query}`))
+  const [shown, setShown] = useState<readonly string[]>()
+  const fresh = AsyncResult.isSuccess(result) ? result.value.files : undefined
+  if (fresh && fresh !== shown) setShown(fresh)
+  return fresh ?? shown
 }
 
 // Saves only while the file on disk still holds `base`; a save refreshes the cached file and the

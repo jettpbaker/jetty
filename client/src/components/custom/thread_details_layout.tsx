@@ -214,6 +214,15 @@ export function ThreadDetailsLayout({
     },
     [threadId, showFile]
   )
+  const [findingFile, setFindingFile] = useState(false)
+  const projectId = meta?.projectId
+  const filePicker = useMemo(
+    () =>
+      projectId && !changesDisabled
+        ? { projectId, open: findingFile, onOpenChange: setFindingFile, onPick: editFile }
+        : undefined,
+    [projectId, changesDisabled, findingFile, editFile]
+  )
 
   // A just-linked PR's tab can be requested before the thread's links include it.
   const requestShown =
@@ -235,6 +244,14 @@ export function ThreadDetailsLayout({
   }, [requestedTab, requestShown, consume, open])
 
   useHotkey(keybinds.details.hotkey, toggle, { requireReset: true, ignoreInputs: false })
+  useHotkey(
+    keybinds.openFile.hotkey,
+    () => {
+      if (!open) toggle()
+      setFindingFile(true)
+    },
+    { enabled: !!filePicker, requireReset: true, ignoreInputs: false }
+  )
 
   useLayoutEffect(() => {
     if (!open) return
@@ -330,6 +347,7 @@ export function ThreadDetailsLayout({
                   onClose: () => showFile(undefined),
                 }
               }
+              filePicker={filePicker}
               value={tab}
               onValueChange={setTab}
               changesDisabled={changesDisabled}
@@ -471,6 +489,7 @@ export function ThreadDetailsLayout({
       showFile,
       settleFile,
       editFile,
+      filePicker,
       changesDisabled,
     ]
   )

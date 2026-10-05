@@ -31,6 +31,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -40,6 +41,8 @@ import {
 } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
+import { FilePicker } from './file_picker'
+import { KeybindChip, keybinds } from './keybinds'
 import { LinkPullRequestDialog } from './pull_request_link'
 import { linkPresentation } from './thread_pull_request'
 
@@ -101,6 +104,7 @@ export function ThreadDetailsTabs({
   threadCount,
   pullRequests,
   file,
+  filePicker,
   value,
   onValueChange,
   changesDisabled,
@@ -111,6 +115,13 @@ export function ThreadDetailsTabs({
   threadCount: number
   pullRequests: PullRequestTabs
   file?: { path: string; dirty: boolean; onClose: () => void }
+  // Finding a project file to open in the file tab, from this bar's + menu or ⌘P.
+  filePicker?: {
+    projectId: string
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onPick: (path: string) => void
+  }
   value: string
   onValueChange: (value: string) => void
   changesDisabled?: string
@@ -118,6 +129,7 @@ export function ThreadDetailsTabs({
   const [{ order, closed }, setState] = useState(loadState)
   const [announcement, setAnnouncement] = useState('')
   const [linking, setLinking] = useState(false)
+  const plus = useRef<HTMLButtonElement>(null)
   const closedSet = new Set(closed)
   const chatOpen = chat && !closedSet.has('chat')
   const available = order.filter((id) => id !== 'threads' || threadCount > 0)
@@ -277,7 +289,13 @@ export function ThreadDetailsTabs({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant='ghost' tone='muted' size='icon-sm' className='shrink-0 rounded-sm' />
+              <Button
+                ref={plus}
+                variant='ghost'
+                tone='muted'
+                size='icon-sm'
+                className='shrink-0 rounded-sm'
+              />
             }
             aria-label='Open tab'
           >
@@ -303,6 +321,13 @@ export function ThreadDetailsTabs({
                 </DropdownMenuCheckboxItem>
               )
             })}
+            {filePicker && (
+              <DropdownMenuItem onClick={() => filePicker.onOpenChange(true)}>
+                <File01Icon />
+                Open file…
+                <KeybindChip binding={keybinds.openFile} className='ml-auto' />
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             {pullRequests.links.map((link) => {
               const pr = linkPresentation(link)
@@ -332,6 +357,7 @@ export function ThreadDetailsTabs({
       </TabsList>
       <output className='sr-only'>{announcement}</output>
       <LinkPullRequestDialog threadId={threadId} open={linking} onOpenChange={setLinking} />
+      {filePicker && <FilePicker anchor={plus} {...filePicker} />}
     </DragDropProvider>
   )
 }
