@@ -46,14 +46,14 @@ import {
 } from '@/state'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { catalogModelName } from '@jetty/shared/model-name'
-import { useHotkeys } from '@tanstack/react-hotkeys'
+import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { HoverKeybind, keybinds } from './keybinds'
+import { HoverKeybind, keybinds, typingOutsideComposer } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
@@ -218,6 +218,14 @@ export function AppSidebar() {
     void navigate({ to: '/' })
   }
 
+  useHotkey(
+    keybinds.newThread.hotkey,
+    (event) => {
+      if (!typingOutsideComposer(event)) newThread()
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
+
   // Leaves a thread that's going away; the returned undo comes back to it if nothing else was opened.
   function leaveIfSelected(threadId: string) {
     if (threadId !== selectedId) return () => {}
@@ -301,9 +309,14 @@ export function AppSidebar() {
         <nav aria-label='Main navigation'>
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
-              <Button variant='ghost' className={navigationButtonClass} {...pressProps(newThread)}>
+              <Button
+                variant='ghost'
+                className={`${navigationButtonClass} keybind-target`}
+                {...pressProps(newThread)}
+              >
                 <PencilEdit02Icon className='size-3' />
                 New thread
+                <HoverKeybind binding={keybinds.newThread} />
               </Button>
             </SidebarMenuItem>
             <SidebarMenuItem>

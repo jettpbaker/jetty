@@ -23,6 +23,12 @@ export type Keybind = {
 }
 
 export const keybinds = {
+  newThread: {
+    hotkey: 'Mod+Shift+O',
+    label: '⌘⇧O',
+    name: 'New thread',
+    modifiers: ['Meta', 'Shift'],
+  },
   settings: { hotkey: 'Mod+,', label: '⌘,', name: 'Settings', modifiers: ['Meta'] },
   sidebar: { hotkey: 'Mod+B', label: '⌘B', name: 'Toggle left sidebar', modifiers: ['Meta'] },
   details: {
@@ -41,6 +47,16 @@ export const keybinds = {
     })
   ),
 } satisfies Record<string, Keybind | Keybind[]>
+
+// Keys typed into a text field stay there, except in the composer.
+export function typingOutsideComposer(event: KeyboardEvent) {
+  const field = event.target
+  return (
+    field instanceof HTMLElement &&
+    (field.isContentEditable || field.matches('input, textarea, select')) &&
+    !field.closest('[data-perf-region="composer"]')
+  )
+}
 
 const ModifierContext = createContext<Modifier | null>(null)
 
