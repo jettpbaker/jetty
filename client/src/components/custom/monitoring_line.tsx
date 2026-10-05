@@ -36,7 +36,7 @@ export function MonitoringLine({
           <span className='text-muted-foreground'>
             <WaitingStatusIcon className='size-3' />
           </span>
-          <span className='text-foreground'>Monitoring</span>
+          <span className='text-foreground'>Waiting on</span>
         </span>
         <span className='pointer-events-none flex min-w-0 flex-1 items-center gap-1.5'>
           {expanded ? (
