@@ -32,12 +32,13 @@ export function fittedStyle(attachment: Attachment, maxHeight: number) {
   }
 }
 
-// Videos with unknown dimensions get a 16:9 frame and letterbox inside it.
+// Media of unknown dimensions holds a 16:9 frame: a video letterboxes inside it, an image waits.
+export function frameHeight(width: number) {
+  return Math.min((width * 9) / 16, INLINE_IMAGE_MAX_HEIGHT)
+}
+
 export function videoHeight(video: Attachment, width: number) {
-  return (
-    fittedSize(video, width, INLINE_IMAGE_MAX_HEIGHT)?.height ??
-    Math.min((width * 9) / 16, INLINE_IMAGE_MAX_HEIGHT)
-  )
+  return fittedSize(video, width, INLINE_IMAGE_MAX_HEIGHT)?.height ?? frameHeight(width)
 }
 
 export function galleryColumns(count: number) {
@@ -52,31 +53,58 @@ export function galleryHeight(count: number, width: number) {
 }
 
 type Size = { width: number; height: number }
-const probedSizes = new Map<string, Promise<Size>>()
+type Probed = Size | 'failed'
+// Settled sizes are read during render, so a row the virtualizer remounts lays out at its final size.
+const probedSizes = new Map<string, Probed>()
+const probes = new Map<string, Promise<Probed>>()
 
-// Videos with no recorded dimensions read them from the file, once per source.
-export function useVideoSize(src: string, enabled = true) {
-  const [size, setSize] = useState<Size>()
-  useEffect(() => {
-    if (!enabled) return
-    let live = true
-    let probed = probedSizes.get(src)
-    if (!probed) {
-      probed = new Promise((resolve) => {
+function probeSize(src: string, video: boolean) {
+  let pending = probes.get(src)
+  if (!pending) {
+    pending = new Promise<Probed>((resolve) => {
+      if (video) {
         const probe = document.createElement('video')
         probe.preload = 'metadata'
         probe.onloadedmetadata = () =>
           resolve({ width: probe.videoWidth, height: probe.videoHeight })
         probe.src = src
-      })
-      probedSizes.set(src, probed)
-    }
-    void probed.then((found) => {
-      if (live) setSize(found)
+      } else {
+        const probe = new Image()
+        probe.onload = () => resolve({ width: probe.naturalWidth, height: probe.naturalHeight })
+        probe.onerror = () => resolve('failed')
+        probe.src = src
+      }
+    })
+    void pending.then((found) => probedSizes.set(src, found))
+    probes.set(src, pending)
+  }
+  return pending
+}
+
+// Media with no recorded dimensions reads them from the file, once per source.
+function useProbedSize(src: string, video: boolean, enabled: boolean) {
+  const [probed, setProbed] = useState(() => ({ src, size: probedSizes.get(src) }))
+  useEffect(() => {
+    if (!enabled) return
+    let live = true
+    void probeSize(src, video).then((size) => {
+      if (live)
+        setProbed((current) =>
+          current.src === src && current.size === size ? current : { src, size }
+        )
     })
     return () => {
       live = false
     }
-  }, [src, enabled])
-  return size
+  }, [src, video, enabled])
+  return enabled && probed.src === src ? probed.size : undefined
+}
+
+export function useVideoSize(src: string, enabled = true) {
+  const size = useProbedSize(src, true, enabled)
+  return size === 'failed' ? undefined : size
+}
+
+export function useImageSize(src: string, enabled = true) {
+  return useProbedSize(src, false, enabled)
 }

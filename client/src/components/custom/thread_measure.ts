@@ -5,6 +5,7 @@ import type { ThreadRow } from './thread_rows'
 import {
   BUBBLE_THUMBNAIL_SIZE,
   fittedSize,
+  frameHeight,
   galleryHeight,
   INLINE_IMAGE_MAX_HEIGHT,
   videoHeight,
@@ -57,6 +58,20 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean, r
   return entry.height
 }
 
+// An image alone on its line renders as media, which holds a 16:9 frame until its size is read.
+const imageLine =
+  /^[ \t]*!\[[^\]\n]*\]\([ \t]*<?https?:\/\/[^\s)>]+>?(?:[ \t]+"[^"\n]*")?[ \t]*\)[ \t]*$/gm
+
+function markdownHeight(id: string, text: string, width: number, rough: boolean) {
+  if (!text.includes('![')) return textHeight(id, text, width, false, rough)
+  let media = 0
+  const prose = text.replace(imageLine, () => {
+    media += frameHeight(width)
+    return ''
+  })
+  return textHeight(id, prose, width, false, rough) + media
+}
+
 function captionHeight(id: string, caption: string | undefined, width: number, rough: boolean) {
   return caption ? textHeight(`${id}:caption`, caption, width, false, rough) + 8 : 0
 }
@@ -92,7 +107,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'assistant':
     case 'plan':
       return (
-        textHeight(row.id, row.item.text, width, false, rough) +
+        markdownHeight(row.id, row.item.text, width, rough) +
         8 +
         (row.footer === undefined ? 4 : footerRow)
       )
@@ -101,7 +116,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
         if (entry.type === 'text')
-          height += textHeight(entry.id, entry.text, width - 16, false, rough) + 4
+          height += markdownHeight(entry.id, entry.text, width - 16, rough) + 4
         else height += 28
         if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
           height += Math.min(72, textHeight(entry.id, entry.summary, width, true, rough))

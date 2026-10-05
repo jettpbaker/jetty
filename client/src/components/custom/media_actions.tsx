@@ -74,7 +74,14 @@ export function MediaActions({
         label={video ? 'Download video' : 'Download image'}
         nativeButton={false}
         render={
-          <a href={src} download={name} aria-label={video ? 'Download video' : 'Download image'} />
+          // A browser downloads only same-origin files; anything else opens in a tab, not over Jetty.
+          <a
+            href={src}
+            download={name}
+            target='_blank'
+            rel='noreferrer'
+            aria-label={video ? 'Download video' : 'Download image'}
+          />
         }
       >
         <Download04Icon />

@@ -1,7 +1,11 @@
 import { CodePre } from '@/components/custom/code_block'
 import { EntityLink, entityLinkTag, remarkEntityLinks } from '@/components/custom/entity_link'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
-import { GithubMedia, githubMediaTags, rehypeGithubMedia } from '@/components/custom/github_media'
+import {
+  MarkdownMedia,
+  markdownMediaTags,
+  rehypeMarkdownMedia,
+} from '@/components/custom/markdown_media'
 import {
   MarkdownTable,
   MarkdownTableBody,
@@ -79,7 +83,7 @@ const components = {
   ),
   'file-link': FileLink,
   'entity-link': EntityLink,
-  'github-media': GithubMedia,
+  'markdown-media': MarkdownMedia,
 }
 // Links open in a new tab; streamdown's confirm modal is a speed bump with no focus handling.
 const linkSafety = { enabled: false }
@@ -87,18 +91,22 @@ const linkSafety = { enabled: false }
 type SanitizeSchema = { tagNames: string[]; attributes: Record<string, unknown[]> }
 const [sanitize, schema] = defaultRehypePlugins.sanitize as [unknown, SanitizeSchema]
 // Streamdown ignores allowedTags once the pipeline is custom, so they're listed here too.
-const githubRehypePlugins = [
+const rehypePlugins = [
   defaultRehypePlugins.raw,
   [
     sanitize,
     {
       ...schema,
-      tagNames: [...schema.tagNames, ...Object.keys(allowedTags), ...Object.keys(githubMediaTags)],
-      attributes: { ...schema.attributes, ...allowedTags, ...githubMediaTags },
+      tagNames: [
+        ...schema.tagNames,
+        ...Object.keys(allowedTags),
+        ...Object.keys(markdownMediaTags),
+      ],
+      attributes: { ...schema.attributes, ...allowedTags, ...markdownMediaTags },
     },
   ],
   defaultRehypePlugins.harden,
-  rehypeGithubMedia,
+  rehypeMarkdownMedia,
 ] as StreamdownProps['rehypePlugins']
 
 // Streamdown parses a block every time it mounts, and a thread switch remounts every message.
@@ -138,23 +146,18 @@ function blockProcessor(remarkPlugins: PluggableList, rehypePlugins: PluggableLi
 }
 
 const MarkdownBlock = cachedBlock()
-const GithubBlock = cachedBlock()
 
 export function Markdown({
   children,
   streaming,
-  githubMedia,
   className = 'text-sm leading-relaxed',
 }: {
   children: string
   streaming?: boolean
-  githubMedia?: boolean
   className?: string
 }) {
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
-  const [BlockComponent] = useState(() =>
-    streaming ? Block : githubMedia ? GithubBlock : MarkdownBlock
-  )
+  const [BlockComponent] = useState(() => (streaming ? Block : MarkdownBlock))
   return (
     <Streamdown
       className={className}
@@ -163,7 +166,7 @@ export function Markdown({
       linkSafety={linkSafety}
       isAnimating={streaming}
       remarkPlugins={remarkPlugins}
-      rehypePlugins={githubMedia ? githubRehypePlugins : undefined}
+      rehypePlugins={rehypePlugins}
       BlockComponent={BlockComponent}
     >
       {children}
