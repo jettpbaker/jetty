@@ -25,9 +25,16 @@ export function ContextRing({
     <svg
       viewBox='0 0 256 256'
       aria-hidden='true'
-      className={cn(fraction >= 0.9 && 'text-destructive', className)}
+      className={cn('context-ring', fraction >= 0.9 && 'text-destructive', className)}
     >
-      <circle cx='128' cy='128' r={radius} fill='none' strokeWidth='26' className='stroke-border' />
+      <circle
+        cx='128'
+        cy='128'
+        r={radius}
+        fill='none'
+        strokeWidth='26'
+        className='context-ring-track stroke-border'
+      />
       {context && (
         <circle
           cx='128'
@@ -36,6 +43,7 @@ export function ContextRing({
           fill='none'
           strokeWidth='26'
           stroke='currentColor'
+          className='context-ring-progress'
           strokeLinecap='round'
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - fraction)}
@@ -49,28 +57,38 @@ export function ContextRing({
 export function ThreadContextRing({ threadId }: { threadId: string }) {
   const context = useThreadContext(threadId)
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            aria-label={
-              context
-                ? `Context window ${Math.round(fullness(context) * 100)}% full`
-                : 'Context usage unavailable'
-            }
-          />
-        }
-      >
-        <ContextRing context={context} />
-      </TooltipTrigger>
-      <TooltipContent side='left'>
-        {context
-          ? `${context.usedTokens.toLocaleString()} / ${context.maxTokens.toLocaleString()} context tokens`
-          : 'No context reading yet'}
-      </TooltipContent>
-    </Tooltip>
+    <span className='flex items-center gap-0.5'>
+      {context && (
+        <span
+          aria-hidden='true'
+          className='context-ring-percent cursor-default font-mono text-xs text-muted-foreground select-none'
+        >
+          {Math.round(fullness(context) * 100)}%
+        </span>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              tone='muted'
+              size='icon'
+              aria-label={
+                context
+                  ? `Context window ${Math.round(fullness(context) * 100)}% full`
+                  : 'Context usage unavailable'
+              }
+            />
+          }
+        >
+          <ContextRing context={context} />
+        </TooltipTrigger>
+        <TooltipContent side='left'>
+          {context
+            ? `${context.usedTokens.toLocaleString()} / ${context.maxTokens.toLocaleString()} context tokens`
+            : 'No context reading yet'}
+        </TooltipContent>
+      </Tooltip>
+    </span>
   )
 }
