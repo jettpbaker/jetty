@@ -24,6 +24,7 @@ type StepItem = WorkItem | AssistantItem
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
+export type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
 
 export type QueueState = 'queued' | 'paused' | 'editing' | 'sending'
 
@@ -62,6 +63,7 @@ export type ThreadRow =
       restarted?: boolean
     }
   | { kind: 'compaction'; id: string; running: boolean }
+  | { kind: 'pullRequest'; id: string; item: PullRequestItem }
   | { kind: 'restart'; id: string }
   // the crash-loop guard held the turn; resumed once anything follows it
   | { kind: 'restartLimit'; id: string; resumed: boolean }
@@ -560,6 +562,9 @@ export function threadRows(
       case 'error':
         if (item.message === RESTART_LIMIT_NOTE) heldTurns.add(item.turnId)
         else rows.push({ kind: 'error', id: item.id, message: item.message })
+        break
+      case 'pull_request':
+        rows.push({ kind: 'pullRequest', id: item.id, item })
         break
       case 'image_gallery':
         rows.push({ kind: 'gallery', id: item.id, item })

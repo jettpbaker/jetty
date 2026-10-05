@@ -25,6 +25,7 @@ import {
 } from '@/components/custom/thread_rows'
 import {
   CompactionSeam,
+  PullRequestSeam,
   RestartLimitSeam,
   RestartSeam,
   TranscriptMarker,
@@ -189,6 +190,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
       return row.running
+    case 'pullRequest':
+      return row.item.activity.length
     case 'restart':
       return ''
     case 'restartLimit':
@@ -321,6 +324,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'subagentDone')
     return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
   if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
+  if (row.kind === 'pullRequest') return <PullRequestSeam item={row.item} />
   if (row.kind === 'restart') return <RestartSeam />
   if (row.kind === 'restartLimit')
     return <RestartLimitSeam threadId={threadId} resumed={row.resumed} />

@@ -6,13 +6,18 @@ import {
   PauseIcon,
   Refresh01Icon,
 } from '@/components/custom/huge_icons'
+import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
 import { useContinueThread, useContinuing } from '@/state'
-import { RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
+import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
+import { Link } from '@tanstack/react-router'
+
+import type { PullRequestItem } from './thread_rows'
 
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
 import { SourceLabel } from './source_label'
+import { prPresentation } from './thread_pull_request'
 
 type Tone = 'allow' | 'deny' | 'answer' | 'dismiss'
 
@@ -150,6 +155,66 @@ export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resu
       ) : (
         <ChatSeamAction onClick={() => continueThread(threadId)}>Resume</ChatSeamAction>
       )}
+    </ChatSeam>
+  )
+}
+
+function describeActivity({ type, actor, count, detail }: PullRequestActivity) {
+  switch (type) {
+    case 'checks_failed':
+      return detail ? `checks failed: ${detail}` : 'checks failed'
+    case 'checks_passed':
+      return 'checks passing'
+    case 'changes_requested':
+      return `changes requested by ${actor}`
+    case 'approved':
+      return `approved by ${actor}`
+    case 'commented':
+      return count && count > 1 ? `${count} comments from ${actor}` : `comment from ${actor}`
+    case 'conflict':
+      return detail ? `merge conflict with ${detail}` : 'merge conflict'
+    case 'ready':
+      return 'ready to merge'
+    case 'merged':
+      return actor ? `merged by ${actor}` : 'merged'
+    case 'closed':
+      return 'closed'
+  }
+}
+
+// The glyph takes the PR's state once it's settled, else the colour of its worst news.
+function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
+  const types = new Set(activity.map((entry) => entry.type))
+  if (types.has('merged'))
+    return { icon: prPresentation.merged.icon, tone: prPresentation.merged.color }
+  if (types.has('closed'))
+    return { icon: prPresentation.closed.icon, tone: prPresentation.closed.color }
+  if (types.has('checks_failed') || types.has('changes_requested') || types.has('conflict'))
+    return { icon: GitPullRequestIcon, tone: 'text-status-error' }
+  if (types.has('ready') || types.has('approved') || types.has('checks_passed'))
+    return { icon: GitPullRequestIcon, tone: 'text-pr-open' }
+  return { icon: GitPullRequestIcon }
+}
+
+// What Jetty's PR watcher saw on one of the thread's PRs. The agent gets the details, if it woke.
+export function PullRequestSeam({ item }: { item: PullRequestItem }) {
+  const [owner = '', repo = ''] = item.repo.split('/')
+  const { icon, tone } = pullRequestSeamLook(item.activity)
+  return (
+    <ChatSeam>
+      <SeamIcon icon={icon} tone={tone} />
+      <span className='truncate'>
+        <Link
+          to='/pull-requests/$owner/$repo/$number'
+          params={{ owner, repo, number: String(item.number) }}
+          title={`${item.repo}#${item.number}`}
+          className='text-foreground/90 hover:text-foreground hover:underline'
+        >
+          #{item.number}
+        </Link>{' '}
+        {item.activity.map(describeActivity).join(' · ')}
+        {item.held && ' · not woken, too many wakes this hour'}
+      </span>
     </ChatSeam>
   )
 }

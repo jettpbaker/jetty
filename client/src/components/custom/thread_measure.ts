@@ -162,6 +162,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'compaction':
     case 'restart':
     case 'restartLimit':
+    case 'pullRequest':
       return 24
     case 'marker':
       return 16
