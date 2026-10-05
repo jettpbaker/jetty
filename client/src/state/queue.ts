@@ -15,6 +15,7 @@ import { chromeAtom } from './chrome'
 import { run, useAction } from './connection'
 import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
+import { createQueueRequests } from './queue_requests'
 import { showSent, useSendingIds } from './turns'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -88,7 +89,7 @@ function track(
       drop()
     }
   }
-  return run(registry, (connection) =>
+  return runQueued(registry, threadId, 'message' in op ? op.message.id : op.id, (connection) =>
     request(connection).pipe(
       Effect.onExit((exit) =>
         Effect.sync(() => {
@@ -105,14 +106,19 @@ function track(
   )
 }
 
-// In-flight adds by message id, and each thread's latest add.
-const adding = new Map<string, Fiber.Fiber<unknown, unknown>>()
+const queueRequests = createQueueRequests()
 const latestAdd = new Map<string, Fiber.Fiber<unknown, unknown>>()
 
-// A remove, edit or send-now on a message still being added waits for the add, or the server
-// wouldn't know the message yet and the add would land after it.
-function awaitAdd(messageId: string) {
-  return awaitFiber(adding.get(messageId))
+function runQueued<A, E>(
+  registry: Registry,
+  threadId: string,
+  messageId: string,
+  request: (connection: Connection) => Effect.Effect<A, E>,
+  onFailure?: () => void
+) {
+  return queueRequests(threadId, messageId, (wait) =>
+    run(registry, (connection) => wait.pipe(Effect.andThen(request(connection))), onFailure)
+  )
 }
 
 function awaitFiber(fiber: Fiber.Fiber<unknown, unknown> | undefined) {
@@ -189,10 +195,8 @@ function addQueued(
       },
     }
   )
-  adding.set(message.id, add)
   latestAdd.set(threadId, add)
   add.addObserver(() => {
-    adding.delete(message.id)
     if (latestAdd.get(threadId) === add) latestAdd.delete(threadId)
   })
 }
@@ -211,8 +215,6 @@ type Removed = { message: QueuedMessage; index: number }
 // it a while longer, so an Undo pressed at the last moment still lands.
 const removedAtom = Atom.make<ReadonlyMap<string, Removed>>(new Map()).pipe(Atom.keepAlive)
 const undoMs = 6000
-// In-flight removes by message id, which an Undo waits for.
-const removing = new Map<string, Fiber.Fiber<unknown, unknown>>()
 
 function removeQueued(registry: Registry, threadId: string, messageId: string) {
   const queue = currentQueue(registry, threadId)
@@ -226,15 +228,9 @@ function removeQueued(registry: Registry, threadId: string, messageId: string) {
       )
     }, undoMs)
   }
-  const remove = track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
-    awaitAdd(messageId).pipe(
-      Effect.andThen(connection.request('queue.remove', { threadId, messageId }))
-    )
+  track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
+    connection.request('queue.remove', { threadId, messageId })
   )
-  removing.set(messageId, remove)
-  remove.addObserver(() => {
-    if (removing.get(messageId) === remove) removing.delete(messageId)
-  })
 }
 
 function restoreQueued(registry: Registry, threadId: string) {
@@ -246,10 +242,7 @@ function restoreQueued(registry: Registry, threadId: string) {
     registry,
     threadId,
     { kind: 'restore', message, index },
-    (connection) =>
-      awaitFiber(removing.get(message.id)).pipe(
-        Effect.andThen(connection.request('queue.restore', { threadId, messageId: message.id }))
-      ),
+    (connection) => connection.request('queue.restore', { threadId, messageId: message.id }),
     { onFailure: () => toast.error("Couldn't put the message back") }
   )
 }
@@ -260,10 +253,7 @@ function editQueued(registry: Registry, threadId: string, messageId: string, tex
     registry,
     threadId,
     { kind: 'edit', id: messageId, text },
-    (connection) =>
-      awaitAdd(messageId).pipe(
-        Effect.andThen(connection.request('queue.edit', { threadId, messageId, text }))
-      ),
+    (connection) => connection.request('queue.edit', { threadId, messageId, text }),
     {
       onSuccess: staged.sent,
       onFailure() {
@@ -290,11 +280,12 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
         images: message.attachments ?? [],
         sentAt: Date.now(),
       })
-  run(
+  runQueued(
     registry,
+    threadId,
+    message.id,
     (connection) =>
       unarchive(connection).pipe(
-        Effect.andThen(awaitAdd(message.id)),
         Effect.andThen(connection.request('queue.sendNow', { threadId, messageId: message.id }))
       ),
     () => {
@@ -309,18 +300,14 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
 }
 
 function holdQueued(registry: Registry, threadId: string, messageId: string) {
-  run(registry, (connection) =>
-    awaitAdd(messageId).pipe(
-      Effect.andThen(connection.request('queue.hold', { threadId, messageId }))
-    )
+  runQueued(registry, threadId, messageId, (connection) =>
+    connection.request('queue.hold', { threadId, messageId })
   )
 }
 
 function releaseQueued(registry: Registry, threadId: string, messageId: string) {
-  run(registry, (connection) =>
-    awaitAdd(messageId).pipe(
-      Effect.andThen(connection.request('queue.release', { threadId, messageId }))
-    )
+  runQueued(registry, threadId, messageId, (connection) =>
+    connection.request('queue.release', { threadId, messageId })
   )
 }
 
