@@ -184,8 +184,16 @@ export function createRpcHandlers(
           ),
           Effect.mapError(wireError)
         ),
+      // Archive and delete take the thread's children with it, so their changes count too.
       'thread.worktreeChanges': ({ threadId }) =>
-        fromPromise(() => worktrees.dirty(threadId)).pipe(
+        store.threadTree(threadId).pipe(
+          Effect.flatMap((tree) =>
+            fromPromise(() =>
+              Promise.all(tree.map((thread) => worktrees.dirty(thread.id))).then((counts) =>
+                counts.reduce((sum, count) => sum + count, 0)
+              )
+            )
+          ),
           Effect.map((count) => ({ count })),
           Effect.mapError(wireError)
         ),

@@ -87,6 +87,10 @@ const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0
 const navigationButtonClass =
   'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
 
+function uncommitted(count: number) {
+  return count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`
+}
+
 export function AppSidebar() {
   const chrome = useChrome()
   const now = useNow(60_000)
@@ -195,17 +199,24 @@ export function AppSidebar() {
     }
   }
 
+  // Archive and delete take the thread's children along, so any worktree among them counts.
+  function hasWorktree(threadId: string) {
+    const threads = chrome?.threads ?? []
+    const tree = [threadId]
+    for (let index = 0; index < tree.length; index++)
+      for (const thread of threads) if (thread.parentThreadId === tree[index]) tree.push(thread.id)
+    return threads.some((thread) => tree.includes(thread.id) && thread.environment === 'worktree')
+  }
+
   // The server refuses a worktree with uncommitted changes; check first so we never claim success.
   function archive(threadId: string) {
-    if (chrome?.threads.find((thread) => thread.id === threadId)?.environment !== 'worktree') {
+    if (!hasWorktree(threadId)) {
       confirmArchive(threadId)
       return
     }
     checkChanges(threadId, (count) => {
       if (count > 0)
-        toast.error(
-          `Commit or discard ${count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`} before archiving this worktree`
-        )
+        toast.error(`Commit or discard ${uncommitted(count)} before archiving this worktree`)
       else confirmArchive(threadId)
     })
   }
@@ -225,7 +236,7 @@ export function AppSidebar() {
   }
 
   function remove(threadId: string) {
-    if (chrome?.threads.find((thread) => thread.id === threadId)?.environment !== 'worktree') {
+    if (!hasWorktree(threadId)) {
       confirmRemove(threadId)
       return
     }
@@ -473,7 +484,7 @@ export function AppSidebar() {
           <DialogHeader>
             <DialogTitle>Delete thread?</DialogTitle>
             <DialogDescription>
-              {deletePrompt?.count} uncommitted changes in this thread&apos;s worktree will be lost
+              {uncommitted(deletePrompt?.count ?? 0)} in this thread&apos;s worktree will be lost
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
