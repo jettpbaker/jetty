@@ -78,14 +78,13 @@ function grokInput(text: string, images?: AgentImage[]) {
   ]
 }
 
-export function grokArgs(input: TurnInput, instructions?: string) {
+export function grokArgs(input: TurnInput) {
   return [
     '--no-plan',
     '--permission-mode',
     input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
     '--sandbox',
     input.permissionMode === 'full_access' ? 'off' : 'workspace',
-    ...(instructions ? ['--rules', instructions] : []),
     'agent',
     '--no-leader',
     'stdio',
@@ -321,10 +320,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const binding = options.mcp
             ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'grok' })
             : undefined
-          const args = grokArgs(
-            session.input,
-            binding && jettyInstructions(yield* store.getAgentBehaviours())
-          )
+          const args = grokArgs(session.input)
+          // `grok agent stdio` ignores --rules; ACP takes them on the session instead.
+          const rules = binding && jettyInstructions(yield* store.getAgentBehaviours())
           // Folder trust gates project AGENTS.md, skills, hooks and MCP; the user chose this project.
           // The env var lifts it for this process only, where --trust would save a grant per worktree.
           const env = { ...process.env, ...options.env, GROK_FOLDER_TRUST: '0' }
@@ -351,6 +349,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 ]
               : [],
             ...(resume ? { sessionId: resume } : {}),
+            ...(rules ? { _meta: { rules } } : {}),
           })
           const sessionId = resume ?? string(result.sessionId)
           if (!sessionId) return yield* Effect.fail(new AgentError('Grok returned no session id'))
