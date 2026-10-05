@@ -363,7 +363,7 @@ function inTurn<A>(folder: string, save: () => Promise<A>) {
 // Writes `bytes` to a new synced sibling of the real path `file` and returns its path; undefined
 // when the folder is no longer where `file` resolved.
 async function writeSibling(file: string, bytes: Buffer, mode: number | undefined) {
-  const temp = join(dirname(file), `.${basename(file)}.${randomUUID()}.jetty-save`)
+  const temp = join(dirname(file), `.${randomUUID()}.jetty-save`)
   // Owner-only until it takes the file's mode, so a private file's text is never readable by
   // others in the sibling. A new file's sibling is created as the file would be.
   const handle = await open(

@@ -180,8 +180,7 @@ Everything below is for one combined review of the chat, not separate ports.
   with identical totals keeps old files (`reuseFiles` ignores the base SHA); a thread
   linked to a PR with no messages can't open its PR tab.
 - File save (`diff.ts`): a parent-folder symlink swapped after the realpath check
-  redirects a new file; a basename over ~206 bytes can't be saved (temp
-  sibling adds ~49); "Save anyway" after the folder was deleted says "Folder not
+  redirects a new file; "Save anyway" after the folder was deleted says "Folder not
   found"; Changes drops an oversized file whose path is quoted with no notice (~57);
   a save still splits hard links and drops xattrs/ACLs.
 - Worktrees (`worktrees.ts`, `orchestrator.ts`): the setup watchdog exits with the

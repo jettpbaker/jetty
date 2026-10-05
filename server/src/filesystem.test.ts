@@ -236,6 +236,22 @@ describe('Effect filesystem services', () => {
     )
   })
 
+  test('atomic saving supports filenames at the filesystem component limit', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          const name = 'x'.repeat(255)
+          yield* fs.writeFileString(root + '/' + name, 'old')
+          expect(yield* writeProjectFile(root, name, 'new', 'old')).toEqual({ saved: true })
+          expect(yield* fs.readFileString(root + '/' + name)).toBe('new')
+          expect(yield* fs.readDirectory(root)).toEqual([name])
+        })
+      )
+    )
+  })
+
   test('pure diff truncation retains ordinary patches and omits lockfiles and oversized sections', () => {
     const normal = 'diff --git a/source.ts b/source.ts\n+++ b/source.ts\n@@ -0,0 +1 @@\n+code\n'
     const lock = 'diff --git a/bun.lock b/bun.lock\n+++ b/bun.lock\n+lock\n'
