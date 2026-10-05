@@ -378,10 +378,7 @@ export function createRpcHandlers(
           Effect.mapError(wireError)
         ),
       'pullRequest.link': (params) =>
-        pullRequestLinks.link(params.threadId, params.reference).pipe(
-          Effect.map(({ thread }) => ({ thread })),
-          Effect.mapError(wireError)
-        ),
+        pullRequestLinks.link(params.threadId, params.reference).pipe(Effect.mapError(wireError)),
       'pullRequest.unlink': (params) =>
         Effect.gen(function* () {
           const ref = yield* pullRequestLinks.resolve(params.threadId, params.reference)

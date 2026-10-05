@@ -480,20 +480,6 @@ export function useOpenOverview() {
   )
 }
 
-function linkedRef(
-  links: readonly PullRequestLink[],
-  reference: string
-): PullRequestLink | undefined {
-  const url = reference.match(/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/i)
-  if (url) {
-    const repo = url[1]!.toLowerCase()
-    const number = Number(url[2])
-    return links.find((link) => link.repo === repo && link.number === number)
-  }
-  const number = Number(reference.trim().replace(/^#/, ''))
-  return links.filter((link) => link.number === number).at(-1)
-}
-
 export function useLinkPullRequest() {
   const registry = useContext(RegistryContext)
   return useCallback(
@@ -508,9 +494,8 @@ export function useLinkPullRequest() {
               'message' in error && typeof error.message === 'string'
                 ? error.message
                 : "Couldn't link the pull request",
-            onSuccess: ({ thread }) => {
-              const link = linkedRef(sortedLinks(thread.pullRequests), reference)
-              if (link) openPullRequest(registry, threadId, link)
+            onSuccess: ({ ref }) => {
+              openPullRequest(registry, threadId, ref)
               return undefined
             },
           })

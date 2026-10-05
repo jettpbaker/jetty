@@ -497,7 +497,10 @@ export const methods = {
   },
   'pullRequest.link': {
     params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
-    result: Schema.Struct({ thread: ThreadMeta }),
+    result: Schema.Struct({
+      ref: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+      thread: ThreadMeta,
+    }),
   },
   'github.connection': {
     params: Schema.Struct({}),
