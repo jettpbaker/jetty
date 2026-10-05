@@ -520,15 +520,21 @@ export function useLinkPullRequest() {
   )
 }
 
+// Settles once the server has answered, so an Undo can relink after the row is gone.
 function unlinkPullRequest(
   registry: Registry,
   threadId: string,
   link: PullRequestRef & { url: string }
 ) {
   hideTab(registry, threadId, pullRequestKey(link))
-  run(
-    registry,
-    (connection) => connection.request('pullRequest.unlink', { threadId, reference: link.url }),
+  return Effect.runPromise(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(
+      Effect.flatMap((connection) =>
+        connection.request('pullRequest.unlink', { threadId, reference: link.url })
+      )
+    )
+  ).then(
+    () => undefined,
     () => {
       showTab(registry, threadId, pullRequestKey(link))
       toast.error("Couldn't unlink pull request")

@@ -48,14 +48,16 @@ function UnlinkItem({ threadId, link }: { threadId: string; link: PullRequestAdd
   return (
     <DropdownMenuItem
       onClick={() => {
-        unlink(threadId, link)
+        const unlinked = unlink(threadId, link)
         toast('Pull request unlinked', {
           action: {
             label: 'Undo',
             onClick: () =>
-              void relink(threadId, link.url).then((error) => {
-                if (error) toast.error(error)
-              }),
+              void unlinked
+                .then(() => relink(threadId, link.url))
+                .then((error) => {
+                  if (error) toast.error(error)
+                }),
           },
         })
       }}
