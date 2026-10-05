@@ -45,8 +45,7 @@ function useDriftColors() {
 }
 
 // The new-thread page's background without a wallpaper: accent swirls, dithered, slowly drifting.
-// `base` replaces the ground; the swirls stay mixed against the theme background.
-export function DitherDrift({ base }: { base?: string }) {
+export function DitherDrift() {
   const colors = useDriftColors()
   const reducedMotion = useReducedMotion()
   if (!colors) return null
@@ -54,7 +53,7 @@ export function DitherDrift({ base }: { base?: string }) {
     <Dithering
       className='pointer-events-none absolute inset-0'
       aria-hidden='true'
-      colorBack={base ?? colors.back}
+      colorBack={colors.back}
       colorFront={colors.front}
       shape='warp'
       type='4x4'

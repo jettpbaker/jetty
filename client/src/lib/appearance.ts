@@ -5,9 +5,6 @@ import { loadAccent, setAccent } from './accent'
 import { applyWallpaperAccent } from './wallpaper-accent'
 import { wallpaperPixelSize, wallpaperQuality, type WallpaperCrop } from './wallpaper-crop'
 
-// What the new-thread page shows without a wallpaper.
-export type Backdrop = 'default' | 'pure' | 'fade'
-
 export type Appearance = {
   wallpaper: string
   filename: string | null
@@ -17,7 +14,6 @@ export type Appearance = {
   crop?: WallpaperCrop
   video: string
   videoFilename: string | null
-  backdrop: Backdrop
 }
 
 const defaults: Appearance = {
@@ -27,7 +23,6 @@ const defaults: Appearance = {
   autoTint: false,
   video: '',
   videoFilename: null,
-  backdrop: 'default',
 }
 const key = 'jetty.appearance'
 const wallpaperBlob = 'wallpaper'
@@ -45,7 +40,6 @@ type StoredAppearance = {
   crop?: WallpaperCrop
   video?: 'opfs'
   videoFilename?: string | null
-  backdrop?: Backdrop
 }
 
 let cache: Appearance | undefined
@@ -74,8 +68,6 @@ function readStored(): StoredAppearance {
   try {
     const data = JSON.parse(storage.get(key) ?? 'null')
     if (!data || typeof data.autoAccent !== 'boolean') return empty
-    const backdrop: Backdrop =
-      data.backdrop === 'pure' || data.backdrop === 'fade' ? data.backdrop : 'default'
     const video: Pick<StoredAppearance, 'video' | 'videoFilename'> =
       data.video === 'opfs'
         ? {
@@ -91,11 +83,10 @@ function readStored(): StoredAppearance {
         wallpaper: 'opfs',
         source: data.source === 'opfs' ? 'opfs' : undefined,
         crop: cropOf(data.crop),
-        backdrop,
         ...video,
       }
     }
-    return { ...empty, backdrop, ...video }
+    return { ...empty, ...video }
   } catch {
     return empty
   }
@@ -110,7 +101,6 @@ function writeStored({
   crop,
   video,
   videoFilename,
-  backdrop,
 }: StoredAppearance) {
   storage.set(
     key,
@@ -123,7 +113,6 @@ function writeStored({
       crop,
       video,
       videoFilename,
-      backdrop,
     })
   )
 }
@@ -164,7 +153,6 @@ async function materialize(stored: StoredAppearance): Promise<Appearance> {
     crop: wallpaper ? stored.crop : undefined,
     video,
     videoFilename: video ? (stored.videoFilename ?? null) : null,
-    backdrop: stored.backdrop ?? 'default',
   }
 }
 
@@ -225,7 +213,6 @@ export function saveAppearance(next: Appearance) {
         wallpaper: '',
         video: stored.video,
         videoFilename: stored.videoFilename,
-        backdrop: next.backdrop,
       }
       writeStored(cleared)
       forget(wallpaperBlob, sourceBlob)
@@ -254,7 +241,6 @@ export function saveAppearance(next: Appearance) {
     stored.crop = next.crop
     stored.autoAccent = next.autoAccent
     stored.autoTint = next.autoTint
-    stored.backdrop = next.backdrop
     writeStored(stored)
     publish(await materialize(stored))
   })
