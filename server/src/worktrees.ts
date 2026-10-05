@@ -127,7 +127,7 @@ export function createWorktrees(
   let closing = false
   const locks = new Map<string, Promise<unknown>>()
   const setups = new Set<ChildProcess>()
-  const preparations = new Map<string, Promise<string>>()
+  const preparations = new Map<string, { pending: Promise<string>; stop: AbortController }>()
   const run = <A>(effect: Effect.Effect<A, StoreError>) => Effect.runPromise(effect)
 
   // One git mutation at a time per repository, shared by its main checkout and worktrees.
@@ -342,7 +342,8 @@ export function createWorktrees(
     signal?: AbortSignal
   ) {
     if (closing) throw new Error(`Worktree ${name} interrupted by shutdown`)
-    signal?.throwIfAborted()
+    const stopped = () => new Error(`Worktree ${name} stopped`)
+    if (signal?.aborted) throw stopped()
     await new Promise<void>((resolve, reject) => {
       const child = spawn('sh', ['-lc', script], {
         cwd,
@@ -378,11 +379,13 @@ export function createWorktrees(
         finish(
           code === 0
             ? undefined
-            : new Error(
-                timedOut
-                  ? `Worktree ${name} timed out after 15 minutes`
-                  : `Worktree ${name} failed: ${output.trim() || `exit ${code}`}`
-              )
+            : signal?.aborted
+              ? stopped()
+              : new Error(
+                  timedOut
+                    ? `Worktree ${name} timed out after 15 minutes`
+                    : `Worktree ${name} failed: ${output.trim() || `exit ${code}`}`
+                )
         )
       )
     })
@@ -448,6 +451,8 @@ export function createWorktrees(
     if (record.temporaryBranch && thread.title !== DEFAULT_THREAD_TITLE)
       await rename(threadId, thread.title).catch(() => {})
     await refresh(threadId)
+    // A stop that lands once setup is done still means the turn waiting on it shouldn't start.
+    if (signal?.aborted) throw new Error('Worktree setup stopped')
     return working
   }
 
@@ -455,8 +460,12 @@ export function createWorktrees(
   function prepare(threadId: string, signal?: AbortSignal) {
     if (closing) return Promise.reject(new StoreError('conflict', 'Server is shutting down'))
     const existing = preparations.get(threadId)
-    if (existing) return existing
-    const pending = prepareNow(threadId, signal)
+    if (existing) return existing.pending
+    const stop = new AbortController()
+    const pending = prepareNow(
+      threadId,
+      signal ? AbortSignal.any([signal, stop.signal]) : stop.signal
+    )
       .catch(async (error: unknown) => {
         const record = await run(store.getWorktree(threadId))
         if (record) {
@@ -468,8 +477,15 @@ export function createWorktrees(
         throw error
       })
       .finally(() => preparations.delete(threadId))
-    preparations.set(threadId, pending)
+    preparations.set(threadId, { pending, stop })
     return pending
+  }
+
+  // Fails the thread's running preparation as stopped, leaving it for Retry. True if one ran.
+  function stopSetup(threadId: string) {
+    const preparation = preparations.get(threadId)
+    preparation?.stop.abort()
+    return preparation !== undefined
   }
 
   async function dirty(threadId: string) {
@@ -592,7 +608,7 @@ export function createWorktrees(
   async function shutdown() {
     closing = true
     for (const child of setups) killSetup(child)
-    await Promise.allSettled(preparations.values())
+    await Promise.allSettled([...preparations.values()].map(({ pending }) => pending))
   }
 
   return {
@@ -603,6 +619,7 @@ export function createWorktrees(
     },
     root,
     prepare,
+    stopSetup,
     dirty,
     cleanUp,
     remove,

@@ -53,9 +53,11 @@ function Thread() {
   const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
   const agent = agents.find((entry) => entry.id === tab)
   // Until the thread loads, a thread that has never started a turn is taken to be empty. Threads
-  // from before turn times were recorded only have their provider to show for it.
+  // from before turn times were recorded only have their provider to show for it. A first message
+  // held in the queue (its worktree setup stopped or failed) still shows in the chat.
   const started = meta?.turnStartedAt !== undefined || meta?.provider !== undefined
-  const empty = overlay.empty && (thread !== undefined || !started)
+  const empty =
+    overlay.empty && !meta?.pendingMessages?.length && (thread !== undefined || !started)
   const composer = (
     <ThreadComposer
       key={threadId}

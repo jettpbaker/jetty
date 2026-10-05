@@ -831,6 +831,7 @@ test('a refused archive fails with the archive script’s own error', async () =
     Effect.gen(function* () {
       const f = yield* makeUploadFixture()
       const worktrees = {
+        stopSetup: () => false,
         dirty: async () => 0,
         cleanUp: async () => {
           throw new Error('Worktree archive failed: docker is not running')

@@ -190,8 +190,25 @@ export function createOrchestrator({
       })
     }
 
+    // A worktree setup holds its thread's admission until it ends, so a stop ends the setup first.
+    function stopSetup(threadId: string) {
+      return Effect.sync(() => worktrees?.stopSetup(threadId) ?? false)
+    }
+
+    function stopTreeSetups(threadId: string) {
+      return store
+        .threadTree(threadId)
+        .pipe(
+          Effect.flatMap((tree) =>
+            Effect.forEach(tree, (thread) => stopSetup(thread.id), { discard: true })
+          )
+        )
+    }
+
     function stopThread(threadId: string) {
-      return state(threadId).admission.withPermit(stopAdmittedThread(threadId))
+      return stopSetup(threadId).pipe(
+        Effect.andThen(state(threadId).admission.withPermit(stopAdmittedThread(threadId)))
+      )
     }
 
     function stopAdmittedThread(threadId: string) {
@@ -237,6 +254,7 @@ export function createOrchestrator({
     function archiveThread(threadId: string, archived: boolean) {
       return lifecycle.withPermit(
         Effect.gen(function* () {
+          if (archived) yield* stopTreeSetups(threadId)
           yield* withTreeAdmission(
             archived ? store.threadTree(threadId) : store.archiveGroup(threadId),
             (tree) =>
@@ -1274,7 +1292,13 @@ export function createOrchestrator({
       stopThread,
       archiveThread,
       interrupt(threadId: string) {
-        return state(threadId).admission.withPermit(interruptAdmittedThread(threadId))
+        return stopSetup(threadId).pipe(
+          Effect.flatMap((stopped) =>
+            stopped
+              ? Effect.void
+              : state(threadId).admission.withPermit(interruptAdmittedThread(threadId))
+          )
+        )
       },
       stopBackgroundTasks(threadId: string, taskId?: string) {
         return Effect.gen(function* () {
@@ -1347,6 +1371,7 @@ export function createOrchestrator({
       deleteThread(threadId: string) {
         return lifecycle.withPermit(
           Effect.gen(function* () {
+            yield* stopTreeSetups(threadId)
             yield* withTreeAdmission(store.threadTree(threadId), (tree) =>
               Effect.gen(function* () {
                 for (const thread of tree) yield* stopAdmittedThread(thread.id)
