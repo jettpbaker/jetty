@@ -7,6 +7,7 @@ import { RESTART_LIMIT, RESTART_LIMIT_NOTE, RESTART_WINDOW_MS } from '@jetty/sha
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, newId, type ProviderUsage } from '@jetty/shared/wire'
+import { Database } from 'bun:sqlite'
 import {
   Context,
   Deferred,
@@ -99,6 +100,36 @@ function selectTitler(
 function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
   return Effect.gen(function* () {
     return Context.get(yield* Layer.build(layer), AgentService)
+  })
+}
+
+// One server per home: a second one would settle the first one's live turns as if it had crashed.
+// SQLite's lock on the file is the OS's, so it goes with the process however that ends.
+function lockHome(home: string) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    yield* fs.makeDirectory(home, { recursive: true })
+    return yield* Effect.acquireRelease(
+      Effect.try({
+        try: () => {
+          const lock = new Database(join(home, 'server.lock'))
+          try {
+            lock.exec('BEGIN EXCLUSIVE')
+          } catch (error) {
+            lock.close()
+            throw error
+          }
+          return lock
+        },
+        catch: (error) =>
+          new Error(
+            (error as { code?: string }).code === 'SQLITE_BUSY'
+              ? `Another Jetty server is already using ${home}. Stop it first, or set JETTY_HOME to another folder.`
+              : `Couldn't lock ${home}: ${error}`
+          ),
+      }),
+      (lock) => Effect.sync(() => lock.close())
+    )
   })
 }
 
@@ -261,6 +292,7 @@ function createServer(opts: ServerOptions = {}) {
       opts.agent ??
       (envAgent === 'grok' || envAgent === 'codex' || envAgent === 'echo' ? envAgent : 'claude')
 
+    yield* lockHome(home)
     const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)

@@ -393,14 +393,14 @@ describe('server skeleton', () => {
     }
   })
 
-  test('a listener startup failure rolls back the already acquired SQLite connection', async () => {
+  test('a listener startup failure closes the already acquired SQLite connection and home lock', async () => {
     const running = await boot()
     const home = mkdtempSync(join(tmpdir(), 'jetty-startup-failure-'))
     homes.push(home)
     const close = spyOn(Database.prototype, 'close')
     try {
       await expect(startServer({ home, port: running.port, agent: 'echo' })).rejects.toThrow()
-      expect(close).toHaveBeenCalledTimes(1)
+      expect(close).toHaveBeenCalledTimes(2)
     } finally {
       close.mockRestore()
     }
@@ -1073,6 +1073,26 @@ describe('server skeleton', () => {
       },
       15_000
     )
+
+  test('a second server on the same home refuses to start, before touching the first one', async () => {
+    const first = await boot()
+    const c = await connect(first.port)
+    const { project } = await c.request('project.create', { path: dir(join(first.home, 'p')) })
+    const { thread } = await c.request('thread.create', {
+      environment: 'local',
+      id: newId(),
+      projectId: project.id,
+    })
+    await Effect.runPromise(first.store.beginDelivery(thread.id, 'live-turn', 0))
+    await expect(startServer({ home: first.home, port: 0, hostname: '127.0.0.1' })).rejects.toThrow(
+      `Another Jetty server is already using ${first.home}`
+    )
+    const state = await Effect.runPromise(first.store.getThreadState(thread.id))
+    expect(state.activeTurnId).toBe('live-turn')
+    expect(await Effect.runPromise(first.store.getEventsAfter(thread.id, 0))).toEqual([])
+    await first.stop()
+    servers.push(await startServer({ home: first.home, port: 0, hostname: '127.0.0.1' }))
+  })
 
   test('thread.create is idempotent for same id and projectId', async () => {
     const { port, store } = await boot()
