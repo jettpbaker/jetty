@@ -6,10 +6,10 @@ import { useContext, type ReactNode } from 'react'
 
 import { useDiffWorkerPoolLoading } from '../diff_worker_pool'
 import { hugeIconMasks } from '../huge_icons'
-import { syntaxTheme } from './cursor_themes'
+import { codeSurfaceCSS, syntaxTheme } from '../syntax_theme'
 import { DiffStyleContext, DiffWrapContext } from './model'
 
-// Jetty's skin for Pierre's diffs, injected into its shadow root: Jetty's surface and status colours,
+// Jetty's skin for Pierre's diffs, injected into its shadow root: the code surface (syntax_theme.ts),
 // line numbers tinted like their code with no gap between, so a changed line's tint runs unbroken, and a solid
 // removed-line bar like the added one (Pierre stripes it).
 // A comment's row is one colour across the gutter and the code: the diff background, or, between two
@@ -18,7 +18,7 @@ import { DiffStyleContext, DiffWrapContext } from './model'
 // the empty side's stripes when it sits inside them. Comments stack
 // above the sticky line-number gutter (z-index 3) so their card can reach back over it.
 const diffCSS = `
-:host { --diffs-font-size: 12px; --diffs-line-height: 20px; --diffs-bg: var(--diff-surface) !important; --diffs-addition-color-override: var(--status-success); --diffs-deletion-color-override: var(--status-error); --diffs-gap-style: none; }
+${codeSurfaceCSS}
 [data-line-annotation], [data-gutter-buffer="annotation"] { --diffs-annotation-bg: var(--diffs-bg); }
 [data-line-annotation] { z-index: 4; }
 [data-content-buffer] + [data-line-annotation]:has(+ [data-content-buffer]) {
@@ -95,7 +95,7 @@ export function DiffBody<T = undefined>({
   annotations?: DiffLineAnnotation<T>[]
   renderAnnotation?: (annotation: DiffLineAnnotation<T>) => ReactNode
 }) {
-  const loading = useDiffWorkerPoolLoading(syntaxTheme)
+  const loading = useDiffWorkerPoolLoading()
   const diffStyle = useContext(DiffStyleContext)
   const wrap = useContext(DiffWrapContext)
   const resolvedTheme = useResolvedTheme()

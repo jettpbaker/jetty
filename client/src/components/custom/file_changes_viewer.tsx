@@ -7,12 +7,11 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { ChangesScopePicker } from './changes_scope'
 import { charmedSprite } from './charmed_icons'
 import { DiffBody } from './diff/body'
-import { syntaxTheme } from './diff/cursor_themes'
 import { DiffFileCard } from './diff/file_card'
 import { DiffFileList } from './diff/file_list'
 import { byTreeOrder, DiffStyleContext, DiffWrapContext, type DiffFile } from './diff/model'
 import { DiffToolbar, useDiffStyle, useDiffWrap } from './diff/toolbar'
-import { DiffWorkerPoolProvider, firstPaintLines } from './diff_worker_pool'
+import { firstPaintLines } from './diff_worker_pool'
 import {
   hydratedDiff,
   loadedFiles,
@@ -177,104 +176,102 @@ export function FileChangesViewer({
   return (
     <DiffStyleContext value={diffStyle}>
       <DiffWrapContext value={wrap}>
-        <DiffWorkerPoolProvider themes={syntaxTheme}>
-          <div
-            ref={root}
-            className='@container flex h-full min-h-0 flex-col overflow-hidden bg-background'
-          >
-            <div className='flex min-h-0 flex-1 flex-col pt-3'>
-              <DiffToolbar
-                files={files}
-                total={models.length}
-                pane={pane}
-                paneId={paneId}
-                onPaneChange={setPane}
-                filter={filter}
-                onFilter={setFilter}
-                inView={inView}
-                onSelect={selectFile}
-                diffStyle={diffStyle}
-                onDiffStyleChange={setDiffStyle}
-                toggles={[['Wrap lines', wrap, setWrap]]}
-              >
-                {onScopeChange && <ChangesScopePicker value={scope} onChange={onScopeChange} />}
-              </DiffToolbar>
-              <DiffFileList
-                files={files}
-                pane={pane}
-                paneId={paneId}
-                filter={filter}
-                onFilter={setFilter}
-                selected={selected}
-                inView={inView}
-                onInView={setInView}
-                onSelect={(path) => {
-                  if (path !== active.current) selectFile(path)
-                }}
-              >
-                {files.map((file) => (
-                  <DiffFileCard
-                    key={file.path}
-                    file={file}
-                    initiallyNear={file.initiallyNear}
-                    open={!collapsedFiles.has(file.path)}
-                    collapsed={collapsedFiles.has(file.path)}
-                    onToggle={() =>
-                      setCollapsedFiles((previous) => {
-                        const next = new Set(previous)
-                        if (next.has(file.path)) next.delete(file.path)
-                        else next.add(file.path)
-                        return next
-                      })
-                    }
-                    height={Math.max(80, file.diff.unifiedLineCount * 20 + 32)}
-                    actions={
-                      onEditFile &&
-                      file.status !== 'removed' && (
-                        <Button
-                          variant='ghost'
-                          size='icon-xs'
-                          className='-my-1'
-                          aria-label={`Edit ${file.path}`}
-                          title='Edit file'
-                          onClick={() => onEditFile(file.path)}
-                        >
-                          <PencilEdit02Icon />
-                        </Button>
-                      )
-                    }
-                  >
-                    {() =>
-                      file.diff.hunks.length === 0 ? (
-                        <p className='p-4 text-xs text-muted-foreground'>
-                          {file.diff.type === 'rename-pure'
-                            ? 'No textual changes · renamed file'
-                            : 'Diff not shown'}
-                        </p>
-                      ) : (
-                        <div className='min-w-0 overflow-x-auto'>
-                          <DiffBody
-                            diff={hydrated.get(file.diff) ?? noContext.get(file.diff) ?? file.diff}
-                            loadDiffFiles={loadDiffFiles}
-                          />
-                        </div>
-                      )
-                    }
-                  </DiffFileCard>
-                ))}
-                {!files.length && (
-                  <p className='p-6 text-xs text-muted-foreground'>No files match this view</p>
-                )}
-              </DiffFileList>
-            </div>
-            {footer}
-            <svg
-              aria-hidden='true'
-              className='absolute size-0 overflow-hidden'
-              dangerouslySetInnerHTML={{ __html: charmedSprite }}
-            />
+        <div
+          ref={root}
+          className='@container flex h-full min-h-0 flex-col overflow-hidden bg-background'
+        >
+          <div className='flex min-h-0 flex-1 flex-col pt-3'>
+            <DiffToolbar
+              files={files}
+              total={models.length}
+              pane={pane}
+              paneId={paneId}
+              onPaneChange={setPane}
+              filter={filter}
+              onFilter={setFilter}
+              inView={inView}
+              onSelect={selectFile}
+              diffStyle={diffStyle}
+              onDiffStyleChange={setDiffStyle}
+              toggles={[['Wrap lines', wrap, setWrap]]}
+            >
+              {onScopeChange && <ChangesScopePicker value={scope} onChange={onScopeChange} />}
+            </DiffToolbar>
+            <DiffFileList
+              files={files}
+              pane={pane}
+              paneId={paneId}
+              filter={filter}
+              onFilter={setFilter}
+              selected={selected}
+              inView={inView}
+              onInView={setInView}
+              onSelect={(path) => {
+                if (path !== active.current) selectFile(path)
+              }}
+            >
+              {files.map((file) => (
+                <DiffFileCard
+                  key={file.path}
+                  file={file}
+                  initiallyNear={file.initiallyNear}
+                  open={!collapsedFiles.has(file.path)}
+                  collapsed={collapsedFiles.has(file.path)}
+                  onToggle={() =>
+                    setCollapsedFiles((previous) => {
+                      const next = new Set(previous)
+                      if (next.has(file.path)) next.delete(file.path)
+                      else next.add(file.path)
+                      return next
+                    })
+                  }
+                  height={Math.max(80, file.diff.unifiedLineCount * 20 + 32)}
+                  actions={
+                    onEditFile &&
+                    file.status !== 'removed' && (
+                      <Button
+                        variant='ghost'
+                        size='icon-xs'
+                        className='-my-1'
+                        aria-label={`Edit ${file.path}`}
+                        title='Edit file'
+                        onClick={() => onEditFile(file.path)}
+                      >
+                        <PencilEdit02Icon />
+                      </Button>
+                    )
+                  }
+                >
+                  {() =>
+                    file.diff.hunks.length === 0 ? (
+                      <p className='p-4 text-xs text-muted-foreground'>
+                        {file.diff.type === 'rename-pure'
+                          ? 'No textual changes · renamed file'
+                          : 'Diff not shown'}
+                      </p>
+                    ) : (
+                      <div className='min-w-0 overflow-x-auto'>
+                        <DiffBody
+                          diff={hydrated.get(file.diff) ?? noContext.get(file.diff) ?? file.diff}
+                          loadDiffFiles={loadDiffFiles}
+                        />
+                      </div>
+                    )
+                  }
+                </DiffFileCard>
+              ))}
+              {!files.length && (
+                <p className='p-6 text-xs text-muted-foreground'>No files match this view</p>
+              )}
+            </DiffFileList>
           </div>
-        </DiffWorkerPoolProvider>
+          {footer}
+          <svg
+            aria-hidden='true'
+            className='absolute size-0 overflow-hidden'
+            dangerouslySetInnerHTML={{ __html: charmedSprite }}
+          />
+        </div>
       </DiffWrapContext>
     </DiffStyleContext>
   )

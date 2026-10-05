@@ -1,43 +1,40 @@
-import type { FileDiffMetadata, ThemesType } from '@pierre/diffs'
+import type { FileDiffMetadata } from '@pierre/diffs'
 import type { WorkerPoolManager } from '@pierre/diffs/worker'
 
 import { preloadable } from '@/lib/preload'
 import { WorkerPoolContext } from '@pierre/diffs/react'
 import { useSyncExternalStore, type ReactNode } from 'react'
 
-export const diffThemes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
+import { syntaxTheme } from './syntax_theme'
 
-type PoolEntry = {
+const entry: {
   settled: boolean
   pool?: WorkerPoolManager
   loading?: Promise<WorkerPoolManager | undefined>
   listeners: Set<() => void>
-}
-const pools = new Map<string, PoolEntry>()
+} = { settled: false, listeners: new Set() }
 
-function poolEntry(themes: ThemesType) {
-  const key = `${themes.light}:${themes.dark}`
-  let entry = pools.get(key)
-  if (!entry) {
-    entry = { settled: false, listeners: new Set() }
-    pools.set(key, entry)
+function subscribe(listener: () => void) {
+  entry.listeners.add(listener)
+  return () => {
+    entry.listeners.delete(listener)
   }
-  return entry
 }
 
 // Theme resolution stays on the main thread; Pierre sends resolved registrations to its workers.
-export function loadDiffWorkerPool(themes: ThemesType = diffThemes) {
-  const entry = poolEntry(themes)
+export function loadDiffWorkerPool() {
   entry.loading ??= Promise.all([
     import('@pierre/diffs/worker'),
     import('@pierre/diffs/worker/worker.js?worker'),
-    import('@pierre/diffs').then(({ resolveThemes }) => resolveThemes([themes.light, themes.dark])),
+    import('@pierre/diffs').then(({ resolveThemes }) =>
+      resolveThemes([syntaxTheme.light, syntaxTheme.dark])
+    ),
   ])
     .then(
       async ([{ WorkerPoolManager }, { default: DiffsWorker }]) => {
         const created = new WorkerPoolManager(
           { workerFactory: () => new DiffsWorker(), poolSize: 2 },
-          { theme: themes, preferredHighlighter: 'shiki-wasm' }
+          { theme: syntaxTheme, preferredHighlighter: 'shiki-wasm' }
         )
         await created.initialize().catch(() => {})
         entry.pool = created
@@ -52,41 +49,16 @@ export function loadDiffWorkerPool(themes: ThemesType = diffThemes) {
   return entry.loading
 }
 
-export function useDiffWorkerPool(themes: ThemesType = diffThemes) {
-  const entry = poolEntry(themes)
-  return useSyncExternalStore(
-    (listener) => {
-      entry.listeners.add(listener)
-      return () => {
-        entry.listeners.delete(listener)
-      }
-    },
-    () => entry.pool
-  )
+function useDiffWorkerPool() {
+  return useSyncExternalStore(subscribe, () => entry.pool)
 }
 
-export function useDiffWorkerPoolLoading(themes: ThemesType = diffThemes) {
-  const entry = poolEntry(themes)
-  return useSyncExternalStore(
-    (listener) => {
-      entry.listeners.add(listener)
-      return () => {
-        entry.listeners.delete(listener)
-      }
-    },
-    () => !entry.settled
-  )
+export function useDiffWorkerPoolLoading() {
+  return useSyncExternalStore(subscribe, () => !entry.settled)
 }
 
-export function DiffWorkerPoolProvider({
-  children,
-  themes = diffThemes,
-}: {
-  children: ReactNode
-  themes?: ThemesType
-}) {
-  const value = useDiffWorkerPool(themes)
-  return <WorkerPoolContext value={value}>{children}</WorkerPoolContext>
+export function DiffWorkerPoolProvider({ children }: { children: ReactNode }) {
+  return <WorkerPoolContext value={useDiffWorkerPool()}>{children}</WorkerPoolContext>
 }
 
 // The Changes and PR Diff views' code, with the pool they highlight in.
@@ -94,14 +66,10 @@ export const diffViewer = preloadable(() =>
   Promise.all([
     import('./file_changes_viewer'),
     import('./file_diff_model'),
-    import('./diff/cursor_themes').then(async ({ syntaxTheme }) => {
-      await loadDiffWorkerPool(syntaxTheme)
-      return syntaxTheme
-    }),
-  ]).then(([{ FileChangesViewer }, { parseFileChanges }, syntaxTheme]) => ({
+    loadDiffWorkerPool(),
+  ]).then(([{ FileChangesViewer }, { parseFileChanges }]) => ({
     FileChangesViewer,
     parseFileChanges,
-    syntaxTheme,
   }))
 )
 
@@ -110,11 +78,8 @@ export const firstPaintLines = 100
 
 // The workers highlight the files a view paints first into the pool's cache, so it paints them
 // coloured, and they compile those grammars before the view opens. The diffs need cache keys.
-export async function primeDiffHighlights(
-  diffs: readonly FileDiffMetadata[],
-  themes: ThemesType = diffThemes
-) {
-  const pool = await loadDiffWorkerPool(themes)
+export async function primeDiffHighlights(diffs: readonly FileDiffMetadata[]) {
+  const pool = await loadDiffWorkerPool()
   if (!pool?.isWorkingPool()) return
   let lines = 0
   for (const diff of diffs) {

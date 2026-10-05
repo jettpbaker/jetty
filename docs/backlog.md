@@ -149,12 +149,6 @@ Everything below is for one combined review of the chat, not separate ports.
   Failed, Stopped — no "Interrupted".
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
-- Code block syntax colours: chat and description code blocks (sketchpad
-  `src/components/custom/code_block.tsx`, not ported) hardcode
-  `pierre-light-soft` / `pierre-dark-soft`. Jett picked Cursor's theme for the PR
-  view's diffs (the sketchpad's `pr_redesign/cursor_themes.ts`, with Jetty's
-  diff colours over it); use it for code blocks too so code looks the same
-  everywhere.
 - Binary files in the PR diff read `-0 +0` beside "Diff not shown". The header
   lives in the diff library's shadow DOM, so it needs a CSS poke or a library
   option.

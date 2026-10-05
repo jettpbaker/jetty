@@ -94,12 +94,11 @@ async function prefetchChanges(diff: Promise<{ diff: string }>) {
   const result = await diff
   if (result.diff === '' || prefetched.has(result)) return
   prefetched.add(result)
-  const { parseFileChanges, syntaxTheme } = await diffViewer.preload()
+  const { parseFileChanges } = await diffViewer.preload()
   await primeDiffHighlights(
     parseFileChanges(result.diff)
       .sort(byTreeOrder)
-      .map((file) => file.diff),
-    syntaxTheme
+      .map((file) => file.diff)
   )
 }
 

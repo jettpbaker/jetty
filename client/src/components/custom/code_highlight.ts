@@ -3,6 +3,8 @@ import type { HighlightRequest } from '@/components/custom/code_html'
 import { resolveLanguage } from '@/lib/shiki-langs'
 import { getSharedHighlighter, type DiffsHighlighter, type SupportedLanguages } from '@pierre/diffs'
 
+import { syntaxTheme as themes } from './syntax_theme'
+
 // Tokenising runs in a worker so a thread full of code doesn't block the page.
 let worker: Worker | undefined
 let failed = false
@@ -63,8 +65,6 @@ export function highlightHtml(
   const request: HighlightRequest = { key, code, lang: resolveLanguage(language), numbered }
   worker.postMessage(request)
 }
-
-const themes = { light: 'pierre-light-soft', dark: 'pierre-dark-soft' } as const
 
 let highlighter: DiffsHighlighter | undefined
 

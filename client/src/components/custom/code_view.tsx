@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils'
 import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees'
 import { useCallback, useMemo, useState } from 'react'
 
-import { diffThemes } from './diff_worker_pool'
 import { ArrowDown01Icon, ArrowRight01Icon } from './huge_icons'
+import { codeSurfaceCSS, syntaxTheme } from './syntax_theme'
 import './file_changes_viewer.css'
 
 const separatorUnsafeCSS = `
@@ -140,7 +140,7 @@ export function diffViewOptions(
 ): CodeViewOptions<undefined, undefined> {
   return {
     diffStyle: split ? 'split' : 'unified',
-    theme: diffThemes,
+    theme: syntaxTheme,
     themeType,
     preferredHighlighter: 'shiki-wasm',
     stickyHeaders: true,
@@ -155,6 +155,7 @@ export function diffViewOptions(
     expansionLineCount: 20,
     loadDiffFiles,
     unsafeCSS: `
+      ${codeSurfaceCSS}
       [data-diffs-header] { height: 36px; min-height: 36px; box-sizing: border-box; background-color: var(--background); border-bottom: 1px solid var(--border); }
       [data-diffs-header]::before {
         content: ''; position: absolute; inset: -1px 0 auto; height: 1px; pointer-events: none;

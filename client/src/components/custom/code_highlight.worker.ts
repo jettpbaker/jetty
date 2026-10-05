@@ -2,15 +2,15 @@ import type { HighlighterCore, ThemeRegistration } from 'shiki/core'
 
 import { linesHtml, type HighlightRequest } from '@/components/custom/code_html'
 import { languages } from '@/lib/shiki-langs'
-import pierreDarkSoft from '@pierre/theme/pierre-dark-soft'
-import pierreLightSoft from '@pierre/theme/pierre-light-soft'
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
-// Pierre's resolveTheme refuses to run in a worker, so the themes come straight from its package.
-const themes = { light: pierreLightSoft.name, dark: pierreDarkSoft.name }
+import { cursorDark, cursorLight } from './diff/cursor_themes'
+
+// Pierre's resolveTheme refuses to run in a worker, so the theme comes as data (syntax_theme.ts).
+const themes = { light: cursorLight.name, dark: cursorDark.name }
 const core: Promise<HighlighterCore> = createHighlighterCore({
-  themes: [pierreLightSoft as ThemeRegistration, pierreDarkSoft as ThemeRegistration],
+  themes: [cursorLight as ThemeRegistration, cursorDark as ThemeRegistration],
   langs: [],
   engine: createJavaScriptRegexEngine({ forgiving: true }),
 })

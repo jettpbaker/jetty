@@ -95,12 +95,11 @@ import type {
   PrUser,
 } from './adapter'
 
-import { syntaxTheme } from '../diff/cursor_themes'
 import { DiffFileCard, DiffViewed } from '../diff/file_card'
 import { DiffFileList } from '../diff/file_list'
 import { byTreeOrder } from '../diff/model'
 import { DiffToolbar, DiffToolbarButton, useDiffStyle, useDiffWrap } from '../diff/toolbar'
-import { primeDiffHighlights, DiffWorkerPoolProvider } from '../diff_worker_pool'
+import { primeDiffHighlights } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
 import { keyTarget } from '../keybinds'
 import { githubUser, prFile } from './adapter'
@@ -1289,7 +1288,7 @@ async function primePrDiffs(files: PrFile[], revision: string) {
     diffs.push(diff)
     lines += diff.unifiedLineCount
   }
-  await primeDiffHighlights(diffs, syntaxTheme)
+  await primeDiffHighlights(diffs)
 }
 
 // Diff one commit at a time, as on GitHub: the menu picks a commit or all of them, and while one is
@@ -1945,275 +1944,271 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
         <DiffWrapContext value={wrap}>
           <PrDiffRevisionContext value={revision}>
             <PrDiffLoaderContext value={loadFile}>
-              <DiffWorkerPoolProvider themes={syntaxTheme}>
-                <div
-                  ref={view}
-                  data-perf-region='pr-panel'
-                  className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
-                >
-                  <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
-                    {sidebar}
-                    <nav aria-label='Pull request view' className='flex gap-1'>
-                      {(['overview', 'diff'] as const).map((value) => (
-                        <Hint key={value} text={value === 'overview' ? 'Overview · 1' : 'Diff · 2'}>
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='sm'
-                            aria-pressed={tab === value}
-                            className='rounded-sm font-normal aria-pressed:bg-accent'
-                            {...pressProps(() => {
-                              if (value === 'diff') perf.start('pr.diff')
-                              setTab(value)
-                            })}
-                          >
-                            {value === 'overview' ? 'Overview' : 'Diff'}
-                          </Button>
-                        </Hint>
-                      ))}
-                    </nav>
-                    <div className='ml-auto flex items-center gap-1'>
-                      {status}
-                      {pr.state === 'draft' ? (
+              <div
+                ref={view}
+                data-perf-region='pr-panel'
+                className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
+              >
+                <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
+                  {sidebar}
+                  <nav aria-label='Pull request view' className='flex gap-1'>
+                    {(['overview', 'diff'] as const).map((value) => (
+                      <Hint key={value} text={value === 'overview' ? 'Overview · 1' : 'Diff · 2'}>
                         <Button
+                          variant='ghost'
+                          tone='muted'
                           size='sm'
-                          className='rounded-sm'
-                          disabled={!pr.data.viewerCanUpdate}
-                          onClick={() => setState('open')}
+                          aria-pressed={tab === value}
+                          className='rounded-sm font-normal aria-pressed:bg-accent'
+                          {...pressProps(() => {
+                            if (value === 'diff') perf.start('pr.diff')
+                            setTab(value)
+                          })}
                         >
-                          Ready for review
+                          {value === 'overview' ? 'Overview' : 'Diff'}
                         </Button>
-                      ) : pr.state === 'open' ? (
-                        <MergeButton
-                          pr={pr}
-                          reason={reason}
-                          onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                        />
-                      ) : null}
-                      {more}
+                      </Hint>
+                    ))}
+                  </nav>
+                  <div className='ml-auto flex items-center gap-1'>
+                    {status}
+                    {pr.state === 'draft' ? (
+                      <Button
+                        size='sm'
+                        className='rounded-sm'
+                        disabled={!pr.data.viewerCanUpdate}
+                        onClick={() => setState('open')}
+                      >
+                        Ready for review
+                      </Button>
+                    ) : pr.state === 'open' ? (
+                      <MergeButton
+                        pr={pr}
+                        reason={reason}
+                        onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                      />
+                    ) : null}
+                    {more}
+                  </div>
+                </div>
+                {
+                  <div
+                    className={cn(
+                      'relative flex min-h-0 flex-1 flex-col',
+                      tab !== 'overview' && 'hidden'
+                    )}
+                  >
+                    <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
+                      <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
+                        <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
+                          <div className='space-y-1'>
+                            <div className='flex flex-wrap items-center gap-2.5'>
+                              <StatusPill pr={pr} />
+                              <Hint text='Opens in GitHub'>
+                                <a
+                                  href={pr.url}
+                                  target='_blank'
+                                  rel='noreferrer'
+                                  className='inline-flex items-center gap-1 font-mono text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
+                                >
+                                  {repoName(pr)} #{pr.number}
+                                  <ArrowUpRight01Icon className='size-3.5' />
+                                </a>
+                              </Hint>
+                            </div>
+                            <h2 className='text-2xl font-medium'>
+                              <TitleEditor
+                                title={pr.title}
+                                disabled={!pr.data.viewerCanUpdate}
+                                onSave={(next) => void actions.title(next)}
+                              />
+                            </h2>
+                            <div className='flex items-center gap-1 text-xs'>
+                              <PersonAvatar
+                                login={byline.login}
+                                src={byline.avatarUrl || undefined}
+                                className='size-5.5 shrink-0'
+                              />
+                              {/* GitHub's header sentence; once merged, it names whoever merged. Branches wear the inline-code
+                        chip at the size table code uses. */}
+                              <span className='min-w-0'>
+                                {personName(byline)}{' '}
+                                <span className='text-muted-foreground'>
+                                  {pr.state === 'merged' ? 'merged into' : 'wants to merge into'}
+                                </span>{' '}
+                                <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
+                                  {pr.base}
+                                </code>{' '}
+                                <span className='text-muted-foreground'>from</span>{' '}
+                                <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
+                                  {pr.head}
+                                </code>{' '}
+                                <Ago at={(pr.state === 'merged' && pr.mergedAt) || pr.createdAt} />
+                              </span>
+                            </div>
+                          </div>
+                          <Properties pr={pr} />
+                          <Section
+                            title='Description'
+                            className='group/description'
+                            action={<div ref={setAttachSlot} className='flex' />}
+                          >
+                            <DescriptionEditor
+                              attachSlot={attachSlot}
+                              identity={`${ref.repo}#${ref.number}`}
+                              onSave={
+                                pr.data.viewerCanUpdate ? (body) => actions.body(body) : undefined
+                              }
+                              onUpload={pr.data.viewerCanUpdate ? actions.upload : undefined}
+                              disabled={!pr.data.viewerCanUpdate}
+                              body={pr.body}
+                              references={{
+                                repo: repoPath(pr),
+                                issues: [...(pr.issues ?? []), ...(pr.references ?? [])],
+                              }}
+                            />
+                          </Section>
+                          <Section title='Activity' className='flex flex-1 flex-col'>
+                            <MemoizedActivity pr={pr} />
+                          </Section>
+                        </div>
+                      </main>
                     </div>
                   </div>
-                  {
-                    <div
-                      className={cn(
-                        'relative flex min-h-0 flex-1 flex-col',
-                        tab !== 'overview' && 'hidden'
-                      )}
-                    >
-                      <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
-                        <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                          <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
-                            <div className='space-y-1'>
-                              <div className='flex flex-wrap items-center gap-2.5'>
-                                <StatusPill pr={pr} />
-                                <Hint text='Opens in GitHub'>
-                                  <a
-                                    href={pr.url}
-                                    target='_blank'
-                                    rel='noreferrer'
-                                    className='inline-flex items-center gap-1 font-mono text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
-                                  >
-                                    {repoName(pr)} #{pr.number}
-                                    <ArrowUpRight01Icon className='size-3.5' />
-                                  </a>
-                                </Hint>
-                              </div>
-                              <h2 className='text-2xl font-medium'>
-                                <TitleEditor
-                                  title={pr.title}
-                                  disabled={!pr.data.viewerCanUpdate}
-                                  onSave={(next) => void actions.title(next)}
-                                />
-                              </h2>
-                              <div className='flex items-center gap-1 text-xs'>
-                                <PersonAvatar
-                                  login={byline.login}
-                                  src={byline.avatarUrl || undefined}
-                                  className='size-5.5 shrink-0'
-                                />
-                                {/* GitHub's header sentence; once merged, it names whoever merged. Branches wear the inline-code
-                        chip at the size table code uses. */}
-                                <span className='min-w-0'>
-                                  {personName(byline)}{' '}
-                                  <span className='text-muted-foreground'>
-                                    {pr.state === 'merged' ? 'merged into' : 'wants to merge into'}
-                                  </span>{' '}
-                                  <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
-                                    {pr.base}
-                                  </code>{' '}
-                                  <span className='text-muted-foreground'>from</span>{' '}
-                                  <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
-                                    {pr.head}
-                                  </code>{' '}
-                                  <Ago
-                                    at={(pr.state === 'merged' && pr.mergedAt) || pr.createdAt}
-                                  />
-                                </span>
-                              </div>
-                            </div>
-                            <Properties pr={pr} />
-                            <Section
-                              title='Description'
-                              className='group/description'
-                              action={<div ref={setAttachSlot} className='flex' />}
+                }
+                {diffSeen && (
+                  <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'diff' && 'hidden')}>
+                    <DiffToolbar
+                      files={files}
+                      total={changed.length}
+                      pane={pane}
+                      paneId='linear-file-pane'
+                      onPaneChange={setPane}
+                      filter={filter}
+                      onFilter={setFilter}
+                      inView={inView}
+                      onSelect={(path) => {
+                        setSelected(path)
+                        setInView(path)
+                        view.current
+                          ?.querySelector<HTMLElement>(
+                            `section[id="${CSS.escape(`linear-file-${path}`)}"]`
+                          )
+                          ?.scrollIntoView({ block: 'start' })
+                      }}
+                      diffStyle={diffStyle}
+                      onDiffStyleChange={setDiffStyle}
+                      toggles={[
+                        ['Hide generated', hideGenerated, setHideGenerated],
+                        ['Hide viewed', hideViewed, setHideViewed],
+                        ['Wrap lines', wrap, setWrapChoice],
+                      ]}
+                      filters={
+                        <>
+                          {['all', 'comments'].map((value) => (
+                            <Button
+                              key={value}
+                              variant='ghost-text'
+                              size='sm'
+                              aria-pressed={mode === value}
+                              disabled={!!commit && value === 'comments'}
+                              className='px-2 font-normal'
+                              onClick={() => {
+                                setMode(value)
+                                setSelected(null)
+                              }}
                             >
-                              <DescriptionEditor
-                                attachSlot={attachSlot}
-                                identity={`${ref.repo}#${ref.number}`}
-                                onSave={
-                                  pr.data.viewerCanUpdate ? (body) => actions.body(body) : undefined
-                                }
-                                onUpload={pr.data.viewerCanUpdate ? actions.upload : undefined}
-                                disabled={!pr.data.viewerCanUpdate}
-                                body={pr.body}
-                                references={{
-                                  repo: repoPath(pr),
-                                  issues: [...(pr.issues ?? []), ...(pr.references ?? [])],
-                                }}
-                              />
-                            </Section>
-                            <Section title='Activity' className='flex flex-1 flex-col'>
-                              <MemoizedActivity pr={pr} />
-                            </Section>
-                          </div>
-                        </main>
-                      </div>
-                    </div>
-                  }
-                  {diffSeen && (
-                    <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'diff' && 'hidden')}>
-                      <DiffToolbar
-                        files={files}
-                        total={changed.length}
-                        pane={pane}
-                        paneId='linear-file-pane'
-                        onPaneChange={setPane}
-                        filter={filter}
-                        onFilter={setFilter}
-                        inView={inView}
-                        onSelect={(path) => {
-                          setSelected(path)
-                          setInView(path)
-                          view.current
-                            ?.querySelector<HTMLElement>(
-                              `section[id="${CSS.escape(`linear-file-${path}`)}"]`
-                            )
-                            ?.scrollIntoView({ block: 'start' })
+                              {value === 'all' ? (
+                                'All'
+                              ) : (
+                                <>
+                                  Comments
+                                  <span className='text-muted-foreground tabular-nums'>
+                                    {pr.threads.filter((t) => !t.resolved).length}
+                                  </span>
+                                </>
+                              )}
+                            </Button>
+                          ))}
+                        </>
+                      }
+                    >
+                      <CommitPicker
+                        commits={pr.commits}
+                        value={commit}
+                        onChange={(sha) => {
+                          setCommitSha(sha)
+                          setSelected(null)
+                          if (sha) setMode('all')
                         }}
-                        diffStyle={diffStyle}
-                        onDiffStyleChange={setDiffStyle}
-                        toggles={[
-                          ['Hide generated', hideGenerated, setHideGenerated],
-                          ['Hide viewed', hideViewed, setHideViewed],
-                          ['Wrap lines', wrap, setWrapChoice],
-                        ]}
-                        filters={
-                          <>
-                            {['all', 'comments'].map((value) => (
-                              <Button
-                                key={value}
-                                variant='ghost-text'
-                                size='sm'
-                                aria-pressed={mode === value}
-                                disabled={!!commit && value === 'comments'}
-                                className='px-2 font-normal'
-                                onClick={() => {
-                                  setMode(value)
-                                  setSelected(null)
-                                }}
-                              >
-                                {value === 'all' ? (
-                                  'All'
-                                ) : (
-                                  <>
-                                    Comments
-                                    <span className='text-muted-foreground tabular-nums'>
-                                      {pr.threads.filter((t) => !t.resolved).length}
-                                    </span>
-                                  </>
-                                )}
-                              </Button>
-                            ))}
-                          </>
-                        }
-                      >
-                        <CommitPicker
-                          commits={pr.commits}
-                          value={commit}
-                          onChange={(sha) => {
-                            setCommitSha(sha)
-                            setSelected(null)
-                            if (sha) setMode('all')
-                          }}
+                      />
+                    </DiffToolbar>
+                    <DiffFileList
+                      files={files}
+                      pane={pane}
+                      paneId='linear-file-pane'
+                      treeKey={commitSha ?? ''}
+                      filter={filter}
+                      onFilter={setFilter}
+                      selected={selected}
+                      inView={inView}
+                      onInView={setInView}
+                      onSelect={(path) => {
+                        if (path === inViewRef.current) return
+                        setSelected(path)
+                        setInView(path)
+                        view.current
+                          ?.querySelector<HTMLElement>(
+                            `section[id="${CSS.escape(`linear-file-${path}`)}"]`
+                          )
+                          ?.scrollIntoView({ block: 'start' })
+                      }}
+                      comments={commit ? undefined : commentCounts}
+                      listClassName='space-y-2 px-2 @max-[720px]:pl-2'
+                    >
+                      {files.map((f, index) => (
+                        <FileCardComponent
+                          key={`${commitSha}-${f.path}`}
+                          file={f}
+                          deferHeader={files.length > 100}
+                          initiallyNear={files.length > 100 && index < 8}
+                          pr={pr}
+                          threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
+                          commit={commit}
+                          comments={mode === 'comments'}
+                          hideGenerated={hideGenerated}
+                          viewed={viewed.has(f.path)}
+                          onViewed={actions.viewed}
                         />
-                      </DiffToolbar>
-                      <DiffFileList
-                        files={files}
-                        pane={pane}
-                        paneId='linear-file-pane'
-                        treeKey={commitSha ?? ''}
-                        filter={filter}
-                        onFilter={setFilter}
-                        selected={selected}
-                        inView={inView}
-                        onInView={setInView}
-                        onSelect={(path) => {
-                          if (path === inViewRef.current) return
-                          setSelected(path)
-                          setInView(path)
-                          view.current
-                            ?.querySelector<HTMLElement>(
-                              `section[id="${CSS.escape(`linear-file-${path}`)}"]`
-                            )
-                            ?.scrollIntoView({ block: 'start' })
-                        }}
-                        comments={commit ? undefined : commentCounts}
-                        listClassName='space-y-2 px-2 @max-[720px]:pl-2'
-                      >
-                        {files.map((f, index) => (
-                          <FileCardComponent
-                            key={`${commitSha}-${f.path}`}
-                            file={f}
-                            deferHeader={files.length > 100}
-                            initiallyNear={files.length > 100 && index < 8}
-                            pr={pr}
-                            threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
-                            commit={commit}
-                            comments={mode === 'comments'}
-                            hideGenerated={hideGenerated}
-                            viewed={viewed.has(f.path)}
-                            onViewed={actions.viewed}
-                          />
-                        ))}
-                        {commit && !commitFiles.data && (
-                          <div className='text-xs text-muted-foreground'>
-                            {commitFiles.failed ? (
-                              <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
-                                Couldn't load commit files · Retry
-                              </Button>
-                            ) : (
-                              <Loading label='Loading commit files…' />
-                            )}
-                          </div>
-                        )}
-                        {!files.length && (!commit || !!commitFiles.data) && (
-                          <p className='p-6 text-xs text-muted-foreground'>
-                            No files match this view
-                          </p>
-                        )}
-                      </DiffFileList>
-                    </div>
-                  )}
+                      ))}
+                      {commit && !commitFiles.data && (
+                        <div className='text-xs text-muted-foreground'>
+                          {commitFiles.failed ? (
+                            <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
+                              Couldn't load commit files · Retry
+                            </Button>
+                          ) : (
+                            <Loading label='Loading commit files…' />
+                          )}
+                        </div>
+                      )}
+                      {!files.length && (!commit || !!commitFiles.data) && (
+                        <p className='p-6 text-xs text-muted-foreground'>
+                          No files match this view
+                        </p>
+                      )}
+                    </DiffFileList>
+                  </div>
+                )}
 
-                  {(painted || diffSeen) && (
-                    <svg
-                      aria-hidden='true'
-                      className='absolute size-0 overflow-hidden'
-                      dangerouslySetInnerHTML={{ __html: charmedSprite }}
-                    />
-                  )}
-                </div>
-              </DiffWorkerPoolProvider>
+                {(painted || diffSeen) && (
+                  <svg
+                    aria-hidden='true'
+                    className='absolute size-0 overflow-hidden'
+                    dangerouslySetInnerHTML={{ __html: charmedSprite }}
+                  />
+                )}
+              </div>
             </PrDiffLoaderContext>
           </PrDiffRevisionContext>
         </DiffWrapContext>

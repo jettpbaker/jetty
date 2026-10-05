@@ -1,4 +1,4 @@
-import { registerCustomTheme, type ThemeRegistration } from '@pierre/diffs'
+import type { ThemeRegistration } from '@pierre/diffs'
 
 // Copied from Cursor's bundled theme-cursor extension (Cursor.app/Contents/Resources/app/extensions/theme-cursor):
 // tokenColors as shipped, editor/diff/git colours kept. semanticTokenColors dropped.
@@ -2810,8 +2810,3 @@ export const cursorLight: ThemeRegistration = {
     },
   ],
 }
-
-// The diffs' syntax theme. Its diff colours give way to Jetty's status colours (body.tsx's diffCSS).
-registerCustomTheme('cursor-dark', () => Promise.resolve(cursorDark))
-registerCustomTheme('cursor-light', () => Promise.resolve(cursorLight))
-export const syntaxTheme = { dark: 'cursor-dark', light: 'cursor-light' } as const
