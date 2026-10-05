@@ -1,14 +1,15 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 
-import { afterEach, expect, test } from 'bun:test'
+import { afterEach, expect, spyOn, test } from 'bun:test'
 import { Effect } from 'effect'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { Orchestrator } from './orchestrator'
+import type { Orchestrator, PullRequestNews } from './orchestrator'
 
 import { createPullRequestWatch } from './pull-request-watch'
+import { StoreError } from './store'
 import { openTestStore } from './store-fixture'
 
 const cleanup: Array<() => Promise<void>> = []
@@ -72,16 +73,19 @@ function commented(previous: PullRequestData, at = Date.now()): PullRequestData 
   }
 }
 
-async function setup() {
+async function setup(orchestrator?: Pick<Orchestrator, 'pullRequestActivity'>) {
   const home = mkdtempSync(join(tmpdir(), 'jetty-pr-watch-'))
   cleanup.push(async () => rmSync(home, { recursive: true, force: true }))
   const fixture = await openTestStore(home)
   cleanup.push(fixture.close)
   const { store, runtime } = fixture
   await runtime.runPromise(store.setAgentBehaviour('watchPullRequests', true))
-  const watch = createPullRequestWatch(store, {
-    pullRequestActivity: () => Effect.void,
-  } as unknown as Orchestrator)
+  const watch = createPullRequestWatch(
+    store,
+    (orchestrator ?? {
+      pullRequestActivity: () => Effect.void,
+    }) as Orchestrator
+  )
   async function thread(repo: string) {
     const path = mkdtempSync(join(home, 'project-'))
     for (const args of [['init'], ['remote', 'add', 'origin', `https://github.com/${repo}.git`]]) {
@@ -236,3 +240,56 @@ for (const fallback of [false, true]) {
     expect((await f.change()).pending?.threadId).toBe(active.id)
   })
 }
+
+test('failed deliveries retry persisted news with bounded backoff', async () => {
+  let attempts = 0
+  let delivered: PullRequestNews | undefined
+  const f = await setup({
+    pullRequestActivity: (_threadId, take) =>
+      Effect.suspend(() => {
+        attempts++
+        if (attempts <= 4) return Effect.fail(new StoreError('internal', 'Temporary failure'))
+        return f.store.transaction(take).pipe(
+          Effect.tap((news) =>
+            Effect.sync(() => {
+              delivered = news
+            })
+          ),
+          Effect.asVoid
+        )
+      }),
+  })
+  await f.thread('owner/repo')
+  const nativeSetTimeout = globalThis.setTimeout
+  const scheduled = new Map<ReturnType<typeof setTimeout>, { run: () => void; delay: number }>()
+  const timerSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((
+    callback: () => void,
+    delay?: number
+  ) => {
+    const timer = nativeSetTimeout(() => {}, 60 * 60_000)
+    timer.unref()
+    scheduled.set(timer, { run: callback, delay: Number(delay) })
+    return timer
+  }) as typeof setTimeout)
+  const warningSpy = spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    await f.change()
+    for (const delay of [15_000, 15_000, 30_000, 60_000, 60_000]) {
+      expect(scheduled.size).toBe(1)
+      const [timer, next] = [...scheduled][0]!
+      expect(next.delay).toBe(delay)
+      scheduled.delete(timer)
+      clearTimeout(timer)
+      next.run()
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    expect(attempts).toBe(5)
+    expect(delivered?.text).toContain('Please fix this')
+    expect((await f.runtime.runPromise(f.store.pendingPullRequestWatches())).length).toBe(0)
+    expect(scheduled.size).toBe(0)
+  } finally {
+    timerSpy.mockRestore()
+    warningSpy.mockRestore()
+    for (const timer of scheduled.keys()) clearTimeout(timer)
+  }
+})

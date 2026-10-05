@@ -355,7 +355,7 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
     })
   }
 
-  function arm(threadId: string, first: number) {
+  function arm(threadId: string, first: number, retries = 0) {
     const armed = timers.get(threadId)
     clearTimeout(armed?.timer)
     const start = Math.min(armed?.first ?? first, first)
@@ -363,10 +363,15 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
       () => {
         timers.delete(threadId)
         void Effect.runPromise(orchestrator.pullRequestActivity(threadId, take(threadId))).catch(
-          (error: unknown) => console.warn(`[pr-watch] ${threadId} ${String(error)}`)
+          (error: unknown) => {
+            console.warn(`[pr-watch] ${threadId} ${String(error)}`)
+            if (!timers.has(threadId)) arm(threadId, start, Math.min(retries + 1, 3))
+          }
         )
       },
-      Math.max(0, Math.min(QUIET_MS, start + MAX_WAIT_MS - Date.now()))
+      retries
+        ? Math.min(MAX_WAIT_MS, QUIET_MS * 2 ** (retries - 1))
+        : Math.max(0, Math.min(QUIET_MS, start + MAX_WAIT_MS - Date.now()))
     )
     timer.unref()
     timers.set(threadId, { first: start, timer })
