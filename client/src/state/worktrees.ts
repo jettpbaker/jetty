@@ -31,18 +31,11 @@ const branchListsAtom = Atom.make(new Map<string, BranchList>()).pipe(Atom.keepA
 const listKey = (projectId: string, localOnly: boolean) =>
   `${projectId}:${localOnly ? 'local' : 'all'}`
 
-// Answers from the cached list first, then again once the fresh one lands. Lists load passively
-// (mount, hover), so a failure never toasts; it only shows when there's no good list to keep.
-function branches(
-  registry: AtomRegistry.AtomRegistry,
-  projectId: string,
-  localOnly: boolean,
-  done?: (result: Branches) => void
-) {
+// Lists load passively (mount, hover), so a failure never toasts; it only shows when there's no
+// good list to keep.
+function branches(registry: AtomRegistry.AtomRegistry, projectId: string, localOnly: boolean) {
   const key = listKey(projectId, localOnly)
   const known = () => registry.get(branchListsAtom).get(key) ?? cachedLists.get(key)
-  const cached = known()
-  if (cached && cached.git !== 'error') done?.(cached)
   function store(list: BranchList) {
     const lists = new Map(registry.get(branchListsAtom)).set(key, list)
     registry.set(branchListsAtom, lists)
@@ -52,12 +45,7 @@ function branches(
   }
   run(registry, (connection) =>
     connection.request('project.branches', { projectId, localOnly }).pipe(
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          store(result)
-          done?.(result)
-        })
-      ),
+      Effect.tap((result) => Effect.sync(() => store(result))),
       Effect.tapError((error) =>
         Effect.sync(() => {
           if (known()?.git !== 'ok') store({ git: 'error', message: error.message })

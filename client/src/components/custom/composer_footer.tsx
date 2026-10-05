@@ -1,7 +1,7 @@
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { useChrome } from '@/state'
 import { useBranches, useBranchList, type BranchList } from '@/state/worktrees'
-import { useEffect, useEffectEvent, useRef } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 
 import { ComposerBranch, settleRef, switchRef } from './composer_branch'
 import { ComposerEnvironment } from './composer_environment'
@@ -21,7 +21,6 @@ export function ComposerFooter({
 }) {
   const chrome = useChrome()
   const fetchBranches = useBranches()
-  const request = useRef(0)
   const localOnly = environment === 'local'
   const branchList = useBranchList(projectId, localOnly)
   // Either mode knows the git state and checkout branch, so the other's list fills in until this
@@ -39,13 +38,12 @@ export function ComposerFooter({
     if (ref !== startingRef) onStartingRefChange(ref)
   })
   useEffect(() => {
-    if (!projectId) return
-    // Only the newest request may settle; a stale one would apply the wrong project.
-    const revision = ++request.current
-    fetchBranches(projectId, localOnly, (result) => {
-      if (revision === request.current && result.git === 'ok' && !localOnly) settle(result)
-    })
+    if (projectId) fetchBranches(projectId, localOnly)
   }, [projectId, localOnly, fetchBranches])
+  // Every list that lands checks the pick, so a branch deleted since stops being the base.
+  useEffect(() => {
+    if (list && !localOnly) settle(list)
+  }, [list, localOnly])
 
   const project = chrome?.projects.find((entry) => entry.id === projectId)
   const noGit =
