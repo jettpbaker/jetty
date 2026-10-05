@@ -1515,8 +1515,14 @@ function FileCard({
     )
   )
   const [showGenerated, setShowGenerated] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
-  const open = !viewed && !collapsed
+  // Marking a file viewed folds it and unmarking unfolds it; its header still opens it either way.
+  const [collapsed, setCollapsed] = useState(viewed)
+  const [wasViewed, setWasViewed] = useState(viewed)
+  if (viewed !== wasViewed) {
+    setWasViewed(viewed)
+    setCollapsed(viewed)
+  }
+  const open = !collapsed
   const openThreads = threads.filter((t) => !t.resolved).length
   const renderThreads = (threads: PrThread[]) => (
     <InlineThreads threads={threads} author={pr.viewer} />

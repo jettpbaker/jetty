@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
 
@@ -19,16 +19,18 @@ export function DiffViewed({
   checked: boolean
   onCheckedChange: (checked: boolean) => void
 }) {
+  // Per card: PR tabs stay mounted, and two PRs can share a path.
+  const id = useId()
   return (
     <label
-      htmlFor={`viewed-${file.path}`}
+      htmlFor={id}
       className={cn(
         'inline-flex h-4 cursor-pointer items-center gap-1.5 text-xs leading-4',
         checked ? 'text-foreground' : 'text-muted-foreground'
       )}
     >
       <Checkbox
-        id={`viewed-${file.path}`}
+        id={id}
         aria-label={`Mark ${file.path} viewed`}
         checked={checked}
         onCheckedChange={onCheckedChange}
