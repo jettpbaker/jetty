@@ -14,6 +14,7 @@ import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
+import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
 
@@ -97,7 +98,7 @@ export function Pager({
         size='icon'
         aria-label={`Previous ${noun}`}
         disabled={index === 0}
-        onClick={onPrev}
+        {...pressProps(onPrev)}
       >
         <ArrowLeft01Icon />
       </Button>
@@ -110,7 +111,7 @@ export function Pager({
         size='icon'
         aria-label={`Next ${noun}`}
         disabled={nextDisabled ?? index === total - 1}
-        onClick={onNext}
+        {...pressProps(onNext)}
       >
         <ArrowRight01Icon />
       </Button>
@@ -291,7 +292,7 @@ export function ApprovalStrip({
                     <button
                       type='button'
                       aria-expanded={false}
-                      onClick={() => ctl.setExpanded(true)}
+                      {...pressProps(() => ctl.setExpanded(true))}
                       className='flex min-w-0 rounded-xs hover:text-foreground'
                     />
                   }
@@ -325,7 +326,7 @@ export function ApprovalStrip({
                 aria-label={changes ? 'Hide the changes' : 'Hide the full command'}
                 aria-expanded
                 aria-controls={changes ? changesId : undefined}
-                onClick={() => ctl.setExpanded(false)}
+                {...pressProps(() => ctl.setExpanded(false))}
                 className='-my-1'
               >
                 <ArrowUp01Icon />

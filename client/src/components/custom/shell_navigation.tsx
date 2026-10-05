@@ -3,6 +3,7 @@ import type { RouterHistory } from '@tanstack/react-router'
 import { ArrowLeft01Icon, ArrowRight01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
+import { pressProps } from '@/lib/press'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
@@ -79,7 +80,7 @@ export function ShellNavigation() {
           className='hover:bg-sidebar-accent'
           aria-label='Go back'
           disabled={!canGoBack}
-          onClick={back}
+          {...pressProps(back)}
         >
           <ArrowLeft01Icon />
         </Button>
@@ -90,7 +91,7 @@ export function ShellNavigation() {
           className='hover:bg-sidebar-accent'
           aria-label='Go forward'
           disabled={!canGoForward}
-          onClick={forward}
+          {...pressProps(forward)}
         >
           <ArrowRight01Icon />
         </Button>

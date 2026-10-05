@@ -15,6 +15,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
@@ -247,13 +248,8 @@ function Sidebar({
   )
 }
 
-function SidebarTrigger({
-  className,
-  onClick,
-  children,
-  ...props
-}: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+function SidebarTrigger({ className, children, ...props }: React.ComponentProps<typeof Button>) {
+  const { toggleSidebar, isMobile } = useSidebar()
 
   return (
     <Button
@@ -262,11 +258,8 @@ function SidebarTrigger({
       variant='ghost'
       size='icon-sm'
       className={cn(className)}
-      onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
-      }}
-      {...props}
+      // The mobile sidebar is a sheet, an overlay, so it opens on click (JET-3).
+      {...mergeProps(props, isMobile ? { onClick: toggleSidebar } : pressProps(toggleSidebar))}
     >
       {children ?? <SidebarLeftIcon />}
       <span className='sr-only'>Toggle Sidebar</span>
