@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useRef, useState, type ReactNode } from 'react'
 
@@ -18,10 +18,14 @@ export type PickerOption = {
   value: string
   label: string
   icon?: ReactNode
-  pinned?: boolean
-  searchOnly?: boolean
+  hint?: string
 }
 export type PickerAction = { label: string; icon: ReactNode; onSelect?: () => void }
+export type PickerToggle = {
+  label: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}
 
 export function OptionPicker({
   name,
@@ -29,14 +33,16 @@ export function OptionPicker({
   placeholder,
   icon,
   value,
+  triggerLabel,
   options,
   onValueChange,
   align = 'start',
   actions,
+  toggle,
   disabled = false,
   emptyLabel = 'Select',
   onOpen,
-  tooltip,
+  className,
   'aria-describedby': describedBy,
 }: {
   name: string
@@ -44,14 +50,17 @@ export function OptionPicker({
   placeholder: string
   icon: ReactNode
   value: string
+  // what the trigger reads, when it's more than the picked option's label
+  triggerLabel?: string
   options: readonly PickerOption[]
   onValueChange: (value: string) => void
   align?: 'start' | 'end'
   actions?: readonly PickerAction[]
+  toggle?: PickerToggle
   disabled?: boolean
   onOpen?: () => void
-  tooltip?: string
   emptyLabel?: string
+  className?: string
   'aria-describedby'?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -60,11 +69,7 @@ export function OptionPicker({
   const pointerSelection = useRef(false)
   const actionChosen = useRef(false)
   const search = query.trim().toLowerCase()
-  const results = options.filter(
-    (option) =>
-      option.pinned ||
-      ((search || !option.searchOnly) && option.label.toLowerCase().includes(search))
-  )
+  const results = options.filter((option) => option.label.toLowerCase().includes(search))
   const selected = options.find((option) => option.value === value)
 
   function select(action: () => void) {
@@ -84,32 +89,28 @@ export function OptionPicker({
         }
       }}
     >
-      <Tooltip disabled={!tooltip}>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              aria-label={selected ? `${name}: ${selected.label}` : label}
-              aria-describedby={describedBy}
-              disabled={disabled}
-              render={
-                <Button
-                  variant='ghost-text'
-                  size='sm'
-                  className={cn('gap-1.5 rounded-sm', disabled && 'pointer-events-none')}
-                />
-              }
-            />
-          }
-        >
-          {selected?.icon ?? icon}
-          {selected?.label ?? emptyLabel}
-        </TooltipTrigger>
-        <TooltipContent>{tooltip}</TooltipContent>
-      </Tooltip>
+      <PopoverTrigger
+        aria-label={triggerLabel ?? (selected ? `${name}: ${selected.label}` : label)}
+        aria-describedby={describedBy}
+        disabled={disabled}
+        render={
+          <Button
+            variant='ghost-text'
+            size='sm'
+            className={cn('gap-1.5 rounded-sm', disabled && 'pointer-events-none')}
+          />
+        }
+      >
+        {selected?.icon ?? icon}
+        {triggerLabel ?? selected?.label ?? emptyLabel}
+      </PopoverTrigger>
       <PopoverContent
         align={align}
         finalFocus={() => !actionChosen.current}
-        className='search-picker w-56 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
+        className={cn(
+          'search-picker w-56 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none',
+          className
+        )}
       >
         <PopoverTitle className='sr-only'>{label}</PopoverTitle>
         <Command
@@ -144,7 +145,8 @@ export function OptionPicker({
                     onSelect={() => select(() => onValueChange(option.value))}
                   >
                     {option.icon ?? icon}
-                    <span className='truncate'>{option.label}</span>
+                    <span className='flex-1 truncate'>{option.label}</span>
+                    {option.hint && <span className='text-muted-foreground'>{option.hint}</span>}
                   </CommandItem>
                 ))}
                 {!results.length && (
@@ -171,6 +173,36 @@ export function OptionPicker({
                       {label}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              </>
+            )}
+            {toggle && (
+              <>
+                <Separator />
+                <CommandGroup>
+                  {/* A press toggles on pointer-down; Enter arrives as a select. */}
+                  <CommandItem
+                    value='toggle'
+                    aria-checked={toggle.checked}
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) return
+                      pointerSelection.current = true
+                      toggle.onCheckedChange(!toggle.checked)
+                    }}
+                    onSelect={() => {
+                      if (!pointerSelection.current) toggle.onCheckedChange(!toggle.checked)
+                    }}
+                  >
+                    <span className='flex-1'>{toggle.label}</span>
+                    <Switch
+                      render={<span />}
+                      size='sm'
+                      checked={toggle.checked}
+                      tabIndex={-1}
+                      aria-hidden='true'
+                      className='pointer-events-none'
+                    />
+                  </CommandItem>
                 </CommandGroup>
               </>
             )}

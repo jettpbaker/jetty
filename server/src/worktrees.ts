@@ -1,4 +1,4 @@
-import type { ThreadMeta } from '@jetty/shared/wire'
+import type { Branch, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -184,6 +184,20 @@ export function createWorktrees(
     )
   }
 
+  // Branches checked out in any of Jetty's worktrees of this repository.
+  async function worktreeBranches(cwd: string) {
+    const root = await realpath(join(home, 'worktrees')).catch(() => undefined)
+    const names = new Set<string>()
+    if (!root) return names
+    for (const entry of (await git(cwd, 'worktree', 'list', '--porcelain')).split('\n\n')) {
+      const path = entry.match(/^worktree (.+)$/m)?.[1]
+      const branch = entry.match(/^branch refs\/heads\/(.+)$/m)?.[1]
+      if (path && branch && (await realpath(path).catch(() => path)).startsWith(`${root}/`))
+        names.add(branch)
+    }
+    return names
+  }
+
   async function branches(cwd: string, localOnly = false) {
     const state = await gitState(cwd)
     if (state !== 'ok') return { git: state }
@@ -192,17 +206,29 @@ export function createWorktrees(
     const remote = !localOnly && (await hasOrigin(cwd))
     const base = localOnly ? currentBranch : await defaultRef(cwd)
     if (remote) await serialized(cwd, () => git(cwd, 'fetch', 'origin', '--prune'))
-    const sorted = ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)']
-    const local = await git(cwd, ...sorted, 'refs/heads')
-    const remotes = remote ? await git(cwd, ...sorted, 'refs/remotes/origin') : ''
-    return {
-      git: state,
-      defaultRef: base,
-      currentBranch,
-      branches: [...new Set([base, ...local.split('\n'), ...remotes.split('\n')])].filter(
-        (ref) => ref && ref !== 'origin/HEAD'
-      ),
+    const checkedOut = localOnly ? new Set<string>() : await worktreeBranches(cwd)
+    const refs = await git(
+      cwd,
+      'for-each-ref',
+      '--sort=-committerdate',
+      '--format=%(refname)',
+      'refs/heads',
+      ...(remote ? ['refs/remotes/origin'] : [])
+    )
+    const byName = new Map<string, Branch>()
+    for (const ref of refs.split('\n')) {
+      const origin = ref.startsWith('refs/remotes/origin/')
+      const name = ref.replace(/^refs\/(heads|remotes\/origin)\//, '')
+      if (!name || (origin && name === 'HEAD')) continue
+      const known = byName.get(name)
+      byName.set(name, {
+        name,
+        local: !origin || Boolean(known?.local),
+        origin: origin || Boolean(known?.origin),
+        worktree: checkedOut.has(name),
+      })
     }
+    return { git: state, defaultRef: base, currentBranch, branches: [...byName.values()] }
   }
 
   async function locate(threadId: string) {

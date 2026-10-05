@@ -1,8 +1,9 @@
+import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { useChrome } from '@/state'
 import { useBranches, useBranchList, type BranchList } from '@/state/worktrees'
 import { useEffect, useEffectEvent, useRef } from 'react'
 
-import { ComposerBranch } from './composer_branch'
+import { ComposerBranch, settleRef, switchRef } from './composer_branch'
 import { ComposerEnvironment } from './composer_environment'
 
 export function ComposerFooter({
@@ -27,17 +28,22 @@ export function ComposerFooter({
   // one lands.
   const otherList = useBranchList(projectId, !localOnly)
   const known = branchList ?? otherList
-  // A starting ref the list still has stays picked; otherwise the project's default takes over.
-  const settleRef = useEffectEvent((result: Extract<BranchList, { git: 'ok' }>) => {
-    if (!startingRef || !result.branches.includes(startingRef))
-      onStartingRefChange(result.defaultRef)
+  const list = branchList?.git === 'ok' ? branchList : undefined
+  const [fromOrigin, setFromOrigin] = useStoredState(
+    'jetty.composer.startFromOrigin',
+    true,
+    isBoolean
+  )
+  const settle = useEffectEvent((result: Extract<BranchList, { git: 'ok' }>) => {
+    const ref = settleRef(result, startingRef, fromOrigin)
+    if (ref !== startingRef) onStartingRefChange(ref)
   })
   useEffect(() => {
     if (!projectId) return
     // Only the newest request may settle; a stale one would apply the wrong project.
     const revision = ++request.current
     fetchBranches(projectId, localOnly, (result) => {
-      if (revision === request.current && result.git === 'ok' && !localOnly) settleRef(result)
+      if (revision === request.current && result.git === 'ok' && !localOnly) settle(result)
     })
   }, [projectId, localOnly, fetchBranches])
 
@@ -73,7 +79,12 @@ export function ComposerFooter({
       />
       <ComposerBranch
         branch={branchLabel}
-        refs={branchList?.git === 'ok' ? branchList.branches : undefined}
+        list={list}
+        fromOrigin={fromOrigin}
+        onFromOriginChange={(next) => {
+          setFromOrigin(next)
+          if (list) onStartingRefChange(switchRef(list, startingRef ?? list.defaultRef, next))
+        }}
         disabledReason={branchProblem}
         onChange={localOnly ? undefined : onStartingRefChange}
         onOpen={() => {

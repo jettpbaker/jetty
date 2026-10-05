@@ -273,6 +273,16 @@ export type ProviderUsage = Schema.Schema.Type<typeof ProviderUsage>
 export const DiffScope = Schema.Literals(['branch', 'uncommitted'])
 export type DiffScope = Schema.Schema.Type<typeof DiffScope>
 
+// One entry per name, whether it's a local branch, on origin, or both.
+export const Branch = Schema.Struct({
+  name: Schema.String,
+  local: Schema.Boolean,
+  origin: Schema.Boolean,
+  // checked out in one of Jetty's worktrees
+  worktree: Schema.Boolean,
+})
+export type Branch = Schema.Schema.Type<typeof Branch>
+
 export const methods = {
   'settings.providerUsage': {
     params: Schema.Struct({}),
@@ -296,7 +306,8 @@ export const methods = {
         git: Schema.Literal('ok'),
         defaultRef: Schema.String,
         currentBranch: Schema.String,
-        branches: Schema.Array(Schema.String),
+        // Newest commit first.
+        branches: Schema.Array(Branch),
       }),
       Schema.Struct({ git: Schema.Literals(['missing', 'not-git']) }),
     ]),
