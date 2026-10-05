@@ -326,7 +326,7 @@ export function AppSidebar() {
               >
                 <PencilEdit02Icon className='size-3' />
                 New thread
-                <HoverKeybind binding={keybinds.newThread} />
+                <HoverKeybind binding={keybinds.newThread} className='ml-auto' />
               </Button>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -461,7 +461,7 @@ export function AppSidebar() {
         >
           <Settings01Icon />
           Settings
-          <HoverKeybind binding={keybinds.settings} />
+          <HoverKeybind binding={keybinds.settings} className='ml-auto' />
         </Button>
       </SidebarFooter>
       <Dialog
