@@ -48,11 +48,7 @@ const editorCSS = `
     font-size: 12px !important;
   }
   [data-input-box] input::placeholder { color: var(--muted-foreground) !important; }
-  [data-input-box] input:focus-visible {
-    outline: none !important;
-    border-color: var(--ring) !important;
-    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent) !important;
-  }
+  [data-input-box] input:focus-visible { outline: none !important; box-shadow: none !important; }
   [data-matches], [data-matches][data-no-matches] {
     color: var(--muted-foreground) !important;
     font-weight: 400 !important;
