@@ -1840,15 +1840,20 @@ export function createPullRequests(store: Store, hub: Hub) {
     return publication.withPermit(
       Effect.gen(function* () {
         if (fetchedRevision !== revision(prKey(ref))) return undefined
-        const previous =
-          observer && fetched.data && (yield* observer.watching)
-            ? yield* store.getPullRequest(ref.repo, ref.number)
-            : undefined
-        yield* store.savePullRequest(fetched)
-        if (observer && previous && fetched.data)
-          yield* observer
-            .changed(ref, previous, fetched.data)
-            .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+        // One transaction, so a restart can't save the read without what the watcher made of it.
+        yield* store.transaction(
+          Effect.gen(function* () {
+            const previous =
+              observer && fetched.data && (yield* observer.watching)
+                ? yield* store.getPullRequest(ref.repo, ref.number)
+                : undefined
+            yield* store.savePullRequest(fetched)
+            if (observer && previous && fetched.data)
+              yield* observer
+                .changed(ref, previous, fetched.data)
+                .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+          })
+        )
         // The stored snapshot keeps the last good data when this read failed.
         const snapshot = decorate(yield* store.getPullRequest(ref.repo, ref.number))
         hub.pushPullRequest(snapshot)

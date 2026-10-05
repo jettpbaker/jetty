@@ -44,6 +44,10 @@ const REMOVED_KEPT = '30 seconds'
 
 type ItemDelta = Extract<ThreadEvent, { type: 'item.delta' }>
 type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
+export type PullRequestNews = {
+  lines: Pick<PullRequestItem, 'repo' | 'number' | 'activity' | 'held'>[]
+  text: string | null
+}
 
 export type Orchestrator = Effect.Success<ReturnType<typeof createOrchestrator>>
 export const OrchestratorService = Context.Service<Orchestrator>('jetty/Orchestrator')
@@ -1074,35 +1078,33 @@ export function createOrchestrator({
         )
       },
       // The PR watcher's lines join the running turn, or the last one, so they never open a turn
-      // of their own; what needs the agent waits in its queue like a report.
-      pullRequestActivity(
-        threadId: string,
-        lines: readonly Pick<PullRequestItem, 'repo' | 'number' | 'activity' | 'held'>[],
-        text: string | null
-      ) {
+      // of their own; what needs the agent waits in its queue like a report. The news is taken in
+      // the transaction that tells the thread, so a restart neither repeats nor drops it.
+      pullRequestActivity(threadId: string, take: Effect.Effect<PullRequestNews, StoreError>) {
         return locked(
           threadId,
           Effect.gen(function* () {
             yield* flushDelta(threadId)
-            const thread = yield* store.getThread(threadId)
-            if (!thread || thread.archived || !lines.length) return
-            const { items } = yield* store.getThreadState(threadId)
-            const turnId = state(threadId).turnId ?? items.at(-1)?.turnId ?? newId()
-            const events = lines.flatMap((line): ThreadEvent[] => {
-              const item: PullRequestItem = {
-                ...line,
-                id: newId(),
-                turnId,
-                createdAt: Date.now(),
-                kind: 'pull_request',
-              }
-              return [
-                { type: 'item.started', item },
-                { type: 'item.completed', itemId: item.id },
-              ]
-            })
             const appended = yield* store.transaction(
               Effect.gen(function* () {
+                const { lines, text } = yield* take
+                const thread = yield* store.getThread(threadId)
+                if (!thread || thread.archived || !lines.length) return []
+                const { items } = yield* store.getThreadState(threadId)
+                const turnId = state(threadId).turnId ?? items.at(-1)?.turnId ?? newId()
+                const events = lines.flatMap((line): ThreadEvent[] => {
+                  const item: PullRequestItem = {
+                    ...line,
+                    id: newId(),
+                    turnId,
+                    createdAt: Date.now(),
+                    kind: 'pull_request',
+                  }
+                  return [
+                    { type: 'item.started', item },
+                    { type: 'item.completed', itemId: item.id },
+                  ]
+                })
                 const appended = yield* store.appendEvents(
                   threadId,
                   events as [ThreadEvent, ...ThreadEvent[]]
@@ -1111,6 +1113,7 @@ export function createOrchestrator({
                 return appended
               })
             )
+            if (!appended.length) return
             for (const event of appended) yield* publish(threadId, event)
             hub.pushChrome({
               type: 'thread.upserted',

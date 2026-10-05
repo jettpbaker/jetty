@@ -507,7 +507,9 @@ function createServer(opts: ServerOptions = {}) {
     )
     const orch = Context.get(services, OrchestratorService)
     // The watcher sees every read, the sweep's first included.
-    pullRequests.observe(createPullRequestWatch(store, orch))
+    const pullRequestWatch = createPullRequestWatch(store, orch)
+    pullRequests.observe(pullRequestWatch)
+    yield* pullRequestWatch.resume
     yield* Effect.gen(function* () {
       const watching = (yield* store.getAgentBehaviours()).watchPullRequests
       if (watching || (yield* hub.subscriberCount) > 0)

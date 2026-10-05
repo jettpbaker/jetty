@@ -24,6 +24,8 @@ import {
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
+import type { PullRequestWatchMemory } from './pull-request-watch'
+
 import { normalizePath } from './fs-browse'
 import { childReport, restartNote, type ReportOutcome } from './jetty-instructions'
 
@@ -1424,6 +1426,41 @@ export function createStore() {
         }>`SELECT thread_id FROM thread_pull_requests WHERE repo = ${repo} AND number = ${number}
           ORDER BY linked_at`.pipe(
           Effect.map((rows) => rows.map((row) => row.thread_id)),
+          Effect.mapError(storeError)
+        )
+      },
+      pullRequestWatch(repo: string, number: number) {
+        return sql<{
+          watch_json: string | null
+        }>`SELECT watch_json FROM pull_requests WHERE repo = ${repo} AND number = ${number}`.pipe(
+          Effect.map(
+            ([row]): PullRequestWatchMemory =>
+              row?.watch_json ? JSON.parse(row.watch_json) : { fired: [] }
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      savePullRequestWatch(repo: string, number: number, memory: PullRequestWatchMemory) {
+        return sql`UPDATE pull_requests SET watch_json = ${JSON.stringify(memory)}
+          WHERE repo = ${repo} AND number = ${number}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      pendingPullRequestWatches() {
+        return sql<{
+          repo: string
+          number: number
+          watch_json: string
+        }>`SELECT repo, number, watch_json FROM pull_requests
+          WHERE json_extract(watch_json, '$.pending') IS NOT NULL`.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => ({
+              repo: row.repo,
+              number: row.number,
+              memory: JSON.parse(row.watch_json) as PullRequestWatchMemory,
+            }))
+          ),
           Effect.mapError(storeError)
         )
       },

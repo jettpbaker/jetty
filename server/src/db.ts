@@ -189,6 +189,10 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`DELETE FROM thread_states WHERE json_type(state_json, '$.lastTurnOutcome') IS NULL`
   }),
+  '026_pull_request_watch': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE pull_requests ADD COLUMN watch_json TEXT`
+  }),
 })
 
 export function databaseLayer(home: string) {

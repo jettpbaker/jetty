@@ -8,7 +8,7 @@ import {
 } from '@jetty/shared/pull-request'
 import { Effect } from 'effect'
 
-import type { Orchestrator } from './orchestrator'
+import type { Orchestrator, PullRequestNews } from './orchestrator'
 import type { PullRequestRef } from './pull-requests'
 import type { Store } from './store'
 
@@ -259,23 +259,22 @@ function fold(activity: readonly PullRequestActivity[]) {
   return [...folded.values()]
 }
 
-function prKey(ref: PullRequestRef) {
-  return `${ref.repo}#${ref.number}`
-}
-
-type Batch = {
-  first: number
-  timer?: ReturnType<typeof setTimeout>
-  pulls: Map<string, { ref: PullRequestRef; data: PullRequestData; changes: PullRequestChange[] }>
+// What the watcher remembers of a PR, kept on its row so a restart neither repeats a change nor
+// drops news still waiting to be told.
+export type PullRequestWatchMemory = {
+  // Keys of changes already told, newest last.
+  fired: string[]
+  // Checks failed since they last passed.
+  failing?: boolean
+  // When it woke its thread in the last hour.
+  wakes?: number[]
+  pending?: { threadId: string; first: number; changes: PullRequestChange[] }
 }
 
 // Wakes the thread that owns a PR when the PR needs it, from changes the PR polling already
 // reads. Only one thread hears about a PR, so a parent and its child don't both wake.
 export function createPullRequestWatch(store: Store, orchestrator: Orchestrator) {
-  const fired = new Map<string, Set<string>>()
-  const failing = new Set<string>()
-  const wakes = new Map<string, number[]>()
-  const batches = new Map<string, Batch>()
+  const timers = new Map<string, { first: number; timer: ReturnType<typeof setTimeout> }>()
 
   // The thread on the PR's branch; else, for a PR the user opened, the thread that linked it first.
   function owner(ref: PullRequestRef, data: PullRequestData) {
@@ -296,69 +295,71 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
     })
   }
 
-  function flush(threadId: string) {
+  // Runs inside the transaction that tells the thread, so the news leaves the PR rows exactly
+  // when it reaches the chat.
+  function take(threadId: string) {
     return Effect.gen(function* () {
-      const batch = batches.get(threadId)
-      if (!batch) return
-      batches.delete(threadId)
       const now = Date.now()
-      const lines: Parameters<Orchestrator['pullRequestActivity']>[1][number][] = []
+      const lines: PullRequestNews['lines'] = []
       const sections: string[] = []
-      for (const [key, { ref, data, changes }] of batch.pulls) {
-        const recent = (wakes.get(key) ?? []).filter((at) => now - at < HOUR_MS)
+      for (const { repo, number, memory } of yield* store.pendingPullRequestWatches()) {
+        if (memory.pending?.threadId !== threadId) continue
+        const { changes } = memory.pending
+        const recent = (memory.wakes ?? []).filter((at) => now - at < HOUR_MS)
         const wakeful = changes.some((change) => change.wakes)
         const held = wakeful && recent.length >= WAKES_PER_HOUR
-        if (wakeful && !held) {
+        const { data } = yield* store.getPullRequest(repo, number)
+        if (wakeful && !held && data) {
           recent.push(now)
           const title = data.pull.title.replace(/[[\]]/g, '\\$&')
           const body = changes.map((change) => change.text).join('\n')
           sections.push(
-            `New activity on your pull request [#${ref.number} ${title}](${data.pull.html_url}):\n${
+            `New activity on your pull request [#${number} ${title}](${data.pull.html_url}):\n${
               body.length > SECTION_CAP
                 ? `${body.slice(0, SECTION_CAP)}\n[Cut here; the pull request has the rest.]`
                 : body
             }`
           )
         }
-        wakes.set(key, recent)
+        yield* store.savePullRequestWatch(repo, number, {
+          ...memory,
+          wakes: recent,
+          pending: undefined,
+        })
         lines.push({
-          repo: ref.repo,
-          number: ref.number,
+          repo,
+          number,
           activity: fold(changes.map((change) => change.activity)),
           ...(held && { held: true }),
         })
       }
-      yield* orchestrator.pullRequestActivity(
-        threadId,
-        lines,
-        sections.length ? sections.join('\n\n') : null
-      )
+      return { lines, text: sections.length ? sections.join('\n\n') : null }
     })
   }
 
-  function collect(
-    threadId: string,
-    ref: PullRequestRef,
-    data: PullRequestData,
-    changes: PullRequestChange[]
-  ) {
-    const batch: Batch = batches.get(threadId) ?? { first: Date.now(), pulls: new Map() }
-    const key = prKey(ref)
-    const pull = batch.pulls.get(key)
-    batch.pulls.set(key, { ref, data, changes: [...(pull?.changes ?? []), ...changes] })
-    batches.set(threadId, batch)
-    clearTimeout(batch.timer)
-    batch.timer = setTimeout(
-      () =>
-        void Effect.runPromise(flush(threadId)).catch((error: unknown) =>
-          console.warn(`[pr-watch] ${threadId} ${String(error)}`)
-        ),
-      Math.max(0, Math.min(QUIET_MS, batch.first + MAX_WAIT_MS - Date.now()))
+  function arm(threadId: string, first: number) {
+    const armed = timers.get(threadId)
+    clearTimeout(armed?.timer)
+    const start = Math.min(armed?.first ?? first, first)
+    const timer = setTimeout(
+      () => {
+        timers.delete(threadId)
+        void Effect.runPromise(orchestrator.pullRequestActivity(threadId, take(threadId))).catch(
+          (error: unknown) => console.warn(`[pr-watch] ${threadId} ${String(error)}`)
+        )
+      },
+      Math.max(0, Math.min(QUIET_MS, start + MAX_WAIT_MS - Date.now()))
     )
-    batch.timer.unref()
+    timer.unref()
+    timers.set(threadId, { first: start, timer })
   }
 
   return {
+    // News a restart left waiting goes out on its old schedule.
+    resume: Effect.gen(function* () {
+      for (const { memory } of yield* store.pendingPullRequestWatches())
+        if (memory.pending) arm(memory.pending.threadId, memory.pending.first)
+    }),
     // Whether PR reads should pass their previous snapshot to changed.
     watching: store.getAgentBehaviours().pipe(Effect.map((settings) => settings.watchPullRequests)),
     changed(ref: PullRequestRef, previous: PullRequestSnapshot, next: PullRequestData) {
@@ -366,26 +367,42 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
         if (!previous.data || Date.now() - (previous.refreshedAt ?? 0) > STALE_MS) return
         const settings = yield* store.getAgentBehaviours()
         if (!settings.watchPullRequests) return
-        const key = prKey(ref)
-        const seen = fired.get(key) ?? new Set<string>()
+        const memory = yield* store.pullRequestWatch(ref.repo, ref.number)
+        const seen = new Set(memory.fired)
         const changes = pullRequestChanges(
           previous.data,
           next,
           (previous.refreshedAt ?? 0) - LATE_MS,
-          failing.has(key)
+          memory.failing ?? false
         ).filter(
           (change) =>
             (!change.group || settings[change.group]) && change.keys.some((each) => !seen.has(each))
         )
-        if (changes.some((change) => change.activity.type === 'checks_failed')) failing.add(key)
-        if (rollupChecks[next.checkRollupState ?? ''] === 'success') failing.delete(key)
-        if (!changes.length) return
-        const thread = yield* owner(ref, next)
-        if (!thread) return
+        const failing =
+          rollupChecks[next.checkRollupState ?? ''] !== 'success' &&
+          (memory.failing || changes.some((change) => change.activity.type === 'checks_failed'))
+        const thread = changes.length ? yield* owner(ref, next) : undefined
+        if (!thread) {
+          if (failing !== Boolean(memory.failing))
+            yield* store.savePullRequestWatch(ref.repo, ref.number, {
+              ...memory,
+              failing: failing || undefined,
+            })
+          return
+        }
         for (const change of changes) for (const each of change.keys) seen.add(each)
-        while (seen.size > 200) seen.delete(seen.values().next().value!)
-        fired.set(key, seen)
-        collect(thread.id, ref, next, changes)
+        const first = memory.pending?.first ?? Date.now()
+        yield* store.savePullRequestWatch(ref.repo, ref.number, {
+          ...memory,
+          fired: [...seen].slice(-200),
+          failing: failing || undefined,
+          pending: {
+            threadId: thread.id,
+            first,
+            changes: [...(memory.pending?.changes ?? []), ...changes],
+          },
+        })
+        arm(thread.id, first)
       })
     },
   }
