@@ -1,3 +1,4 @@
+import { inComposition } from '@/lib/composition'
 import { useBrowse } from '@/state'
 import {
   useEffect,
@@ -144,7 +145,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
 
   function onKeyDown(event: KeyboardEvent) {
     // Enter and the arrows belong to an IME while it composes.
-    if (event.nativeEvent.isComposing) return
+    if (inComposition(event.nativeEvent)) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
       move(event.key === 'ArrowDown' ? 1 : -1)
     else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) perform('add')

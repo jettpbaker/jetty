@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
+import { inComposition } from '@/lib/composition'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
 import {
@@ -109,7 +110,7 @@ export function Composer({
     if (!element) return
     function listener(event: KeyboardEvent) {
       // Esc and ⌘Enter mid-composition belong to the IME, not to the strip's irreversible actions.
-      if (!event.isComposing) handleKey(event)
+      if (!inComposition(event)) handleKey(event)
     }
     element.addEventListener('keydown', listener)
     return () => element.removeEventListener('keydown', listener)
@@ -120,7 +121,7 @@ export function Composer({
       if (
         event.code === 'Space' ||
         event.defaultPrevented ||
-        event.isComposing ||
+        inComposition(event) ||
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
@@ -194,7 +195,7 @@ export function Composer({
                 }}
                 onKeyDown={(event) => {
                   if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return
-                  if (event.nativeEvent.isComposing) return
+                  if (inComposition(event.nativeEvent)) return
                   const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
                   if (!send) return
                   event.preventDefault()

@@ -2,6 +2,7 @@ import type { FileTreeBatchOperation, FileTreeVisibleRow } from '@pierre/trees'
 
 import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Separator } from '@/components/ui/separator'
+import { inComposition } from '@/lib/composition'
 import { cn } from '@/lib/utils'
 import {
   useFileSearch,
@@ -102,7 +103,7 @@ export function ThreadFiles({
             setEntered(false)
           }}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) return
+            if (inComposition(event.nativeEvent)) return
             if (event.key === 'Enter' && searching && !resultsCurrent.current) {
               event.preventDefault()
               setEntered(true)

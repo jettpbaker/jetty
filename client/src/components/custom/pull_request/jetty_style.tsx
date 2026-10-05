@@ -53,6 +53,7 @@ import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
+import { inComposition } from '@/lib/composition'
 import { contentKey } from '@/lib/hash'
 import { whenIdle } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
@@ -1642,7 +1643,7 @@ function TitleEditor({
       spellCheck={false}
       className='outline-none'
       onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return
+        if (inComposition(e.nativeEvent)) return
         if (e.key === 'Enter') {
           e.preventDefault()
           e.currentTarget.blur()

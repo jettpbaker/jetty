@@ -14,6 +14,7 @@ import {
   ShieldOffIcon,
   Tick02Icon,
 } from '@/components/custom/huge_icons'
+import { inComposition } from '@/lib/composition'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
 import {
   useAccessMode,
@@ -453,7 +454,7 @@ export function useComposerSlash(
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing) return
+    if (inComposition(event.nativeEvent)) return
     const element = event.currentTarget
     const collapsed = element.selectionStart === element.selectionEnd
     if (open && query) {
