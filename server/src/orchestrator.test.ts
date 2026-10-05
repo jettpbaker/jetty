@@ -1208,3 +1208,51 @@ test('Stop cancels a later group member before Resume starts its setup', async (
     })
   )
 })
+
+for (const sendNow of [false, true]) {
+  test(`PR watching disabled during preparation ${sendNow ? 'still allows explicit Send now' : 'drops the automatic wake'}`, async () => {
+    await runUploadTest(
+      Effect.gen(function* () {
+        const f = yield* makeUploadFixture()
+        yield* f.store.setAgentBehaviour('watchPullRequests', true)
+        yield* f.store.setQueuePaused(f.thread.id, true)
+        const entered = yield* Deferred.make<void>()
+        const release = yield* Deferred.make<void>()
+        const worktrees = {
+          prepare: async () => {
+            await Effect.runPromise(Deferred.succeed(entered, undefined))
+            await Effect.runPromise(Deferred.await(release))
+            return f.home
+          },
+        } as unknown as Worktrees
+        let started = false
+        const agent: Agent = {
+          ...f.agent,
+          startTurn: (input, emit) =>
+            Effect.sync(() => {
+              started = true
+            }).pipe(Effect.andThen(f.agent.startTurn(input, emit))),
+        }
+        const orch = yield* createOrchestrator({ store: f.store, agent, hub: f.hub, worktrees })
+        yield* f.store.queuePullRequestNews(f.thread.id, 'Please fix the PR')
+        const queued = (yield* f.store.requireThread(f.thread.id)).pendingMessages![0]!
+        yield* f.store.setQueuePaused(f.thread.id, false)
+        const starting = yield* orch
+          .startTurnEffect({ threadId: f.thread.id, text: queued.text, queued, sendNow })
+          .pipe(Effect.forkScoped)
+        yield* Deferred.await(entered)
+        yield* f.store.setAgentBehaviour('watchPullRequests', false)
+        yield* Deferred.succeed(release, undefined)
+        const result = yield* Fiber.join(starting)
+        expect(started).toBe(sendNow)
+        expect(Boolean(result.turnId)).toBe(sendNow)
+        expect(Boolean(orch.currentTurn(f.thread.id))).toBe(sendNow)
+        expect((yield* f.store.requireThread(f.thread.id)).pendingMessages).toEqual([])
+        if (!sendNow) {
+          expect((yield* f.store.getThreadState(f.thread.id)).items).toEqual([])
+          expect((yield* f.store.requireThread(f.thread.id)).status).toBe('idle')
+        }
+      })
+    )
+  })
+}

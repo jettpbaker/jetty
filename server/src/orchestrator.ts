@@ -522,7 +522,7 @@ export function createOrchestrator({
     }
 
     function appendUser(
-      { threadId, messageId, text, queued, carriesOn }: StartTurnInput,
+      { threadId, messageId, text, queued, carriesOn, sendNow }: StartTurnInput,
       turnId: string,
       meta: Attachment[],
       onCommit: Effect.Effect<void>
@@ -540,12 +540,20 @@ export function createOrchestrator({
           text,
           attachments: meta,
         }
-        yield* locked(
+        return yield* locked(
           threadId,
           Effect.gen(function* () {
             yield* flushDelta(threadId)
             const appended = yield* store.transaction(
               Effect.gen(function* () {
+                if (
+                  queued?.kind === 'pull_request' &&
+                  !sendNow &&
+                  !(yield* store.getAgentBehaviours()).watchPullRequests
+                ) {
+                  yield* store.editQueued(threadId, queued.id)
+                  return []
+                }
                 yield* store.beginDelivery(
                   threadId,
                   turnId,
@@ -561,6 +569,12 @@ export function createOrchestrator({
             )
             yield* onCommit
             for (const event of appended) yield* publish(threadId, event)
+            if (!appended.length)
+              hub.pushChrome({
+                type: 'thread.upserted',
+                thread: yield* store.requireThread(threadId),
+              })
+            return appended.length > 0
           })
         )
       })
@@ -922,6 +936,7 @@ export function createOrchestrator({
                   agentText(input, fromCreator),
                   saved.images,
                   appendUser(input, turnId, saved.meta, onCommit).pipe(
+                    Effect.asVoid,
                     Effect.mapError(toAgentError)
                   )
                 )
@@ -948,40 +963,42 @@ export function createOrchestrator({
                   onCommit
                 ).pipe(Effect.mapError(toAgentError))
               const turn = yield* appendUser(input, turnId, saved.meta, onCommit).pipe(
-                Effect.andThen(
-                  Effect.gen(function* () {
-                    const folder = cwd
-                    if (folder && !(yield* Effect.promise(() => isFolder(folder)))) {
-                      const message = `Project folder not found: ${folder}`
-                      const item = {
-                        id: newId(),
-                        turnId,
-                        createdAt: Date.now(),
-                        kind: 'error' as const,
-                        message,
-                      }
-                      return {
-                        await: emit({ type: 'item.started', item }).pipe(
-                          Effect.andThen(Effect.fail(new AgentError(message)))
-                        ),
-                      }
-                    }
-                    return yield* agent.startTurn(
-                      {
-                        cwd,
-                        threadId: input.threadId,
-                        turnId,
-                        text: agentText(input, fromCreator),
-                        images: saved.images,
-                        model: input.model,
-                        effort: input.effort,
-                        fast: input.fast,
-                        permissionMode: input.permissionMode,
-                        parentThreadId: thread.parentThreadId,
-                      },
-                      emit
-                    )
-                  })
+                Effect.flatMap((delivered) =>
+                  delivered
+                    ? Effect.gen(function* () {
+                        const folder = cwd
+                        if (folder && !(yield* Effect.promise(() => isFolder(folder)))) {
+                          const message = `Project folder not found: ${folder}`
+                          const item = {
+                            id: newId(),
+                            turnId,
+                            createdAt: Date.now(),
+                            kind: 'error' as const,
+                            message,
+                          }
+                          return {
+                            await: emit({ type: 'item.started', item }).pipe(
+                              Effect.andThen(Effect.fail(new AgentError(message)))
+                            ),
+                          }
+                        }
+                        return yield* agent.startTurn(
+                          {
+                            cwd,
+                            threadId: input.threadId,
+                            turnId,
+                            text: agentText(input, fromCreator),
+                            images: saved.images,
+                            model: input.model,
+                            effort: input.effort,
+                            fast: input.fast,
+                            permissionMode: input.permissionMode,
+                            parentThreadId: thread.parentThreadId,
+                          },
+                          emit
+                        )
+                      })
+                    : Effect.succeed(undefined)
                 ),
                 Effect.onError(() =>
                   append(input.threadId, {
@@ -991,6 +1008,11 @@ export function createOrchestrator({
                   }).pipe(Effect.ignore, Effect.ensuring(settleTurn(input.threadId, turnId)))
                 )
               )
+              if (!turn) {
+                live.turnId = null
+                live.ready = true
+                return { turnId: '' }
+              }
               if (resumeQueue) yield* setQueuePaused(input.threadId, false)
               yield* turn.await.pipe(
                 Effect.catch((error) =>
