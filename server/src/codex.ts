@@ -226,6 +226,10 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   ]),
                 ]
               : []),
+            // Off by default; a child asks its parent through ask_parent even if the user enabled it.
+            ...(session.input.parentThreadId
+              ? ['-c', 'features.default_mode_request_user_input=false']
+              : []),
           ]
           const connection = yield* openCodexConnection(cwd, {
             ...options,

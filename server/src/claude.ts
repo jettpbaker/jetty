@@ -694,7 +694,11 @@ export function createClaudeAdapter(
                   model: options.model,
                   effort: options.effort,
                   permissionMode: options.permissionMode,
-                  disallowedTools: ['EnterPlanMode', 'ExitPlanMode'],
+                  disallowedTools: [
+                    'EnterPlanMode',
+                    'ExitPlanMode',
+                    ...(input.parentThreadId ? ['AskUserQuestion'] : []),
+                  ],
                   // Only permits a later live switch into bypassPermissions.
                   allowDangerouslySkipPermissions: true,
                   includePartialMessages: true,

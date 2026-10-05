@@ -785,6 +785,7 @@ export function createOrchestrator({
                         effort: input.effort,
                         fast: input.fast,
                         permissionMode: input.permissionMode,
+                        parentThreadId: thread.parentThreadId,
                       },
                       emit
                     )
@@ -884,6 +885,7 @@ export function createOrchestrator({
                     model: thread.model,
                     effort: thread.effort,
                     fast: thread.fast,
+                    parentThreadId: thread.parentThreadId,
                   },
                   emit
                 )

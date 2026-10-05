@@ -27,6 +27,8 @@ export type TurnInput = {
   effort?: EffortLevel
   fast?: boolean
   permissionMode?: PermissionMode
+  // Set for agent-created threads, whose questions go to their parent through ask_parent.
+  parentThreadId?: string
 }
 
 export type AgentHooks = {
