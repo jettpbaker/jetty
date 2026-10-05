@@ -1298,8 +1298,10 @@ async function fetchPullRequest(
   const pull = graph.pull
   const headSha = string(pull.headRefOid)
   const baseSha = string(pull.baseRefOid)
+  // A base that only moved on keeps the merge base, so the files; a retarget doesn't.
   const reuseFiles =
-    previous?.pull.head.sha === headSha &&
+    previous?.pull.base.ref === string(pull.baseRefName) &&
+    previous.pull.head.sha === headSha &&
     previous.pull.changed_files === Number(pull.changedFiles) &&
     previous.pull.additions === Number(pull.additions) &&
     previous.pull.deletions === Number(pull.deletions)

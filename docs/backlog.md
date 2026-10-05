@@ -175,8 +175,7 @@ Everything below is for one combined review of the chat, not separate ports.
   only move at turn end.
 - PR view: a PR with over 100 check contexts or generated-banner heads drops the rest
   silently (`pull-request-graphql.ts` ~143, `pull-requests.ts` ~978);
-  100+ old closed PRs can crowd out recent closes ("Showing latest 0"); a base retarget
-  with identical totals keeps old files (`reuseFiles` ignores the base SHA); a thread
+  100+ old closed PRs can crowd out recent closes ("Showing latest 0"); a thread
   linked to a PR with no messages can't open its PR tab.
 - File save (`diff.ts`): a parent-folder symlink swapped after the realpath check
   redirects a new file; a save still splits hard links and drops xattrs/ACLs.
