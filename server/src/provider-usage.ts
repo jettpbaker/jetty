@@ -250,7 +250,8 @@ export function readCodexProviderUsage(cwd: string, options: StdioProcessOptions
 }
 
 export async function readGrokProviderUsage(): Promise<ProviderUsage> {
-  if (process.env.XAI_API_KEY) return { provider: 'grok', connected: false, windows: [] }
+  // Grok runs on the key (grok-rpc.ts), which has no plan limits.
+  if (process.env.XAI_API_KEY) return { provider: 'grok', connected: true, windows: [] }
   let credential: Record<string, unknown>
   try {
     const home = process.env.GROK_HOME || join(homedir(), '.grok')
