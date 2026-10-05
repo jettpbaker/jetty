@@ -1,3 +1,5 @@
+import type { Attachment } from '@jetty/shared/items'
+
 import {
   agentBehaviours,
   newId,
@@ -20,16 +22,33 @@ export function jettyInstructions(behaviours: AgentBehaviours) {
   ].join('\n\n')
 }
 
+// The message that opened a turn Jetty restarted before the agent started, so it never got it.
+export type UndeliveredMessage = {
+  text: string
+  from?: { threadId: string; title: string }
+  attachments: readonly Attachment[]
+  fromCreator: boolean
+}
+
 // Jetty's note to an agent whose turn a restart cut off, sent first from its queue.
-export function restartNote(threadId: string, stoppedNames: readonly string[] = []): QueuedMessage {
+export function restartNote(
+  threadId: string,
+  stoppedNames: readonly string[] = [],
+  undelivered?: UndeliveredMessage
+): QueuedMessage {
   const names = stoppedNames.length ? `: ${stoppedNames.join(', ')}` : ''
+  const stopped = `Anything you had running in the background (commands, monitors, subagents) was stopped and won't report back${names}.`
+  const relayed = undelivered?.from?.threadId === threadId ? undefined : undelivered?.from
   return {
     id: newId(),
-    text: `Jetty restarted while you were working and cut off your last turn. Anything you had running in the background (commands, monitors, subagents) was stopped and won't report back${names}. Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`,
+    text: undelivered
+      ? `Jetty restarted before your last message reached you, so here it is${relayed ? `, from thread "${relayed.title}" (${relayed.threadId})` : ''}. ${stopped}\n\n${undelivered.text}${undelivered.fromCreator ? `\n\n${CHILD_REPORT_INSTRUCTION}` : ''}`
+      : `Jetty restarted while you were working and cut off your last turn. ${stopped} Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`,
     from: { threadId, title: 'Jetty' },
     kind: 'continuation',
     createdAt: Date.now(),
     hop: 0,
+    ...(undelivered?.attachments.length && { attachments: [...undelivered.attachments] }),
   }
 }
 

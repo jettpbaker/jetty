@@ -1,7 +1,12 @@
 import type { FromServerEncoded } from 'effect/rpc/RpcMessage'
 
 import { BunServices } from '@effect/platform-bun'
-import { heldByRestarts, RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
+import {
+  heldByRestarts,
+  RESTART_LIMIT,
+  RESTART_WINDOW_MS,
+  type ThreadItem,
+} from '@jetty/shared/items'
 import { MAX_IMAGE_BYTES, newId, type QueuedMessage } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
@@ -1073,6 +1078,64 @@ describe('server skeleton', () => {
       },
       15_000
     )
+
+  test('a message a restart cut off before its turn started reaches the agent on the next start', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'jetty-undelivered-'))
+    homes.push(home)
+    const db = await openTestStore(home)
+    const { store } = db
+    const project = await Effect.runPromise(store.createProject(home))
+    const thread = await Effect.runPromise(store.createThread(project.id, newId()))
+    const image = {
+      id: newId(),
+      name: 'shot.png',
+      mimeType: 'image/png',
+      sizeBytes: TINY_PNG_BYTES.byteLength,
+    }
+    mkdirSync(join(home, 'attachments'), { recursive: true })
+    writeFileSync(join(home, 'attachments', `${image.id}.png`), TINY_PNG_BYTES)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* store.beginDelivery(thread.id, 'cut-turn', 0)
+        yield* store.appendEvents(thread.id, [
+          {
+            type: 'item.started',
+            item: {
+              id: 'prompt',
+              turnId: 'cut-turn',
+              createdAt: Date.now(),
+              kind: 'user_message',
+              text: 'Please fix the login bug',
+              attachments: [image],
+            },
+          },
+          { type: 'item.completed', itemId: 'prompt' },
+        ])
+      })
+    )
+    await db.close()
+
+    const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+    servers.push(running)
+    let items: readonly ThreadItem[] = []
+    for (let wait = 0; wait < 200; wait++) {
+      const state = await Effect.runPromise(running.store.getThreadState(thread.id))
+      items = state.items
+      if (state.turnOutcomes[items.at(-1)?.turnId ?? ''] === 'completed') break
+      await Bun.sleep(50)
+    }
+    expect(items).toContainEqual(
+      expect.objectContaining({
+        kind: 'user_message',
+        from: { threadId: thread.id, title: 'Jetty' },
+        text: expect.stringContaining('Please fix the login bug'),
+        attachments: [image],
+      })
+    )
+    expect(items.findLast((item) => item.kind === 'assistant_message')).toMatchObject({
+      text: expect.stringContaining('Please fix the login bug'),
+    })
+  })
 
   test('a second server on the same home refuses to start, before touching the first one', async () => {
     const first = await boot()

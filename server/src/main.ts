@@ -50,7 +50,6 @@ import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
-import { restartNote } from './jetty-instructions'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -202,7 +201,11 @@ function reconcileOnStartup(store: Store) {
               },
             })
           if (autoResume && !thread.archived)
-            yield* store.enqueue(thread.id, restartNote(thread.id, stoppedNames), 0)
+            yield* store.enqueue(
+              thread.id,
+              yield* store.continuation(thread.id, cutTurnId, stoppedNames),
+              0
+            )
         })
       )
     }

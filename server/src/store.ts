@@ -25,7 +25,7 @@ import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { normalizePath } from './fs-browse'
-import { childReport, type ReportOutcome } from './jetty-instructions'
+import { childReport, restartNote, type ReportOutcome } from './jetty-instructions'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
@@ -1019,6 +1019,26 @@ export function createStore() {
           yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${hop}, ${initiator}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
           if (messageId) yield* removeQueued(threadId, messageId)
         }).pipe(atomically, Effect.mapError(storeError))
+      },
+      // Jetty's note resuming a turn a restart cut off. A turn the agent never started also hands
+      // over the message that opened it, which the agent never got.
+      continuation(threadId: string, turnId: string, stoppedNames: readonly string[] = []) {
+        return Effect.gen(function* () {
+          const started = yield* sql`SELECT 1 FROM thread_events WHERE thread_id = ${threadId}
+            AND json_extract(payload_json, '$.type') = 'turn.started'
+            AND json_extract(payload_json, '$.turnId') = ${turnId} LIMIT 1`
+          const { state } = yield* loadThread(threadId)
+          const message = started.length
+            ? undefined
+            : state.items.find((item) => item.turnId === turnId && item.kind === 'user_message')
+          if (message?.kind !== 'user_message') return restartNote(threadId, stoppedNames)
+          const thread = yield* requireThread(threadId)
+          const fromCreator =
+            message.from !== undefined &&
+            message.from.threadId === thread.parentThreadId &&
+            (yield* notifiesParent(threadId))
+          return restartNote(threadId, stoppedNames, { ...message, fromCreator })
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       // A turn the agent starts itself, woken by its background work, carries on the turn before it.
       carryOnTurn(threadId: string, turnId: string) {

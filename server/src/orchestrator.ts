@@ -26,12 +26,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, type Agent } from './agent'
-import {
-  CHILD_REPORT_INSTRUCTION,
-  deniedApprovalNote,
-  restartNote,
-  userAnswers,
-} from './jetty-instructions'
+import { CHILD_REPORT_INSTRUCTION, deniedApprovalNote, userAnswers } from './jetty-instructions'
 import {
   isAgentProvider,
   singleAgentRegistry,
@@ -1039,7 +1034,11 @@ export function createOrchestrator({
                 Effect.gen(function* () {
                   const thread = yield* store.requireThread(threadId)
                   if (!thread.pendingMessages?.some((message) => message.kind === 'continuation'))
-                    yield* store.enqueue(threadId, restartNote(threadId), 0)
+                    yield* store.enqueue(
+                      threadId,
+                      yield* store.continuation(threadId, items.at(-1)!.turnId),
+                      0
+                    )
                   yield* store.setQueuePaused(threadId, false)
                 })
               )
