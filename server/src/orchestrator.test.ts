@@ -1,7 +1,7 @@
 import { BunServices } from '@effect/platform-bun'
 import { newId } from '@jetty/shared/wire'
 import { expect, test } from 'bun:test'
-import { Context, Deferred, Effect, Exit, Fiber, FileSystem, Layer, Scope } from 'effect'
+import { Context, Deferred, Effect, Exit, Fiber, FileSystem, Layer, Queue, Scope } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { TestClock } from 'effect/testing'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -455,3 +455,129 @@ test('failed initial and cleanup appends release orchestrator admission for retr
     rmSync(home, { recursive: true, force: true })
   }
 })
+
+for (const stopped of [false, true]) {
+  test(
+    stopped
+      ? 'a queue-paused grandchild does not block its child reporting to the parent'
+      : 'reports travel up a parent, child and grandchild chain only after the child settles',
+    async () => {
+      await runUploadTest(
+        Effect.gen(function* () {
+          const f = yield* makeUploadFixture()
+          const parent = f.thread
+          const child = yield* f.store.createThread(parent.projectId, newId())
+          yield* f.store.markAgentThread(child.id, parent.id, true)
+          const grandchild = yield* f.store.createThread(parent.projectId, newId())
+          yield* f.store.markAgentThread(grandchild.id, child.id, true)
+          const turns = new Map<string, { turnId: string; finish: Deferred.Deferred<string> }>()
+          const childWoken = yield* Deferred.make<void>()
+          f.agent.startTurn = (input, emit) =>
+            Effect.gen(function* () {
+              const finish = yield* Deferred.make<string>()
+              const wakingChild = input.threadId === child.id && turns.has(child.id)
+              turns.set(input.threadId, { turnId: input.turnId, finish })
+              yield* emit({ type: 'turn.started', turnId: input.turnId })
+              if (wakingChild) yield* Deferred.succeed(childWoken, undefined)
+              return {
+                await: Effect.gen(function* () {
+                  const text = yield* Deferred.await(finish)
+                  const itemId = newId()
+                  yield* emit({
+                    type: 'item.started',
+                    item: {
+                      id: itemId,
+                      turnId: input.turnId,
+                      createdAt: Date.now(),
+                      kind: 'assistant_message',
+                      text,
+                    },
+                  })
+                  yield* emit({ type: 'item.completed', itemId })
+                  yield* emit({ type: 'turn.completed', turnId: input.turnId })
+                }),
+              }
+            })
+          const orch = yield* createOrchestrator({
+            store: f.store,
+            agent: f.agent,
+            hub: f.hub,
+          })
+          yield* f.store.setQueuePaused(parent.id, true)
+          for (const [sender, recipient] of [
+            [parent, child],
+            [child, grandchild],
+          ] as const) {
+            const message = {
+              id: newId(),
+              text: 'Please do the work',
+              createdAt: Date.now(),
+              hop: 1,
+              from: { threadId: sender.id, title: sender.title },
+            }
+            yield* f.store.enqueue(recipient.id, message)
+            yield* orch.startTurnEffect({
+              threadId: recipient.id,
+              text: message.text,
+              queued: message,
+            })
+          }
+          const firstChildTurn = turns.get(child.id)!
+          yield* Deferred.succeed(firstChildTurn.finish, 'Interim child answer')
+          yield* TestClock.adjust(1000)
+          expect(yield* orch.isActive(child.id)).toBe(false)
+          expect(yield* orch.isActive(grandchild.id)).toBe(true)
+          yield* f.store.setQueuePaused(child.id, true)
+          yield* orch.resumeQueues()
+          yield* TestClock.adjust(1000)
+          expect((yield* f.store.requireThread(parent.id)).pendingMessages ?? []).toEqual([])
+
+          if (stopped) {
+            yield* f.store.setQueuePaused(grandchild.id, true)
+            yield* f.store.enqueue(grandchild.id, {
+              id: newId(),
+              text: 'Work left for later',
+              createdAt: Date.now(),
+              hop: 0,
+            })
+          }
+          yield* Deferred.succeed(turns.get(grandchild.id)!.finish, 'Grandchild final answer')
+          yield* TestClock.adjust(1000)
+          expect(yield* orch.isActive(grandchild.id)).toBe(false)
+
+          if (stopped) {
+            expect((yield* f.store.requireThread(grandchild.id)).queuePaused).toBe(true)
+            expect((yield* f.store.requireThread(grandchild.id)).pendingMessages).toHaveLength(1)
+          } else {
+            const reports = (yield* f.store.requireThread(child.id)).pendingMessages ?? []
+            expect(reports).toHaveLength(1)
+            expect(reports[0]).toMatchObject({ kind: 'report', from: { threadId: grandchild.id } })
+            expect(reports[0]!.text).toContain('Grandchild final answer')
+            expect((yield* f.store.requireThread(parent.id)).pendingMessages ?? []).toEqual([])
+            yield* f.store.setQueuePaused(child.id, false)
+            yield* Queue.offer(f.store.queueChanges, undefined)
+            yield* Deferred.await(childWoken)
+            const lastChildTurn = turns.get(child.id)!
+            expect(lastChildTurn.turnId).not.toBe(firstChildTurn.turnId)
+            expect(yield* orch.isActive(child.id)).toBe(true)
+            expect(
+              yield* f.sql`SELECT initiator_thread_id FROM orchestration_turns WHERE turn_id = ${lastChildTurn.turnId}`
+            ).toEqual([{ initiator_thread_id: parent.id }])
+            yield* Deferred.succeed(lastChildTurn.finish, 'Final child answer after grandchild')
+            yield* TestClock.adjust(1000)
+          }
+          const reports = (yield* f.store.requireThread(parent.id)).pendingMessages ?? []
+          expect(reports).toHaveLength(1)
+          expect(reports[0]).toMatchObject({ kind: 'report', from: { threadId: child.id } })
+          expect(reports[0]!.text).toContain(
+            stopped ? 'Interim child answer' : 'Final child answer after grandchild'
+          )
+          if (!stopped) expect(reports[0]!.text).not.toContain('Interim child answer')
+          expect(yield* f.store.reportSettledChild(child.id)).toEqual({ delivered: false })
+          yield* TestClock.adjust(3000)
+          expect((yield* f.store.requireThread(parent.id)).pendingMessages).toEqual(reports)
+        }).pipe(Effect.provide(TestClock.layer()))
+      )
+    }
+  )
+}
