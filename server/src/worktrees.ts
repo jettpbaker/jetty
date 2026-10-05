@@ -517,7 +517,12 @@ export function createWorktrees(
         )
       }
       await git(project.path, 'worktree', 'prune')
-      if (deleting && record.branch && thread.pullRequests?.some((link) => link.state === 'merged'))
+      if (
+        deleting &&
+        record.branch &&
+        thread.pullRequests?.some((link) => link.state === 'merged') &&
+        (await tryGit(project.path, 'show-ref', '--verify', `refs/heads/${record.branch}`))
+      )
         await git(project.path, 'branch', '-D', '--', record.branch)
       record.slot = null
       record.state = 'pending'
@@ -565,7 +570,8 @@ export function createWorktrees(
       const base = `${await run(store.getBranchPrefix())}/${branchSlug(title)}`
       let next = base
       for (let suffix = 2; occupied.has(next); suffix++) next = `${base}-${suffix}`
-      await git(folder, 'branch', '-m', '--', next)
+      // Named, so a switch while the remote was being checked can't rename some other branch.
+      await git(folder, 'branch', '-m', '--', temporary, next)
       record.branch = next
       record.temporaryBranch = null
       await save(threadId, record)
