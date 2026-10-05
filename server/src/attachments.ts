@@ -127,7 +127,8 @@ export function createAttachments(home: string) {
 
       function checkSize(size: bigint) {
         if (size === 0n) return invalid(`${noun} is empty: ${srcPath}`)
-        if (size > maxBytes) return invalid(`${noun} exceeds ${maxBytes} bytes (got ${size})`)
+        if (size > maxBytes)
+          return invalid(`${noun} is over the ${maxBytes / 1024 / 1024} MB limit`)
         return Effect.void
       }
 

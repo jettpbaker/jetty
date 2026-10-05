@@ -205,6 +205,8 @@ export const QueuedMessage = Schema.Struct({
   createdAt: Schema.Int,
   editingUntil: Schema.optional(Schema.Int),
   from: Schema.optional(MessageSource),
+  // Jetty's own messages: a restart continuation, or a child's report.
+  kind: Schema.optional(Schema.Literals(['continuation', 'report'])),
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),
 })

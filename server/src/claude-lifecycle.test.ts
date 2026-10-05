@@ -804,7 +804,10 @@ describe('scoped Claude sessions', () => {
         f.agent.respondToApproval(f.thread.id, item.item.id, 'deny', '  Not now  ')
       )
     ).toBe(true)
-    expect(await approval).toEqual({ behavior: 'deny', message: 'Not now' })
+    expect(await approval).toEqual({
+      behavior: 'deny',
+      message: "User's note on the denied approval: Not now",
+    })
     expect(f.events).toContainEqual({
       type: 'item.completed',
       itemId: item.item.id,

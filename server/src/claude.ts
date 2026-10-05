@@ -49,20 +49,12 @@ import {
   type TranslateCtx,
 } from './claude-translate'
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
-import { jettyInstructions } from './jetty-instructions'
-import { SEND_IMAGES_TOOL } from './send-images'
-import { SEND_VIDEO_TOOL } from './send-video'
+import { deniedApprovalNote, jettyInstructions } from './jetty-instructions'
+import { SELF_TOOLS } from './jetty-tools'
 import { readUsage } from './usage'
 
-const AUTO_ALLOWED_TOOLS = new Set([
-  SEND_IMAGES_TOOL,
-  SEND_VIDEO_TOOL,
-  'mcp__jetty__list_threads',
-  'mcp__jetty__read_thread',
-  'mcp__jetty__list_models',
-  'mcp__jetty__mark_ready_for_review',
-  'mcp__jetty__link_pull_request',
-])
+// The rest of Jetty's tools go through Claude's own reviewer: the auto-mode classifier judges them.
+const AUTO_ALLOWED_TOOLS = new Set(SELF_TOOLS.map((name) => `mcp__jetty__${name}`))
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
@@ -274,7 +266,11 @@ export function createClaudeAdapter(
           }
         })
       }
-      return deny(session.pendingApprovals, { decision: 'deny' }, 'Denied by user').pipe(
+      return deny(
+        session.pendingApprovals,
+        { decision: 'deny' },
+        'Cancelled: the turn ended before the user answered.'
+      ).pipe(
         Effect.andThen(
           deny(session.pendingQuestions, { skipped: true }, 'The user did not answer the questions')
         )
@@ -705,24 +701,6 @@ export function createClaudeAdapter(
                   forwardSubagentText: true,
                   perTaskStopAffordance: true,
                   canUseTool,
-                  hooks: {
-                    PreToolUse: [
-                      {
-                        matcher: '^mcp__jetty__(create_thread|send_message)$',
-                        hooks: [
-                          async () =>
-                            session && session.options.permissionMode !== 'default'
-                              ? {
-                                  hookSpecificOutput: {
-                                    hookEventName: 'PreToolUse',
-                                    permissionDecision: 'allow',
-                                  },
-                                }
-                              : {},
-                        ],
-                      },
-                    ],
-                  },
                   resume: resume ?? undefined,
                   mcpServers: sdkMcp ? { jetty: sdkMcp } : {},
                   allowedTools: [
@@ -942,7 +920,10 @@ export function createClaudeAdapter(
                   updatedInput: pending.input,
                   ...(decision === 'always' ? { updatedPermissions: pending.suggestions } : {}),
                 }
-              : { behavior: 'deny', message: reason ?? 'Denied by user' }
+              : {
+                  behavior: 'deny',
+                  message: reason ? deniedApprovalNote(reason) : 'Denied by user',
+                }
         )
       },
       respondToQuestion(threadId, itemId, answers) {

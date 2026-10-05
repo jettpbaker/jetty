@@ -20,6 +20,7 @@ import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
 import { createGrokTranslator } from './grok-translate'
 import { jettyInstructions } from './jetty-instructions'
+import { SELF_TOOLS } from './jetty-tools'
 import {
   object,
   string,
@@ -218,9 +219,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const input = object(tool.rawInput)
           if (
             input.variant === 'UseTool' &&
-            ['jetty__mark_ready_for_review', 'jetty__link_pull_request'].includes(
-              String(input.tool_name)
-            ) &&
+            SELF_TOOLS.some((name) => input.tool_name === `jetty__${name}`) &&
             allow
           ) {
             yield* connection.respond(id, {
@@ -326,9 +325,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             session.input,
             binding && jettyInstructions(yield* store.getAgentBehaviours())
           )
-          const { connection, init } = yield* openGrokConnection(cwd, args, options).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
+          // Folder trust gates project AGENTS.md, skills, hooks and MCP; the user chose this project.
+          // The env var lifts it for this process only, where --trust would save a grant per worktree.
+          const env = { ...process.env, ...options.env, GROK_FOLDER_TRUST: '0' }
+          const { connection, init } = yield* openGrokConnection(cwd, args, {
+            ...options,
+            env,
+          }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'grok')
           if (resume && object(init.agentCapabilities).loadSession !== true)

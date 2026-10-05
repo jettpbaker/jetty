@@ -25,7 +25,7 @@ import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { normalizePath } from './fs-browse'
-import { RESTART_LIMIT_OUTCOME } from './jetty-instructions'
+import { childReport, type ReportOutcome } from './jetty-instructions'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
@@ -398,7 +398,12 @@ export function createStore() {
         if (thread.archived)
           return yield* Effect.fail(new StoreError('not_found', 'Thread is archived'))
         if (message.hop > 20)
-          return yield* Effect.fail(new StoreError('invalid_params', 'Message hop limit exceeded'))
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              'Stopped: this chain of messages between threads passed 20 hops, which looks like a loop'
+            )
+          )
         const pending = thread.pendingMessages ?? []
         yield* updateQueue(threadId, front ? [message, ...pending] : [...pending, message])
         return yield* requireThread(threadId)
@@ -485,14 +490,14 @@ export function createStore() {
           ThreadEvent,
           { type: 'turn.completed' | 'turn.failed' }
         >
-        const outcome =
+        const outcome: ReportOutcome =
           event.type === 'turn.completed'
-            ? 'done'
+            ? { type: 'finished' }
             : event.error === 'interrupted'
-              ? 'interrupted'
+              ? { type: 'interrupted' }
               : event.error === 'server_restarted'
-                ? RESTART_LIMIT_OUTCOME
-                : `failed: ${event.error}`
+                ? { type: 'paused' }
+                : { type: 'failed', error: event.error }
         const final = state.items.findLast(
           (item) =>
             item.turnId === turn.turn_id &&
@@ -500,26 +505,19 @@ export function createStore() {
             !item.agentId &&
             item.text.trim()
         )
-        const summary = final?.kind === 'assistant_message' ? final.text.trim() : ''
-        const text = [
-          `Thread ${thread.title} (${threadId}) ${outcome}.`,
-          thread.environment === 'worktree'
-            ? `Branch: ${thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable'}`
-            : 'Works in the current checkout.',
-          summary.length > 4000
-            ? `${summary.slice(0, 4000)}\n[Truncated; use read_thread to read the full message.]`
-            : summary,
-        ]
-          .filter(Boolean)
-          .join('\n\n')
-        const reports = yield* sql<{
-          result_json: string
-        }>`SELECT result_json FROM orchestration_requests
-          WHERE operation = 'report' AND json_extract(result_json, '$.threadId') = ${parent.id}`
-        const messageIds = new Set(
-          reports.map((row) => (JSON.parse(row.result_json) as { messageId?: string }).messageId)
-        )
-        const batch = parent.pendingMessages?.find((message) => messageIds.has(message.id))
+        const text = childReport({
+          threadId,
+          title: thread.title,
+          outcome,
+          branch:
+            thread.environment === 'worktree'
+              ? (thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable')
+              : null,
+          message: final?.kind === 'assistant_message' ? final.text.trim() : '',
+          messageId: final?.id,
+        })
+        // Reports waiting in the parent's queue merge into one message, which then comes from Jetty.
+        const batch = parent.pendingMessages?.find((message) => message.kind === 'report')
         const messageId = batch?.id ?? reportId
         if (batch)
           yield* updateQueue(
@@ -529,6 +527,7 @@ export function createStore() {
                 ? {
                     ...message,
                     text: `${message.text}\n\n---\n\n${text}`,
+                    from: { threadId: parent.id, title: 'Jetty' },
                     hop: Math.max(message.hop, hop),
                   }
                 : message
@@ -541,6 +540,7 @@ export function createStore() {
             createdAt: Date.now(),
             hop,
             from: { threadId, title: thread.title },
+            kind: 'report',
           })
         yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id, messageId })})`
         return { delivered: true }
@@ -611,7 +611,12 @@ export function createStore() {
       return Effect.gen(function* () {
         const { state } = yield* loadThread(threadId)
         if (!state.activeTurnId)
-          return yield* Effect.fail(new StoreError('conflict', 'Caller has no active turn'))
+          return yield* Effect.fail(
+            new StoreError(
+              'conflict',
+              "This only works during your own turn, and a background task can't call it after the turn has ended"
+            )
+          )
         const [turn] = yield* sql<{
           hop: number
           created_count: number
@@ -909,8 +914,7 @@ export function createStore() {
           }
           const thread = yield* requireThread(threadId)
           const message = thread.pendingMessages?.find((m) => m.id === messageId)
-          const continuation =
-            message?.from?.threadId === threadId && message.from.title === 'Jetty'
+          const continuation = message?.kind === 'continuation'
           const previous = continuation ? yield* latestFinishedTurn(threadId) : undefined
           const initiator = previous?.initiator_thread_id ?? message?.from?.threadId ?? null
           if (previous) hop = previous.hop
@@ -1121,7 +1125,7 @@ export function createStore() {
             if (attachment.mimeType.startsWith(kind + '/')) return attachment
           }
           return yield* Effect.fail(
-            new StoreError('not_found', 'Attachment not found in caller project')
+            new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
           )
         }).pipe(Effect.mapError(storeError))
       },

@@ -27,7 +27,8 @@ import {
   type RpcMessage,
 } from './codex-rpc'
 import { createCodexTranslator } from './codex-translate'
-import { jettyInstructions } from './jetty-instructions'
+import { deniedApprovalNote, jettyInstructions, userAnswers } from './jetty-instructions'
+import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 
 export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
 type Pending = { id: RpcId; questions?: { id: string; question: string }[]; mcpTool?: true }
@@ -218,19 +219,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
                   '-c',
                   'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
-                  '-c',
-                  'mcp_servers.jetty.tools.send_images.approval_mode="approve"',
-                  '-c',
-                  'mcp_servers.jetty.tools.send_video.approval_mode="approve"',
-                  ...[
-                    'list_threads',
-                    'read_thread',
-                    'list_models',
-                    'create_thread',
-                    'send_message',
-                    'mark_ready_for_review',
-                    'link_pull_request',
-                  ].flatMap((name) => [
+                  // Codex sends MCP approvals straight to the user, with no reviewer of its own.
+                  ...[...SELF_TOOLS, ...THREAD_TOOLS].flatMap((name) => [
                     '-c',
                     `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,
                   ]),
@@ -541,9 +531,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                           : 'decline',
                   },
           { decision, ...(message ? { deniedReason: message } : {}) },
-          decision === 'deny' && message?.trim()
-            ? `User's note on the denied approval: ${message.trim()}`
-            : undefined
+          decision === 'deny' && message?.trim() ? deniedApprovalNote(message.trim()) : undefined
         )
       },
       respondToQuestion(threadId, itemId, answers) {
@@ -554,7 +542,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               const titles = session.asyncQuestions.get(itemId)
               if (!titles || !session.accepting || !session.connection) return false
               const text = answers
-                ? titles.map((title) => `${title}: ${answers[title] ?? ''}`).join('\n')
+                ? userAnswers(titles.map((title) => `${title}: ${answers[title] ?? ''}`))
                 : 'The user dismissed the questions.'
               yield* session.connection.request('turn/steer', {
                 threadId: session.providerThreadId,

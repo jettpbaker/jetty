@@ -46,7 +46,12 @@ import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
-import { RESTART_LIMIT_NOTE, restartContinuation } from './jetty-instructions'
+import {
+  RESTART_LIMIT,
+  RESTART_LIMIT_NOTE,
+  RESTART_WINDOW_MS,
+  restartContinuation,
+} from './jetty-instructions'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -93,9 +98,6 @@ function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
     return Context.get(yield* Layer.build(layer), AgentService)
   })
 }
-
-const RESTART_LIMIT = 3
-const RESTART_WINDOW_MS = 10 * 60_000
 
 function reconcileOnStartup(store: Store) {
   return Effect.gen(function* () {
@@ -167,6 +169,7 @@ function reconcileOnStartup(store: Store) {
                 id: newId(),
                 text: restartContinuation(stoppedNames),
                 from: { threadId: thread.id, title: 'Jetty' },
+                kind: 'continuation',
                 createdAt: Date.now(),
                 hop: 0,
               },

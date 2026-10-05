@@ -21,7 +21,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, type Agent } from './agent'
-import { CHILD_REPORT_INSTRUCTION } from './jetty-instructions'
+import { CHILD_REPORT_INSTRUCTION, deniedApprovalNote, userAnswers } from './jetty-instructions'
 import {
   isAgentProvider,
   singleAgentRegistry,
@@ -1191,7 +1191,7 @@ export function createOrchestrator({
             yield* agent.respondToApproval(threadId, itemId, decision, message)
           )
           if (decision === 'deny' && message?.trim() && provider === 'grok')
-            yield* agent.steer(threadId, `User's note on the denied approval: ${message.trim()}`)
+            yield* agent.steer(threadId, deniedApprovalNote(message.trim()))
         })
       },
       respondQuestion(threadId: string, itemId: string, answers: Record<string, string> | null) {
@@ -1210,9 +1210,9 @@ export function createOrchestrator({
           )
             return yield* Effect.fail(new StoreError('not_found', `No pending question ${itemId}`))
           if (answers) {
-            const text = `User answered your earlier question:\n${item.questions
-              .map(({ question }) => `${question}: ${answers[question] ?? ''}`)
-              .join('\n')}`
+            const text = userAnswers(
+              item.questions.map(({ question }) => `${question}: ${answers[question] ?? ''}`)
+            )
             yield* startTurnEffect({
               threadId,
               text,

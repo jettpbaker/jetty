@@ -54,22 +54,62 @@ function matchingModels(catalog: readonly ProviderModel[], name: string) {
 }
 
 const text = z.string().trim().min(1).max(32_000)
-const requestId = z.string().min(1).max(200).optional()
+const requestId = z
+  .string()
+  .min(1)
+  .max(200)
+  .optional()
+  .describe(
+    'Any unique string. Retrying with the same one returns the first result instead of acting twice.'
+  )
 const createInput = z.object({
-  environment: z.enum(['local', 'worktree']).optional(),
-  ref: z.string().min(1).optional(),
-  prompt: text,
-  title: z.string().trim().min(1).max(200).optional(),
+  environment: z
+    .enum(['local', 'worktree'])
+    .optional()
+    .describe(
+      'worktree: a new branch and folder of its own. local: the project checkout itself, shared with the user and other threads there. Defaults to yours.'
+    ),
+  ref: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Worktree only: the branch, tag or commit to start from, local or on origin. Defaults to your HEAD when you're in a worktree, so commit anything the child should build on; otherwise origin's default branch, or the current branch when there's no origin."
+    ),
+  prompt: text.describe(
+    'Everything the child needs. It sees this and the project, not your conversation.'
+  ),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Sidebar title. Generated from the prompt when omitted.'),
   provider: z.enum(['claude', 'codex', 'grok']).optional(),
-  model: z.string().min(1).optional(),
+  model: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('An id, name or unique short name from list_models.'),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
-  notify: z.boolean().default(true),
+  notify: z
+    .boolean()
+    .default(true)
+    .describe(
+      "Default true: when it's done with work you gave it, Jetty sends you its final message. Set false for a thread you won't follow up on."
+    ),
   requestId,
 })
 const sendInput = z.object({
   threadId: z.string(),
   text,
-  steer: z.boolean().default(false),
+  steer: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Deliver into its running turn now, for a correction it shouldn't finish without. The result says if it was queued instead."
+    ),
   requestId,
 })
 
@@ -97,7 +137,7 @@ export function createMcpHandler(
         const target = yield* store.requireThread(targetId)
         if (caller.archived || target.archived || caller.projectId !== target.projectId)
           return yield* Effect.fail(
-            new StoreError('not_found', 'Thread not found in caller project')
+            new StoreError('not_found', `Thread ${targetId} isn't in this project, or is archived`)
           )
         return target
       })
@@ -136,7 +176,10 @@ export function createMcpHandler(
           const turn = yield* store.turnContext(caller.id)
           if ((yield* store.lineageDepth(caller.id)) >= 2)
             return yield* Effect.fail(
-              new StoreError('invalid_params', 'Maximum lineage depth is 2')
+              new StoreError(
+                'invalid_params',
+                "This thread is already two levels below the user's thread, so it can't create threads. Do the work here, or say in your final message what should be delegated."
+              )
             )
           if (turn.createdCount >= 5)
             return yield* Effect.fail(
@@ -238,8 +281,6 @@ export function createMcpHandler(
 
     function sendMessage(identity: McpIdentity, input: z.infer<typeof sendInput>) {
       return Effect.gen(function* () {
-        const targetBeforeSend = yield* accessible(identity, input.threadId)
-        if (targetBeforeSend.archived) yield* store.archiveThread(targetBeforeSend.id, false)
         const response = yield* store.transaction(
           Effect.gen(function* () {
             const target = yield* accessible(identity, input.threadId)
@@ -250,7 +291,13 @@ export function createMcpHandler(
                 'send_message'
               )
               if (previous)
-                return { ...previous, title: target.title, duplicate: true, busy: false }
+                return {
+                  ...previous,
+                  title: target.title,
+                  duplicate: true,
+                  busy: false,
+                  ownChild: false,
+                }
             }
             const caller = yield* store.requireThread(identity.threadId)
             if (
@@ -279,9 +326,12 @@ export function createMcpHandler(
               ...response,
               duplicate: false,
               busy: ['starting', 'running', 'awaiting_approval'].includes(target.status),
+              ownChild: target.parentThreadId === caller.id,
             }
           })
         )
+        // A parent's message restarts a child it stopped.
+        if (response.ownChild) yield* orch.setQueuePaused(response.threadId, false)
         let delivery = 'queued'
         if (input.steer && !response.duplicate && response.messageId) {
           const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId, false).pipe(
@@ -300,7 +350,11 @@ export function createMcpHandler(
               ? response.busy
                 ? 'Steered into the running turn.'
                 : 'Delivered in a new turn.'
-              : 'Queued; the thread will read this when its current turn ends.',
+              : (yield* store.isQueuePaused(response.threadId))
+                ? 'Queued, but the thread is paused, so this waits until the user resumes it.'
+                : response.busy
+                  ? 'Queued; it reads this when its current turn ends.'
+                  : 'Queued; it starts on this within a second or so.',
         }
       })
     }
@@ -316,18 +370,21 @@ export function createMcpHandler(
                 content: [
                   {
                     type: 'text' as const,
-                    text: error instanceof StoreError ? error.message : 'Jetty tool failed',
+                    text:
+                      error instanceof StoreError
+                        ? error.message
+                        : `Jetty tool failed: ${error.message}`,
                   },
                 ],
                 isError: true,
               })
             )
           )
-        ).catch(() => ({
+        ).catch((error: unknown) => ({
           content: [
             {
               type: 'text' as const,
-              text: 'Jetty tool failed; check the arguments and thread state.',
+              text: `Jetty tool failed: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
           isError: true,
@@ -335,7 +392,11 @@ export function createMcpHandler(
       }
       server.registerTool(
         'list_threads',
-        { description: 'List active, unarchived threads in your project.', inputSchema: {} },
+        {
+          description:
+            "List this project's threads (archived ones aren't included) with their status, model and parent.",
+          inputSchema: {},
+        },
         () =>
           invoke(
             Effect.gen(function* () {
@@ -358,8 +419,15 @@ export function createMcpHandler(
         'read_thread',
         {
           description:
-            'Read recent user and assistant messages, up to 20 messages of 4000 characters each. Pass the returned after cursor to read newer messages.',
-          inputSchema: { threadId: z.string(), after: z.string().optional() },
+            "Read a thread's latest 20 user and assistant messages, each cut at 4,000 characters (marked truncated). Pass after to read on from an earlier message, or messageId to get one message in full.",
+          inputSchema: {
+            threadId: z.string(),
+            after: z
+              .string()
+              .optional()
+              .describe('A message id from an earlier read; returns the messages after it.'),
+            messageId: z.string().optional().describe('Returns that one message in full.'),
+          },
         },
         (input) =>
           invoke(
@@ -369,17 +437,25 @@ export function createMcpHandler(
               const messages = state.items.filter(
                 (i) => i.kind === 'user_message' || i.kind === 'assistant_message'
               )
-              const index = input.after ? messages.findIndex((i) => i.id === input.after) : -1
-              if (input.after && index < 0)
-                return yield* Effect.fail(new StoreError('invalid_params', 'Unknown after cursor'))
-              const page = input.after ? messages.slice(index + 1, index + 21) : messages.slice(-20)
+              const cursor = input.messageId ?? input.after
+              const index = cursor ? messages.findIndex((i) => i.id === cursor) : -1
+              if (cursor && index < 0)
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', `No message ${cursor} in this thread`)
+                )
+              const page = input.messageId
+                ? [messages[index]!]
+                : input.after
+                  ? messages.slice(index + 1, index + 21)
+                  : messages.slice(-20)
+              const cap = input.messageId ? Infinity : 4000
               return {
                 title: thread.title,
                 messages: page.map((i) => ({
                   id: i.id,
                   role: i.kind === 'user_message' ? 'user' : 'assistant',
-                  text: i.text.slice(0, 4000),
-                  truncated: i.text.length > 4000,
+                  text: i.text.slice(0, cap),
+                  truncated: i.text.length > cap,
                   ...(i.kind === 'user_message' && i.from ? { from: i.from } : {}),
                 })),
                 after: page.at(-1)?.id ?? input.after ?? null,
@@ -419,7 +495,7 @@ export function createMcpHandler(
         'create_thread',
         {
           description:
-            'Create an independent agent thread in this project. Environment defaults to yours: local shares the project checkout; worktree creates a new branch and folder. For worktree, ref resolves locally or on origin; default is your current HEAD for worktree callers, otherwise origin’s default branch. Local ignores ref. Jetty reports a child’s final message automatically when it settles; notify=false disables automatic reports. Choose provider/model/effort via list_models (model accepts an ID, display name, or unique short name). Reuse requestId for safe retries.',
+            "Create a child thread in this project and start it on your prompt. It uses your environment, provider and model unless you set them; list_models has the options. Up to 5 per turn, and nesting stops two levels below the user's thread.",
           inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
@@ -428,7 +504,7 @@ export function createMcpHandler(
         'send_message',
         {
           description:
-            'Message another Jetty agent thread. Default: queue behind its current turn, so it cannot answer until that turn ends. Use steer=true for urgent corrections or status checks during a running turn; the result says whether it was steered or queued. Reuse requestId to retry safely.',
+            'Send a message to another thread in this project. An idle thread starts on it right away; a busy one reads it after its current turn, unless you steer.',
           inputSchema: sendInput,
         },
         (input) => invoke(sendMessage(identity, input))
@@ -437,17 +513,16 @@ export function createMcpHandler(
         'mark_ready_for_review',
         {
           description:
-            "Mark this thread ready for the user to review. Call when you hand completed work back to the user or need their decision, not for trivial replies. Optionally include a short summary. In a thread another agent created, the user isn't flagged: Jetty reports your final message to that thread (reportsTo) automatically when you settle. Use send_message to ask it something mid-task.",
-          inputSchema: { summary: z.string().trim().min(1).max(240).optional() },
+            "Show this thread as Ready for review in the user's sidebar until they open it. In a child thread this does nothing: your final message goes to your creator instead.",
+          inputSchema: {},
         },
-        (input) =>
+        () =>
           invoke(
             orch.markReadyForReview(identity.threadId).pipe(
               Effect.map((thread) => ({
                 threadId: thread.id,
                 readyForReview: thread.readyForReview === true,
                 ...(thread.parentThreadId ? { reportsTo: thread.parentThreadId } : {}),
-                ...input,
               }))
             )
           )
@@ -456,7 +531,7 @@ export function createMcpHandler(
         'link_pull_request',
         {
           description:
-            "Link a GitHub pull request to this thread so the user can follow it in Jetty. Call when you open a PR for this thread's work or take over an existing one. Accepts a PR URL, or a number in this project's GitHub repo.",
+            "Link a GitHub pull request to this thread so the user can follow it in Jetty. PRs you create or view with `gh pr create` or `gh pr view` link themselves; call this for one opened another way, or one you take over. Accepts a PR URL, or a number in this project's GitHub repo.",
           inputSchema: { pullRequest: z.string().trim().min(1).max(500) },
         },
         ({ pullRequest }) =>
@@ -473,7 +548,7 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            'Archive one of your own direct child threads and all its descendants, stopping their work without reports back. All worktrees must be clean; archive removes their folders and keeps their branches, and Undo restores the threads archived together.',
+            'Archive one of your children and everything under it. Their work stops without reporting back, their worktree folders are removed and their branches kept, so every worktree in the tree must be clean. The user can restore them.',
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
@@ -495,7 +570,7 @@ export function createMcpHandler(
         'stop_thread',
         {
           description:
-            'Stop one of your own direct child threads, interrupting its active turn and stopping its background tasks without a report back. Safe to repeat or call when the child is already idle.',
+            'Stop one of your children: its turn and background tasks end, with no report back. Your next message to it starts it again. Safe to repeat.',
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
@@ -519,7 +594,7 @@ export function createMcpHandler(
                 const found = yield* store.resolveAttachment(caller.projectId, id, kind)
                 if (yield* attachments.resolve(id)) return found
                 return yield* Effect.fail(
-                  new StoreError('not_found', 'Attachment not found in caller project')
+                  new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
                 )
               }),
             projectPath: worktrees

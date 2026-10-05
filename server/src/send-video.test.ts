@@ -163,7 +163,9 @@ describe('send_video', () => {
     ).handler({ path: 'huge.mp4', caption: undefined }, {})
 
     expect(result.isError).toBe(true)
-    expect((result.content[0] as { text: string }).text).toContain(String(MAX_VIDEO_BYTES))
+    expect((result.content[0] as { text: string }).text).toContain(
+      `${MAX_VIDEO_BYTES / 1024 / 1024} MB limit`
+    )
     expect(events).toEqual([])
     expect(readdirSync(join(home, 'attachments'))).toEqual([])
   })

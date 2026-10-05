@@ -1,3 +1,4 @@
+import { MAX_VIDEO_BYTES } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { z } from 'zod'
 
@@ -5,8 +6,7 @@ import { createMediaSender, type MediaToolHost } from './media-host'
 
 export const SEND_VIDEO_TOOL = 'mcp__jetty__send_video'
 
-const SEND_VIDEO_DESCRIPTION =
-  "Show the user a video in the chat (for example, a screen recording verifying a UI flow). Re-post an existing video without uploading using attachmentId visible in your project. One video per call; the path may be absolute or relative to the project root. Supported formats: mp4, webm. The video is copied into jetty's store, so temporary files may be deleted afterwards."
+const SEND_VIDEO_DESCRIPTION = `Show the user one video in the chat, for example a screen recording of a UI flow: mp4 or webm, up to ${MAX_VIDEO_BYTES / 1024 / 1024} MB. To re-post a video already in this project's threads, pass its attachment id. Jetty keeps its own copy, so temporary files can be deleted afterwards.`
 
 export function createSendVideoTool(host: MediaToolHost) {
   return Effect.gen(function* () {
@@ -22,7 +22,7 @@ export function createSendVideoTool(host: MediaToolHost) {
         attachmentId: z
           .string()
           .optional()
-          .describe('Existing jetty video attachment id visible in your project'),
+          .describe("Id of a video already posted in this project's threads"),
         caption: z.string().optional().describe('Optional caption shown with the video'),
       },
       handler: (args: { path?: string; attachmentId?: string; caption?: string }, extra: unknown) =>

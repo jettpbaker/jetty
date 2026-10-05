@@ -49,7 +49,9 @@ export function createMediaSender(host: MediaToolHost) {
             return yield* Effect.fail(
               new StoreError(
                 'invalid_params',
-                'Provide 1–4 images or one video, using paths or attachment ids'
+                request.kind === 'image'
+                  ? 'Pass 1–4 images, by path or attachment id'
+                  : 'Pass one video, by path or attachment id'
               )
             )
           for (const id of request.attachmentIds ?? []) {

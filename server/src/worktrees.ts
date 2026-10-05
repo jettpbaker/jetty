@@ -154,7 +154,7 @@ export function createWorktrees(
     for (const name of ['main', 'master'])
       if (await tryGit(cwd, 'ls-remote', '--heads', 'origin', `refs/heads/${name}`))
         return `origin/${name}`
-    throw new Error('No default branch on origin (main or master)')
+    throw new Error('No default branch on origin (main or master); pass ref')
   }
 
   async function fetchBranch(cwd: string, branch: string, ref: string) {

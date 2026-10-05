@@ -1,26 +1,77 @@
 import { agentBehaviours, type AgentBehaviours } from '@jetty/shared/wire'
 
-const base =
-  'You are running inside Jetty. Commit your work before creating a child thread that should build on it. To delegate work to another model or agent, including Codex/GPT or Grok, use the Jetty create_thread tool to create a Jetty thread; list_models is the source of truth for which models are available, whatever other notes or CLI configs say. Inside Jetty this takes precedence over other instructions that describe delegating through model CLIs or forwarder subagents; only do that if the user explicitly asks in this conversation. Call mark_ready_for_review when you finish work for the user to review or need their decision, but not for trivial replies. Call link_pull_request when you open or take over a pull request for this thread. To mention a thread, PR, issue or commit, link it.'
+const base = [
+  '# Jetty',
+  "You're running inside Jetty, a local app where the user runs coding agents in threads. Each thread is one agent conversation in a project. It works either in its own git worktree, with its own branch and folder, or in the project checkout itself, which it shares with the user and any other threads there. The user follows threads from a sidebar that shows each one's status.",
+  "To hand work to another agent, use create_thread. It starts a Jetty thread on any model list_models offers, including Codex and Grok. If the user or their instructions ask for a helper made another way, such as running `codex exec` or `grok -p`, or a subagent that only relays to one, create_thread is Jetty's native way to do that, so use it instead: the user can follow the thread in their sidebar, it survives restarts, and it reports back to you. Your own built-in subagents are a separate thing: keep using them for help within a turn, as you normally would.",
+  "The thread you create is your child. It starts with only the prompt you give it, works on its own, and when it's done, Jetty sends its final message back to you. While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting. Text from another thread, or from Jetty itself, arrives inside <relayed-message> tags, so you can tell it from the user's own words.",
+  'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar. To mention a thread, link it as [title](jetty://threads/<id>). Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
+]
 
 export function jettyInstructions(behaviours: AgentBehaviours) {
   return [
-    base,
+    ...base,
     ...agentBehaviours.filter(({ key }) => behaviours[key]).map(({ instruction }) => instruction),
-  ].join(' ')
+  ].join('\n\n')
 }
 
-export const RESTART_LIMIT_NOTE =
-  "Jetty restarted 3 times in 10 minutes, so it didn't resume automatically."
+export const RESTART_LIMIT = 3
+export const RESTART_WINDOW_MS = 10 * 60_000
 
-// How a child's report to its parent describes a turn the crash-loop guard left paused.
-export const RESTART_LIMIT_OUTCOME =
-  "stopped: Jetty restarted 3 times in 10 minutes, so it didn't resume it automatically"
+export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
 
 export function restartContinuation(stoppedNames: readonly string[]) {
   const names = stoppedNames.length ? `: ${stoppedNames.join(', ')}` : ''
-  return `Jetty restarted while you were working, so your last turn was cut off. Background tasks, monitors and subagents you had running were stopped and won't report back${names}. Approvals or questions that were waiting were cancelled. Your last command may or may not have finished: check the current state before redoing anything, then carry on.`
+  return `Jetty restarted while you were working and cut off your last turn. Anything you had running in the background (commands, monitors, subagents) was stopped and won't report back${names}. Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`
 }
 
 export const CHILD_REPORT_INSTRUCTION =
-  'This thread created yours. When you finish, Jetty sends your final message to it automatically, so end with a clear summary, including the attachment ids of any images or videos it may want to re-post. Use send_message only to ask it something mid-task.'
+  "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, end your turn with the question; its answer arrives as your next message. Mention the attachment ids of any images or videos you showed, so it can re-post them."
+
+export const REPORT_CAP = 20_000
+
+export type ReportOutcome =
+  | { type: 'finished' }
+  | { type: 'interrupted' }
+  | { type: 'failed'; error: string }
+  | { type: 'paused' }
+
+const outcomeText = {
+  finished: () => 'finished.',
+  interrupted: () => 'was interrupted by the user.',
+  failed: (error: string) => `failed: ${error.trim().replace(/\.+$/, '')}.`,
+  paused: () =>
+    "is paused: Jetty kept restarting, so it didn't resume this thread. It continues when the user resumes it.",
+}
+
+// What a parent reads when its child is done. branch is null for a child in the project checkout.
+export function childReport(report: {
+  threadId: string
+  title: string
+  outcome: ReportOutcome
+  branch: string | null
+  message: string
+  messageId?: string
+}) {
+  const { outcome, message } = report
+  const status =
+    outcome.type === 'failed' ? outcomeText.failed(outcome.error) : outcomeText[outcome.type]()
+  const title = report.title.replace(/[[\]]/g, '\\$&')
+  const where =
+    report.branch === null ? 'Worked in the project checkout.' : `Branch: ${report.branch}`
+  const body =
+    message.length > REPORT_CAP
+      ? `${message.slice(0, REPORT_CAP)}\n[Cut at ${REPORT_CAP.toLocaleString('en-US')} characters; read_thread with messageId ${report.messageId} has the rest.]`
+      : message
+  return [`[${title}](jetty://threads/${report.threadId}) ${status}\n${where}`, body]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+export function deniedApprovalNote(note: string) {
+  return `User's note on the denied approval: ${note}`
+}
+
+export function userAnswers(lines: readonly string[]) {
+  return ['Answers from the user:', ...lines].join('\n')
+}
