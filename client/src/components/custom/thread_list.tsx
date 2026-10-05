@@ -302,7 +302,15 @@ const ThreadItemRow = memo(function ThreadItemRow({
       <QueuedBubble threadId={threadId} entry={row.entry} editing={row.editing} steer={row.steer} />
     )
   if (row.kind === 'queueSeam')
-    return <QueueSeam threadId={threadId} state={row.state} count={row.count} resume={row.resume} />
+    return (
+      <QueueSeam
+        threadId={threadId}
+        state={row.state}
+        count={row.count}
+        waiting={row.waiting}
+        resume={row.resume}
+      />
+    )
   if (row.kind === 'queueRemoved') return <QueueRemoved threadId={threadId} />
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'assistant' || row.kind === 'plan')

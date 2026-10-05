@@ -185,11 +185,13 @@ export function QueueSeam({
   threadId,
   state,
   count,
+  waiting = 0,
   resume,
 }: {
   threadId: string
   state: QueueState
   count: number
+  waiting?: number
   resume?: QueuedMessage
 }) {
   const actions = useQueueActions()
@@ -198,7 +200,7 @@ export function QueueSeam({
       {state === 'paused' ? (
         <>
           <SeamIcon icon={PauseIcon} />
-          <span>Paused</span>
+          <span className='truncate'>Paused{waiting > 0 ? ` · ${waiting} waiting` : ''}</span>
           {resume && (
             <ChatSeamAction onClick={() => actions.sendNow(threadId, resume)}>
               Resume

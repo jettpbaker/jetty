@@ -77,7 +77,15 @@ export type ThreadRow =
   | { kind: 'workflow'; id: string; item: WorkflowItem }
   // The queue under the chat: a seam with its state, the user's queued messages, and Undo where
   // one was just removed. Resume sends the queue's next message.
-  | { kind: 'queueSeam'; id: string; state: QueueState; count: number; resume?: QueuedMessage }
+  | {
+      kind: 'queueSeam'
+      id: string
+      state: QueueState
+      count: number
+      // queued messages the chat doesn't show: relays, reports, Jetty's own notes
+      waiting?: number
+      resume?: QueuedMessage
+    }
   | { kind: 'queued'; id: string; entry: QueuedMessage; editing: boolean; steer: boolean }
   | { kind: 'queueRemoved'; id: string }
 
@@ -705,13 +713,14 @@ export type TranscriptQueue = {
 
 // The queue as B in the sketchpad's queued messages: a seam, then each of the user's messages
 // in order, with Undo in a removed one's place. Other threads' messages wait unseen, but a paused
-// queue still shows its seam for them.
+// queue still shows its seam for them and how many are waiting.
 function queueRows(
   { queued, unsent, own, paused, held, editing, removed }: TranscriptQueue,
   running: boolean
 ): ThreadRow[] {
   const rows: ThreadRow[] = []
   const head = own[0]
+  const waiting = unsent.length - own.length
   if (!held && (head || (paused && unsent.length > 0))) {
     const resume = unsent.find((entry) => !isQueuedEditing(entry, editing))
     rows.push({
@@ -725,6 +734,7 @@ function queueRows(
             ? 'editing'
             : 'sending',
       count: own.length,
+      ...(paused && waiting > 0 && { waiting }),
       ...(paused && resume && { resume }),
     })
   }
