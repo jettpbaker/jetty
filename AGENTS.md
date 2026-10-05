@@ -33,6 +33,9 @@
   library demands one, or for stateful render engines (e.g. `GlowEngine`).
 - `function` declarations for named top-level functions; arrows only for inline
   callbacks and single-expression helpers.
+- The React Compiler silently skips any component or hook it can't compile. In them,
+  avoid computed-key destructuring and `??=`, end a ref parameter's name in `Ref`, and
+  pull a ref out of its object before passing it to `ref`.
 - New tests are opt-in: don't write tests unless asked. Tests freeze behaviour Jett
   has signed off, so they come after sign-off, not alongside new work.
 
