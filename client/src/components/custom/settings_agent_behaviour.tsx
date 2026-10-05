@@ -10,26 +10,26 @@ import './settings_sections.css'
 export function SettingsAgentBehaviour() {
   const chrome = useChrome()
   const setAgentBehaviour = useSetAgentBehaviour()
-  const [pending, setPending] = useState<Partial<Record<AgentBehaviourKey, boolean>>>({})
-  // A toggle stands in until the server's push agrees, then the server owns it again, so a change
-  // from another tab shows.
-  const agreed = (Object.keys(pending) as AgentBehaviourKey[]).filter(
-    (key) => chrome?.agentBehaviours?.[key] === pending[key]
+  const [pending, setPending] = useState<Partial<Record<AgentBehaviourKey, { enabled: boolean }>>>(
+    {}
   )
-  if (agreed.length)
-    setPending((current) => {
-      const next = { ...current }
-      for (const key of agreed) delete next[key]
-      return next
-    })
   const id = useId()
   function toggle(key: AgentBehaviourKey, enabled: boolean) {
-    setPending((current) => ({ ...current, [key]: enabled }))
-    setAgentBehaviour(key, enabled, () => setPending(({ [key]: _, ...rest }) => rest))
+    const pick = { enabled }
+    setPending((current) => ({ ...current, [key]: pick }))
+    setAgentBehaviour(key, enabled, () =>
+      setPending((current) => {
+        if (current[key] !== pick) return current
+        const { [key]: _, ...rest } = current
+        return rest
+      })
+    )
   }
   function enabled(key: AgentBehaviourKey) {
     const behaviour = agentBehaviours.find((each) => each.key === key)
-    return pending[key] ?? chrome?.agentBehaviours?.[key] ?? behaviour?.defaultEnabled ?? false
+    return (
+      pending[key]?.enabled ?? chrome?.agentBehaviours?.[key] ?? behaviour?.defaultEnabled ?? false
+    )
   }
   // A behaviour's own switches show under it while it's on.
   return (

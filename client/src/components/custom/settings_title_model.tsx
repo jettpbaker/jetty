@@ -33,16 +33,6 @@ export function SettingsTitleModel() {
   const chrome = useChrome()
   const setTitleModel = useSetTitleModel()
   const [pending, setPending] = useState<TitleModel>()
-  // The pick stands in until the server's push agrees, then a change from another tab shows.
-  const server = chrome?.titleModel
-  if (
-    pending &&
-    server &&
-    pending.model?.provider === server.model?.provider &&
-    pending.model?.id === server.model?.id &&
-    (pending.effort ?? null) === (server.effort ?? null)
-  )
-    setPending(undefined)
   const models = chrome?.models ?? []
   const choice = pending ?? chrome?.titleModel ?? { model: null }
   const chosen =
@@ -59,7 +49,7 @@ export function SettingsTitleModel() {
     .filter((group) => group.models.length > 0)
   function save(next: TitleModel) {
     setPending(next)
-    setTitleModel(next, () => setPending(undefined))
+    setTitleModel(next, () => setPending((current) => (current === next ? undefined : current)))
   }
   function pickModel(key: string) {
     const model = models.find((candidate) => modelKey(candidate) === key)

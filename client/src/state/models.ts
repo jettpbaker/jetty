@@ -2,9 +2,11 @@ import type { AgentBehaviourKey, TitleModel } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/reactivity'
+import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 
+import { liveAtom } from './chrome'
 import { run, useAction } from './connection'
+import { observeOptimistic } from './optimistic'
 
 const refreshingAtom = Atom.make(false).pipe(Atom.keepAlive)
 
@@ -29,9 +31,30 @@ export function useModelRefresh() {
 function setTitleModel(
   registry: AtomRegistry.AtomRegistry,
   choice: TitleModel,
-  failed: () => void
+  settled: () => void
 ) {
-  run(registry, (connection) => connection.request('settings.setTitleModel', choice), failed)
+  const pending = observeOptimistic(
+    registry,
+    liveAtom,
+    (state) => {
+      const server = AsyncResult.getOrElse(state, () => undefined)?.titleModel
+      return (
+        !!server &&
+        choice.model?.provider === server.model?.provider &&
+        choice.model?.id === server.model?.id &&
+        (choice.effort ?? null) === (server.effort ?? null)
+      )
+    },
+    settled
+  )
+  run(
+    registry,
+    (connection) =>
+      connection
+        .request('settings.setTitleModel', choice)
+        .pipe(Effect.tap(() => Effect.sync(pending.accepted))),
+    pending.failed
+  )
 }
 
 export const useSetTitleModel = () => useAction(setTitleModel)
@@ -40,12 +63,21 @@ function setAgentBehaviour(
   registry: AtomRegistry.AtomRegistry,
   key: AgentBehaviourKey,
   enabled: boolean,
-  failed: () => void
+  settled: () => void
 ) {
+  const pending = observeOptimistic(
+    registry,
+    liveAtom,
+    (state) => AsyncResult.getOrElse(state, () => undefined)?.agentBehaviours?.[key] === enabled,
+    settled
+  )
   run(
     registry,
-    (connection) => connection.request('settings.setAgentBehaviour', { key, enabled }),
-    failed
+    (connection) =>
+      connection
+        .request('settings.setAgentBehaviour', { key, enabled })
+        .pipe(Effect.tap(() => Effect.sync(pending.accepted))),
+    pending.failed
   )
 }
 

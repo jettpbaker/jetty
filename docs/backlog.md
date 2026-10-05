@@ -167,9 +167,8 @@ Everything below is for one combined review of the chat, not separate ports.
 - Queued follow-ups ignore a model/effort/access change made while the turn runs
   (`queue.add` carries text only). Snapshot the loadout at queue time?
 - Drafts and multi-tab: a reload between `turn.start` reaching the server and image
-  admission can duplicate a send; settings and pin/archive patches can mask a later
-  change until unmount or a 10s timeout when another tab's push lands first
-  (`settings_agent_behaviour.tsx`, `settings_title_model.tsx`, `mutations.ts`).
+  admission can duplicate a send; pin/archive patches can mask a later change for a
+  10s timeout when another tab's push lands first (`mutations.ts`).
 - Usage: the page can say "Couldn't refresh" while a turn reported fresher limits
   (`provider-usage.ts` ~121). Grok's context ring is unverified mid-turn: it may
   only move at turn end.
