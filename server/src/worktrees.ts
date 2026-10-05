@@ -479,8 +479,6 @@ export function createWorktrees(
     if (record.temporaryBranch && thread.title !== DEFAULT_THREAD_TITLE)
       await rename(threadId, thread.title).catch(() => {})
     await refresh(threadId)
-    // A stop that lands once setup is done still means the turn waiting on it shouldn't start.
-    if (signal?.aborted) throw new Error('Worktree setup stopped')
     return working
   }
 
@@ -490,10 +488,14 @@ export function createWorktrees(
     const existing = preparations.get(threadId)
     if (existing) return existing.pending
     const stop = new AbortController()
-    const pending = prepareNow(
-      threadId,
-      signal ? AbortSignal.any([signal, stop.signal]) : stop.signal
-    )
+    const combined = signal ? AbortSignal.any([signal, stop.signal]) : stop.signal
+    const pending = prepareNow(threadId, combined)
+      .then((folder) => {
+        // A stop that lands once preparation is done (always, for a Current checkout: it has no
+        // setup to kill) still means the turn waiting on it shouldn't start.
+        if (combined.aborted) throw new Error('Worktree setup stopped')
+        return folder
+      })
       .catch(async (error: unknown) => {
         const record = await run(store.getWorktree(threadId))
         if (record) {

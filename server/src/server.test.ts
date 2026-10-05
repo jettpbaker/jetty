@@ -2319,6 +2319,47 @@ describe('worktree archive', () => {
   })
 })
 
+describe('checkout preparation', () => {
+  test('Stop while a Current checkout is prepared keeps the message queued instead of starting its turn', async () => {
+    const repo = dir(join(tmpdir(), `jetty-local-stop-${newId()}`))
+    const git = (...args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (git('init', '-q') !== 0) return // git unavailable in this sandbox
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'Test')
+    git('config', 'commit.gpgsign', 'false')
+    git('commit', '-q', '--allow-empty', '-m', 'init')
+    const running = await boot()
+    const project = await Effect.runPromise(running.store.createProject(repo))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+    const client = await connect(running.port)
+    let entered!: () => void
+    const preparing = new Promise<void>((resolve) => (entered = resolve))
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const capture = running.store.captureLocalBase
+    const stall = spyOn(running.store, 'captureLocalBase').mockImplementation((threadId, head) =>
+      Effect.promise(() => {
+        entered()
+        return held
+      }).pipe(Effect.andThen(capture(threadId, head)))
+    )
+    try {
+      const sent = client.request('turn.start', { threadId: thread.id, text: 'hello' })
+      await preparing
+      await client.request('turn.interrupt', { threadId: thread.id })
+      release()
+      expect(await sent).toEqual({ turnId: '' })
+    } finally {
+      stall.mockRestore()
+    }
+    const meta = await Effect.runPromise(running.store.requireThread(thread.id))
+    expect(meta.queuePaused).toBe(true)
+    expect(meta.pendingMessages?.map((message) => message.text)).toEqual(['hello'])
+    expect((await Effect.runPromise(running.store.getThreadState(thread.id))).items).toEqual([])
+    rmSync(repo, { recursive: true, force: true })
+  })
+})
+
 describe('ws origin gate', () => {
   test('websocket upgrades require an allowed origin', async () => {
     const { port } = await boot()

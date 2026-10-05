@@ -826,16 +826,16 @@ export function createOrchestrator({
               const { agent } = chosen
               let cwd: string | undefined
               if (worktrees && !state(input.threadId).turnId) {
+                const message: QueuedMessage = {
+                  id: input.messageId ?? newId(),
+                  text: input.text,
+                  createdAt: Date.now(),
+                  hop: 0,
+                  attachments: saved.meta,
+                }
                 // The message waits in the queue while the worktree is prepared, so a failed
                 // setup keeps it for Retry.
                 if (thread.environment === 'worktree' && !input.queued) {
-                  const message: QueuedMessage = {
-                    id: input.messageId ?? newId(),
-                    text: input.text,
-                    createdAt: Date.now(),
-                    hop: 0,
-                    attachments: saved.meta,
-                  }
                   yield* store.enqueue(thread.id, message)
                   yield* onCommit
                   input = { ...input, queued: message }
@@ -855,6 +855,22 @@ export function createOrchestrator({
                 )
                 if (prepared._tag === 'Failure') {
                   yield* setQueuePaused(thread.id, true)
+                  // A Current checkout's message joins the paused queue only now, so a stopped or
+                  // failed preparation keeps it for Resume all the same.
+                  if (!input.queued) {
+                    yield* hub.withChromePublication(
+                      store
+                        .enqueue(thread.id, message)
+                        .pipe(
+                          Effect.tap((queued) =>
+                            Effect.sync(() =>
+                              hub.pushChrome({ type: 'thread.upserted', thread: queued })
+                            )
+                          )
+                        )
+                    )
+                    yield* onCommit
+                  }
                   return { turnId: '' }
                 }
                 cwd = prepared.success
