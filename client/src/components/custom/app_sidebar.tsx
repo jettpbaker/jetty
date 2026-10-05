@@ -42,6 +42,7 @@ import {
   useRenameThread,
   useRefreshPullRequestListsOnArrival,
 } from '@/state'
+import { threadTreeIds } from '@/state/chrome'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
@@ -191,20 +192,20 @@ export function AppSidebar() {
 
   // Leaves a thread that's going away; the returned undo comes back to it if nothing else was opened.
   function leaveIfSelected(threadId: string) {
-    if (threadId !== selectedId) return () => {}
+    const selected = selectedId
+    if (!selected || !threadTreeIds(chrome?.threads ?? [], threadId).includes(selected))
+      return () => {}
     void navigate({ to: '/' })
     return () => {
       if (router.state.location.pathname === '/')
-        void navigate({ to: '/threads/$threadId', params: { threadId } })
+        void navigate({ to: '/threads/$threadId', params: { threadId: selected } })
     }
   }
 
   // Archive and delete take the thread's children along, so any worktree among them counts.
   function hasWorktree(threadId: string) {
     const threads = chrome?.threads ?? []
-    const tree = [threadId]
-    for (let index = 0; index < tree.length; index++)
-      for (const thread of threads) if (thread.parentThreadId === tree[index]) tree.push(thread.id)
+    const tree = threadTreeIds(threads, threadId)
     return threads.some((thread) => tree.includes(thread.id) && thread.environment === 'worktree')
   }
 

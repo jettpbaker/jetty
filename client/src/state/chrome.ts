@@ -118,6 +118,14 @@ export function serverChrome(registry: AtomRegistry.AtomRegistry) {
   return AsyncResult.getOrElse(registry.get(liveAtom), () => undefined)
 }
 
+// A thread and the threads it created, all the way down: archive and delete take them together.
+export function threadTreeIds(threads: readonly ThreadMeta[], threadId: string) {
+  const ids = [threadId]
+  for (let index = 0; index < ids.length; index++)
+    for (const thread of threads) if (thread.parentThreadId === ids[index]) ids.push(thread.id)
+  return ids
+}
+
 function withPending(
   chrome: Chrome,
   created: ReadonlyMap<string, ThreadMeta>,

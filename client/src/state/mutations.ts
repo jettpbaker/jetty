@@ -6,6 +6,7 @@ import { type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
 
 import {
+  chromeAtom,
   createdThreadsAtom,
   deletedProjectsAtom,
   deletedThreadsAtom,
@@ -13,6 +14,7 @@ import {
   projectIconPatchesAtom,
   serverChrome,
   threadPatchesAtom,
+  threadTreeIds,
   type ThreadPatch,
 } from './chrome'
 import { run, useAction } from './connection'
@@ -200,9 +202,14 @@ addEventListener('pagehide', () => {
 
 // Hides the thread now; the server delete waits for `commit`, so `undo` can bring it back.
 function deleteThread(registry: Registry, threadId: string) {
-  registry.update(deletedThreadsAtom, (deleted) => new Set(deleted).add(threadId))
+  const tree = threadTreeIds(registry.get(chromeAtom)?.threads ?? [], threadId)
+  registry.update(deletedThreadsAtom, (deleted) => new Set([...deleted, ...tree]))
   const restore = () =>
-    registry.update(deletedThreadsAtom, (deleted) => withoutId(deleted, threadId))
+    registry.update(deletedThreadsAtom, (deleted) => {
+      const next = new Set(deleted)
+      for (const id of tree) next.delete(id)
+      return next
+    })
   let settled = false
   const deletion = {
     undo() {
@@ -275,16 +282,30 @@ export function unarchiveFirst(
     )
 }
 
+// Archiving takes the thread's children along; unarchiving brings back whatever went with it, which
+// only the server knows, so that waits for its push.
 function archiveThread(registry: Registry, threadId: string, archived: boolean) {
-  setPatch(registry, threadId, { archived })
+  const threads = registry.get(chromeAtom)?.threads ?? []
+  const ids = archived
+    ? threadTreeIds(threads, threadId).filter(
+        (id) => id === threadId || !threads.find((thread) => thread.id === id)?.archived
+      )
+    : [threadId]
+  for (const id of ids) setPatch(registry, id, { archived })
   run(
     registry,
     (connection) =>
       connection.request('thread.archive', { threadId, archived }).pipe(
-        Effect.tap(() => Effect.sync(() => settlePatch(registry, threadId, 'archived', archived))),
+        Effect.tap(() =>
+          Effect.sync(() => {
+            for (const id of ids) settlePatch(registry, id, 'archived', archived)
+          })
+        ),
         Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
       ),
-    () => clearPatch(registry, threadId, 'archived', archived)
+    () => {
+      for (const id of ids) clearPatch(registry, id, 'archived', archived)
+    }
   )
 }
 
