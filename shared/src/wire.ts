@@ -315,6 +315,8 @@ export const ProviderUsage = Schema.Struct({
   account: Schema.optional(Schema.String),
   windows: Schema.Array(UsageWindow),
   asOf: Schema.optional(Schema.Finite),
+  // This read failed: windows, if any, are the account's last good read, as of asOf.
+  failed: Schema.optional(Schema.Boolean),
 })
 export type ProviderUsage = Schema.Schema.Type<typeof ProviderUsage>
 
@@ -784,7 +786,6 @@ export const ChromePushData = Schema.Union([
     type: Schema.Literal('snapshot'),
     projects: Schema.Array(Project),
     threads: Schema.Array(ThreadMeta),
-    usage: Schema.optional(ProviderUsage),
     models: Schema.optional(Schema.Array(ProviderModel)),
     providerCapabilities: Schema.optional(ProviderCapabilities),
     modelDiscovery: Schema.optional(ModelDiscovery),
@@ -796,7 +797,6 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('usage'), usage: ProviderUsage }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
   Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
   Schema.Struct({ type: Schema.Literal('branchPrefix'), prefix: Schema.String }),

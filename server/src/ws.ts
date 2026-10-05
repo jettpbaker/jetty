@@ -77,7 +77,6 @@ export function createRpcHandlers(
   store: Store,
   orch: Orchestrator,
   hub: Hub,
-  getUsage: () => ProviderUsage | null,
   getModels: () => readonly ProviderModel[] | null,
   refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void,
   pullRequests = createPullRequests(store, hub),
@@ -249,7 +248,6 @@ export function createRpcHandlers(
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
               hub.setThreads(threads)
-              const usage = getUsage()
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
               const branchPrefix = yield* store.getBranchPrefix()
@@ -260,7 +258,6 @@ export function createRpcHandlers(
                 type: 'snapshot',
                 projects,
                 threads: threads.map(hub.decorateThread),
-                ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
                 modelDiscovery,
                 providerCapabilities: orch.providerCapabilities(),

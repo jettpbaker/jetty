@@ -11,7 +11,7 @@ import {
 } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { MAX_TURN_IMAGE_BYTES, newId, type ProviderUsage } from '@jetty/shared/wire'
+import { MAX_TURN_IMAGE_BYTES, newId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import {
   Context,
@@ -333,7 +333,6 @@ function createServer(opts: ServerOptions = {}) {
     const githubMedia = createGithubMedia(home)
     const perfSink = createPerfSink(home)
     const mcp = createMcpSessions()
-    let lastUsage: ProviderUsage | null = null
     const hooks: AgentHooks = {
       onBackgroundTasks(threadId, tasks) {
         return hub
@@ -347,13 +346,7 @@ function createServer(opts: ServerOptions = {}) {
           )
           .pipe(Effect.ignore)
       },
-      onUsage(usage: ProviderUsage) {
-        lastUsage = usage
-        noteClaudeTurnUsage(usage)
-        Effect.runFork(
-          hub.withChromePublication(Effect.sync(() => hub.pushChrome({ type: 'usage', usage })))
-        )
-      },
+      onUsage: noteClaudeTurnUsage,
     }
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
     let modelDiscovery: ModelDiscovery = { claude: 'loading', codex: 'loading', grok: 'loading' }
@@ -515,7 +508,6 @@ function createServer(opts: ServerOptions = {}) {
       store,
       orch,
       hub,
-      () => lastUsage,
       () => models,
       refreshModels,
       pullRequests,

@@ -171,6 +171,8 @@ function UsageWindows({
   now: number
   compact?: boolean
 }) {
+  if (usage.failed && usage.windows.length === 0)
+    return <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
   if (!usage.connected) return <p className='text-xs text-muted-foreground'>Not signed in.</p>
   if (usage.windows.length === 0)
     return <p className='text-xs text-muted-foreground'>No limits reported.</p>
@@ -273,6 +275,12 @@ export function UsagePage({
                   <h2 id={`usage-${provider}`} className='text-sm font-medium'>
                     {providerNames[provider]}
                   </h2>
+                  {item?.failed && item.windows.length > 0 && (
+                    <span className='ml-auto text-xs'>
+                      Couldn’t refresh
+                      {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
+                    </span>
+                  )}
                 </div>
                 {item ? (
                   <UsageWindows usage={item} now={now} />

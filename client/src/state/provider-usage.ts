@@ -54,6 +54,13 @@ function toggled(set: Set<UsageProvider>, provider: UsageProvider, present: bool
   return next
 }
 
+// A failed read the server has nothing for (it restarted) keeps this account's last windows.
+function lastGood(previous: ProviderUsage | undefined, usage: ProviderUsage): ProviderUsage {
+  if (!usage.failed || usage.windows.length || !previous?.windows.length) return usage
+  if (previous.account !== usage.account) return usage
+  return { ...usage, windows: previous.windows, ...(previous.asOf ? { asOf: previous.asOf } : {}) }
+}
+
 function readProviderUsage(registry: AtomRegistry.AtomRegistry, provider: UsageProvider) {
   registry.set(loadingAtom, toggled(registry.get(loadingAtom), provider, true))
   const settle = (failed: boolean) => {
@@ -66,7 +73,11 @@ function readProviderUsage(registry: AtomRegistry.AtomRegistry, provider: UsageP
       connection.request('settings.providerUsage', { provider }).pipe(
         Effect.tap((usage) =>
           Effect.sync(() => {
-            const reads = { ...registry.get(readsAtom), [provider]: { usage, at: Date.now() } }
+            const previous = registry.get(readsAtom)[provider]?.usage
+            const reads = {
+              ...registry.get(readsAtom),
+              [provider]: { usage: lastGood(previous, usage), at: Date.now() },
+            }
             registry.set(readsAtom, reads)
             storage.set(cacheKey, JSON.stringify(reads))
             settle(false)

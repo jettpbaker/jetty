@@ -147,7 +147,9 @@ export function SettingsProviders({
                 : account
                   ? account.connected
                     ? `Authenticated${account.plan ? ` · ${account.plan}` : ''}`
-                    : 'Not signed in'
+                    : account.failed
+                      ? 'Couldn’t check sign-in'
+                      : 'Not signed in'
                   : checkFailed
                     ? 'Couldn’t check sign-in'
                     : 'Checking sign-in…'}

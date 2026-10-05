@@ -9,7 +9,6 @@ import type {
   ProviderId,
   ProviderModel,
   ThreadMeta,
-  ProviderUsage,
 } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
@@ -45,7 +44,6 @@ export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon 
 export type Chrome = {
   projects: readonly Project[]
   threads: readonly ThreadMeta[]
-  usage?: ProviderUsage
   models?: readonly ProviderModel[]
   modelDiscovery?: ModelDiscovery
   providerCapabilities?: ProviderCapabilities
@@ -68,7 +66,6 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return {
         projects: update.projects,
         threads: update.threads,
-        usage: update.usage,
         models: update.models,
         modelDiscovery: update.modelDiscovery,
         providerCapabilities: update.providerCapabilities,
@@ -91,8 +88,6 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         ...chrome,
         threads: chrome.threads.filter((thread) => thread.id !== update.threadId),
       }
-    case 'usage':
-      return { ...chrome, usage: update.usage }
     case 'models':
       return { ...chrome, models: update.models }
     case 'modelDiscovery':

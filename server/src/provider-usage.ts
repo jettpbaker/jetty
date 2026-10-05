@@ -140,7 +140,10 @@ async function readClaudeLimits(token: string, account: string): Promise<Provide
     claudeCache = { account, at: Date.now(), usage }
     return usage
   } catch {
-    return cached?.usage ?? { provider: 'claude', connected: true, windows: [] }
+    return {
+      ...(cached?.usage ?? { provider: 'claude', connected: true, windows: [] }),
+      failed: true,
+    }
   }
 }
 
@@ -202,6 +205,7 @@ export function readCodexProviderUsage(cwd: string, options: StdioProcessOptions
           provider: 'codex',
           connected: true,
           windows: [],
+          failed: true,
           ...(accountPlan ? { plan: capitalized(accountPlan.toLowerCase()) } : {}),
           ...(email ? { account: email } : {}),
         } satisfies ProviderUsage
@@ -235,7 +239,12 @@ export function readCodexProviderUsage(cwd: string, options: StdioProcessOptions
   ).pipe(
     Effect.timeout('8 seconds'),
     Effect.catch(() =>
-      Effect.succeed({ provider: 'codex', connected: false, windows: [] } satisfies ProviderUsage)
+      Effect.succeed({
+        provider: 'codex',
+        connected: false,
+        windows: [],
+        failed: true,
+      } satisfies ProviderUsage)
     )
   )
 }
@@ -302,6 +311,7 @@ export async function readGrokProviderUsage(): Promise<ProviderUsage> {
     return {
       ...(cached?.usage ?? { provider: 'grok', connected: true, windows: [] }),
       ...metadata,
+      failed: true,
     }
   }
 }
