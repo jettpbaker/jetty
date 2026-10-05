@@ -14,11 +14,17 @@ function readSecret(page: Document) {
 }
 
 let secret = readSecret(document)
+const SECRET_TIMEOUT_MS = 5000
 
-// The server mints a new secret each launch and only hands it out in the page it serves.
+// The server mints a new secret each launch and only hands it out in the page it serves. A page
+// that never finishes loading mustn't hold the reconnect: the socket tries the old secret and the
+// next attempt fetches again.
 async function refreshSecret() {
   try {
-    const response = await fetch('/', { cache: 'no-store' })
+    const response = await fetch('/', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(SECRET_TIMEOUT_MS),
+    })
     if (!response.ok) return
     secret =
       readSecret(new DOMParser().parseFromString(await response.text(), 'text/html')) ?? secret
