@@ -1072,7 +1072,8 @@ function Activity({ pr }: { pr: PrPull }) {
             <div key={e.key}>{e.content}</div>
           )
         )}
-        {/* On a short PR the comment box docks to the bottom of the view, where the chat's composer sits. */}
+        {/* On a short PR the comment box docks to the bottom of the view, level with the chat's composer:
+            main's pb-9 matches the 36px the chat keeps below its composer for the footer row. */}
         <div className={cn('mt-auto rounded-md shadow-xs', raised)}>
           <Composer author={pr.viewer} quote={quote} />
         </div>
@@ -1991,7 +1992,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       )}
                     >
                       <div className='scrollbar-subtle scroll-fade-y min-h-0 flex-1 overflow-auto [scroll-timeline:--conversation_y]'>
-                        <main className='flex min-h-full min-w-0 flex-col px-7 py-7'>
+                        <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
                           <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
                             <div className='space-y-1'>
                               <div className='flex flex-wrap items-center gap-2.5'>

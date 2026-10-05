@@ -69,6 +69,9 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
+- PR view: say why a PR is red or yellow. The tab and sidebar glyphs colour by readiness
+  (a merge conflict, failing checks, changes requested), but the Status row only says
+  "Open". Show the readiness reason there, e.g. "Open · Merge conflict" in red.
 - Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
   Merge through GitHub's async merge API (GA 2026-10-01): a PUT to
   `/repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
