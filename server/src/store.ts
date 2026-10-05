@@ -179,6 +179,9 @@ export function createStore() {
     // Reads and writes of a thread's state run inside SQL transactions, so they are serialized
     // with every event write and never observe an uncommitted one.
     const loaded = new Map<string, { state: ThreadState; persistedSeq: number; usedAt: number }>()
+    // Queued messages a starting turn has taken: their text is already on its way to the agent,
+    // so PR news and reports go to a new message instead of merging into one of these.
+    const claimed = new Set<string>()
 
     type LinkRow = {
       thread_id: string
@@ -615,7 +618,9 @@ export function createStore() {
           ...(question && { question }),
         }
         // Reports waiting in the parent's queue merge into one message, which then comes from Jetty.
-        const batch = parent.pendingMessages?.find((message) => message.kind === 'report')
+        const batch = parent.pendingMessages?.find(
+          (message) => message.kind === 'report' && !claimed.has(message.id)
+        )
         const messageId = batch?.id ?? reportId
         if (batch)
           yield* updateQueue(
@@ -928,11 +933,29 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      // Reads a queued message for the turn starting with it and claims it in one transaction, so
+      // nothing merges into it unseen. The turn releases it once delivered or given up.
+      claimQueued(threadId: string, messageId: string) {
+        return requireThread(threadId).pipe(
+          Effect.map((thread) => {
+            const message = thread.pendingMessages?.find((m) => m.id === messageId)
+            if (message) claimed.add(message.id)
+            return message
+          }),
+          sql.withTransaction,
+          Effect.mapError(storeError)
+        )
+      },
+      releaseQueued(messageId: string) {
+        return Effect.sync(() => void claimed.delete(messageId))
+      },
       // The PR watcher's message comes from Jetty; one still waiting in the queue takes the news too.
       queuePullRequestNews(threadId: string, text: string) {
         return Effect.gen(function* () {
           const thread = yield* requireThread(threadId)
-          const waiting = thread.pendingMessages?.find((m) => m.kind === 'pull_request')
+          const waiting = thread.pendingMessages?.find(
+            (m) => m.kind === 'pull_request' && !claimed.has(m.id)
+          )
           if (waiting)
             yield* updateQueue(
               threadId,

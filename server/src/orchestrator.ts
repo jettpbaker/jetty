@@ -734,7 +734,9 @@ export function createOrchestrator({
                   (state(input.threadId).turnId && !input.sendNow)
                 )
                   return { turnId: '' }
-                const queued = thread.pendingMessages.find((m) => m.id === input.queued!.id)!
+                const queued = yield* store.claimQueued(thread.id, input.queued.id)
+                if (!queued) return { turnId: '' }
+                yield* Effect.addFinalizer(() => store.releaseQueued(queued.id))
                 fromCreator =
                   queued.from !== undefined &&
                   queued.from.threadId === thread.parentThreadId &&
