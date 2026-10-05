@@ -69,8 +69,14 @@ const stateOrder: ThreadPullRequest['state'][] = ['open', 'draft', 'merged', 'cl
 const readinessOrder = ['text-status-error', 'text-pr-running', 'text-pr-open']
 
 // A thread's PRs as its row and hover card show them: a count per glyph and colour, even for one,
-// so readiness splits the open count.
-export function PullRequestMark({ pullRequests }: { pullRequests: readonly ThreadPullRequest[] }) {
+// so readiness splits the open count. The tooltip lists each PR's readiness.
+export function PullRequestMark({
+  pullRequests,
+  tooltip = true,
+}: {
+  pullRequests: readonly ThreadPullRequest[]
+  tooltip?: boolean
+}) {
   const looks = pullRequests
     .map((pr) => ({ pr, ...linkPresentation(pr) }))
     .toSorted(
@@ -85,19 +91,24 @@ export function PullRequestMark({ pullRequests }: { pullRequests: readonly Threa
     else groups.push({ ...look, count: 1 })
   }
 
+  const mark = (
+    <>
+      {groups.map(({ icon: Icon, color, count }) => (
+        <span key={color} className={cn('flex items-center gap-1', color)}>
+          <Icon aria-hidden='true' className='size-3' />
+          <span className='font-mono'>{count}</span>
+        </span>
+      ))}
+      <span className='sr-only'>
+        {looks.map(({ pr, label }) => `#${pr.number} ${label}`).join(', ')}
+      </span>
+    </>
+  )
+  const className = 'flex shrink-0 items-center gap-1.5'
+  if (!tooltip) return <span className={className}>{mark}</span>
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className='flex shrink-0 items-center gap-1.5' />}>
-        {groups.map(({ icon: Icon, color, count }) => (
-          <span key={color} className={cn('flex items-center gap-1', color)}>
-            <Icon aria-hidden='true' className='size-3' />
-            <span className='font-mono'>{count}</span>
-          </span>
-        ))}
-        <span className='sr-only'>
-          {looks.map(({ pr, label }) => `#${pr.number} ${label}`).join(', ')}
-        </span>
-      </TooltipTrigger>
+      <TooltipTrigger render={<span className={className} />}>{mark}</TooltipTrigger>
       <TooltipContent>
         <span className='flex flex-col'>
           {looks.map(({ pr, label }) => (

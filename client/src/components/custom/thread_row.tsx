@@ -107,7 +107,7 @@ export function ThreadRow({
             )}
             {pullRequests.length > 0 && (
               <span data-pull-request className='flex shrink-0'>
-                <PullRequestMark pullRequests={pullRequests} />
+                <PullRequestMark pullRequests={pullRequests} tooltip={false} />
               </span>
             )}
             <span
