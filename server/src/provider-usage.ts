@@ -110,7 +110,8 @@ async function claudeAccount() {
     return {
       id: claudeUsageIdentity(account) ?? '',
       email,
-      organization: string(account.organizationUuid),
+      // What the SDK's AccountInfo.organization carries: the name, not the UUID.
+      organization: string(account.organizationName),
     }
   } catch {
     return { id: '', email: '', organization: '' }
