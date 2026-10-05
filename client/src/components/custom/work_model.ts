@@ -41,7 +41,8 @@ export type WorkActivity =
   | TodoActivity
   | CreatedActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
-export type WorkEntry = ToolBatch | ThinkingActivity | TextActivity | TodoActivity | CreatedActivity
+export type ThreadBatch = { type: 'threads'; id: string; threads: CreatedActivity[] }
+export type WorkEntry = ToolBatch | ThreadBatch | ThinkingActivity | TextActivity | TodoActivity
 
 const vocabulary = {
   read: {
@@ -115,12 +116,16 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
       (activity.kind !== 'generic' || head.name === activity.name)
     ) {
       previous.calls.push(activity)
+    } else if (activity.type === 'created' && previous?.type === 'threads') {
+      previous.threads.push(activity)
     } else {
       if (previous?.type === 'tools') previous.sealed = true
       entries.push(
         activity.type === 'tool'
           ? { type: 'tools', id: activity.id, calls: [activity], sealed: false }
-          : activity
+          : activity.type === 'created'
+            ? { type: 'threads', id: activity.id, threads: [activity] }
+            : activity
       )
     }
   }

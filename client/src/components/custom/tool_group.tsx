@@ -2,9 +2,15 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 
+import { ThreadLink } from './entity_link'
 import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
-import { describeToolBatch, type ToolBatch } from './work_model'
+import {
+  describeToolBatch,
+  type CreatedActivity,
+  type ThreadBatch,
+  type ToolBatch,
+} from './work_model'
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const label = describeToolBatch(batch)
@@ -56,6 +62,42 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             ))}
           </div>
         )}
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+function CreatedThread({ thread }: { thread: CreatedActivity }) {
+  return (
+    <div className='activity-header items-center gap-1 text-muted-foreground'>
+      Created
+      <ThreadLink id={thread.threadId} fallback={thread.title ?? 'a thread'} />
+    </div>
+  )
+}
+
+export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
+  const { threads } = batch
+  if (threads.length === 1) return <CreatedThread thread={threads[0]!} />
+  const count = `${threads.length} threads`
+  return (
+    <Collapsible>
+      <CollapsibleTrigger
+        render={<Button variant='ghost-text' />}
+        className='activity-header'
+        aria-label={`Created ${count}`}
+      >
+        <span className='flex min-w-0 items-baseline gap-1'>
+          <span className='shrink-0'>Created</span>
+          <RollingText>{count}</RollingText>
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className='pb-1'>
+          {threads.map((thread) => (
+            <CreatedThread key={thread.id} thread={thread} />
+          ))}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   )
