@@ -12,12 +12,14 @@ import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { Deferred, Effect } from 'effect'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
@@ -2187,6 +2189,38 @@ describe('thread.diff', () => {
       (error: unknown) => error
     )
     expect(saved).toMatchObject({ code: 'invalid_params' })
+  })
+
+  test('saving a private file never leaves its text in a sibling others can read', async () => {
+    const project = dir(join(tmpdir(), `jetty-private-${newId()}`))
+    const file = join(project, 'key')
+    let text = 'secret\n'.repeat(140_000)
+    writeFileSync(file, text)
+    chmodSync(file, 0o600)
+    const withBun = <A, E>(effect: Effect.Effect<A, E, BunServices.BunServices>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(BunServices.layer)))
+    const modes = new Set<number>()
+    let saving = true
+    const watching = (async () => {
+      while (saving) {
+        for (const name of readdirSync(project))
+          if (name.endsWith('.jetty-save'))
+            try {
+              modes.add(statSync(join(project, name)).mode & 0o777)
+            } catch {}
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+    })()
+    for (const round of [1, 2, 3, 4]) {
+      const next = `${round}${text}`
+      expect(await withBun(writeProjectFile(project, 'key', next, text))).toEqual({ saved: true })
+      text = next
+    }
+    saving = false
+    await watching
+    expect([...modes].filter((mode) => mode !== 0o600)).toEqual([])
+    expect(statSync(file).mode & 0o777).toBe(0o600)
+    rmSync(project, { recursive: true, force: true })
   })
 
   test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {

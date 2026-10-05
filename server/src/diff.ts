@@ -361,10 +361,12 @@ async function replaceFile(
   if (current.text !== undefined && !current.bytes.equals(Buffer.from(current.text)))
     throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
   const temp = join(dirname(file), `.${basename(file)}.${randomUUID()}.jetty-save`)
+  // Owner-only until it takes the file's mode, so a private file's text is never readable by
+  // others in the sibling. A new file's sibling is created as the file would be.
   const handle = await open(
     temp,
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-    0o666
+    current.mode === undefined ? 0o666 : 0o600
   )
   let renamed = false
   try {
