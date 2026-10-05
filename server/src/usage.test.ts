@@ -53,7 +53,7 @@ describe('readUsage', () => {
     expect(usage).not.toBeNull()
     expect(usage!.provider).toBe('claude')
     expect(usage!.connected).toBe(true)
-    expect(usage!.plan).toBe('Max')
+    expect(usage!.plan).toStartWith('Max')
     expect(usage!.windows).toEqual([
       {
         id: 'five-hour',

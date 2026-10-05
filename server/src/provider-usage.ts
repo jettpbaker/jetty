@@ -1,30 +1,35 @@
-import type { AccountInfo } from '@anthropic-ai/claude-agent-sdk'
 import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 
+import { query, type AccountInfo, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { Effect } from 'effect'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { homedir, platform } from 'node:os'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+import { claudeBin } from './claude-bin'
 import { openCodexConnection } from './codex-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
+import { readUsage } from './usage'
 
 // Each read is kept for the account it was read for; signing in as another starts afresh.
 const CACHE_MS = 60_000
+// Model discovery uses the same budget. The wait is the Claude Code process, not the usage read.
+const CLAUDE_USAGE_PROBE_MS = 20_000
 let claudeCache: { account: string; at: number; usage: ProviderUsage } | undefined
 let claudeTurn: ProviderUsage | undefined
+let claudeRefresh: Promise<ProviderUsage> | undefined
 let grokCache: { account: string; at: number; usage: ProviderUsage } | undefined
 
 function capitalized(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-export function claudePlan(subscription: unknown, tier?: unknown): string | undefined {
+function claudePlan(subscription: unknown, tier: string): string | undefined {
   const value = string(subscription).toLowerCase()
   if (!value) return undefined
   if (value !== 'max') return capitalized(value)
-  const limit = string(tier).toLowerCase()
+  const limit = tier.toLowerCase()
   return limit.includes('20x') ? 'Max 20×' : limit.includes('5x') ? 'Max 5×' : 'Max'
 }
 
@@ -69,29 +74,6 @@ export function claudeUsageWindows(raw: unknown): UsageWindow[] {
   return windows
 }
 
-async function keychainPassword(service: string): Promise<string> {
-  const child = Bun.spawn(['security', 'find-generic-password', '-s', service, '-w'], {
-    stdout: 'pipe',
-    stderr: 'ignore',
-    signal: AbortSignal.timeout(2_000),
-  })
-  const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
-  if (code !== 0) throw new Error(`no ${service} in the keychain`)
-  return out
-}
-
-async function claudeCredentials(): Promise<Record<string, unknown>> {
-  try {
-    const credentials =
-      platform() === 'darwin'
-        ? await keychainPassword('Claude Code-credentials')
-        : await readFile(join(homedir(), '.claude', '.credentials.json'), 'utf8')
-    return object(object(JSON.parse(credentials)).claudeAiOauth)
-  } catch {
-    return {}
-  }
-}
-
 export function claudeUsageIdentity(account: Record<string, unknown>) {
   const user = string(account.accountUuid)
   const organization = string(account.organizationUuid)
@@ -112,10 +94,16 @@ async function claudeAccount() {
       email,
       // What the SDK's AccountInfo.organization carries: the name, not the UUID.
       organization: string(account.organizationName),
+      // Not in the SDK's usage read, which says only "max".
+      tier: string(account.userRateLimitTier) || string(account.organizationRateLimitTier),
     }
   } catch {
-    return { id: '', email: '', organization: '' }
+    return { id: '', email: '', organization: '', tier: '' }
   }
+}
+
+export async function readClaudePlan(subscription: unknown) {
+  return claudePlan(subscription, (await claudeAccount()).tier)
 }
 
 export async function readClaudeUsageIdentity(authenticated?: AccountInfo) {
@@ -134,54 +122,103 @@ export function noteClaudeTurnUsage(usage: ProviderUsage) {
   if (usage.identity) claudeTurn = usage
 }
 
-// A sign-in switch writes the token and the account separately, so a read that saw the account
-// change around its token or fetch may be one account's limits under the other's name: it's dropped.
-export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
-  const before = await claudeAccount()
-  const oauth = await claudeCredentials()
-  const token = string(oauth.accessToken)
-  const plan = claudePlan(oauth.subscriptionType, oauth.rateLimitTier)
-  const { id, email } = await claudeAccount()
-  const same = (account: { id: string; email: string }) =>
-    account.id === id && account.email === email
-  const unsure: ProviderUsage = { provider: 'claude', connected: true, windows: [], failed: true }
-  if (!same(before)) return unsure
-  const metadata = {
-    ...(plan ? { plan } : {}),
-    ...(email ? { account: email } : {}),
-    ...(id ? { identity: id } : {}),
+function accountFields(account: { id: string; email: string }) {
+  return {
+    ...(account.email ? { account: account.email } : {}),
+    ...(account.id ? { identity: account.id } : {}),
   }
-  if (!token) return { provider: 'claude', connected: false, windows: [], ...metadata }
-  const usage = await readClaudeLimits(token, id)
-  if (!same(await claudeAccount())) return unsure
-  if (id && !usage.failed) claudeCache = { account: id, at: usage.asOf ?? Date.now(), usage }
-  // A turn's own read is fresher than a cached or rate-limited OAuth one, so a failed OAuth read
-  // under it isn't a failed refresh.
-  const turn = id && claudeTurn?.identity === id ? claudeTurn : undefined
-  if (!turn?.windows.length || (turn.asOf ?? 0) <= (usage.asOf ?? 0))
-    return { ...usage, ...metadata }
-  const { failed: _, ...read } = usage
-  return { ...read, connected: true, windows: turn.windows, asOf: turn.asOf, ...metadata }
 }
 
-async function readClaudeLimits(token: string, account: string): Promise<ProviderUsage> {
-  const cached = account && claudeCache?.account === account ? claudeCache : undefined
-  if (cached && Date.now() - cached.at < CACHE_MS) return cached.usage
+// Ends on abort without yielding a message, so the session never sends a turn.
+function idlePrompt(signal: AbortSignal): AsyncIterable<SDKUserMessage> {
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () =>
+        new Promise((resolve) => {
+          if (signal.aborted) {
+            resolve({ done: true, value: undefined })
+            return
+          }
+          signal.addEventListener('abort', () => resolve({ done: true, value: undefined }), {
+            once: true,
+          })
+        }),
+    }),
+  }
+}
+
+async function probeClaudeUsage(identity?: string): Promise<ProviderUsage | null> {
+  const abortController = new AbortController()
+  const timer = setTimeout(() => abortController.abort(), CLAUDE_USAGE_PROBE_MS)
+  const session = query({
+    prompt: idlePrompt(abortController.signal),
+    options: {
+      abortController,
+      pathToClaudeCodeExecutable: claudeBin,
+      persistSession: false,
+      settingSources: [],
+      mcpServers: {},
+      strictMcpConfig: true,
+    },
+  })
   try {
-    const response = await fetch('https://api.anthropic.com/api/oauth/usage', {
-      headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' },
-      signal: AbortSignal.timeout(4_000),
-    })
-    if (!response.ok) throw new Error('Claude usage unavailable')
-    const windows = claudeUsageWindows(await response.json())
-    if (windows.length === 0) throw new Error('Claude usage unavailable')
-    return { provider: 'claude', connected: true, windows, asOf: Date.now() }
-  } catch {
-    return {
+    return await Promise.race([
+      readUsage(session, identity),
+      new Promise<null>((resolve) => {
+        abortController.signal.addEventListener('abort', () => resolve(null), { once: true })
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+    // close() kills the process while the prompt is still open. Abort then unblocks it.
+    try {
+      session.close()
+    } catch {
+      // Already gone.
+    }
+    abortController.abort()
+  }
+}
+
+// A sign-in switch rewrites the account file on its own, so a read that saw the account
+// change around the probe may be one account's limits under the other's name: it's dropped.
+export function readClaudeProviderUsage(): Promise<ProviderUsage> {
+  claudeRefresh ??= readClaudeProviderUsageOnce().finally(() => {
+    claudeRefresh = undefined
+  })
+  return claudeRefresh
+}
+
+async function readClaudeProviderUsageOnce(): Promise<ProviderUsage> {
+  const before = await claudeAccount()
+  const same = (account: { id: string; email: string }) =>
+    account.id === before.id && account.email === before.email
+  const unsure: ProviderUsage = { provider: 'claude', connected: true, windows: [], failed: true }
+  const signedIn = Boolean(before.id || before.email)
+  const cached = before.id && claudeCache?.account === before.id ? claudeCache : undefined
+  let usage: ProviderUsage
+  let probed: ProviderUsage | null = null
+  if (!signedIn) usage = { provider: 'claude', connected: false, windows: [] }
+  else if (cached && Date.now() - cached.at < CACHE_MS) usage = cached.usage
+  else {
+    probed = await probeClaudeUsage(before.id || undefined).catch(() => null)
+    usage = probed ?? {
       ...(cached?.usage ?? { provider: 'claude', connected: true, windows: [] }),
       failed: true,
     }
   }
+  const after = await claudeAccount()
+  if (!same(after)) return unsure
+  if (probed && before.id)
+    claudeCache = { account: before.id, at: probed.asOf ?? Date.now(), usage: probed }
+  // A turn's own read is fresher than a cached or failed probe, so a failed probe under it
+  // isn't a failed refresh.
+  const turn = after.id && claudeTurn?.identity === after.id ? claudeTurn : undefined
+  const metadata = accountFields(after)
+  if (!turn?.windows.length || (turn.asOf ?? 0) <= (usage.asOf ?? 0))
+    return { ...usage, ...metadata }
+  const { failed: _, ...read } = usage
+  return { ...read, connected: true, windows: turn.windows, asOf: turn.asOf, ...metadata }
 }
 
 function codexWindow(
