@@ -528,6 +528,7 @@ export function createClaudeAdapter(
       toolInput: Record<string, unknown>,
       options: Parameters<NonNullable<Options['canUseTool']>>[2]
     ) {
+      const itemId = newId()
       return Effect.gen(function* () {
         const result = yield* Deferred.make<PermissionResult>()
         yield* session.publication.withPermit(
@@ -546,7 +547,6 @@ export function createClaudeAdapter(
               })
               return
             }
-            const itemId = newId()
             const agentId = subagentOf(session.ctx, options.agentID)
             const base = {
               id: itemId,
@@ -601,11 +601,44 @@ export function createClaudeAdapter(
               Effect.sync(() => {
                 session.accepting = false
               })
-            )
+            ),
+            Effect.uninterruptible
           )
         )
         return yield* Deferred.await(result)
-      }).pipe(Effect.onError(() => retire(session, 'Unable to complete tool permission')))
+      }).pipe(
+        Effect.onInterrupt(() => withdrawPending(session, itemId)),
+        Effect.onError((cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.void
+            : retire(session, 'Unable to complete tool permission')
+        )
+      )
+    }
+
+    // Claude withdrew one prompt (its signal aborted); the turn carries on.
+    function withdrawPending(session: WarmSession, itemId: string) {
+      return session.publication
+        .withPermit(
+          Effect.gen(function* () {
+            const question = session.pendingQuestions.has(itemId)
+            const pending = question ? session.pendingQuestions : session.pendingApprovals
+            if (!pending.has(itemId)) return
+            yield* session.emit({
+              type: 'item.completed',
+              itemId,
+              patch: question ? { skipped: true } : { decision: 'deny' },
+            })
+            pending.delete(itemId)
+            if (!session.awaitingResult) return
+            const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
+            yield* session.emit({
+              type: 'session.status',
+              status: waiting ? 'awaiting_approval' : 'running',
+            })
+          })
+        )
+        .pipe(Effect.ignore)
     }
 
     function resolvePending(

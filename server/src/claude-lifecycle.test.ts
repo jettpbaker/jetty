@@ -928,6 +928,34 @@ describe('scoped Claude sessions', () => {
     expect(f.events.filter((event) => event.type === 'item.completed')).toHaveLength(2)
   })
 
+  test('an aborted permission callback settles only its own prompt and the turn carries on', async () => {
+    const f = await setup()
+    const turn = await f.start()
+    const q = f.queries[0]!
+    const abort = new AbortController()
+    const approval = q.options.canUseTool!(
+      'Bash',
+      { command: 'true' },
+      { signal: abort.signal, toolUseID: 'approval', requestId: 'approval' }
+    )
+    await f.runtime.runPromise(f.next('session.status'))
+    const item = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')
+    if (item?.type !== 'item.started') throw new Error('Missing approval')
+    abort.abort()
+    expect((await approval)?.behavior).toBe('deny')
+    expect(await f.runtime.runPromise(f.next('session.status'))).toMatchObject({
+      status: 'running',
+    })
+    expect(f.events.filter((e) => e.type === 'item.completed')).toEqual([
+      { type: 'item.completed', itemId: item.item.id, patch: { decision: 'deny' } },
+    ])
+    expect(q.closed).toBe(false)
+    q.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(turn.await)
+    expect(f.events.filter((e) => e.type === 'turn.failed')).toHaveLength(0)
+    expect(f.events.filter((e) => e.type === 'turn.completed')).toHaveLength(1)
+  })
+
   test('stream failures close the query and emit only one terminal', async () => {
     const f = await setup()
     const turn = await f.start()
