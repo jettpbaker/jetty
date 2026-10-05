@@ -394,20 +394,6 @@ export function ThreadList({
   const [fontsReady, setFontsReady] = useState(false)
 
   useEffect(() => {
-    const element = scroller.current
-    if (!element) return
-    const measure = () => {
-      const text = contentWidth(element.clientWidth)
-      setWidth(text)
-      setGutter((element.offsetWidth - text) / 2)
-    }
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    measure()
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
     if (document.fonts.status === 'loaded') return
     void document.fonts.ready.then(() => {
       clearTextMeasure()
@@ -550,6 +536,30 @@ export function ThreadList({
     latestRows.current = rows
     latestWidth.current = width
   })
+
+  useEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    let height = element.clientHeight
+    const measure = () => {
+      const text = contentWidth(element.clientWidth)
+      // Sizes measured at another width are wrong now; rows on screen measure again as they reflow.
+      if (text !== latestWidth.current)
+        for (const key of virtualizer.itemSizeCache.keys())
+          if (!virtualizer.elementsCache.get(key)?.isConnected)
+            virtualizer.itemSizeCache.delete(key)
+      setWidth(text)
+      setGutter((element.offsetWidth - text) / 2)
+      // A pinned list keeps its bottom in view as the window or the composer takes height from it.
+      if (pinned.current && element.clientHeight < height)
+        element.scrollTop += height - element.clientHeight
+      height = element.clientHeight
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    measure()
+    return () => observer.disconnect()
+  }, [virtualizer])
 
   // Lays out the rough rows when idle, then swaps in their exact estimates in one commit, keeping
   // the top visible row in place. A list left early keeps refining, so a revisit finds them cached.
