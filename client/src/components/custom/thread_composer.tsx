@@ -463,10 +463,16 @@ export function ThreadComposer({
               ) : null}
               <div className='flex min-h-7 items-center justify-between px-2.5'>
                 <WorkflowLines threadId={threadId} items={items} />
-                <span className='ml-auto text-xs text-muted-foreground'>
-                  {meta?.environment === 'worktree' ? 'Worktree · ' : ''}
-                  {meta?.worktree?.branch ?? meta?.git?.branch}
-                </span>
+                {meta && (
+                  <span className='ml-auto text-xs text-muted-foreground'>
+                    {[
+                      meta.environment === 'worktree' ? 'Worktree' : 'Current checkout',
+                      meta.worktree?.branch ?? meta.git?.branch,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                )}
               </div>
             </div>
           ) : (

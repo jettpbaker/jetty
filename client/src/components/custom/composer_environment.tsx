@@ -22,7 +22,7 @@ export function ComposerEnvironment({
   worktreeDisabled?: string
 }) {
   const Icon = value === 'local' ? LaptopIcon : FolderGit2Icon
-  const label = value === 'local' ? 'Local' : 'Worktree'
+  const label = value === 'local' ? 'Current checkout' : 'Worktree'
 
   return (
     <DropdownMenu>
@@ -48,7 +48,7 @@ export function ComposerEnvironment({
           </DisabledTooltip>
           <DropdownMenuRadioItem value='local'>
             <LaptopIcon className='text-muted-foreground' />
-            Local
+            Current checkout
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>

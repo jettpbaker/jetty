@@ -102,10 +102,10 @@ function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?:
   return (
     <span
       className='flex min-w-0 items-center gap-1 text-muted-foreground'
-      title={worktree ? 'Worktree' : 'Local checkout'}
+      title={worktree ? 'Worktree' : 'Current checkout'}
     >
       <Icon aria-hidden='true' className='size-3 shrink-0' />
-      <span className='sr-only'>{worktree ? 'Worktree' : 'Local checkout'}</span>
+      <span className='sr-only'>{worktree ? 'Worktree' : 'Current checkout'}</span>
       {checkout && (
         <span className={cn('truncate', checkout.branch && 'font-mono')}>{checkout.label}</span>
       )}
@@ -113,7 +113,7 @@ function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?:
   )
 }
 
-// A Local thread works on whatever the project checkout has out right now.
+// A Current checkout thread works on whatever the project checkout has out right now.
 function useCheckout(projectId?: string): Checkout | undefined {
   const fetchBranches = useBranches()
   useEffect(() => {
@@ -122,7 +122,7 @@ function useCheckout(projectId?: string): Checkout | undefined {
   const list = useBranchList(projectId, true)
   if (!list || list.git === 'error') return undefined
   if (list.git !== 'ok')
-    return { label: list.git === 'missing' ? 'Folder missing' : 'Local folder', branch: false }
+    return { label: list.git === 'missing' ? 'Folder missing' : 'Project folder', branch: false }
   return list.currentBranch
     ? { label: list.currentBranch, branch: true }
     : { label: 'Detached HEAD', branch: false }
