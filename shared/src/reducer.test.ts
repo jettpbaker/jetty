@@ -135,6 +135,45 @@ describe('applyEvent', () => {
     expect(state.items[0]).toEqual({ ...assistant('a1'), streaming: false, completedAt: 0 })
   })
 
+  test("a running subagent's streams outlive the main turn and settle when it ends", () => {
+    const subagent = {
+      id: 'agent',
+      turnId: 't1',
+      createdAt: 0,
+      kind: 'subagent',
+      title: 'Explore',
+      prompt: '',
+      status: 'running',
+    } satisfies ThreadItem
+    const thinking = {
+      id: 'r1',
+      turnId: 't1',
+      createdAt: 0,
+      kind: 'reasoning',
+      text: '',
+      agentId: 'agent',
+      streaming: true,
+    } satisfies ThreadItem
+    const ended = run([
+      { type: 'turn.started', turnId: 't1' },
+      { type: 'item.started', item: subagent },
+      { type: 'item.started', item: thinking },
+      { type: 'turn.completed', turnId: 't1' },
+      { type: 'item.delta', itemId: 'r1', delta: 'still going' },
+    ])
+    expect(ended.items[1]).toEqual({ ...thinking, text: 'still going' })
+    const settled = run(
+      [{ type: 'item.completed', itemId: 'agent', patch: { status: 'stopped' } }],
+      ended
+    )
+    expect(settled.items[1]).toEqual({
+      ...thinking,
+      text: 'still going',
+      streaming: false,
+      completedAt: 0,
+    })
+  })
+
   test('turn.failed retains error', () => {
     const state = run([
       { type: 'turn.started', turnId: 't1' },

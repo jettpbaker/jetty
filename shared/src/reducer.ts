@@ -74,7 +74,7 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
         },
         activeTurnId: null,
         lastTurnOutcome: outcome,
-        items: state.items.map((item) => settleStreaming(item, ts)),
+        items: settleTurnStreams(state.items, ts),
       })
     case 'item.started':
       // A user message opens its turn: the server marks the turn starting as it appends the
@@ -95,12 +95,16 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
       )
     case 'item.completed':
       return deriveStatus(
-        updateItem(state, event.itemId, (item) =>
-          Schema.decodeUnknownSync(ThreadItem)({
-            ...settleStreaming(item, ts),
-            ...event.patch,
-            completedAt: ts,
-          })
+        settleAgentStreams(
+          updateItem(state, event.itemId, (item) =>
+            Schema.decodeUnknownSync(ThreadItem)({
+              ...settleStreaming(item, ts),
+              ...event.patch,
+              completedAt: ts,
+            })
+          ),
+          event.itemId,
+          ts
         )
       )
     case 'session.status':
@@ -144,6 +148,27 @@ function settleStreaming(item: ThreadItem, ts: number): ThreadItem {
   if ('streaming' in item && item.streaming)
     return { ...item, streaming: false, completedAt: item.completedAt ?? ts }
   return item
+}
+
+// A background subagent outlives the turn that spawned it: its streams settle when it ends.
+function settleTurnStreams(items: readonly ThreadItem[], ts: number) {
+  const running = new Set<string>()
+  for (const item of items)
+    if (item.kind === 'subagent' && item.status === 'running') running.add(item.id)
+  return items.map((item) =>
+    item.agentId && running.has(item.agentId) ? item : settleStreaming(item, ts)
+  )
+}
+
+function settleAgentStreams(state: ThreadState, agentId: string, ts: number): ThreadState {
+  if (
+    !state.items.some((item) => item.agentId === agentId && 'streaming' in item && item.streaming)
+  )
+    return state
+  return {
+    ...state,
+    items: state.items.map((item) => (item.agentId === agentId ? settleStreaming(item, ts) : item)),
+  }
 }
 
 function appendDelta(delta: string, tokens?: number) {
