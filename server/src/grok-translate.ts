@@ -123,6 +123,31 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
       }
       return events
     }
+    if (update.sessionUpdate === 'plan' && Array.isArray(update.entries)) {
+      // Grok's todo list, as Claude's TodoWrite input, like Codex's plan.
+      const todos = update.entries.map(object).map((entry) => ({
+        content: string(entry.content),
+        status: string(entry.status),
+      }))
+      const id = newId()
+      events.push(
+        ...closeText(),
+        {
+          type: 'item.started',
+          item: {
+            ...base,
+            id,
+            kind: 'tool_call',
+            toolName: 'update_plan',
+            input: { todos },
+            output: '',
+            status: 'running',
+          },
+        },
+        { type: 'item.completed', itemId: id, patch: { status: 'succeeded' } }
+      )
+      return events
+    }
     if (
       update.sessionUpdate === 'agent_message_chunk' ||
       update.sessionUpdate === 'agent_thought_chunk'
