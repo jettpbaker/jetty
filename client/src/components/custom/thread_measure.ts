@@ -25,12 +25,34 @@ const lineHeight = 23
 const footerRow = 28
 // Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
-type Measured = { text: string; prepared: PreparedText; width?: number; height: number }
+type Measured = { text: string; prepared?: PreparedText; width?: number; height: number }
 const cache = new Map<string, Measured>()
+// Prepared text (about 20 bytes a character) only serves laying it out again at a new width, so past
+// this many characters the least recently used give theirs up.
+const preparedBudget = 1_000_000
+const preparedRecent = new Map<string, Measured>()
+let preparedChars = 0
 
 export function clearTextMeasure() {
   cache.clear()
+  preparedRecent.clear()
+  preparedChars = 0
   collapsibleTexts.clear()
+}
+
+function keepPrepared(id: string, entry: Measured) {
+  const previous = preparedRecent.get(id)
+  if (previous) preparedChars -= previous.text.length
+  preparedRecent.delete(id)
+  preparedRecent.set(id, entry)
+  preparedChars += entry.text.length
+  if (preparedChars <= preparedBudget) return
+  for (const [oldest, measured] of preparedRecent) {
+    if (preparedChars <= preparedBudget) break
+    preparedRecent.delete(oldest)
+    preparedChars -= measured.text.length
+    measured.prepared = undefined
+  }
 }
 
 function roughHeight(text: string, width: number, preWrap: boolean) {
@@ -45,17 +67,15 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean, r
   if (rough) return roughHeight(text, width, preWrap)
   let entry = cache.get(id)
   if (!entry || entry.text !== text) {
-    entry = {
-      text,
-      prepared: prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined),
-      height: 0,
-    }
+    entry = { text, height: 0 }
     cache.set(id, entry)
   }
   if (entry.width !== width) {
+    entry.prepared ??= prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined)
     entry.width = width
     entry.height = layout(entry.prepared, Math.max(1, width), lineHeight).height
   }
+  if (entry.prepared) keepPrepared(id, entry)
   return entry.height
 }
 
@@ -122,8 +142,9 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       return 24
     case 'assistant':
     case 'plan':
+      // A streaming reply would be laid out again on every delta; it's measured once on screen.
       return (
-        markdownHeight(row.id, row.item.text, width, rough) +
+        markdownHeight(row.id, row.item.text, width, rough || row.streaming) +
         8 +
         (row.footer === undefined ? 4 : footerRow)
       )
