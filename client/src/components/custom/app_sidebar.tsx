@@ -52,6 +52,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { DisabledTooltip } from './disabled_tooltip'
+import { HoverKeybind, keybinds } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
@@ -415,13 +416,14 @@ export function AppSidebar() {
       <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
         <Button
           variant='ghost'
-          className='h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground not-disabled:hover:bg-sidebar-accent not-disabled:hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+          className='keybind-target h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground not-disabled:hover:bg-sidebar-accent not-disabled:hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
           aria-current={onSettings ? 'page' : undefined}
           aria-label='Settings'
           {...pressProps(openSettings)}
         >
           <Settings01Icon />
           Settings
+          <HoverKeybind binding={keybinds.settings} />
         </Button>
       </SidebarFooter>
       <Dialog

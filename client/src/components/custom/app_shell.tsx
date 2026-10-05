@@ -11,11 +11,13 @@ import {
   useThreadTab,
   type SubagentTab,
 } from '@/state'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { useMatches, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
+import { keybinds } from './keybinds'
 import { NewThreadBackdrop } from './new_thread_backdrop'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
@@ -96,24 +98,10 @@ function Workspace({
   useForgetDeletedDrafts()
   useConnectionNotice()
 
-  useEffect(() => {
-    function openSettings(event: KeyboardEvent) {
-      if (
-        !event.metaKey ||
-        event.ctrlKey ||
-        event.altKey ||
-        event.shiftKey ||
-        event.key !== ',' ||
-        event.isComposing
-      )
-        return
-      event.preventDefault()
-      if (event.repeat) return
-      void navigate({ to: '/settings' })
-    }
-    window.addEventListener('keydown', openSettings, true)
-    return () => window.removeEventListener('keydown', openSettings, true)
-  }, [navigate])
+  useHotkey(keybinds.settings.hotkey, () => void navigate({ to: '/settings' }), {
+    requireReset: true,
+    ignoreInputs: false,
+  })
 
   return (
     <PageSidebarTriggerContext value={!showThreadTabs}>

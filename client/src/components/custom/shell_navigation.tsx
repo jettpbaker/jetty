@@ -6,6 +6,8 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
+import { KeybindTooltip, keybinds } from './keybinds'
+
 const widthTransition =
   'transition-[width] duration-(--motion-sidebar-open-duration) data-[sidebar-open=false]:duration-(--motion-sidebar-close-duration) ease-(--motion-sidebar-ease) motion-reduce:transition-none'
 
@@ -56,13 +58,15 @@ export function ShellNavigation() {
       className={`app-shell-navigation absolute left-1.5 top-1.5 z-30 flex shrink-0 items-center justify-between gap-1 ${widthTransition}`}
       style={{ width }}
     >
-      <SidebarTrigger
-        variant='ghost'
-        tone='muted'
-        size='icon'
-        className='hover:bg-sidebar-accent'
-        aria-label={(isMobile ? openMobile : open) ? 'Collapse sidebar' : 'Expand sidebar'}
-      />
+      <KeybindTooltip binding={keybinds.sidebar}>
+        <SidebarTrigger
+          variant='ghost'
+          tone='muted'
+          size='icon'
+          className='hover:bg-sidebar-accent'
+          aria-label={(isMobile ? openMobile : open) ? 'Collapse sidebar' : 'Expand sidebar'}
+        />
+      </KeybindTooltip>
       <div className={expanded ? 'flex shrink-0 items-center gap-1' : 'hidden'}>
         <Button
           variant='ghost'

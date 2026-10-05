@@ -15,6 +15,7 @@ import {
   useThreadPullRequests,
 } from '@/state'
 import { useProjectGit } from '@/state/worktrees'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import {
   Activity,
   useCallback,
@@ -32,6 +33,7 @@ import { createPortal } from 'react-dom'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
+import { KeybindTooltip, keybinds } from './keybinds'
 import { Loading } from './loading'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { LivePullRequestView } from './pull_request_view'
@@ -183,25 +185,7 @@ export function ThreadDetailsLayout({
     setOpen(true)
   }, [requestedTab, requestShown, consume, open])
 
-  useEffect(() => {
-    function onKeyDown(event: globalThis.KeyboardEvent) {
-      if (
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.repeat ||
-        event.code !== 'KeyB' ||
-        !event.metaKey ||
-        !event.altKey ||
-        event.ctrlKey ||
-        event.shiftKey
-      )
-        return
-      event.preventDefault()
-      toggle()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  useHotkey(keybinds.details.hotkey, toggle, { requireReset: true, ignoreInputs: false })
 
   useLayoutEffect(() => {
     if (!open) return
@@ -458,18 +442,19 @@ export function ThreadDetailsLayout({
         </aside>
       </OpenFileLink>
       <div className='absolute top-0 right-2.5 z-20 flex h-[calc(var(--app-tab-bar-height)-1px)] items-center gap-1'>
-        <Button
-          variant='ghost-text'
-          size='icon'
-          className='aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
-          aria-label={open ? 'Close thread details' : 'Open thread details'}
-          aria-expanded={open}
-          aria-keyshortcuts='Meta+Alt+B'
-          title='Toggle thread details (⌘⌥B)'
-          {...pressProps(toggle)}
-        >
-          <SidebarLeftIcon className='rotate-180' />
-        </Button>
+        <KeybindTooltip binding={keybinds.details}>
+          <Button
+            variant='ghost-text'
+            size='icon'
+            className='aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
+            aria-label={open ? 'Close thread details' : 'Open thread details'}
+            aria-expanded={open}
+            aria-keyshortcuts='Meta+Alt+B'
+            {...pressProps(toggle)}
+          >
+            <SidebarLeftIcon className='rotate-180' />
+          </Button>
+        </KeybindTooltip>
       </div>
       {open && !full && (
         <div

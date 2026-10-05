@@ -1,0 +1,11 @@
+.hover-keybind {
+  display: none;
+}
+.hover-keybind[data-keybind-held] {
+  display: inline-flex;
+}
+@media (hover: hover) {
+  .keybind-target:hover .hover-keybind {
+    display: inline-flex;
+  }
+}
