@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 const minTurns = 2
-const tickSpacing = 12
+const tickSpacing = 8
+const fade = 24
 // A gutter this wide holds the minimap without covering the conversation, so it stays visible.
 const persistentGutter = 48
 const stripLeft = 12
@@ -68,6 +69,19 @@ function viewOf(
   return { current: first === -1 ? preceding : first, first, last }
 }
 
+// Moves the ticks, fading each end of the rail as far as ticks hide past it, up to `fade`.
+function place(layer: HTMLElement, offset: number, height: number) {
+  const length = (layer.childElementCount - 1) * tickSpacing
+  const top = Math.min(fade, Math.max(0, -offset))
+  const bottom = Math.min(fade, Math.max(0, offset + length - height))
+  layer.style.transform = `translateY(${offset}px)`
+  // Set on the clip itself: mask-image isn't inherited, so only it repaints.
+  layer.parentElement!.style.maskImage =
+    top || bottom
+      ? `linear-gradient(to bottom, transparent, black ${top}px, black calc(100% - ${bottom}px), transparent)`
+      : ''
+}
+
 export const ThreadMinimap = memo(function ThreadMinimap({
   turns,
   rows,
@@ -91,8 +105,9 @@ export const ThreadMinimap = memo(function ThreadMinimap({
 
   useEffect(() => {
     const element = scroller.current
+    const box = rail.current
     const layer = ticks.current
-    if (!element || !layer || !enough) return
+    if (!element || !box || !layer || !enough) return
     const length = (turns.length - 1) * tickSpacing
     const update = () => {
       const next = viewOf(element, virtualizer, turns)
@@ -103,19 +118,23 @@ export const ThreadMinimap = memo(function ThreadMinimap({
       )
       // Like an editor's minimap, ticks taller than the rail scroll through it with the
       // conversation, clamped so uneven turns can't push the on-screen ticks out of the rail.
-      // 100% is the rail's height, so ticks that fit stay put.
+      const height = box.clientHeight
       const range = element.scrollHeight - element.clientHeight
-      const progress = range > 0 ? element.scrollTop / range : 0
-      const offset = `calc(${progress} * (100% - ${length}px))`
-      layer.style.transform =
+      const offset = (range > 0 ? element.scrollTop / range : 0) * (height - length)
+      place(
+        layer,
         next.first === -1
-          ? `translateY(${offset})`
-          : `translateY(clamp(${-next.first * tickSpacing}px, ${offset}, calc(100% - ${next.last * tickSpacing}px)))`
+          ? offset
+          : Math.max(-next.first * tickSpacing, Math.min(offset, height - next.last * tickSpacing)),
+        height
+      )
     }
-    const frame = requestAnimationFrame(update)
+    // Fires once on observe too, which places the ticks to begin with.
+    const resize = new ResizeObserver(update)
+    resize.observe(box)
     element.addEventListener('scroll', update, { passive: true })
     return () => {
-      cancelAnimationFrame(frame)
+      resize.disconnect()
       element.removeEventListener('scroll', update)
     }
   }, [scroller, virtualizer, turns, enough])
@@ -155,13 +174,16 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     return Math.max(0, Math.min(lastIndex, index))
   }
 
-  // Scrolls the ticks just far enough to show this one; the next conversation scroll takes over.
+  // Scrolls the ticks just far enough to show this one clear of the fades, without moving
+  // the first or last tick off its end; the next conversation scroll takes over.
   function reveal(index: number) {
     const box = rail.current!
     const layer = ticks.current!
+    const height = box.clientHeight
     const top = index * tickSpacing
     const shift = layer.getBoundingClientRect().top - box.getBoundingClientRect().top
-    layer.style.transform = `translateY(${Math.max(-top, Math.min(box.clientHeight - top, shift))}px)`
+    const offset = Math.max(fade - top, Math.min(height - fade - top, shift))
+    place(layer, Math.min(0, Math.max(height - lastIndex * tickSpacing, offset)), height)
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
