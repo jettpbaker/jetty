@@ -307,6 +307,7 @@ export function createMcpHandler(
                   duplicate: true,
                   busy: false,
                   ownChild: false,
+                  resumed: false,
                 }
             }
             const caller = yield* store.requireThread(identity.threadId)
@@ -321,6 +322,14 @@ export function createMcpHandler(
                 )
               )
             const turn = yield* store.turnContext(caller.id)
+            const ownChild = target.parentThreadId === caller.id
+            // A parent's message restarts a child it stopped, in the transaction that queues it, so
+            // a crash can't keep one without the other. One the restart guard holds waits for the
+            // user's Resume.
+            const resumed =
+              ownChild &&
+              target.queuePaused &&
+              !heldByRestarts((yield* store.getThreadState(target.id)).items)
             const messageId = newId()
             yield* store.enqueue(target.id, {
               id: messageId,
@@ -329,6 +338,7 @@ export function createMcpHandler(
               hop: turn.hop + 1,
               createdAt: Date.now(),
             })
+            if (resumed) yield* store.setQueuePaused(target.id, false)
             const response = { threadId: target.id, title: target.title, messageId }
             if (input.requestId)
               yield* store.saveRequest(caller.id, input.requestId, 'send_message', response)
@@ -336,17 +346,12 @@ export function createMcpHandler(
               ...response,
               duplicate: false,
               busy: ['starting', 'running', 'awaiting_approval'].includes(target.status),
-              ownChild: target.parentThreadId === caller.id,
+              ownChild,
+              resumed,
             }
           })
         )
-        // A parent's message restarts a child it stopped, but one the restart guard holds waits for
-        // the user's Resume.
-        if (
-          response.ownChild &&
-          !heldByRestarts((yield* store.getThreadState(response.threadId)).items)
-        )
-          yield* orch.setQueuePaused(response.threadId, false)
+        if (response.resumed) yield* orch.queueResumed(response.threadId)
         let delivery = 'queued'
         if (input.steer && !response.duplicate && response.messageId) {
           const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId, false).pipe(

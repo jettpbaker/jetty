@@ -1136,6 +1136,18 @@ export function createOrchestrator({
       },
       startTurnEffect,
       setQueuePaused,
+      // Tells clients, and the queue, about a thread whose queue a store transaction resumed.
+      queueResumed(threadId: string) {
+        return hub.withChromePublication(
+          Effect.gen(function* () {
+            hub.pushChrome({
+              type: 'thread.upserted',
+              thread: yield* store.requireThread(threadId),
+            })
+            yield* Queue.offer(store.queueChanges, undefined)
+          })
+        )
+      },
       // Resumes a thread the crash-loop guard held as a restart would have: Jetty's note goes first
       // in its queue. A thread that has moved on is left alone, so a second press sends nothing.
       continueThread(threadId: string) {
