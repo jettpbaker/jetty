@@ -11,11 +11,10 @@ import {
   PendingHeader,
   QuestionStrip,
   QueueTray,
-  TodoLine,
   useApproval,
   useQuestion,
 } from '@/components/custom/composer_strip'
-import { currentTodos, pendingItems } from '@/components/custom/composer_strip_model'
+import { pendingItems } from '@/components/custom/composer_strip_model'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
@@ -177,12 +176,6 @@ export function ThreadComposer({
     },
     keepKeyboardFocus
   )
-  const todos = useMemo(() => currentTodos(items), [items])
-  const openTodo =
-    todos.find((entry) => entry.status === 'active') ??
-    todos.find((entry) => entry.status === 'pending')
-  // Stays while tasks are open, even once the turn ends.
-  const todo = openTodo ?? (running ? todos.at(-1) : undefined)
   const editingEntry = queue.find((entry) => entry.id === editing)
   const input = useRef<HTMLTextAreaElement>(null)
   const focusEdit = useRef(false)
@@ -363,8 +356,6 @@ export function ThreadComposer({
             answer?.strip ??
             (queue.length > 0 || queueControl.waiting > 0 ? (
               <QueueTray q={queueControl} />
-            ) : todo ? (
-              <TodoLine list={todos} current={todo} />
             ) : undefined),
           placeholder: !threadId
             ? undefined

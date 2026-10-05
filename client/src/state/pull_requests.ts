@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 
 import { chromeAtom, useChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
+import { detailsRequestAtom } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
 export type PullRequestRef = { repo: string; number: number }
@@ -446,18 +447,6 @@ export function usePullRequestTabs(threadId: string, links: readonly PullRequest
     [registry, threadId]
   )
   return { visible, show, hide }
-}
-
-// Asks a thread's details pane to open on a tab; the pane consumes it once mounted.
-type DetailsRequest = { threadId: string; tab: string }
-
-const detailsRequestAtom = Atom.make<DetailsRequest | undefined>(undefined).pipe(Atom.keepAlive)
-
-export function useDetailsRequest(threadId: string) {
-  const registry = useContext(RegistryContext)
-  const request = useAtomValue(detailsRequestAtom)
-  const consume = useCallback(() => registry.set(detailsRequestAtom, undefined), [registry])
-  return { tab: request?.threadId === threadId ? request.tab : undefined, consume }
 }
 
 function openPullRequest(registry: Registry, threadId: string, ref: PullRequestRef) {

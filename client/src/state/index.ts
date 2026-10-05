@@ -23,8 +23,11 @@ export { StateProvider } from './provider'
 export { useThread, useThreadContext, useThreadJourney, useThreadRowPrefetch } from './threads'
 export {
   MAIN_TAB,
+  useDetailsRequest,
   useRequestReveal,
+  useRequestSectionReveal,
   useRevealRow,
+  useRevealSection,
   useSubagentTabs,
   useThreadTab,
   type SubagentTab,
@@ -42,7 +45,6 @@ export {
   pullRequestKey,
   pullRequestTabId,
   useThreadPullRequests,
-  useDetailsRequest,
   useLinkPullRequest,
   useOpenPullRequest,
   usePrefetchPullRequest,

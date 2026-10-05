@@ -33,11 +33,8 @@ export type Question = { id: string; kind: 'question'; source: Source; questions
 
 export type Pending = Approval | Question
 
-export type Todo = { id: string; text: string; status: 'done' | 'active' | 'pending' }
-
 const runTools = new Set(['bash', 'shell', 'commandexecution', 'execute'])
 const editTools = new Set(['edit', 'multiedit', 'write', 'notebookedit', 'filechange'])
-const todoTools = new Set(['TodoWrite', 'update_plan'])
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
@@ -297,48 +294,4 @@ export function pendingItems(
       pending.push({ id: item.id, kind: 'question', source, questions: [...item.questions] })
   }
   return pending
-}
-
-function todoStatus(status: unknown): Todo['status'] {
-  return status === 'completed' ? 'done' : status === 'in_progress' ? 'active' : 'pending'
-}
-
-// The main agent's task list: Claude's TaskCreate/TaskUpdate (or older TodoWrite) calls, or
-// Codex's plan. Tasks finished in an earlier turn drop out; open ones carry over.
-export function currentTodos(items: readonly ThreadItem[]): Todo[] {
-  let todos: (Todo & { turnId: string })[] = []
-  for (const item of items) {
-    if (item.kind !== 'tool_call' || item.agentId) continue
-    const input = record(item.input)
-    const { turnId } = item
-    if (todoTools.has(item.toolName)) {
-      const list = Array.isArray(input.todos) ? input.todos.map(record) : []
-      todos = list.map((todo, index) => ({
-        id: String(index + 1),
-        text: String(todo.content ?? ''),
-        status: todoStatus(todo.status),
-        turnId,
-      }))
-    } else if (item.toolName === 'TaskCreate') {
-      const id = /#(\d+)/.exec(item.output)?.[1] ?? String(todos.length + 1)
-      todos = [...todos, { id, text: String(input.subject ?? ''), status: 'pending', turnId }]
-    } else if (item.toolName === 'TaskUpdate') {
-      const id = String(input.taskId ?? '')
-      todos =
-        input.status === 'deleted'
-          ? todos.filter((todo) => todo.id !== id)
-          : todos.map((todo) =>
-              todo.id === id
-                ? {
-                    ...todo,
-                    text: typeof input.subject === 'string' ? input.subject : todo.text,
-                    status: input.status === undefined ? todo.status : todoStatus(input.status),
-                    turnId,
-                  }
-                : todo
-            )
-    }
-  }
-  const current = items.at(-1)?.turnId
-  return todos.filter((todo) => todo.turnId === current || todo.status !== 'done')
 }

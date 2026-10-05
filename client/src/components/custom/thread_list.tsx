@@ -116,7 +116,9 @@ function rowStamp(row: ThreadRow) {
             ? `${activity.id}:${activity.text.length}`
             : activity.type === 'thinking'
               ? `${activity.id}:${activity.summary.length}:${activity.status}`
-              : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
+              : activity.type === 'todo'
+                ? activity.id
+                : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
         .join(',')}`
   }
@@ -193,6 +195,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'work')
     return (
       <WorkBlock
+        threadId={threadId}
         activities={row.activities}
         status={row.status}
         startedAt={row.startedAt}

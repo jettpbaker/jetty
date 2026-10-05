@@ -101,3 +101,44 @@ export function useRequestReveal() {
     [registry]
   )
 }
+
+// Asks a thread's details pane to open on a tab; the pane consumes it once mounted.
+type DetailsRequest = { threadId: string; tab: string }
+
+export const detailsRequestAtom = Atom.make<DetailsRequest | undefined>(undefined).pipe(
+  Atom.keepAlive
+)
+
+export function useDetailsRequest(threadId: string) {
+  const registry = useContext(RegistryContext)
+  const request = useAtomValue(detailsRequestAtom)
+  const consume = useCallback(() => registry.set(detailsRequestAtom, undefined), [registry])
+  return { tab: request?.threadId === threadId ? request.tab : undefined, consume }
+}
+
+// A one-shot request for the overview to open a section and scroll it into view; the overview
+// clears it once handled.
+const sectionRevealAtom = Atom.family((_threadId: string) =>
+  Atom.make<string | undefined>(undefined).pipe(Atom.keepAlive)
+)
+
+export function useRevealSection(threadId: string) {
+  const registry = useContext(RegistryContext)
+  const section = useAtomValue(sectionRevealAtom(threadId))
+  const clear = useCallback(
+    () => registry.set(sectionRevealAtom(threadId), undefined),
+    [registry, threadId]
+  )
+  return [section, clear] as const
+}
+
+export function useRequestSectionReveal() {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (threadId: string, section: string) => {
+      registry.set(detailsRequestAtom, { threadId, tab: 'overview' })
+      registry.set(sectionRevealAtom(threadId), section)
+    },
+    [registry]
+  )
+}

@@ -1,3 +1,5 @@
+import type { TodoUpdate } from './todo_model'
+
 export type ActivityStatus =
   | 'running'
   | 'complete'
@@ -29,9 +31,10 @@ export type ThinkingActivity = {
 }
 // what the agent said between its steps, as opposed to its answer after the last one
 export type TextActivity = { type: 'text'; id: string; text: string }
-export type WorkActivity = ToolActivity | ThinkingActivity | TextActivity
+export type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
+export type WorkActivity = ToolActivity | ThinkingActivity | TextActivity | TodoActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
-export type WorkEntry = ToolBatch | ThinkingActivity | TextActivity
+export type WorkEntry = ToolBatch | ThinkingActivity | TextActivity | TodoActivity
 
 const vocabulary = {
   read: {

@@ -77,7 +77,7 @@ export function remarkEntityLinks() {
 export const entityLinkTag = { 'entity-link': ['kind', 'entity'] }
 
 // The link stays inline, so it wraps like the words around it and never leaves a hole.
-const linkClass =
+export const inlineLinkClass =
   'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 text-primary decoration-primary/40 underline-offset-[3px] hover:underline'
 
 const pullGlyph = 'size-3.5 align-[-2px]'
@@ -130,7 +130,7 @@ function useHomeRepos() {
 
 function GitHubAnchor({ children, ...props }: ComponentProps<'a'>) {
   return (
-    <a {...props} target='_blank' rel='noreferrer' className={linkClass}>
+    <a {...props} target='_blank' rel='noreferrer' className={inlineLinkClass}>
       {children}
     </a>
   )
@@ -168,7 +168,7 @@ function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
           <Link
             to='/threads/$threadId'
             params={{ threadId: id }}
-            className={linkClass}
+            className={inlineLinkClass}
             onPointerEnter={() => prefetch.enter(id)}
             onPointerLeave={() => prefetch.leave(id)}
           />
@@ -251,7 +251,7 @@ function PullLink({ entity }: { entity: string }) {
   )
   if (!data)
     return (
-      <Link {...target} className={linkClass} title={look.label}>
+      <Link {...target} className={inlineLinkClass} title={look.label}>
         {content}
       </Link>
     )
@@ -260,7 +260,7 @@ function PullLink({ entity }: { entity: string }) {
       <PreviewCard.Trigger
         delay={500}
         closeDelay={100}
-        render={<Link {...target} className={linkClass} />}
+        render={<Link {...target} className={inlineLinkClass} />}
       >
         {content}
       </PreviewCard.Trigger>

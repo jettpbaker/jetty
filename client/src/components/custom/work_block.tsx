@@ -6,6 +6,7 @@ import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
+import { TodoLink } from './todo_link'
 import { ToolGroup } from './tool_group'
 import {
   formatActivityDuration,
@@ -18,10 +19,12 @@ import {
 } from './work_model'
 
 function WorkHistory({
+  threadId,
   entries,
   recentStart,
   view,
 }: {
+  threadId: string
   entries: WorkEntry[]
   recentStart: number
   view: ActivityView
@@ -46,6 +49,8 @@ function WorkHistory({
                 <ThinkingBlock activity={entry} />
               ) : entry.type === 'text' ? (
                 <Markdown className='work-text'>{entry.text}</Markdown>
+              ) : entry.type === 'todo' ? (
+                <TodoLink threadId={threadId} update={entry.update} />
               ) : (
                 <ToolGroup batch={entry} />
               )}
@@ -74,12 +79,14 @@ function useRunningSeconds(startedAt?: number) {
 }
 
 export function WorkBlock({
+  threadId,
   activities,
   status,
   startedAt,
   elapsedSeconds,
   restarted,
 }: {
+  threadId: string
   activities: readonly WorkActivity[]
   status: ActivityStatus
   startedAt?: number
@@ -124,7 +131,7 @@ export function WorkBlock({
       hasContent={entries.length > 0}
       hasPreview={recentStart > 0}
       renderContent={(view) => (
-        <WorkHistory entries={entries} recentStart={recentStart} view={view} />
+        <WorkHistory threadId={threadId} entries={entries} recentStart={recentStart} view={view} />
       )}
     />
   )

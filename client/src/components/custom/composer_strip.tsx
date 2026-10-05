@@ -23,7 +23,8 @@ import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
 
-import type { Approval, Question, Source, Todo } from './composer_strip_model'
+import type { Approval, Question, Source } from './composer_strip_model'
+import type { Todo } from './todo_model'
 
 import { NeedsInputIcon } from './circle_status_icon'
 import { loadDiffWorkerPool } from './diff_worker_pool'
@@ -796,31 +797,6 @@ export function TodoList({ list }: { list: readonly Todo[] }) {
         </li>
       ))}
     </ol>
-  )
-}
-
-export function TodoLine({ list, current }: { list: readonly Todo[]; current: Todo }) {
-  const [open, setOpen] = useState(false)
-  const done = list.filter((todo) => todo.status === 'done').length
-  return (
-    <FlushShell>
-      <div className='flex min-w-0 items-start gap-2'>
-        {open ? (
-          <div className='min-w-0 flex-1 py-0.5'>
-            <TodoList list={list} />
-          </div>
-        ) : (
-          <div className='flex min-w-0 flex-1 items-center gap-2'>
-            <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
-            <span className='shrink-0 font-mono text-xs text-muted-foreground tabular-nums'>
-              {done}/{list.length}
-            </span>
-            <span className='min-w-0 flex-1 truncate'>{current.text}</span>
-          </div>
-        )}
-        <StripToggle open={open} onToggle={() => setOpen((value) => !value)} label='tasks' />
-      </div>
-    </FlushShell>
   )
 }
 

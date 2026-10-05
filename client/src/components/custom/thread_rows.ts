@@ -8,6 +8,8 @@ import { claudeModelLabel } from '@jetty/shared/model-name'
 import type { Subagent } from './subagent_row'
 import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
 
+import { foldTodos } from './todo_model'
+
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
 type AssistantItem = Extract<ThreadItem, { kind: 'assistant_message' }>
 type PlanItem = Extract<ThreadItem, { kind: 'plan' }>
@@ -265,7 +267,7 @@ function workStatus(
   // Only the live block is where the agent works now; an earlier one's lingering step (a
   // background command, say) keeps its own running state without the block ticking.
   for (const status of ['waiting', 'interrupted'] as const)
-    if (activities.some((activity) => activity.type !== 'text' && activity.status === status))
+    if (activities.some((activity) => 'status' in activity && activity.status === status))
       return status
   return 'complete'
 }
@@ -497,10 +499,17 @@ export function threadRows(
   }
   if (liveSegment && tail) openBlock(liveSegment, tail.turnId)
   finishTurn()
+  // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
+  const todos = agentId ? undefined : foldTodos(allItems).updates
   for (const [segment, { row, steps, next }] of blocks) {
-    row.activities = steps.map((item, index) =>
-      toActivity(item, steps[index + 1] ?? next, sessionRunning, sessionActive, projectPath)
-    )
+    row.activities = steps.flatMap((item, index): WorkActivity[] => {
+      if (!todos?.has(item.id))
+        return [
+          toActivity(item, steps[index + 1] ?? next, sessionRunning, sessionActive, projectPath),
+        ]
+      const update = todos.get(item.id)
+      return update ? [{ type: 'todo', id: item.id, update }] : []
+    })
     row.status = row.restarted
       ? 'interrupted'
       : workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)

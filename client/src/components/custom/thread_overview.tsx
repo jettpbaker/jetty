@@ -5,21 +5,30 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
 import { storage } from '@/platform'
-import { useChrome, useRequestReveal, useThread, useThreadDiff, useThreadTab } from '@/state'
-import { useMemo, useState, type ReactNode } from 'react'
+import {
+  useChrome,
+  useRequestReveal,
+  useRevealSection,
+  useThread,
+  useThreadDiff,
+  useThreadTab,
+} from '@/state'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
-import { currentTodos } from './composer_strip_model'
 import { PullRequestRow } from './pull_request_row'
 import { SubagentRow } from './subagent_row'
 import { threadSubagents, toSubagent } from './thread_rows'
+import { currentTodos } from './todo_model'
 import { WorkflowLineGrid } from './workflow_lines'
 import { type Workflow } from './workflow_parts'
 
 type SectionId = 'todos' | 'subagents' | 'workflows' | 'threads' | 'pulls' | 'changes'
 
 const collapsedKey = 'jetty.overview.collapsed'
+// The list's top padding, kept above a revealed section.
+const sectionInset = 8
 const changedFileLimit = 8
 
 function threadWorkflows(items: readonly ThreadItem[]) {
@@ -82,6 +91,8 @@ export function ThreadOverview({
   const reveal = useRequestReveal()
   const { diff } = useThreadDiff(threadId)
   const [collapsed, setCollapsed] = useState(loadCollapsed)
+  const [revealing, clearReveal] = useRevealSection(threadId)
+  const scroller = useRef<HTMLDivElement>(null)
 
   const todos = useMemo(() => currentTodos(items ?? []), [items])
   const subagentItems = useMemo(() => threadSubagents(items ?? []), [items])
@@ -100,14 +111,31 @@ export function ThreadOverview({
   )
   const minuteNow = useNow(60_000)
 
+  useEffect(() => {
+    storage.set(collapsedKey, JSON.stringify(collapsed))
+  }, [collapsed])
+
+  // A section only moves when something above it opens, so its header can be scrolled to before
+  // it finishes opening.
+  useLayoutEffect(() => {
+    if (!revealing) return
+    clearReveal()
+    setCollapsed((current) => current.filter((entry) => entry !== revealing))
+    const element = scroller.current
+    const section = element?.querySelector(`[data-section='${revealing}']`)
+    if (!element || !section) return
+    element.scrollTop +=
+      section.getBoundingClientRect().top - element.getBoundingClientRect().top - sectionInset
+  }, [revealing, clearReveal])
+
   function sectionProps(id: SectionId) {
     return {
+      id,
       open: !collapsed.includes(id),
-      onOpenChange: (open: boolean) => {
-        const next = open ? collapsed.filter((entry) => entry !== id) : [...collapsed, id]
-        setCollapsed(next)
-        storage.set(collapsedKey, JSON.stringify(next))
-      },
+      onOpenChange: (open: boolean) =>
+        setCollapsed((current) =>
+          open ? current.filter((entry) => entry !== id) : [...current, id]
+        ),
     }
   }
 
@@ -128,7 +156,7 @@ export function ThreadOverview({
     )
 
   return (
-    <div className='scrollbar-subtle h-full overflow-auto'>
+    <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
       <div className='flex flex-col gap-3 p-2 text-sm'>
         {todos.length > 0 && (
           <Section label='Todos' count={`${done}/${todos.length}`} {...sectionProps('todos')}>
@@ -211,12 +239,14 @@ export function ThreadOverview({
 }
 
 function Section({
+  id,
   label,
   count,
   open,
   onOpenChange,
   children,
 }: {
+  id: SectionId
   label: string
   count: ReactNode
   open: boolean
@@ -224,7 +254,7 @@ function Section({
   children: ReactNode
 }) {
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange} className='min-w-0'>
+    <Collapsible open={open} onOpenChange={onOpenChange} data-section={id} className='min-w-0'>
       <CollapsibleTrigger
         render={<Button variant='secondary' size='sm' />}
         className='group/section w-full justify-start gap-2 rounded-sm px-2.5'
