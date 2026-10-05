@@ -157,22 +157,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       ),
     },
     {
-      id: 'author',
-      priority: 100,
-      width: 28,
-      essential: true,
-      render: (pull) => (
-        <span title={`Created by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`}>
-          <PersonAvatar
-            login={pull.author?.login ?? 'Unknown'}
-            src={pull.author?.avatar_url}
-            className='size-4.5 after:hidden'
-          />
-          <span className='sr-only'>{pull.author?.name ?? pull.author?.login ?? 'Unknown'}</span>
-        </span>
-      ),
-    },
-    {
       id: 'title',
       priority: 100,
       width: 280,
@@ -196,6 +180,23 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
         >
           <span className='text-pr-open'>+{formatLines(pull.additions)}</span>
           <span className='text-destructive'>−{formatLines(pull.deletions)}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'author',
+      visible: tab !== 'created',
+      priority: 100,
+      width: 28,
+      essential: true,
+      render: (pull) => (
+        <span title={`Created by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`}>
+          <PersonAvatar
+            login={pull.author?.login ?? 'Unknown'}
+            src={pull.author?.avatar_url}
+            className='size-4.5 after:hidden'
+          />
+          <span className='sr-only'>{pull.author?.name ?? pull.author?.login ?? 'Unknown'}</span>
         </span>
       ),
     },
