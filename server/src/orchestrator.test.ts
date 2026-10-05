@@ -657,6 +657,12 @@ test('Resume still continues a child the restart guard held after its report fai
         },
       })
       yield* f.store.setQueuePaused(child.id, true)
+      yield* f.store.enqueue(child.id, {
+        id: newId(),
+        text: 'Follow up later',
+        createdAt: Date.now(),
+        hop: 0,
+      })
       yield* f.store.archiveThread(parent.id, true)
       const orch = yield* createOrchestrator({ store: f.store, agent: f.agent, hub: f.hub })
       yield* orch.resumeQueues()
@@ -776,6 +782,13 @@ test("a child's question reaches its parent when its turn ends, while its backgr
       f.hub.setBackgroundTasks(f.child.id, [
         { id: 'monitor', label: 'Watching the build', startedAt: Date.now() },
       ])
+      yield* f.store.setQueuePaused(f.child.id, true)
+      yield* f.store.enqueue(f.child.id, {
+        id: newId(),
+        text: 'Follow up later',
+        createdAt: Date.now(),
+        hop: 0,
+      })
       yield* f.store.askParent(f.child.id, 'Which database should I use?')
       yield* say(f.turn, 'Asked my parent.')
       yield* endTurn(f.turn)

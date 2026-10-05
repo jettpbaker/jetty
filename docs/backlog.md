@@ -186,8 +186,7 @@ Everything below is for one combined review of the chat, not separate ports.
   second; a restart mid group Resume strands members not yet prepared; Archive/Delete
   during a group Resume waits for it instead of cancelling; thread ids that differ only
   by case share a worktree on a case-insensitive disk, and long ids can't make one.
-- Children (`store.ts`, `orchestrator.ts`): a paused queued follow-up stops a child's
-  ask_parent or pause note reaching the parent; a Codex async answer whose setup fails
+- Children (`store.ts`, `orchestrator.ts`): a Codex async answer whose setup fails
   loses the continuation; a child reports finished while its own child still runs; a
   woken background subagent can still produce a second report; a turn whose end fails
   to save never reports after storage recovers.

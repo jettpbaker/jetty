@@ -523,7 +523,18 @@ export function createStore() {
         if (!question && (working || !(yield* notifiesParent(threadId))))
           return { delivered: false }
         const { state } = yield* loadThread(threadId)
-        if (state.activeTurnId || thread.pendingMessages?.length) return { delivered: false }
+        if (state.activeTurnId) return { delivered: false }
+        const turn = yield* latestFinishedTurn(threadId)
+        if (!turn || (!question && turn.initiator_thread_id !== thread.parentThreadId))
+          return { delivered: false }
+        const event = JSON.parse(turn.payload_json) as Extract<
+          ThreadEvent,
+          { type: 'turn.completed' | 'turn.failed' }
+        >
+        const paused =
+          heldByRestarts(state.items) ||
+          (event.type === 'turn.failed' && event.error === 'server_restarted')
+        if (!question && !paused && thread.pendingMessages?.length) return { delivered: false }
         if (
           !question &&
           state.items.some(
@@ -531,9 +542,6 @@ export function createStore() {
               (item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running'
           )
         )
-          return { delivered: false }
-        const turn = yield* latestFinishedTurn(threadId)
-        if (!turn || (!question && turn.initiator_thread_id !== thread.parentThreadId))
           return { delivered: false }
         // A turn that ended asking the user (Codex's async questions) carries on with their answer.
         if (
@@ -576,10 +584,6 @@ export function createStore() {
           yield* sql`UPDATE threads SET parent_question = NULL WHERE id = ${threadId}`
           return { delivered: false, note }
         }
-        const event = JSON.parse(turn.payload_json) as Extract<
-          ThreadEvent,
-          { type: 'turn.completed' | 'turn.failed' }
-        >
         // The restart guard can hold a turn that completed while its background work ran.
         const outcome: ReportOutcome = question
           ? { type: 'asked', question }
