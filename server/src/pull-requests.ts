@@ -2036,6 +2036,29 @@ export function createPullRequests(store: Store, hub: Hub) {
     )
   }
 
+  function pollingGraphs(refs: readonly PullRequestRef[], fields: string) {
+    return Effect.promise(async () => {
+      try {
+        return await fetchGraphqlBatch(refs, fields)
+      } catch (error) {
+        const failure =
+          error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+        return refs.map(() => failure)
+      }
+    })
+  }
+
+  function publishPollFailure(ref: PullRequestRef, failure: GhFailure, fetchedRevision: number) {
+    return Effect.gen(function* () {
+      const snapshot = yield* get(ref)
+      yield* publish(
+        ref,
+        { ...snapshot, status: failure.kind, error: failure.message },
+        fetchedRevision
+      )
+    })
+  }
+
   // The checks query also carries what change detection compares, so it stands in for it, and
   // merge readiness, which checks finishing (or GitHub settling an UNKNOWN) changes without
   // touching updatedAt.
@@ -2053,10 +2076,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         lastDetection.set(key, Date.now())
         return revision(key)
       })
-      const graphs = yield* Effect.tryPromise({
-        try: () => fetchGraphqlBatch(due, pullRequestChecksFields),
-        catch: (error) => new StoreError('internal', String(error)),
-      }).pipe(
+      const graphs = yield* pollingGraphs(due, pullRequestChecksFields).pipe(
         Effect.ensuring(
           Effect.sync(() => {
             for (const ref of due) checking.delete(prKey(ref))
@@ -2065,8 +2085,12 @@ export function createPullRequests(store: Store, hub: Hub) {
       )
       for (const [index, ref] of due.entries()) {
         const graph = graphs[index]
+        if (graph instanceof GhFailure) {
+          yield* publishPollFailure(ref, graph, fetchedRevisions[index]!)
+          continue
+        }
         const snapshot = yield* get(ref)
-        if (!graph || graph instanceof GhFailure || !snapshot.data) continue
+        if (!graph || !snapshot.data) continue
         if (changed(graph, snapshot.data)) {
           void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
           continue
@@ -2123,13 +2147,17 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   function detectChanges(refs: readonly PullRequestRef[]) {
     return Effect.gen(function* () {
-      const graphs = yield* Effect.promise(() => fetchGraphqlBatch(refs, pullRequestStateFields))
+      const fetchedRevisions = refs.map((ref) => revision(prKey(ref)))
+      const graphs = yield* pollingGraphs(refs, pullRequestStateFields)
       const checks: PullRequestRef[] = []
       const reads = new Set<string>()
       for (const [index, ref] of refs.entries()) {
         const graph = graphs[index]!
         const snapshot = yield* get(ref)
-        if (graph instanceof GhFailure) continue
+        if (graph instanceof GhFailure) {
+          yield* publishPollFailure(ref, graph, fetchedRevisions[index]!)
+          continue
+        }
         if (!snapshot.data || changed(graph, snapshot.data)) {
           reads.add(prKey(ref))
           void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
