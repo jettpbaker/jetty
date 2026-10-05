@@ -9,6 +9,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 import { ListFilterIcon } from './huge_icons'
 import { Settings2Icon } from './lucide_icons'
@@ -29,20 +30,27 @@ export function ListFilterMenu<T extends string>({
   const active = selected.length !== choices.length
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant='ghost'
-            tone='muted'
-            size='icon'
-            className='relative'
-            aria-label='Filter'
-          />
-        }
-      >
-        <ListFilterIcon />
-        {active && <span className='absolute top-1 right-1 size-1 rounded-full bg-primary' />}
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  tone='muted'
+                  size='icon'
+                  className='relative'
+                  aria-label='Filter'
+                />
+              }
+            />
+          }
+        >
+          <ListFilterIcon />
+          {active && <span className='absolute top-1 right-1 size-1 rounded-full bg-primary' />}
+        </TooltipTrigger>
+        <TooltipContent>Filter</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align='end' className='w-44'>
         <DropdownMenuGroup>
           <DropdownMenuLabel>{label}</DropdownMenuLabel>
@@ -73,11 +81,18 @@ export function ListGroupMenu<T extends string>({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant='ghost' tone='muted' size='icon' aria-label='Group by' />}
-      >
-        <Settings2Icon />
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant='ghost' tone='muted' size='icon' aria-label='Group by' />}
+            />
+          }
+        >
+          <Settings2Icon />
+        </TooltipTrigger>
+        <TooltipContent>Group by</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align='end' className='w-44'>
         <DropdownMenuRadioGroup
           value={value}
