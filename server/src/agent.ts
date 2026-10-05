@@ -1,8 +1,7 @@
-import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
+import type { ContextUsage, EffortLevel, ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type {
   BackgroundTask,
-  EffortLevel,
   PermissionMode,
   ProviderModel,
   UploadAttachment,

@@ -1,6 +1,12 @@
 import { Effect, Schema } from 'effect'
 
-import { ContextUsage, SessionStatus, ThreadEvent, type SequencedEvent } from './events'
+import {
+  ContextUsage,
+  SessionStatus,
+  ThreadEvent,
+  TurnLoadout,
+  type SequencedEvent,
+} from './events'
 import { ThreadItem } from './items'
 
 export const TurnOutcome = Schema.Literals([
@@ -20,6 +26,9 @@ export const ThreadState = Schema.Struct({
   turnOutcomes: Schema.Record(Schema.String, TurnOutcome).pipe(
     Schema.withDecodingDefault(Effect.succeed({}))
   ),
+  turnLoadouts: Schema.Record(Schema.String, TurnLoadout).pipe(
+    Schema.withDecodingDefault(Effect.succeed({}))
+  ),
   lastTurnOutcome: Schema.NullOr(TurnOutcome).pipe(
     Schema.withDecodingDefault(Effect.succeed(null))
   ),
@@ -33,6 +42,7 @@ export const emptyThread: ThreadState = {
   lastSeq: 0,
   context: null,
   turnOutcomes: {},
+  turnLoadouts: {},
   lastTurnOutcome: null,
 }
 
@@ -44,7 +54,15 @@ export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEven
 function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState {
   switch (event.type) {
     case 'turn.started':
-      return { ...state, activeTurnId: event.turnId, lastTurnOutcome: null, status: 'running' }
+      return {
+        ...state,
+        activeTurnId: event.turnId,
+        lastTurnOutcome: null,
+        status: 'running',
+        ...(event.loadout && {
+          turnLoadouts: { ...state.turnLoadouts, [event.turnId]: event.loadout },
+        }),
+      }
     case 'turn.completed':
     case 'turn.failed':
       const outcome = turnOutcome(event)

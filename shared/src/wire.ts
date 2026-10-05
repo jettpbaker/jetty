@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
-import { SessionStatus } from './events'
+import { EffortLevel, SessionStatus } from './events'
 import { ApprovalDecision, Attachment } from './items'
 import {
   GitHubActivity,
@@ -24,9 +24,6 @@ export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
 export const PermissionMode = Schema.Literals(['auto', 'full_access'])
 export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
-
-export const EffortLevel = Schema.Literals(['low', 'medium', 'high', 'xhigh', 'max'])
-export type EffortLevel = Schema.Schema.Type<typeof EffortLevel>
 
 // Echo stays off this list: it is the test double, not a choice.
 export const ProviderId = Schema.Literals(['claude', 'codex', 'grok'])

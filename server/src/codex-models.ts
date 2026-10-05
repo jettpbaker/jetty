@@ -1,6 +1,6 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
-import { EffortLevel } from '@jetty/shared/wire'
+import { EffortLevel } from '@jetty/shared/events'
 import { Effect, Schema } from 'effect'
 
 import { openCodexConnection } from './codex-rpc'

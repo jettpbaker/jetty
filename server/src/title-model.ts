@@ -1,7 +1,8 @@
+import type { EffortLevel } from '@jetty/shared/events'
+
 import {
   resolveTitleEffort,
   resolveTitleModel,
-  type EffortLevel,
   type ProviderId,
   type ProviderModel,
   type TitleModel,

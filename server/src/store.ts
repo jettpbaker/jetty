@@ -1,11 +1,10 @@
-import { ThreadEvent, type SessionStatus } from '@jetty/shared/events'
+import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment } from '@jetty/shared/items'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
   agentBehaviours,
   type AgentBehaviourKey,
   type AgentBehaviours,
-  EffortLevel,
   newId,
   type ErrorCode,
   ModelRef,

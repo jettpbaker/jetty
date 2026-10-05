@@ -12,6 +12,17 @@ export const SessionStatus = Schema.Literals([
 ])
 export type SessionStatus = Schema.Schema.Type<typeof SessionStatus>
 
+export const EffortLevel = Schema.Literals(['low', 'medium', 'high', 'xhigh', 'max'])
+export type EffortLevel = Schema.Schema.Type<typeof EffortLevel>
+
+// What a turn ran on, kept per turn since the thread's loadout can change after it.
+export const TurnLoadout = Schema.Struct({
+  model: Schema.String,
+  effort: Schema.optional(EffortLevel),
+  fast: Schema.optional(Schema.Boolean),
+})
+export type TurnLoadout = Schema.Schema.Type<typeof TurnLoadout>
+
 export const Usage = Schema.Struct({
   inputTokens: Schema.Natural,
   outputTokens: Schema.Natural,
@@ -35,7 +46,11 @@ export const ContextUsage = Schema.Struct({
 export type ContextUsage = Schema.Schema.Type<typeof ContextUsage>
 
 export const ThreadEvent = Schema.Union([
-  Schema.Struct({ type: Schema.Literal('turn.started'), turnId: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('turn.started'),
+    turnId: Schema.String,
+    loadout: Schema.optional(TurnLoadout),
+  }),
   Schema.Struct({
     type: Schema.Literal('turn.completed'),
     turnId: Schema.String,

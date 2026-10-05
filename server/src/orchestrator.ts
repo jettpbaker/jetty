@@ -1,7 +1,6 @@
-import type { ThreadEvent } from '@jetty/shared/events'
+import type { EffortLevel, ThreadEvent } from '@jetty/shared/events'
 import type { ApprovalDecision, Attachment } from '@jetty/shared/items'
 import type {
-  EffortLevel,
   PermissionMode,
   ProviderId,
   QueuedMessage,
@@ -599,8 +598,17 @@ export function createOrchestrator({
               const turnId = newId()
               live.turnId = turnId
               live.ready = false
+              const loadout = input.model && {
+                model: input.model,
+                effort: input.effort,
+                fast: input.fast,
+              }
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
-                append(input.threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
+                append(
+                  input.threadId,
+                  loadout && event.type === 'turn.started' ? { ...event, loadout } : event,
+                  onCommit
+                ).pipe(Effect.mapError(toAgentError))
               const turn = yield* appendUser(
                 input.threadId,
                 turnId,

@@ -5,8 +5,9 @@ import {
   BatteryMedium02Icon,
   BatteryFullIcon,
 } from '@/components/custom/huge_icons'
+import { EffortLevel } from '@jetty/shared/events'
 import { findProviderModel } from '@jetty/shared/model-name'
-import { EffortLevel, ProviderId, type ProviderModel } from '@jetty/shared/wire'
+import { ProviderId, type ProviderModel } from '@jetty/shared/wire'
 import { Schema } from 'effect'
 
 export type Loadout = {
