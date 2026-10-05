@@ -160,13 +160,18 @@ export function KeybindChip({
     <Kbd
       aria-label={binding.label}
       className={cn(
-        'keybind-chip h-4 min-w-4 rounded-[3px] bg-foreground/8 px-1 font-sans text-[10px] font-normal leading-none text-muted-foreground',
+        'keybind-chip h-4 min-w-4 gap-0 rounded-[3px] bg-foreground/8 px-1 font-sans text-[10px] font-normal leading-none text-muted-foreground',
         // Kbd clears its fill inside tooltips; a chip keeps it everywhere.
         'in-data-[slot=tooltip-content]:min-w-4 in-data-[slot=tooltip-content]:bg-foreground/8 in-data-[slot=tooltip-content]:px-1',
         className
       )}
     >
-      {label}
+      {/* One fixed cell per key, like a macOS menu, so ⌥⌘M and ⌥⌘E are the same width. */}
+      {[...label].map((key, index) => (
+        <span key={index} className='inline-block min-w-[0.9em] text-center'>
+          {key}
+        </span>
+      ))}
     </Kbd>
   )
 }
