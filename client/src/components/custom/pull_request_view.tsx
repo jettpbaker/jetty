@@ -9,6 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { pressProps } from '@/lib/press'
 import { perf } from '@/perf'
 import {
   usePullRequest,
@@ -104,15 +107,46 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
   )
 }
 
+// Cached data stays on screen when a refresh fails, so say so: its checks and reviews may be stale.
+function RefreshFailed({ link, error }: { link: PullRequestAddress; error: string }) {
+  const refresh = useRefreshPullRequest()
+  const { refreshing } = usePullRequest(link)
+  return (
+    <div className='flex items-center gap-2'>
+      <span className='hidden text-xs text-muted-foreground @md:inline'>Couldn’t refresh</span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              tone='muted'
+              size='icon'
+              aria-label='Retry'
+              aria-busy={refreshing}
+              disabled={refreshing}
+              {...pressProps(() => refresh(link))}
+            />
+          }
+        >
+          {refreshing ? <Spinner className='size-3' /> : <Refresh01Icon />}
+        </TooltipTrigger>
+        <TooltipContent>{error}</TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
 export function PullRequestView({
   data,
   link,
+  refreshFailed,
   standalone = false,
   threads,
   threadId,
 }: {
   data: PullRequestData
   link: PullRequestAddress
+  refreshFailed?: string
   standalone?: boolean
   threads: readonly LinkedThread[]
   threadId?: string
@@ -150,10 +184,12 @@ export function PullRequestView({
       ref: link,
       actions,
       threads,
+      status:
+        refreshFailed === undefined ? null : <RefreshFailed link={link} error={refreshFailed} />,
       more: <MoreMenu link={link} threadId={threadId} />,
       sidebar: standalone ? <PageSidebarTrigger /> : null,
     }),
-    [link, actions, threads, threadId, standalone]
+    [link, actions, threads, refreshFailed, threadId, standalone]
   )
   useLayoutEffect(() => perf.rendered('pr.open'), [])
   return (
@@ -194,6 +230,9 @@ export function LivePullRequestView({
           key={pullRequestKey(link)}
           data={snapshot.data}
           link={link}
+          refreshFailed={
+            failure ? (snapshot.error ?? unavailableTitle[snapshot.status]) : undefined
+          }
           standalone={standalone}
           threads={linkedThreads}
           threadId={threadId}

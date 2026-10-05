@@ -1806,7 +1806,7 @@ const MemoizedActivity = memo(Activity)
 
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
-  const { actions, ref, more, sidebar } = usePrRuntime()
+  const { actions, ref, status, more, sidebar } = usePrRuntime()
   useNow(60_000)
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
@@ -1975,6 +1975,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       ))}
                     </nav>
                     <div className='ml-auto flex items-center gap-1'>
+                      {status}
                       {pr.state === 'draft' ? (
                         <Button
                           size='sm'

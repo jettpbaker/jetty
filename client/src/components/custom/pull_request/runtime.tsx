@@ -9,6 +9,7 @@ export type PrRuntime = {
   ref: PullRequestRef
   actions: ReturnType<typeof usePullRequestActions>
   threads: readonly LinkedThread[]
+  status: ReactNode
   more: ReactNode
   sidebar: ReactNode
 }
