@@ -318,7 +318,11 @@ export function Comment({
   return (
     <div className='py-3'>
       <div className='mb-2 flex items-center gap-2 text-xs'>
-        <PersonAvatar login={comment.author.login} className='size-5' />
+        <PersonAvatar
+          login={comment.author.login}
+          src={comment.author.avatarUrl || undefined}
+          className='size-5'
+        />
         <span>{personName(comment.author)}</span>
         <Ago at={comment.createdAt} raised />
         {menu && <span className='ml-auto'>{menu}</span>}
