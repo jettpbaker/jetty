@@ -139,3 +139,35 @@ test('a missing head repository cannot claim a linked thread', async () => {
   }
   expect((await f.change(previous)).pending).toBeUndefined()
 })
+
+for (const continuous of [false, true]) {
+  test(`a fresh review after a quiet day ${continuous ? 'wakes a continuously watched PR' : 'establishes a baseline after sleep'}`, async () => {
+    const f = await setup()
+    const owner = await f.thread('owner/repo')
+    if (continuous) await f.runtime.runPromise(f.watch.observed({ repo: 'owner/repo', number: 1 }))
+    const memory = await f.change(data(), Date.now() - 25 * 60 * 60_000)
+    expect(memory.pending?.threadId).toBe(continuous ? owner.id : undefined)
+    expect(memory.observedAt).toBeGreaterThan(Date.now() - 10_000)
+  })
+}
+
+test('continuous observations still exclude individual comments older than a day', async () => {
+  const f = await setup()
+  await f.thread('owner/repo')
+  const ref = { repo: 'owner/repo', number: 1 }
+  const previous = data()
+  const snapshot = {
+    ...ref,
+    status: 'ready' as const,
+    data: previous,
+    refreshedAt: Date.now() - 25 * 60 * 60_000,
+  }
+  await f.runtime.runPromise(f.store.savePullRequest(snapshot))
+  await f.runtime.runPromise(f.watch.observed(ref))
+  await f.runtime.runPromise(
+    f.watch.changed(ref, snapshot, commented(previous, Date.now() - 25 * 60 * 60_000))
+  )
+  expect(
+    (await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))).pending
+  ).toBeUndefined()
+})

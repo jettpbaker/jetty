@@ -266,6 +266,7 @@ function fold(activity: readonly PullRequestActivity[]) {
 export type PullRequestWatchMemory = {
   // Keys of changes already told, newest last.
   fired: string[]
+  observedAt?: number
   // Checks failed since they last passed.
   failing?: boolean
   // When it woke its thread in the last hour.
@@ -379,17 +380,33 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
     }),
     // Whether PR reads should pass their previous snapshot to changed.
     watching: store.getAgentBehaviours().pipe(Effect.map((settings) => settings.watchPullRequests)),
+    observed(ref: PullRequestRef) {
+      return Effect.gen(function* () {
+        if (!(yield* store.getAgentBehaviours()).watchPullRequests) return
+        const memory = yield* store.pullRequestWatch(ref.repo, ref.number)
+        yield* store.savePullRequestWatch(ref.repo, ref.number, {
+          ...memory,
+          observedAt: Date.now(),
+        })
+      }).pipe(store.transaction)
+    },
     changed(ref: PullRequestRef, previous: PullRequestSnapshot, next: PullRequestData) {
       return Effect.gen(function* () {
-        if (!previous.data || Date.now() - (previous.refreshedAt ?? 0) > STALE_MS) return
+        if (!previous.data) return
         const settings = yield* store.getAgentBehaviours()
         if (!settings.watchPullRequests) return
-        const memory = yield* store.pullRequestWatch(ref.repo, ref.number)
+        const saved = yield* store.pullRequestWatch(ref.repo, ref.number)
+        const now = Date.now()
+        const memory = { ...saved, observedAt: now }
+        if (now - Math.max(saved.observedAt ?? 0, previous.refreshedAt ?? 0) > STALE_MS) {
+          yield* store.savePullRequestWatch(ref.repo, ref.number, memory)
+          return
+        }
         const seen = new Set(memory.fired)
         const changes = pullRequestChanges(
           previous.data,
           next,
-          (previous.refreshedAt ?? 0) - LATE_MS,
+          Math.max((previous.refreshedAt ?? 0) - LATE_MS, now - STALE_MS),
           memory.failing ?? false
         ).filter(
           (change) =>
@@ -400,11 +417,10 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
           (memory.failing || changes.some((change) => change.activity.type === 'checks_failed'))
         const thread = changes.length ? yield* owner(ref, next) : undefined
         if (!thread) {
-          if (failing !== Boolean(memory.failing))
-            yield* store.savePullRequestWatch(ref.repo, ref.number, {
-              ...memory,
-              failing: failing || undefined,
-            })
+          yield* store.savePullRequestWatch(ref.repo, ref.number, {
+            ...memory,
+            failing: failing || undefined,
+          })
           return
         }
         for (const change of changes) for (const each of change.keys) seen.add(each)

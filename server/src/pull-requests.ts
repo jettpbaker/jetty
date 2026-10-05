@@ -1652,6 +1652,7 @@ function prKey(ref: PullRequestRef) {
 
 type PullRequestObserver = {
   watching: Effect.Effect<boolean, StoreError>
+  observed: (ref: PullRequestRef) => Effect.Effect<void, StoreError>
   changed: (
     ref: PullRequestRef,
     previous: PullRequestSnapshot,
@@ -1862,7 +1863,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         yield* store.transaction(
           Effect.gen(function* () {
             const previous =
-              observer && fetched.data && (yield* observer.watching)
+              observer && fetched.status === 'ready' && fetched.data && (yield* observer.watching)
                 ? yield* store.getPullRequest(ref.repo, ref.number)
                 : undefined
             yield* store.savePullRequest(fetched)
@@ -2181,6 +2182,7 @@ export function createPullRequests(store: Store, hub: Hub) {
           snapshot.status !== 'ready'
         )
           checks.push(ref)
+        else if (observer) yield* observer.observed(ref)
       }
       yield* refreshChecks(checks)
       return reads
