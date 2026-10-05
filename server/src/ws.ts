@@ -306,8 +306,11 @@ export function createRpcHandlers(
           const existing = yield* store.getThread(params.id)
           if (existing?.projectId === params.projectId) return { thread: existing }
           const project = yield* requireProject(params.projectId)
+          const environment =
+            params.environment ??
+            (yield* fromPromise(() => worktrees.defaultEnvironment(project.path)))
           const baseCommit =
-            (params.environment ?? 'worktree') === 'worktree'
+            environment === 'worktree'
               ? yield* fromPromise(() => worktrees.resolveRef(project.path, params.ref))
               : undefined
           const thread = yield* upsertThread(

@@ -1,5 +1,5 @@
 import type { Connection } from '@/net/connection'
-import type { Project, ProjectIcon } from '@jetty/shared/wire'
+import type { Project, ProjectIcon, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect, Fiber } from 'effect'
 import { type AtomRegistry } from 'effect/reactivity'
@@ -20,6 +20,7 @@ import {
 import { run, useAction } from './connection'
 
 type Registry = AtomRegistry.AtomRegistry
+type Environment = ThreadMeta['environment']
 
 function markThreadSeen(registry: Registry, threadId: string) {
   setPatch(registry, threadId, { readyForReview: false })
@@ -54,10 +55,13 @@ export function awaitCreation(threadId: string) {
   return creation ? Fiber.join(creation) : Effect.void
 }
 
+// Without a picked environment the server applies the project's default, which the composer may
+// not know yet; `shown`, its best guess, stands in until the server answers.
 function createThread(
   registry: Registry,
   projectId: string,
-  environment: 'local' | 'worktree' = 'worktree',
+  environment: Environment | undefined,
+  shown: Environment,
   ref?: string
 ) {
   const id = crypto.randomUUID()
@@ -65,9 +69,9 @@ function createThread(
     new Map(threads).set(id, {
       id,
       projectId,
-      environment,
+      environment: shown,
       // Known before the server answers, so the chat reads "Setting up worktree" from the first frame.
-      ...(environment === 'worktree' && {
+      ...(shown === 'worktree' && {
         worktree: { state: 'pending', error: null, branch: null },
       }),
       title: 'New thread',

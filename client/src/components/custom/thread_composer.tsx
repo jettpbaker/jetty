@@ -229,8 +229,10 @@ export function ThreadComposer({
 
   // In the background, the new-thread page stays put with its picks for the next prompt.
   function startTurn(text: string, background: boolean) {
+    const chosen = noGit ? 'local' : target?.environment
     const id =
-      threadId ?? (projectId ? createThread(projectId, environment, startingRef) : undefined)
+      threadId ??
+      (projectId ? createThread(projectId, chosen, environment, startingRef) : undefined)
     if (!id) return
     const kept = read().target
     setDraft('')
