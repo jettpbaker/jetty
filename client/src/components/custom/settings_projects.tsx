@@ -59,9 +59,7 @@ export function SettingsProjects() {
                 </div>
               </td>
               <td className='px-2 py-3 font-mono text-xs text-muted-foreground'>
-                <span className='block truncate' title={project.path}>
-                  {project.path}
-                </span>
+                <ProjectPath path={project.path} />
               </td>
               <td className='py-3 text-right'>
                 <Button
@@ -99,5 +97,16 @@ export function SettingsProjects() {
         onAdd={(path) => createProject(path)}
       />
     </div>
+  )
+}
+
+// The folder name is what tells projects apart, so a long path gives way before it does.
+function ProjectPath({ path }: { path: string }) {
+  const slash = path.lastIndexOf('/', path.length - 2)
+  return (
+    <span className='flex min-w-0' title={path}>
+      <span className='truncate'>{path.slice(0, slash)}</span>
+      <span className='max-w-full shrink-0 truncate'>{path.slice(slash)}</span>
+    </span>
   )
 }
