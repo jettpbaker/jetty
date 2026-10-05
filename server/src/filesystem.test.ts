@@ -89,6 +89,36 @@ describe('Effect filesystem services', () => {
     )
   })
 
+  test('file search reuses its filename index briefly, then picks up new files', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          yield* git(root, ['init'])
+          yield* fs.writeFileString(root + '/alpha.txt', 'a')
+          const real = yield* ChildProcessSpawner.ChildProcessSpawner
+          let enumerations = 0
+          const spawner = ChildProcessSpawner.make((command) => {
+            enumerations++
+            return real.spawn(command)
+          })
+          const search = (query: string) =>
+            searchFiles(root, query).pipe(
+              Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+            )
+          expect(yield* search('a')).toEqual(['alpha.txt'])
+          expect(yield* search('alp')).toEqual(['alpha.txt'])
+          expect(enumerations).toBe(1)
+          yield* fs.writeFileString(root + '/beta.txt', 'b')
+          yield* Effect.sleep('2100 millis')
+          expect(yield* search('bet')).toEqual(['beta.txt'])
+          expect(enumerations).toBe(2)
+        })
+      )
+    )
+  })
+
   test('diff includes staged and untracked changes in an unborn repository but excludes ignored files', async () => {
     await run(
       Effect.scoped(

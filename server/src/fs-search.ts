@@ -1,5 +1,6 @@
 import { Context, Effect, Layer } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
+import { setImmediate } from 'node:timers/promises'
 
 import { git } from './git-process'
 
@@ -36,28 +37,93 @@ export function fuzzyMatch(path: string, query: string): number | null {
   return score + basenameHits * 10 - p.length * 0.001
 }
 
+type Candidate = { path: string; score: number }
+
+function compare(a: Candidate, b: Candidate) {
+  return b.score - a.score || a.path.localeCompare(b.path)
+}
+
+export function rankFiles(out: string, query: string, limit: number) {
+  return Effect.gen(function* () {
+    const best: Candidate[] = []
+    const count = Math.min(50, Math.max(0, Math.floor(limit)))
+    if (!count || !query) return []
+    let start = 0
+    let scanned = 0
+    while (start < out.length) {
+      const end = out.indexOf('\0', start)
+      const path = out.slice(start, end < 0 ? out.length : end)
+      start = end < 0 ? out.length : end + 1
+      const score = fuzzyMatch(path, query)
+      if (path && score !== null) {
+        const candidate = { path, score }
+        if (best.length < count) {
+          best.push(candidate)
+          let at = best.length - 1
+          while (at > 0) {
+            const parent = (at - 1) >> 1
+            if (compare(best[parent]!, candidate) >= 0) break
+            best[at] = best[parent]!
+            at = parent
+          }
+          best[at] = candidate
+        } else if (compare(candidate, best[0]!) < 0) {
+          let at = 0
+          while (at * 2 + 1 < best.length) {
+            let child = at * 2 + 1
+            if (child + 1 < best.length && compare(best[child + 1]!, best[child]!) > 0) child++
+            if (compare(candidate, best[child]!) >= 0) break
+            best[at] = best[child]!
+            at = child
+          }
+          best[at] = candidate
+        }
+      }
+      if (++scanned % 1000 === 0) yield* Effect.promise(() => setImmediate())
+    }
+    return best.sort(compare).map((candidate) => candidate.path)
+  })
+}
+
+const indexes = new Map<
+  string,
+  { out: string; at: number; spawner: ReturnType<typeof ChildProcessSpawner.make> }
+>()
+const indexFreshMs = 2000
+const maxIndexCharacters = 32 * 1024 * 1024
+
 export function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT) {
   return Effect.gen(function* () {
     if (query.length === 0) return []
-    // -z: real names, not Git's quoted escapes for café.ts or a name with a tab. Untracked files
-    // count too (an agent's new ones), as in the Files tree; ignored ones don't.
-    const { out, code } = yield* git(cwd, [
-      'ls-files',
-      '-z',
-      '--cached',
-      '--others',
-      '--exclude-standard',
-    ])
-    if (code !== 0) return []
-
-    const scored: { path: string; score: number }[] = []
-    for (const path of out.split('\0')) {
-      if (path.length === 0) continue
-      const score = fuzzyMatch(path, query)
-      if (score !== null) scored.push({ path, score })
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const cached = indexes.get(cwd)
+    let out: string
+    if (cached?.spawner === spawner && Date.now() - cached.at < indexFreshMs) out = cached.out
+    else {
+      // Git's NUL-separated names stay in one index; scoring slices them as it yields.
+      const result = yield* git(cwd, [
+        'ls-files',
+        '-z',
+        '--cached',
+        '--others',
+        '--exclude-standard',
+      ])
+      if (result.code !== 0) {
+        indexes.delete(cwd)
+        return []
+      }
+      out = result.out
+      indexes.delete(cwd)
+      let characters = out.length
+      for (const index of indexes.values()) characters += index.out.length
+      for (const [key, index] of indexes) {
+        if (characters <= maxIndexCharacters && indexes.size < 32) break
+        indexes.delete(key)
+        characters -= index.out.length
+      }
+      if (out.length <= maxIndexCharacters) indexes.set(cwd, { out, at: Date.now(), spawner })
     }
-    scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
-    return scored.slice(0, limit).map((s) => s.path)
+    return yield* rankFiles(out, query, limit)
   })
 }
 
