@@ -74,7 +74,8 @@ function usePatchedLines(html: readonly string[], command: boolean, streaming: b
   const code = useRef<HTMLElement>(null)
   const shownElement = useRef<HTMLElement | null>(null)
   const shown = useRef(html)
-  const [born] = useState(() => html.map(() => -Infinity))
+  const born = useRef<number[] | null>(null)
+  if (born.current === null) born.current = html.map(() => -Infinity)
   const [mounted] = useState(() => ({ __html: html.join('') }))
   useLayoutEffect(() => {
     const element = code.current
@@ -94,13 +95,14 @@ function usePatchedLines(html: readonly string[], command: boolean, streaming: b
       if (same < html.length) element.insertAdjacentHTML('beforeend', html.slice(same).join(''))
     }
     const now = performance.now()
+    const births = born.current!
     for (let index = same; index < element.children.length; index++) {
-      const age = now - (born[index] ??= streaming ? now : -Infinity)
+      const age = now - (births[index] ?? (births[index] = streaming ? now : -Infinity))
       if (age >= fadeMs) continue
       element.children[index]!.classList.add('smooth-fade')
       element.children[index]!.setAttribute('style', fadeStyle(age))
     }
-  }, [html, command, streaming, born])
+  }, [html, command, streaming])
   return [code, mounted] as const
 }
 
