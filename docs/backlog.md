@@ -30,13 +30,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   child threads as rows and a quiet footer, was recommended). Needs a
   back-and-forth session with Jett before porting. The panel doesn't get child
   threads or per-PR checks and review state yet.
-- How lists show a PR's checks and review state. The PR list's checks and review
-  columns are gone: five unlabelled glyphs (failing, running, conflict, approved,
-  changes requested) confused more than they told, and didn't look right yet.
-  Worth finding one clear way to communicate it, in the PR list and on sidebar
-  thread rows alike (`/components/thread-row-checks`: red already means a closed
-  PR, so a mark can't just turn red; C, a separate failure disc and count, was
-  recommended, but its running ring is the working-agent glyph).
 - Custom merged and closed PR glyphs drawn on Lucide's open PR icon:
   `/components/pr-state-icons` (family D: merged with filled rings eased a quarter
   unit, closed with the ✕ on the top ring and equal gaps). Tried in the app
