@@ -183,6 +183,12 @@ const migrations = SqliteMigrator.fromRecord({
     parent_question: 'TEXT',
     awaiting_parent: 'INTEGER NOT NULL DEFAULT 0',
   }),
+  // A snapshot from before turn outcomes were tracked kept replaying on its old projection,
+  // without them or item completion times; those rebuild from the event log.
+  '025_rebuild_old_snapshots': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`DELETE FROM thread_states WHERE json_type(state_json, '$.lastTurnOutcome') IS NULL`
+  }),
 })
 
 export function databaseLayer(home: string) {
