@@ -126,7 +126,9 @@ export function foldTodos(items: readonly ThreadItem[]) {
   let run: TodoUpdate | undefined
   for (const item of items) {
     if (item.agentId) continue
-    const after = item.kind === 'tool_call' ? apply(item, todos, newId) : undefined
+    // A failed call changed nothing, so it stays a tool call that shows its error.
+    const after =
+      item.kind === 'tool_call' && item.status !== 'failed' ? apply(item, todos, newId) : undefined
     if (!after) {
       run = undefined
       continue
