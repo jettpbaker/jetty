@@ -110,7 +110,6 @@ function bottomGlide(
   let frame = 0
   let velocity = 0
   let previous = 0
-  let written = Number.NaN
   function tick(now: number) {
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
@@ -129,8 +128,7 @@ function bottomGlide(
   }
   function write(top: number) {
     element.scrollTop = top
-    written = element.scrollTop
-    onWrite(written)
+    onWrite(element.scrollTop)
   }
   return {
     write,
@@ -147,8 +145,6 @@ function bottomGlide(
       velocity = 0
       onRun(false)
     },
-    // Whether a scroll event is the glide's own.
-    owns: (top: number) => Math.abs(top - written) < 1,
   }
 }
 
@@ -472,6 +468,30 @@ export function ThreadList({
   const lastRow = useRef<{ key: unknown; start: number }>(undefined)
   // Where the list was last scrolled to, before any clamp from content that just shrank.
   const shownTop = useRef(0)
+  // When the reader last scrolled with the wheel, a touch or a key, and whether a pointer is down
+  // (the scrollbar, a selection).
+  const byHand = useRef({ at: -Infinity, held: false })
+  useEffect(() => {
+    const element = scroller.current!
+    const scrolled = () => void (byHand.current.at = performance.now())
+    const press = () => void (byHand.current.held = true)
+    const release = () => void (byHand.current.held = false)
+    const options = { passive: true }
+    element.addEventListener('wheel', scrolled, options)
+    element.addEventListener('touchmove', scrolled, options)
+    element.addEventListener('keydown', scrolled)
+    element.addEventListener('pointerdown', press)
+    window.addEventListener('pointerup', release)
+    window.addEventListener('pointercancel', release)
+    return () => {
+      element.removeEventListener('wheel', scrolled)
+      element.removeEventListener('touchmove', scrolled)
+      element.removeEventListener('keydown', scrolled)
+      element.removeEventListener('pointerdown', press)
+      window.removeEventListener('pointerup', release)
+      window.removeEventListener('pointercancel', release)
+    }
+  }, [])
   const pin = useCallback((value: boolean) => {
     pinned.current = value
     if (!value) glider.current?.stop()
@@ -600,13 +620,15 @@ export function ThreadList({
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
           onScroll={({ currentTarget: element }) => {
-            const shown = shownTop.current
+            // Only the reader's own scroll up lets go. The browser moves the list up too, clamping
+            // it to content that shrank for a layout, and the glide can trail the bottom.
+            const up = element.scrollTop < shownTop.current - 1
+            const hand = byHand.current.held || performance.now() - byHand.current.at < 500
+            const behind = element.scrollHeight - element.clientHeight - element.scrollTop
             shownTop.current = element.scrollTop
-            if (glider.current?.owns(element.scrollTop)) return
-            if (element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack)
-              pin(true)
-            // Only the reader moves a pinned list up; while it glides it can trail the bottom.
-            else if (element.scrollTop < shown - 1) pin(false)
+            if (up && hand) pin(false)
+            // Coming back down near the bottom holds on, as does being clamped right onto it.
+            else if (behind < (up ? 1 : pinSlack)) pin(true)
           }}
         >
           <div className='relative w-full' style={{ height: totalSize }}>
