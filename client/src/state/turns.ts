@@ -319,6 +319,15 @@ export function useThreadLoadout(threadId: string | undefined) {
   return { loadout: override ?? saved, lockedProvider: thread?.provider, setLoadout }
 }
 
+// What the user just sent, shown as sent while the server holds it in the queue for a moment.
+export function useSendingTexts(threadId: string | undefined) {
+  const prompts = useAtomValue(pendingPromptsAtom)
+  return useMemo(
+    () => (prompts.get(threadId ?? '') ?? []).map((prompt) => prompt.text),
+    [prompts, threadId]
+  )
+}
+
 export function useDraftEpoch() {
   return useAtomValue(draftEpochAtom)
 }

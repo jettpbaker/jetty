@@ -74,6 +74,7 @@ export {
   useInterruptTurn,
   useRespondApproval,
   useRespondQuestion,
+  useSendingTexts,
   useSendTurn,
   useStopWorkflow,
   useThreadLoadout,

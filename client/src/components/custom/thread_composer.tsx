@@ -21,7 +21,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { newThreadProject } from '@/lib/thread_project'
-import { settingUpWorktree, threadBranch } from '@/lib/thread_worktree'
+import { threadBranch } from '@/lib/thread_worktree'
 import {
   useAccessMode,
   useChrome,
@@ -33,6 +33,7 @@ import {
   useQueueActions,
   useRespondApproval,
   useRespondQuestion,
+  useSendingTexts,
   useSendTurn,
   useThreadLoadout,
   useThreadQueue,
@@ -109,12 +110,19 @@ export function ThreadComposer({
     update({ target: { ...read().target, ...patch } })
   }
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
-  const settingUp = settingUpWorktree(meta)
-  // While the worktree sets up, the first message already shows as sent; only follow-ups queue.
+  const sending = useSendingTexts(threadId)
+  // A message just sent already shows as sent, though the server queues it for a moment (or
+  // until the worktree is ready); only real follow-ups belong in the tray.
   const queue = useMemo(() => {
-    const own = queued.filter((entry) => !entry.from)
-    return settingUp ? own.slice(1) : own
-  }, [queued, settingUp])
+    const unclaimed = [...sending]
+    return queued.filter((entry) => {
+      if (entry.from) return false
+      const index = unclaimed.indexOf(entry.text)
+      if (index === -1) return true
+      unclaimed.splice(index, 1)
+      return false
+    })
+  }, [queued, sending])
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
 
