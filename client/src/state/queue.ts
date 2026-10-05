@@ -6,7 +6,7 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
-import { Effect, Exit, Fiber } from 'effect'
+import { Effect, Equal, Exit, Fiber } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
@@ -344,9 +344,14 @@ function threadMeta(get: Atom.AtomContext, threadId: string) {
   return get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
 }
 
-// Per thread, so a change to another thread's chrome doesn't re-render this one's chat.
+// Per thread and by value, so a chrome update that leaves this thread's queue as it was (each
+// status change brings a fresh copy) doesn't rebuild the chat's rows.
 const pendingMessagesAtom = Atom.family((threadId: string) =>
-  Atom.make((get) => threadMeta(get, threadId)?.pendingMessages)
+  Atom.make((get) => threadMeta(get, threadId)?.pendingMessages).pipe(
+    Atom.withEquality<readonly QueuedMessage[] | undefined>(
+      (a, b) => (!a?.length && !b?.length) || Equal.equals(a, b)
+    )
+  )
 )
 const queueHeldAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
