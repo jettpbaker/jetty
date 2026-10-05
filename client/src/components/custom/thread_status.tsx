@@ -9,9 +9,10 @@ import {
   NeedsInputIcon,
   QueuedStatusIcon,
   SuccessStatusIcon,
+  WaitingStatusIcon,
 } from './circle_status_icon'
+import { IdleIcon } from './idle_icon'
 import { InProgressIcon } from './in_progress_icon'
-import { MonitoringIcon } from './monitoring_icon'
 
 // One status vocabulary for threads, child threads and workflow agents.
 export type Status =
@@ -47,10 +48,10 @@ export function threadStatus(status: SessionStatus, readyForReview = false): Thr
 
 export const statusPresentation: Record<
   Status,
-  { icon: ComponentType<SVGProps<SVGSVGElement>> | null; label: string; color: string }
+  { icon: ComponentType<SVGProps<SVGSVGElement>>; label: string; color: string }
 > = {
-  monitoring: { icon: MonitoringIcon, label: 'Monitoring', color: 'text-muted-foreground' },
-  idle: { icon: null, label: 'Idle', color: 'text-muted-foreground' },
+  monitoring: { icon: WaitingStatusIcon, label: 'Waiting', color: 'text-muted-foreground' },
+  idle: { icon: IdleIcon, label: 'Idle', color: 'text-muted-foreground' },
   working: { icon: InProgressIcon, label: 'Working', color: 'text-status-working' },
   'needs-attention': { icon: NeedsInputIcon, label: 'Needs input', color: 'text-status-attention' },
   error: { icon: ErrorStatusIcon, label: 'Error', color: 'text-status-error' },
@@ -62,7 +63,6 @@ export const statusPresentation: Record<
 
 export function StatusGlyph({ status, className }: { status: Status; className?: string }) {
   const { icon: Icon, label, color } = statusPresentation[status]
-  if (!Icon) return null
   return (
     <span
       className={cn('flex size-3.5 shrink-0 items-center justify-center', color, className)}

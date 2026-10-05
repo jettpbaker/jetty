@@ -13,24 +13,15 @@ import { useMemo } from 'react'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { renderWorkingTitle } from './subagent_row'
-import {
-  StatusGlyph,
-  statusPresentation,
-  threadStatus,
-  type Status,
-  type ThreadStatus,
-} from './thread_status'
+import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
-
-// A child that has gone idle has finished its run.
-type ChildStatus = Exclude<Status, 'idle' | 'stopped' | 'queued'>
 
 export type ChildThread = {
   id: string
   title: string
   provider?: ProviderId
   model?: string
-  status: ChildStatus
+  status: ThreadStatus
   updatedAt: number
   run?: { startedAt: number; endedAt?: number }
   archived: boolean
@@ -38,11 +29,14 @@ export type ChildThread = {
 
 type Open = (child: ChildThread) => void
 
-function childStatus(status: ThreadStatus): ChildStatus {
-  return status === 'idle' ? 'done' : status
-}
-
-const statusOrder: ChildStatus[] = ['needs-attention', 'ready', 'working', 'error', 'done']
+const statusOrder: ThreadStatus[] = [
+  'needs-attention',
+  'ready',
+  'working',
+  'error',
+  'monitoring',
+  'idle',
+]
 
 function childThreads(chrome: Chrome | undefined, parentId: string) {
   if (!chrome) return []
@@ -57,7 +51,7 @@ function childThreads(chrome: Chrome | undefined, parentId: string) {
           thread.provider && thread.model
             ? catalogModelName(chrome.models, thread.provider, thread.model)
             : undefined,
-        status: childStatus(threadStatus(thread.status, thread.readyForReview)),
+        status: threadStatus(thread.status, thread.readyForReview),
         updatedAt: thread.updatedAt,
         run:
           thread.turnStartedAt === undefined ||

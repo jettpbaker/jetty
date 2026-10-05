@@ -1,6 +1,5 @@
 import {
   ArrowRight01Icon,
-  CircleIcon,
   Settings01Icon,
   Archive02Icon,
   PencilEdit02Icon,
@@ -340,11 +339,7 @@ export function AppSidebar() {
                       {!item.pinned && !item.archived && grouping === 'project' && (
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
-                      {item.status === 'idle' ? (
-                        <CircleIcon className='size-3 shrink-0' aria-hidden='true' />
-                      ) : (
-                        item.status && <StatusGlyph status={item.status} className='size-3' />
-                      )}
+                      {item.status && <StatusGlyph status={item.status} className='size-3' />}
                       <span className='flex min-w-0 flex-1 items-baseline gap-1'>
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>
                         <span

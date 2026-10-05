@@ -7,7 +7,7 @@ import { catalogModelName } from '@jetty/shared/model-name'
 
 import type { ThreadPullRequest } from './thread_pull_request'
 
-import { threadStatus, type ThreadStatus } from './thread_status'
+import { statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 
 export type ThreadGrouping = 'project' | 'status' | 'date'
 
@@ -96,13 +96,9 @@ function threadPullRequests(links: readonly PullRequestLink[]) {
   }
 }
 
-const statusGroups = [
-  { id: 'needs-attention', label: 'Needs input' },
-  { id: 'ready', label: 'Ready for review' },
-  { id: 'error', label: 'Error' },
-  { id: 'working', label: 'Working' },
-  { id: 'idle', label: 'Idle' },
-] as const
+const statusGroups = (
+  ['needs-attention', 'ready', 'error', 'working', 'monitoring', 'idle'] as const
+).map((id) => ({ id, label: statusPresentation[id].label }))
 
 const dateGroups = [
   { id: 'today', label: 'Today' },
