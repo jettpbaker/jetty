@@ -128,7 +128,7 @@ function useCheckout(projectId?: string): Checkout | undefined {
     : { label: 'Detached HEAD', branch: false }
 }
 
-function ThreadHoverContent({
+export function ThreadHoverContent({
   details,
   model,
   effort,

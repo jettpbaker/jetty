@@ -1,4 +1,5 @@
 import { CodePre } from '@/components/custom/code_block'
+import { EntityLink, entityLinkTag, remarkEntityLinks } from '@/components/custom/entity_link'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
 import { GithubMedia, githubMediaTags, rehypeGithubMedia } from '@/components/custom/github_media'
 import {
@@ -30,7 +31,13 @@ import {
 import 'streamdown/styles.css'
 import { unified, type PluggableList } from 'unified'
 
-const remarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBreaks, remarkFileLinks]
+const remarkPlugins = [
+  ...Object.values(defaultRemarkPlugins),
+  remarkBreaks,
+  remarkFileLinks,
+  remarkEntityLinks,
+]
+const allowedTags = { ...fileLinkTag, ...entityLinkTag }
 function MarkdownImage({
   node: _node,
   src,
@@ -71,6 +78,7 @@ const components = {
     </code>
   ),
   'file-link': FileLink,
+  'entity-link': EntityLink,
   'github-media': GithubMedia,
 }
 // Links open in a new tab; streamdown's confirm modal is a speed bump with no focus handling.
@@ -78,15 +86,15 @@ const linkSafety = { enabled: false }
 
 type SanitizeSchema = { tagNames: string[]; attributes: Record<string, unknown[]> }
 const [sanitize, schema] = defaultRehypePlugins.sanitize as [unknown, SanitizeSchema]
-// Streamdown ignores allowedTags once the pipeline is custom, so file links are listed here too.
+// Streamdown ignores allowedTags once the pipeline is custom, so they're listed here too.
 const githubRehypePlugins = [
   defaultRehypePlugins.raw,
   [
     sanitize,
     {
       ...schema,
-      tagNames: [...schema.tagNames, ...Object.keys(fileLinkTag), ...Object.keys(githubMediaTags)],
-      attributes: { ...schema.attributes, ...fileLinkTag, ...githubMediaTags },
+      tagNames: [...schema.tagNames, ...Object.keys(allowedTags), ...Object.keys(githubMediaTags)],
+      attributes: { ...schema.attributes, ...allowedTags, ...githubMediaTags },
     },
   ],
   defaultRehypePlugins.harden,
@@ -151,7 +159,7 @@ export function Markdown({
     <Streamdown
       className={className}
       components={components}
-      allowedTags={fileLinkTag}
+      allowedTags={allowedTags}
       linkSafety={linkSafety}
       isAnimating={streaming}
       remarkPlugins={remarkPlugins}

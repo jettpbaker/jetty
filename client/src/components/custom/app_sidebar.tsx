@@ -1,5 +1,3 @@
-import type { PullRequestLink } from '@jetty/shared/wire'
-
 import {
   ArrowRight01Icon,
   CircleIcon,
@@ -28,10 +26,8 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useNow } from '@/hooks/use-now'
-import { effortLabels } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
-import { formatAge, formatElapsed } from '@/lib/time'
 import { storage } from '@/platform'
 import {
   useArchiveThread,
@@ -44,10 +40,8 @@ import {
   useThreadRowPrefetch,
   useRenameThread,
   useRefreshPullRequestListsOnArrival,
-  type Chrome,
 } from '@/state'
 import { useWorktreeChanges } from '@/state/worktrees'
-import { catalogModelName } from '@jetty/shared/model-name'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
@@ -58,14 +52,10 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { HoverKeybind, keybinds, typingOutsideComposer } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
-import {
-  groupSidebarThreads,
-  type SidebarThread,
-  type ThreadGrouping,
-} from './sidebar_thread_groups'
+import { groupSidebarThreads, sidebarThreads, type ThreadGrouping } from './sidebar_thread_groups'
 import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
-import { StatusGlyph, threadStatus } from './thread_status'
+import { StatusGlyph } from './thread_status'
 
 const viewKey = 'jetty.sidebar.view'
 
@@ -89,65 +79,6 @@ const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0
 
 const navigationButtonClass =
   'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
-
-function sidebarThreads(chrome: Chrome, now: number): SidebarThread[] {
-  const projects = new Map(chrome.projects.map((project) => [project.id, project]))
-  const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
-  return chrome.threads.map((thread) => ({
-    id: thread.id,
-    title: thread.title,
-    project: projects.get(thread.projectId)?.title ?? '',
-    projectId: thread.projectId,
-    projectIcon: projects.get(thread.projectId)?.icon,
-    parent: thread.parentThreadId && titles.get(thread.parentThreadId),
-    status: threadStatus(thread.status, thread.readyForReview),
-    lastActivity:
-      thread.status === 'monitoring' && thread.backgroundTasks?.length
-        ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
-        : formatAge(thread.updatedAt, now),
-    environment: thread.environment,
-    branch: thread.git?.branch ?? thread.worktree?.branch ?? undefined,
-    updatedAt: thread.updatedAt,
-    pinned: thread.pinned,
-    archived: thread.archived,
-    ...threadPullRequests(thread.pullRequests ?? []),
-    provider: thread.provider,
-    model:
-      thread.provider && thread.model
-        ? catalogModelName(chrome.models, thread.provider, thread.model)
-        : undefined,
-    effort: thread.effort && effortLabels[thread.effort],
-  }))
-}
-
-const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
-
-// Only links GitHub has resolved count; a pending or not-found one mustn't hide the rest.
-// The PR still in flight represents the thread when clicked, newest first within a state.
-function threadPullRequests(links: readonly PullRequestLink[]) {
-  const resolved = links.flatMap((link) =>
-    link.state
-      ? [
-          {
-            repo: link.repo,
-            number: link.number,
-            state: link.state,
-            at: link.updatedAt ?? link.linkedAt,
-          },
-        ]
-      : []
-  )
-  const latest = resolved.reduce<(typeof resolved)[number] | undefined>((best, link) => {
-    if (!best) return link
-    const rank = stateRank[link.state] - stateRank[best.state]
-    if (rank !== 0) return rank < 0 ? link : best
-    return link.at > best.at ? link : best
-  }, undefined)
-  return {
-    pullRequests: resolved.map(({ repo, number, state }) => ({ repo, number, state })),
-    pullRequest: latest && { repo: latest.repo, number: latest.number, state: latest.state },
-  }
-}
 
 export function AppSidebar() {
   const chrome = useChrome()

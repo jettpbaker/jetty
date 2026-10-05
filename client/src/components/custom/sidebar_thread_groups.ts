@@ -1,7 +1,13 @@
-import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
+import type { Chrome } from '@/state'
+import type { ProjectIcon, ProviderId, PullRequestLink } from '@jetty/shared/wire'
+
+import { effortLabels } from '@/lib/loadout'
+import { formatAge, formatElapsed } from '@/lib/time'
+import { catalogModelName } from '@jetty/shared/model-name'
 
 import type { ThreadPullRequest } from './thread_pull_request'
-import type { ThreadStatus } from './thread_status'
+
+import { threadStatus, type ThreadStatus } from './thread_status'
 
 export type ThreadGrouping = 'project' | 'status' | 'date'
 
@@ -25,6 +31,69 @@ export type SidebarThread = {
   provider?: ProviderId
   model?: string
   effort?: string
+}
+
+export function sidebarThreads(
+  chrome: Chrome,
+  now: number,
+  threads = chrome.threads
+): SidebarThread[] {
+  const projects = new Map(chrome.projects.map((project) => [project.id, project]))
+  const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
+  return threads.map((thread) => ({
+    id: thread.id,
+    title: thread.title,
+    project: projects.get(thread.projectId)?.title ?? '',
+    projectId: thread.projectId,
+    projectIcon: projects.get(thread.projectId)?.icon,
+    parent: thread.parentThreadId && titles.get(thread.parentThreadId),
+    status: threadStatus(thread.status, thread.readyForReview),
+    lastActivity:
+      thread.status === 'monitoring' && thread.backgroundTasks?.length
+        ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
+        : formatAge(thread.updatedAt, now),
+    environment: thread.environment,
+    branch: thread.git?.branch ?? thread.worktree?.branch ?? undefined,
+    updatedAt: thread.updatedAt,
+    pinned: thread.pinned,
+    archived: thread.archived,
+    ...threadPullRequests(thread.pullRequests ?? []),
+    provider: thread.provider,
+    model:
+      thread.provider && thread.model
+        ? catalogModelName(chrome.models, thread.provider, thread.model)
+        : undefined,
+    effort: thread.effort && effortLabels[thread.effort],
+  }))
+}
+
+const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
+
+// Only links GitHub has resolved count; a pending or not-found one mustn't hide the rest.
+// The PR still in flight represents the thread when clicked, newest first within a state.
+function threadPullRequests(links: readonly PullRequestLink[]) {
+  const resolved = links.flatMap((link) =>
+    link.state
+      ? [
+          {
+            repo: link.repo,
+            number: link.number,
+            state: link.state,
+            at: link.updatedAt ?? link.linkedAt,
+          },
+        ]
+      : []
+  )
+  const latest = resolved.reduce<(typeof resolved)[number] | undefined>((best, link) => {
+    if (!best) return link
+    const rank = stateRank[link.state] - stateRank[best.state]
+    if (rank !== 0) return rank < 0 ? link : best
+    return link.at > best.at ? link : best
+  }, undefined)
+  return {
+    pullRequests: resolved.map(({ repo, number, state }) => ({ repo, number, state })),
+    pullRequest: latest && { repo: latest.repo, number: latest.number, state: latest.state },
+  }
 }
 
 const statusGroups = [
