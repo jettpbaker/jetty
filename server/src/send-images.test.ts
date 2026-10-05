@@ -105,6 +105,20 @@ describe('send_images', () => {
     expect(events[1]).toEqual({ type: 'item.completed', itemId: started.item.id })
   })
 
+  test("a path into Jetty's attachments gets the attachment id's project check", async () => {
+    const home = tmp('jetty-send-stored-home-')
+    const project = tmp('jetty-send-stored-proj-')
+    const { host, events } = await makeHost(home, project)
+    const stored = join(host.attachments.dir, 'abc123.png')
+    writeFileSync(stored, TINY_PNG_BYTES)
+
+    const result = await (await makeTool(host)).handler({ paths: [stored] }, {})
+
+    expect(result.isError).toBe(true)
+    expect(events).toEqual([])
+    expect(readdirSync(host.attachments.dir)).toEqual(['abc123.png'])
+  })
+
   test('absolute path works', async () => {
     const home = tmp('jetty-send-abs-home-')
     const project = tmp('jetty-send-abs-proj-')

@@ -4,6 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 import { newId } from '@jetty/shared/wire'
 import { Effect, Fiber, Path, Scope } from 'effect'
+import { realpath } from 'node:fs/promises'
 
 import type { Attachments, PersistKind } from './attachments'
 
@@ -39,6 +40,18 @@ export function createMediaSender(host: MediaToolHost) {
     const scope = yield* Scope.Scope
     const path = yield* Path.Path
 
+    // A file in Jetty's own store goes through the project check its attachment id gets.
+    function storedId(source: string) {
+      return Effect.promise(async () => {
+        const [file, dir] = await Promise.all([
+          realpath(source).catch(() => undefined),
+          realpath(host.attachments.dir).catch(() => undefined),
+        ])
+        if (!file || !dir || !file.startsWith(dir + path.sep)) return undefined
+        return path.basename(file).split('.')[0]!
+      })
+    }
+
     function send(request: MediaRequest) {
       return Effect.scoped(
         Effect.gen(function* () {
@@ -60,6 +73,11 @@ export function createMediaSender(host: MediaToolHost) {
           let committed = false
           for (const src of request.paths) {
             const source = path.resolve(host.projectPath, src)
+            const stored = yield* storedId(source)
+            if (stored !== undefined) {
+              media.push(yield* host.resolveAttachment(stored, request.kind))
+              continue
+            }
             media.push(
               yield* Effect.acquireRelease(
                 host.attachments.persistFile(source, request.kind),
