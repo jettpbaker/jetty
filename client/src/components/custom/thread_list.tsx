@@ -38,6 +38,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
+import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { completedAgo, useRevealRow } from '@/state'
 import {
@@ -54,6 +55,9 @@ const pinSlack = 96
 const jumpClearance = 96
 // A first open lays out this many window heights of rows exactly; the rest start rough.
 const exactViewports = 3
+// Rough rows laid out per idle callback: a count, not a deadline, so the work splits the same way
+// every time.
+const refineBatch = 50
 
 // Where each conversation was left, so coming back to it restores the reading position.
 // No anchor means it was at the bottom and should stay stuck there.
@@ -91,13 +95,6 @@ function roughRows(rows: readonly ThreadRow[], width: number) {
     else ids.add(rows[index]!.id)
   }
   return ids
-}
-
-// Safari has no requestIdleCallback; a short timeout with a frame's budget stands in.
-function whenIdle(callback: (until: number) => void) {
-  if ('requestIdleCallback' in window)
-    requestIdleCallback((deadline) => callback(performance.now() + deadline.timeRemaining()))
-  else setTimeout(() => callback(performance.now() + 8), 16)
 }
 
 // Follows a pinned list down as it grows on a critically damped spring, so a line added mid-glide
@@ -571,10 +568,13 @@ export function ThreadList({
     if (rough.size === 0) return
     let index = 0
     let active = true
-    function refine(until: number) {
+    function refine(count: number) {
       const rows = latestRows.current
-      for (; index < rows.length && performance.now() < until; index++)
-        if (rough.has(rows[index]!.id)) estimateRow(rows[index]!, latestWidth.current)
+      for (let done = 0; index < rows.length && done < count; index++)
+        if (rough.has(rows[index]!.id)) {
+          estimateRow(rows[index]!, latestWidth.current)
+          done++
+        }
       return index === rows.length
     }
     function apply() {
@@ -592,8 +592,8 @@ export function ThreadList({
       flushSync(() => setRough(new Set()))
       if (shift && !pinned.current) virtualizer.scrollToOffset(virtualizer.scrollOffset)
     }
-    function step(until: number) {
-      if (!refine(until) || (active && virtualizer.isScrolling && !pinned.current))
+    function step() {
+      if (!refine(refineBatch) || (active && virtualizer.isScrolling && !pinned.current))
         return whenIdle(step)
       if (active) apply()
     }
