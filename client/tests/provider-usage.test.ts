@@ -24,3 +24,11 @@ test('failed usage restores only windows with the same opaque account and organi
   expect(lastGood(previous, failed()).windows).toEqual([])
   expect(lastGood({ ...previous, identity: undefined }, failed()).windows).toEqual([])
 })
+
+test('failed Codex and Grok usage, which carry no identity, restore the same account’s windows', () => {
+  const codex = { ...previous, provider: 'codex' as const, identity: undefined }
+  expect(lastGood(codex, { ...failed(), provider: 'codex' }).windows).toEqual(previous.windows)
+  expect(
+    lastGood(codex, { ...failed(), provider: 'codex', account: 'other@example.com' }).windows
+  ).toEqual([])
+})
