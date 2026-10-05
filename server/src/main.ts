@@ -125,7 +125,11 @@ function reconcileOnStartup(store: Store) {
                     : { status: 'stopped' },
               })
             }
-          if (!state.activeTurnId) return
+          // A turn that ended waiting on stopped background work was cut short too.
+          const cutTurnId =
+            state.activeTurnId ??
+            (stoppedNames.length && !thread.archived ? state.items.at(-1)?.turnId : undefined)
+          if (!cutTurnId) return
           if (!autoResume) yield* store.setQueuePaused(thread.id, true)
           for (const item of state.items) {
             if (item.turnId !== state.activeTurnId) continue
@@ -148,17 +152,18 @@ function reconcileOnStartup(store: Store) {
                 patch: { skipped: true },
               })
           }
-          yield* store.appendEvent(thread.id, {
-            type: 'turn.failed',
-            turnId: state.activeTurnId!,
-            error: 'server_restarted',
-          })
+          if (state.activeTurnId)
+            yield* store.appendEvent(thread.id, {
+              type: 'turn.failed',
+              turnId: state.activeTurnId,
+              error: 'server_restarted',
+            })
           if (!autoResume)
             yield* store.appendEvent(thread.id, {
               type: 'item.started',
               item: {
                 id: newId(),
-                turnId: state.activeTurnId,
+                turnId: cutTurnId,
                 createdAt: Date.now(),
                 kind: 'error',
                 message: RESTART_LIMIT_NOTE,

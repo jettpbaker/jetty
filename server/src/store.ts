@@ -1,5 +1,5 @@
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
-import { Attachment } from '@jetty/shared/items'
+import { Attachment, heldByRestarts } from '@jetty/shared/items'
 import { failedCheckConclusions, rollupChecks } from '@jetty/shared/pull-request'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
@@ -552,15 +552,18 @@ export function createStore() {
           ThreadEvent,
           { type: 'turn.completed' | 'turn.failed' }
         >
+        // The restart guard can hold a turn that completed while its background work ran.
         const outcome: ReportOutcome = question
           ? { type: 'asked', question }
-          : event.type === 'turn.completed'
-            ? { type: 'finished' }
-            : event.error === 'interrupted'
-              ? { type: 'interrupted' }
-              : event.error === 'server_restarted'
-                ? { type: 'paused' }
-                : { type: 'failed', error: event.error }
+          : heldByRestarts(state.items)
+            ? { type: 'paused' }
+            : event.type === 'turn.completed'
+              ? { type: 'finished' }
+              : event.error === 'interrupted'
+                ? { type: 'interrupted' }
+                : event.error === 'server_restarted'
+                  ? { type: 'paused' }
+                  : { type: 'failed', error: event.error }
         const final = state.items.findLast(
           (item) =>
             item.turnId === turn.turn_id &&

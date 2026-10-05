@@ -1,7 +1,8 @@
 import type { FromServerEncoded } from 'effect/rpc/RpcMessage'
 
 import { BunServices } from '@effect/platform-bun'
-import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
+import { heldByRestarts, RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
+import { MAX_IMAGE_BYTES, newId, type QueuedMessage } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { Deferred, Effect } from 'effect'
@@ -908,6 +909,86 @@ describe('server skeleton', () => {
     await c.close()
     await c2.close()
   })
+
+  for (const held of [false, true])
+    test(
+      held
+        ? 'a child the restart guard holds after its background work was cut reports it is paused'
+        : 'startup resumes a child whose turn ended waiting on background work, so it reports its final answer',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'jetty-reconcile-'))
+        homes.push(home)
+        const db = await openTestStore(home)
+        const { store } = db
+        const project = await Effect.runPromise(store.createProject(home))
+        const parent = await Effect.runPromise(store.createThread(project.id, newId()))
+        const child = await Effect.runPromise(store.createThread(project.id, newId()))
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            for (let start = 1; held && start < RESTART_LIMIT; start++)
+              yield* store.recordServerStart(Date.now() - start * 1000, RESTART_WINDOW_MS)
+            yield* store.markAgentThread(child.id, parent.id, true)
+            yield* store.setQueuePaused(parent.id, true)
+            const message = {
+              id: newId(),
+              text: 'Please do the work',
+              createdAt: Date.now(),
+              hop: 1,
+              from: { threadId: parent.id, title: parent.title },
+            }
+            yield* store.enqueue(child.id, message)
+            yield* store.beginDelivery(child.id, 'waiting-turn', 1, message.id)
+            yield* store.appendEvents(child.id, [
+              { type: 'turn.started', turnId: 'waiting-turn' },
+              {
+                type: 'item.started',
+                item: {
+                  id: 'background-agent',
+                  turnId: 'waiting-turn',
+                  createdAt: Date.now(),
+                  kind: 'subagent',
+                  title: 'Explorer',
+                  prompt: 'Explore',
+                  status: 'running',
+                },
+              },
+              {
+                type: 'item.started',
+                item: {
+                  id: 'interim',
+                  turnId: 'waiting-turn',
+                  createdAt: Date.now(),
+                  kind: 'assistant_message',
+                  text: 'Interim answer',
+                },
+              },
+              { type: 'item.completed', itemId: 'interim' },
+              { type: 'turn.completed', turnId: 'waiting-turn' },
+            ])
+          })
+        )
+        await db.close()
+
+        const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+        servers.push(running)
+        let reports: readonly QueuedMessage[] = []
+        for (let wait = 0; wait < 200 && !reports.length; wait++) {
+          await Bun.sleep(50)
+          reports =
+            (await Effect.runPromise(running.store.requireThread(parent.id))).pendingMessages ?? []
+        }
+        expect(reports).toMatchObject([
+          { kind: 'report', reports: [{ outcome: held ? 'paused' : 'finished' }] },
+        ])
+        const resumed = await Effect.runPromise(running.store.getThreadState(child.id))
+        expect(heldByRestarts(resumed.items)).toBe(held)
+        if (!held) {
+          expect(reports[0]!.text).toContain("won't report back: Explorer")
+          expect(reports[0]!.text).not.toContain('Interim answer')
+        }
+      },
+      15_000
+    )
 
   test('thread.create is idempotent for same id and projectId', async () => {
     const { port, store } = await boot()
