@@ -124,16 +124,19 @@ export function createCodexTranslator(turnId: string) {
     return events
   }
 
-  function finish(): ThreadEvent[] {
+  // A tool cut off by Stop didn't fail: left unsettled, it reads as stopped, as Claude's do.
+  function finish(stopped = false): ThreadEvent[] {
     const events: ThreadEvent[] = []
     for (const [id, item] of items) {
       if (completed.has(id)) continue
       completed.add(id)
-      events.push({
-        type: 'item.completed',
-        itemId: item.id,
-        patch: item.kind === 'tool_call' ? { status: 'failed' } : { streaming: false },
-      })
+      events.push(
+        item.kind !== 'tool_call'
+          ? { type: 'item.completed', itemId: item.id, patch: { streaming: false } }
+          : stopped
+            ? { type: 'item.completed', itemId: item.id }
+            : { type: 'item.completed', itemId: item.id, patch: { status: 'failed' } }
+      )
     }
     return events
   }

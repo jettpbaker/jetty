@@ -238,6 +238,23 @@ test('interrupt settles approval items and preserves the warm process', async ()
   ).not.toThrow()
 })
 
+test('stop leaves an open tool unsettled so it reads as stopped, not failed', async () => {
+  const f = await setup()
+  const turn = await f.start('slow tool')
+  await until(f.events, (e) => e.type === 'item.started' && e.item.kind === 'tool_call')
+  await Effect.runPromise(f.agent.interrupt(f.threadId))
+  await Effect.runPromise(turn.await).catch(() => {})
+  const state = f.events.reduce(
+    (state, event, index) => applyEvent(state, { seq: index + 1, ts: Date.now(), event }),
+    emptyThread
+  )
+  expect(state.items.find((item) => item.kind === 'tool_call')).toMatchObject({
+    status: 'running',
+    completedAt: expect.any(Number),
+  })
+  expect(state.lastTurnOutcome).toBe('interrupted')
+})
+
 test('process crashes reject the turn and release admission', async () => {
   const f = await setup()
   await expect(Effect.runPromise((await f.start('crash')).await)).rejects.toThrow()

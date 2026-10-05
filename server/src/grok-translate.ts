@@ -215,12 +215,17 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
     return events
   }
 
-  function finish(): ThreadEvent[] {
+  // A tool cut off by Stop didn't fail: left unsettled, it reads as stopped, as Claude's do.
+  function finish(stopped = false): ThreadEvent[] {
     const events = closeText()
     for (const tool of tools.values()) {
       if (tool.done) continue
       tool.done = true
-      events.push({ type: 'item.completed', itemId: tool.id, patch: { status: 'failed' } })
+      events.push(
+        stopped
+          ? { type: 'item.completed', itemId: tool.id }
+          : { type: 'item.completed', itemId: tool.id, patch: { status: 'failed' } }
+      )
     }
     return events
   }

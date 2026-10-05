@@ -64,6 +64,8 @@ type Session = {
   effort?: TurnInput['effort']
   fastIds: Map<string, string>
   reason: string | null
+  // the user pressed Stop: tools it cut off read as stopped, not failed
+  stopped: boolean
   pending: Map<string, Pending>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
@@ -196,7 +198,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           })
         }
         session.pending.clear()
-        for (const event of session.translator.finish()) yield* publish(session, event)
+        for (const event of session.translator.finish(session.stopped))
+          yield* publish(session, event)
       })
     }
 
@@ -444,6 +447,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     )
                     session.awaitingResult = true
                     session.accepting = true
+                    session.stopped = false
                     session.done = yield* Deferred.make<void, AgentError>()
                     session.promptId = string(object(message.params._meta).promptId) || undefined
                     session.requestId = undefined
@@ -593,6 +597,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 )
                 existing!.done = yield* Deferred.make<void, AgentError>()
                 existing!.reason = null
+                existing!.stopped = false
                 existing!.awaitingResult = true
                 existing!.accepting = !input.compact
                 yield* publish(existing!, { type: 'turn.started', turnId: input.turnId })
@@ -623,6 +628,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             settings,
             fastIds: new Map(),
             reason: null,
+            stopped: false,
             pending: new Map(),
             mcpErrorShown: false,
             promptCount: 0,
@@ -725,6 +731,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const promptId = yield* session.publication.withPermit(
             Effect.sync(() => {
               session.reason = reason
+              session.stopped = true
               session.accepting = false
               // A steer still waiting on its cancellation would otherwise start a fresh prompt.
               session.next = undefined

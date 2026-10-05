@@ -281,6 +281,11 @@ test('translation handles completed-only items and authoritative final text with
   })
   expect(t.finish()).toMatchObject([{ type: 'item.completed', patch: { status: 'failed' } }])
   expect(t.finish()).toEqual([])
+  t.translate({
+    method: 'item/started',
+    params: { item: { id: 'stopped', type: 'commandExecution', command: 'sleep 30' } },
+  })
+  expect(t.finish(true)).toEqual([{ type: 'item.completed', itemId: expect.any(String) }])
 })
 
 for (const permissionMode of ['auto', 'full_access'] as const)

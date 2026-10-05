@@ -42,6 +42,8 @@ type Session = {
   accepting: boolean
   settled: boolean
   reason: string | null
+  // the user pressed Stop: tools it cut off read as stopped, not failed
+  stopped: boolean
   pending: Map<string, Pending>
   asyncQuestions: Map<string, string[]>
   fileChanges: Map<string, ApprovalChange[]>
@@ -94,7 +96,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
         }
         session.pending.clear()
         session.asyncQuestions.clear()
-        for (const event of session.translator.finish()) yield* session.emit(event)
+        for (const event of session.translator.finish(session.stopped)) yield* session.emit(event)
       })
     }
 
@@ -420,6 +422,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             accepting: false,
             settled: false,
             reason: null,
+            stopped: false,
             pending: new Map(),
             asyncQuestions: new Map(),
             fileChanges: new Map(),
@@ -501,6 +504,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           yield* session.publication.withPermit(
             Effect.sync(() => {
               session.reason = reason
+              session.stopped = true
               session.accepting = false
             })
           )

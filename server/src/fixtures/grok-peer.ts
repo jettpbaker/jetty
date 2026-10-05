@@ -42,6 +42,17 @@ for await (const line of createInterface({ input: process.stdin })) {
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'waiting' } })
       continue
     }
+    if (text === 'slow tool') {
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'slow',
+        title: 'Run',
+        kind: 'execute',
+        rawInput: { command: 'sleep 60' },
+        status: 'in_progress',
+      })
+      continue
+    }
     if (text === 'crash') process.exit(1)
     if (text === 'approval')
       send({
