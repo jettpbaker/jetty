@@ -29,23 +29,25 @@ type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 
 // The agent writes ordinary markdown links; Jetty swaps the ones it recognises for <entity-link>.
 
+// The last group is a place within the entity (a comment, a file, a tab): a permalink.
 const entityPatterns: [Kind, RegExp][] = [
-  ['thread', /^jetty:\/\/threads\/([\da-f-]+)$/],
-  ['pr', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)(?:[/?#].*)?$/],
-  ['issue', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)(?:[/?#].*)?$/],
-  ['commit', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/commit\/([\da-f]{7,40})(?:[/?#].*)?$/],
+  ['thread', /^jetty:\/\/threads\/([\da-f-]+)()$/],
+  ['pr', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)\/?([/?#].*)?$/],
+  ['issue', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)\/?([/?#].*)?$/],
+  ['commit', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/commit\/([\da-f]{7,40})\/?([/?#].*)?$/],
 ]
 
 function entityOf(url: string) {
   for (const [kind, pattern] of entityPatterns) {
     const match = url.match(pattern)
     if (!match) continue
-    const [, first = '', second] = match
+    const [, first = '', second, within] = match
     const repo = first.toLowerCase()
     return {
       kind,
       entity:
         kind === 'thread' ? first : kind === 'commit' ? `${repo}@${second}` : `${repo}#${second}`,
+      ...(within && { permalink: url }),
     }
   }
 }
@@ -58,7 +60,7 @@ export function remarkEntityLinks() {
     })
 }
 
-export const entityLinkTag = { 'entity-link': ['kind', 'entity'] }
+export const entityLinkTag = { 'entity-link': ['kind', 'entity', 'permalink'] }
 
 // The link stays inline, so it wraps like the words around it and never leaves a hole.
 export const inlineLinkClass =
@@ -202,7 +204,8 @@ function PullPreview({
   )
 }
 
-function PullLink({ entity }: { entity: string }) {
+// A permalink (a review comment, the Files tab) opens there on GitHub; Jetty's view has no anchors.
+function PullLink({ entity, permalink }: { entity: string; permalink?: string }) {
   const chrome = useChrome()
   const home = useHomeRepos()
   const [repo = '', number = ''] = entity.split('#')
@@ -223,7 +226,11 @@ function PullLink({ entity }: { entity: string }) {
     </Lead>
   )
   if (!data)
-    return (
+    return permalink ? (
+      <GitHubAnchor href={permalink} title={look.label}>
+        {content}
+      </GitHubAnchor>
+    ) : (
       <Link {...target} className={inlineLinkClass} title={look.label}>
         {content}
       </Link>
@@ -233,7 +240,13 @@ function PullLink({ entity }: { entity: string }) {
       <PreviewCard.Trigger
         delay={500}
         closeDelay={100}
-        render={<Link {...target} className={inlineLinkClass} />}
+        render={
+          permalink ? (
+            <GitHubAnchor href={permalink} />
+          ) : (
+            <Link {...target} className={inlineLinkClass} />
+          )
+        }
       >
         {content}
       </PreviewCard.Trigger>
@@ -254,11 +267,11 @@ function PullLink({ entity }: { entity: string }) {
   )
 }
 
-function IssueLink({ entity }: { entity: string }) {
+function IssueLink({ entity, permalink }: { entity: string; permalink?: string }) {
   const home = useHomeRepos()
   const [repo = '', number = ''] = entity.split('#')
   return (
-    <GitHubAnchor href={`https://github.com/${repo}/issues/${number}`} title={entity}>
+    <GitHubAnchor href={permalink ?? `https://github.com/${repo}/issues/${number}`} title={entity}>
       <Lead icon={CircleDotIcon} color='text-muted-foreground' label='Open issue' size={pullGlyph}>
         {home.has(repo) ? `#${number}` : entity}
       </Lead>
@@ -266,12 +279,15 @@ function IssueLink({ entity }: { entity: string }) {
   )
 }
 
-function CommitLink({ entity }: { entity: string }) {
+function CommitLink({ entity, permalink }: { entity: string; permalink?: string }) {
   const home = useHomeRepos()
   const [repo = '', sha = ''] = entity.split('@')
   const short = sha.slice(0, 7)
   return (
-    <GitHubAnchor href={`https://github.com/${repo}/commit/${sha}`} title={`${repo}@${short}`}>
+    <GitHubAnchor
+      href={permalink ?? `https://github.com/${repo}/commit/${sha}`}
+      title={`${repo}@${short}`}
+    >
       <Lead
         icon={GitCommitHorizontalIcon}
         color='text-muted-foreground'
@@ -287,16 +303,18 @@ function CommitLink({ entity }: { entity: string }) {
 export function EntityLink({
   kind,
   entity,
+  permalink,
   children,
 }: {
   kind?: string
   entity?: string
+  permalink?: string
   children?: ReactNode
 }) {
   if (!entity) return children
   if (kind === 'thread') return <ThreadLink id={entity} fallback={children} />
-  if (kind === 'pr') return <PullLink entity={entity} />
-  if (kind === 'issue') return <IssueLink entity={entity} />
-  if (kind === 'commit') return <CommitLink entity={entity} />
+  if (kind === 'pr') return <PullLink entity={entity} permalink={permalink} />
+  if (kind === 'issue') return <IssueLink entity={entity} permalink={permalink} />
+  if (kind === 'commit') return <CommitLink entity={entity} permalink={permalink} />
   return children
 }
