@@ -1699,8 +1699,9 @@ function MergeButton({
   onMerge: (method: PrMergeMethod) => Promise<boolean>
 }) {
   const options = mergeMethodOptions.filter((option) => pr.mergeMethods.includes(option.method))
-  const [method, setMethod] = useState(pr.viewerDefaultMergeMethod)
+  const [picked, setPicked] = useState<PrMergeMethod | null>(null)
   const [merging, setMerging] = useState(false)
+  const method = picked ?? pr.viewerDefaultMergeMethod
   const current =
     options.find((option) => option.method === method) ?? options[0] ?? mergeMethodOptions[0]!
   const split = options.length > 1
@@ -1766,8 +1767,8 @@ function MergeButton({
           <DropdownMenuRadioGroup
             value={current.method}
             onValueChange={(value) => {
-              const picked = options.find((option) => option.method === value)
-              if (picked) setMethod(picked.method)
+              const choice = options.find((option) => option.method === value)
+              if (choice) setPicked(choice.method)
             }}
           >
             {options.map((option) => (
