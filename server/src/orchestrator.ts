@@ -287,7 +287,18 @@ export function createOrchestrator({
                   store
                     .transaction(
                       Effect.gen(function* () {
-                        for (const thread of group) yield* store.archiveThread(thread.id, archived)
+                        for (const thread of group) {
+                          yield* store.archiveThread(thread.id, archived)
+                          if (!archived) {
+                            const record = yield* store.getWorktree(thread.id)
+                            if (record?.state === 'pending')
+                              yield* store.saveWorktree(thread.id, {
+                                ...record,
+                                state: 'setting_up',
+                                error: null,
+                              })
+                          }
+                        }
                         if (archived)
                           yield* store.setArchiveGroup(
                             group.map((thread) => thread.id),

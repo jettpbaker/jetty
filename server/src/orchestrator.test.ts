@@ -994,3 +994,38 @@ test('a refused archive fails with the archive script’s own error', async () =
     })
   )
 })
+
+test('group Resume records setup intent for every member before preparing the first', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const member = yield* f.store.createThread(f.thread.projectId, newId())
+      const group = [f.thread.id, member.id]
+      for (const id of group) {
+        yield* f.store.setThreadEnvironment(id, 'base')
+        yield* f.store.archiveThread(id, true)
+      }
+      yield* f.store.setArchiveGroup(group, f.thread.id)
+      const entered = yield* Deferred.make<void>()
+      const worktrees = {
+        prepare: async () => {
+          await Effect.runPromise(Deferred.succeed(entered, undefined))
+          return await new Promise<string>(() => {})
+        },
+      } as unknown as Worktrees
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        worktrees,
+      })
+      const resuming = yield* orch.archiveThread(f.thread.id, false).pipe(Effect.forkScoped)
+      yield* Deferred.await(entered)
+      for (const id of group) {
+        expect((yield* f.store.requireThread(id)).archived).toBe(false)
+        expect((yield* f.store.getWorktree(id))?.state).toBe('setting_up')
+      }
+      yield* Fiber.interrupt(resuming)
+    })
+  )
+})

@@ -657,7 +657,12 @@ export function createWorktrees(
 
   async function reconcile() {
     for (const { threadId, record } of await run(store.listWorktrees())) {
-      if (record.state === 'setting_up') {
+      // An unarchived thread's removed worktree that was never recreated: a restart cut its Resume.
+      const stranded =
+        record.state === 'pending' &&
+        record.checkoutPath &&
+        !(await run(store.requireThread(threadId))).archived
+      if (record.state === 'setting_up' || stranded) {
         record.state = 'failed'
         record.error = 'Worktree setup interrupted by server restart'
         await save(threadId, record)
