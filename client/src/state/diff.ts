@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 
 import { useChrome } from './chrome'
 import { connectionAtom, useAction } from './connection'
+import { settleFileDraft } from './file_drafts'
 import { threadAtom, useThread } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
@@ -210,8 +211,9 @@ export function useFileSearch(projectId: string, threadId: string, query: string
   return { files: fresh ?? shown, fresh: fresh !== undefined }
 }
 
-// Saves only while the file on disk still holds `base`; a save refreshes the cached file and the
-// thread's diffs behind it. A failed save says why and resolves to undefined.
+// Saves the file's draft text only while the file on disk still holds `base`; a save settles the
+// draft and refreshes the cached file and the thread's diffs behind it. A failed save says why and
+// resolves to undefined.
 function saveProjectFile(
   registry: AtomRegistry.AtomRegistry,
   threadId: string,
@@ -227,6 +229,7 @@ function saveProjectFile(
       Effect.tap((result) =>
         Effect.sync(() => {
           if (!('saved' in result)) return
+          settleFileDraft(registry, threadId, path, contents)
           registry.refresh(projectFileAtom(`${threadId}\0${path}`))
           for (const scope of ['branch', 'uncommitted'] as const)
             refreshDiff(registry, `${threadId}\0${scope}`)

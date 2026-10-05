@@ -91,6 +91,25 @@ function writeFileDraft(
   storing = setTimeout(storeDrafts, 300)
 }
 
+// A save put `saved` on disk, possibly after its editor closed. The draft goes, unless it was
+// edited further meanwhile: then those edits stay, now over the saved text. The text is the
+// draft's revision, since every save sends the draft's text as it was.
+export function settleFileDraft(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  path: string,
+  saved: string
+) {
+  const draft = readFileDraft(threadId, path)
+  if (!draft) return
+  writeFileDraft(
+    registry,
+    threadId,
+    path,
+    draft.text === saved ? undefined : { base: saved, text: draft.text }
+  )
+}
+
 export const useWriteFileDraft = () => useAction(writeFileDraft)
 
 export function useFileDirty(threadId: string, path: string) {

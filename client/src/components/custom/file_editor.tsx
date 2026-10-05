@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { contentKey } from '@/lib/hash'
 import { pressProps } from '@/lib/press'
 import { useResolvedTheme } from '@/lib/theme'
-import { readFileDraft, useSaveProjectFile, useWriteFileDraft } from '@/state'
+import { readFileDraft, useFileDirty, useSaveProjectFile, useWriteFileDraft } from '@/state'
 import { Editor, type EditorFactory } from '@pierre/diffs/edit'
 import { CodeView, EditProvider, type CodeViewHandle } from '@pierre/diffs/react'
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
@@ -56,76 +56,60 @@ export function FileEditor({
   }, [themeType])
   const save = useSaveProjectFile()
   const writeDraft = useWriteFileDraft()
-  const [opened] = useState(() => {
-    const text = 'contents' in disk ? (disk.contents ?? '') : ''
-    return readFileDraft(threadId, path) ?? { base: text, text }
-  })
-  // The disk text the edits descend from, and the text as last typed.
-  const base = useRef(opened.base)
-  const text = useRef(opened.text)
+  const dirty = useFileDirty(threadId, path)
+  const [opened] = useState(
+    () => readFileDraft(threadId, path)?.text ?? ('contents' in disk ? (disk.contents ?? '') : '')
+  )
+  // The text as last typed. The draft holds it with the disk text it descends from, and a save
+  // settles the draft even when it completes after this view has gone.
+  const text = useRef(opened)
   // The document's text from outside, before an editor holds it.
-  const [source, setSource] = useState(opened.text)
-  const [dirty, setDirty] = useState(opened.text !== opened.base)
+  const [source, setSource] = useState(opened)
   const [conflict, setConflict] = useState<ProjectFile>()
   const [saving, setSaving] = useState(false)
   const writing = useRef(false)
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
 
-  function storeDraft() {
-    writeDraft(
-      threadId,
-      path,
-      text.current === base.current ? undefined : { base: base.current, text: text.current }
-    )
-  }
+  const base = () => readFileDraft(threadId, path)?.base ?? text.current
 
   function edited(next: string) {
+    const from = base()
     text.current = next
-    setDirty(next !== base.current)
-    storeDraft()
+    writeDraft(threadId, path, next === from ? undefined : { base: from, text: next })
   }
 
   // Taking the disk's text is one more edit, so ⌘Z brings back what it replaced.
   function adopt(next: string) {
-    base.current = next
     const editor = viewer.current?.getEditor(path)
     const document = editor?.getEditState()?.document
-    if (document && text.current !== next)
+    const replaced = text.current
+    text.current = next
+    writeDraft(threadId, path, undefined)
+    setConflict(undefined)
+    if (document && replaced !== next)
       editor.applyEdits([
         {
-          range: {
-            start: { line: 0, character: 0 },
-            end: document.positionAt(text.current.length),
-          },
+          range: { start: { line: 0, character: 0 }, end: document.positionAt(replaced.length) },
           newText: next,
         },
       ])
     else if (!document) setSource(next)
-    text.current = next
-    setDirty(false)
-    setConflict(undefined)
-    storeDraft()
   }
 
   // Lets go of the edits for the disk's text; a file that's gone or no longer text just drops them.
   function discard(now: ProjectFile) {
     if ('contents' in now && now.contents !== null) return adopt(now.contents)
-    text.current = base.current
-    storeDraft()
-  }
-
-  function settle(saved: string) {
-    base.current = saved
-    setDirty(text.current !== saved)
-    setConflict(undefined)
-    storeDraft()
+    writeDraft(threadId, path, undefined)
   }
 
   const diskChanged = useEffectEvent((now: ProjectFile) => {
     const nowText = 'contents' in now ? now.contents : undefined
-    if (nowText === base.current) setConflict(undefined)
-    else if (typeof nowText === 'string' && nowText === text.current) settle(nowText)
-    else if (typeof nowText === 'string' && text.current === base.current) adopt(nowText)
+    const from = base()
+    if (nowText === from) setConflict(undefined)
+    else if (typeof nowText === 'string' && nowText === text.current) {
+      writeDraft(threadId, path, undefined)
+      setConflict(undefined)
+    } else if (typeof nowText === 'string' && text.current === from) adopt(nowText)
     else setConflict(now)
   })
   useEffect(() => diskChanged(disk), [disk])
@@ -136,8 +120,7 @@ export function FileEditor({
     setSaving(true)
     try {
       const result = await save(threadId, path, contents, over)
-      if (result && 'saved' in result) settle(contents)
-      else if (result) setConflict(result.conflict)
+      if (result) setConflict('conflict' in result ? result.conflict : undefined)
     } finally {
       writing.current = false
       setSaving(false)
@@ -145,7 +128,7 @@ export function FileEditor({
   }
 
   function saveNow() {
-    if (dirty || conflict) void write(text.current, base.current)
+    if (dirty || conflict) void write(text.current, base())
   }
 
   const root = useRef<HTMLElement>(null)
