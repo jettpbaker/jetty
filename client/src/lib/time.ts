@@ -36,12 +36,17 @@ export function formatDuration(seconds: number) {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
-const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+const clock = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+})
 const dayClock = new Intl.DateTimeFormat(undefined, {
   month: 'short',
   day: 'numeric',
   hour: 'numeric',
   minute: '2-digit',
+  hour12: true,
 })
 const fullDate = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',

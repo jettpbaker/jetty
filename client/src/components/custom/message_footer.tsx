@@ -50,8 +50,8 @@ export function AgentMessageFooter({
 }) {
   return (
     <div className={cn(footer, 'self-start')}>
-      {loadout && <TurnModel loadout={loadout} provider={provider} />}
       <CopyButton text={text} label='Copy message' className={copy} />
+      {loadout && <TurnModel loadout={loadout} provider={provider} />}
       <SentAt createdAt={createdAt} />
     </div>
   )
