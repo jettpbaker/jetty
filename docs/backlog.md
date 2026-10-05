@@ -71,11 +71,14 @@ Everything below is for one combined review of the chat, not separate ports.
   recommended). Not picked yet.
 - Message footers: the whole footer reveals on hover; `revealWholeFooter` in
   `message_footer.tsx` flips it to time and model always visible.
-- Claude's own commands in the / menu (compact, context, init) are disabled:
-  the server never learns them and drops the SDK's command output.
 
 ## later
 
+- Claude's own commands in the / menu (compact, context, init) show disabled at
+  the start of a Claude message. To work, the server needs the SDK's announced
+  command list (its init message) instead of three hardcoded names, and to turn
+  each command's output into transcript items instead of dropping it. Overlaps
+  the chat review's compaction seam: `/compact`'s output is that seam.
 - Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
   Merge through GitHub's async merge API (GA 2026-10-01): a PUT to
   `/repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
