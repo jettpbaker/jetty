@@ -28,7 +28,7 @@ import {
 } from './grouped_table'
 import { Refresh01Icon } from './huge_icons'
 import {
-  GitMergeIcon,
+  GitPullRequestMergedIcon,
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
@@ -61,7 +61,10 @@ const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNo
     color: 'var(--muted-foreground)',
     icon: <GitPullRequestDraftIcon className='size-3 text-muted-foreground' />,
   },
-  merged: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3 text-pr-merged' /> },
+  merged: {
+    color: 'var(--pr-merged)',
+    icon: <GitPullRequestMergedIcon className='size-3 text-pr-merged' />,
+  },
   closed: {
     color: 'var(--destructive)',
     icon: <GitPullRequestClosedIcon className='size-3 text-destructive' />,
@@ -333,7 +336,7 @@ function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
     pull.state === 'draft'
       ? GitPullRequestDraftIcon
       : pull.state === 'merged'
-        ? GitMergeIcon
+        ? GitPullRequestMergedIcon
         : pull.state === 'closed'
           ? GitPullRequestClosedIcon
           : GitPullRequestIcon

@@ -1,5 +1,5 @@
 import {
-  GitMergeIcon,
+  GitPullRequestMergedIcon,
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 export const prPresentation = {
   draft: { icon: GitPullRequestDraftIcon, label: 'Draft', color: 'text-pr-draft' },
   open: { icon: GitPullRequestIcon, label: 'Open', color: 'text-pr-open' },
-  merged: { icon: GitMergeIcon, label: 'Merged', color: 'text-pr-merged' },
+  merged: { icon: GitPullRequestMergedIcon, label: 'Merged', color: 'text-pr-merged' },
   closed: { icon: GitPullRequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
 }
 
