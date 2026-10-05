@@ -1290,6 +1290,8 @@ export function createOrchestrator({
             return (
               !runtime.ready ||
               Boolean(runtime.turnId) ||
+              (!thread.awaitingParent &&
+                (thread.status === 'running' || thread.status === 'awaiting_approval')) ||
               Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
               Boolean(thread.pendingMessages?.length && !thread.queuePaused) ||
               (children.get(thread.id) ?? []).some(busy)

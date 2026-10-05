@@ -751,6 +751,74 @@ function endTurn({ emit, turnId, done }: ScriptedTurn) {
   )
 }
 
+for (const kind of ['subagent', 'workflow', 'question'] as const) {
+  test(`a child waits for its grandchild's ${kind} after the grandchild turn ends`, async () => {
+    await runUploadTest(
+      Effect.gen(function* () {
+        const f = yield* makeChildFixture()
+        const grandchild = yield* f.store.createThread(f.parent.projectId, newId())
+        yield* f.store.markAgentThread(grandchild.id, f.child.id, true)
+        const message = {
+          id: newId(),
+          text: 'Do the nested work',
+          createdAt: Date.now(),
+          hop: 2,
+          from: { threadId: f.child.id, title: f.child.title },
+        }
+        yield* f.store.enqueue(grandchild.id, message)
+        yield* f.orch.startTurnEffect({
+          threadId: grandchild.id,
+          text: message.text,
+          queued: message,
+        })
+        const turn = f.turns.get(grandchild.id)!
+        if (kind === 'subagent') yield* runSubagent(turn, 'nested-background')
+        else
+          yield* turn.emit({
+            type: 'item.started',
+            item:
+              kind === 'workflow'
+                ? {
+                    id: 'nested-background',
+                    turnId: turn.turnId,
+                    createdAt: Date.now(),
+                    kind,
+                    taskId: 'workflow',
+                    name: 'Nested workflow',
+                    provider: 'claude',
+                    phases: [],
+                    description: '',
+                    status: 'running',
+                    agents: [],
+                    tokens: 0,
+                    durationMs: 0,
+                  }
+                : {
+                    id: 'nested-question',
+                    turnId: turn.turnId,
+                    createdAt: Date.now(),
+                    kind,
+                    delivery: 'async',
+                    questions: [
+                      { question: 'Which database?', header: '', multiSelect: false, options: [] },
+                    ],
+                  },
+          })
+        yield* endTurn(turn)
+        yield* say(f.turn, 'Interim child answer')
+        yield* endTurn(f.turn)
+        yield* f.orch.resumeQueues()
+        yield* TestClock.adjust(1000)
+        expect(yield* f.orch.isActive(grandchild.id)).toBe(false)
+        expect((yield* f.store.requireThread(grandchild.id)).status).toBe(
+          kind === 'question' ? 'awaiting_approval' : 'running'
+        )
+        expect(yield* f.reports).toEqual([])
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+  })
+}
+
 test('a child its background work wakes into a turn of its own reports that turn’s answer', async () => {
   await runUploadTest(
     Effect.gen(function* () {
