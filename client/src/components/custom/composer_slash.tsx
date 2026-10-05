@@ -6,6 +6,7 @@ import {
   ArrowRight01Icon,
   BookOpenIcon,
   BrainIcon,
+  ChartHistogramIcon,
   FlashIcon,
   GaugeIcon,
   PencilEdit02Icon,
@@ -54,7 +55,7 @@ import {
   type SlashQuery,
 } from './slash_model'
 
-export type SlashScope = { threadId?: string; projectId?: string }
+export type SlashScope = { threadId?: string; projectId?: string; onUsage?: () => void }
 
 type Section = 'Skills'
 type ValueCommand = 'model' | 'effort' | 'access'
@@ -79,7 +80,7 @@ const accessDescriptions: Record<PermissionMode, string> = {
   auto: 'Ask before risky actions',
   full_access: 'Run anything without asking',
 }
-const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'new']
+const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'usage', 'new']
 const commandLabels: Record<ValueCommand, string> = {
   model: 'Model',
   effort: 'Effort',
@@ -93,7 +94,7 @@ export function useComposerSlash(
   text: string,
   onTextChange: (text: string) => void,
   textarea: RefObject<HTMLTextAreaElement | null>,
-  { threadId, projectId }: SlashScope = {}
+  { threadId, projectId, onUsage }: SlashScope = {}
 ) {
   const field = useRef<HTMLDivElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
@@ -345,6 +346,22 @@ export function useComposerSlash(
                 if (threadId) compactThread(threadId)
               },
               Boolean(compactReason)
+            ),
+          ]
+        : []),
+      ...(onUsage
+        ? [
+            command(
+              'usage',
+              'Usage',
+              provider ? '' : unset,
+              <ChartHistogramIcon />,
+              false,
+              () => {
+                consume(range)
+                onUsage()
+              },
+              !provider
             ),
           ]
         : []),

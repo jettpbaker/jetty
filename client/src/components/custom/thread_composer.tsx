@@ -15,9 +15,11 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
+import { UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
+import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { newThreadProject } from '@/lib/thread_project'
@@ -39,6 +41,7 @@ import {
   useThreadLoadout,
   useThreadQueue,
 } from '@/state'
+import { useProviderUsage } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -129,6 +132,23 @@ export function ThreadComposer({
   }, [items, queued, sending])
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
+  const [usageOpen, setUsageOpen] = useState(false)
+  const usage = useProviderUsage()
+  const usageNow = Math.max(useNow(60_000, usageOpen), usage.updatedAt ?? 0)
+  const usageProvider = lockedProvider ?? loadout?.provider
+  const usageBanner = usageOpen && usageProvider && (
+    <UsageBanner
+      provider={usageProvider}
+      usage={usage.usage.find((entry) => entry.provider === usageProvider)}
+      now={usageNow}
+      onOpen={() => void navigate({ to: '/usage' })}
+      onDismiss={() => setUsageOpen(false)}
+    />
+  )
+  function showUsage() {
+    setUsageOpen(true)
+    usage.refresh()
+  }
 
   const pending = useMemo(
     () => pendingItems(items, { provider, projectPath, projectTitle }),
@@ -417,7 +437,16 @@ export function ThreadComposer({
         }}
         onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
         running={running && !item}
-        strip={mode.strip}
+        strip={
+          usageBanner ? (
+            <>
+              {usageBanner}
+              {mode.strip}
+            </>
+          ) : (
+            mode.strip
+          )
+        }
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
         sendDisabled={mode.sendDisabled}
@@ -496,7 +525,7 @@ export function ThreadComposer({
         rows={rows}
         ambient={ambient}
         inputRef={input}
-        slash={{ threadId, projectId: projectId ?? meta?.projectId }}
+        slash={{ threadId, projectId: projectId ?? meta?.projectId, onUsage: showUsage }}
       />
     </div>
   )
