@@ -296,15 +296,18 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
   }
 
   // Runs inside the transaction that tells the thread, so the news leaves the PR rows exactly
-  // when it reaches the chat.
+  // when it reaches the chat. Switches turned off while it waited drop their part.
   function take(threadId: string) {
     return Effect.gen(function* () {
       const now = Date.now()
+      const settings = yield* store.getAgentBehaviours()
       const lines: PullRequestNews['lines'] = []
       const sections: string[] = []
       for (const { repo, number, memory } of yield* store.pendingPullRequestWatches()) {
         if (memory.pending?.threadId !== threadId) continue
-        const { changes } = memory.pending
+        const changes = memory.pending.changes.filter(
+          (change) => settings.watchPullRequests && (!change.group || settings[change.group])
+        )
         const recent = (memory.wakes ?? []).filter((at) => now - at < HOUR_MS)
         const wakeful = changes.some((change) => change.wakes)
         const held = wakeful && recent.length >= WAKES_PER_HOUR
@@ -326,12 +329,13 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
           wakes: recent,
           pending: undefined,
         })
-        lines.push({
-          repo,
-          number,
-          activity: fold(changes.map((change) => change.activity)),
-          ...(held && { held: true }),
-        })
+        if (changes.length)
+          lines.push({
+            repo,
+            number,
+            activity: fold(changes.map((change) => change.activity)),
+            ...(held && { held: true }),
+          })
       }
       return { lines, text: sections.length ? sections.join('\n\n') : null }
     })

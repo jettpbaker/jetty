@@ -737,6 +737,15 @@ export function createOrchestrator({
                 const queued = yield* store.claimQueued(thread.id, input.queued.id)
                 if (!queued) return { turnId: '' }
                 yield* Effect.addFinalizer(() => store.releaseQueued(queued.id))
+                // PR news the user switched off after it queued doesn't wake the agent.
+                if (
+                  queued.kind === 'pull_request' &&
+                  !input.sendNow &&
+                  !(yield* store.getAgentBehaviours()).watchPullRequests
+                ) {
+                  yield* store.editQueued(thread.id, queued.id)
+                  return { turnId: '' }
+                }
                 fromCreator =
                   queued.from !== undefined &&
                   queued.from.threadId === thread.parentThreadId &&
