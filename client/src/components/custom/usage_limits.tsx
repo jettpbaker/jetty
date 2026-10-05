@@ -280,7 +280,7 @@ export function UsagePage({
                 {item ? (
                   <UsageWindows usage={item} now={now} />
                 ) : failed.has(provider) ? (
-                  <p className='text-xs text-muted-foreground'>Usage unavailable.</p>
+                  <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
                 ) : (
                   <UsageSkeleton />
                 )}
@@ -349,7 +349,7 @@ export function UsageBanner({
       {usage ? (
         <UsageWindows usage={usage} now={now} compact />
       ) : failed ? (
-        <p className='text-xs text-muted-foreground'>Usage unavailable.</p>
+        <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
       ) : (
         <UsageSkeleton compact />
       )}
