@@ -30,11 +30,13 @@ const reconnect = backoff.pipe(
 
 // A call the server takes once however often it arrives (it knows the message or thread by id) is
 // sent again after a dropped connection, instead of failing without knowing whether it landed.
+// Tries wait for the connection to come back, so the cap only gives up on one that keeps failing.
 export function resendOnDrop<A, E, R>(call: Effect.Effect<A, E, R>) {
   return call.pipe(
     Effect.retry({
       while: (error) => error instanceof RpcClientError.RpcClientError,
       schedule: Schedule.spaced('1 second'),
+      times: 20,
     })
   )
 }
