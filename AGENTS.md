@@ -131,6 +131,9 @@
   folder. A failing script refuses archive; delete logs it and carries on.
 - An optional `"environment": "worktree" | "local"` in the same file is the
   project's default environment for new threads (`local` is Current checkout).
+- The file's presence marks the project set up, including `{}` when it needs no
+  setup command. The new-thread page's Set up worktrees button shows only while
+  the file is missing.
 - The file is read from the project checkout, never the worktree, which the agent
   can edit.
 - Commit work before creating children that build on it. Archive requires a clean

@@ -69,7 +69,9 @@ comm -12 <(git ls-files -oi --exclude-standard | sort) \
 
 ### `.jetty/worktree.json`
 
-Also at the repository root. Every field is optional:
+Also at the repository root. Every field is optional. The file's presence is what marks
+the project set up, so a project that needs nothing still gets `{}` committed here.
+Leaving the file out keeps Set up worktrees on the new-thread page.
 
 ```json
 {
@@ -131,6 +133,12 @@ Things worth finding out before writing anything:
   `.devcontainer` and CI config often spell out exactly how to bootstrap.
 
 ## Write the setup
+
+### When nothing is needed
+
+If the project needs no install, the default `.env*` copy is enough, dev servers don't
+need their own ports, and setup creates nothing outside the folder, the config is `{}`.
+Write that file and commit it. Don't skip the file because there's nothing to put in it.
 
 ### Fast and idempotent
 
@@ -212,8 +220,9 @@ isn't running), say so in your report instead of guessing.
 
 ## Commit it
 
-Commit `.jetty/worktree.json`, any `.worktreeinclude`, and any setup script, following the
-project's commit conventions. Jetty only reads the config from the project checkout, so:
+Commit `.jetty/worktree.json` (including when it is `{}`), any `.worktreeinclude`, and any
+setup script, following the project's commit conventions. Jetty only reads the config from
+the project checkout, so:
 
 - in the Current checkout, it's live as soon as the files are there;
 - in a worktree thread (your working directory is under `$JETTY_HOME/worktrees/`), your
@@ -240,4 +249,5 @@ Ask the user when you're genuinely unsure, or the call is theirs:
 Finish with a short summary: what setup does and how long it took in your test, which
 files get copied, how ports are assigned (if they are), what the archive script cleans
 up, anything you couldn't verify, and anything the user still needs to do, like landing
-the commit or filling in a secret.
+the commit or filling in a secret. If the project needed no setup, say that, and that
+you committed `{}`.
