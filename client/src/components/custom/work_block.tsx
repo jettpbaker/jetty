@@ -53,7 +53,7 @@ function WorkHistory({
               ) : entry.type === 'todo' ? (
                 <TodoLink threadId={threadId} update={entry.update} />
               ) : entry.type === 'created' ? (
-                <div className='activity-header items-center gap-1'>
+                <div className='activity-header items-center gap-1 text-muted-foreground'>
                   Created
                   <ThreadLink id={entry.threadId} fallback={entry.title ?? 'a thread'} />
                 </div>

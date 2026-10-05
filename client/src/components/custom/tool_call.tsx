@@ -62,9 +62,7 @@ export function ToolCall({ call }: { call: ToolActivity }) {
             <span className={cn(label.active && 'shimmer')}>{label.description}</span>
           ) : (
             <>
-              <span className={cn(label.active && 'shimmer', label.complete && 'text-foreground')}>
-                {label.verb}
-              </span>{' '}
+              <span className={cn(label.active && 'shimmer')}>{label.verb}</span>{' '}
               <span className='truncate font-mono'>{call.target}</span>
             </>
           )}

@@ -174,7 +174,6 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
         : description,
     target,
     prose: first.words !== undefined,
-    complete: completed === calls.length,
     active,
     failed,
     notices,

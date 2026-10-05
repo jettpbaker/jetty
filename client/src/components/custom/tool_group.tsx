@@ -28,15 +28,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             </span>
           ) : (
             <>
-              <span
-                className={cn(
-                  'shrink-0',
-                  label.active && 'shimmer',
-                  label.complete && 'text-foreground'
-                )}
-              >
-                {label.verb}
-              </span>
+              <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
               <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
                 {label.target}
               </RollingText>
