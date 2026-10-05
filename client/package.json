@@ -23,7 +23,6 @@
     "@pierre/diffs": "^1.4.1",
     "@pierre/trees": "^1.0.0-beta.6",
     "@shikijs/langs": "^4.4.3",
-    "@shikijs/themes": "^4.4.3",
     "@tanstack/react-hotkeys": "0.12.1",
     "@tanstack/react-router": "^1.170.33",
     "@tanstack/react-virtual": "^3.14.13",
