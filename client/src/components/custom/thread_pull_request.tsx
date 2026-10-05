@@ -16,8 +16,11 @@ export const prPresentation = {
   closed: { icon: GitPullRequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
 }
 
-type PullRequestReadiness = Pick<PullRequestListItem, 'checks' | 'reviewDecision' | 'mergeable'> &
-  Pick<PullRequestLink, 'failingChecks'>
+type PullRequestReadiness = Pick<
+  PullRequestListItem,
+  'checks' | 'reviewDecision' | 'mergeable' | 'mergeStateStatus'
+> &
+  Pick<PullRequestLink, 'failingChecks' | 'baseRef' | 'reviewRequestCount'>
 
 export type ThreadPullRequest = PullRequestReadiness & {
   repo: string
@@ -25,8 +28,16 @@ export type ThreadPullRequest = PullRequestReadiness & {
   state: keyof typeof prPresentation
 }
 
+// GitHub's mergeStateStatus; anything else, including UNKNOWN while it computes, reads as Open.
+const mergeVerdicts: Record<string, string> = {
+  CLEAN: 'Ready to merge',
+  HAS_HOOKS: 'Ready to merge',
+  UNSTABLE: 'Ready to merge',
+  BLOCKED: 'Blocked',
+}
+
 // An open PR's colour: red when something blocks it, yellow while checks run, green otherwise.
-// The reason names the blockers first, then what it waits on.
+// The reason names the blockers first, then what it waits on; with neither, GitHub's merge verdict.
 function pullRequestReadiness(pr: PullRequestReadiness) {
   const failing = pr.checks === 'failure'
   const changes = pr.reviewDecision === 'CHANGES_REQUESTED'
@@ -40,7 +51,8 @@ function pullRequestReadiness(pr: PullRequestReadiness) {
     changes && 'Changes requested',
     conflict && 'Merge conflict',
     running && 'Checks running',
-    pr.reviewDecision === 'REVIEW_REQUIRED' && 'Waiting for review',
+    (pr.reviewDecision === 'REVIEW_REQUIRED' || !!pr.reviewRequestCount) && 'Waiting for review',
+    pr.mergeStateStatus === 'BEHIND' && `Behind ${pr.baseRef ?? 'base'}`,
   ].filter(Boolean)
   return {
     color:
@@ -49,7 +61,7 @@ function pullRequestReadiness(pr: PullRequestReadiness) {
         : running
           ? 'text-pr-running'
           : 'text-pr-open',
-    reason: reasons.join(' · ') || 'Ready to merge',
+    reason: reasons.join(' · ') || mergeVerdicts[pr.mergeStateStatus ?? ''] || 'Open',
   }
 }
 

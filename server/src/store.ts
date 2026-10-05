@@ -190,6 +190,9 @@ export function createStore() {
       failing_checks: number
       review_decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null
       mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN' | null
+      merge_state_status: string | null
+      base_ref: string | null
+      review_requests: number | null
     }
 
     function rowToLink(row: LinkRow): PullRequestLink {
@@ -216,7 +219,7 @@ export function createStore() {
       }
     }
 
-    // What an open PR's readiness colour reads: its checks, review and mergeability.
+    // What an open PR's readiness reads: its checks, reviews and GitHub's merge verdict.
     function readiness(row: LinkRow) {
       const checks = rollupChecks[row.check_rollup ?? '']
       return {
@@ -226,6 +229,9 @@ export function createStore() {
           : {}),
         ...(row.review_decision ? { reviewDecision: row.review_decision } : {}),
         ...(row.mergeable ? { mergeable: row.mergeable } : {}),
+        ...(row.merge_state_status ? { mergeStateStatus: row.merge_state_status } : {}),
+        ...(row.base_ref ? { baseRef: row.base_ref } : {}),
+        ...(row.review_requests ? { reviewRequestCount: row.review_requests } : {}),
       }
     }
 
@@ -238,7 +244,10 @@ export function createStore() {
       (SELECT count(*) FROM json_each(p.data_json, '$.checkRuns')
         WHERE json_extract(value, '$.conclusion') IN ${sql.in(failedCheckConclusions)}) AS failing_checks,
       json_extract(p.data_json, '$.reviewDecision') AS review_decision,
-      json_extract(p.data_json, '$.mergeable') AS mergeable FROM thread_pull_requests l
+      json_extract(p.data_json, '$.mergeable') AS mergeable,
+      json_extract(p.data_json, '$.mergeStateStatus') AS merge_state_status,
+      json_extract(p.data_json, '$.pull.base.ref') AS base_ref,
+      json_array_length(p.data_json, '$.reviewRequests') AS review_requests FROM thread_pull_requests l
       JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number`
 
     function getLinks(threadId: string) {

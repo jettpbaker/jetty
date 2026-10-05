@@ -23,5 +23,8 @@ export function pullRequestFacts(data: PullRequestData) {
     ).length,
     reviewDecision: data.reviewDecision,
     mergeable: data.mergeable,
+    mergeStateStatus: data.mergeStateStatus,
+    baseRef: data.pull.base.ref,
+    reviewRequestCount: data.reviewRequests?.length,
   }
 }
