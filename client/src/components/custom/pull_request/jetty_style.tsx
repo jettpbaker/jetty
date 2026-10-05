@@ -2024,11 +2024,11 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                   onSave={(next) => void actions.title(next)}
                                 />
                               </h2>
-                              <div className='flex flex-wrap items-center gap-1 text-xs'>
+                              <div className='flex items-center gap-1 text-xs'>
                                 <PersonAvatar
                                   login={byline.login}
                                   src={byline.avatarUrl || undefined}
-                                  className='size-5.5'
+                                  className='size-5.5 shrink-0'
                                 />
                                 {/* GitHub's header sentence; once merged, it names whoever merged. Branches wear the inline-code
                         chip at the size table code uses. */}
