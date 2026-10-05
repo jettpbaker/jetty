@@ -106,6 +106,7 @@ export function createOrchestrator({
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
     const scope = yield* Effect.scope
+    let closing = false
     const threads = new Map<
       string,
       {
@@ -263,6 +264,7 @@ export function createOrchestrator({
             state(threadId).turnId !== event.turnId
           )
             return yield* Effect.fail(new StoreError('conflict', 'Another turn is active'))
+          if (closing) return
           const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
           if (terminal && state(threadId).turnId !== event.turnId) return
           yield* commit(threadId, event, onCommit)
@@ -682,6 +684,11 @@ export function createOrchestrator({
     }
 
     return {
+      beginShutdown() {
+        return Effect.sync(() => {
+          closing = true
+        })
+      },
       markReadyForReview(threadId: string) {
         return Effect.gen(function* () {
           const thread = yield* store.requireThread(threadId)
@@ -811,6 +818,7 @@ export function createOrchestrator({
         const published = new Map<string, string>()
         const drain = Effect.gen(function* () {
           for (const thread of yield* store.listThreads()) {
+            if (closing) return
             const queue = thread.pendingMessages ?? []
             if ((published.get(thread.id) ?? '[]') !== JSON.stringify(queue)) {
               yield* hub.withChromePublication(

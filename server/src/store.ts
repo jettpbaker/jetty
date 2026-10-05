@@ -25,6 +25,7 @@ import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { normalizePath } from './fs-browse'
+import { RESTART_LIMIT_NOTE } from './jetty-instructions'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
@@ -357,14 +358,15 @@ export function createStore() {
       return sql`UPDATE threads SET pending_messages = ${JSON.stringify(messages)} WHERE id = ${threadId}`
     }
 
-    function enqueue(threadId: string, message: QueuedMessage) {
+    function enqueue(threadId: string, message: QueuedMessage, front = false) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.archived)
           return yield* Effect.fail(new StoreError('not_found', 'Thread is archived'))
         if (message.hop > 20)
           return yield* Effect.fail(new StoreError('invalid_params', 'Message hop limit exceeded'))
-        yield* updateQueue(threadId, [...(thread.pendingMessages ?? []), message])
+        const pending = thread.pendingMessages ?? []
+        yield* updateQueue(threadId, front ? [message, ...pending] : [...pending, message])
         return yield* requireThread(threadId)
       })
     }
@@ -387,7 +389,11 @@ export function createStore() {
       )
     }
 
-    function append(threadId: string, event: ThreadEvent, notifyParent = true) {
+    function append(
+      threadId: string,
+      event: ThreadEvent,
+      notifyParent: boolean | 'restart' = true
+    ) {
       return Effect.gen(function* () {
         const [threadRow] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
         if (!threadRow)
@@ -427,11 +433,12 @@ export function createStore() {
               initiator_thread_id: string | null
             }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
             const hop = (turn?.hop ?? 0) + 1
+            const restartNotice = notifyParent === 'restart' && thread.createdBy === 'agent'
             if (
-              !(yield* notifiesParent(threadId)) ||
               !parent ||
               parent.archived ||
-              turn?.initiator_thread_id !== parent.id
+              (!restartNotice &&
+                (!(yield* notifiesParent(threadId)) || turn?.initiator_thread_id !== parent.id))
             )
               return
             if (hop > 20)
@@ -443,7 +450,7 @@ export function createStore() {
               createdAt: ts,
               hop,
               from: { threadId, title: thread.title },
-              text: `Thread ${thread.title} failed: ${event.error}`,
+              text: `Thread ${thread.title} failed: ${restartNotice ? RESTART_LIMIT_NOTE : event.error}`,
             })
           }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         }
@@ -494,6 +501,15 @@ export function createStore() {
 
     return {
       queueChanges,
+      recordServerStart(startedAt: number, windowMs: number) {
+        return Effect.gen(function* () {
+          yield* sql`DELETE FROM server_starts WHERE started_at < ${startedAt - windowMs}`
+          yield* sql`INSERT INTO server_starts (started_at) VALUES (${startedAt})`
+          const [row] = yield* sql<{ count: number }>`SELECT COUNT(*) AS count FROM server_starts
+            WHERE started_at >= ${startedAt - windowMs} AND started_at <= ${startedAt}`
+          return row!.count
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
       isQueuePaused(threadId: string) {
         return sql<{
           queue_paused: number
@@ -673,8 +689,8 @@ export function createStore() {
         return atomically(effect).pipe(Effect.mapError(storeError))
       },
       turnContext,
-      enqueue(threadId: string, message: QueuedMessage) {
-        return enqueue(threadId, message).pipe(
+      enqueue(threadId: string, message: QueuedMessage, front = false) {
+        return enqueue(threadId, message, front).pipe(
           sql.withTransaction,
           Effect.tap(() => signalQueueChange),
           Effect.mapError(storeError)
@@ -1175,7 +1191,7 @@ export function createStore() {
           return yield* requireThread(threadId)
         }).pipe(Effect.mapError(storeError))
       },
-      appendEvent(threadId: string, event: ThreadEvent, notifyParent = true) {
+      appendEvent(threadId: string, event: ThreadEvent, notifyParent: boolean | 'restart' = true) {
         return append(threadId, event, notifyParent).pipe(
           atomically,
           Effect.tap(() =>

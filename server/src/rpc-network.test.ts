@@ -237,7 +237,7 @@ test('a stalled native subscriber does not block durable writes or another clien
   }
 })
 
-test('shutdown with active native streams is awaitable, idempotent, and persists terminal state', async () => {
+test('shutdown with active native streams is awaitable, idempotent, and preserves resume state', async () => {
   const f = await fixture()
   await f.publish({ type: 'turn.started', turnId: f.turnId })
   await f.connection.subscribeChrome().ready
@@ -251,13 +251,15 @@ test('shutdown with active native streams is awaitable, idempotent, and persists
   const restarted = await startServer({ home: f.server.home, port: 0, agent: 'echo' })
   try {
     const state = await Effect.runPromise(restarted.store.getThreadState(f.thread.id))
-    expect(state.status).toBe('error')
+    expect(state.turnOutcomes[f.turnId]).toBe('server_restarted')
     expect(
-      (await Effect.runPromise(restarted.store.getEventsAfter(f.thread.id, 0))).at(-1)?.event
+      (await Effect.runPromise(restarted.store.getEventsAfter(f.thread.id, 0))).find(
+        ({ event }) => event.type === 'turn.failed' && event.turnId === f.turnId
+      )?.event
     ).toMatchObject({
       type: 'turn.failed',
       turnId: f.turnId,
-      error: 'server shutdown',
+      error: 'server_restarted',
     })
   } finally {
     await restarted.stop()

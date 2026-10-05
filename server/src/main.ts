@@ -5,7 +5,12 @@ import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { MAX_TURN_IMAGE_BYTES, type ProviderUsage, type RateLimits } from '@jetty/shared/wire'
+import {
+  MAX_TURN_IMAGE_BYTES,
+  newId,
+  type ProviderUsage,
+  type RateLimits,
+} from '@jetty/shared/wire'
 import {
   Context,
   Deferred,
@@ -40,6 +45,7 @@ import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
+import { RESTART_LIMIT_NOTE, restartContinuation } from './jetty-instructions'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -87,24 +93,35 @@ function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
   })
 }
 
+const RESTART_LIMIT = 3
+const RESTART_WINDOW_MS = 10 * 60_000
+
 function reconcileOnStartup(store: Store) {
   return Effect.gen(function* () {
+    const starts = yield* store.recordServerStart(Date.now(), RESTART_WINDOW_MS)
+    const autoResume = starts < RESTART_LIMIT
     for (const thread of yield* store.listThreads()) {
       const state = yield* store.getThreadState(thread.id)
-      for (const item of state.items)
-        if ((item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running')
-          yield* store.appendEvent(thread.id, {
-            type: 'item.completed',
-            itemId: item.id,
-            patch:
-              item.kind === 'workflow'
-                ? { status: 'stopped', stopReason: 'crash' }
-                : { status: 'stopped' },
-          })
-      if (!state.activeTurnId) continue
+      const stoppedNames: string[] = []
       yield* store.transaction(
         Effect.gen(function* () {
-          yield* store.setQueuePaused(thread.id, true)
+          for (const item of state.items)
+            if (
+              (item.kind === 'subagent' || item.kind === 'workflow') &&
+              item.status === 'running'
+            ) {
+              stoppedNames.push(item.kind === 'workflow' ? item.name : item.title)
+              yield* store.appendEvent(thread.id, {
+                type: 'item.completed',
+                itemId: item.id,
+                patch:
+                  item.kind === 'workflow'
+                    ? { status: 'stopped', stopReason: 'crash' }
+                    : { status: 'stopped' },
+              })
+            }
+          if (!state.activeTurnId) return
+          if (!autoResume) yield* store.setQueuePaused(thread.id, true)
           for (const item of state.items) {
             if (item.turnId !== state.activeTurnId) continue
             if (item.kind === 'approval' && !item.decision)
@@ -133,8 +150,31 @@ function reconcileOnStartup(store: Store) {
               turnId: state.activeTurnId!,
               error: 'server_restarted',
             },
-            false
+            autoResume ? false : 'restart'
           )
+          if (!autoResume)
+            yield* store.appendEvent(thread.id, {
+              type: 'item.started',
+              item: {
+                id: newId(),
+                turnId: state.activeTurnId,
+                createdAt: Date.now(),
+                kind: 'error',
+                message: RESTART_LIMIT_NOTE,
+              },
+            })
+          if (autoResume)
+            yield* store.enqueue(
+              thread.id,
+              {
+                id: newId(),
+                text: restartContinuation(stoppedNames),
+                from: { threadId: thread.id, title: 'Jetty' },
+                createdAt: Date.now(),
+                hop: 0,
+              },
+              true
+            )
         })
       )
     }
@@ -560,7 +600,9 @@ function createServer(opts: ServerOptions = {}) {
       `http://${bound.hostname.includes(':') ? `[${bound.hostname}]` : bound.hostname}:${bound.port}/mcp`
     )
     yield* orch.resumeQueues()
-    yield* Effect.addFinalizer(() => Effect.promise(() => worktrees.shutdown()))
+    yield* Effect.addFinalizer(() =>
+      orch.beginShutdown().pipe(Effect.andThen(Effect.promise(() => worktrees.shutdown())))
+    )
 
     return {
       home,

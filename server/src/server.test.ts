@@ -325,7 +325,7 @@ describe('server skeleton', () => {
     await observer.close()
   })
 
-  test('shutdown joins active turns, writes one terminal before closing SQLite, and is idempotent', async () => {
+  test('shutdown joins active turns, preserves in-flight state before closing SQLite, and is idempotent', async () => {
     const running = await boot()
     const project = await Effect.runPromise(running.store.createProject(running.home))
     const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
@@ -339,9 +339,8 @@ describe('server skeleton', () => {
       const terminals = (await Effect.runPromise(store.getEventsAfter(thread.id, 0))).filter(
         ({ event }) => event.type === 'turn.completed' || event.type === 'turn.failed'
       )
-      expect(terminals).toHaveLength(1)
-      expect(terminals[0]!.event).toMatchObject({ type: 'turn.failed', error: 'server shutdown' })
-      expect((await Effect.runPromise(store.getThreadState(thread.id))).activeTurnId).toBeNull()
+      expect(terminals).toHaveLength(0)
+      expect((await Effect.runPromise(store.getThreadState(thread.id))).activeTurnId).not.toBeNull()
     } finally {
       await db.close()
     }
@@ -776,16 +775,73 @@ describe('server skeleton', () => {
     await c.close()
   })
 
-  test('startup reconciliation fails non-idle threads', async () => {
+  test('startup reconciliation resumes interrupted threads with a Jetty continuation', async () => {
     const home = mkdtempSync(join(tmpdir(), 'jetty-reconcile-'))
     homes.push(home)
 
     const db = await openTestStore(home)
     const { store } = db
-    const project = await Effect.runPromise(store.createProject(dir('/tmp/reconcile')))
+    const project = await Effect.runPromise(store.createProject(home))
     const thread = await Effect.runPromise(store.createThread(project.id, newId()))
     await Effect.runPromise(
       store.appendEvent(thread.id, { type: 'turn.started', turnId: 'orphan-turn' })
+    )
+    await Effect.runPromise(
+      store.appendEvents(thread.id, [
+        {
+          type: 'item.started',
+          item: {
+            id: 'orphan-agent',
+            turnId: 'orphan-turn',
+            createdAt: Date.now(),
+            kind: 'subagent',
+            title: 'Explorer',
+            prompt: 'Explore',
+            status: 'running',
+          },
+        },
+        {
+          type: 'item.started',
+          item: {
+            id: 'orphan-workflow',
+            turnId: 'orphan-turn',
+            createdAt: Date.now(),
+            kind: 'workflow',
+            taskId: 'task',
+            name: 'Review',
+            description: '',
+            provider: 'claude',
+            status: 'running',
+            phases: [],
+            agents: [],
+            tokens: 0,
+            durationMs: 0,
+          },
+        },
+        {
+          type: 'item.started',
+          item: {
+            id: 'orphan-approval',
+            turnId: 'orphan-turn',
+            createdAt: Date.now(),
+            kind: 'approval',
+            title: 'Permission',
+            toolName: 'Bash',
+            input: {},
+            suggestions: [],
+          },
+        },
+        {
+          type: 'item.started',
+          item: {
+            id: 'orphan-question',
+            turnId: 'orphan-turn',
+            createdAt: Date.now(),
+            kind: 'question',
+            questions: [],
+          },
+        },
+      ])
     )
     expect((await Effect.runPromise(store.getThreadState(thread.id))).status).toBe('running')
     await db.close()
@@ -794,11 +850,39 @@ describe('server skeleton', () => {
     servers.push(running)
 
     const c = await connect(running.port)
-    const sub = await c.subscribeThread({ threadId: thread.id }).ready
+    await c.subscribeThread({ threadId: thread.id }).ready
 
-    expect(sub.snapshot.status).toBe('error')
-    expect(sub.snapshot.activeTurnId).toBeNull()
-    expect(sub.snapshot.lastSeq).toBe(2)
+    await c.waitFor(
+      (m) => isThreadEvent(m) && m.threadId === thread.id && m.event.type === 'turn.completed'
+    )
+    const resumed = await Effect.runPromise(running.store.getThreadState(thread.id))
+    expect(resumed.activeTurnId).toBeNull()
+    expect(resumed.items).toContainEqual(
+      expect.objectContaining({
+        kind: 'user_message',
+        from: { threadId: thread.id, title: 'Jetty' },
+        text: expect.stringContaining("won't report back: Explorer, Review"),
+      })
+    )
+    expect(resumed.items).toContainEqual(
+      expect.objectContaining({ id: 'orphan-agent', status: 'stopped' })
+    )
+    expect(resumed.items).toContainEqual(
+      expect.objectContaining({ id: 'orphan-workflow', status: 'stopped', stopReason: 'crash' })
+    )
+    expect(resumed.items).toContainEqual(
+      expect.objectContaining({
+        id: 'orphan-approval',
+        decision: 'deny',
+        deniedReason: 'Jetty restarted',
+      })
+    )
+    expect(resumed.items).toContainEqual(
+      expect.objectContaining({ id: 'orphan-question', skipped: true })
+    )
+    expect((await Effect.runPromise(running.store.requireThread(thread.id))).queuePaused).toBe(
+      false
+    )
 
     // Replay events to confirm turn.failed was appended
     const c2 = await connect(running.port)

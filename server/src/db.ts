@@ -173,6 +173,11 @@ const migrations = SqliteMigrator.fromRecord({
     )`
     yield* sql`DELETE FROM thread_events WHERE json_extract(payload_json, '$.type') IN ${kinds}`
   }),
+  '022_server_starts': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE server_starts (started_at INTEGER NOT NULL)`
+    yield* sql`CREATE INDEX server_starts_by_time ON server_starts (started_at)`
+  }),
 })
 
 export function databaseLayer(home: string) {
