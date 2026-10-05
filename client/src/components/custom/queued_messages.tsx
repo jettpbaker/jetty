@@ -12,7 +12,6 @@ import { serverNow } from '@/lib/server_time'
 import { cn } from '@/lib/utils'
 import {
   queueComposer,
-  useContinueThread,
   useDraftEditing,
   useQueueActions,
   useQueueHeld,
@@ -191,10 +190,9 @@ export function QueueSeam({
   threadId: string
   state: QueueState
   count: number
-  resume?: QueuedMessage | 'continue'
+  resume?: QueuedMessage
 }) {
   const actions = useQueueActions()
-  const continueThread = useContinueThread()
   return (
     <ChatSeam>
       {state === 'paused' ? (
@@ -202,11 +200,7 @@ export function QueueSeam({
           <SeamIcon icon={PauseIcon} />
           <span>Paused</span>
           {resume && (
-            <ChatSeamAction
-              onClick={() =>
-                resume === 'continue' ? continueThread(threadId) : actions.sendNow(threadId, resume)
-              }
-            >
+            <ChatSeamAction onClick={() => actions.sendNow(threadId, resume)}>
               Resume
             </ChatSeamAction>
           )}

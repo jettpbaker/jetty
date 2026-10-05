@@ -76,12 +76,10 @@ export type ThreadRow =
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
   // The queue under the chat: a seam with its state, the user's queued messages, and Undo where
-  // one was just removed. Resume sends the queue's next message, or continues a held thread.
-  | { kind: 'queueSeam'; id: string; state: QueueState; count: number; resume?: Resume }
+  // one was just removed. Resume sends the queue's next message.
+  | { kind: 'queueSeam'; id: string; state: QueueState; count: number; resume?: QueuedMessage }
   | { kind: 'queued'; id: string; entry: QueuedMessage; editing: boolean; steer: boolean }
   | { kind: 'queueRemoved'; id: string }
-
-type Resume = QueuedMessage | 'continue'
 
 function toolKind(name: string): ToolKind {
   switch (name.toLowerCase()) {
@@ -496,12 +494,12 @@ export function threadRows(
   const startedTurns = new Set<string>()
   const lastSent = items.findLast((item) => item.turnId !== pendingTurnId)
   const steering = sessionActive && lastSent !== undefined && !outcomes[lastSent.turnId]
+  // The guard also holds a turn that finished before the restart stopped its background work.
   function finishTurn(resumed: boolean) {
-    if (!currentTurnId || outcomes[currentTurnId] !== 'server_restarted') return
+    if (!currentTurnId) return
     const id = `${currentTurnId}:restart`
-    rows.push(
-      heldTurns.has(currentTurnId) ? { kind: 'restartLimit', id, resumed } : { kind: 'restart', id }
-    )
+    if (heldTurns.has(currentTurnId)) rows.push({ kind: 'restartLimit', id, resumed })
+    else if (outcomes[currentTurnId] === 'server_restarted') rows.push({ kind: 'restart', id })
   }
   for (const [index, item] of items.entries()) {
     if (currentTurnId && currentTurnId !== item.turnId) finishTurn(true)
@@ -699,7 +697,7 @@ export type TranscriptQueue = {
   unsent: readonly QueuedMessage[]
   own: readonly QueuedMessage[]
   paused: boolean
-  // the crash-loop guard held the thread, so Resume continues it
+  // the crash-loop guard held the thread: its own seam's Resume continues it, so the queue's waits
   held: boolean
   editing?: string
   removed?: { message: QueuedMessage; index: number }
@@ -714,8 +712,8 @@ function queueRows(
 ): ThreadRow[] {
   const rows: ThreadRow[] = []
   const head = own[0]
-  if (head || (paused && unsent.length > 0)) {
-    const resume = held ? 'continue' : unsent.find((entry) => !isQueuedEditing(entry, editing))
+  if (!held && (head || (paused && unsent.length > 0))) {
+    const resume = unsent.find((entry) => !isQueuedEditing(entry, editing))
     rows.push({
       kind: 'queueSeam',
       id: 'queue:seam',
