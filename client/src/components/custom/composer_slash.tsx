@@ -25,6 +25,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ClipboardEvent,
   type ComponentProps,
   type KeyboardEvent,
   type ReactNode,
@@ -34,7 +35,16 @@ import {
 } from 'react'
 
 import { ProviderGlyph } from './provider_glyph'
-import { activeSlash, matchScore, slashTokens, type SlashQuery } from './slash_model'
+import './composer_slash.css'
+import {
+  activeSlash,
+  applyEdit,
+  chipLead,
+  chipped,
+  matchScore,
+  slashTokens,
+  type SlashQuery,
+} from './slash_model'
 
 export type SlashScope = { threadId?: string; projectId?: string }
 
@@ -91,6 +101,8 @@ export function useComposerSlash(
   const seen = useRef(text)
   const [caret, setCaret] = useState(text.length)
   const [focused, setFocused] = useState(false)
+  // The slash word being typed, which stays plain text until the caret leaves it.
+  const [editing, setEditing] = useState<number>()
   const [dismissed, setDismissed] = useState<number>()
   const [section, setSection] = useState<Section>()
   const [picking, setPicking] = useState<ValueCommand>()
@@ -110,13 +122,24 @@ export function useComposerSlash(
   // Claude and Grok run Claude skills as /name; Codex has its own.
   const runsSkills = provider !== 'codex'
   const skills = runsSkills ? listed : []
+  const isSkill = (name: string) => skills.some((skill) => skill.name === name)
 
-  const query = activeSlash(text, caret)
+  // A finished chip is one piece: the caret resting in it neither un-chips it nor opens the menu.
+  const typed = activeSlash(text, caret)
+  const query =
+    typed && (typed.start === editing || !isSkill(text.slice(typed.start + 1, typed.end)))
+      ? typed
+      : undefined
   const open = focused && query !== undefined && dismissed !== query.start
+  const tokens = chips(text, query, skills)
+  const shown = chipped(text, tokens)
 
   useEffect(() => {
     if (open) refresh()
   }, [open, refresh])
+
+  // Loaded with the composer, so a first chip doesn't paint a frame at the fallback width.
+  useEffect(() => void document.fonts.load('1em "Skill Chip"', chipLead), [])
 
   // Programmatic edits move the caret in state; user edits already match it. Text replaced from
   // outside (a send, another thread's draft) keeps the caret where the browser put it.
@@ -125,6 +148,7 @@ export function useComposerSlash(
     if (!element) return
     if (seen.current !== text) {
       seen.current = text
+      setEditing(undefined)
       settle(text, element.selectionStart)
     } else if (element.selectionStart !== caret) element.setSelectionRange(caret, caret)
   }, [textarea, text, caret])
@@ -139,7 +163,14 @@ export function useComposerSlash(
     }
   }
 
+  // Typing in a slash word makes it the one being edited; deleting the space after a chip doesn't.
   function update(next: string, nextCaret: number) {
+    const word = activeSlash(next, nextCaret)
+    setEditing(
+      word && (word.start === editing || wordAt(text, word.start) !== wordAt(next, word.start))
+        ? word.start
+        : undefined
+    )
     seen.current = next
     onTextChange(next)
     settle(next, nextCaret)
@@ -415,9 +446,7 @@ export function useComposerSlash(
       }
     }
     if (event.key === 'Backspace' && collapsed) {
-      const token = chips(text, undefined, skills).find(
-        (entry) => entry.end === element.selectionStart
-      )
+      const token = tokens.find((entry) => entry.end === element.selectionStart)
       if (token) {
         event.preventDefault()
         update(text.slice(0, token.start) + text.slice(token.end), token.start)
@@ -432,15 +461,31 @@ export function useComposerSlash(
     'aria-expanded': open,
     'aria-controls': open ? 'slash-menu' : undefined,
     'aria-activedescendant': current && `slash-${current.id}`,
-    onChange: (event: ChangeEvent<HTMLTextAreaElement>) =>
-      update(event.target.value, event.target.selectionStart),
+    value: shown,
+    onChange: ({ target }: ChangeEvent<HTMLTextAreaElement>) =>
+      update(
+        applyEdit(text, shown, target.value, target.selectionEnd, isSkill),
+        target.selectionStart
+      ),
     onSelect: (event: SyntheticEvent<HTMLTextAreaElement>) => {
-      if (event.currentTarget.selectionStart === caret) return
-      setCaret(event.currentTarget.selectionStart)
+      const at = event.currentTarget.selectionStart
+      if (at === caret) return
+      setCaret(at)
       setActive(undefined)
+      if (activeSlash(text, at)?.start !== editing) setEditing(undefined)
     },
     onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
+    onBlur: () => {
+      setFocused(false)
+      setEditing(undefined)
+    },
+    // What leaves the textarea carries the message's slashes, not the chips' spaces.
+    onCopy: (event: ClipboardEvent<HTMLTextAreaElement>) => copy(event),
+    onCut: (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const { selectionStart, selectionEnd } = event.currentTarget
+      if (copy(event))
+        update(text.slice(0, selectionStart) + text.slice(selectionEnd), selectionStart)
+    },
     onScroll: (event: UIEvent<HTMLTextAreaElement>) => {
       if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop
     },
@@ -448,8 +493,19 @@ export function useComposerSlash(
     onKeyDownCapture: onKeyDown,
   } satisfies ComponentProps<'textarea'>
 
+  function copy(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const { selectionStart, selectionEnd } = event.currentTarget
+    const selected = text.slice(selectionStart, selectionEnd)
+    if (selected === shown.slice(selectionStart, selectionEnd)) return false
+    event.preventDefault()
+    event.clipboardData.setData('text/plain', selected)
+    return true
+  }
+
   return {
     text,
+    shown,
+    tokens,
     caret,
     query,
     open,
@@ -478,6 +534,10 @@ function rank(entries: Entry[], query: string) {
   )
 }
 
+function wordAt(text: string, at: number) {
+  return /^\S*/.exec(text.slice(at))?.[0]
+}
+
 function chips(text: string, query: SlashQuery | undefined, skills: readonly Skill[]) {
   return slashTokens(text).filter(
     (token) => token.start !== query?.start && skills.some((skill) => skill.name === token.name)
@@ -486,14 +546,8 @@ function chips(text: string, query: SlashQuery | undefined, skills: readonly Ski
 
 /* Mirror: paints chips and argument hints behind the textarea's own text. */
 
-const chipStyle = {
-  background: 'color-mix(in oklch, var(--primary) 16%, transparent)',
-  boxShadow: '0 0 0 2px color-mix(in oklch, var(--primary) 16%, transparent)',
-}
-
 export function SlashMirror({ slash }: { slash: Slash }) {
-  const { text, query, caret, skills } = slash
-  const tokens = chips(text, query, skills)
+  const { text, shown, tokens, query, caret, skills } = slash
   const parts: ReactNode[] = []
   let at = 0
   const marks = [
@@ -501,17 +555,21 @@ export function SlashMirror({ slash }: { slash: Slash }) {
     ...(query ? [{ start: query.start, end: query.start, name: '', anchor: true }] : []),
   ].sort((a, b) => a.start - b.start)
   for (const mark of marks) {
-    parts.push(text.slice(at, mark.start))
+    parts.push(shown.slice(at, mark.start))
     if (mark.anchor) parts.push(<span key='anchor' ref={slash.anchor} />)
     else
       parts.push(
-        <span key={mark.start} className='rounded-menu-item' style={chipStyle}>
-          {text.slice(mark.start, mark.end)}
+        <span key={mark.start} className='skill-chip'>
+          <span className='whitespace-nowrap'>
+            <AiFileIcon />
+            {chipLead}
+          </span>
+          {mark.name}
         </span>
       )
     at = mark.end
   }
-  parts.push(text.slice(at))
+  parts.push(shown.slice(at))
 
   const last = tokens.at(-1)
   const lastSkill = last && skills.find((skill) => skill.name === last.name)
@@ -528,7 +586,7 @@ export function SlashMirror({ slash }: { slash: Slash }) {
     <div
       ref={slash.mirror}
       aria-hidden='true'
-      className='pointer-events-none absolute inset-0 scroll-fade-y overflow-hidden px-2.5 py-2 text-base break-words whitespace-pre-wrap text-transparent md:text-sm'
+      className='skill-chip-text pointer-events-none absolute inset-0 scroll-fade-y overflow-hidden px-2.5 py-2 text-base break-words whitespace-pre-wrap text-transparent md:text-sm'
     >
       {parts}
       {hint && <span className='text-muted-foreground'>{hint}</span>}

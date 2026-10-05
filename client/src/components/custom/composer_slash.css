@@ -1,0 +1,32 @@
+/* A skill chip in the composer, in the PR editor's .issue-chip proportions. The textarea paints
+   the text, so the chip's room is characters: its slash shows as a no-break space, which this face
+   widens from Geist's 0.25em to 1.45em (padding 0.3em, icon 0.9em, gap 0.25em), and the space
+   after it as an en space, which holds the right padding. Chrome skips unicode-range faces for
+   U+2000-U+200A, so the widened space has to be the no-break one. */
+@font-face {
+  font-family: 'Skill Chip';
+  src: url('@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+A0;
+  size-adjust: 580%;
+}
+
+.skill-chip-text {
+  font-family: 'Skill Chip', 'Geist Variable', sans-serif;
+}
+
+.skill-chip {
+  border-radius: 4px;
+  padding: 0.0625em 0.3em 0.0625em 0;
+  margin-right: -0.3em;
+  background: color-mix(in oklch, var(--primary) 16%, transparent);
+  box-decoration-break: clone;
+}
+
+.skill-chip svg {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin: 0 -1.2em 0 0.3em;
+  vertical-align: -0.12em;
+  color: var(--primary);
+}

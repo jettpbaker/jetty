@@ -26,6 +26,54 @@ export function slashTokens(text: string): SlashToken[] {
   })
 }
 
+// The textarea shows a chip's slash as a no-break space, which composer_slash.css widens to hold
+// the icon, and the space after it as an en space, room for its padding. One character for one,
+// so the shown text and the message share every index.
+export const chipLead = '\u00a0'
+const chipTail = '\u2002'
+
+export function chipped(text: string, chips: readonly SlashToken[]) {
+  let shown = ''
+  let at = 0
+  for (const chip of chips) {
+    shown += `${text.slice(at, chip.start)}${chipLead}${text.slice(chip.start + 1, chip.end)}`
+    at = chip.end
+    if (text[at] === ' ') {
+      shown += chipTail
+      at++
+    }
+  }
+  return shown + text.slice(at)
+}
+
+// The textarea's edit, made to the message. The edit ends at the caret, which settles where a
+// character typed beside an identical one went. Chips the edit brings back (an undo, a drop of
+// the textarea's own text) get their slashes back.
+export function applyEdit(
+  text: string,
+  shown: string,
+  next: string,
+  caret: number,
+  isSkill: (name: string) => boolean
+) {
+  let tail = 0
+  while (
+    tail < next.length - caret &&
+    tail < shown.length &&
+    next[next.length - 1 - tail] === shown[shown.length - 1 - tail]
+  )
+    tail++
+  let head = 0
+  while (head < next.length - tail && head < shown.length - tail && next[head] === shown[head])
+    head++
+  const edit = next
+    .slice(head, next.length - tail)
+    .replace(/(^|\s)\u00a0([\w-]+)(\u2002|(?=\s|$))/g, (match, lead, name, space) =>
+      isSkill(name) ? `${lead}/${name}${space ? ' ' : ''}` : match
+    )
+  return text.slice(0, head) + edit + text.slice(shown.length - tail)
+}
+
 function isSubsequence(query: string, text: string) {
   let index = 0
   for (const char of text) if (char === query[index]) index++
