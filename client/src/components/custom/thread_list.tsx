@@ -534,12 +534,12 @@ export function ThreadList({
     if (!value) glider.current?.stop()
   }, [])
   // The browser's End and Home aim at the ends of rows still at their estimated sizes, so they
-  // land short once those rows measure (639px in a 200-turn thread).
+  // land short once those rows measure (639px in a 200-turn thread). Keys aimed at something
+  // focused inside the chat (a scrolling tool output) stay its own.
   useEffect(() => {
     const element = scroller.current!
     const jump = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.shiftKey) return
-      if ((event.target as HTMLElement).closest('input, textarea, [contenteditable]')) return
+      if (event.target !== element || event.altKey || event.ctrlKey || event.shiftKey) return
       const meta = event.metaKey
       if ((event.key === 'End' && !meta) || (event.key === 'ArrowDown' && meta)) {
         event.preventDefault()
