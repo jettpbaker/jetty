@@ -404,6 +404,7 @@ export function ThreadComposer({
     })
   }
 
+  const followUp = Boolean(item && typed && !answering)
   const header = item && pending.length > 1 && (
     <PendingHeader index={index} total={pending.length} source={item.source} onChoose={choose} />
   )
@@ -422,6 +423,7 @@ export function ThreadComposer({
               item={item}
               ctl={approval}
               typed={typed && answering}
+              followUp={followUp}
               header={header}
               hideSource={Boolean(header)}
             />
@@ -438,6 +440,7 @@ export function ThreadComposer({
               <QuestionStrip
                 ctl={question}
                 item={item}
+                followUp={followUp}
                 header={header}
                 hideSource={Boolean(header)}
               />

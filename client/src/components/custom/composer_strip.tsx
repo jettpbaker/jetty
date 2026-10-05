@@ -245,12 +245,14 @@ export function ApprovalStrip({
   item,
   ctl,
   typed,
+  followUp,
   header,
   hideSource,
 }: {
   item: Approval
   ctl: ApprovalControl
   typed: boolean
+  followUp?: boolean
   header?: ReactNode
   hideSource?: boolean
 }) {
@@ -342,6 +344,7 @@ export function ApprovalStrip({
         ) : (
           <FullTarget item={item} />
         ))}
+      {followUp && <FollowUpNote />}
     </FlushShell>
   )
 }
@@ -460,14 +463,20 @@ export function useQuestion(
 
 type QuestionControl = ReturnType<typeof useQuestion>
 
+function FollowUpNote() {
+  return <p className='text-xs text-muted-foreground'>Enter queues this as a follow-up</p>
+}
+
 export function QuestionStrip({
   ctl,
   item,
+  followUp,
   header,
   hideSource,
 }: {
   ctl: QuestionControl
   item: Question
+  followUp?: boolean
   header?: ReactNode
   hideSource?: boolean
 }) {
@@ -550,6 +559,7 @@ export function QuestionStrip({
           </div>
         )}
       </div>
+      {followUp && <FollowUpNote />}
     </FlushShell>
   )
 }
