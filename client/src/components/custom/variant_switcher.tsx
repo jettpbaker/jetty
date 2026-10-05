@@ -13,6 +13,7 @@ const switches: { name: string; options: Record<string, string> }[] = [
       fade: 'Chat top: eased fade',
       blur: 'Chat top: progressive blur',
       'blur-fade': 'Chat top: progressive blur + fade',
+      shadcn: 'Chat top: Magic UI progressive blur',
       short: 'Chat top: short blur + fade (cheap)',
       none: 'Chat top: clean cut',
     },

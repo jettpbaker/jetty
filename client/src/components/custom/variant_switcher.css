@@ -4,7 +4,7 @@
   .conversation-scroll > .scroll-fade-y {
     --scroll-fade-t-size: 0px;
   }
-  .conversation-top-blur {
+  :where(.conversation-top-blur) {
     inset-inline: max(0px, calc(50% - 27.5rem));
   }
   :where(.conversation-top-blur > div) {
@@ -89,6 +89,50 @@
     height: calc(0.5rem + 14px);
     backdrop-filter: blur(7px);
     mask-image: linear-gradient(#000 0, transparent 0.5rem);
+  }
+}
+
+/* Magic UI's ProgressiveBlur (the shadcn registry's) as `position='top'` with its defaults:
+   30% of the pane, full width, blurLevels [0.5, 1, 2, 4, 8, 16, 32, 64], each layer a 12.5%-step
+   window. Only the ramp-in is ours, kept from today's 5rem. */
+:root[data-chat-top='shadcn'] .conversation-top-blur {
+  inset-inline: 0;
+  height: 30%;
+}
+:root[data-chat-top='shadcn'] .conversation-top-blur > div {
+  display: block;
+  bottom: 0;
+  &:nth-child(1) {
+    backdrop-filter: blur(0.5px);
+    mask-image: linear-gradient(to top, transparent 0%, #000 12.5%, #000 25%, transparent 37.5%);
+  }
+  &:nth-child(2) {
+    backdrop-filter: blur(1px);
+    mask-image: linear-gradient(to top, transparent 12.5%, #000 25%, #000 37.5%, transparent 50%);
+  }
+  &:nth-child(3) {
+    backdrop-filter: blur(2px);
+    mask-image: linear-gradient(to top, transparent 25%, #000 37.5%, #000 50%, transparent 62.5%);
+  }
+  &:nth-child(4) {
+    backdrop-filter: blur(4px);
+    mask-image: linear-gradient(to top, transparent 37.5%, #000 50%, #000 62.5%, transparent 75%);
+  }
+  &:nth-child(5) {
+    backdrop-filter: blur(8px);
+    mask-image: linear-gradient(to top, transparent 50%, #000 62.5%, #000 75%, transparent 87.5%);
+  }
+  &:nth-child(6) {
+    backdrop-filter: blur(16px);
+    mask-image: linear-gradient(to top, transparent 62.5%, #000 75%, #000 87.5%, transparent 100%);
+  }
+  &:nth-child(7) {
+    backdrop-filter: blur(32px);
+    mask-image: linear-gradient(to top, transparent 75%, #000 87.5%, #000 100%, transparent 112.5%);
+  }
+  &:nth-child(8) {
+    backdrop-filter: blur(64px);
+    mask-image: linear-gradient(to top, transparent 87.5%, #000 100%);
   }
 }
 
