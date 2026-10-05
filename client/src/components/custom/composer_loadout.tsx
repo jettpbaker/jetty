@@ -40,9 +40,12 @@ import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { useReducedMotion } from 'motion/react'
+import { useRef, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
+import { KeybindChip, KeybindTooltip, keybinds, typingOutsideComposer } from './keybinds'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
@@ -253,6 +256,32 @@ export function ComposerLoadout({
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
 
+  const [open, setOpen] = useState(false)
+  const [submenu, setSubmenu] = useState<'model' | 'effort'>()
+  const submenuPopup = useRef<HTMLDivElement>(null)
+
+  function openSubmenu(target: 'model' | 'effort') {
+    if (open) return
+    setSubmenu(target)
+    setOpen(true)
+    refresh()
+  }
+
+  useHotkey(
+    keybinds.model.hotkey,
+    (event) => {
+      if (!typingOutsideComposer(event)) openSubmenu('model')
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
+  useHotkey(
+    keybinds.effort.hotkey,
+    (event) => {
+      if (!typingOutsideComposer(event)) openSubmenu('effort')
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
+
   function reorder(from: number, to: number) {
     if (from === to || to < 0 || to >= loadouts.length) return
     const next = [...loadouts]
@@ -270,40 +299,54 @@ export function ComposerLoadout({
   return (
     <DropdownMenu
       modal={false}
-      onOpenChange={(open) => {
-        if (open) refresh()
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        setSubmenu(undefined)
+        if (next) refresh()
+      }}
+      // A submenu opened without the keyboard leaves focus where it was; the shortcut moves it onto
+      // the current pick so the arrows choose straight away, and Esc backs out of both menus.
+      onOpenChangeComplete={(next) => {
+        const popup = submenuPopup.current
+        if (!next || !popup) return
+        const item =
+          popup.querySelector('[data-checked]') ?? popup.querySelector('[role^=menuitem]')
+        if (item instanceof HTMLElement) item.focus()
       }}
     >
-      <DropdownMenuTrigger
-        aria-label={
-          value
-            ? `Loadout: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
-            : 'Choose a model'
-        }
-        render={
-          <Button
-            variant='ghost'
-            size='sm'
-            tone={value ? 'default' : 'muted'}
-            className={cn(
-              'group/chip gap-1.5 rounded-sm',
-              value && 'text-primary not-disabled:hover:text-primary aria-expanded:text-primary'
-            )}
-          />
-        }
-      >
-        {value ? (
-          <>
-            <ProviderGlyph provider={value.provider} className='size-3' />
-            {model ? <ModelLabel model={model} /> : name}
-            <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
-              {describeLoadout(value)}
-            </span>
-          </>
-        ) : (
-          'Choose a model'
-        )}
-      </DropdownMenuTrigger>
+      <KeybindTooltip binding={keybinds.model}>
+        <DropdownMenuTrigger
+          aria-label={
+            value
+              ? `Loadout: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
+              : 'Choose a model'
+          }
+          render={
+            <Button
+              variant='ghost'
+              size='sm'
+              tone={value ? 'default' : 'muted'}
+              className={cn(
+                'group/chip gap-1.5 rounded-sm',
+                value && 'text-primary not-disabled:hover:text-primary aria-expanded:text-primary'
+              )}
+            />
+          }
+        >
+          {value ? (
+            <>
+              <ProviderGlyph provider={value.provider} className='size-3' />
+              {model ? <ModelLabel model={model} /> : name}
+              <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
+                {describeLoadout(value)}
+              </span>
+            </>
+          ) : (
+            'Choose a model'
+          )}
+        </DropdownMenuTrigger>
+      </KeybindTooltip>
       <DropdownMenuContent align='start' className='w-max min-w-56'>
         <DropdownMenuGroup>
           <DragDropProvider
@@ -363,12 +406,13 @@ export function ComposerLoadout({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuSub>
+          <DropdownMenuSub defaultOpen={submenu === 'model'} closeParentOnEsc={submenu === 'model'}>
             <DropdownMenuSubTrigger className={subTriggerClass}>
               Model
               <span className='ml-auto pl-4 text-muted-foreground'>{name}</span>
+              <KeybindChip binding={keybinds.model} />
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent ref={submenu === 'model' ? submenuPopup : undefined}>
               <DropdownMenuRadioGroup
                 value={model ? modelKey(model) : ''}
                 onValueChange={(key) => swapModel(String(key))}
@@ -382,7 +426,10 @@ export function ComposerLoadout({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuSub>
+          <DropdownMenuSub
+            defaultOpen={submenu === 'effort' && efforts.length > 0}
+            closeParentOnEsc={submenu === 'effort'}
+          >
             <DisabledTooltip
               reason={
                 efforts.length > 0
@@ -404,9 +451,10 @@ export function ComposerLoadout({
                 <span className='ml-auto pl-4 text-muted-foreground'>
                   {value?.effort && effortLabels[value.effort]}
                 </span>
+                <KeybindChip binding={keybinds.effort} />
               </DropdownMenuSubTrigger>
             </DisabledTooltip>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent ref={submenu === 'effort' ? submenuPopup : undefined}>
               <DropdownMenuRadioGroup
                 value={value?.effort ?? ''}
                 onValueChange={(next) => {

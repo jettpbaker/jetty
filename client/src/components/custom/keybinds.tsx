@@ -38,6 +38,9 @@ export const keybinds = {
     modifiers: ['Alt', 'Meta'],
   },
   pin: { hotkey: 'Mod+Alt+P', label: '⌥⌘P', name: 'Pin thread', modifiers: ['Alt', 'Meta'] },
+  model: { hotkey: 'Mod+Alt+M', label: '⌥⌘M', name: 'Model', modifiers: ['Alt', 'Meta'] },
+  effort: { hotkey: 'Mod+Alt+E', label: '⌥⌘E', name: 'Effort', modifiers: ['Alt', 'Meta'] },
+  access: { hotkey: 'Mod+Alt+A', label: '⌥⌘A', name: 'Access mode', modifiers: ['Alt', 'Meta'] },
   pinned: Array.from(
     { length: 9 },
     (_, index): Keybind => ({
