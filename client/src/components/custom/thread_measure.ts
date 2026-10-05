@@ -115,8 +115,6 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       return row.item.status === 'running'
         ? 72 + 32 * row.item.phases.length + 28 * row.item.agents.length
         : 36
-    case 'created':
-      return 28 * row.threadIds.length
     case 'compaction':
     case 'marker':
       return 16

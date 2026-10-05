@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
+import { ThreadLink } from './entity_link'
 import { Markdown } from './markdown'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
@@ -51,6 +52,11 @@ function WorkHistory({
                 <Markdown className='work-text'>{entry.text}</Markdown>
               ) : entry.type === 'todo' ? (
                 <TodoLink threadId={threadId} update={entry.update} />
+              ) : entry.type === 'created' ? (
+                <div className='activity-header items-center gap-1'>
+                  Created
+                  <ThreadLink id={entry.threadId} fallback={entry.title ?? 'a thread'} />
+                </div>
               ) : (
                 <ToolGroup batch={entry} />
               )}

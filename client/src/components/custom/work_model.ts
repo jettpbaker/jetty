@@ -32,9 +32,15 @@ export type ThinkingActivity = {
 // what the agent said between its steps, as opposed to its answer after the last one
 export type TextActivity = { type: 'text'; id: string; text: string }
 export type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
-export type WorkActivity = ToolActivity | ThinkingActivity | TextActivity | TodoActivity
+export type CreatedActivity = { type: 'created'; id: string; threadId: string; title?: string }
+export type WorkActivity =
+  | ToolActivity
+  | ThinkingActivity
+  | TextActivity
+  | TodoActivity
+  | CreatedActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
-export type WorkEntry = ToolBatch | ThinkingActivity | TextActivity | TodoActivity
+export type WorkEntry = ToolBatch | ThinkingActivity | TextActivity | TodoActivity | CreatedActivity
 
 const vocabulary = {
   read: {

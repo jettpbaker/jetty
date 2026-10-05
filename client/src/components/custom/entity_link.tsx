@@ -127,7 +127,7 @@ function GitHubAnchor({ children, ...props }: ComponentProps<'a'>) {
   )
 }
 
-function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
+export function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
   const chrome = useChrome()
   const prefetch = useThreadRowPrefetch()
   const meta = chrome?.threads.find((thread) => thread.id === id)

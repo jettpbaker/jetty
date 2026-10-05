@@ -1,7 +1,5 @@
 import type { ProviderId } from '@jetty/shared/wire'
 
-import { WorkflowIcon } from '@/components/custom/lucide_icons'
-import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -159,55 +157,5 @@ function OwnedThreadRow({
         <LastActivity child={child} />
       </span>
     </TwoLineRow>
-  )
-}
-
-function CreatedRow({
-  child,
-  open,
-  prefetch,
-}: {
-  child: ChildThread
-  open: Open
-  prefetch: ReturnType<typeof useThreadRowPrefetch>
-}) {
-  return (
-    <Button
-      variant='ghost-text'
-      data-overflow-hover
-      onClick={() => open(child)}
-      onPointerEnter={() => prefetch.enter(child.id)}
-      onPointerLeave={() => prefetch.leave(child.id)}
-      className='flex h-7 w-full min-w-0 items-center gap-2 rounded-sm px-2.5 text-left text-sm font-normal'
-    >
-      <span className='flex shrink-0 items-center gap-1.5 text-muted-foreground'>
-        <WorkflowIcon className='size-3' />
-        Created
-      </span>
-      <span className='min-w-0 flex-1 text-foreground'>
-        <ChildTitle child={child} />
-      </span>
-      <span className='ml-2 flex shrink-0 items-center gap-3 text-xs text-muted-foreground'>
-        <AgentMeta child={child} />
-        <span className='mr-px flex items-center gap-2'>
-          <LastActivity child={child} />
-        </span>
-      </span>
-      <StatusGlyph status={child.status} />
-    </Button>
-  )
-}
-
-export function CreatedThreads({ parentId, ids }: { parentId: string; ids: readonly string[] }) {
-  const open = useOpenThread()
-  const prefetch = useThreadRowPrefetch()
-  const byId = new Map(useChildThreads(parentId).map((child) => [child.id, child]))
-  return (
-    <div className='flex flex-col'>
-      {ids.map((id) => {
-        const child = byId.get(id)
-        return child && <CreatedRow key={id} child={child} open={open} prefetch={prefetch} />
-      })}
-    </div>
   )
 }

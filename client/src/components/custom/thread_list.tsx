@@ -2,7 +2,6 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
-import { CreatedThreads } from '@/components/custom/child_threads'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
@@ -103,8 +102,6 @@ function rowStamp(row: ThreadRow) {
       return row.agents.map((agent) => `${agent.id}:${agent.status}`).join(',')
     case 'workflow':
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
-    case 'created':
-      return row.threadIds.join(',')
     case 'compaction':
       return `${row.item.tokensBefore}:${row.item.tokensAfter}`
     case 'marker':
@@ -116,7 +113,7 @@ function rowStamp(row: ThreadRow) {
             ? `${activity.id}:${activity.text.length}`
             : activity.type === 'thinking'
               ? `${activity.id}:${activity.summary.length}:${activity.status}`
-              : activity.type === 'todo'
+              : activity.type === 'todo' || activity.type === 'created'
                 ? activity.id
                 : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
@@ -207,7 +204,6 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
-  if (row.kind === 'created') return <CreatedThreads parentId={threadId} ids={row.threadIds} />
   if (row.kind === 'compaction') return <CompactionMarker item={row.item} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')

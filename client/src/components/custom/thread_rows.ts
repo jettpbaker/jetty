@@ -53,7 +53,6 @@ export type ThreadRow =
   | { kind: 'marker'; id: string; item: ApprovalItem | QuestionItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
-  | { kind: 'created'; id: string; threadIds: string[] }
 
 function toolKind(name: string): ToolKind {
   switch (name.toLowerCase()) {
@@ -365,11 +364,7 @@ export function threadRows(
     )
   }
   function isStep(item: ThreadItem): item is WorkItem {
-    return (
-      (item.kind === 'reasoning' || item.kind === 'tool_call') &&
-      !createdThreadId(item) &&
-      !isAnsweredQuestionTool(item)
-    )
+    return (item.kind === 'reasoning' || item.kind === 'tool_call') && !isAnsweredQuestionTool(item)
   }
   // A turn's steps, and the text between them, share one work block; a steering message starts
   // another. Text after the last step stays outside the block as the answer.
@@ -441,12 +436,6 @@ export function threadRows(
     if (segment === liveSegment && item.kind === 'assistant_message')
       openBlock(segment, item.turnId)
     const last = rows.at(-1)
-    const created = createdThreadId(item)
-    if (created) {
-      if (last?.kind === 'created') last.threadIds.push(created)
-      else rows.push({ kind: 'created', id: item.id, threadIds: [created] })
-      continue
-    }
     switch (item.kind) {
       case 'subagent':
         if (last?.kind === 'subagents') last.agents.push(item)
@@ -506,6 +495,18 @@ export function threadRows(
   const todos = agentId ? undefined : foldTodos(allItems).updates
   for (const [segment, { row, steps, next }] of blocks) {
     row.activities = steps.flatMap((item, index): WorkActivity[] => {
+      const created = createdThreadId(item)
+      if (created && item.kind === 'tool_call') {
+        const { title } = item.input as { title?: unknown }
+        return [
+          {
+            type: 'created',
+            id: item.id,
+            threadId: created,
+            ...(typeof title === 'string' && { title }),
+          },
+        ]
+      }
       if (!todos?.has(item.id))
         return [
           toActivity(item, steps[index + 1] ?? next, sessionRunning, sessionActive, projectPath),
