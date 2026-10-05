@@ -1233,6 +1233,37 @@ describe('server skeleton', () => {
     await c.close()
   })
 
+  // The client sends these again when its connection drops before the reply.
+  test('turn.start and queue.add sent again with the same message id are taken once', async () => {
+    const running = await boot()
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+    const client = await connect(running.port)
+    await client.subscribeThread({ threadId: thread.id }).ready
+    const send = { threadId: thread.id, messageId: 'sent', text: 'hello' }
+    const first = await client.request('turn.start', send)
+    expect(await client.request('turn.start', send)).toEqual(first)
+    await client.waitFor(
+      (message) => isThreadEvent(message) && message.event.type === 'turn.completed'
+    )
+    expect(await client.request('turn.start', send)).toEqual(first)
+    await client.request('queue.add', send)
+
+    await Effect.runPromise(running.store.setQueuePaused(thread.id, true))
+    const queued = { threadId: thread.id, messageId: 'queued', text: 'later' }
+    await client.request('queue.add', queued)
+    await client.request('queue.add', queued)
+    expect(await client.request('turn.start', queued)).toEqual({ turnId: '' })
+
+    const meta = await Effect.runPromise(running.store.requireThread(thread.id))
+    expect(meta.pendingMessages?.map((message) => message.id)).toEqual(['queued'])
+    const state = await Effect.runPromise(running.store.getThreadState(thread.id))
+    expect(
+      state.items.filter((item) => item.kind === 'user_message').map((item) => item.id)
+    ).toEqual(['sent'])
+    await client.close()
+  })
+
   test('thread.create rejects same id under a different project', async () => {
     const { port } = await boot()
     const c = await connect(port)

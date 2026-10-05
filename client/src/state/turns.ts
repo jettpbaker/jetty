@@ -12,6 +12,7 @@ import {
   type Loadout,
   type LoadoutSlot,
 } from '@/lib/loadout'
+import { resendOnDrop } from '@/net/connection'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { heldByRestarts } from '@jetty/shared/items'
@@ -194,22 +195,24 @@ function sendTurn(
       awaitCreation(threadId).pipe(
         Effect.andThen(unarchive(connection)),
         Effect.andThen(
-          connection.request('turn.start', {
-            threadId,
-            messageId: prompt.id,
-            text,
-            ...loadout,
-            permissionMode: registry.get(accessModeAtom),
-            ...(images.length > 0
-              ? {
-                  attachments: images.map(({ name, mimeType, dataUrl }) => ({
-                    name,
-                    mimeType,
-                    dataUrl,
-                  })),
-                }
-              : {}),
-          })
+          resendOnDrop(
+            connection.request('turn.start', {
+              threadId,
+              messageId: prompt.id,
+              text,
+              ...loadout,
+              permissionMode: registry.get(accessModeAtom),
+              ...(images.length > 0
+                ? {
+                    attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                      name,
+                      mimeType,
+                      dataUrl,
+                    })),
+                  }
+                : {}),
+            })
+          )
         ),
         Effect.tap(({ turnId }) =>
           Effect.sync(() => {

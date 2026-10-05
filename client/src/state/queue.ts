@@ -1,9 +1,9 @@
 import type { ReadyImage } from '@/hooks/use-image-attachments'
-import type { Connection } from '@/net/connection'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { revokeBlobUrl } from '@/lib/blob_urls'
+import { resendOnDrop, type Connection } from '@/net/connection'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
 import { Effect, Equal, Exit, Fiber } from 'effect'
@@ -160,20 +160,22 @@ function addQueued(
       awaitFiber(previous).pipe(
         Effect.andThen(unarchive(connection)),
         Effect.andThen(
-          connection.request('queue.add', {
-            threadId,
-            messageId: message.id,
-            text,
-            ...(images.length > 0
-              ? {
-                  attachments: images.map(({ name, mimeType, dataUrl }) => ({
-                    name,
-                    mimeType,
-                    dataUrl,
-                  })),
-                }
-              : {}),
-          })
+          resendOnDrop(
+            connection.request('queue.add', {
+              threadId,
+              messageId: message.id,
+              text,
+              ...(images.length > 0
+                ? {
+                    attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                      name,
+                      mimeType,
+                      dataUrl,
+                    })),
+                  }
+                : {}),
+            })
+          )
         )
       ),
     {

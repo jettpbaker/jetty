@@ -1,6 +1,6 @@
-import type { Connection } from '@/net/connection'
 import type { Project, ProjectIcon, ThreadMeta } from '@jetty/shared/wire'
 
+import { resendOnDrop, type Connection } from '@/net/connection'
 import { Effect, Fiber } from 'effect'
 import { type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
@@ -85,26 +85,19 @@ function createThread(
   const creation = run(
     registry,
     (connection) =>
-      connection
-        .request('thread.create', {
-          id,
-          projectId,
-          environment,
-          ref,
-        })
-        .pipe(
-          // Once the server lists it, a later delete (from any tab) must not bring this back.
-          Effect.tap(() =>
-            Effect.sync(() =>
-              settleWhen(
-                registry,
-                () => !!serverChrome(registry)?.threads.some((thread) => thread.id === id),
-                forget
-              )
+      resendOnDrop(connection.request('thread.create', { id, projectId, environment, ref })).pipe(
+        // Once the server lists it, a later delete (from any tab) must not bring this back.
+        Effect.tap(() =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => !!serverChrome(registry)?.threads.some((thread) => thread.id === id),
+              forget
             )
-          ),
-          Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+          )
         ),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
     forget
   )
   creations.set(id, creation)

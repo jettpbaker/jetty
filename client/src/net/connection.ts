@@ -28,6 +28,17 @@ const reconnect = backoff.pipe(
   Schedule.while(({ input }) => input instanceof RpcClientError.RpcClientError)
 )
 
+// A call the server takes once however often it arrives (it knows the message or thread by id) is
+// sent again after a dropped connection, instead of failing without knowing whether it landed.
+export function resendOnDrop<A, E, R>(call: Effect.Effect<A, E, R>) {
+  return call.pipe(
+    Effect.retry({
+      while: (error) => error instanceof RpcClientError.RpcClientError,
+      schedule: Schedule.spaced('1 second'),
+    })
+  )
+}
+
 function githubActivity(): GitHubActivity {
   return document.visibilityState === 'hidden'
     ? 'hidden'

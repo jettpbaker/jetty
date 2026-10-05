@@ -682,12 +682,29 @@ export function createOrchestrator({
       })
     }
 
+    // A client whose connection dropped before the reply sends the same message again; the thread
+    // answers from the first: queued (no turn), or in the turn it went into.
+    function sentBefore(thread: ThreadMeta, messageId: string) {
+      if (thread.pendingMessages?.some((message) => message.id === messageId))
+        return Effect.succeed({ turnId: '' })
+      return store.getThreadState(thread.id).pipe(
+        Effect.map((state) => {
+          const item = state.items.find((candidate) => candidate.id === messageId)
+          return item && { turnId: item.turnId }
+        })
+      )
+    }
+
     function startAdmittedTurn(input: StartTurnInput) {
       return Effect.scoped(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
               const thread = yield* store.requireThread(input.threadId)
+              if (!input.queued && input.messageId) {
+                const earlier = yield* sentBefore(thread, input.messageId)
+                if (earlier) return earlier
+              }
               if (thread.archived && !input.queued)
                 return yield* Effect.fail(
                   new StoreError('conflict', 'Thread was archived before the turn could start')
@@ -1126,6 +1143,7 @@ export function createOrchestrator({
         return Effect.gen(function* () {
           if (!text && !uploads?.length)
             return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
+          if (yield* sentBefore(yield* store.requireThread(threadId), messageId)) return
           const saved = attachments ? yield* attachments.persist(uploads) : EMPTY_ATTACHMENTS
           yield* hub
             .withChromePublication(
