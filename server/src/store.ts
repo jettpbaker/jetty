@@ -322,10 +322,12 @@ export function createStore() {
     }
 
     // A failed transaction drops the threads it changed; they reload from the rolled-back rows.
+    // The check sits outside the transaction, so a failed COMMIT drops them too.
     function atomically<A, E, R>(effect: Effect.Effect<A, E, R>) {
       return Effect.suspend(() => {
         const before = new Map(Array.from(loaded, ([id, entry]) => [id, entry.state]))
         return effect.pipe(
+          sql.withTransaction,
           Effect.onError(() =>
             Effect.sync(() => {
               for (const [id, entry] of loaded)
@@ -333,7 +335,7 @@ export function createStore() {
             })
           )
         )
-      }).pipe(sql.withTransaction)
+      })
     }
 
     function getThreadState(threadId: string) {
@@ -364,11 +366,13 @@ export function createStore() {
           Effect.gen(function* () {
             const entry = loaded.get(threadId)
             if (!entry || !isDirty(entry)) return
-            const { state } = entry
-            yield* writeState(threadId, state)
-            entry.persistedSeq = state.lastSeq
+            yield* writeState(threadId, entry.state)
+            return { entry, seq: entry.state.lastSeq }
           }).pipe(
             sql.withTransaction,
+            Effect.map((written) => {
+              if (written) written.entry.persistedSeq = written.seq
+            }),
             Effect.catchCause((cause) => Effect.logWarning(cause))
           ),
         { discard: true }

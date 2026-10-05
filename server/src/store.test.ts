@@ -123,6 +123,29 @@ for (const table of ['thread_events', 'threads']) {
   })
 }
 
+test('a failed COMMIT leaves no uncommitted events in the cached state', async () => {
+  const { store, runtime, thread, sql } = await setup()
+  const before = await runtime.runPromise(store.getThreadState(thread.id))
+  await expect(
+    runtime.runPromise(
+      store.transaction(
+        Effect.gen(function* () {
+          // A deferred foreign key is only checked at COMMIT, so the body succeeds and COMMIT fails.
+          yield* sql`PRAGMA defer_foreign_keys = ON`
+          yield* sql`INSERT INTO provider_sessions (thread_id, provider, session_id) VALUES ('missing', 'claude', 'session')`
+          yield* store.appendEvent(thread.id, { type: 'turn.started', turnId: 'phantom' })
+        })
+      )
+    )
+  ).rejects.toThrow()
+  expect(await runtime.runPromise(store.getEventsAfter(thread.id, 0))).toEqual([])
+  expect(await runtime.runPromise(store.getThreadState(thread.id))).toEqual(before)
+  const next = await runtime.runPromise(
+    store.appendEvent(thread.id, { type: 'turn.started', turnId: 'real' })
+  )
+  expect(next.seq).toBe(1)
+})
+
 test('invalid merged item patches roll back their event and projection', async () => {
   const { store, runtime, thread } = await setup()
   await runtime.runPromise(
