@@ -40,7 +40,7 @@ import {
   useThreadLoadout,
   useVisibleQueue,
 } from '@/state'
-import { usageFreshMs, useProviderUsage } from '@/state/provider-usage'
+import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -54,6 +54,34 @@ const noItems: readonly ThreadItem[] = []
 
 // How long a request must be on screen before text started in the composer answers it.
 const noticeMs = 1000
+
+// /usage's tray reads usage itself: the composer would otherwise re-render on every background
+// usage read, each provider's separately.
+function ComposerUsage({
+  provider,
+  asked,
+  onOpen,
+  onDismiss,
+}: {
+  provider: UsageProvider
+  asked: number
+  onOpen: () => void
+  onDismiss: () => void
+}) {
+  const { reads, refresh } = useProviderUsage()
+  useEffect(() => refresh([provider], usageFreshMs), [provider, asked, refresh])
+  const read = reads[provider]
+  const now = Math.max(useNow(60_000), read?.at ?? 0)
+  return (
+    <UsageBanner
+      provider={provider}
+      usage={read?.usage}
+      now={now}
+      onOpen={onOpen}
+      onDismiss={onDismiss}
+    />
+  )
+}
 
 export function ThreadComposer({
   threadId,
@@ -118,23 +146,19 @@ export function ThreadComposer({
   const { own: queue } = useVisibleQueue(threadId, items)
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
-  const [usageOpen, setUsageOpen] = useState(false)
-  const usage = useProviderUsage()
+  // Each /usage asks again; 0 is closed.
+  const [usageAsked, setUsageAsked] = useState(0)
   const usageProvider = lockedProvider ?? loadout?.provider
-  const usageRead = usageProvider && usage.reads[usageProvider]
-  const usageNow = Math.max(useNow(60_000, usageOpen), usageRead ? usageRead.at : 0)
-  const usageBanner = usageOpen && usageProvider && (
-    <UsageBanner
+  const usageBanner = usageAsked > 0 && usageProvider && (
+    <ComposerUsage
       provider={usageProvider}
-      usage={usageRead ? usageRead.usage : undefined}
-      now={usageNow}
+      asked={usageAsked}
       onOpen={() => void navigate({ to: '/usage' })}
-      onDismiss={() => setUsageOpen(false)}
+      onDismiss={() => setUsageAsked(0)}
     />
   )
   function showUsage() {
-    setUsageOpen(true)
-    if (usageProvider) usage.refresh([usageProvider], usageFreshMs)
+    setUsageAsked((asked) => asked + 1)
   }
 
   const pending = useMemo(

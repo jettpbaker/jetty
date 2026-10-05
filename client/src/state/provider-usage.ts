@@ -45,7 +45,9 @@ export const usageFreshMs = 30_000
 // Kept warm in the background at this cadence, while the window is visible.
 const warmMs = 5 * 60_000
 
-function toggled(set: ReadonlySet<UsageProvider>, provider: UsageProvider, present: boolean) {
+// The same set when nothing changes, so a read that settles as expected re-renders nothing.
+function toggled(set: Set<UsageProvider>, provider: UsageProvider, present: boolean) {
+  if (set.has(provider) === present) return set
   const next = new Set(set)
   if (present) next.add(provider)
   else next.delete(provider)
@@ -99,9 +101,14 @@ export function useProviderUsage() {
   }
 }
 
-// For pointing at Usage: starts any read that isn't fresh, without re-rendering on the result.
+// Starts reads without re-rendering on their results.
+export function useRefreshProviderUsage() {
+  return useAction(refreshProviderUsage)
+}
+
+// For pointing at Usage: starts any read that isn't fresh.
 export function usePrefetchProviderUsage() {
-  const refresh = useAction(refreshProviderUsage)
+  const refresh = useRefreshProviderUsage()
   return useCallback(() => refresh(usageProviders(), usageFreshMs), [refresh])
 }
 

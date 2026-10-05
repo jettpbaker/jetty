@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { loadProviderEnabled, saveProviderEnabled } from '@/lib/provider-enabled'
 import { useModelRefresh } from '@/state/models'
-import { allUsageProviders, usageFreshMs, useProviderUsage } from '@/state/provider-usage'
+import { allUsageProviders, usageFreshMs, useRefreshProviderUsage } from '@/state/provider-usage'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -58,7 +58,7 @@ function Section({
 
 export function SettingsView() {
   const { refreshing, refresh } = useModelRefresh()
-  const { refresh: refreshUsage } = useProviderUsage()
+  const refreshUsage = useRefreshProviderUsage()
   useEffect(() => {
     refresh()
   }, [refresh])
