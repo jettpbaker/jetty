@@ -275,6 +275,14 @@ type Opened =
   | { file: ProjectFile; text?: never }
   | { file: ProjectFile; text: string; bytes: Buffer }
 
+function decode(bytes: Buffer): Opened {
+  if (bytes.length > MAX_CONTENTS_BYTES) return { file: tooLarge }
+  if (bytes.includes(0)) return { file: binary }
+  // A byte-order mark stays in the text, so saving keeps it.
+  const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes)
+  return { file: { contents: text }, text, bytes }
+}
+
 async function readOpened({
   handle,
   stats,
@@ -284,16 +292,14 @@ async function readOpened({
 }): Promise<Opened> {
   if (!stats.isFile()) throw new StoreError('invalid_params', 'Not a regular file')
   if (stats.size > MAX_CONTENTS_BYTES) return { file: tooLarge }
-  const bytes = await handle.readFile()
-  if (bytes.includes(0)) return { file: binary }
-  // A byte-order mark stays in the text, so saving keeps it.
-  const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes)
-  return { file: { contents: text }, text, bytes }
+  return decode(await handle.readFile())
 }
 
+type Current = Opened & { mode?: number; handle?: FileHandle }
+
 // What's at the real path `file` now (contents null: nothing), read only while it still is that
-// path; undefined when a symlink was swapped in since it resolved.
-async function readCurrent(file: string): Promise<(Opened & { mode?: number }) | undefined> {
+// path; undefined when a symlink was swapped in since it resolved. The caller closes `handle`.
+async function openCurrent(file: string): Promise<Current | undefined> {
   const opened = await openResolved(file, constants.O_RDONLY).catch((error: unknown) => {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
@@ -301,10 +307,17 @@ async function readCurrent(file: string): Promise<(Opened & { mode?: number }) |
   if (opened === null) return { file: { contents: null } }
   if (!opened) return undefined
   try {
-    return { ...(await readOpened(opened)), mode: opened.stats.mode }
-  } finally {
+    return { ...(await readOpened(opened)), mode: opened.stats.mode, handle: opened.handle }
+  } catch (error) {
     await opened.handle.close()
+    throw error
   }
+}
+
+async function readCurrent(file: string): Promise<Current | undefined> {
+  const current = await openCurrent(file)
+  await current?.handle?.close()
+  return current && { ...current, handle: undefined }
 }
 
 export function readProjectFile(cwd: string, path: string) {
@@ -347,6 +360,41 @@ function inTurn<A>(file: string, save: () => Promise<A>) {
   return result
 }
 
+// Writes `bytes` to a new synced sibling of the real path `file` and returns its path; undefined
+// when the folder is no longer where `file` resolved.
+async function writeSibling(file: string, bytes: Buffer, mode: number | undefined) {
+  const temp = join(dirname(file), `.${basename(file)}.${randomUUID()}.jetty-save`)
+  // Owner-only until it takes the file's mode, so a private file's text is never readable by
+  // others in the sibling. A new file's sibling is created as the file would be.
+  const handle = await open(
+    temp,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+    mode === undefined ? 0o666 : 0o600
+  )
+  let written = false
+  try {
+    // Node can't create relative to the folder it checked, so resolving the sibling again is
+    // what shows it went there, not through a symlink swapped in since. The rename finds it
+    // through the same path, so it can only land beside it.
+    if ((await realpath(temp).catch(() => undefined)) !== temp) return undefined
+    await handle.writeFile(bytes)
+    if (mode !== undefined) await handle.chmod(mode & 0o7777)
+    await handle.sync()
+    written = true
+    return temp
+  } finally {
+    await handle.close()
+    if (!written) await unlink(temp).catch(() => {})
+  }
+}
+
+// All of the file `handle` has open, from its start.
+async function readAll(handle: FileHandle) {
+  const bytes = Buffer.alloc((await handle.stat()).size)
+  const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
+  return bytes.subarray(0, bytesRead)
+}
+
 // Writes a synced sibling and renames it over the real path `file`, so a failed save leaves the
 // old file whole, and a symlink to it keeps pointing at it.
 async function replaceFile(
@@ -360,37 +408,30 @@ async function replaceFile(
   // The text came from decoding these bytes; saving would rewrite any that weren't UTF-8.
   if (current.text !== undefined && !current.bytes.equals(Buffer.from(current.text)))
     throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
-  const temp = join(dirname(file), `.${basename(file)}.${randomUUID()}.jetty-save`)
-  // Owner-only until it takes the file's mode, so a private file's text is never readable by
-  // others in the sibling. A new file's sibling is created as the file would be.
-  const handle = await open(
-    temp,
-    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-    current.mode === undefined ? 0o666 : 0o600
-  )
+  const temp = await writeSibling(file, bytes, current.mode)
+  if (!temp) return undefined
+  let now: Current | undefined
   let renamed = false
   try {
-    try {
-      // Node can't create relative to the folder it checked, so resolving the sibling again is
-      // what shows it went there, not through a symlink swapped in since. The rename finds it
-      // through the same path, so it can only land beside it.
-      if ((await realpath(temp).catch(() => undefined)) !== temp) return undefined
-      await handle.writeFile(bytes)
-      if (current.mode !== undefined) await handle.chmod(current.mode & 0o7777)
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    // Agents write without asking, so the file is checked again just before the rename. A write
-    // landing after this check is still lost: Node has no rename-if-unchanged.
-    const now = await readCurrent(file)
+    // Agents write without asking, so the file is checked again just before the rename and held
+    // open across it: a write to it in that gap is put back, and the save is a conflict. Still
+    // lost (Node has no rename-if-unchanged): a file renamed in over it, or created, in that gap,
+    // and a write to the old file after it's read again below.
+    now = await openCurrent(file)
     if (!now || !holds(now, base)) return now && { conflict: now.file }
     await rename(temp, file)
     renamed = true
+    if (!now.handle) return { saved: true }
+    const displaced = await readAll(now.handle)
+    const theirs = decode(displaced)
+    if (holds(theirs, base)) return { saved: true }
+    const back = await writeSibling(file, displaced, now.mode)
+    if (back) await rename(back, file)
+    return { conflict: theirs.file }
   } finally {
+    await now?.handle?.close()
     if (!renamed) await unlink(temp).catch(() => {})
   }
-  return { saved: true }
 }
 
 // Saves only while the file still holds `base`, the text the edit started from (null: no file);

@@ -22,6 +22,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
+import * as fsPromises from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -2220,6 +2221,31 @@ describe('thread.diff', () => {
     await watching
     expect([...modes].filter((mode) => mode !== 0o600)).toEqual([])
     expect(statSync(file).mode & 0o777).toBe(0o600)
+    rmSync(project, { recursive: true, force: true })
+  })
+
+  test('an agent’s write landing just before a save’s rename is put back, and the save is a conflict', async () => {
+    const project = dir(join(tmpdir(), `jetty-save-race-${newId()}`))
+    const file = join(project, 'notes.md')
+    writeFileSync(file, 'base\n')
+    const withBun = <A, E>(effect: Effect.Effect<A, E, BunServices.BunServices>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(BunServices.layer)))
+    const rename = fsPromises.rename
+    let agentWrote = false
+    const renames = spyOn(fsPromises, 'rename').mockImplementation((from, to) => {
+      if (!agentWrote) writeFileSync(file, 'agent\n')
+      agentWrote = true
+      return rename(from, to)
+    })
+    try {
+      expect(await withBun(writeProjectFile(project, 'notes.md', 'mine\n', 'base\n'))).toEqual({
+        conflict: { contents: 'agent\n' },
+      })
+    } finally {
+      renames.mockRestore()
+    }
+    expect(readFileSync(file, 'utf8')).toBe('agent\n')
+    expect(readdirSync(project)).toEqual(['notes.md'])
     rmSync(project, { recursive: true, force: true })
   })
 
