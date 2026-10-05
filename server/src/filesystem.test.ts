@@ -284,6 +284,45 @@ describe('Effect filesystem services', () => {
     )
   })
 
+  test('oversized quoted Git paths retain their truncation notices', () => {
+    const paths = [
+      ['tab\tfile', '"tab\\tfile"'],
+      ['line\nfile', '"line\\nfile"'],
+      ['quote"file', '"quote\\"file"'],
+      ['back\\file', '"back\\\\file"'],
+      ['café\tfile', '"caf\\303\\251\\tfile"'],
+    ] as const
+    for (const [path, quoted] of paths) {
+      const a = '"a/' + quoted.slice(1)
+      const b = '"b/' + quoted.slice(1)
+      const header = `diff --git ${a} ${b}\n`
+      for (const markers of [`+++ ${b}\n`, `--- ${a}\n+++ /dev/null\n`, '']) {
+        expect(truncateDiff(header + markers + '+' + 'x'.repeat(128 * 1024))).toEqual({
+          diff: '',
+          truncatedPaths: [path],
+        })
+      }
+    }
+  })
+
+  test('streamed oversized files with Git-quoted names are reported', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          expect((yield* git(root, ['init', '-q'])).code).toBe(0)
+          const names = ['tab\tfile', 'line\nfile', 'quote"file', 'back\\file']
+          for (const name of names)
+            yield* fs.writeFileString(root + '/' + name, 'x'.repeat(140_000))
+          const result = yield* computeThreadDiff(root)
+          expect(result.diff).toBe('')
+          expect(result.truncatedPaths?.sort()).toEqual(names.sort())
+        })
+      )
+    )
+  })
+
   test('pure diff truncation retains ordinary patches and omits lockfiles and oversized sections', () => {
     const normal = 'diff --git a/source.ts b/source.ts\n+++ b/source.ts\n@@ -0,0 +1 @@\n+code\n'
     const lock = 'diff --git a/bun.lock b/bun.lock\n+++ b/bun.lock\n+lock\n'

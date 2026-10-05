@@ -28,11 +28,46 @@ function isLockfile(path: string): boolean {
   return LOCKFILE_NAMES.has(base) || base.endsWith('.lock')
 }
 
+const GIT_PATH_ESCAPES: Record<string, string> = {
+  a: '\x07',
+  b: '\b',
+  t: '\t',
+  n: '\n',
+  v: '\v',
+  f: '\f',
+  r: '\r',
+}
+
+function decodeGitPath(path: string): string {
+  if (!path.startsWith('"')) return path
+  const bytes: Buffer[] = []
+  for (const token of path.slice(1, -1).match(/\\(?:[0-7]{1,3}|.)|[^\\]+/g) ?? []) {
+    if (/^\\[0-7]/.test(token)) bytes.push(Buffer.from([parseInt(token.slice(1), 8)]))
+    else
+      bytes.push(
+        Buffer.from(
+          token.startsWith('\\') ? (GIT_PATH_ESCAPES[token.slice(1)] ?? token.slice(1)) : token
+        )
+      )
+  }
+  return Buffer.concat(bytes).toString('utf8')
+}
+
 function filePath(section: string): string | null {
-  const plus = section.match(/^\+\+\+ b\/(.+)$/m)
-  if (plus?.[1] && plus[1] !== '/dev/null') return plus[1]
-  const header = section.match(/^diff --git a\/.+ b\/(.+)$/m)
-  return header?.[1] ?? null
+  for (const [pattern, prefix] of [
+    [/^\+\+\+ (.+)$/m, 'b/'],
+    [/^--- (.+)$/m, 'a/'],
+  ] as const) {
+    const line = section.match(pattern)?.[1]
+    if (!line) continue
+    const path = decodeGitPath(line)
+    if (path.startsWith(prefix)) return path.slice(2)
+  }
+  const header = section.match(
+    /^diff --git (?:"(?:[^"\\]|\\.)*"|a\/.+) ("(?:[^"\\]|\\.)*"|b\/.+)$/m
+  )
+  const path = header?.[1] && decodeGitPath(header[1])
+  return path && path.startsWith('b/') ? path.slice(2) : null
 }
 
 const SECTION_START = '\ndiff --git '
