@@ -235,15 +235,23 @@ const MAX_TURN_PAYLOAD_BYTES = Math.ceil((MAX_TURN_IMAGE_BYTES * 4) / 3) + 1024 
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 
+// No page may frame Jetty: a framed PR view could have its Merge button clickjacked.
+const appPageHeaders = {
+  'Content-Security-Policy': "frame-ancestors 'none'",
+  'X-Frame-Options': 'DENY',
+}
+
+function appPage(html: string) {
+  return HttpServerResponse.html(html).pipe(HttpServerResponse.setHeaders(appPageHeaders))
+}
+
 function serveStatic(pathname: string, wsSecret: string, localPeer: boolean) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const indexPath = join(distDir, 'index.html')
     const secretTag = `<meta name="jetty-ws-secret" content="${wsSecret}">`
     if (!(yield* fs.exists(indexPath)))
-      return localPeer
-        ? HttpServerResponse.html(secretTag)
-        : HttpServerResponse.text('Forbidden', { status: 403 })
+      return localPeer ? appPage(secretTag) : HttpServerResponse.text('Forbidden', { status: 403 })
     const requested = pathname === '/' ? '/index.html' : pathname
     const filePath = normalize(join(distDir, requested))
     if (!filePath.startsWith(distDir + sep)) {
@@ -254,7 +262,7 @@ function serveStatic(pathname: string, wsSecret: string, localPeer: boolean) {
     if (path === indexPath) {
       if (!localPeer) return HttpServerResponse.text('Forbidden', { status: 403 })
       const html = yield* fs.readFileString(indexPath)
-      return HttpServerResponse.html(html.replace('</head>', `${secretTag}</head>`))
+      return appPage(html.replace('</head>', `${secretTag}</head>`))
     }
     return yield* HttpServerResponse.file(path)
   })

@@ -109,6 +109,8 @@ export default defineConfig({
   optimizeDeps: { include: ['shiki/core', 'shiki/engine/javascript'] },
   server: {
     port: Number(process.env.JETTY_CLIENT_PORT ?? 5173),
+    // No page may frame Jetty: a framed PR view could have its Merge button clickjacked.
+    headers: { 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Frame-Options': 'DENY' },
     proxy: {
       '/ws': { target: server, ws: true },
       '/perf': { target: server },
