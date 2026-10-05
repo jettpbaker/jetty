@@ -79,14 +79,22 @@ export function useToolsSettled(threadId: string, onSettled: () => void) {
   }, [registry, threadId, onSettled])
 }
 
-// A value cached from an earlier visit renders at once and is re-read behind it. Checked per atom,
-// so switching to another key that was cached earlier re-reads it too.
+// When each atom was last read on a mount. The details pane mounts its Changes a frame after its
+// Overview, and both show the same diff.
+const mountReads = new WeakMap<object, number>()
+
+// A value cached from an earlier visit renders at once and is re-read behind it, once for
+// everything that mounts with it. Checked per atom, so switching to another key that was cached
+// earlier re-reads it too.
 function useRefreshCached(
   atom: Atom.Atom<AsyncResult.AsyncResult<unknown, unknown>>,
   refresh: () => void
 ) {
   const registry = useContext(RegistryContext)
   useEffect(() => {
+    const now = performance.now()
+    if (now - (mountReads.get(atom) ?? -Infinity) < 1000) return
+    mountReads.set(atom, now)
     if (!AsyncResult.isInitial(registry.get(atom))) refresh()
   }, [atom, refresh, registry])
 }
