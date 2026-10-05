@@ -20,7 +20,8 @@ export function SettingsAgentBehaviour() {
     setAgentBehaviour(key, enabled, () =>
       setPending((current) => {
         if (current[key] !== pick) return current
-        const { [key]: _, ...rest } = current
+        const rest = { ...current }
+        delete rest[key]
         return rest
       })
     )
