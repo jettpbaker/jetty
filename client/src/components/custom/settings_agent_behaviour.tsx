@@ -10,6 +10,17 @@ export function SettingsAgentBehaviour() {
   const chrome = useChrome()
   const setAgentBehaviour = useSetAgentBehaviour()
   const [pending, setPending] = useState<Partial<Record<AgentBehaviourKey, boolean>>>({})
+  // A toggle stands in until the server's push agrees, then the server owns it again, so a change
+  // from another tab shows.
+  const agreed = (Object.keys(pending) as AgentBehaviourKey[]).filter(
+    (key) => chrome?.agentBehaviours?.[key] === pending[key]
+  )
+  if (agreed.length)
+    setPending((current) => {
+      const next = { ...current }
+      for (const key of agreed) delete next[key]
+      return next
+    })
   const id = useId()
   function toggle(key: AgentBehaviourKey, enabled: boolean) {
     setPending((current) => ({ ...current, [key]: enabled }))
