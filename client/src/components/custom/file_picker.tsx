@@ -16,12 +16,14 @@ import './option_picker.css'
 // Finds a tracked file in the thread's project by fuzzy path, as Cursor's ⌘P does, and opens it.
 export function FilePicker({
   projectId,
+  threadId,
   anchor,
   open,
   onOpenChange,
   onPick,
 }: {
   projectId: string
+  threadId: string
   anchor: RefObject<HTMLElement | null>
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -37,6 +39,7 @@ export function FilePicker({
         <PopoverTitle className='sr-only'>Open file</PopoverTitle>
         <FileResults
           projectId={projectId}
+          threadId={threadId}
           onPick={(path) => {
             onOpenChange(false)
             onPick(path)
@@ -47,7 +50,15 @@ export function FilePicker({
   )
 }
 
-function FileResults({ projectId, onPick }: { projectId: string; onPick: (path: string) => void }) {
+function FileResults({
+  projectId,
+  threadId,
+  onPick,
+}: {
+  projectId: string
+  threadId: string
+  onPick: (path: string) => void
+}) {
   const [query, setQuery] = useState('')
   const [activeOption, setActiveOption] = useState('')
   const pointerSelection = useRef(false)
@@ -57,8 +68,10 @@ function FileResults({ projectId, onPick }: { projectId: string; onPick: (path: 
     const timer = setTimeout(() => setSearch(query.trim()), 80)
     return () => clearTimeout(timer)
   }, [query])
-  const files = useFileSearch(projectId, search)
+  const { files, fresh } = useFileSearch(projectId, threadId, search)
   const results = search ? (files ?? []) : []
+  // Enter waits for the list that matches what's typed; a click picks what's shown.
+  const current = fresh && search === query.trim()
   return (
     <Command
       shouldFilter={false}
@@ -89,7 +102,13 @@ function FileResults({ projectId, onPick }: { projectId: string; onPick: (path: 
                 const name = path.split('/').at(-1) ?? path
                 const folder = path.slice(0, -name.length - 1)
                 return (
-                  <CommandItem key={path} value={`file:${path}`} onSelect={() => onPick(path)}>
+                  <CommandItem
+                    key={path}
+                    value={`file:${path}`}
+                    onSelect={() => {
+                      if (current || pointerSelection.current) onPick(path)
+                    }}
+                  >
                     <FileLanguageIcon path={path} className='size-3 shrink-0' />
                     <span className='shrink-0 font-mono'>{name}</span>
                     {folder && (

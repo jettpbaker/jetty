@@ -118,6 +118,7 @@ export function ThreadDetailsTabs({
   // Finding a project file to open in the file tab, from this bar's + menu or ⌘P.
   filePicker?: {
     projectId: string
+    threadId: string
     open: boolean
     onOpenChange: (open: boolean) => void
     onPick: (path: string) => void

@@ -219,9 +219,9 @@ export function ThreadDetailsLayout({
   const filePicker = useMemo(
     () =>
       projectId && !changesDisabled
-        ? { projectId, open: findingFile, onOpenChange: setFindingFile, onPick: editFile }
+        ? { projectId, threadId, open: findingFile, onOpenChange: setFindingFile, onPick: editFile }
         : undefined,
-    [projectId, changesDisabled, findingFile, editFile]
+    [projectId, threadId, changesDisabled, findingFile, editFile]
   )
 
   // A just-linked PR's tab can be requested before the thread's links include it.

@@ -416,6 +416,8 @@ export const methods = {
   'fs.search': {
     params: Schema.Struct({
       projectId: Schema.String,
+      // Searches this thread's working folder (its worktree) instead of the project checkout.
+      threadId: Schema.optional(Schema.String),
       query: Schema.String,
       limit: Schema.optional(
         Schema.Int.check(Schema.isGreaterThan(0)).check(Schema.isLessThanOrEqualTo(100))

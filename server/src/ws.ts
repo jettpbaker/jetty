@@ -335,8 +335,10 @@ export function createRpcHandlers(
       'fs.search': (params) =>
         Effect.gen(function* () {
           const project = yield* requireProject(params.projectId)
+          const threadId = params.threadId
+          const cwd = threadId ? yield* fromPromise(() => worktrees.root(threadId)) : project.path
           return {
-            files: yield* search.searchFiles(project.path, params.query, params.limit),
+            files: yield* search.searchFiles(cwd, params.query, params.limit),
           }
         }).pipe(Effect.mapError(wireError)),
       'skills.list': (params) =>

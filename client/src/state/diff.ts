@@ -191,8 +191,8 @@ export function useProjectFile(threadId: string, path: string) {
 }
 
 const fileSearchAtom = Atom.family((key: string) => {
-  const split = key.indexOf('\0')
-  const params = { projectId: key.slice(0, split), query: key.slice(split + 1), limit: 50 }
+  const [projectId = '', threadId = '', query = ''] = key.split('\0')
+  const params = { projectId, threadId, query, limit: 50 }
   return Atom.make((get) =>
     get
       .result(connectionAtom)
@@ -200,14 +200,14 @@ const fileSearchAtom = Atom.family((key: string) => {
   ).pipe(Atom.setIdleTTL('1 minute'))
 })
 
-// The project's tracked files that fuzzy-match the query, best first. The last list stays while
-// the next one loads, so typing never blanks it.
-export function useFileSearch(projectId: string, query: string) {
-  const result = useAtomValue(fileSearchAtom(`${projectId}\0${query}`))
+// The tracked files in the thread's working folder that fuzzy-match the query, best first. The last
+// list stays while the next one loads, so typing never blanks it; `fresh` says it's this query's.
+export function useFileSearch(projectId: string, threadId: string, query: string) {
+  const result = useAtomValue(fileSearchAtom(`${projectId}\0${threadId}\0${query}`))
   const [shown, setShown] = useState<readonly string[]>()
   const fresh = AsyncResult.isSuccess(result) ? result.value.files : undefined
   if (fresh && fresh !== shown) setShown(fresh)
-  return fresh ?? shown
+  return { files: fresh ?? shown, fresh: fresh !== undefined }
 }
 
 // Saves only while the file on disk still holds `base`; a save refreshes the cached file and the
