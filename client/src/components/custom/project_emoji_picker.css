@@ -1,11 +1,15 @@
 .project-emoji-picker .EmojiPickerReact {
   --epr-bg-color: var(--popover);
   --epr-text-color: var(--foreground);
-  --epr-search-input-bg-color: var(--background);
+  --epr-search-input-bg-color: transparent;
   --epr-search-input-text-color: var(--foreground);
   --epr-search-input-placeholder-color: var(--muted-foreground);
-  --epr-search-border-color: var(--border);
-  --epr-search-input-bg-color-active: var(--background);
+  --epr-search-border-color: transparent;
+  --epr-search-input-bg-color-active: transparent;
+  --epr-search-border-color-active: transparent;
+  --epr-search-input-border-radius: 0;
+  --epr-search-input-height: 36px;
+  --epr-search-input-padding: 0 32px;
   --epr-picker-border-color: transparent;
   --epr-category-label-bg-color: var(--popover);
   --epr-category-label-text-color: var(--muted-foreground);
@@ -17,5 +21,20 @@
   --epr-picker-border-radius: 0;
   --epr-emoji-size: 24px;
   --epr-horizontal-padding: 8px;
-  --epr-header-padding: 8px var(--epr-horizontal-padding);
+  --epr-header-padding: 0;
+}
+/* The search-picker row: a borderless input under the tabs, a 12px glyph, a rule beneath. */
+.project-emoji-picker .EmojiPickerReact .epr-search-container {
+  border-bottom: 1px solid var(--border);
+}
+.project-emoji-picker .EmojiPickerReact .epr-search-container input {
+  font-size: var(--text-xs);
+}
+.project-emoji-picker .EmojiPickerReact .epr-search-container .epr-icn-search {
+  top: 50%;
+  left: 12px;
+  width: 12px;
+  height: 12px;
+  background: var(--muted-foreground);
+  mask: var(--search-glyph) center / 12px no-repeat;
 }

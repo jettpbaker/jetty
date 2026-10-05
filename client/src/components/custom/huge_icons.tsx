@@ -277,4 +277,5 @@ export const hugeIconMasks = {
   arrowDown03: hugeIconMask(shapes.ArrowDown03Icon, 12),
   arrowUpDown: hugeIconMask(shapes.ArrowUpDownIcon, 12),
   bubbleChat: hugeIconMask(shapes.BubbleChatIcon, 12),
+  search01: hugeIconMask(shapes.Search01Icon, 12),
 }

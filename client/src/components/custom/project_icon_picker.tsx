@@ -1,15 +1,16 @@
 import type { Project, ProjectIcon } from '@jetty/shared/wire'
 
-import { Search01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
+import { Command, CommandInput } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSetProjectIcon } from '@/state'
 import { lazy, Suspense, useState } from 'react'
 
-import { GhostInput } from './ghost_input'
 import { ProjectGlyph } from './project_glyph'
 import { projectIcons } from './project_icon_set'
+import './option_picker.css'
 
 const ProjectEmojiPicker = lazy(() => import('./project_emoji_picker'))
 
@@ -21,15 +22,17 @@ function IconGrid({ selected, onSelect }: { selected?: string; onSelect: (name: 
   )
   return (
     <div className='flex h-80 flex-col'>
-      <div className='border-b border-border px-3'>
-        <GhostInput
-          icon={<Search01Icon className='size-3' />}
-          aria-label='Search icons'
-          placeholder='Search icons'
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+      <div className='search-picker'>
+        <Command shouldFilter={false}>
+          <CommandInput
+            aria-label='Search icons'
+            placeholder='Search icons'
+            value={query}
+            onValueChange={setQuery}
+          />
+        </Command>
       </div>
+      <Separator />
       <div className='grid min-h-0 flex-1 auto-rows-min grid-cols-8 gap-1 overflow-y-auto overscroll-contain p-2'>
         {results.map((option) => (
           <Button
