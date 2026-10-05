@@ -26,7 +26,12 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, type Agent } from './agent'
-import { CHILD_REPORT_INSTRUCTION, deniedApprovalNote, userAnswers } from './jetty-instructions'
+import {
+  CHILD_REPORT_INSTRUCTION,
+  deniedApprovalNote,
+  relayedMessage,
+  userAnswers,
+} from './jetty-instructions'
 import {
   isAgentProvider,
   singleAgentRegistry,
@@ -80,15 +85,8 @@ function providerConflict(bound: string, requested: string) {
 // Agents otherwise read a relayed message as the user's own words.
 function agentText({ text, queued }: StartTurnInput, fromCreator: boolean) {
   if (!queued?.from) return text
-  const relayed = `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${text.replaceAll(/<\/relayed-message/gi, '&lt;/relayed-message')}\n</relayed-message>`
+  const relayed = relayedMessage(queued.from, text)
   return fromCreator ? `${relayed}\n${CHILD_REPORT_INSTRUCTION}` : relayed
-}
-
-function escapeAttribute(value: string) {
-  return value.replace(
-    /[&"<>]/g,
-    (char) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[char]!
-  )
 }
 
 function toAgentError(error: Error) {

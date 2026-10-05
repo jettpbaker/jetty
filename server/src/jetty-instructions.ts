@@ -54,6 +54,18 @@ export function restartNote(
   }
 }
 
+// Text from another thread, or from Jetty, in the tags jettyInstructions tells agents about.
+export function relayedMessage(from: { threadId: string; title: string }, text: string) {
+  return `<relayed-message from-thread-id="${escapeAttribute(from.threadId)}" from-title="${escapeAttribute(from.title)}">\n${text.replaceAll(/<\/relayed-message/gi, '&lt;/relayed-message')}\n</relayed-message>`
+}
+
+function escapeAttribute(value: string) {
+  return value.replace(
+    /[&"<>]/g,
+    (char) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[char]!
+  )
+}
+
 export const CHILD_REPORT_INSTRUCTION =
   "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, ask it with ask_parent. Mention the attachment ids of any images or videos you showed, so it can re-post them."
 

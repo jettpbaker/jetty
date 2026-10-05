@@ -13,6 +13,7 @@ import type { PullRequestLinks } from './pull-requests'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
+import { relayedMessage } from './jetty-instructions'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { StoreError } from './store'
@@ -471,9 +472,14 @@ export function createMcpHandler(
                 messages: page.map((i) => ({
                   id: i.id,
                   role: i.kind === 'user_message' ? 'user' : 'assistant',
-                  text: i.text.slice(0, cap),
+                  text: relayedMessage(
+                    (i.kind === 'user_message' && i.from) || {
+                      threadId: thread.id,
+                      title: thread.title,
+                    },
+                    i.text.slice(0, cap)
+                  ),
                   truncated: i.text.length > cap,
-                  ...(i.kind === 'user_message' && i.from ? { from: i.from } : {}),
                 })),
                 after: page.at(-1)?.id ?? input.after ?? null,
               }
