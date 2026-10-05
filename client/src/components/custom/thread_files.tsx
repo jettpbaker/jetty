@@ -5,7 +5,15 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { useChrome, useFileSearch, useFolderReader, useToolsSettled } from '@/state'
 import { FileTree, useFileTree } from '@pierre/trees/react'
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 
 import { charmedTree } from './changed_files_tree'
 import { charmedSprite } from './charmed_icons'
@@ -61,6 +69,9 @@ export function ThreadFiles({
   onOpen: (path: string) => void
 }) {
   const [query, setQuery] = useState('')
+  // Enter pressed before the results for what's typed land waits for them; typing cancels it.
+  const [entered, setEntered] = useState(false)
+  const resultsCurrent = useRef(false)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (find <= answeredFind) return
@@ -83,8 +94,16 @@ export function ThreadFiles({
           placeholder='Search files'
           aria-label='Search files'
           value={query}
-          onValueChange={setQuery}
+          onValueChange={(next) => {
+            setQuery(next)
+            setEntered(false)
+          }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return
+            if (event.key === 'Enter' && searching && !resultsCurrent.current) {
+              event.preventDefault()
+              setEntered(true)
+            }
             if (event.key !== 'Escape' || !query) return
             event.preventDefault()
             setQuery('')
@@ -96,8 +115,11 @@ export function ThreadFiles({
             projectId={projectId}
             threadId={threadId}
             query={query}
+            current={resultsCurrent}
+            entered={entered}
             onPick={(path) => {
               setQuery('')
+              setEntered(false)
               onOpen(path)
             }}
           />
@@ -287,11 +309,17 @@ function SearchResults({
   projectId,
   threadId,
   query,
+  current: currentRef,
+  entered,
   onPick,
 }: {
   projectId: string
   threadId: string
   query: string
+  // whether the list shown is the one for what's typed, for the input's Enter
+  current: RefObject<boolean>
+  // Enter was pressed before it was, so the top result opens once it is
+  entered: boolean
   onPick: (path: string) => void
 }) {
   // Each search lists the project's files again, so it waits for a pause in typing.
@@ -302,30 +330,23 @@ function SearchResults({
   }, [query])
   const { files, fresh } = useFileSearch(projectId, threadId, search)
   const results = search ? (files ?? []) : []
-  // Enter waits for the list that matches what's typed; a click picks what's shown.
   const current = fresh && search === query.trim()
-  const pointer = useRef(false)
+  useLayoutEffect(() => {
+    currentRef.current = current
+  })
+  const pickEntered = useEffectEvent(() => {
+    if (results[0]) onPick(results[0])
+  })
+  useEffect(() => {
+    if (current && entered) pickEntered()
+  }, [current, entered])
   return (
-    <CommandList
-      className='min-h-0 flex-1 overflow-y-auto! pt-2'
-      onPointerMove={() => {
-        pointer.current = true
-      }}
-      onKeyDown={() => {
-        pointer.current = false
-      }}
-    >
+    <CommandList className='min-h-0 flex-1 overflow-y-auto! pt-2'>
       {results.map((path) => {
         const name = path.split('/').at(-1) ?? path
         const folder = path.slice(0, -name.length - 1)
         return (
-          <CommandItem
-            key={path}
-            value={`file:${path}`}
-            onSelect={() => {
-              if (current || pointer.current) onPick(path)
-            }}
-          >
+          <CommandItem key={path} value={`file:${path}`} onSelect={() => onPick(path)}>
             <span data-charmed='soft' className='inline-flex size-4 shrink-0'>
               <CharmedFileIcon path={path} />
             </span>
