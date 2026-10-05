@@ -18,6 +18,20 @@ function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
   return { ...state, lastSeq: Math.max(state.lastSeq, update.seq) }
 }
 
+// When this window saw items complete as it happened, by its own clock: a remote client's clock
+// can be off the server's. Events that catch a subscription up don't count.
+const completedHere = new Map<string, number>()
+
+export function completedAgo(itemId: string) {
+  const at = completedHere.get(itemId)
+  return at === undefined ? Infinity : performance.now() - at
+}
+
+function noteCompleted(itemId: string) {
+  completedHere.set(itemId, performance.now())
+  if (completedHere.size > 200) completedHere.delete(completedHere.keys().next().value!)
+}
+
 const resumeAtom = Atom.family((_threadId: string) =>
   Atom.make<ThreadState | undefined>(undefined).pipe(Atom.setIdleTTL('10 minutes'))
 )
@@ -26,12 +40,22 @@ const resumeAtom = Atom.family((_threadId: string) =>
 const liveAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     const cached = get.once(resumeAtom(threadId))
-    return subscribe(get, (connection) =>
-      Stream.unwrap(
+    // A subscription catches up first; its snapshot or `ready` says the events after it are live.
+    let live = false
+    return subscribe(get, (connection) => {
+      live = false
+      return Stream.unwrap(
         Effect.as(awaitCreation(threadId), connection.subscribeThread(threadId, cached?.lastSeq))
       )
-    ).pipe(
-      Stream.tap((update) => Effect.sync(() => perf.threadUpdate(threadId, update))),
+    }).pipe(
+      Stream.tap((update) =>
+        Effect.sync(() => {
+          perf.threadUpdate(threadId, update)
+          if (update.type !== 'event') live = true
+          else if (live && update.event.type === 'item.completed')
+            noteCompleted(update.event.itemId)
+        })
+      ),
       Stream.scan(() => cached ?? emptyThread, foldUpdate),
       Stream.drop(1),
       Stream.tap((state) => Effect.sync(() => get.set(resumeAtom(threadId), state)))

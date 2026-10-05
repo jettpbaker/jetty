@@ -39,7 +39,7 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
-import { useRevealRow } from '@/state'
+import { completedAgo, useRevealRow } from '@/state'
 import {
   measureElement,
   useVirtualizer,
@@ -286,7 +286,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
               <Markdown
                 streaming={row.streaming}
                 // Claude often sends a reply written after a tool call all at once.
-                arrived={!row.streaming && Date.now() - (row.item.completedAt ?? 0) < 1000}
+                arrived={!row.streaming && completedAgo(row.item.id) < 1000}
                 reply={row.item.id}
               >
                 {row.item.text}
