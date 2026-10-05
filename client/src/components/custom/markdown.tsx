@@ -1,7 +1,7 @@
 import { CodePre } from '@/components/custom/code_block'
 import { EntityLink, entityLinkTag, remarkEntityLinks } from '@/components/custom/entity_link'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
-import { blocksWithDefinitions } from '@/components/custom/markdown_links'
+import { blocksWithDefinitions, type MarkdownNode } from '@/components/custom/markdown_links'
 import {
   MarkdownMedia,
   markdownMediaTags,
@@ -42,13 +42,26 @@ import {
 import 'streamdown/styles.css'
 import { unified, type PluggableList } from 'unified'
 
+const allowedTags = { ...fileLinkTag, ...entityLinkTag }
+const internalTag = new RegExp(`<(?=/?(?:${Object.keys(allowedTags).join('|')}))`, 'gi')
+
+// Only Jetty makes these tags, from links. One an author writes as raw HTML (an agent, a PR
+// comment) shows as text, as GFM does disallowed HTML, rather than pass for Jetty's own.
+function remarkEscapeInternalTags() {
+  function visit(node: MarkdownNode) {
+    if (node.type === 'html') node.value = node.value?.replace(internalTag, '&lt;')
+    for (const child of node.children ?? []) visit(child)
+  }
+  return visit
+}
+
 const remarkPlugins = [
+  remarkEscapeInternalTags,
   ...Object.values(defaultRemarkPlugins),
   remarkBreaks,
   remarkFileLinks,
   remarkEntityLinks,
 ]
-const allowedTags = { ...fileLinkTag, ...entityLinkTag }
 function MarkdownImage({
   node: _node,
   src,

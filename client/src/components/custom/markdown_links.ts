@@ -3,6 +3,7 @@ import { parseMarkdownIntoBlocks } from 'streamdown'
 export type MarkdownNode = {
   type: string
   url?: string
+  value?: string
   identifier?: string
   children?: MarkdownNode[]
   data?: { hName?: string; hProperties?: Record<string, string> }

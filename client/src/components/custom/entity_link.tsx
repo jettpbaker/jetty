@@ -52,6 +52,14 @@ function entityOf(url: string) {
   }
 }
 
+const githubPaths: Record<string, string> = { pr: 'pull', issue: 'issues', commit: 'commit' }
+
+function entityUrl(kind: string, entity: string) {
+  if (kind === 'thread') return `jetty://threads/${entity}`
+  const [repo, id] = entity.split(/[#@]/)
+  return `https://github.com/${repo}/${githubPaths[kind]}/${id}`
+}
+
 export function remarkEntityLinks() {
   return (tree: MarkdownNode) =>
     visitLinks(tree, (node, url) => {
@@ -259,7 +267,7 @@ function IssueLink({ entity, permalink }: { entity: string; permalink?: string }
   const home = useHomeRepos()
   const [repo = '', number = ''] = entity.split('#')
   return (
-    <GitHubAnchor href={permalink ?? `https://github.com/${repo}/issues/${number}`} title={entity}>
+    <GitHubAnchor href={permalink ?? entityUrl('issue', entity)} title={entity}>
       <Lead icon={CircleDotIcon} color='text-muted-foreground' label='Open issue' size={pullGlyph}>
         {home.has(repo) ? `#${number}` : entity}
       </Lead>
@@ -272,10 +280,7 @@ function CommitLink({ entity, permalink }: { entity: string; permalink?: string 
   const [repo = '', sha = ''] = entity.split('@')
   const short = sha.slice(0, 7)
   return (
-    <GitHubAnchor
-      href={permalink ?? `https://github.com/${repo}/commit/${sha}`}
-      title={`${repo}@${short}`}
-    >
+    <GitHubAnchor href={permalink ?? entityUrl('commit', entity)} title={`${repo}@${short}`}>
       <Lead
         icon={GitCommitHorizontalIcon}
         color='text-muted-foreground'
@@ -289,8 +294,8 @@ function CommitLink({ entity, permalink }: { entity: string; permalink?: string 
 }
 
 export function EntityLink({
-  kind,
-  entity,
+  kind = '',
+  entity = '',
   permalink,
   children,
 }: {
@@ -299,10 +304,11 @@ export function EntityLink({
   permalink?: string
   children?: ReactNode
 }) {
-  if (!entity) return children
+  // Only props remarkEntityLinks could make: a permalink on github.com, to the entity named.
+  const target = entityOf(permalink ?? entityUrl(kind, entity))
+  if (target?.kind !== kind || target.entity !== entity) return children
   if (kind === 'thread') return <ThreadLink id={entity} fallback={children} />
   if (kind === 'pr') return <PullLink entity={entity} permalink={permalink} />
   if (kind === 'issue') return <IssueLink entity={entity} permalink={permalink} />
-  if (kind === 'commit') return <CommitLink entity={entity} permalink={permalink} />
-  return children
+  return <CommitLink entity={entity} permalink={permalink} />
 }
