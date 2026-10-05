@@ -44,6 +44,9 @@ const failedAtom = Atom.make(new Set<UsageProvider>()).pipe(Atom.keepAlive)
 
 // A read this recent is good enough to open on; pointing at Usage or opening it refreshes older ones.
 export const usageFreshMs = 30_000
+// The server gives up on a provider within 8s; a read still unanswered well past that has hung,
+// and would otherwise hold the provider "loading", skipped by every refresh, for the page's life.
+const readTimeout = '20 seconds'
 
 // The same set when nothing changes, so a read that settles as expected re-renders nothing.
 function toggled(set: Set<UsageProvider>, provider: UsageProvider, present: boolean) {
@@ -71,6 +74,7 @@ function readProviderUsage(registry: AtomRegistry.AtomRegistry, provider: UsageP
     registry,
     (connection) =>
       connection.request('settings.providerUsage', { provider }).pipe(
+        Effect.timeout(readTimeout),
         Effect.tap((usage) =>
           Effect.sync(() => {
             const previous = registry.get(readsAtom)[provider]?.usage
