@@ -16,7 +16,9 @@ import {
 } from '@/components/custom/huge_icons'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
 import { useAccessMode, useBumpDraft, useLoadouts, useThreadLoadout } from '@/state'
+import { useChrome } from '@/state/chrome'
 import { useSkills } from '@/state/skills'
+import { useCompactThread } from '@/state/turns'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -48,9 +50,9 @@ import {
 
 export type SlashScope = { threadId?: string; projectId?: string }
 
-type Section = 'Commands' | 'Skills' | 'Claude'
+type Section = 'Commands' | 'Skills'
 type ValueCommand = 'model' | 'effort' | 'access'
-type Kind = 'section' | 'back' | 'command' | 'skill' | 'provider' | 'option'
+type Kind = 'section' | 'back' | 'command' | 'skill' | 'option'
 
 type Entry = {
   id: string
@@ -71,21 +73,17 @@ const accessDescriptions: Record<PermissionMode, string> = {
   auto: 'Ask before risky actions',
   full_access: 'Run anything without asking',
 }
-const commandOrder = ['model', 'effort', 'fast', 'access', 'new']
+const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'new']
 const commandLabels: Record<ValueCommand, string> = {
   model: 'Model',
   effort: 'Effort',
   access: 'Access',
 }
-const sections: Section[] = ['Commands', 'Skills', 'Claude']
+const sections: Section[] = ['Commands', 'Skills']
 const sectionIcons: Record<Section, ReactNode> = {
   Commands: <KeyboardIcon />,
   Skills: <BookOpenIcon />,
-  Claude: <ProviderGlyph provider='claude' className='size-3 text-muted-foreground' />,
 }
-
-// Claude Code's own commands. Jetty doesn't show what they print yet, so they stay disabled.
-const claudeCommands = ['compact', 'context', 'init']
 
 /* State */
 
@@ -112,6 +110,9 @@ export function useComposerSlash(
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
   const { skills: listed, refresh } = useSkills(projectId)
+  const chrome = useChrome()
+  const compactThread = useCompactThread()
+  const thread = chrome?.threads.find((item) => item.id === threadId)
   const bumpDraft = useBumpDraft()
   const navigate = useNavigate()
   const model = loadout && findModel(catalog, loadout)
@@ -284,6 +285,14 @@ export function useComposerSlash(
       run,
     })
     const picker = (id: ValueCommand) => () => go(range, { section: 'Commands', picking: id })
+    const compactProvider = thread?.provider ?? provider
+    const compactReason = !thread?.provider
+      ? 'Send a message first'
+      : thread.status !== 'idle' && thread.status !== 'error'
+        ? 'Wait for this turn to finish'
+        : !compactProvider || !chrome?.providerCapabilities?.[compactProvider]?.compaction
+          ? 'This provider does not support compaction'
+          : ''
     const unset = 'Choose a model first'
     const efforts = model?.efforts.length ?? 0
     const choosable = model?.autoMode !== false
@@ -319,6 +328,18 @@ export function useComposerSlash(
         picker('access'),
         !choosable
       ),
+      command(
+        'compact',
+        'Compact',
+        compactReason,
+        <BookOpenIcon />,
+        undefined,
+        () => {
+          consume(range)
+          if (threadId) compactThread(threadId)
+        },
+        Boolean(compactReason)
+      ),
       command('new', 'New thread', '', <PencilEdit02Icon />, undefined, () => {
         consume(range)
         bumpDraft()
@@ -343,21 +364,6 @@ export function useComposerSlash(
           run: () => insert(range, skill.name),
         })
       ),
-      ...(range.atStart && provider === 'claude'
-        ? claudeCommands.map(
-            (command): Entry => ({
-              id: `claude:${command}`,
-              kind: 'provider',
-              name: command,
-              description: 'Coming soon',
-              group: 'Claude',
-              icon: <ProviderGlyph provider='claude' className='size-3 text-muted-foreground' />,
-              disabled: true,
-              score: 0,
-              run: () => insert(range, command),
-            })
-          )
-        : []),
     ]
   }
 
@@ -382,7 +388,7 @@ export function useComposerSlash(
           range.query
         ),
       ]
-    // Typing straight after the slash searches skills only; commands and Claude's live behind their sections.
+    // Typing straight after the slash searches skills only; commands live behind their section.
     if (range.query)
       return rank(
         items.filter((entry) => entry.group === 'Skills'),

@@ -2,6 +2,7 @@ import type {
   AgentBehaviours,
   ChromePushData,
   ModelDiscovery,
+  ProviderCapabilities,
   TitleModel,
   Project,
   ProjectIcon,
@@ -30,6 +31,7 @@ export type Chrome = {
   usage?: RateLimits
   models?: readonly ProviderModel[]
   modelDiscovery?: ModelDiscovery
+  providerCapabilities?: ProviderCapabilities
   branchPrefix?: string
   titleModel?: TitleModel
   agentBehaviours?: AgentBehaviours
@@ -52,6 +54,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         usage: update.usage,
         models: update.models,
         modelDiscovery: update.modelDiscovery,
+        providerCapabilities: update.providerCapabilities,
         branchPrefix: update.branchPrefix,
         titleModel: update.titleModel,
         agentBehaviours: update.agentBehaviours,

@@ -56,6 +56,7 @@ export function createTranslateCtx(
 export type SdkLikeMessage = {
   type: string
   subtype?: string
+  compact_metadata?: { trigger: 'manual' | 'auto'; pre_tokens?: number; post_tokens?: number }
   session_id?: string
   event?: StreamEvent
   message?: {
@@ -226,6 +227,21 @@ export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
 }
 
 function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
+  if (msg.subtype === 'compact_boundary' && msg.compact_metadata) {
+    return [
+      {
+        type: 'item.started',
+        item: {
+          id: newId(),
+          ...itemBase(ctx),
+          kind: 'compaction',
+          trigger: msg.compact_metadata.trigger,
+          tokensBefore: natural(msg.compact_metadata.pre_tokens),
+          tokensAfter: natural(msg.compact_metadata.post_tokens),
+        },
+      },
+    ]
+  }
   if (msg.subtype === 'init' && typeof msg.session_id === 'string') {
     ctx.sessionId = msg.session_id
     return []

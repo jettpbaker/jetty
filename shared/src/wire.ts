@@ -29,6 +29,12 @@ export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 export const ProviderId = Schema.Literals(['claude', 'codex', 'grok'])
 export type ProviderId = Schema.Schema.Type<typeof ProviderId>
 
+export const ProviderCapabilities = Schema.Record(
+  ProviderId,
+  Schema.Struct({ compaction: Schema.Boolean })
+)
+export type ProviderCapabilities = Schema.Schema.Type<typeof ProviderCapabilities>
+
 export const ProviderModel = Schema.Struct({
   provider: ProviderId,
   id: Schema.String,
@@ -317,6 +323,7 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Struct({ count: Schema.Natural }),
   },
+  'thread.compact': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   'thread.retrySetup': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   'settings.setTitleModel': {
     params: TitleModel,
@@ -712,6 +719,7 @@ export const ChromePushData = Schema.Union([
     threads: Schema.Array(ThreadMeta),
     usage: Schema.optional(RateLimits),
     models: Schema.optional(Schema.Array(ProviderModel)),
+    providerCapabilities: Schema.optional(ProviderCapabilities),
     modelDiscovery: Schema.optional(ModelDiscovery),
     branchPrefix: Schema.optional(Schema.String),
     titleModel: Schema.optional(TitleModel),

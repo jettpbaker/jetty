@@ -21,6 +21,7 @@ export type TurnInput = {
   threadId: string
   turnId: string
   text: string
+  compact?: boolean
   images?: AgentImage[]
   model?: string
   effort?: EffortLevel
@@ -44,6 +45,7 @@ export type Emit = (
 export type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
+  supportsCompaction?: boolean
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
   busy?: (threadId: string) => boolean

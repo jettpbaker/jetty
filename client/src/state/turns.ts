@@ -335,6 +335,18 @@ export function useInterruptTurn() {
   return useAction(interruptTurn)
 }
 
+function compactThread(registry: Registry, threadId: string) {
+  return run(
+    registry,
+    (connection) => connection.request('thread.compact', { threadId }),
+    () => toast.error("Couldn't compact conversation")
+  )
+}
+
+export function useCompactThread() {
+  return useAction(compactThread)
+}
+
 function stopBackgroundTasks(registry: Registry, threadId: string, taskId?: string) {
   return run(
     registry,

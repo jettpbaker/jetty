@@ -258,15 +258,19 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           session.providerThreadId = threadId
           yield* store.setProviderSessionId(session.input.threadId, 'codex', threadId)
           yield* session.emit({ type: 'turn.started', turnId: session.input.turnId })
-          const turn = yield* connection.request('turn/start', {
-            threadId,
-            input: codexInput(session.input.text, session.input.images),
-            effort: session.input.effort,
-          })
-          session.providerTurnId = string(object(turn.turn).id)
-          if (!session.providerTurnId)
-            return yield* Effect.fail(new AgentError('Codex returned no turn id'))
-          session.accepting = true
+          if (session.input.compact) {
+            yield* connection.request('thread/compact/start', { threadId })
+          } else {
+            const turn = yield* connection.request('turn/start', {
+              threadId,
+              input: codexInput(session.input.text, session.input.images),
+              effort: session.input.effort,
+            })
+            session.providerTurnId = string(object(turn.turn).id)
+            if (!session.providerTurnId)
+              return yield* Effect.fail(new AgentError('Codex returned no turn id'))
+          }
+          session.accepting = !session.input.compact
           const translator = session.translator
           while (true) {
             const message = yield* Queue.take(connection.messages)
@@ -297,6 +301,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   return null
                 }
                 if (message.params.threadId !== threadId) return null
+                if (session.input.compact && message.method === 'turn/started')
+                  session.providerTurnId = string(object(message.params.turn).id)
                 const eventTurn = message.params.turnId ?? object(message.params.turn).id
                 if (eventTurn !== session.providerTurnId) return null
                 if (message.method === 'turn/completed') {
@@ -404,6 +410,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     }
 
     return {
+      supportsCompaction: true,
       startTurn(input, emit) {
         return Effect.gen(function* () {
           if (sessions.has(input.threadId))
@@ -415,7 +422,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           const session: Session = {
             input,
             emit,
-            translator: createCodexTranslator(input.turnId),
+            translator: createCodexTranslator(input.turnId, input.compact),
             accepting: false,
             settled: false,
             reason: null,

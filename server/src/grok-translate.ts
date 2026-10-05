@@ -4,7 +4,11 @@ import { newId } from '@jetty/shared/wire'
 
 import { object, string } from './stdio-rpc'
 
-export function createGrokTranslator(turnId: string, workflows = new Set<string>()) {
+export function createGrokTranslator(
+  turnId: string,
+  workflows = new Set<string>(),
+  manualCompaction = false
+) {
   const tools = new Map<string, { id: string; done: boolean }>()
   const workflowTools = new Set<string>()
   let text: { id: string; kind: 'assistant_message' | 'reasoning' } | undefined
@@ -23,6 +27,24 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
   function translate(update: Record<string, unknown>): ThreadEvent[] {
     const events: ThreadEvent[] = []
     const base = { turnId, createdAt: Date.now() }
+    if (update.sessionUpdate === 'auto_compact_completed') {
+      events.push({
+        type: 'item.started',
+        item: {
+          ...base,
+          id: newId(),
+          kind: 'compaction',
+          trigger: manualCompaction ? 'manual' : 'auto',
+          ...(typeof update.tokens_before === 'number'
+            ? { tokensBefore: natural(update.tokens_before) }
+            : {}),
+          ...(typeof update.tokens_after === 'number'
+            ? { tokensAfter: natural(update.tokens_after) }
+            : {}),
+        },
+      })
+      return events
+    }
     if (update.sessionUpdate === 'workflow_updated') {
       const runId = string(update.run_id)
       if (!runId) return events

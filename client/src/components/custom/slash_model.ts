@@ -2,7 +2,6 @@ export type SlashQuery = {
   start: number
   end: number
   query: string
-  atStart: boolean
 }
 
 export type SlashToken = { start: number; end: number; name: string }
@@ -15,7 +14,7 @@ export function activeSlash(text: string, caret: number): SlashQuery | undefined
   if (!match) return undefined
   const [, lead = '', query = ''] = match
   const start = match.index + lead.length
-  return { start, end, query, atStart: !text.slice(0, start).trim() }
+  return { start, end, query }
 }
 
 export function slashTokens(text: string): SlashToken[] {

@@ -56,6 +56,13 @@ const itemBase = {
 export const ThreadItem = Schema.Union([
   Schema.Struct({
     ...itemBase,
+    kind: Schema.Literal('compaction'),
+    trigger: Schema.Literals(['manual', 'auto']),
+    tokensBefore: Schema.optional(Schema.Natural),
+    tokensAfter: Schema.optional(Schema.Natural),
+  }),
+  Schema.Struct({
+    ...itemBase,
     kind: Schema.Literal('user_message'),
     from: Schema.optional(Schema.Struct({ threadId: Schema.String, title: Schema.String })),
     hop: Schema.optional(Schema.Natural),

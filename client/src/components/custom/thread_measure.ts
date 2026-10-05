@@ -117,6 +117,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         : 36
     case 'created':
       return 28 * row.threadIds.length
+    case 'compaction':
     case 'marker':
       return 16
   }

@@ -5,7 +5,7 @@ import { newId } from '@jetty/shared/wire'
 
 import { object, string, type RpcMessage } from './stdio-rpc'
 
-export function createCodexTranslator(turnId: string) {
+export function createCodexTranslator(turnId: string, manualCompaction = false) {
   const items = new Map<string, ThreadItem>()
   const completed = new Set<string>()
 
@@ -24,8 +24,9 @@ export function createCodexTranslator(turnId: string) {
       case 'subAgentActivity':
       case 'enteredReviewMode':
       case 'exitedReviewMode':
-      case 'contextCompaction':
         return undefined
+      case 'contextCompaction':
+        return { ...base, kind: 'compaction', trigger: manualCompaction ? 'manual' : 'auto' }
       default:
         return {
           ...base,
@@ -44,7 +45,7 @@ export function createCodexTranslator(turnId: string) {
     if (method === 'item/started' || method === 'item/completed') {
       const raw = object(params.item)
       const id = string(raw.id)
-      if (!id) return events
+      if (!id || (raw.type === 'contextCompaction' && method === 'item/started')) return events
       let item = items.get(id)
       if (!item) {
         item = itemFrom(raw)

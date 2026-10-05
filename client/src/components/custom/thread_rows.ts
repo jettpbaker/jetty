@@ -41,6 +41,7 @@ export type ThreadRow =
       elapsedSeconds?: number
       restarted?: boolean
     }
+  | { kind: 'compaction'; id: string; item: Extract<ThreadItem, { kind: 'compaction' }> }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
@@ -468,6 +469,9 @@ export function threadRows(
           streaming: textRunning(item, item === tail, sessionRunning),
           loadout: loadouts[item.turnId],
         })
+        break
+      case 'compaction':
+        rows.push({ kind: 'compaction', id: item.id, item })
         break
       case 'error':
         rows.push({ kind: 'error', id: item.id, message: item.message })

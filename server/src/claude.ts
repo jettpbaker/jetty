@@ -784,6 +784,7 @@ export function createClaudeAdapter(
     }
 
     return {
+      supportsCompaction: true,
       startTurn(input, emit) {
         return Effect.gen(function* () {
           const projectPath = yield* Effect.gen(function* () {
@@ -810,7 +811,9 @@ export function createClaudeAdapter(
           if (session?.awaitingResult)
             return yield* Effect.fail(new AgentError('Turn already active'))
           if (session) {
-            const applied = yield* applyOptions(session, sessionOptions(input)).pipe(
+            const next = sessionOptions(input)
+            if (input.compact) next.permissionMode = session.options.permissionMode
+            const applied = yield* applyOptions(session, next).pipe(
               Effect.as(true),
               Effect.orElseSucceed(() => false)
             )
@@ -827,11 +830,14 @@ export function createClaudeAdapter(
             started.ctx = createTranslateCtx(input.turnId, started.ctx)
             started.emit = emit
             started.awaitingResult = true
-            started.accepting = true
+            started.accepting = !input.compact
             started.failReason = null
             started.done = yield* Deferred.make<void, AgentError>()
             yield* publish(started, { type: 'turn.started', turnId: input.turnId })
-            yield* Queue.offer(started.input, userMessage(input.text, input.images))
+            yield* Queue.offer(
+              started.input,
+              userMessage(input.compact ? '/compact' : input.text, input.images)
+            )
             if (fresh) {
               yield* Effect.forkIn(readSession(started), started.scope)
               yield* requestUsage(started)

@@ -246,6 +246,7 @@ export function createRpcHandlers(
                 ...(usage ? { usage } : {}),
                 ...(models ? { models } : {}),
                 modelDiscovery,
+                providerCapabilities: orch.providerCapabilities(),
                 branchPrefix,
                 titleModel,
                 agentBehaviours,
@@ -532,6 +533,8 @@ export function createRpcHandlers(
           yield* Fiber.join(fiber)
           return null
         }).pipe(Effect.mapError(wireError)),
+      'thread.compact': ({ threadId }) =>
+        orch.compact(threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'turn.start': (params) =>
         Effect.gen(function* () {
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)

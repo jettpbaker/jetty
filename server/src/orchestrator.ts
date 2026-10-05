@@ -5,6 +5,7 @@ import type {
   ProviderId,
   QueuedMessage,
   ProviderModel,
+  ProviderCapabilities,
   UploadAttachment,
 } from '@jetty/shared/wire'
 
@@ -691,6 +692,83 @@ export function createOrchestrator({
     }
 
     return {
+      providerCapabilities() {
+        return Object.fromEntries(
+          (['claude', 'codex', 'grok'] as const).map((provider) => [
+            provider,
+            { compaction: registry.agent(provider)?.supportsCompaction === true },
+          ])
+        ) as ProviderCapabilities
+      },
+      compact(threadId: string) {
+        return Effect.suspend(() =>
+          state(threadId).admission.withPermit(
+            Effect.gen(function* () {
+              const thread = yield* store.requireThread(threadId)
+              const agent = yield* agentForThread(threadId)
+              const live = state(threadId)
+              if (live.turnId || !live.ready || agent.busy?.(threadId))
+                return yield* Effect.fail(
+                  new StoreError('conflict', 'Wait for this turn to finish')
+                )
+              if (!agent.supportsCompaction)
+                return yield* Effect.fail(
+                  new StoreError('conflict', 'This provider does not support compaction')
+                )
+              const snapshot = yield* store.getThreadState(threadId)
+              if (!snapshot.items.length)
+                return yield* Effect.fail(new StoreError('conflict', 'Send a message first'))
+              if (thread.archived)
+                return yield* Effect.fail(new StoreError('conflict', 'Resume this thread first'))
+              const project = yield* store.getProject(thread.projectId)
+              if (!project)
+                return yield* Effect.fail(new StoreError('not_found', 'Thread project not found'))
+              const cwd = worktrees
+                ? yield* Effect.tryPromise({
+                    try: (signal) => worktrees.prepare(threadId, signal),
+                    catch: (error) => new StoreError('internal', String(error)),
+                  })
+                : (thread.workingPath ?? project.path)
+              const turnId = newId()
+              live.turnId = turnId
+              live.ready = false
+              const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
+                append(threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
+              const lifecycle = agent
+                .startTurn(
+                  {
+                    threadId,
+                    turnId,
+                    cwd,
+                    text: '',
+                    compact: true,
+                    model: thread.model,
+                    effort: thread.effort,
+                    fast: thread.fast,
+                  },
+                  emit
+                )
+                .pipe(
+                  Effect.flatMap((turn) => turn.await),
+                  Effect.catch((error) =>
+                    emit({ type: 'turn.failed', turnId, error: error.message })
+                  ),
+                  Effect.onInterrupt(() =>
+                    emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(
+                      Effect.ignore
+                    )
+                  ),
+                  Effect.ensuring(
+                    Effect.sync(() => {
+                      live.ready = true
+                    }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
+                  )
+                )
+              yield* Effect.forkIn(lifecycle, scope, { startImmediately: true })
+            })
+          )
+        )
+      },
       beginShutdown() {
         return Effect.sync(() => {
           closing = true

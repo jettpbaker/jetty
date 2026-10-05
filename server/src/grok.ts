@@ -297,6 +297,15 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
 
     function prompt(session: Session, text: string, images?: AgentImage[]) {
       return Effect.gen(function* () {
+        if (session.input.compact) {
+          session.requestId = yield* session.connection!.startRequest(
+            '_x.ai/compact_conversation',
+            {
+              sessionId: session.providerThreadId,
+            }
+          )
+          return
+        }
         session.promptCount++
         session.promptId = newId()
         session.requestId = yield* session.connection!.startRequest('session/prompt', {
@@ -366,7 +375,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           yield* publish(session, { type: 'turn.started', turnId: session.input.turnId })
           if (startupMcpFailure) yield* reportMcpFailure(session, startupMcpFailure)
           yield* prompt(session, session.input.text, session.input.images)
-          session.accepting = true
+          session.accepting = !session.input.compact
           while (true) {
             const message = yield* Queue.take(connection.messages)
             yield* session.publication.withPermit(
@@ -384,6 +393,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     message.method === '_x.ai/session_notification') &&
                   message.params.sessionId === sessionId
                 if (notification) {
+                  if (
+                    session.input.compact &&
+                    (update.sessionUpdate === 'auto_compact_failed' ||
+                      update.sessionUpdate === 'auto_compact_cancelled')
+                  )
+                    session.reason =
+                      string(update.error) || string(update.message) || 'Compaction failed'
                   if (update.sessionUpdate === 'subagent_spawned') {
                     const id = string(update.subagent_id)
                     if (id) session.runningSubagents.add(id)
@@ -465,7 +481,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   yield* settleOpenItems(session)
                   const error =
                     string(object(message.params.error).message) ||
-                    (result.stopReason !== 'end_turn'
+                    (!session.input.compact && result.stopReason !== 'end_turn'
                       ? string(object(result.agentResult).message) ||
                         string(result.agentResult) ||
                         'Grok stopped: ' + String(result.stopReason ?? 'missing stop reason')
@@ -501,10 +517,12 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
 
     // Grok advertises /workflow stop as a prompt command, but no task-specific ACP stop request.
     return {
+      supportsCompaction: true,
       startTurn(input, emit) {
         return Effect.gen(function* () {
           let existing = sessions.get(input.threadId)
-          const settings = JSON.stringify(grokArgs(input))
+          const settings =
+            existing && input.compact ? existing.settings : JSON.stringify(grokArgs(input))
           if (existing) {
             let retire = false
             yield* existing.publication.withPermit(
@@ -536,12 +554,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 existing!.emit = emit
                 existing!.translator = createGrokTranslator(
                   input.turnId,
-                  existing!.translator.workflows
+                  existing!.translator.workflows,
+                  input.compact
                 )
                 existing!.done = yield* Deferred.make<void, AgentError>()
                 existing!.reason = null
                 existing!.awaitingResult = true
-                existing!.accepting = true
+                existing!.accepting = !input.compact
                 yield* publish(existing!, { type: 'turn.started', turnId: input.turnId })
                 yield* prompt(existing!, input.text, input.images)
               })
@@ -559,7 +578,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const session: Session = {
             input,
             emit,
-            translator: createGrokTranslator(input.turnId),
+            translator: createGrokTranslator(input.turnId, undefined, input.compact),
             accepting: false,
             awaitingResult: true,
             done,

@@ -105,6 +105,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'created':
       return row.threadIds.join(',')
+    case 'compaction':
+      return `${row.item.tokensBefore}:${row.item.tokensAfter}`
     case 'marker':
       return row.item.kind
     case 'work':
@@ -202,6 +204,22 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
   if (row.kind === 'created') return <CreatedThreads parentId={threadId} ids={row.threadIds} />
+  if (row.kind === 'compaction') {
+    const { tokensBefore, tokensAfter } = row.item
+    const tokens = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+    return (
+      <p className='text-center text-xs text-muted-foreground'>
+        Conversation compacted
+        {tokensBefore != null && tokensAfter != null
+          ? ` · ${tokens.format(tokensBefore)} → ${tokens.format(tokensAfter)}`
+          : tokensBefore != null
+            ? ` · ${tokens.format(tokensBefore)} before`
+            : tokensAfter != null
+              ? ` · ${tokens.format(tokensAfter)} after`
+              : ''}
+      </p>
+    )
+  }
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
