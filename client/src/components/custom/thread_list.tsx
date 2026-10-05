@@ -100,7 +100,11 @@ function whenIdle(callback: (until: number) => void) {
 
 // Follows a pinned list down as it grows on a critically damped spring, so a line added mid-glide
 // bends the motion instead of restarting it, and the chat never jumps a whole line at once.
-function bottomGlide(element: HTMLElement, onWrite: (top: number) => void) {
+function bottomGlide(
+  element: HTMLElement,
+  onWrite: (top: number) => void,
+  onRun: (running: boolean) => void
+) {
   const stiffness = 20
   let frame = 0
   let velocity = 0
@@ -117,7 +121,9 @@ function bottomGlide(element: HTMLElement, onWrite: (top: number) => void) {
     const settled = Math.abs(next) < 0.5 && Math.abs(velocity) < 10
     write(settled ? target : target + next)
     frame = settled ? 0 : requestAnimationFrame(tick)
-    if (settled) velocity = 0
+    if (!settled) return
+    velocity = 0
+    onRun(false)
   }
   function write(top: number) {
     element.scrollTop = top
@@ -130,11 +136,14 @@ function bottomGlide(element: HTMLElement, onWrite: (top: number) => void) {
       if (frame) return
       previous = performance.now()
       frame = requestAnimationFrame(tick)
+      onRun(true)
     },
     stop() {
+      if (!frame) return
       cancelAnimationFrame(frame)
       frame = 0
       velocity = 0
+      onRun(false)
     },
     // Whether a scroll event is the glide's own.
     owns: (top: number) => Math.abs(top - written) < 1,
@@ -458,17 +467,10 @@ export function ThreadList({
   const lastRow = useRef<{ key: unknown; start: number }>(undefined)
   // Where the list was last scrolled to, before any clamp from content that just shrank.
   const shownTop = useRef(0)
-  // A pinned list keeps its own scroll position: the virtualizer would hold rows that resize above
-  // the fold in place from an offset a gliding frame stale, dragging the list back up.
-  const pin = useCallback(
-    (value: boolean) => {
-      pinned.current = value
-      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = value ? () => false : undefined
-      if (!value) glider.current?.stop()
-    },
-    [virtualizer]
-  )
-  useLayoutEffect(() => pin(pinned.current), [pin])
+  const pin = useCallback((value: boolean) => {
+    pinned.current = value
+    if (!value) glider.current?.stop()
+  }, [])
   useLayoutEffect(() => {
     if (!pinned.current || rows.length === 0 || !scroller.current) return
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
@@ -484,7 +486,16 @@ export function ThreadList({
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
     if (glides) {
-      glider.current ??= bottomGlide(element, (top) => (shownTop.current = top))
+      // While it glides, the list keeps its own scroll position: the virtualizer would hold rows
+      // that resize above the fold in place from an offset a gliding frame stale, dragging it up.
+      glider.current ??= bottomGlide(
+        element,
+        (top) => (shownTop.current = top),
+        (running) =>
+          (virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
+            ? () => false
+            : undefined)
+      )
       // Rows above the last changing size (a turn's Working line going) keep it where it is.
       if (last && anchor?.key === last.key && anchor.start !== last.start)
         glider.current.write(shownTop.current + last.start - anchor.start)
