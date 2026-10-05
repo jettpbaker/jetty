@@ -124,8 +124,7 @@ export async function readClaudeUsageIdentity(authenticated?: AccountInfo) {
     authenticated &&
     (!account.email ||
       authenticated.email !== account.email ||
-      !authenticated.organization ||
-      authenticated.organization !== account.organization)
+      (authenticated.organization ?? '') !== account.organization)
   )
     return undefined
   return account.id || undefined
