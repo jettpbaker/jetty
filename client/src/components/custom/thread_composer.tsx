@@ -141,6 +141,13 @@ export function ThreadComposer({
   function retarget(patch: DraftTarget) {
     update({ target: { ...read().target, ...patch } })
   }
+  // A started draft keeps the project it was started in, though a thread elsewhere may become the
+  // most recent while it's written.
+  const started = draft.trim() !== '' || attachments.images.length > 0
+  useEffect(() => {
+    if (!threadId && started && projectId && !picked)
+      update({ target: { ...read().target, projectId } })
+  }, [threadId, started, projectId, picked, update, read])
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
   // The queue shows in the chat; here it's only the message being edited.
   const { own: queue } = useVisibleQueue(threadId, items)
