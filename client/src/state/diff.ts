@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { useChrome } from './chrome'
 import { connectionAtom, useAction } from './connection'
 import { beginFileSave, endFileSave, settleFileDraft } from './file_drafts'
-import { threadAtom, useThread } from './threads'
+import { threadAtom, threadStatusAtom } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
   const [threadId, scope] = key.split('\0') as [string, DiffScope]
@@ -131,7 +131,7 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const result = useAtomValue(atom)
   const registry = useContext(RegistryContext)
   const refresh = useCallback(() => refreshDiff(registry, key), [registry, key])
-  const live = liveStatuses.has(useThread(threadId)?.status ?? 'idle')
+  const live = liveStatuses.has(useAtomValue(threadStatusAtom(threadId)) ?? 'idle')
   const wasLive = useRef(live)
   useToolsSettled(threadId, refresh)
   useRefreshCached(atom, refresh)

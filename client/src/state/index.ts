@@ -29,6 +29,7 @@ export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export {
   completedAgo,
+  useOverviewItems,
   useThread,
   useThreadContext,
   useThreadJourney,

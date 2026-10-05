@@ -118,7 +118,7 @@ function join(run: TodoUpdate, update: TodoUpdate) {
 // The main agent's task list: Claude's TaskCreate/TaskUpdate (or older TodoWrite) calls, or
 // Codex's plan. `updates` holds every todo call's line, undefined when it changed nothing shown
 // or joined the run of TaskCreate calls before it.
-export function foldTodos(items: readonly ThreadItem[]) {
+export function foldTodos(items: readonly ThreadItem[], current = items.at(-1)?.turnId) {
   let todos: Tracked[] = []
   const updates = new Map<string, TodoUpdate | undefined>()
   let made = 0
@@ -144,11 +144,10 @@ export function foldTodos(items: readonly ThreadItem[]) {
     updates.set(item.id, update)
     run = creating ? update : undefined
   }
-  const current = items.at(-1)?.turnId
   const list: Todo[] = todos.filter((todo) => shown(todo, current))
   return { todos: list, updates }
 }
 
-export function currentTodos(items: readonly ThreadItem[]): Todo[] {
-  return foldTodos(items).todos
+export function currentTodos(items: readonly ThreadItem[], current = items.at(-1)?.turnId): Todo[] {
+  return foldTodos(items, current).todos
 }

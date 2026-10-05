@@ -1,3 +1,4 @@
+import type { ThreadItem } from '@jetty/shared/items'
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { perf } from '@/perf'
@@ -10,11 +11,17 @@ import { useContext, useEffect, useRef } from 'react'
 
 import { chromeAtom } from './chrome'
 import { subscribe, useAction } from './connection'
+import { createItemSelection, noteItemDelta, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
 
 function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
   if (update.type === 'snapshot') return { ...update.snapshot, lastSeq: update.seq }
-  if (update.type === 'event') return applyEvent(state, update)
+  if (update.type === 'event') {
+    const next = applyEvent(state, update)
+    if (update.event.type === 'item.delta')
+      noteItemDelta(state.items, next.items, update.event.itemId)
+    return next
+  }
   return { ...state, lastSeq: Math.max(state.lastSeq, update.seq) }
 }
 
@@ -115,6 +122,39 @@ const threadContextAtom = Atom.family((threadId: string) =>
 
 export function useThreadContext(threadId: string | undefined) {
   return useAtomValue(threadContextAtom(threadId ?? ''))
+}
+
+export const threadStatusAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadAtom(threadId))?.status)
+)
+
+const noItems: readonly ThreadItem[] = []
+// The calls todo_model folds into the task list.
+const todoTools = new Set(['TodoWrite', 'update_plan', 'TaskCreate', 'TaskUpdate'])
+
+// What the Overview lists, so a streamed reply doesn't re-render it or replay its todos.
+const overviewItemsAtom = Atom.family((threadId: string) => {
+  const select = createItemSelection(
+    (item) =>
+      item.kind === 'subagent' ||
+      item.kind === 'workflow' ||
+      (item.kind === 'tool_call' && !item.agentId && todoTools.has(item.toolName))
+  )
+  return Atom.readable((get) => select(get(threadAtom(threadId))?.items ?? noItems)).pipe(
+    Atom.withEquality(sameItems)
+  )
+})
+
+// Todos finished in an earlier turn drop out, so the Overview needs the thread's last turn too.
+const lastTurnAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadAtom(threadId))?.items.at(-1)?.turnId)
+)
+
+export function useOverviewItems(threadId: string) {
+  return {
+    items: useAtomValue(overviewItemsAtom(threadId)),
+    lastTurn: useAtomValue(lastTurnAtom(threadId)),
+  }
 }
 
 // Warms a hovered row's thread outside React, so hovering never re-renders the list. A warm

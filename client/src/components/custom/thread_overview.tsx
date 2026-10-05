@@ -7,9 +7,9 @@ import { useNow } from '@/hooks/use-now'
 import { storage } from '@/platform'
 import {
   useChrome,
+  useOverviewItems,
   useRequestReveal,
   useRevealSection,
-  useThread,
   useThreadDiff,
   useThreadTab,
 } from '@/state'
@@ -36,14 +36,11 @@ function threadWorkflows(items: readonly ThreadItem[]) {
 }
 
 export function useHasOverview(threadId: string, childThreads: readonly ChildThread[]) {
-  const items = useThread(threadId)?.items
+  const { items, lastTurn } = useOverviewItems(threadId)
   const pullRequests = useChrome()?.threads.find((thread) => thread.id === threadId)?.pullRequests
-  const hasItems = useMemo(
-    () =>
-      (items ?? []).some((item) => item.kind === 'subagent' || item.kind === 'workflow') ||
-      currentTodos(items ?? []).length > 0,
-    [items]
-  )
+  const hasItems =
+    items.some((item) => item.kind === 'subagent' || item.kind === 'workflow') ||
+    currentTodos(items, lastTurn).length > 0
   return hasItems || childThreads.length > 0 || (pullRequests?.length ?? 0) > 0
 }
 
@@ -85,7 +82,7 @@ export function ThreadOverview({
   onShowChat: () => void
   onShowChanges: () => void
 }) {
-  const items = useThread(threadId)?.items
+  const { items, lastTurn } = useOverviewItems(threadId)
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
   const [tab, setTab] = useThreadTab(threadId)
   const reveal = useRequestReveal()
@@ -94,9 +91,9 @@ export function ThreadOverview({
   const [revealing, clearReveal] = useRevealSection(threadId)
   const scroller = useRef<HTMLDivElement>(null)
 
-  const todos = useMemo(() => currentTodos(items ?? []), [items])
-  const subagentItems = useMemo(() => threadSubagents(items ?? []), [items])
-  const workflows = useMemo(() => threadWorkflows(items ?? []), [items])
+  const todos = currentTodos(items, lastTurn)
+  const subagentItems = threadSubagents(items)
+  const workflows = threadWorkflows(items)
   const files = useMemo(() => (diff ? changedFiles(diff.diff) : []), [diff])
   const pullRequests = useMemo(
     () =>
