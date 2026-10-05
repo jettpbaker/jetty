@@ -1,10 +1,3 @@
-import {
-  BatteryEmptyIcon,
-  BatteryLowIcon,
-  BatteryMedium01Icon,
-  BatteryMedium02Icon,
-  BatteryFullIcon,
-} from '@/components/custom/huge_icons'
 import { EffortLevel } from '@jetty/shared/events'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { ProviderId, type ProviderModel } from '@jetty/shared/wire'
@@ -22,14 +15,6 @@ export type LoadoutSlot = Omit<Loadout, 'model'> & { id: string; model: string |
 const slotCount = 5
 const isProvider = Schema.is(ProviderId)
 const isEffort = Schema.is(EffortLevel)
-
-export const effortIcons = {
-  low: BatteryEmptyIcon,
-  medium: BatteryLowIcon,
-  high: BatteryMedium01Icon,
-  xhigh: BatteryMedium02Icon,
-  max: BatteryFullIcon,
-} satisfies Record<EffortLevel, typeof BatteryEmptyIcon>
 
 export const effortLabels: Record<EffortLevel, string> = {
   low: 'Low',

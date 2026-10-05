@@ -43,11 +43,6 @@ export const ArrowUpLeft01Icon = hugeIcon(shapes.ArrowUpLeft01Icon)
 export const ArrowUpRight01Icon = hugeIcon(shapes.ArrowUpRight01Icon)
 export const AtomIcon = hugeIcon(shapes.AtomIcon)
 export const Attachment01Icon = hugeIcon(shapes.Attachment01Icon)
-export const BatteryEmptyIcon = hugeIcon(shapes.BatteryEmptyIcon)
-export const BatteryFullIcon = hugeIcon(shapes.BatteryFullIcon)
-export const BatteryLowIcon = hugeIcon(shapes.BatteryLowIcon)
-export const BatteryMedium01Icon = hugeIcon(shapes.BatteryMedium01Icon)
-export const BatteryMedium02Icon = hugeIcon(shapes.BatteryMedium02Icon)
 export const BellIcon = hugeIcon(shapes.BellIcon)
 export const BookOpenIcon = hugeIcon(shapes.BookOpenIcon)
 export const BoxIcon = hugeIcon(shapes.BoxIcon)
@@ -129,7 +124,6 @@ export const MailIcon = hugeIcon(shapes.MailIcon)
 export const MapPinIcon = hugeIcon(shapes.MapPinIcon)
 export const MegaphoneIcon = hugeIcon(shapes.MegaphoneIcon)
 export const MessageCircleIcon = hugeIcon(shapes.MessageCircleIcon)
-export const MinusSignCircleIcon = hugeIcon(shapes.MinusSignCircleIcon)
 export const Moon02Icon = hugeIcon(shapes.Moon02Icon)
 export const MoreVerticalIcon = hugeIcon(shapes.MoreVerticalIcon)
 export const MusicIcon = hugeIcon(shapes.MusicIcon)
@@ -165,7 +159,6 @@ export const ShieldOffIcon = hugeIcon(shapes.ShieldOffIcon)
 export const ShieldQuestionMarkIcon = hugeIcon(shapes.ShieldQuestionMarkIcon)
 export const ShoppingCartIcon = hugeIcon(shapes.ShoppingCartIcon)
 export const SidebarLeftIcon = hugeIcon(shapes.SidebarLeftIcon)
-export const SidebarLeft01Icon = hugeIcon(shapes.SidebarLeft01Icon)
 export const SmartphoneIcon = hugeIcon(shapes.SmartphoneIcon)
 export const SourceCodeSquareIcon = hugeIcon(shapes.SourceCodeSquareIcon)
 export const SparklesIcon = hugeIcon(shapes.SparklesIcon)
@@ -185,11 +178,8 @@ export const TrophyIcon = hugeIcon(shapes.TrophyIcon)
 export const UndoIcon = hugeIcon(shapes.UndoIcon)
 export const Unlink01Icon = hugeIcon(shapes.Unlink01Icon)
 export const Upload04Icon = hugeIcon(shapes.Upload04Icon)
-export const UserIcon = hugeIcon(shapes.UserIcon)
 export const UserAdd01Icon = hugeIcon(shapes.UserAdd01Icon)
-export const UserGroupIcon = hugeIcon(shapes.UserGroupIcon)
 export const UsersIcon = hugeIcon(shapes.UsersIcon)
-export const ViewIcon = hugeIcon(shapes.ViewIcon)
 export const VolumeHighIcon = hugeIcon(shapes.VolumeHighIcon)
 export const VolumeMute02Icon = hugeIcon(shapes.VolumeMute02Icon)
 export const WalletIcon = hugeIcon(shapes.WalletIcon)
@@ -201,39 +191,11 @@ export const ArrowTurnBackwardIcon = hugeIcon(shapes.ArrowTurnBackwardIcon)
 
 export const CheckListIcon = hugeIcon(shapes.CheckListIcon)
 
-export const KanbanIcon = hugeIcon(shapes.KanbanIcon)
-
-export const Tag01Icon = hugeIcon(shapes.Tag01Icon)
-
-export const UserCircleIcon = hugeIcon(shapes.UserCircleIcon)
-
 export const ListFilterIcon = hugeIcon(shapes.ListFilterIcon)
-
-export const FilterHorizontalIcon = hugeIcon(shapes.FilterHorizontalIcon)
-
-export const FolderAddIcon = hugeIcon(shapes.FolderAddIcon)
-
-export const ViewOffIcon = hugeIcon(shapes.ViewOffIcon)
-
-export const ArrowLeft02Icon = hugeIcon(shapes.ArrowLeft02Icon)
-
-export const ArrowRight02Icon = hugeIcon(shapes.ArrowRight02Icon)
 
 export const TextBoldIcon = hugeIcon(shapes.TextBoldIcon)
 
 export const TextItalicIcon = hugeIcon(shapes.TextItalicIcon)
-
-export const ArrowDown02Icon = hugeIcon(shapes.ArrowDown02Icon)
-
-export const SignalFullIcon = hugeIcon(shapes.SignalFullIcon)
-
-export const SignalHighIcon = hugeIcon(shapes.SignalHighIcon)
-
-export const SignalMediumIcon = hugeIcon(shapes.SignalMediumIcon)
-
-export const SignalLowIcon = hugeIcon(shapes.SignalLowIcon)
-
-export const SignalNoIcon = hugeIcon(shapes.SignalNoIcon)
 
 export const TextStrikethroughIcon = hugeIcon(shapes.TextStrikethroughIcon)
 

@@ -1,3 +1,5 @@
+import { formatDuration } from '@/lib/time'
+
 import type { TodoUpdate } from './todo_model'
 
 export type ActivityStatus =
@@ -97,11 +99,7 @@ export function workEnded(status: ActivityStatus) {
 }
 
 export function formatActivityDuration(seconds?: number) {
-  if (seconds === undefined) return undefined
-  const value = Math.max(0, Math.floor(seconds))
-  if (value < 60) return `${value}s`
-  if (value < 3600) return `${Math.floor(value / 60)}m ${value % 60}s`
-  return `${Math.floor(value / 3600)}h ${Math.floor((value % 3600) / 60)}m`
+  return seconds === undefined ? undefined : formatDuration(Math.max(0, seconds))
 }
 
 export function groupWorkActivities(activities: readonly WorkActivity[], ended: boolean) {

@@ -10,16 +10,6 @@ export function formatAge(timestamp: number, now: number) {
   return `${Math.floor(age / day)}d`
 }
 
-// The long form timelines use: "5 minutes ago".
-export function formatAgo(timestamp: number, now: number) {
-  if (Number.isNaN(timestamp)) return ''
-  const age = Math.max(0, now - timestamp)
-  if (age < minute) return 'just now'
-  const [size, unit] = age < hour ? [minute, 'minute'] : age < day ? [hour, 'hour'] : [day, 'day']
-  const count = Math.floor(age / size)
-  return `${count} ${unit}${count === 1 ? '' : 's'} ago`
-}
-
 // Coarse on purpose: a state that lasts hours shouldn't tick seconds at you.
 export function formatElapsed(ms: number) {
   const minutes = Math.max(0, Math.floor(ms / minute))
