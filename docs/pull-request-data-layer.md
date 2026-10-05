@@ -100,8 +100,10 @@ settles, and viewer marks made on GitHub.
 
 Detection requests share batches and in-flight work, and reuse a detection made
 within the last five seconds across link and visible monitors. Full reads retain
-the existing visible/prefetch queue and batch limits. Subscriptions render cached
-state first. Snapshot publication is serialized; reads overlapping a write are
+the existing visible/prefetch queue and batch limits. Prefetches (a list row's hover,
+warming a list's newest open PRs) also detect first: a snapshot read in the last five
+minutes costs one shared state query, and only changed PRs get a full read. Subscriptions
+render cached state first. Snapshot publication is serialized; reads overlapping a write are
 discarded by the revision guard.
 
 Requests go straight to `api.github.com` with gh's login, read once every five

@@ -1894,11 +1894,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       const interval = maxAge ?? snapshot.rateLimit?.cadenceMs ?? null
       if (pendingOperations.has(prKey(ref)) || interval === null || backingOff()) return snapshot
       if (snapshot.refreshedAt && Date.now() - snapshot.refreshedAt < interval) return snapshot
-      if (
-        snapshot.data &&
-        Date.now() - (snapshot.refreshedAt ?? 0) <
-          Math.max(interval, 5 * 60_000 * cadenceMultiplier())
-      ) {
+      if (detectable(snapshot, interval)) {
         yield* Effect.promise(() => detect(ref))
         return yield* get(ref)
       }
@@ -1906,15 +1902,30 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  function prefetchDue(cached: PullRequestSnapshot) {
-    const interval = cadence(cached.data?.pull.state === 'closed', 'blurred', true)
-    return interval !== null && (!cached.refreshedAt || Date.now() - cached.refreshedAt >= interval)
+  // Recent enough that a cheap change detection can stand in for a full read.
+  function detectable(snapshot: PullRequestSnapshot, interval: number) {
+    return (
+      !!snapshot.data &&
+      Date.now() - (snapshot.refreshedAt ?? 0) <
+        Math.max(interval, 5 * 60_000 * cadenceMultiplier())
+    )
   }
 
+  // The cadence a cached snapshot has outlived since it was last read or checked, or null.
+  function prefetchDue(cached: PullRequestSnapshot) {
+    const interval = cadence(cached.data?.pull.state === 'closed', 'blurred', true)
+    const checked = Math.max(cached.refreshedAt ?? 0, lastDetection.get(prKey(cached)) ?? 0)
+    return interval !== null && Date.now() - checked >= interval ? interval : null
+  }
+
+  // Detects first, like refreshIfStale: an unchanged PR costs one state query, not a full read.
   function prefetch(ref: PullRequestRef) {
     return Effect.gen(function* () {
       const cached = yield* get(ref)
-      if (!prefetchDue(cached)) return cached
+      const interval = prefetchDue(cached)
+      if (interval === null) return cached
+      if (detectable(cached, interval) && !(yield* Effect.promise(() => detect(ref))))
+        return yield* get(ref)
       return (yield* Effect.promise(() => schedule(ref, 'prefetch'))) ?? cached
     })
   }
@@ -1927,21 +1938,32 @@ export function createPullRequests(store: Store, hub: Hub) {
         .filter((pull) => pull.state === 'open')
         .toSorted((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, 10)
-      const due: { ref: PullRequestRef; priority: 'arrival' | 'prefetch' }[] = []
+      const due: { ref: PullRequestRef; priority: 'arrival' | 'prefetch'; detectFirst: boolean }[] =
+        []
       const arrivalKeys = new Set(arrivals.map(prKey))
       const seen = new Set<string>()
       for (const ref of [...arrivals, ...rows]) {
         const key = prKey(ref)
         if (seen.has(key)) continue
         seen.add(key)
-        if (prefetchDue(yield* get(ref)))
+        const cached = yield* get(ref)
+        const interval = prefetchDue(cached)
+        if (interval !== null)
           due.push({
             ref,
             priority: arrivalKeys.has(key) ? 'arrival' : 'prefetch',
+            detectFirst: detectable(cached, interval),
           })
       }
-      const snapshots = yield* Effect.promise(() =>
-        Promise.all(due.map(({ ref, priority }) => schedule(ref, priority, false)))
+      // Detections started together share one query; only changed PRs pay for a full read.
+      const changed = yield* Effect.promise(() =>
+        Promise.all(due.map((row) => (row.detectFirst ? detect(row.ref) : Promise.resolve(true))))
+      )
+      const snapshots = yield* Effect.forEach(
+        due,
+        ({ ref, priority }, index) =>
+          changed[index] ? Effect.promise(() => schedule(ref, priority, false)) : get(ref),
+        { concurrency: 'unbounded' }
       )
       return snapshots.filter((snapshot) => snapshot !== undefined)
     })
@@ -2066,28 +2088,35 @@ export function createPullRequests(store: Store, hub: Hub) {
     return Effect.gen(function* () {
       const graphs = yield* Effect.promise(() => fetchGraphqlBatch(refs, pullRequestStateFields))
       const checks: PullRequestRef[] = []
+      const reads = new Set<string>()
       for (const [index, ref] of refs.entries()) {
         const graph = graphs[index]!
         const snapshot = yield* get(ref)
         if (graph instanceof GhFailure) continue
-        if (!snapshot.data || changed(graph, snapshot.data))
+        if (!snapshot.data || changed(graph, snapshot.data)) {
+          reads.add(prKey(ref))
           void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
-        else if (graph.checkRollupState !== snapshot.data.checkRollupState) checks.push(ref)
+        } else if (graph.checkRollupState !== snapshot.data.checkRollupState) checks.push(ref)
       }
       yield* refreshChecks(checks)
+      return reads
     })
   }
 
-  const queuedDetection = new Map<string, { ref: PullRequestRef; resolve: () => void }>()
+  const queuedDetection = new Map<
+    string,
+    { ref: PullRequestRef; resolve: (changed: boolean) => void }
+  >()
   let detectionQueued = false
-  const detectionRequests = new Map<string, Promise<void>>()
+  const detectionRequests = new Map<string, Promise<boolean>>()
+  // Whether a state query found the PR changed, which queues its full read.
   function detect(ref: PullRequestRef) {
     const key = prKey(ref)
     const existing = detectionRequests.get(key)
     if (existing) return existing
-    if (Date.now() - (lastDetection.get(key) ?? 0) < 5000) return Promise.resolve()
+    if (Date.now() - (lastDetection.get(key) ?? 0) < 5000) return Promise.resolve(false)
     lastDetection.set(key, Date.now())
-    const promise = new Promise<void>((resolve) => {
+    const promise = new Promise<boolean>((resolve) => {
       queuedDetection.set(prKey(ref), { ref, resolve })
       if (detectionQueued) return
       detectionQueued = true
@@ -2095,11 +2124,15 @@ export function createPullRequests(store: Store, hub: Hub) {
         detectionQueued = false
         const batch = [...queuedDetection.values()]
         queuedDetection.clear()
-        void Effect.runPromise(detectChanges(batch.map((item) => item.ref)))
-          .finally(() => {
-            for (const item of batch) item.resolve()
-          })
-          .catch((error: unknown) => console.warn(`[pr-poll] ${String(error)}`))
+        void Effect.runPromise(detectChanges(batch.map((item) => item.ref))).then(
+          (reads) => {
+            for (const item of batch) item.resolve(reads.has(prKey(item.ref)))
+          },
+          (error: unknown) => {
+            console.warn(`[pr-poll] ${String(error)}`)
+            for (const item of batch) item.resolve(false)
+          }
+        )
       })
     }).finally(() => detectionRequests.delete(key))
     detectionRequests.set(key, promise)
