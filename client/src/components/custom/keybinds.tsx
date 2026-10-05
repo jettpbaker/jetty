@@ -31,6 +31,15 @@ export const keybinds = {
     name: 'Toggle thread details',
     modifiers: ['Alt', 'Meta'],
   },
+  pinned: Array.from(
+    { length: 9 },
+    (_, index): Keybind => ({
+      hotkey: { code: `Digit${index + 1}`, alt: true },
+      label: `⌥${index + 1}`,
+      name: `Open pinned thread ${index + 1}`,
+      modifiers: ['Alt'],
+    })
+  ),
 } satisfies Record<string, Keybind | Keybind[]>
 
 const ModifierContext = createContext<Modifier | null>(null)

@@ -46,6 +46,7 @@ import {
 } from '@/state'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { catalogModelName } from '@jetty/shared/model-name'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
@@ -57,6 +58,7 @@ import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
   groupSidebarThreads,
+  pinnedThreads,
   type SidebarThread,
   type ThreadGrouping,
 } from './sidebar_thread_groups'
@@ -172,6 +174,7 @@ export function AppSidebar() {
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query, showPinned, showArchived)
+  const pinned = pinnedThreads(threads).slice(0, keybinds.pinned.length)
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
   const items = groups.flatMap((group) => [
     {
@@ -196,6 +199,19 @@ export function AppSidebar() {
   const pinThread = usePinThread()
   const deleteThread = useDeleteThread()
   const openSettings = () => navigate({ to: '/settings' })
+
+  function openThread(threadId: string) {
+    startThreadJourney(threadId)
+    void navigate({ to: '/threads/$threadId', params: { threadId } })
+  }
+
+  useHotkeys(
+    keybinds.pinned.flatMap((binding, index) => {
+      const thread = pinned[index]
+      return thread ? [{ hotkey: binding.hotkey, callback: () => openThread(thread.id) }] : []
+    }),
+    { requireReset: true, ignoreInputs: true }
+  )
 
   function newThread() {
     bumpDraft()
@@ -385,6 +401,7 @@ export function AppSidebar() {
                   >
                     <ThreadRow
                       {...thread}
+                      shortcut={keybinds.pinned[pinned.indexOf(thread)]}
                       selected={selectedId === thread.id}
                       actions={{
                         pinned: thread.pinned,
@@ -395,10 +412,7 @@ export function AppSidebar() {
                         onPin: () => pinThread(thread.id, !thread.pinned),
                         onRename: (title) => renameThread(thread.id, title),
                       }}
-                      onSelect={() => {
-                        startThreadJourney(thread.id)
-                        void navigate({ to: '/threads/$threadId', params: { threadId: thread.id } })
-                      }}
+                      onSelect={() => openThread(thread.id)}
                       onOpenPullRequest={() =>
                         thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)
                       }
