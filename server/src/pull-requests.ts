@@ -409,10 +409,9 @@ async function sendApi(request: ApiRequest, etag?: string) {
   return fresh && fresh !== token ? fetchApi(request, etag, fresh) : response
 }
 
-async function requestApi(request: ApiRequest): Promise<unknown> {
+async function requestApi(request: ApiRequest, revalidate = false): Promise<unknown> {
   checkBackoff()
-  const restGet = request.method === 'GET'
-  const cached = restGet ? cacheRead(restCache, request.path) : undefined
+  const cached = revalidate ? cacheRead(restCache, request.path) : undefined
   const started = performance.now()
   let response: ApiResponse
   try {
@@ -495,11 +494,10 @@ async function requestApi(request: ApiRequest): Promise<unknown> {
         /timeout|timed out|exceeds the maximum|complexity/i.test(message)
     )
   }
-  if (restGet) {
+  if (request.method === 'GET')
     cacheWrite(restNext, request.path, /rel="next"/.test(headers.get('link') ?? ''), 512)
-    const etag = headers.get('etag')
-    if (etag) cacheWrite(restCache, request.path, { etag, value }, 512)
-  }
+  const etag = headers.get('etag')
+  if (revalidate && etag) cacheWrite(restCache, request.path, { etag, value }, 512)
   return value
 }
 
@@ -511,9 +509,11 @@ function shared(key: string, request: () => Promise<unknown>) {
   return promise
 }
 
-// REST reads share in-flight requests and revalidate with their ETags.
-export function restGet(path: string) {
-  return shared(path, () => requestApi({ method: 'GET', path }))
+// REST reads share in-flight requests. Only a read that can come back unchanged keeps its body to
+// revalidate with its ETag: commit-pinned reads are cached by sha above this, and a PR's file
+// pages are only re-read once its head has moved.
+export function restGet(path: string, { revalidate = false } = {}) {
+  return shared(path, () => requestApi({ method: 'GET', path }, revalidate))
 }
 
 function graphql(query: string, variables: Record<string, string> = {}) {
