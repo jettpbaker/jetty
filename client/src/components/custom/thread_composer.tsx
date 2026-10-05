@@ -500,6 +500,14 @@ export function ThreadComposer({
         }}
         onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
         running={running && !item && !editingEntry}
+        stop={
+          running &&
+          !editingEntry &&
+          answering &&
+          item?.kind === 'approval' &&
+          !approval.confirming &&
+          !typed
+        }
         strip={
           usageBanner ? (
             <>

@@ -41,6 +41,7 @@ export function Composer({
   onInterrupt,
   onContinue,
   running,
+  stop,
   strip,
   placeholder = 'What would you like to work on?',
   sendLabel = 'Send',
@@ -68,6 +69,8 @@ export function Composer({
   // Offered in place of Send while the composer is empty: carries on a paused thread.
   onContinue?: () => void
   running: boolean
+  // Stop in place of Send even when a request is showing, as while an approval waits on an empty draft.
+  stop?: boolean
   strip?: ReactNode
   placeholder?: string
   sendLabel?: string
@@ -94,8 +97,8 @@ export function Composer({
   const textarea = inputRef ?? ownInput
   const empty = !value.trim() && attachments.images.length === 0
   const canSend = !(sendDisabled ?? empty) && attachments.ready
-  const stop = running && empty
-  const play = !running && empty && onContinue !== undefined
+  const stopping = stop || (running && empty)
+  const play = !stopping && !running && empty && onContinue !== undefined
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
   const { field } = menu
 
@@ -218,7 +221,7 @@ export function Composer({
                 />
               </div>
               <div className='flex items-center gap-1'>
-                {stop ? (
+                {stopping ? (
                   <InputGroupButton
                     variant='default'
                     size='icon-sm'
