@@ -254,6 +254,14 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             yield* connection.respond(id, { outcome: 'cancelled' })
             return
           }
+          // Grok's cancelled outcome carries no reason, so a child is refused with one instead.
+          if (session.input.parentThreadId) {
+            yield* connection.reject(
+              id,
+              "This thread can't ask the user. Ask your parent thread with ask_parent instead."
+            )
+            return
+          }
           const questions = Array.isArray(params.questions) ? params.questions.map(object) : []
           if (!questions.length || questions.some((q) => !string(q.question))) {
             yield* connection.reject(id, 'Malformed question request')
