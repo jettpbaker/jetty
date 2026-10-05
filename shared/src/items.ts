@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
 export const MAX_GALLERY_IMAGES = 4
 
@@ -66,9 +66,10 @@ export const ThreadItem = Schema.Union([
   Schema.Struct({
     ...itemBase,
     kind: Schema.Literal('compaction'),
-    trigger: Schema.Literals(['manual', 'auto']),
-    tokensBefore: Schema.optional(Schema.Natural),
-    tokensAfter: Schema.optional(Schema.Natural),
+    // Compactions stored before this had a running state were always finished ones.
+    status: Schema.Literals(['running', 'completed', 'failed']).pipe(
+      Schema.withDecodingDefault(Effect.succeed('completed' as const))
+    ),
   }),
   Schema.Struct({
     ...itemBase,

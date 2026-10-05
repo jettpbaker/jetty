@@ -124,6 +124,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         ? 72 + 32 * row.item.phases.length + 28 * row.item.agents.length
         : 36
     case 'compaction':
+      return 24
     case 'marker':
       return 16
   }

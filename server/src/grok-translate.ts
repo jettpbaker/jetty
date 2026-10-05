@@ -4,14 +4,11 @@ import { newId } from '@jetty/shared/wire'
 
 import { object, string } from './stdio-rpc'
 
-export function createGrokTranslator(
-  turnId: string,
-  workflows = new Set<string>(),
-  manualCompaction = false
-) {
+export function createGrokTranslator(turnId: string, workflows = new Set<string>()) {
   const tools = new Map<string, { id: string; done: boolean }>()
   const workflowTools = new Set<string>()
   let text: { id: string; kind: 'assistant_message' | 'reasoning' } | undefined
+  let compactionId: string | undefined
 
   function closeText(): ThreadEvent[] {
     if (!text) return []
@@ -27,22 +24,29 @@ export function createGrokTranslator(
   function translate(update: Record<string, unknown>): ThreadEvent[] {
     const events: ThreadEvent[] = []
     const base = { turnId, createdAt: Date.now() }
-    if (update.sessionUpdate === 'auto_compact_completed') {
+    if (update.sessionUpdate === 'auto_compact_started') {
+      if (compactionId) return events
+      compactionId = newId()
       events.push({
         type: 'item.started',
-        item: {
-          ...base,
-          id: newId(),
-          kind: 'compaction',
-          trigger: manualCompaction ? 'manual' : 'auto',
-          ...(typeof update.tokens_before === 'number'
-            ? { tokensBefore: natural(update.tokens_before) }
-            : {}),
-          ...(typeof update.tokens_after === 'number'
-            ? { tokensAfter: natural(update.tokens_after) }
-            : {}),
-        },
+        item: { ...base, id: compactionId, kind: 'compaction', status: 'running' },
       })
+      return events
+    }
+    if (
+      update.sessionUpdate === 'auto_compact_completed' ||
+      update.sessionUpdate === 'auto_compact_failed' ||
+      update.sessionUpdate === 'auto_compact_cancelled'
+    ) {
+      const status = update.sessionUpdate === 'auto_compact_completed' ? 'completed' : 'failed'
+      if (compactionId)
+        events.push({ type: 'item.completed', itemId: compactionId, patch: { status } })
+      else if (status === 'completed')
+        events.push({
+          type: 'item.started',
+          item: { ...base, id: newId(), kind: 'compaction', status },
+        })
+      compactionId = undefined
       return events
     }
     if (update.sessionUpdate === 'workflow_updated') {

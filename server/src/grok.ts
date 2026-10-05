@@ -556,8 +556,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 existing!.emit = emit
                 existing!.translator = createGrokTranslator(
                   input.turnId,
-                  existing!.translator.workflows,
-                  input.compact
+                  existing!.translator.workflows
                 )
                 existing!.done = yield* Deferred.make<void, AgentError>()
                 existing!.reason = null
@@ -580,7 +579,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const session: Session = {
             input,
             emit,
-            translator: createGrokTranslator(input.turnId, undefined, input.compact),
+            translator: createGrokTranslator(input.turnId),
             accepting: false,
             awaitingResult: true,
             done,

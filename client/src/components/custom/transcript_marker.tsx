@@ -1,11 +1,14 @@
-import type { ThreadItem } from '@jetty/shared/items'
+import {
+  Tick02Icon,
+  Comment01Icon,
+  Cancel01Icon,
+  HistoryIcon,
+} from '@/components/custom/huge_icons'
 
-import { Tick02Icon, Comment01Icon, Cancel01Icon } from '@/components/custom/huge_icons'
-
+import { ChatSeam } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
 import { SourceLabel } from './source_label'
-import { formatSubagentTokens } from './subagent_row'
 
 type Tone = 'allow' | 'deny' | 'answer' | 'dismiss'
 
@@ -111,18 +114,13 @@ export function TranscriptMarker({
   )
 }
 
-export function CompactionMarker({ item }: { item: Extract<ThreadItem, { kind: 'compaction' }> }) {
-  const before = item.tokensBefore !== undefined && formatSubagentTokens(item.tokensBefore)
-  const after = item.tokensAfter !== undefined && formatSubagentTokens(item.tokensAfter)
-  const tokens =
-    before && after
-      ? `${before} → ${after} tokens`
-      : before
-        ? `${before} tokens before`
-        : after && `${after} tokens after`
+export function CompactionSeam({ running }: { running: boolean }) {
   return (
-    <p className='text-center text-xs text-muted-foreground'>
-      Conversation compacted{tokens && ` · ${tokens}`}
-    </p>
+    <ChatSeam>
+      <span className='flex shrink-0'>
+        <HistoryIcon className='size-3' />
+      </span>
+      {running ? <span className='shimmer'>Compacting</span> : 'Compacted'}
+    </ChatSeam>
   )
 }

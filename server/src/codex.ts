@@ -412,7 +412,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           const session: Session = {
             input,
             emit,
-            translator: createCodexTranslator(input.turnId, input.compact),
+            translator: createCodexTranslator(input.turnId),
             accepting: false,
             settled: false,
             reason: null,

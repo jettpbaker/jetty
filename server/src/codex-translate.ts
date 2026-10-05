@@ -5,7 +5,7 @@ import { newId } from '@jetty/shared/wire'
 
 import { object, string, type RpcMessage } from './stdio-rpc'
 
-export function createCodexTranslator(turnId: string, manualCompaction = false) {
+export function createCodexTranslator(turnId: string) {
   const items = new Map<string, ThreadItem>()
   const completed = new Set<string>()
 
@@ -26,7 +26,7 @@ export function createCodexTranslator(turnId: string, manualCompaction = false) 
       case 'exitedReviewMode':
         return undefined
       case 'contextCompaction':
-        return { ...base, kind: 'compaction', trigger: manualCompaction ? 'manual' : 'auto' }
+        return { ...base, kind: 'compaction', status: 'running' }
       default:
         return {
           ...base,
@@ -45,7 +45,7 @@ export function createCodexTranslator(turnId: string, manualCompaction = false) 
     if (method === 'item/started' || method === 'item/completed') {
       const raw = object(params.item)
       const id = string(raw.id)
-      if (!id || (raw.type === 'contextCompaction' && method === 'item/started')) return events
+      if (!id) return events
       let item = items.get(id)
       if (!item) {
         item = itemFrom(raw)
@@ -68,14 +68,16 @@ export function createCodexTranslator(turnId: string, manualCompaction = false) 
                 output:
                   typeof raw.aggregatedOutput === 'string' ? raw.aggregatedOutput : toolOutput(raw),
               }
-            : {
-                streaming: false,
-                ...(raw.type === 'reasoning'
-                  ? { text: textArray(raw.summary) || textArray(raw.content) }
-                  : typeof raw.text === 'string'
-                    ? { text: raw.text }
-                    : {}),
-              }
+            : item.kind === 'compaction'
+              ? { status: 'completed' }
+              : {
+                  streaming: false,
+                  ...(raw.type === 'reasoning'
+                    ? { text: textArray(raw.summary) || textArray(raw.content) }
+                    : typeof raw.text === 'string'
+                      ? { text: raw.text }
+                      : {}),
+                }
         events.push({ type: 'item.completed', itemId: item.id, patch })
       }
     } else if (

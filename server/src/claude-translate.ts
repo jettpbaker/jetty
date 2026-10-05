@@ -28,6 +28,8 @@ export type TranslateCtx = {
   sawPartials: boolean
   sawModel: boolean
   sessionId: string | null
+  // the compaction Claude reported starting and hasn't finished
+  compactionId: string | null
 }
 
 export function createTranslateCtx(
@@ -50,13 +52,14 @@ export function createTranslateCtx(
     sawPartials: false,
     sawModel: false,
     sessionId: null,
+    compactionId: null,
   }
 }
 
 export type SdkLikeMessage = {
   type: string
   subtype?: string
-  compact_metadata?: { trigger: 'manual' | 'auto'; pre_tokens?: number; post_tokens?: number }
+  compact_result?: 'success' | 'failed'
   session_id?: string
   event?: StreamEvent
   message?: {
@@ -227,20 +230,31 @@ export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
 }
 
 function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
-  if (msg.subtype === 'compact_boundary' && msg.compact_metadata) {
+  // Claude reports 'compacting' as a compaction starts and again while it runs, then a
+  // compact_boundary when it's done, or a status whose compact_result is 'failed'.
+  if (msg.subtype === 'status' && msg.status === 'compacting') {
+    if (ctx.compactionId) return []
+    ctx.compactionId = newId()
     return [
       {
         type: 'item.started',
-        item: {
-          id: newId(),
-          ...itemBase(ctx),
-          kind: 'compaction',
-          trigger: msg.compact_metadata.trigger,
-          tokensBefore: natural(msg.compact_metadata.pre_tokens),
-          tokensAfter: natural(msg.compact_metadata.post_tokens),
-        },
+        item: { id: ctx.compactionId, ...itemBase(ctx), kind: 'compaction', status: 'running' },
       },
     ]
+  }
+  if (msg.subtype === 'compact_boundary' || msg.compact_result === 'failed') {
+    const status = msg.subtype === 'compact_boundary' ? 'completed' : 'failed'
+    const itemId = ctx.compactionId
+    ctx.compactionId = null
+    if (itemId) return [{ type: 'item.completed', itemId, patch: { status } }]
+    return status === 'completed'
+      ? [
+          {
+            type: 'item.started',
+            item: { id: newId(), ...itemBase(ctx), kind: 'compaction', status },
+          },
+        ]
+      : []
   }
   if (msg.subtype === 'init' && typeof msg.session_id === 'string') {
     ctx.sessionId = msg.session_id

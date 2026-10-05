@@ -17,7 +17,7 @@ import {
   type SubagentItem,
   type ThreadRow,
 } from '@/components/custom/thread_rows'
-import { CompactionMarker, TranscriptMarker } from '@/components/custom/transcript_marker'
+import { CompactionSeam, TranscriptMarker } from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
@@ -108,7 +108,7 @@ function rowStamp(row: ThreadRow) {
     case 'workflow':
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
-      return `${row.item.tokensBefore}:${row.item.tokensAfter}`
+      return row.running
     case 'marker':
       return row.item.kind
     case 'work':
@@ -221,7 +221,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
   if (row.kind === 'subagentDone')
     return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
-  if (row.kind === 'compaction') return <CompactionMarker item={row.item} />
+  if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />

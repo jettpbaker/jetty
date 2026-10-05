@@ -17,7 +17,6 @@ type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
 type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
-type CompactionItem = Extract<ThreadItem, { kind: 'compaction' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
 type StepItem = WorkItem | AssistantItem
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
@@ -56,7 +55,7 @@ export type ThreadRow =
       restarted?: boolean
       settingUp?: boolean
     }
-  | { kind: 'compaction'; id: string; item: CompactionItem }
+  | { kind: 'compaction'; id: string; running: boolean }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
@@ -524,7 +523,9 @@ export function threadRows(
         })
         break
       case 'compaction':
-        rows.push({ kind: 'compaction', id: item.id, item })
+        // A compaction that failed, or was cut off with its turn, didn't happen.
+        if (item.status === 'completed' || (item.status === 'running' && !outcomes[item.turnId]))
+          rows.push({ kind: 'compaction', id: item.id, running: item.status === 'running' })
         break
       case 'error':
         rows.push({ kind: 'error', id: item.id, message: item.message })
