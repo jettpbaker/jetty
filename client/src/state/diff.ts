@@ -79,6 +79,18 @@ export function useToolsSettled(threadId: string, onSettled: () => void) {
   }, [registry, threadId, onSettled])
 }
 
+// A value cached from an earlier visit renders at once and is re-read behind it. Checked per atom,
+// so switching to another key that was cached earlier re-reads it too.
+function useRefreshCached(
+  atom: Atom.Atom<AsyncResult.AsyncResult<unknown, unknown>>,
+  refresh: () => void
+) {
+  const registry = useContext(RegistryContext)
+  useEffect(() => {
+    if (!AsyncResult.isInitial(registry.get(atom))) refresh()
+  }, [atom, refresh, registry])
+}
+
 // Worktree threads show everything since their base commit; local ones only uncommitted edits.
 export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
   return thread?.environment === 'worktree' ? 'branch' : 'uncommitted'
@@ -89,17 +101,14 @@ export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
 export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
   const key = `${threadId}\0${scope ?? defaultDiffScope(meta)}`
-  const result = useAtomValue(diffAtom(key))
+  const atom = diffAtom(key)
+  const result = useAtomValue(atom)
   const registry = useContext(RegistryContext)
   const refresh = useCallback(() => refreshDiff(registry, key), [registry, key])
   const live = liveStatuses.has(useThread(threadId)?.status ?? 'idle')
-  const cachedOnMount = useRef(!AsyncResult.isInitial(result))
   const wasLive = useRef(live)
   useToolsSettled(threadId, refresh)
-
-  useEffect(() => {
-    if (cachedOnMount.current) refresh()
-  }, [refresh])
+  useRefreshCached(atom, refresh)
 
   useEffect(() => {
     if (wasLive.current && !live) refresh()
@@ -171,12 +180,11 @@ export function useProjectFile(threadId: string, path: string) {
   const atom = projectFileAtom(`${threadId}\0${path}`)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
-  const cachedOnMount = useRef(!AsyncResult.isInitial(result))
   const turnEndedAt = useChrome()?.threads.find((thread) => thread.id === threadId)?.turnEndedAt
   const turnEnded = useRef(turnEndedAt)
   useToolsSettled(threadId, refresh)
+  useRefreshCached(atom, refresh)
   useEffect(() => {
-    if (cachedOnMount.current) refresh()
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
   }, [refresh])
