@@ -188,7 +188,7 @@ export function createMcpHandler(
             createdAt: Date.now(),
           })
           yield* store.countCreation(turn.turnId)
-          const response = { threadId: id }
+          const response = { threadId: id, link: `jetty://threads/${id}` }
           if (input.requestId)
             yield* store.saveRequest(caller.id, input.requestId, 'create_thread', response)
           return response
