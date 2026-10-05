@@ -1031,6 +1031,22 @@ function markGenerated(file: PullRequestFile): PullRequestFile {
     : { ...file, generated: true }
 }
 
+// The first bytes of a body; a server that ignores Range sends the whole file, so the rest is dropped.
+async function firstBytes(response: Response, limit: number) {
+  const reader = response.body?.getReader()
+  if (!reader) return ''
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (size < limit) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    size += value.length
+  }
+  await reader.cancel()
+  return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, limit))
+}
+
 async function readHead(repo: string, sha: string, file: PullRequestFile, token: string) {
   const path = file.filename.split('/').map(encodeURIComponent).join('/')
   try {
@@ -1042,16 +1058,23 @@ async function readHead(repo: string, sha: string, file: PullRequestFile, token:
       },
       signal: AbortSignal.timeout(10_000),
     })
-    if (response.status === 206)
-      cacheWrite(headVerdicts, file.sha, generatedBanner.test(await response.text()), 10_000)
-    else await response.body?.cancel()
+    if (response.status === 429) observeRateLimit(response.headers, null, response.status)
+    if (response.status !== 200 && response.status !== 206) return await response.body?.cancel()
+    const head = await firstBytes(response, headBytes)
+    cacheWrite(headVerdicts, file.sha, generatedBanner.test(head), 10_000)
   } catch {
     // An unread head leaves the file as GitHub classed it.
   }
 }
 
-// Ranged reads of the heads patches don't show, at most 100 per call.
-async function readHeads(repo: string, sha: string, files: readonly PullRequestFile[]) {
+// Ranged reads of the heads patches don't show, at most 100 per head, while `wanted` holds and
+// GitHub isn't asking to back off. Whether every read was tried.
+async function readHeads(
+  repo: string,
+  sha: string,
+  files: readonly PullRequestFile[],
+  wanted: () => boolean
+) {
   const unread = files
     .filter(
       (file) =>
@@ -1062,14 +1085,23 @@ async function readHeads(repo: string, sha: string, files: readonly PullRequestF
         headVerdict(file) === undefined
     )
     .slice(0, 100)
-  const token = unread.length && !backingOff() ? await ghToken() : null
-  if (!token) return
+  if (!unread.length) return true
+  if (backingOff()) return false
+  const token = await ghToken()
+  if (!token) return true
+  let complete = true
   await Effect.runPromise(
-    Effect.forEach(unread, (file) => Effect.promise(() => readHead(repo, sha, file, token)), {
-      concurrency: 8,
-      discard: true,
-    })
+    Effect.forEach(
+      unread,
+      (file) =>
+        Effect.promise(async () => {
+          if (!wanted() || backingOff()) complete = false
+          else await shared(`head ${file.sha}`, () => readHead(repo, sha, file, token))
+        }),
+      { concurrency: 8, discard: true }
+    )
   )
+  return complete
 }
 
 type FileFlags = { binary: boolean; generated: boolean }
@@ -1990,7 +2022,11 @@ export function createPullRequests(store: Store, hub: Hub) {
     const fetchedRevision = revision(key)
     void Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() => readHeads(ref.repo, sha, data.files))
+        const complete = yield* Effect.promise(() =>
+          readHeads(ref.repo, sha, data.files, () => watches.has(key))
+        )
+        // Reads skipped once nobody watched, or while backing off, resume on a later poll.
+        if (!complete && headsRead.get(key) === sha) headsRead.delete(key)
         const running = jobs.get(key)
         if (running) yield* Effect.promise(() => running.promise)
         const snapshot = yield* get(ref)
