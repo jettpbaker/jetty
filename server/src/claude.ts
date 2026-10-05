@@ -52,6 +52,7 @@ import {
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
 import { deniedApprovalNote, jettyInstructions } from './jetty-instructions'
 import { SELF_TOOLS } from './jetty-tools'
+import { readClaudeUsageIdentity } from './provider-usage'
 import { readUsage } from './usage'
 
 // The rest of Jetty's tools go through Claude's own reviewer: the auto-mode classifier judges them.
@@ -107,6 +108,7 @@ type SessionOptions = {
 type WarmSession = {
   threadId: string
   query: Query
+  usageIdentity: string | undefined
   input: Queue.Queue<SDKUserMessage, Cause.Done>
   scope: Scope.Closeable
   options: SessionOptions
@@ -363,7 +365,7 @@ export function createClaudeAdapter(
       return Effect.gen(function* () {
         if (usageInFlight || !current(session) || !hooks.onUsage) return
         usageInFlight = true
-        yield* Effect.promise(() => readUsage(session.query)).pipe(
+        yield* Effect.promise(() => readUsage(session.query, session.usageIdentity)).pipe(
           Effect.flatMap((usage) =>
             Effect.sync(() => {
               if (usage && current(session)) hooks.onUsage?.(usage)
@@ -719,6 +721,7 @@ export function createClaudeAdapter(
               .getAgentBehaviours()
               .pipe(Effect.mapError((error) => new AgentError(error.message)))
           )
+        const usageIdentity = yield* Effect.promise(() => readClaudeUsageIdentity())
         const q = yield* Effect.acquireRelease(
           Effect.try({
             try: () =>
@@ -786,6 +789,7 @@ export function createClaudeAdapter(
         session = {
           threadId: input.threadId,
           query: q,
+          usageIdentity: typeof q.accountInfo === 'function' ? usageIdentity : undefined,
           input: queue,
           scope,
           options,

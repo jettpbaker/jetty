@@ -1,3 +1,4 @@
+import type { AccountInfo } from '@anthropic-ai/claude-agent-sdk'
 import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
@@ -12,7 +13,7 @@ import { object, string, type StdioProcessOptions } from './stdio-rpc'
 // Each read is kept for the account it was read for; signing in as another starts afresh.
 const CACHE_MS = 60_000
 let claudeCache: { account: string; at: number; usage: ProviderUsage } | undefined
-let claudeTurn: { account: Promise<string>; usage: ProviderUsage } | undefined
+let claudeTurn: ProviderUsage | undefined
 let grokCache: { account: string; at: number; usage: ProviderUsage } | undefined
 
 function capitalized(value: string): string {
@@ -109,15 +110,28 @@ async function claudeAccount() {
     return {
       id: claudeUsageIdentity(account) ?? '',
       email,
+      organization: string(account.organizationUuid),
     }
   } catch {
-    return { id: '', email: '' }
+    return { id: '', email: '', organization: '' }
   }
 }
 
-// A turn reads its own usage, for whoever is signed in when it arrives.
+export async function readClaudeUsageIdentity(authenticated?: AccountInfo) {
+  const account = await claudeAccount()
+  if (
+    authenticated &&
+    (!account.email ||
+      authenticated.email !== account.email ||
+      !authenticated.organization ||
+      authenticated.organization !== account.organization)
+  )
+    return undefined
+  return account.id || undefined
+}
+
 export function noteClaudeTurnUsage(usage: ProviderUsage) {
-  claudeTurn = { account: claudeAccount().then(({ id }) => id), usage }
+  if (usage.identity) claudeTurn = usage
 }
 
 export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
@@ -134,7 +148,7 @@ export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
   const usage = await readClaudeLimits(token, id)
   // A turn's own read is fresher than a cached or rate-limited OAuth one, so a failed OAuth read
   // under it isn't a failed refresh.
-  const turn = id && claudeTurn && (await claudeTurn.account) === id ? claudeTurn.usage : undefined
+  const turn = id && claudeTurn?.identity === id ? claudeTurn : undefined
   if (!turn?.windows.length || (turn.asOf ?? 0) <= (usage.asOf ?? 0))
     return { ...usage, ...metadata }
   const { failed: _, ...read } = usage

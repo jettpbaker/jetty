@@ -12,7 +12,10 @@ type FakeResponse = Awaited<
 function fakeQuery(
   impl: Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']
 ): Query {
-  return { usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: impl } as unknown as Query
+  return {
+    usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: impl,
+    accountInfo: async () => ({ email: 'account@example.com', organization: 'org' }),
+  } as unknown as Query
 }
 
 function windows(overrides: Partial<NonNullable<SDKControlGetUsageResponse['rate_limits']>> = {}) {
@@ -87,4 +90,37 @@ test('opaque Claude identities distinguish accounts and organizations and reject
   expect(claudeUsageIdentity({ accountUuid: 'b', organizationUuid: 'org-1' })).not.toBe(first)
   expect(claudeUsageIdentity({ accountUuid: 'a' })).toBeUndefined()
   expect(claudeUsageIdentity({})).toBeUndefined()
+})
+
+test('turn usage keeps its session identity and is discarded if credentials change during the read', async () => {
+  let identity = 'account-a/org-a'
+  const unchanged = await readUsage(
+    fakeQuery(async () => baseResponse()),
+    identity,
+    async () => identity
+  )
+  expect(unchanged?.identity).toBe('account-a/org-a')
+  const changed = await readUsage(
+    fakeQuery(async () => {
+      identity = 'account-b/org-b'
+      return baseResponse()
+    }),
+    identity,
+    async () => identity
+  )
+  expect(changed).toBeNull()
+})
+
+test('a warm session belonging to a prior account cannot attribute usage to the current account', async () => {
+  let requested = false
+  const result = await readUsage(
+    fakeQuery(async () => {
+      requested = true
+      return baseResponse()
+    }),
+    'session-account-a',
+    async () => 'current-account-b'
+  )
+  expect(requested).toBe(false)
+  expect(result).toBeNull()
 })
