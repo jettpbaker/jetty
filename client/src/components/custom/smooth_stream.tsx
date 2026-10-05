@@ -230,7 +230,8 @@ export function smoothBlocks(text: string) {
   function SmoothBlock({ rehypePlugins, ...props }: BlockProps) {
     const { index } = props
     const [clock] = useState(
-      () => (clocks[index] ??= { text: '', births: [], settle: mounting, shown: false })
+      () =>
+        clocks[index] ?? (clocks[index] = { text: '', births: [], settle: mounting, shown: false })
     )
     const plugins = useMemo(
       () => [...(rehypePlugins ?? []), revealPlugin(clock)],
