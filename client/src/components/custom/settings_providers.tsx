@@ -10,6 +10,7 @@ import { useModelAvailability } from '@/state/loadouts'
 import { useProviderUsage } from '@/state/provider-usage'
 import { useState } from 'react'
 
+import { DisabledTooltip } from './disabled_tooltip'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import './settings_sections.css'
@@ -82,11 +83,12 @@ export function SettingsProviders({
   const provider = providerOptions.find((item) => item.id === selected)!
   const { catalog, enabled: modelEnabled, setEnabled: setModelEnabled } = useModelAvailability()
   const discovery = useChrome()?.modelDiscovery
-  const { usage } = useProviderUsage()
-  const plan = usage.find((item) => item.provider === selected)?.plan
+  const { usage, loaded } = useProviderUsage()
+  const account = usage.find((item) => item.provider === selected)
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const usable = enabled[selected] && provider.ready
+  const signedOut = account?.connected === false
   function select(id: ProviderId) {
     onSelect(id)
     setCopied(false)
@@ -157,11 +159,19 @@ export function SettingsProviders({
           <div className='flex flex-col gap-1'>
             <h3 className='text-13 font-medium'>{provider.product}</h3>
             <p className='text-xs text-muted-foreground'>
-              {provider.ready ? `Authenticated${plan ? ` · ${plan}` : ''}` : 'Not authenticated'}
+              {!provider.ready
+                ? 'Not connected'
+                : account
+                  ? account.connected
+                    ? `Authenticated${account.plan ? ` · ${account.plan}` : ''}`
+                    : 'Not signed in'
+                  : loaded
+                    ? 'Couldn’t check sign-in'
+                    : 'Checking sign-in…'}
             </p>
           </div>
         </div>
-        {!usable && (
+        {(!usable || signedOut) && (
           <p className='text-xs leading-relaxed text-muted-foreground'>
             Install and sign in to the{' '}
             <a
@@ -195,15 +205,12 @@ export function SettingsProviders({
                 {copied ? <Tick02Icon className='size-3.5' /> : <Copy01Icon className='size-3.5' />}
               </Button>
             </div>
-            <Button
-              variant='ghost-text'
-              size='sm'
-              className='-ml-2 h-7 w-fit rounded-sm'
-              onClick={() => setMessage('No CLI connection in this design preview.')}
-            >
-              <Refresh01Icon className='size-3' />
-              Check connection
-            </Button>
+            <DisabledTooltip reason='Coming soon' side='right' wrap='-ml-2 flex w-fit'>
+              <Button variant='ghost-text' size='sm' className='h-7 rounded-sm' disabled>
+                <Refresh01Icon />
+                Check connection
+              </Button>
+            </DisabledTooltip>
             {message && (
               <p role='status' className='text-xs text-muted-foreground'>
                 {message}
