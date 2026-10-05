@@ -492,7 +492,8 @@ Jett reviews every place Jetty talks to agents, not just that file:
 1. The base instructions and Agent behaviour sentences
    (`server/src/jetty-instructions.ts`, `agentBehaviours` in `shared/src/wire.ts`).
 2. MCP tool descriptions (`server/src/mcp.ts`).
-3. The relayed-message wrapper and child's report-back line
+3. The relayed-message wrapper (`relayedMessage` in `server/src/jetty-instructions.ts`, on
+   delivered relays and `read_thread` results) and the child's report-back line
    (`agentText` in `server/src/orchestrator.ts`).
 4. System messages and tool results agents read (`Thread X failed: …`,
    `send_images`/`send_video` results and MCP error texts).
