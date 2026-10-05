@@ -613,6 +613,13 @@ export function createWorktrees(
       const record = await run(store.getWorktree(threadId))
       const temporary = record?.temporaryBranch
       if (!record || !temporary || record.branch !== temporary) return
+      const remoteHeads = (await hasOrigin(project.path))
+        ? (await git(project.path, 'ls-remote', '--heads', 'origin'))
+            .split('\n')
+            .map((line) => line.split('\t')[1]?.replace('refs/heads/', ''))
+        : []
+      // Local and read after the remote round trip, so an agent's `git push -u` that finished
+      // meanwhile still stops the rename.
       const current = await git(folder, 'branch', '--show-current')
       const upstream = await git(
         project.path,
@@ -620,11 +627,7 @@ export function createWorktrees(
         '--format=%(upstream)',
         `refs/heads/${temporary}`
       )
-      const origin = await hasOrigin(project.path)
-      const pushed = origin
-        ? await git(project.path, 'ls-remote', '--heads', 'origin', `refs/heads/${temporary}`)
-        : ''
-      if (current !== temporary || upstream || pushed) {
+      if (current !== temporary || upstream || remoteHeads.includes(temporary)) {
         record.branch = (await renamedTo(project.path, folder, temporary)) ?? record.branch
         record.temporaryBranch = null
         await save(threadId, record)
@@ -637,10 +640,9 @@ export function createWorktrees(
         'refs/heads',
         'refs/remotes'
       )
-      const remoteRefs = origin ? await git(project.path, 'ls-remote', '--heads', 'origin') : ''
       const occupied = new Set([
         ...refs.split('\n').map((ref) => ref.replace(/^refs\/heads\/|^refs\/remotes\/[^/]+\//, '')),
-        ...remoteRefs.split('\n').map((line) => line.split('\t')[1]?.replace('refs/heads/', '')),
+        ...remoteHeads,
       ])
       const base = `${await run(store.getBranchPrefix())}/${branchSlug(title)}`
       let next = base
