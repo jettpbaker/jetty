@@ -250,6 +250,8 @@ export function Composer({
                         variant='default'
                         size='icon-sm'
                         aria-label={sendLabel}
+                        // The caret stays in the composer, so the next message or paste follows at once.
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={submit}
                         disabled={!canSend}
                         className={canSend ? undefined : 'pointer-events-none'}
