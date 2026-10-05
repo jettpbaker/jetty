@@ -97,7 +97,7 @@ function washMainTab(main: HTMLElement, status: SubagentStatus) {
 function useFinishingTabs(
   threadId: string | undefined,
   agents: readonly SubagentTab[],
-  scroller: RefObject<HTMLDivElement | null>
+  scrollerRef: RefObject<HTMLDivElement | null>
 ) {
   const outcome = useSubagentOutcome(threadId)
   const reducedMotion = useReducedMotion()
@@ -155,16 +155,16 @@ function useFinishingTabs(
 
   // A tab that leaves from off-screen left goes at once; keep what's on screen still.
   useLayoutEffect(() => {
-    if (scrollTo.current === undefined || !scroller.current) return
-    scroller.current.scrollLeft = scrollTo.current
+    if (scrollTo.current === undefined || !scrollerRef.current) return
+    scrollerRef.current.scrollLeft = scrollTo.current
     scrollTo.current = undefined
-  }, [tabs, scroller])
+  }, [tabs, scrollerRef])
 
   // Measure as the exit starts: the title's width to hold, and whether the tab is on screen at all.
   // The last tab out goes with the bar's own exit instead.
   useLayoutEffect(() => {
     if (!tabs.some((tab) => tab.leaving === 'pending')) return
-    const strip = scroller.current
+    const strip = scrollerRef.current
     const view = strip?.getBoundingClientRect()
     const list = strip?.firstElementChild
     const gap = list ? Number.parseFloat(getComputedStyle(list).columnGap) || 0 : 0
@@ -196,7 +196,7 @@ function useFinishingTabs(
         return titleWidth === undefined ? [] : [{ ...tab, leaving: 'exit' as const, titleWidth }]
       })
     )
-  }, [tabs, scroller])
+  }, [tabs, scrollerRef])
 
   return tabs
 }
