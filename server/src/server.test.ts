@@ -25,7 +25,7 @@ import type { Agent, AgentImage, TurnInput } from './agent'
 
 import { AgentError } from './agent'
 import { createAttachments } from './attachments'
-import { computeThreadDiff, truncateDiff } from './diff'
+import { computeThreadDiff, readDiffFile, readProjectFile, truncateDiff } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
@@ -1899,6 +1899,40 @@ describe('thread.diff', () => {
     expect(res.truncatedPaths).toEqual(['bun.lock'])
 
     await db.close()
+  })
+
+  // Changes → Edit on /repo/app/x must not open /repo/app/app/x.
+  test('a nested project diffs and opens files relative to its own folder', async () => {
+    const repo = dir(join(tmpdir(), `jetty-diff-nested-${newId()}`))
+    const app = dir(join(repo, 'app'))
+    dir(join(app, 'app'))
+    const run = (args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (run(['init', '-q']) !== 0) return // git unavailable in this sandbox
+    run(['config', 'user.email', 'test@example.com'])
+    run(['config', 'user.name', 'Test'])
+    run(['config', 'commit.gpgsign', 'false'])
+    writeFileSync(join(app, 'x'), 'project\n')
+    writeFileSync(join(app, 'app', 'x'), 'inner\n')
+    writeFileSync(join(repo, 'root.txt'), 'root\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'init'])
+    writeFileSync(join(app, 'x'), 'project edited\n')
+    writeFileSync(join(app, 'new.txt'), 'new\n')
+    writeFileSync(join(repo, 'root.txt'), 'root edited\n')
+
+    const withBun = <A, E>(effect: Effect.Effect<A, E, BunServices.BunServices>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(BunServices.layer)))
+    const { diff } = await withBun(computeThreadDiff(app))
+    expect(diff).toContain('diff --git a/x b/x')
+    expect(diff).toContain('diff --git a/new.txt b/new.txt')
+    expect(diff).not.toContain('root.txt')
+    expect(await withBun(readDiffFile(app, 'x'))).toEqual({
+      before: 'project\n',
+      after: 'project edited\n',
+    })
+    expect(await withBun(readDiffFile(app, 'new.txt'))).toEqual({ before: null, after: 'new\n' })
+    expect(await withBun(readProjectFile(app, 'x'))).toEqual({ contents: 'project edited\n' })
+    expect(await withBun(readProjectFile(app, 'root.txt'))).toEqual({ contents: null })
   })
 
   test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {

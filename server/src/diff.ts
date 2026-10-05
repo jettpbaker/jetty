@@ -61,7 +61,12 @@ export function computeThreadDiff(cwd: string, baseCommit?: string) {
   return Effect.gen(function* () {
     const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
     const base = yield* diffBase(cwd, baseCommit)
-    const tracked = yield* git(cwd, [...diffArgs, head.code === 0 ? (base ?? 'HEAD') : EMPTY_TREE])
+    // A nested project's changes are its own folder's, relative to it like the untracked ones.
+    const tracked = yield* git(cwd, [
+      ...diffArgs,
+      '--relative',
+      head.code === 0 ? (base ?? 'HEAD') : EMPTY_TREE,
+    ])
     if (tracked.code !== 0) return { diff: '' }
     const untracked = yield* git(cwd, ['ls-files', '-z', '--others', '--exclude-standard'])
     const parts = [tracked.out]
@@ -90,10 +95,10 @@ function isRepoPath(path: string) {
 
 function readHead(root: string, path: string, baseCommit = 'HEAD') {
   return Effect.gen(function* () {
-    const size = yield* git(root, ['cat-file', '-s', `${baseCommit}:${path}`])
+    const size = yield* git(root, ['cat-file', '-s', `${baseCommit}:./${path}`])
     if (size.code !== 0) return null
     if (Number(size.out) > MAX_CONTENTS_BYTES) return tooLarge
-    const { out, code } = yield* git(root, ['cat-file', 'blob', `${baseCommit}:${path}`])
+    const { out, code } = yield* git(root, ['cat-file', 'blob', `${baseCommit}:./${path}`])
     if (code !== 0) return null
     return out.includes('\0') ? binary : out
   })
@@ -108,7 +113,7 @@ function readWorkingTree(root: string, repoPath: string) {
     if (Option.isNone(dir)) return null
     if (dir.value !== root && !dir.value.startsWith(root + path.sep))
       return yield* Effect.fail(
-        new StoreError('invalid_params', `${repoPath} is outside the repository`)
+        new StoreError('invalid_params', `${repoPath} is outside the project`)
       )
     // Git diffs a symlink's target path, never the file it points at.
     const link = yield* fs.readLink(file).pipe(Effect.option)
@@ -122,14 +127,14 @@ function readWorkingTree(root: string, repoPath: string) {
   })
 }
 
-// Paths are repository-relative, as `git diff` prints them.
+// Paths are relative to the thread's project, as computeThreadDiff prints them.
 export function readDiffFile(cwd: string, path: string, prevPath = path, baseCommit?: string) {
   return Effect.gen(function* () {
     if (!isRepoPath(path) || !isRepoPath(prevPath))
       return yield* Effect.fail(new StoreError('invalid_params', `Invalid path: ${path}`))
     const fs = yield* FileSystem.FileSystem
     const top = yield* git(cwd, ['rev-parse', '--show-toplevel'])
-    const root = yield* fs.realPath(top.out.trim()).pipe(Effect.option)
+    const root = yield* fs.realPath(cwd).pipe(Effect.option)
     if (top.code !== 0 || Option.isNone(root))
       return yield* Effect.fail(new StoreError('invalid_params', 'Not a git repository'))
     const before = yield* readHead(root.value, prevPath, yield* diffBase(cwd, baseCommit))
@@ -154,12 +159,7 @@ function resolveProjectPath(cwd: string, path: string) {
     const root = yield* fs.realPath(cwd).pipe(Effect.option)
     if (Option.isNone(root))
       return yield* Effect.fail(new StoreError('not_found', 'Project folder not found'))
-    let file = yield* fs.realPath(paths.join(root.value, path)).pipe(Effect.option)
-    if (Option.isNone(file)) {
-      const top = yield* git(root.value, ['rev-parse', '--show-toplevel'])
-      if (top.code === 0)
-        file = yield* fs.realPath(paths.join(top.out.trim(), path)).pipe(Effect.option)
-    }
+    const file = yield* fs.realPath(paths.join(root.value, path)).pipe(Effect.option)
     if (Option.isSome(file) && !file.value.startsWith(root.value + paths.sep))
       return yield* Effect.fail(new StoreError('invalid_params', `${path} is outside the project`))
     return { root: root.value, file: Option.getOrUndefined(file) }
