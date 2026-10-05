@@ -58,6 +58,7 @@ function Thread() {
   const started = meta?.turnStartedAt !== undefined || meta?.provider !== undefined
   const empty =
     overlay.empty && !meta?.pendingMessages?.length && (thread !== undefined || !started)
+  const composerOnly = empty && !meta?.pullRequests?.length
   const composer = (
     <ThreadComposer
       key={threadId}
@@ -82,15 +83,17 @@ function Thread() {
     )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      {empty && <PageSidebarTrigger standalone />}
-      {empty ? (
+      {composerOnly && <PageSidebarTrigger standalone />}
+      {composerOnly ? (
         <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
       ) : (
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
-          {thread || !overlay.empty ? (
+          {empty ? (
+            <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
+          ) : thread || !overlay.empty ? (
             <ThreadList
               key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
               threadId={threadId}
@@ -115,7 +118,7 @@ function Thread() {
             <div className='min-h-0 flex-1' />
           )}
           {/* A thread left on a subagent's tab reopens there, where there's no composer. */}
-          {!agent && (thread || tab === MAIN_TAB) && composer}
+          {!empty && !agent && (thread || tab === MAIN_TAB) && composer}
         </ThreadDetailsLayout>
       )}
     </section>
