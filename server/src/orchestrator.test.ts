@@ -56,6 +56,51 @@ function makeUploadFixture() {
   })
 }
 
+for (const expireFirst of [false, true]) {
+  test(`queue undo isolates duplicate message ids across threads${expireFirst ? ' and expiry' : ''}`, async () => {
+    await runUploadTest(
+      Effect.gen(function* () {
+        const f = yield* makeUploadFixture()
+        const second = yield* f.store.createThread(f.thread.projectId, newId())
+        const cleaned = yield* Deferred.make<void>()
+        const remove = f.attachments.remove
+        f.attachments.remove = (id) =>
+          remove(id).pipe(Effect.tap(() => Deferred.succeed(cleaned, undefined)))
+        const orch = yield* createOrchestrator({
+          store: f.store,
+          agent: f.agent,
+          hub: f.hub,
+          attachments: f.attachments,
+        })
+        const messageId = newId()
+        yield* orch.enqueue(f.thread.id, messageId, 'first', [upload])
+        yield* orch.enqueue(second.id, messageId, 'second', [upload])
+        const firstMessage = (yield* f.store.requireThread(f.thread.id)).pendingMessages![0]!
+        const secondMessage = (yield* f.store.requireThread(second.id)).pendingMessages![0]!
+        yield* orch.editQueued(f.thread.id, messageId)
+        yield* TestClock.adjust(10_000)
+        yield* orch.editQueued(second.id, messageId)
+        if (expireFirst) {
+          yield* TestClock.adjust(20_000)
+          yield* Deferred.await(cleaned)
+          expect(
+            Exit.isFailure(yield* Effect.exit(orch.restoreQueued(f.thread.id, messageId)))
+          ).toBe(true)
+          expect(yield* f.attachments.resolve(firstMessage.attachments![0]!.id)).toBeNull()
+        } else {
+          yield* orch.restoreQueued(f.thread.id, messageId)
+          expect((yield* f.store.requireThread(f.thread.id)).pendingMessages).toEqual([
+            firstMessage,
+          ])
+        }
+        expect(yield* f.attachments.resolve(secondMessage.attachments![0]!.id)).not.toBeNull()
+        yield* orch.restoreQueued(second.id, messageId)
+        expect((yield* f.store.requireThread(second.id)).pendingMessages).toEqual([secondMessage])
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+  })
+}
+
 for (const kind of ['image', 'video'] as const) {
   for (const failure of ['abort', 'publication'] as const) {
     test(`${kind} media keeps its attachment when ${failure} interrupts a durable orchestrator append`, async () => {

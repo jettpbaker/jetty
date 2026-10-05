@@ -676,25 +676,26 @@ export function createOrchestrator({
 
     const removedQueued = new Map<
       string,
-      { threadId: string; message: QueuedMessage; index: number; fiber: Fiber.Fiber<void> }
+      { message: QueuedMessage; index: number; fiber: Fiber.Fiber<void> }
     >()
 
-    function forgetRemoved(messageId: string) {
+    function forgetRemoved(key: string, fiber: Fiber.Fiber<void>) {
       return Effect.suspend(() => {
-        const entry = removedQueued.get(messageId)
-        if (!entry) return Effect.void
-        removedQueued.delete(messageId)
+        const entry = removedQueued.get(key)
+        if (entry?.fiber !== fiber) return Effect.void
+        removedQueued.delete(key)
         return removeAttachments(entry.message.attachments ?? [])
       })
     }
 
     function keepRemoved(threadId: string, message: QueuedMessage, index: number) {
       return Effect.gen(function* () {
-        const fiber = yield* Effect.sleep(REMOVED_KEPT).pipe(
-          Effect.ensuring(forgetRemoved(message.id)),
+        const key = JSON.stringify([threadId, message.id])
+        const fiber: Fiber.Fiber<void> = yield* Effect.sleep(REMOVED_KEPT).pipe(
+          Effect.ensuring(Effect.suspend(() => forgetRemoved(key, fiber))),
           Effect.forkIn(scope)
         )
-        removedQueued.set(message.id, { threadId, message, index, fiber })
+        removedQueued.set(key, { message, index, fiber })
       })
     }
 
@@ -1254,10 +1255,11 @@ export function createOrchestrator({
         return state(threadId).admission.withPermit(
           hub.withChromePublication(
             Effect.gen(function* () {
-              const entry = removedQueued.get(messageId)
-              if (entry?.threadId !== threadId)
+              const key = JSON.stringify([threadId, messageId])
+              const entry = removedQueued.get(key)
+              if (!entry)
                 return yield* Effect.fail(new StoreError('not_found', 'Removed message not found'))
-              removedQueued.delete(messageId)
+              removedQueued.delete(key)
               yield* Fiber.interrupt(entry.fiber)
               const { editingUntil: _, ...message } = entry.message
               const thread = yield* store
