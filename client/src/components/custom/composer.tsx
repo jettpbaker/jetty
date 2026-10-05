@@ -10,7 +10,7 @@ import {
   useComposerSlash,
   type SlashScope,
 } from '@/components/custom/composer_slash'
-import { StopIcon, ArrowUp02Icon } from '@/components/custom/huge_icons'
+import { StopIcon, ArrowUp02Icon, PlayIcon } from '@/components/custom/huge_icons'
 import {
   InputGroup,
   InputGroupAddon,
@@ -37,6 +37,7 @@ export function Composer({
   onSubmit,
   onBackgroundSubmit,
   onInterrupt,
+  onContinue,
   running,
   strip,
   placeholder = 'What would you like to work on?',
@@ -62,6 +63,8 @@ export function Composer({
   // ⌘Enter / Ctrl+Enter; without it the chord is left to onKeyDown
   onBackgroundSubmit?: () => void
   onInterrupt: () => void
+  // Offered in place of Send while the composer is empty: carries on a paused thread.
+  onContinue?: () => void
   running: boolean
   strip?: ReactNode
   placeholder?: string
@@ -90,6 +93,7 @@ export function Composer({
   const empty = !value.trim() && attachments.images.length === 0
   const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stop = running && empty
+  const play = !running && empty && onContinue !== undefined
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
 
   useLayoutEffect(() => perf.rendered('app.launch'), [])
@@ -220,6 +224,22 @@ export function Composer({
                   >
                     <StopIcon filled />
                   </InputGroupButton>
+                ) : play ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <InputGroupButton
+                          variant='default'
+                          size='icon-sm'
+                          aria-label='Continue'
+                          onClick={onContinue}
+                        />
+                      }
+                    >
+                      <PlayIcon filled />
+                    </TooltipTrigger>
+                    <TooltipContent>Continue</TooltipContent>
+                  </Tooltip>
                 ) : (
                   <Tooltip>
                     <TooltipTrigger

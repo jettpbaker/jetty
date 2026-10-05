@@ -13,6 +13,7 @@ import {
 } from '@/lib/loadout'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { heldByRestarts } from '@jetty/shared/items'
 import { deliversQueue, newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
@@ -57,6 +58,8 @@ const pendingResolutionsAtom = Atom.make<ReadonlyMap<string, Resolution>>(new Ma
 )
 // Workflows shown as stopped until the server settles them.
 const stoppingWorkflowsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
+// Threads the crash-loop guard held, shown as resumed and working until their turn starts.
+const continuingAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
 
 function withPrompts(
   prompts: ReadonlyMap<string, readonly PendingPrompt[]>,
@@ -208,6 +211,23 @@ function sendTurn(
   )
 }
 
+function continueThread(registry: Registry, threadId: string) {
+  if (registry.get(continuingAtom).has(threadId)) return
+  registry.update(continuingAtom, (ids) => new Set(ids).add(threadId))
+  const unarchive = unarchiveFirst(registry, threadId, threadMeta(registry, threadId)?.archived)
+  run(
+    registry,
+    (connection) =>
+      unarchive(connection).pipe(
+        Effect.andThen(connection.request('thread.continue', { threadId }))
+      ),
+    () => {
+      registry.update(continuingAtom, (ids) => withoutId(ids, threadId))
+      toast.error("Couldn't resume thread")
+    }
+  )
+}
+
 function interruptTurn(registry: Registry, threadId: string) {
   run(registry, (connection) => connection.request('turn.interrupt', { threadId }))
 }
@@ -347,6 +367,14 @@ export function useInterruptTurn() {
   return useAction(interruptTurn)
 }
 
+export function useContinueThread() {
+  return useAction(continueThread)
+}
+
+export function useContinuing(threadId: string) {
+  return useAtomValue(continuingAtom).has(threadId)
+}
+
 function compactThread(registry: Registry, threadId: string) {
   return run(
     registry,
@@ -393,6 +421,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   const resolutions = useAtomValue(pendingResolutionsAtom)
   const turns = useAtomValue(pendingTurnsAtom)
   const stopping = useAtomValue(stoppingWorkflowsAtom)
+  const continuing = useAtomValue(continuingAtom).has(threadId)
   const items = useMemo(() => thread?.items ?? [], [thread])
   const pending = useMemo(
     () => unmatchedPrompts(prompts.get(threadId) ?? [], items),
@@ -450,11 +479,17 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
       registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
   }, [live, optimistic, promptCount, registry, status, threadId])
 
+  // The resumed turn's opening message, hidden like every restart note, moves the thread on.
+  const held = heldByRestarts(items)
+  useEffect(() => {
+    if (continuing && !held) registry.update(continuingAtom, (ids) => withoutId(ids, threadId))
+  }, [continuing, held, registry, threadId])
+
   return {
     items: pending.length > 0 ? [...overlaid, ...pendingUserItems(pending)] : overlaid,
     // the server's items with local answers applied, without optimistic prompts
     serverItems: overlaid,
     empty: overlaid.length === 0 && pending.length === 0,
-    running: optimistic || live || delivering,
+    running: optimistic || live || delivering || continuing,
   }
 }

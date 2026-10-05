@@ -6,6 +6,7 @@ import {
   PauseIcon,
   Refresh01Icon,
 } from '@/components/custom/huge_icons'
+import { useContinueThread, useContinuing } from '@/state'
 import { RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
 
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
@@ -135,18 +136,19 @@ export function RestartSeam() {
   )
 }
 
-// Resume stays disabled until the app can resume a held turn.
-export function RestartLimitSeam({ resumed }: { resumed: boolean }) {
+export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resumed: boolean }) {
+  const continuing = useContinuing(threadId)
+  const continueThread = useContinueThread()
   return (
     <ChatSeam>
       <SeamIcon icon={PauseIcon} />
       <span className='truncate'>
         Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes
       </span>
-      {resumed ? (
+      {resumed || continuing ? (
         <span className='px-1'>Resumed</span>
       ) : (
-        <ChatSeamAction disabled>Resume</ChatSeamAction>
+        <ChatSeamAction onClick={() => continueThread(threadId)}>Resume</ChatSeamAction>
       )}
     </ChatSeam>
   )

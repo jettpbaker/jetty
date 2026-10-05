@@ -69,6 +69,8 @@ export {
 export { useQueueActions, useRenewQueueHolds, useThreadQueue } from './queue'
 export {
   useBumpDraft,
+  useContinueThread,
+  useContinuing,
   useDismissQuestion,
   useDraftEpoch,
   useInterruptTurn,

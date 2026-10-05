@@ -236,7 +236,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
   if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
   if (row.kind === 'restart') return <RestartSeam />
-  if (row.kind === 'restartLimit') return <RestartLimitSeam resumed={row.resumed} />
+  if (row.kind === 'restartLimit')
+    return <RestartLimitSeam threadId={threadId} resumed={row.resumed} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />

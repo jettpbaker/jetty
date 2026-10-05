@@ -25,6 +25,7 @@ import { threadBranch } from '@/lib/thread_worktree'
 import {
   useAccessMode,
   useChrome,
+  useContinueThread,
   useCreateThread,
   useDismissQuestion,
   useDraft,
@@ -39,6 +40,7 @@ import {
   useThreadQueue,
 } from '@/state'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
+import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -83,6 +85,7 @@ export function ThreadComposer({
   const { accessMode, setAccessMode } = useAccessMode()
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
+  const continueThread = useContinueThread()
   const createThread = useCreateThread()
   const respondApproval = useRespondApproval()
   const respondQuestion = useRespondQuestion()
@@ -404,6 +407,7 @@ export function ThreadComposer({
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
         }}
+        onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
         running={running && !item}
         strip={mode.strip}
         placeholder={mode.placeholder}
