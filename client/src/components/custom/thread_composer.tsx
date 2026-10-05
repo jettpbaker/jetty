@@ -101,9 +101,10 @@ export function ThreadComposer({
         ? target?.projectId
         : newThreadProject(chrome, selectedId)
       : undefined
-  const git = useProjectGit(projectId)?.git
-  const environment =
-    git === 'missing' || git === 'not-git' ? 'local' : (target?.environment ?? 'worktree')
+  const projectGit = useProjectGit(projectId)
+  const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
+  const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
+  const environment = noGit ? 'local' : (target?.environment ?? projectDefault ?? 'worktree')
   const startingRef = target?.ref
   function retarget(patch: DraftTarget) {
     update({ target: { ...read().target, ...patch } })
@@ -449,7 +450,8 @@ export function ThreadComposer({
             <ComposerProject
               projectId={projectId}
               onProjectChange={(id) => {
-                if (id !== projectId) retarget({ projectId: id, ref: undefined })
+                if (id !== projectId)
+                  retarget({ projectId: id, environment: undefined, ref: undefined })
               }}
             />
           )

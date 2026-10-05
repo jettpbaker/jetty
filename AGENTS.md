@@ -111,9 +111,9 @@
 
 ## thread environments
 
-- New threads default to Worktree; Current checkout works in the project checkout
-  itself. Environment and worktree base are fixed at first send. The Current
-  checkout branch is read-only.
+- New threads default to Worktree unless the project sets its own default (below);
+  Current checkout works in the project checkout itself. Environment and worktree
+  base are fixed at first send. The Current checkout branch is read-only.
 - Worktrees live under JETTY_HOME/worktrees/<project-id>/<thread-id>; folders stay
   stable when generated titles rename branches. Branch prefix defaults to jetty.
 - `.worktreeinclude` copies matching gitignored source files (without one,
@@ -123,8 +123,10 @@
 - An optional `"archive"` script in the same file runs in the worktree, with the
   same variables, before archive or delete removes it, for cleanup outside the
   folder. A failing script refuses archive; delete logs it and carries on.
-- Both scripts are read from the project checkout, never the worktree, which the
-  agent can edit.
+- An optional `"environment": "worktree" | "local"` in the same file is the
+  project's default environment for new threads (`local` is Current checkout).
+- The file is read from the project checkout, never the worktree, which the agent
+  can edit.
 - Commit work before creating children that build on it. Archive requires a clean
   worktree and removes its folder while keeping its branch; resume recreates it
   and reruns setup. Delete removes the branch only for a linked merged PR.

@@ -308,6 +308,8 @@ export const methods = {
         currentBranch: Schema.String,
         // Newest commit first.
         branches: Schema.Array(Branch),
+        // from the project's .jetty/worktree.json
+        defaultEnvironment: Schema.optional(Schema.Literals(['local', 'worktree'])),
       }),
       Schema.Struct({ git: Schema.Literals(['missing', 'not-git']) }),
     ]),

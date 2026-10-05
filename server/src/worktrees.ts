@@ -92,18 +92,24 @@ function readJson(path: string) {
 type WorktreeScript = 'setup' | 'archive'
 
 // Read from the project checkout, never a worktree: the agent can edit the worktree's copy.
-async function worktreeScripts(root: string) {
+async function worktreeConfig(root: string) {
   const config = await readJson(join(root, '.jetty/worktree.json'))
   if (config === undefined) return {}
-  if (!config || typeof config !== 'object') throw new Error('Invalid .jetty/worktree.json')
-  const fields = config as Partial<Record<WorktreeScript, unknown>>
+  const invalid = () => new Error('Invalid .jetty/worktree.json')
+  if (!config || typeof config !== 'object') throw invalid()
+  const fields = config as Partial<Record<WorktreeScript | 'environment', unknown>>
   function script(key: WorktreeScript) {
     const value = fields[key]
     if (value === undefined) return undefined
-    if (typeof value !== 'string') throw new Error('Invalid .jetty/worktree.json')
+    if (typeof value !== 'string') throw invalid()
     return value.trim() || undefined
   }
-  return { setup: script('setup'), archive: script('archive') }
+  const environment: ThreadMeta['environment'] | undefined =
+    fields.environment === 'local' || fields.environment === 'worktree'
+      ? fields.environment
+      : undefined
+  if (fields.environment !== undefined && !environment) throw invalid()
+  return { setup: script('setup'), archive: script('archive'), environment }
 }
 
 // Without a .worktreeinclude, env files are what a fresh worktree most often lacks.
@@ -228,7 +234,17 @@ export function createWorktrees(
         worktree: checkedOut.has(name),
       })
     }
-    return { git: state, defaultRef: base, currentBranch, branches: [...byName.values()] }
+    // A broken config only loses the default here; setup reports it.
+    const config = await worktreeConfig(await git(cwd, 'rev-parse', '--show-toplevel')).catch(
+      () => undefined
+    )
+    return {
+      git: state,
+      defaultRef: base,
+      currentBranch,
+      branches: [...byName.values()],
+      defaultEnvironment: config?.environment,
+    }
   }
 
   async function locate(threadId: string) {
@@ -420,7 +436,7 @@ export function createWorktrees(
         throw new Error(`${basename(project.path)} isn't in this worktree's base commit`)
       const checkout = await git(project.path, 'rev-parse', '--show-toplevel')
       await copyIncluded(checkout, folder)
-      const { setup } = await worktreeScripts(checkout)
+      const { setup } = await worktreeConfig(checkout)
       if (setup) await runScript('setup', setup, folder, scriptEnv(folder, record.slot), signal)
       record.state = 'ready'
       await save(threadId, record)
@@ -464,7 +480,7 @@ export function createWorktrees(
     const { thread, project } = await locate(threadId)
     const folder = folderOf(project.id, threadId)
     if (thread.environment !== 'worktree' || !(await exists(folder))) return
-    const { archive } = await worktreeScripts(
+    const { archive } = await worktreeConfig(
       await git(project.path, 'rev-parse', '--show-toplevel')
     )
     if (!archive) return
