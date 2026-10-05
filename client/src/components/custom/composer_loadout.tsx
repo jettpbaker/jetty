@@ -96,6 +96,28 @@ function DragHandle({
   )
 }
 
+// A filled slot's settings arrow can't take focus inside its menu item, so → opens settings too.
+function slotKeys(
+  index: number,
+  onMove: (from: number, to: number) => void,
+  onOpenSettings: () => void
+) {
+  const move = moveOnKeys(index, onMove)
+  return (event: KeyboardEvent) => {
+    if (
+      event.key !== 'ArrowRight' ||
+      event.altKey ||
+      event.shiftKey ||
+      event.metaKey ||
+      event.ctrlKey
+    )
+      return move(event)
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenSettings()
+  }
+}
+
 function SettingsArrow({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <button
@@ -146,9 +168,9 @@ function SortableLoadoutItem({
         value={id}
         disabled={disabled}
         className='group/loadout h-8! gap-0 pl-1.5 pr-1.5 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden'
-        title='Drag to reorder · Option+Shift+↑/↓'
-        aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
-        onKeyDown={moveOnKeys(index, onMove)}
+        title='Drag to reorder · Option+Shift+↑/↓ · → Settings'
+        aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown ArrowRight'
+        onKeyDown={slotKeys(index, onMove, onOpenSettings)}
       >
         <DragHandle handleRef={handleRef} isDragging={isDragging} />
         <span className='flex items-center gap-1.5'>
