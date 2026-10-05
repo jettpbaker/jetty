@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type WheelEvent } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
@@ -18,31 +18,103 @@ import {
   workEnded,
 } from './work_model'
 
+// Entries scrolled out of a live preview fade at that edge.
+function edges(element: HTMLElement) {
+  element.toggleAttribute('data-above', element.scrollTop > 0)
+  element.toggleAttribute(
+    'data-below',
+    element.scrollHeight - element.scrollTop - element.clientHeight > 1
+  )
+}
+
 function WorkHistory({
   threadId,
   entries,
-  recentStart,
   view,
+  live,
 }: {
   threadId: string
   entries: WorkEntry[]
-  recentStart: number
   view: ActivityView
+  live: boolean
 }) {
   const reducedMotion = useReducedMotion()
+  const scroller = useRef<HTMLDivElement>(null)
+  const pinned = useRef(true)
+  const scrollIdle = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const shown = useRef(view)
+
+  // A live preview is as tall as its latest entries and scrolls back through the rest, pinned to
+  // the newest. Writes go straight to the node, so a growing entry never re-renders the log.
+  useLayoutEffect(() => {
+    const element = scroller.current!
+    const list = element.firstElementChild as HTMLElement
+    const closing = shown.current === 'full' && view === 'preview'
+    shown.current = view
+    if (!live || view === 'full') {
+      if (!element.style.maxHeight) return
+      // Opening grows to the whole log and a finished block keeps its preview while it closes;
+      // either way it then sizes itself.
+      if (live) element.style.maxHeight = `${list.offsetHeight}px`
+      const release = setTimeout(
+        () => {
+          element.style.maxHeight = ''
+          edges(element)
+        },
+        reducedMotion ? 0 : 250
+      )
+      return () => clearTimeout(release)
+    }
+    if (closing) {
+      // Shrinks from the open height, which a cap of none can't transition from.
+      element.style.maxHeight = `${element.offsetHeight}px`
+      void element.offsetHeight
+    }
+    pinned.current = true
+    function measure() {
+      let height = 0
+      for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
+      element.style.maxHeight = `${height}px`
+      if (pinned.current) element.scrollTop = element.scrollHeight
+      edges(element)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    observer.observe(list)
+    return () => observer.disconnect()
+  }, [live, view, reducedMotion])
+
+  // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
+  function onScroll() {
+    const element = scroller.current!
+    if (element.scrollHeight - element.scrollTop - element.clientHeight < 2) pinned.current = true
+    edges(element)
+  }
+
+  function onWheel(event: WheelEvent<HTMLDivElement>) {
+    const element = event.currentTarget
+    if (event.deltaY < 0 && element.scrollTop > 0) pinned.current = false
+    element.dataset.scrolling = ''
+    clearTimeout(scrollIdle.current)
+    scrollIdle.current = setTimeout(() => delete element.dataset.scrolling, 800)
+  }
+
   return (
-    <div className={view === 'preview' && recentStart > 0 ? 'work-recent' : undefined}>
-      <AnimatePresence initial={false}>
-        {entries.map((entry, index) => {
-          const visible = view === 'full' || index >= recentStart
-          return (
+    <div
+      ref={scroller}
+      className='work-scroll scrollbar-auto-hide overflow-y-auto'
+      onScroll={onScroll}
+      onWheel={onWheel}
+    >
+      <div>
+        <AnimatePresence initial={false}>
+          {entries.map((entry) => (
             <motion.div
               key={entry.id}
-              inert={!visible}
-              aria-hidden={!visible}
               className='overflow-hidden'
               initial={{ height: 0, opacity: 0 }}
-              animate={{ height: visible ? 'auto' : 0, opacity: visible ? 1 : 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
               transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }}
             >
               {entry.type === 'thinking' ? (
@@ -57,9 +129,9 @@ function WorkHistory({
                 <ToolGroup batch={entry} />
               )}
             </motion.div>
-          )
-        })}
-      </AnimatePresence>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }
@@ -129,7 +201,6 @@ export function WorkBlock({
     ) : (
       ''
     )
-  const recentStart = Math.max(0, entries.length - previewCount)
   return (
     <ActivityDisclosure
       flushHeader
@@ -137,9 +208,9 @@ export function WorkBlock({
       titleSuffix={timing}
       ended={ended}
       hasContent={entries.length > 0}
-      hasPreview={recentStart > 0}
+      hasPreview={entries.length > previewCount}
       renderContent={(view) => (
-        <WorkHistory threadId={threadId} entries={entries} recentStart={recentStart} view={view} />
+        <WorkHistory threadId={threadId} entries={entries} view={view} live={!ended} />
       )}
     />
   )
