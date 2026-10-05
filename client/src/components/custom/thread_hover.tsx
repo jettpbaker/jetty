@@ -14,7 +14,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { FolderGit2Icon, LaptopIcon } from './huge_icons'
+import { environments } from './composer_environment'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
@@ -98,14 +98,11 @@ export function ThreadHoverCard({
 type Checkout = { label: string; branch: boolean }
 
 function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?: Checkout }) {
-  const Icon = worktree ? FolderGit2Icon : LaptopIcon
+  const { label, Icon } = environments[worktree ? 'worktree' : 'local']
   return (
-    <span
-      className='flex min-w-0 items-center gap-1 text-muted-foreground'
-      title={worktree ? 'Worktree' : 'Current checkout'}
-    >
+    <span className='flex min-w-0 items-center gap-1 text-muted-foreground' title={label}>
       <Icon aria-hidden='true' className='size-3 shrink-0' />
-      <span className='sr-only'>{worktree ? 'Worktree' : 'Current checkout'}</span>
+      <span className='sr-only'>{label}</span>
       {checkout && (
         <span className={cn('truncate', checkout.branch && 'font-mono')}>{checkout.label}</span>
       )}

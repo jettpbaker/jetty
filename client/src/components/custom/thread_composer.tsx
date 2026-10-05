@@ -44,6 +44,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { MonitoringLine } from './monitoring_line'
+import { ThreadFooter } from './thread_footer'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -463,19 +464,14 @@ export function ThreadComposer({
               {meta?.backgroundTasks?.length ? (
                 <MonitoringLine key={threadId} threadId={threadId} tasks={meta.backgroundTasks} />
               ) : null}
-              <div className='flex min-h-7 items-center justify-between px-2.5'>
-                <WorkflowLines threadId={threadId} items={items} />
-                {meta && (
-                  <span className='ml-auto text-xs text-muted-foreground'>
-                    {[
-                      meta.environment === 'worktree' ? 'Worktree' : 'Current checkout',
-                      meta.worktree?.branch ?? meta.git?.branch,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                )}
-              </div>
+              <WorkflowLines threadId={threadId} items={items} />
+              <ThreadFooter
+                threadId={threadId}
+                environment={meta?.environment}
+                branch={meta?.worktree?.branch ?? meta?.git?.branch}
+                path={projectPath}
+                ring={!ambient}
+              />
             </div>
           ) : (
             <ComposerFooter

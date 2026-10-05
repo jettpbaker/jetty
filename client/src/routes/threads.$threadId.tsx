@@ -85,7 +85,6 @@ function Thread() {
       ) : (
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
-            context={thread?.context ?? null}
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           {thread || !overlay.empty ? (

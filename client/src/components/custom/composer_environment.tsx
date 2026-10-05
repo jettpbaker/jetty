@@ -12,6 +12,11 @@ import { DisabledTooltip } from './disabled_tooltip'
 
 type Environment = 'local' | 'worktree'
 
+export const environments = {
+  worktree: { label: 'Worktree', Icon: FolderGit2Icon },
+  local: { label: 'Current checkout', Icon: LaptopIcon },
+} as const
+
 export function ComposerEnvironment({
   value,
   onValueChange,
@@ -21,8 +26,7 @@ export function ComposerEnvironment({
   onValueChange: (value: Environment) => void
   worktreeDisabled?: string
 }) {
-  const Icon = value === 'local' ? LaptopIcon : FolderGit2Icon
-  const label = value === 'local' ? 'Current checkout' : 'Worktree'
+  const { label, Icon } = environments[value]
 
   return (
     <DropdownMenu>
