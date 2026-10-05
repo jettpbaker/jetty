@@ -113,10 +113,11 @@ function dateGroupId(updatedAt: number, now: Date) {
 }
 
 function groupsFor(grouping: ThreadGrouping, threads: SidebarThread[]) {
+  // By id: two checkouts can share a folder name and still be different projects.
   if (grouping === 'project')
-    return [...new Set(threads.map((thread) => thread.project))]
-      .sort((a, b) => a.localeCompare(b))
-      .map((project) => ({ id: project, label: project }))
+    return [...new Map(threads.map((thread) => [thread.projectId, thread.project])).entries()]
+      .sort(([, a], [, b]) => a.localeCompare(b))
+      .map(([id, label]) => ({ id, label }))
   if (grouping === 'status') return statusGroups
   return dateGroups
 }
@@ -127,7 +128,7 @@ function threadInGroup(
   groupId: string,
   now: Date
 ) {
-  if (grouping === 'project') return thread.project === groupId
+  if (grouping === 'project') return thread.projectId === groupId
   if (grouping === 'status') return thread.status === groupId
   return dateGroupId(thread.updatedAt, now) === groupId
 }
