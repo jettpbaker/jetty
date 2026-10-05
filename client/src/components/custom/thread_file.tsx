@@ -18,10 +18,12 @@ export function ThreadFile({
   threadId,
   target,
   checkout,
+  focus,
 }: {
   threadId: string
   target: FileTarget
   checkout: Checkout
+  focus: number
 }) {
   const { file, failed } = useProjectFile(threadId, target.path)
   // Unsaved edits stay open even once the file on disk can't be.
@@ -40,7 +42,13 @@ export function ThreadFile({
     return <p className='p-4 text-xs text-muted-foreground'>File not found</p>
   return (
     <Suspense fallback={loading}>
-      <FileEditor threadId={threadId} target={target} disk={file} checkout={checkout} />
+      <FileEditor
+        threadId={threadId}
+        target={target}
+        disk={file}
+        checkout={checkout}
+        focus={focus}
+      />
     </Suspense>
   )
 }

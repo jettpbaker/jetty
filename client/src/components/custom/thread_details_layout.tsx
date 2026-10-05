@@ -209,10 +209,13 @@ export function ThreadDetailsLayout({
     [threadId, showFile]
   )
 
+  // Files and the diff's edit button ask for the file's editor to take focus, counted.
+  const [focusFile, setFocusFile] = useState(0)
   const editFile = useCallback(
     (path: string) => {
       showFile({ threadId, target: { path } })
       setTab('file')
+      setFocusFile((count) => count + 1)
     },
     [threadId, showFile]
   )
@@ -489,6 +492,7 @@ export function ThreadDetailsLayout({
                       threadId={threadId}
                       target={viewedFile}
                       checkout={checkout}
+                      focus={focusFile}
                     />
                   ) : (
                     <Loading label='Loading file' />
@@ -520,6 +524,7 @@ export function ThreadDetailsLayout({
       gitDisabled,
       projectId,
       findFile,
+      focusFile,
       filesShown,
     ]
   )

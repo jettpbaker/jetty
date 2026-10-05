@@ -18,6 +18,7 @@ import { KeybindTooltip, keybinds } from './keybinds'
 import { ScrollOverlay } from './scroll_overlay'
 
 let lastVersion = 0
+let answeredFocus = 0
 
 // The active line as a quiet band and a foreground caret, not the theme's selection blue.
 const editorCSS = `
@@ -41,11 +42,14 @@ export function FileEditor({
   target,
   disk,
   checkout,
+  focus,
 }: {
   threadId: string
   target: FileTarget
   disk: ProjectFile
   checkout: Checkout
+  // a request for the caret, answered once the editor has attached
+  focus: number
 }) {
   const { path, line } = target
   const name = path.split('/').at(-1) ?? path
@@ -151,6 +155,26 @@ export function FileEditor({
     element.addEventListener('keydown', saveKey)
     return () => element.removeEventListener('keydown', saveKey)
   }, [])
+
+  // The view that asked (now inert) dropped focus; the editor attaches a few frames after mount.
+  // Focus the reader has since put somewhere live stays there.
+  useEffect(() => {
+    if (focus <= answeredFocus) return
+    let frame = 0
+    let frames = 0
+    function place() {
+      const at = document.activeElement
+      const lost = !at || at === document.body || !!at.closest('[inert]')
+      if (!lost || root.current?.contains(at) || ++frames > 60) {
+        answeredFocus = focus
+        return
+      }
+      viewer.current?.getEditor(path)?.focus()
+      frame = requestAnimationFrame(place)
+    }
+    place()
+    return () => cancelAnimationFrame(frame)
+  }, [focus, path])
 
   // CodeView takes new file contents as an outside edit to the document, so they change only on
   // purpose; its own edits stay in the editor.
