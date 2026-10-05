@@ -9,7 +9,6 @@ import {
   BrainIcon,
   FlashIcon,
   GaugeIcon,
-  KeyboardIcon,
   PencilEdit02Icon,
   ShieldCheckIcon,
   ShieldOffIcon,
@@ -51,7 +50,7 @@ import {
 
 export type SlashScope = { threadId?: string; projectId?: string }
 
-type Section = 'Commands' | 'Skills'
+type Section = 'Skills'
 type ValueCommand = 'model' | 'effort' | 'access'
 type Kind = 'section' | 'back' | 'command' | 'skill' | 'option'
 
@@ -80,11 +79,7 @@ const commandLabels: Record<ValueCommand, string> = {
   effort: 'Effort',
   access: 'Access',
 }
-const sections: Section[] = ['Commands', 'Skills']
-const sectionIcons: Record<Section, ReactNode> = {
-  Commands: <KeyboardIcon />,
-  Skills: <BookOpenIcon />,
-}
+const groupOrder = ['Commands', 'Skills']
 
 /* State */
 
@@ -285,7 +280,7 @@ export function useComposerSlash(
       score: 0,
       run,
     })
-    const picker = (id: ValueCommand) => () => go(range, { section: 'Commands', picking: id })
+    const picker = (id: ValueCommand) => () => go(range, { picking: id })
     const compactReason = !thread?.provider
       ? 'Send a message first'
       : thread.status === 'starting' ||
@@ -373,10 +368,10 @@ export function useComposerSlash(
     return { id: 'back', kind: 'back', name: 'Back', description: '', group: '', score: 0, run }
   }
 
-  // Back lands on the row you came from: the command, or the section (Back is row 0 in a section).
+  // Back lands on the row you came from: the command, or the Skills row after the commands.
   function up(range: SlashQuery) {
-    if (picking) go(range, { section: 'Commands', active: commandOrder.indexOf(picking) + 1 })
-    else if (section) go(range, { active: sections.indexOf(section) })
+    if (picking) go(range, { active: commandOrder.indexOf(picking) })
+    else if (section) go(range, { active: commandOrder.length })
   }
 
   function entriesFor(range: SlashQuery): Entry[] {
@@ -390,27 +385,26 @@ export function useComposerSlash(
           range.query
         ),
       ]
-    // Typing straight after the slash searches skills only; commands live behind their section.
-    if (range.query)
-      return rank(
-        items.filter((entry) => entry.group === 'Skills'),
-        range.query
-      )
-    return sections
-      .filter((name) => items.some((entry) => entry.group === name))
-      .map(
-        (name): Entry => ({
-          id: `section:${name}`,
-          kind: 'section',
-          name,
-          description: '',
-          group: name,
-          icon: sectionIcons[name],
-          score: 0,
-          value: String(items.filter((entry) => entry.group === name).length),
-          run: () => go(range, { section: name }),
-        })
-      )
+    if (range.query) return rank(items, range.query)
+    const skills = items.filter((entry) => entry.group === 'Skills')
+    return [
+      ...items.filter((entry) => entry.group === 'Commands'),
+      ...(skills.length
+        ? [
+            {
+              id: 'section:Skills',
+              kind: 'section',
+              name: 'Skills',
+              description: '',
+              group: 'Skills',
+              icon: <BookOpenIcon />,
+              score: 0,
+              value: String(skills.length),
+              run: () => go(range, { section: 'Skills' }),
+            } satisfies Entry,
+          ]
+        : []),
+    ]
   }
 
   const entries = open && query ? entriesFor(query) : []
@@ -537,9 +531,7 @@ function rank(entries: Entry[], query: string) {
     return score === undefined ? [] : [{ ...entry, score }]
   })
   return scored.sort(
-    (a, b) =>
-      sections.indexOf(a.group as Section) - sections.indexOf(b.group as Section) ||
-      b.score - a.score
+    (a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group) || b.score - a.score
   )
 }
 
