@@ -80,7 +80,7 @@ export type WorktreeRecord = {
   branch: string | null
   temporaryBranch: string | null
   slot: number | null
-  state: 'pending' | 'setting_up' | 'ready' | 'failed'
+  state: 'pending' | 'setting_up' | 'ready' | 'failed' | 'stopped'
   error: string | null
 }
 

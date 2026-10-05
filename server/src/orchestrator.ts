@@ -886,8 +886,8 @@ export function createOrchestrator({
                   attachments: saved.meta,
                   ...(input.carriesOn && { carriesOn: true as const }),
                 }
-                // The message waits in the queue while the worktree is prepared, so a failed
-                // setup keeps it for Retry.
+                // The message waits in the queue while the worktree is prepared, so a stopped
+                // or failed setup keeps it for Resume.
                 if (thread.environment === 'worktree' && !input.queued) {
                   yield* store.enqueue(thread.id, message)
                   yield* onCommit

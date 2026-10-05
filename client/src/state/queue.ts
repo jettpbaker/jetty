@@ -290,7 +290,7 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
       ),
     () => {
       settle?.()
-      // A worktree setup that failed or was stopped says so itself, with Retry.
+      // A worktree setup that failed or was stopped says so above the composer.
       const worktree = registry
         .get(chromeAtom)
         ?.threads.find((entry) => entry.id === threadId)?.worktree

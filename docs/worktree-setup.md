@@ -36,9 +36,10 @@ repo, the thread works in that subfolder of the worktree.
 3. The `setup` script runs, from the worktree's root, if there is one.
 4. Then the thread's messages go to the agent.
 
-If setup fails, the thread shows the error (the tail of its output) with a Retry button,
-and messages wait. Retry runs steps 2 and 3 again in the same folder, so setup needs to be
-safe to run twice.
+If setup fails, the thread shows the error (the tail of its output) in red. Stopping it
+shows "Worktree setup stopped" in ordinary text, not as an error. Either way messages
+wait. Resume on a waiting message, or Retry when nothing is waiting, runs steps 2 and 3
+again in the same folder, so setup needs to be safe to run twice.
 
 ### Archive, resume and delete
 

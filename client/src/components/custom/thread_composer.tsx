@@ -44,7 +44,6 @@ import {
 } from '@/state'
 import { createItemSelection } from '@/state/item_selection'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
-import { isQueuedEditing } from '@/state/queue_editing'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -186,14 +185,14 @@ export function ThreadComposer({
   }, [editingLeft, editing, update])
   if (left !== undefined && !draft.trim()) setLeft(undefined)
   const retrySetup = useRetrySetup()
-  // Retry sends the message waiting on the worktree as the queue's Resume does, so the setup it
-  // reruns reads "Setting up worktree" with Stop; with nothing waiting it only sets up.
+  // Resume on a waiting message is the control, and it reruns setup. Retry is only there when
+  // nothing is waiting, so it just sets the worktree up.
   function retry() {
-    if (!threadId) return
-    const next = unsent.find((entry) => !isQueuedEditing(entry, editing))
-    if (next) queueActions.sendNow(threadId, next)
-    else retrySetup(threadId)
+    if (threadId) retrySetup(threadId)
   }
+  const worktree = meta?.worktree
+  const setupNotice = worktree?.state === 'failed' || worktree?.state === 'stopped'
+  const messageHeld = Boolean(meta?.queuePaused && unsent.length > 0)
   const needsModel = !threadId && !loadout
   // Each /usage asks again; 0 is closed.
   const [usageAsked, setUsageAsked] = useState(0)
@@ -482,12 +481,21 @@ export function ThreadComposer({
 
   return (
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
-      {meta?.worktree?.state === 'failed' && (
-        <div role='alert' className='flex items-center gap-2 pb-2 text-xs'>
-          <span className='text-destructive'>{meta.worktree.error}</span>
-          <Button variant='outline' size='sm' {...pressProps(retry)}>
-            Retry
-          </Button>
+      {worktree && setupNotice && (
+        <div
+          role={worktree.state === 'failed' ? 'alert' : 'status'}
+          className='flex items-center gap-2 pb-2 text-xs'
+        >
+          <span
+            className={worktree.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'}
+          >
+            {worktree.error}
+          </span>
+          {!messageHeld && (
+            <Button variant='outline' size='sm' {...pressProps(retry)}>
+              Retry
+            </Button>
+          )}
         </div>
       )}
       <Composer

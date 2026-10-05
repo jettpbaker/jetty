@@ -500,7 +500,9 @@ export function createWorktrees(
       .catch(async (error: unknown) => {
         const record = await run(store.getWorktree(threadId))
         if (record) {
-          record.state = 'failed'
+          // A user stop is not a failure: the composer says so in muted text. Shutdown and a
+          // script that exits on its own stay failed.
+          record.state = stop.signal.aborted ? 'stopped' : 'failed'
           record.error = error instanceof Error ? error.message : String(error)
           await run(store.setQueuePaused(threadId, true))
           await save(threadId, record)
@@ -512,7 +514,7 @@ export function createWorktrees(
     return pending
   }
 
-  // Fails the thread's running preparation as stopped, leaving it for Retry. True if one ran.
+  // Stops the thread's running preparation. True if one ran.
   function stopSetup(threadId: string) {
     const preparation = preparations.get(threadId)
     preparation?.stop.abort()
@@ -668,7 +670,8 @@ export function createWorktrees(
         record.error = 'Worktree setup interrupted by server restart'
         await save(threadId, record)
       }
-      if (record.state === 'failed') await run(store.setQueuePaused(threadId, true))
+      if (record.state === 'failed' || record.state === 'stopped')
+        await run(store.setQueuePaused(threadId, true))
       const temporary = record.temporaryBranch
       if (temporary && record.branch === temporary && record.checkoutPath) {
         const renamed = await locate(threadId)

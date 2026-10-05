@@ -2424,6 +2424,87 @@ describe('checkout preparation', () => {
   })
 })
 
+describe('worktree setup outcome', () => {
+  function gitRepo() {
+    const repo = dir(join(tmpdir(), `jetty-setup-${newId()}`))
+    const git = (...args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (git('init', '-q') !== 0) return undefined
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'Test')
+    git('config', 'commit.gpgsign', 'false')
+    git('commit', '-q', '--allow-empty', '-m', 'init')
+    return repo
+  }
+
+  function writeSetup(repo: string, setup: string) {
+    dir(join(repo, '.jetty'))
+    writeFileSync(join(repo, '.jetty', 'worktree.json'), JSON.stringify({ setup }))
+  }
+
+  async function worktreeThread(repo: string) {
+    const running = await boot()
+    const client = await connect(running.port)
+    const { project } = await client.request('project.create', { path: repo })
+    const { thread } = await client.request('thread.create', {
+      environment: 'worktree',
+      id: newId(),
+      projectId: project.id,
+    })
+    return { running, client, thread }
+  }
+
+  async function until(read: () => Promise<boolean>) {
+    const start = Date.now()
+    while (Date.now() - start < 15_000) {
+      if (await read()) return
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error('timed out')
+  }
+
+  test('Stop during setup is a stopped worktree, and a script that exits is a failure', async () => {
+    const repo = gitRepo()
+    if (!repo) return
+    try {
+      writeSetup(repo, 'sleep 30')
+      const stopped = await worktreeThread(repo)
+      const sent = stopped.client.request('turn.start', {
+        threadId: stopped.thread.id,
+        text: 'hello',
+      })
+      await until(async () => {
+        const record = await Effect.runPromise(stopped.running.store.getWorktree(stopped.thread.id))
+        return record?.state === 'setting_up'
+      })
+      await stopped.client.request('turn.interrupt', { threadId: stopped.thread.id })
+      expect(await sent).toEqual({ turnId: '' })
+      const stoppedRecord = await Effect.runPromise(
+        stopped.running.store.getWorktree(stopped.thread.id)
+      )
+      expect(stoppedRecord?.state).toBe('stopped')
+      expect(stoppedRecord?.error).toBe('Worktree setup stopped')
+      const stoppedMeta = await Effect.runPromise(
+        stopped.running.store.requireThread(stopped.thread.id)
+      )
+      expect(stoppedMeta.queuePaused).toBe(true)
+      expect(stoppedMeta.pendingMessages?.map((message) => message.text)).toEqual(['hello'])
+
+      writeSetup(repo, 'echo nope >&2; exit 1')
+      const failed = await worktreeThread(repo)
+      expect(
+        await failed.client.request('turn.start', { threadId: failed.thread.id, text: 'hello' })
+      ).toEqual({ turnId: '' })
+      const failedRecord = await Effect.runPromise(
+        failed.running.store.getWorktree(failed.thread.id)
+      )
+      expect(failedRecord?.state).toBe('failed')
+      expect(failedRecord?.error).toContain('nope')
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('ws origin gate', () => {
   test('websocket upgrades require an allowed origin', async () => {
     const { port } = await boot()

@@ -290,7 +290,7 @@ export const ThreadMeta = Schema.Struct({
   workingPath: Schema.optional(Schema.String),
   worktree: Schema.optional(
     Schema.Struct({
-      state: Schema.Literals(['pending', 'setting_up', 'ready', 'failed']),
+      state: Schema.Literals(['pending', 'setting_up', 'ready', 'failed', 'stopped']),
       error: Schema.NullOr(Schema.String),
       branch: Schema.NullOr(Schema.String),
     })
