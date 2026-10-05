@@ -95,9 +95,9 @@ export function replyShown(reply: string | undefined) {
   return performance.now() - shown.at < 1000 ? shown.length : Infinity
 }
 
-export function useReplyShown(reply: string | undefined, length: number | undefined) {
+export function useReplyShown(reply: string | undefined, length: number) {
   useEffect(() => {
-    if (reply === undefined || length === undefined) return
+    if (reply === undefined) return
     shownReplies.delete(reply)
     shownReplies.set(reply, { length, at: performance.now() })
     if (shownReplies.size > 100) shownReplies.delete(shownReplies.keys().next().value!)

@@ -200,7 +200,7 @@ export function Markdown({
   useEffect(() => smooth?.mounted(), [smooth])
   const text = smooth && streaming ? wholeWords(children) : children
   const shown = usePacedText(text, smooth && from)
-  useReplyShown(reply, smooth && shown.length)
+  useReplyShown(reply, shown.length)
   return (
     <Streamdown
       className={className}

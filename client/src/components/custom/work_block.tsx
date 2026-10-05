@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type WheelEvent } from 'r
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
 import { RollingDuration } from './rolling_duration'
+import { replyShown } from './smooth_stream'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
 import { ThreadGroup, ToolGroup } from './tool_group'
@@ -108,7 +109,12 @@ function WorkHistory({
             <motion.div
               key={entry.id}
               className='overflow-hidden'
-              initial={{ height: 0, opacity: 0 }}
+              // A reply moving in from the chat was just on screen, so it doesn't grow in again.
+              initial={
+                entry.type === 'text' && replyShown(entry.id) !== undefined
+                  ? false
+                  : { height: 0, opacity: 0 }
+              }
               animate={{ height: 'auto', opacity: 1 }}
               transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }}
             >
