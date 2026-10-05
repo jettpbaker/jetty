@@ -14,6 +14,7 @@ const storageKey = (threadId: string, path: string) => `jetty.file-draft:${threa
 
 // null: known to have none.
 const drafts = new Map<string, FileDraft | null>()
+const saving = new Map<string, number>()
 
 function stored(key: string): FileDraft | null {
   try {
@@ -77,18 +78,32 @@ document.addEventListener('visibilitychange', () => {
 })
 
 // No draft once the edits are saved or gone.
-function writeFileDraft(
+export function writeFileDraft(
   registry: AtomRegistry.AtomRegistry,
   threadId: string,
   path: string,
   draft: FileDraft | undefined
 ) {
   const key = storageKey(threadId, path)
+  if (draft?.text === draft?.base && !saving.has(key)) draft = undefined
   drafts.set(key, draft ?? null)
   registry.set(dirtyAtom(key), draft !== undefined)
   unstored.add(key)
   clearTimeout(storing)
   storing = setTimeout(storeDrafts, 300)
+}
+
+export function beginFileSave(threadId: string, path: string) {
+  const key = storageKey(threadId, path)
+  saving.set(key, (saving.get(key) ?? 0) + 1)
+}
+
+export function endFileSave(registry: AtomRegistry.AtomRegistry, threadId: string, path: string) {
+  const key = storageKey(threadId, path)
+  const pending = (saving.get(key) ?? 1) - 1
+  if (pending) saving.set(key, pending)
+  else saving.delete(key)
+  writeFileDraft(registry, threadId, path, readFileDraft(threadId, path))
 }
 
 // A save put `saved` on disk, possibly after its editor closed. The draft goes, unless it was

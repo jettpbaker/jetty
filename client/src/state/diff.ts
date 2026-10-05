@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 
 import { useChrome } from './chrome'
 import { connectionAtom, useAction } from './connection'
-import { settleFileDraft } from './file_drafts'
+import { beginFileSave, endFileSave, settleFileDraft } from './file_drafts'
 import { threadAtom, useThread } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
@@ -270,6 +270,7 @@ function saveProjectFile(
   contents: string,
   base: string | null
 ) {
+  beginFileSave(threadId, path)
   return Effect.runPromise(
     AtomRegistry.getResult(registry, connectionAtom).pipe(
       Effect.flatMap((connection) =>
@@ -284,6 +285,7 @@ function saveProjectFile(
             refreshDiff(registry, `${threadId}\0${scope}`)
         })
       ),
+      Effect.ensuring(Effect.sync(() => endFileSave(registry, threadId, path))),
       // Defects too (a server that doesn't know thread.writeFile yet), or the save fails silently.
       Effect.catchCause((cause) =>
         Effect.sync(() => {
