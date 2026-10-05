@@ -252,6 +252,7 @@ describe('send_images', () => {
     const home = tmp('jetty-send-close-home-')
     const project = tmp('jetty-send-close-proj-')
     writeFileSync(join(project, 'shot.png'), TINY_PNG_BYTES)
+    writeFileSync(join(project, 'blocked.png'), TINY_PNG_BYTES)
     const { host, events } = await makeHost(home, project)
     const blocked = Effect.runSync(Deferred.make<void>())
     const persistFile = host.attachments.persistFile

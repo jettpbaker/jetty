@@ -8,6 +8,8 @@ import {
   type UploadAttachment,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path } from 'effect'
+import { constants } from 'node:fs'
+import { open, type FileHandle } from 'node:fs/promises'
 
 import type { AgentImage } from './agent'
 
@@ -121,7 +123,7 @@ export function createAttachments(home: string) {
       )
     }
 
-    function persistFile(srcPath: string, kind: PersistKind) {
+    function persistFile(srcPath: string, kind: PersistKind, source?: FileHandle) {
       const { noun, exts, maxBytes } = KINDS[kind]
       const invalid = (message: string) => Effect.fail(new StoreError('invalid_params', message))
 
@@ -134,28 +136,46 @@ export function createAttachments(home: string) {
 
       return Effect.scoped(
         Effect.gen(function* () {
-          const stat = yield* fs
-            .stat(srcPath)
-            .pipe(
-              Effect.mapError(
-                () => new StoreError('invalid_params', `Cannot read ${kind} file: ${srcPath}`)
-              )
-            )
-          if (stat.type !== 'File') return yield* invalid(`Not a regular file: ${srcPath}`)
+          const file =
+            source ??
+            (yield* Effect.acquireRelease(
+              Effect.tryPromise({
+                try: () => open(srcPath, constants.O_RDONLY | constants.O_NONBLOCK),
+                catch: () =>
+                  new StoreError('invalid_params', `Cannot read ${kind} file: ${srcPath}`),
+              }),
+              (file) => Effect.promise(() => file.close())
+            ))
+          const stat = yield* Effect.tryPromise({
+            try: () => file.stat(),
+            catch: () => new StoreError('invalid_params', `Cannot read ${kind} file: ${srcPath}`),
+          })
+          if (!stat.isFile()) return yield* invalid(`Not a regular file: ${srcPath}`)
 
           const rawExt = path.extname(srcPath).slice(1).toLowerCase()
           if (!exts.includes(rawExt)) {
             return yield* invalid(`Unsupported ${kind} type; accepted types: ${exts.join(', ')}`)
           }
           const ext = rawExt === 'jpeg' ? 'jpg' : rawExt
-          yield* checkSize(stat.size)
+          yield* checkSize(BigInt(stat.size))
 
           const id = newId()
           const dest = path.join(dir, `${id}.${ext}`)
           const staging = yield* fs.makeTempDirectoryScoped({ directory: dir, prefix: '.media-' })
           const temporary = path.join(staging, `${id}.${ext}`)
           return yield* Effect.gen(function* () {
-            yield* fs.copyFile(srcPath, temporary)
+            const destination = yield* fs.open(temporary, { flag: 'w' })
+            const buffer = Buffer.alloc(64 * 1024)
+            let size = 0
+            while (true) {
+              const { bytesRead } = yield* Effect.tryPromise(() =>
+                file.read(buffer, 0, buffer.length, size)
+              )
+              if (!bytesRead) break
+              size += bytesRead
+              yield* checkSize(BigInt(size))
+              yield* destination.writeAll(buffer.subarray(0, bytesRead))
+            }
             const copied = yield* fs.stat(temporary)
             yield* checkSize(copied.size)
             const dimensions =

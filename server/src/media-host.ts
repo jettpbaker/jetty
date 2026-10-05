@@ -4,7 +4,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 import { newId } from '@jetty/shared/wire'
 import { Effect, Fiber, Path, Scope } from 'effect'
-import { realpath } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { open, realpath, stat } from 'node:fs/promises'
 
 import type { Attachments, PersistKind } from './attachments'
 
@@ -40,16 +41,40 @@ export function createMediaSender(host: MediaToolHost) {
     const scope = yield* Scope.Scope
     const path = yield* Path.Path
 
-    // A file in Jetty's own store goes through the project check its attachment id gets.
-    function storedId(source: string) {
-      return Effect.promise(async () => {
-        const [file, dir] = await Promise.all([
-          realpath(source).catch(() => undefined),
-          realpath(host.attachments.dir).catch(() => undefined),
-        ])
-        if (!file || !dir || !file.startsWith(dir + path.sep)) return undefined
-        return path.basename(file).split('.')[0]!
-      })
+    function openSource(source: string) {
+      return Effect.acquireRelease(
+        Effect.tryPromise({
+          async try() {
+            const resolved = await realpath(source)
+            const file = await open(
+              resolved,
+              constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+            )
+            try {
+              const [actual, opened, current, dir] = await Promise.all([
+                realpath(resolved),
+                file.stat(),
+                stat(resolved),
+                realpath(host.attachments.dir),
+              ])
+              if (actual !== resolved || opened.dev !== current.dev || opened.ino !== current.ino)
+                throw new Error('Media path changed')
+              if (!opened.isFile()) throw new Error('Not a regular file')
+              return {
+                file,
+                stored: actual.startsWith(dir + path.sep)
+                  ? path.basename(actual).split('.')[0]!
+                  : undefined,
+              }
+            } catch (error) {
+              await file.close()
+              throw error
+            }
+          },
+          catch: () => new StoreError('invalid_params', `Cannot read media file: ${source}`),
+        }),
+        ({ file }) => Effect.promise(() => file.close())
+      )
     }
 
     function send(request: MediaRequest) {
@@ -73,14 +98,14 @@ export function createMediaSender(host: MediaToolHost) {
           let committed = false
           for (const src of request.paths) {
             const source = path.resolve(host.projectPath, src)
-            const stored = yield* storedId(source)
+            const { file, stored } = yield* openSource(source)
             if (stored !== undefined) {
               media.push(yield* host.resolveAttachment(stored, request.kind))
               continue
             }
             media.push(
               yield* Effect.acquireRelease(
-                host.attachments.persistFile(source, request.kind),
+                host.attachments.persistFile(source, request.kind, file),
                 (attachment) => (committed ? Effect.void : host.attachments.remove(attachment.id)),
                 { interruptible: true }
               )

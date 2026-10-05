@@ -131,12 +131,19 @@ describe('Effect attachment persistence', () => {
           const copying = yield* Deferred.make<void>()
           const faulty = {
             ...fs,
-            copyFile: (from: string, to: string) =>
-              Effect.gen(function* () {
-                yield* fs.copyFile(from, to)
-                yield* Deferred.succeed(copying, undefined)
-                yield* Effect.never
-              }),
+            open: (path: string, options: Parameters<typeof fs.open>[1]) =>
+              fs.open(path, options).pipe(
+                Effect.map((file) => ({
+                  ...file,
+                  writeAll: (buffer: Uint8Array) =>
+                    file
+                      .writeAll(buffer)
+                      .pipe(
+                        Effect.andThen(Deferred.succeed(copying, undefined)),
+                        Effect.andThen(Effect.never)
+                      ),
+                }))
+              ),
           }
           const attachments = yield* createAttachments(root).pipe(
             Effect.provideService(FileSystem.FileSystem, faulty)
