@@ -17,6 +17,13 @@ function withSlash(path: string) {
   return path.endsWith('/') ? path : `${path}/`
 }
 
+// A path typed or pasted after the one already there starts over, as in a file dialog: the
+// prefilled ~/ plus a pasted /Users/me/code reads /Users/me/code, and …/~/code reads ~/code.
+function startOver(path: string) {
+  const fresh = Math.max(path.lastIndexOf('//'), path.lastIndexOf('/~/'))
+  return fresh < 0 ? path : path.slice(fresh + 1)
+}
+
 export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: string) => void) {
   const [query, setQuery] = useState(START)
   const [highlight, setHighlight] = useState('')
@@ -133,7 +140,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
   return {
     query,
     setQuery: (next: string) => {
-      setQuery(next)
+      setQuery(startOver(next))
       setHighlight('')
     },
     filter,
