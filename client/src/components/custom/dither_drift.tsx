@@ -31,7 +31,7 @@ function useDriftColors() {
         const style = getComputedStyle(document.documentElement)
         const back = mix(style.getPropertyValue('--background'), '#000', 1)
         const primary = mix(style.getPropertyValue('--primary'), '#000', 1)
-        setColors({ back, front: mix(primary, back, 0.4) })
+        setColors({ back, front: mix(primary, back, 0.35) })
       })
     }
     update()
