@@ -43,18 +43,20 @@ export async function goldenHome(tree: Tree, opts: { force?: boolean } = {}): Pr
     return { dir, home: join(dir, 'home'), fixtures: await Bun.file(ready).json() }
   console.log(`seeding golden home ${dir}…`)
   await rm(dir, { recursive: true, force: true })
-  const fixtures =
-    tree.dir !== repoRoot && (await seedWithOwnLab(tree, ready))
-      ? await Bun.file(ready).json()
-      : await seedHome({ tree, dir, gh: { mode: 'replay' } })
+  const fixtures = await seedHome({ tree, dir, gh: { mode: 'replay' } }).catch(async (error) => {
+    if (tree.dir === repoRoot || !(await seedWithOwnLab(tree, ready))) throw error
+    return Bun.file(ready).json()
+  })
   await Bun.write(ready, JSON.stringify(fixtures, null, 2))
   return { dir, home: join(dir, 'home'), fixtures }
 }
 
-// Another checkout (a compare's base) seeds with its own lab when it has one: its server may
-// speak an older protocol than this lab's client, or make GitHub calls this lab's fixtures lack.
+// A compare's base whose server this lab can't seed (an older protocol, or GitHub calls this
+// lab's fixtures lack) seeds with its own lab, whose fixtures may differ a little from these.
 async function seedWithOwnLab(tree: Tree, ready: string) {
   if (!existsSync(join(tree.dir, 'perf/seed.ts'))) return false
+  console.log(`seeding with ${tree.label}'s own lab instead`)
+  await rm(dirname(ready), { recursive: true, force: true })
   const script = `
     const { seedHome } = await import('./perf/seed.ts')
     const tree = { label: 'seed', dir: process.cwd(), sha: '', dispose: async () => {} }
@@ -67,10 +69,7 @@ async function seedWithOwnLab(tree: Tree, ready: string) {
     stdout: 'inherit',
     stderr: 'inherit',
   })
-  if ((await child.exited) === 0 && existsSync(ready)) return true
-  console.log(`${tree.label}'s own lab couldn't seed; seeding with this one`)
-  await rm(dirname(ready), { recursive: true, force: true })
-  return false
+  return (await child.exited) === 0 && existsSync(ready)
 }
 
 // Clones the golden home for one server; the project repo stays shared and read-only.
