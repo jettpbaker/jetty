@@ -8,6 +8,7 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { serverNow } from '@/lib/server_time'
 import { cn } from '@/lib/utils'
 import {
   queueComposer,
@@ -60,11 +61,11 @@ export function useTranscriptQueue(
 function useHoldLapse(queued: readonly QueuedMessage[]) {
   const [lapsed, lapse] = useReducer((count: number) => count + 1, 0)
   const until = Math.min(
-    ...queued.map((entry) => entry.editingUntil ?? Infinity).filter((at) => at > Date.now())
+    ...queued.map((entry) => entry.editingUntil ?? Infinity).filter((at) => at > serverNow())
   )
   useEffect(() => {
     if (until === Infinity) return
-    const timer = setTimeout(lapse, until - Date.now() + 100)
+    const timer = setTimeout(lapse, until - serverNow() + 100)
     return () => clearTimeout(timer)
   }, [until, lapsed])
   return lapsed

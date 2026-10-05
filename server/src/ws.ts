@@ -256,6 +256,7 @@ export function createRpcHandlers(
               const queue = yield* hub.subscribeChrome()
               const snapshot: ChromePushData = {
                 type: 'snapshot',
+                serverTime: Date.now(),
                 projects,
                 threads: threads.map(hub.decorateThread),
                 ...(models ? { models } : {}),

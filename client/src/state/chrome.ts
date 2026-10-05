@@ -12,6 +12,7 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
+import { observeServerTime } from '@/lib/server_time'
 import { newThreadProject } from '@/lib/thread_project'
 import { useAtomValue } from '@effect/atom-react'
 import { Equal, Stream } from 'effect'
@@ -65,6 +66,7 @@ function upsert<T extends { id: string }>(list: readonly T[], item: T) {
 function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
   switch (update.type) {
     case 'snapshot':
+      observeServerTime(update.serverTime)
       return {
         projects: update.projects,
         threads: update.threads,

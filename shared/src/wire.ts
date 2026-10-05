@@ -814,6 +814,9 @@ export type WireError = Schema.Schema.Type<typeof WireError>
 export const ChromePushData = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('snapshot'),
+    // The server's clock when it sent this, for reading its timestamps (edit holds) in a browser
+    // whose own clock is off.
+    serverTime: Schema.Int,
     projects: Schema.Array(Project),
     threads: Schema.Array(ThreadMeta),
     models: Schema.optional(Schema.Array(ProviderModel)),
