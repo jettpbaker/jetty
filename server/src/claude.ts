@@ -123,6 +123,8 @@ type WarmSession = {
   closed: boolean
   queryClosed: boolean
   awaitingResult: boolean
+  // the current turn is Jetty's /compact
+  compact: boolean
   accepting: boolean
   failReason: string | null
   done: Deferred.Deferred<void, AgentError>
@@ -418,6 +420,9 @@ export function createClaudeAdapter(
         Stream.runForEach((message) =>
           Effect.gen(function* () {
             if (!current(session)) return
+            // /compact narrates its outcome as assistant text ("Compaction canceled."); a compaction
+            // shows only as its seam.
+            if (session.compact && 'local_command_source' in message) return
             if (config.mcp && message.type === 'system' && message.subtype === 'init') {
               const jetty = message.mcp_servers.find((server) => server.name === 'jetty')
               if (jetty?.status !== 'connected') {
@@ -753,6 +758,7 @@ export function createClaudeAdapter(
           closed: false,
           queryClosed: false,
           awaitingResult: false,
+          compact: false,
           accepting: false,
           failReason: null,
           done,
@@ -812,6 +818,7 @@ export function createClaudeAdapter(
             started.ctx = createTranslateCtx(input.turnId, started.ctx)
             started.emit = emit
             started.awaitingResult = true
+            started.compact = Boolean(input.compact)
             started.accepting = !input.compact
             started.failReason = null
             started.done = yield* Deferred.make<void, AgentError>()
