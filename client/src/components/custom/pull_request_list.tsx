@@ -172,7 +172,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'diff',
       priority: 20,
-      width: 98,
+      width: 100,
       render: (pull) => (
         <span
           className='ml-auto flex gap-2 font-mono text-xs tabular-nums'
@@ -187,7 +187,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       id: 'author',
       visible: tab !== 'created',
       priority: 100,
-      width: 28,
+      width: 30,
       essential: true,
       render: (pull) => (
         <span title={`Created by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`}>
@@ -203,7 +203,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'age',
       priority: 40,
-      width: 48,
+      width: 30,
       render: (pull) => (
         <span
           className='font-mono text-xs text-muted-foreground tabular-nums'
