@@ -1,6 +1,6 @@
 import { MAX_TURN_IMAGE_BYTES } from '@jetty/shared/wire'
 
-import { checkBackoff, ghApi, observeRateLimit, validRepo } from './pull-requests'
+import { checkBackoff, ghToken, observeRateLimit, restGet, validRepo } from './pull-requests'
 import { StoreError } from './store'
 
 // Videos share the existing RPC payload budget; larger uploads need a streamed transport.
@@ -14,21 +14,6 @@ const uploadTypes: Record<string, { mimeType: string; maxBytes: number }> = {
   mp4: { mimeType: 'video/mp4', maxBytes: MAX_TURN_IMAGE_BYTES },
   mov: { mimeType: 'video/quicktime', maxBytes: MAX_TURN_IMAGE_BYTES },
   webm: { mimeType: 'video/webm', maxBytes: MAX_TURN_IMAGE_BYTES },
-}
-
-async function uploadToken() {
-  const bin = Bun.which('gh')
-  if (!bin) throw new StoreError('internal', 'GitHub CLI is not installed')
-  const child = Bun.spawn([bin, 'auth', 'token', '--hostname', 'github.com'], {
-    stdout: 'pipe',
-    stderr: 'ignore',
-    signal: AbortSignal.timeout(3000),
-  })
-  const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
-  const token = out.trim()
-  if (code !== 0 || !token)
-    throw new StoreError('internal', 'Sign in with gh auth login to upload attachments')
-  return token
 }
 
 export async function uploadGithubAttachment(params: {
@@ -61,8 +46,9 @@ export async function uploadGithubAttachment(params: {
   if (!bytes.length || bytes.length > type.maxBytes)
     throw new StoreError('invalid_params', 'Attachment is empty or too large')
   checkBackoff()
-  const token = await uploadToken()
-  const repository = (await ghApi(`repos/${params.repo}`)) as {
+  const token = await ghToken()
+  if (!token) throw new StoreError('internal', 'Sign in with gh auth login to upload attachments')
+  const repository = (await restGet(`repos/${params.repo}`)) as {
     id?: number
     permissions?: { push?: boolean }
   }

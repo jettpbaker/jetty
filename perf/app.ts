@@ -12,6 +12,8 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
+import { startFakeGithub } from './github'
+
 export const repoRoot = resolve(import.meta.dir, '..')
 export const perfDir = import.meta.dir
 const workRoot = join(tmpdir(), 'jetty-perf')
@@ -116,7 +118,8 @@ export async function freePort(): Promise<number> {
   }
 }
 
-export type GhMode = { mode: 'replay' | 'record'; misses?: string }
+// replay and record serve the fixtures through the fake gh; live is the real GitHub.
+export type GhMode = { mode: 'replay' | 'record' | 'live'; misses?: string }
 
 export type Server = {
   port: number
@@ -142,13 +145,17 @@ export async function startServer(opts: {
     JETTY_AGENT: 'echo',
     PORT: String(port),
     HOST: '127.0.0.1',
-    PATH: `${join(perfDir, 'bin')}:${process.env.PATH}`,
-    PERF_GH_MODE: opts.gh.mode,
-    PERF_GH_REAL: realGh(),
-    PERF_GH_FIXTURES: join(perfDir, 'fixtures/gh'),
-    PERF_GH_MISSES: opts.gh.misses,
-    ...opts.env,
   })
+  if (opts.gh.mode !== 'live')
+    Object.assign(env, {
+      PATH: `${join(perfDir, 'bin')}:${process.env.PATH}`,
+      PERF_GH_MODE: opts.gh.mode,
+      PERF_GH_REAL: realGh(),
+      PERF_GH_FIXTURES: join(perfDir, 'fixtures/gh'),
+      PERF_GH_MISSES: opts.gh.misses,
+    })
+  const github = opts.gh.mode === 'live' ? undefined : startFakeGithub(env)
+  Object.assign(env, { JETTY_GITHUB_API_URL: github?.url, ...opts.env })
   const log = Bun.file(opts.log)
   const child = Bun.spawn(['bun', 'server/src/main.ts'], {
     cwd: opts.tree.dir,
@@ -163,6 +170,7 @@ export async function startServer(opts: {
   void child.exited.then(() => {
     exited = true
     live.delete(child.pid)
+    github?.stop()
   })
   const deadline = Date.now() + 30_000
   for (;;) {

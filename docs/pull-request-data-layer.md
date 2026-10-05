@@ -94,6 +94,11 @@ the existing visible/prefetch queue and batch limits. Subscriptions render cache
 state first. Snapshot publication is serialized; reads overlapping a write are
 discarded by the revision guard.
 
+Requests go straight to `api.github.com` with gh's login, read once every five
+minutes (and again after a 401), over pooled HTTPS connections. Without a readable
+login they fall back to `gh api`. `JETTY_GITHUB_API_URL` points them at a stand-in,
+the perf lab's fake GitHub, which is never sent the login.
+
 Rate-limit health exposes GraphQL cost/remaining/reset, REST remaining/reset,
 backoff deadlines, and cadences. Budgets below 500 slow polling fourfold.
 Exhaustion honours reset; secondary limits honour Retry-After or exponential

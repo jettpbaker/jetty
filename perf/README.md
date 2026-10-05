@@ -32,7 +32,8 @@ into `~/Library/Caches/jetty-perf`, where golden homes are cached too.
    instead, for its Scheduler and Components tracks; measured runs don't, because its timers
    make commit work depend on elapsed time.
 2. Clones the golden home (`cp -c`) and starts the server on a free port with the echo
-   agent and `perf/bin/gh` on `PATH`. Journeys that set echo pacing get their own server.
+   agent, `perf/bin/gh` on `PATH`, and `JETTY_GITHUB_API_URL` pointing at `github.ts`, a
+   local fake api.github.com. Journeys that set echo pacing get their own server.
 3. Per journey: one discarded warm-up, then n iterations, each in a fresh tab (4× CPU
    throttle, 1440×900, storage cleared, remote URLs blocked). The journey finishes when its
    record comes out of `__jettyPerf.take()` (a DOM condition is the fallback), then the
@@ -64,8 +65,10 @@ shows it.
   turns), `code` (big fenced blocks) and `diff` (linked to `jettpbaker/pr-lab#1`), seeded
   over the protocol. The cache key hashes `seed.ts`, the server's `db.ts` and `agent.ts`,
   and the fixture list.
-- `fixtures/gh/`: what the fake `gh` replays, keyed by normalised arguments. A missing
-  fixture fails like an unreachable API and is flagged in the report. When the server's
+- `fixtures/gh/`: what the fake `gh` replays, keyed by normalised arguments. The server
+  calls the API directly, so the fake api.github.com hands each request to the fake `gh` as
+  the `gh api` call the server used to make for it. A missing fixture fails like an
+  unreachable API and is flagged in the report. When the server's
   GitHub queries change, run `bun perf record-gh`.
 
 ## Hygiene

@@ -60,8 +60,7 @@ const server = await startServer({
   tree,
   home,
   log: join(dir, 'server.log'),
-  gh: { mode: 'replay' },
-  env: replay ? {} : { PATH: process.env.PATH ?? '' },
+  gh: { mode: replay ? 'replay' : 'live' },
 })
 
 if (fixtures) {

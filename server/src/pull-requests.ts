@@ -206,37 +206,6 @@ class GhFailure extends Error {
   }
 }
 
-async function gh(args: string[], input?: string) {
-  const bin = Bun.which('gh')
-  if (!bin) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
-  const started = performance.now()
-  try {
-    const child = Bun.spawn([bin, ...args], {
-      stdin: input === undefined ? 'ignore' : new Blob([input]),
-      stdout: 'pipe',
-      stderr: 'pipe',
-      signal: AbortSignal.timeout(20000),
-    })
-    const [out, err, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ])
-    if (process.env.JETTY_PR_FETCH_DEBUG === '1')
-      console.debug(
-        `[pr-gh] ${
-          args
-            .find((arg) => arg.startsWith('query='))
-            ?.replace(/\s+/g, ' ')
-            .slice(0, 180) ?? args.join(' ')
-        } code=${code} ms=${Math.round(performance.now() - started)} bytes=${Buffer.byteLength(out)}`
-      )
-    return { out, detail: err.trim(), code }
-  } catch {
-    throw new GhFailure('unavailable', 'GitHub API is unavailable')
-  }
-}
-
 async function readGhToken(): Promise<string | null> {
   const bin = Bun.which('gh')
   if (!bin) return null
@@ -255,7 +224,7 @@ async function readGhToken(): Promise<string | null> {
 
 let tokenRead: { value: Promise<string | null>; at: number } | undefined
 
-// The gh login, for GitHub hosts gh won't call itself.
+// The gh login, read every five minutes rather than spawning gh for every call.
 export function ghToken() {
   if (!tokenRead || Date.now() - tokenRead.at > 5 * 60_000)
     tokenRead = { value: readGhToken(), at: Date.now() }
@@ -351,37 +320,110 @@ export function checkBackoff() {
     )
 }
 
-async function requestApi(args: string[], body?: string): Promise<unknown> {
-  checkBackoff()
-  const restGet = args.length === 1 && args[0] !== 'graphql' && body === undefined
-  const key = args[0]!
-  const cached = restGet ? cacheRead(restCache, key) : undefined
-  const { out, detail, code } = await gh(
+type ApiRequest = { method: string; path: string; body?: string }
+type ApiResponse = { status: number; headers: Headers; text: string; detail: string }
+
+// Points the API at a stand-in (the perf lab's fake GitHub), which is never sent the login.
+const apiUrl = process.env.JETTY_GITHUB_API_URL
+
+async function fetchApi(request: ApiRequest, etag?: string, token?: string): Promise<ApiResponse> {
+  const response = await fetch(`${apiUrl ?? 'https://api.github.com'}/${request.path}`, {
+    method: request.method,
+    body: request.body,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Jetty',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(etag ? { 'If-None-Match': etag } : {}),
+    },
+    signal: AbortSignal.timeout(20_000),
+  })
+  return {
+    status: response.status,
+    headers: response.headers,
+    text: await response.text(),
+    detail: '',
+  }
+}
+
+// The same request through gh, when its login can't be read.
+async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiResponse> {
+  const bin = Bun.which('gh')
+  if (!bin) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
+  const child = Bun.spawn(
     [
+      bin,
       'api',
       '--hostname',
       'github.com',
       '--include',
-      ...args,
-      ...(cached ? ['-H', `If-None-Match: ${cached.etag}`] : []),
-      ...(body === undefined ? [] : ['--input', '-']),
+      '--method',
+      request.method,
+      request.path,
+      ...(etag ? ['-H', `If-None-Match: ${etag}`] : []),
+      ...(request.body === undefined ? [] : ['--input', '-']),
     ],
-    body
+    {
+      stdin: request.body === undefined ? 'ignore' : new Blob([request.body]),
+      stdout: 'pipe',
+      stderr: 'pipe',
+      signal: AbortSignal.timeout(20_000),
+    }
   )
+  const [out, err, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ])
   const split = out.search(/\r?\n\r?\n/)
   const headerText = split >= 0 ? out.slice(0, split) : ''
-  const raw = split >= 0 ? out.slice(split).trim() : out
   const status = Number(headerText.match(/^HTTP\/\S+\s+(\d+)/)?.[1]) || (code === 0 ? 200 : 0)
+  if (!status) throw new GhFailure('unavailable', err.trim() || 'GitHub API is unavailable')
   const headers = new Headers()
   for (const line of headerText.split(/\r?\n/).slice(1)) {
     const colon = line.indexOf(':')
     if (colon > 0) headers.set(line.slice(0, colon).trim(), line.slice(colon + 1).trim())
   }
+  return { status, headers, text: split >= 0 ? out.slice(split).trim() : out, detail: err.trim() }
+}
+
+async function sendApi(request: ApiRequest, etag?: string) {
+  if (apiUrl) return fetchApi(request, etag)
+  const token = await ghToken()
+  if (!token) return ghRequest(request, etag)
+  const response = await fetchApi(request, etag, token)
+  if (response.status !== 401) return response
+  // gh may have refreshed its login since it was read.
+  tokenRead = undefined
+  const fresh = await ghToken()
+  return fresh && fresh !== token ? fetchApi(request, etag, fresh) : response
+}
+
+async function requestApi(request: ApiRequest): Promise<unknown> {
+  checkBackoff()
+  const restGet = request.method === 'GET'
+  const cached = restGet ? cacheRead(restCache, request.path) : undefined
+  const started = performance.now()
+  let response: ApiResponse
+  try {
+    response = await sendApi(request, cached?.etag)
+  } catch (error) {
+    throw error instanceof GhFailure
+      ? error
+      : new GhFailure('unavailable', 'GitHub API is unavailable')
+  }
+  const { status, headers, text, detail } = response
+  if (process.env.JETTY_PR_FETCH_DEBUG === '1')
+    console.debug(
+      `[pr-api] ${request.method} ${request.path} ${(request.body ?? '').replace(/\s+/g, ' ').slice(0, 400)} status=${status} ms=${Math.round(performance.now() - started)} bytes=${text.length}`
+    )
   let value: unknown = null
   try {
-    if (raw) value = JSON.parse(raw)
+    if (text) value = JSON.parse(text)
   } catch {
-    if (code === 0 && status !== 304)
+    if (status < 400 && status !== 304)
       throw new GhFailure('unavailable', 'Invalid response from GitHub')
   }
   const errors = record(value).errors
@@ -403,13 +445,14 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
     [string(record(value).message), ...errorDetails].filter(Boolean).join('; ') || detail
   observeRateLimit(headers, value, status, message)
   if (status === 304 && cached) return cached.value
+  const graph = request.path === 'graphql'
   const partialGraph =
-    args.includes('graphql') &&
+    graph &&
     Boolean(record(value).data) &&
     errors &&
     status < 400 &&
     !/rate limit|abuse detection/i.test(message)
-  if (!partialGraph && (code !== 0 || status >= 400 || errors)) {
+  if (!partialGraph && (status >= 400 || errors)) {
     if (
       status === 429 ||
       (status === 403 && backingOff()) ||
@@ -417,7 +460,7 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
     )
       throw new GhFailure('rate_limited', message || 'GitHub rate limit reached', status)
     if (
-      args.includes('graphql') &&
+      graph &&
       Array.isArray(errors) &&
       errors.some((error) => ['FORBIDDEN', 'NOT_FOUND'].includes(string(record(error).type)))
     )
@@ -426,25 +469,34 @@ async function requestApi(args: string[], body?: string): Promise<unknown> {
       throw new GhFailure('not_found', 'Pull request not found or access denied', status)
     throw new GhFailure('unavailable', message || 'GitHub API is unavailable', status)
   }
-  if (restGet && headerText)
-    cacheWrite(restNext, key, /rel="next"/.test(headers.get('link') ?? ''), 512)
-  if (restGet && headers.get('etag')) {
-    cacheWrite(restCache, key, { etag: headers.get('etag')!, value }, 512)
+  if (restGet) {
+    cacheWrite(restNext, request.path, /rel="next"/.test(headers.get('link') ?? ''), 512)
+    const etag = headers.get('etag')
+    if (etag) cacheWrite(restCache, request.path, { etag, value }, 512)
   }
   return value
 }
 
-export async function ghApi(...args: string[]): Promise<unknown> {
-  const key = JSON.stringify(args)
+function shared(key: string, request: () => Promise<unknown>) {
   const existing = apiInFlight.get(key)
   if (existing) return existing
-  const promise = requestApi(args)
+  const promise = request().finally(() => apiInFlight.delete(key))
   apiInFlight.set(key, promise)
-  try {
-    return await promise
-  } finally {
-    apiInFlight.delete(key)
-  }
+  return promise
+}
+
+// REST reads share in-flight requests and revalidate with their ETags.
+export function restGet(path: string) {
+  return shared(path, () => requestApi({ method: 'GET', path }))
+}
+
+function graphql(query: string, variables: Record<string, string> = {}) {
+  const body = JSON.stringify({ query, variables })
+  return shared(body, () => requestApi({ method: 'POST', path: 'graphql', body }))
+}
+
+function githubWrite(method: string, path: string, body: string) {
+  return requestApi({ method, path, body })
 }
 
 type DiffContents = string | null | { unavailable: 'tooLarge' | 'binary' }
@@ -480,7 +532,7 @@ async function fetchDiffContents(repo: string, sha: string, path: string): Promi
   const encodedPath = path.split('/').map(encodeURIComponent).join('/')
   let response: Record<string, unknown>
   try {
-    response = record(await ghApi(`repos/${repo}/contents/${encodedPath}?ref=${sha}`))
+    response = record(await restGet(`repos/${repo}/contents/${encodedPath}?ref=${sha}`))
   } catch (error) {
     if (error instanceof GhFailure && error.kind === 'not_found') return null
     throw error
@@ -515,7 +567,7 @@ function cachedMergeBase(repo: string, baseSha: string, headSha: string) {
   const key = `${repo}\0${baseSha}\0${headSha}`
   const existing = cacheRead(mergeBaseCache, key)
   if (existing) return existing
-  const pending = ghApi(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`).then(
+  const pending = restGet(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`).then(
     (response) => {
       const sha = string(record(record(response).merge_base_commit).sha)
       if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('GitHub merge base unavailable')
@@ -559,7 +611,7 @@ export async function pullRequestDiffFile(params: {
 async function queryGraphql(query: string): Promise<unknown> {
   for (const size of [100, 50, 25, 10]) {
     try {
-      return await ghApi('graphql', '-f', `query=${query.replaceAll('first:100', `first:${size}`)}`)
+      return await graphql(query.replaceAll('first:100', `first:${size}`))
     } catch (error) {
       if (
         !(error instanceof GhFailure) ||
@@ -716,16 +768,12 @@ async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unk
       const cursor = string(record(connection.pageInfo).endCursor)
       if (!cursor) break
       const response = record(
-        await ghApi(
-          'graphql',
-          '-f',
-          `query=query {
+        await graphql(`query {
         rateLimit { cost remaining resetAt }
         node(id:${JSON.stringify(thread.id)}) { ... on PullRequestReviewThread {
           comments(first:100,after:${JSON.stringify(cursor)}) { ${pageFields} nodes { ${reviewCommentFields} } }
         } }
-      }`
-        )
+      }`)
       )
       const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
       if (errors.some((error) => Array.isArray(error.path) && error.path[0] === 'node')) {
@@ -756,7 +804,7 @@ async function ghPages(path: string, total?: number): Promise<unknown[]> {
   const items: unknown[] = []
   for (let page = 1; page <= 30; page++) {
     const endpoint = `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${page}`
-    const result = await ghApi(endpoint)
+    const result = await restGet(endpoint)
     if (!Array.isArray(result)) throw new GhFailure('unavailable', 'Invalid GitHub file list')
     items.push(...result)
     if (page === 1 && total && total > 100 && cacheRead(restNext, endpoint) !== false) {
@@ -769,7 +817,7 @@ async function ghPages(path: string, total?: number): Promise<unknown[]> {
           pages,
           (next) =>
             Effect.promise(async () => {
-              const result = await ghApi(
+              const result = await restGet(
                 `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${next}`
               )
               if (!Array.isArray(result))
@@ -1023,10 +1071,7 @@ async function classifyFiles(
     let response: Record<string, unknown>
     try {
       response = record(
-        await ghApi(
-          'graphql',
-          '-f',
-          `query=query {
+        await graphql(`query {
       rateLimit { cost remaining resetAt }
       ${batch
         .map(([, item], index) => {
@@ -1045,8 +1090,7 @@ async function classifyFiles(
       }`
           : ''
       }
-    }`
-        )
+    }`)
       )
     } catch (error) {
       if (!(error instanceof GhFailure) || error.kind !== 'unavailable' || batch.length < 2)
@@ -1114,7 +1158,7 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
     let parentSha: string | null = null
     for (let page = 1; page <= 30; page++) {
       const endpoint = `repos/${repo}/commits/${sha}?per_page=100&page=${page}`
-      const result = record(await ghApi(endpoint))
+      const result = record(await restGet(endpoint))
       if (page === 1)
         parentSha = string(record((result.parents as unknown[] | undefined)?.[0]).sha) || null
       const values = (result.files as unknown[] | undefined) ?? []
@@ -1211,11 +1255,7 @@ async function fetchPullRequest(
   let references = graph.references
   if (missing.length) {
     const response = record(
-      await ghApi(
-        'graphql',
-        '-f',
-        `query=query { rateLimit { cost remaining resetAt } ${pullRequestReferenceFields(missing, 0)} }`
-      )
+      await graphql(`query { rateLimit { cost remaining resetAt } ${pullRequestReferenceFields(missing, 0)} }`)
     )
     references = [...references, ...mapPullRequestReferences(response.data, missing, 0)]
   }
@@ -1345,7 +1385,7 @@ async function fetchPullRequest(
 }
 
 async function fetchReviewerCandidates(repo: string, search: string) {
-  const [owner, name] = repo.split('/')
+  const [owner = '', name = ''] = repo.split('/')
   const query = `query($owner:String!,$name:String!,$search:String) {
     rateLimit { cost remaining resetAt }
     repository(owner:$owner,name:$name) { assignableUsers(first:100,query:$search) {
@@ -1353,18 +1393,7 @@ async function fetchReviewerCandidates(repo: string, search: string) {
       nodes { login name avatarUrl url }
     } }
   }`
-  const response = record(
-    await ghApi(
-      'graphql',
-      '-f',
-      `query=${query}`,
-      '-f',
-      `owner=${owner}`,
-      '-f',
-      `name=${name}`,
-      ...(search ? ['-f', `search=${search}`] : [])
-    )
-  )
+  const response = record(await graphql(query, { owner, name, ...(search ? { search } : {}) }))
   const users = record(record(record(response.data).repository).assignableUsers)
   const candidates: ReviewerCandidate[] = []
   for (const value of (users.nodes as unknown[] | undefined) ?? []) {
@@ -1422,12 +1451,9 @@ async function sendReviewRequest(
   kind = 'user'
 ) {
   const reviewer = canonicalLogin(login) === 'Copilot' ? copilotWriteLogin : login
-  return requestApi(
-    [
-      '--method',
-      requested ? 'POST' : 'DELETE',
-      `repos/${ref.repo}/pulls/${ref.number}/requested_reviewers`,
-    ],
+  return githubWrite(
+    requested ? 'POST' : 'DELETE',
+    `repos/${ref.repo}/pulls/${ref.number}/requested_reviewers`,
     JSON.stringify(
       kind === 'team'
         ? { team_reviewers: [login], reviewers: [] }
@@ -2089,10 +2115,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       'title',
       (data) => ({ ...data, pull: { ...data.pull, title } }),
       () =>
-        requestApi(
-          ['--method', 'PATCH', `repos/${ref.repo}/pulls/${ref.number}`],
-          JSON.stringify({ title })
-        ),
+        githubWrite('PATCH', `repos/${ref.repo}/pulls/${ref.number}`, JSON.stringify({ title })),
       (data, result) => ({
         ...data,
         pull: {
@@ -2112,11 +2135,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       ref,
       'body',
       (data) => ({ ...data, pull: { ...data.pull, body } }),
-      () =>
-        requestApi(
-          ['--method', 'PATCH', `repos/${ref.repo}/pulls/${ref.number}`],
-          JSON.stringify({ body })
-        ),
+      () => githubWrite('PATCH', `repos/${ref.repo}/pulls/${ref.number}`, JSON.stringify({ body })),
       (data, result) => ({
         ...data,
         pull: {
@@ -2130,8 +2149,9 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   async function mutate(name: string, input: Record<string, unknown>, fields: string) {
     const response = record(
-      await requestApi(
-        ['graphql'],
+      await githubWrite(
+        'POST',
+        'graphql',
         JSON.stringify({
           query: `mutation($input:${name[0]!.toUpperCase()}${name.slice(1)}Input!) {
       ${name}(input:$input) { ${fields} }
@@ -2169,11 +2189,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       }),
       async () => {
         const response = record(
-          await ghApi(
-            'graphql',
-            '-f',
-            `query=${pullRequestGraphqlQuery([ref], 'id state isDraft merged')}`
-          )
+          await graphql(pullRequestGraphqlQuery([ref], 'id state isDraft merged'))
         )
         if (response.errors)
           throw new GhFailure('unavailable', 'GitHub could not read pull request state')
@@ -2184,8 +2200,9 @@ export function createPullRequests(store: Store, hub: Hub) {
           throw new StoreError('invalid_params', 'A merged pull request cannot change state')
         if (state === 'closed' || pull.state === 'CLOSED') {
           const result = record(
-            await requestApi(
-              ['--method', 'PATCH', `repos/${ref.repo}/pulls/${ref.number}`],
+            await githubWrite(
+              'PATCH',
+              `repos/${ref.repo}/pulls/${ref.number}`,
               JSON.stringify({ state: state === 'closed' ? 'closed' : 'open' })
             )
           )
@@ -2257,12 +2274,9 @@ export function createPullRequests(store: Store, hub: Hub) {
             'invalid_params',
             'Reply requires the root comment of this pull request thread'
           )
-        return requestApi(
-          [
-            '--method',
-            'POST',
-            `repos/${ref.repo}/pulls/${ref.number}/comments/${commentId}/replies`,
-          ],
+        return githubWrite(
+          'POST',
+          `repos/${ref.repo}/pulls/${ref.number}/comments/${commentId}/replies`,
           JSON.stringify({ body })
         )
       },
@@ -2371,8 +2385,9 @@ export function createPullRequests(store: Store, hub: Hub) {
       (data) => data,
       async () => {
         const result = record(
-          await requestApi(
-            ['--method', 'PUT', `repos/${ref.repo}/pulls/${ref.number}/merge`],
+          await githubWrite(
+            'PUT',
+            `repos/${ref.repo}/pulls/${ref.number}/merge`,
             JSON.stringify({ merge_method: mergeMethod, sha })
           )
         )
@@ -2607,10 +2622,7 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
   const searches = tabs.flatMap(listSearches)
   // New identities force a full read; only cached PRs need a checks connection.
   // nodes(ids:) avoids multiplying that connection by each search's requested size.
-  const response = await ghApi(
-    'graphql',
-    '-f',
-    `query=query {
+  const response = await graphql(`query {
     rateLimit { cost remaining resetAt }
     ${searches
       .map(
@@ -2633,8 +2645,7 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
     } }`
     ).join('\n')}
 
-  }`
-  )
+  }`)
   const data = record(record(response).data)
   const commits = new Map<string, unknown>()
   for (let index = 0; index < Math.ceil(ids.length / 100); index++) {
@@ -2661,11 +2672,9 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
 
 async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   const { searches, query } = pullRequestListGraphqlQuery(tabs)
-  const response = await ghApi(
-    'graphql',
-    '-f',
-    `query=${query}`,
-    ...searches.flatMap((search, index) => ['-f', `q${index}=${search}`])
+  const response = await graphql(
+    query,
+    Object.fromEntries(searches.map((search, index) => [`q${index}`, search]))
   )
   return tabs.map((tab, index) => ({
     signature: listSignature(response, index),
