@@ -711,6 +711,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             Effect.sync(() => {
               session.reason = reason
               session.accepting = false
+              // A steer still waiting on its cancellation would otherwise start a fresh prompt.
+              session.next = undefined
               return session.promptId
             })
           )

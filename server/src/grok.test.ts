@@ -211,6 +211,18 @@ test('steering cancels then prompts, ignores old completion, and preserves one l
   expect(f.log().filter((m) => m.method === 'session/prompt')).toHaveLength(2)
 })
 
+test('stop while a steer waits on its cancellation ends the turn without prompting the steer', async () => {
+  const f = await setup()
+  const turn = await f.start('steer')
+  await until(f.events, (e) => e.type === 'turn.started')
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  expect(await Effect.runPromise(f.agent.steer(f.threadId, 'new'))).toBe(true)
+  await Effect.runPromise(f.agent.interrupt(f.threadId))
+  await Effect.runPromise(turn.await).catch(() => {})
+  expect(f.events.filter((e) => e.type === 'turn.failed')).toHaveLength(1)
+  expect(f.log().filter((m) => m.method === 'session/prompt')).toHaveLength(1)
+})
+
 test('interrupt settles approval items and preserves the warm process', async () => {
   const f = await setup()
   const turn = await f.start('approval')
