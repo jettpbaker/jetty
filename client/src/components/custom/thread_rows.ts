@@ -15,6 +15,7 @@ type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
 type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
+type CompactionItem = Extract<ThreadItem, { kind: 'compaction' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
 type StepItem = WorkItem | AssistantItem
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
@@ -41,7 +42,7 @@ export type ThreadRow =
       elapsedSeconds?: number
       restarted?: boolean
     }
-  | { kind: 'compaction'; id: string; item: Extract<ThreadItem, { kind: 'compaction' }> }
+  | { kind: 'compaction'; id: string; item: CompactionItem }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }

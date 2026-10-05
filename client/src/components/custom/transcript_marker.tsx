@@ -1,8 +1,11 @@
+import type { ThreadItem } from '@jetty/shared/items'
+
 import { Tick02Icon, Comment01Icon, Cancel01Icon } from '@/components/custom/huge_icons'
 
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
 import { SourceLabel } from './source_label'
+import { formatSubagentTokens } from './subagent_row'
 
 type Tone = 'allow' | 'deny' | 'answer' | 'dismiss'
 
@@ -105,5 +108,21 @@ export function TranscriptMarker({
       )}
       <span className='flex min-w-0 items-center gap-1.5'>{text}</span>
     </div>
+  )
+}
+
+export function CompactionMarker({ item }: { item: Extract<ThreadItem, { kind: 'compaction' }> }) {
+  const before = item.tokensBefore !== undefined && formatSubagentTokens(item.tokensBefore)
+  const after = item.tokensAfter !== undefined && formatSubagentTokens(item.tokensAfter)
+  const tokens =
+    before && after
+      ? `${before} → ${after} tokens`
+      : before
+        ? `${before} tokens before`
+        : after && `${after} tokens after`
+  return (
+    <p className='text-center text-xs text-muted-foreground'>
+      Conversation compacted{tokens && ` · ${tokens}`}
+    </p>
   )
 }
