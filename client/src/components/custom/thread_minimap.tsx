@@ -22,8 +22,9 @@ const emptyView: View = { current: null, first: -1, last: -1 }
 
 // Row indices of the user's messages; stable while streaming only grows the last turn.
 export function useTurns(rows: readonly ThreadRow[]) {
-  const key = rows.flatMap((row, index) => (row.kind === 'user' ? [index] : [])).join()
-  return useMemo(() => (key ? key.split(',').map(Number) : []), [key])
+  let key = ''
+  for (const [index, row] of rows.entries()) if (row.kind === 'user') key += `,${index}`
+  return useMemo(() => (key ? key.slice(1).split(',').map(Number) : []), [key])
 }
 
 function compact(text: string | undefined) {
@@ -47,7 +48,19 @@ function turnPreview(rows: readonly ThreadRow[], index: number) {
   }
 }
 
-// The first turn whose message is on screen, else the last one scrolled past.
+// The first index in [low, high) that passes a test that, once passed, passes for the rest.
+function search(low: number, high: number, passes: (index: number) => boolean) {
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (passes(middle)) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
+// The first turn whose message is on screen, else the last one scrolled past. Rows lie in order,
+// so binary search finds them, reading a few of the virtualizer's (lazily built) measurements
+// rather than every turn's on each scroll.
 function viewOf(
   element: HTMLElement,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
@@ -55,18 +68,15 @@ function viewOf(
 ): View {
   const top = element.scrollTop
   const bottom = top + element.clientHeight
-  let first = -1
-  let last = -1
-  let preceding: number | null = null
-  for (const [index, row] of turns.entries()) {
-    const item = virtualizer.measurementsCache[row]
-    if (!item) continue
-    if (item.start < bottom && item.start + Math.max(1, item.size) > top) {
-      if (first === -1) first = index
-      last = index
-    } else if (item.start <= top) preceding = index
-  }
-  return { current: first === -1 ? preceding : first, first, last }
+  const cache = virtualizer.measurementsCache
+  const at = (turn: number) => cache[turns[turn]!]!
+  // A row the virtualizer hasn't counted yet has no measurement.
+  const measured = search(0, turns.length, (turn) => turns[turn]! >= cache.length)
+  const first = search(0, measured, (turn) => at(turn).start + Math.max(1, at(turn).size) > top)
+  const end = search(first, measured, (turn) => at(turn).start >= bottom)
+  if (first < end) return { current: first, first, last: end - 1 }
+  const preceding = search(0, measured, (turn) => at(turn).start > top) - 1
+  return { current: preceding >= 0 ? preceding : null, first: -1, last: -1 }
 }
 
 // Moves the ticks, fading each end of the rail as far as ticks hide past it, up to `fade`.
