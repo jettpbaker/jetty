@@ -523,6 +523,12 @@ export function createWorktrees(
       if (!record) return
       if (await exists(folder)) {
         if (!deleting && (await changes(folder))) throw new StoreError('conflict', dirtyArchive)
+        // Resume checks out the branch the worktree is on now, wherever its work moved.
+        const current = deleting ? '' : await tryGit(folder, 'branch', '--show-current')
+        if (current && current !== record.branch) {
+          record.branch = current
+          record.temporaryBranch = null
+        }
         await git(
           project.path,
           'worktree',
