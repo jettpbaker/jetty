@@ -101,6 +101,48 @@ for (const expireFirst of [false, true]) {
   })
 }
 
+test('Stop pauses a queued upload still persisting while no turn is active', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const entered = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const persist = f.attachments.persist
+      f.attachments.persist = (uploads) =>
+        Deferred.succeed(entered, undefined).pipe(
+          Effect.andThen(Deferred.await(release)),
+          Effect.andThen(persist(uploads))
+        )
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        attachments: f.attachments,
+      })
+      const messageId = newId()
+      const adding = yield* orch
+        .enqueue(f.thread.id, messageId, 'later', [upload])
+        .pipe(Effect.forkScoped)
+      yield* Deferred.await(entered)
+      expect(orch.currentTurn(f.thread.id)).toBeNull()
+      expect((yield* f.store.requireThread(f.thread.id)).pendingMessages ?? []).toEqual([])
+      yield* orch.interrupt(f.thread.id)
+      expect((yield* f.store.requireThread(f.thread.id)).queuePaused).toBe(true)
+      yield* Deferred.succeed(release, undefined)
+      yield* Fiber.join(adding)
+      yield* orch.resumeQueues()
+      yield* TestClock.adjust(1000)
+      expect(orch.currentTurn(f.thread.id)).toBeNull()
+      expect((yield* f.store.requireThread(f.thread.id)).pendingMessages).toMatchObject([
+        { id: messageId },
+      ])
+      yield* orch.sendQueuedNow(f.thread.id, messageId)
+      expect(orch.currentTurn(f.thread.id)).not.toBeNull()
+      expect((yield* f.store.requireThread(f.thread.id)).queuePaused).toBe(false)
+    }).pipe(Effect.provide(TestClock.layer()))
+  )
+})
+
 for (const kind of ['image', 'video'] as const) {
   for (const failure of ['abort', 'publication'] as const) {
     test(`${kind} media keeps its attachment when ${failure} interrupts a durable orchestrator append`, async () => {

@@ -190,13 +190,9 @@ export function createOrchestrator({
     function interruptAdmittedThread(threadId: string) {
       return Effect.gen(function* () {
         const agent = yield* agentForThread(threadId)
-        // Stop landing between one turn's end and the next queued message's start holds the queue.
-        if (!state(threadId).turnId) {
-          if ((yield* store.requireThread(threadId)).pendingMessages?.length)
-            yield* setQueuePaused(threadId, true)
-          return
-        }
+        // An earlier queued upload may still be persisting between turns.
         yield* setQueuePaused(threadId, true)
+        if (!state(threadId).turnId) return
         yield* agent.interrupt(threadId)
       })
     }
