@@ -67,7 +67,8 @@ export function pullRequestChanges(
   previous: PullRequestData,
   next: PullRequestData,
   since: number,
-  failedBefore: boolean
+  failedBefore: boolean,
+  checkEpisode = 0
 ): PullRequestChange[] {
   const { pull } = next
   if (pull.merged) {
@@ -117,7 +118,7 @@ export function pullRequestChanges(
               : names.join(', '),
         }),
       },
-      keys: [`failed:${head}`],
+      keys: [`failed:${head}:${checkEpisode + 1}`],
       group: 'watchChecks',
       wakes: true,
       text: [
@@ -229,7 +230,7 @@ export function pullRequestChanges(
   if (rollup === 'success' && (before === 'failure' || failedBefore) && !ready)
     changes.push({
       activity: { type: 'checks_passed' },
-      keys: [`passed:${head}`],
+      keys: [`passed:${head}:${checkEpisode}`],
       group: 'watchChecks',
       wakes: false,
       text: `- Checks pass on ${short} now.`,
@@ -267,6 +268,7 @@ export type PullRequestWatchMemory = {
   // Keys of changes already told, newest last.
   fired: string[]
   observedAt?: number
+  checkEpisode?: number
   // Checks failed since they last passed.
   failing?: boolean
   // When it woke its thread in the last hour.
@@ -408,12 +410,16 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
           return
         }
         const seen = new Set(memory.fired)
-        const changes = pullRequestChanges(
+        const detected = pullRequestChanges(
           previous.data,
           next,
           Math.max((previous.dataRefreshedAt ?? 0) - LATE_MS, now - STALE_MS),
-          memory.failing ?? false
-        ).filter(
+          memory.failing ?? false,
+          memory.checkEpisode ?? 0
+        )
+        if (detected.some((change) => change.activity.type === 'checks_failed'))
+          memory.checkEpisode = (memory.checkEpisode ?? 0) + 1
+        const changes = detected.filter(
           (change) =>
             (!change.group || settings[change.group]) && change.keys.some((each) => !seen.has(each))
         )

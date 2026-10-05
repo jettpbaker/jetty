@@ -293,3 +293,48 @@ test('failed deliveries retry persisted news with bounded backoff', async () => 
     for (const timer of scheduled.keys()) clearTimeout(timer)
   }
 })
+
+test('separate CI failure episodes on the same SHA survive persistent dedupe', async () => {
+  const f = await setup()
+  await f.thread('owner/repo')
+  const ref = { repo: 'owner/repo', number: 1 }
+  let previous = { ...data(), checkRollupState: 'SUCCESS' }
+  for (const state of ['FAILURE', 'SUCCESS', 'FAILURE', 'SUCCESS']) {
+    const next = { ...previous, checkRollupState: state }
+    const watch = createPullRequestWatch(f.store, {
+      pullRequestActivity: () => Effect.void,
+    } as unknown as Orchestrator)
+    await f.runtime.runPromise(
+      watch.changed(
+        ref,
+        { ...ref, status: 'ready', data: previous, dataRefreshedAt: Date.now() },
+        next
+      )
+    )
+    previous = next
+  }
+  const memory = await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))
+  expect(memory.checkEpisode).toBe(2)
+  expect(memory.fired.filter((key) => key.startsWith('failed:'))).toEqual([
+    'failed:abc:1',
+    'failed:abc:2',
+  ])
+  expect(memory.fired.filter((key) => key.startsWith('passed:'))).toEqual([
+    'passed:abc:1',
+    'passed:abc:2',
+  ])
+  expect(memory.pending?.changes.filter((change) => change.wakes)).toHaveLength(2)
+  const same = createPullRequestWatch(f.store, {
+    pullRequestActivity: () => Effect.void,
+  } as unknown as Orchestrator)
+  await f.runtime.runPromise(
+    same.changed(
+      ref,
+      { ...ref, status: 'ready', data: previous, dataRefreshedAt: Date.now() },
+      previous
+    )
+  )
+  expect(
+    (await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))).checkEpisode
+  ).toBe(2)
+})
