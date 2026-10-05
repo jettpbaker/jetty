@@ -376,6 +376,11 @@ export function AppSidebar() {
                   <motion.div
                     key={thread.id}
                     data-thread-row
+                    className={
+                      thread.archived && thread.id !== selectedId
+                        ? 'opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100'
+                        : undefined
+                    }
                     layout={reducedMotion ? false : 'position'}
                     layoutDependency={layoutDependency}
                     initial={false}
