@@ -323,7 +323,10 @@ export function createRpcHandlers(
           const thread = yield* upsertThread(
             store.transaction(
               Effect.gen(function* () {
-                yield* store.createThread(params.projectId, params.id)
+                // A create for the same id may have landed while this one resolved its environment.
+                const raced = yield* store.getThread(params.id)
+                const thread = yield* store.createThread(params.projectId, params.id)
+                if (raced) return thread
                 yield* store.setThreadEnvironment(params.id, baseCommit)
                 return yield* store.requireThread(params.id)
               })

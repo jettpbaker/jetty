@@ -1236,6 +1236,36 @@ describe('server skeleton', () => {
     await c.close()
   })
 
+  test('thread.create racing another for the same id keeps the first environment', async () => {
+    const repo = dir(join(tmpdir(), `jetty-create-race-${newId()}`))
+    const git = (...args: string[]) => Bun.spawnSync(['git', ...args], { cwd: repo }).exitCode
+    if (git('init', '-q') !== 0) return // git unavailable in this sandbox
+    git(
+      '-c',
+      'user.email=t@example.com',
+      '-c',
+      'user.name=T',
+      'commit',
+      '-q',
+      '--allow-empty',
+      '-m',
+      'init'
+    )
+    const { port, store } = await boot()
+    const c = await connect(port)
+    const { project } = await c.request('project.create', { path: repo })
+    const id = newId()
+    const create = (environment: 'local' | 'worktree') =>
+      c.request('thread.create', { environment, id, projectId: project.id })
+
+    const [worktree, local] = await Promise.all([create('worktree'), create('local')])
+    const stored = await Effect.runPromise(store.requireThread(id))
+    expect(worktree.thread).toEqual(local.thread)
+    expect(stored.environment).toBe(local.thread.environment)
+
+    await c.close()
+  })
+
   // The client sends these again when its connection drops before the reply.
   test('turn.start and queue.add sent again with the same message id are taken once', async () => {
     const running = await boot()
