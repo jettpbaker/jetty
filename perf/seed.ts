@@ -6,9 +6,9 @@ import type { Client } from '@jetty/server/src/rpc-test-client'
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
-import { perfDir, startServer, type GhMode, type Tree } from './app'
+import { perfDir, repoRoot, startServer, type GhMode, type Tree } from './app'
 
 export const prRepo = 'jettpbaker/pr-lab'
 export const prNumbers = [1, 2, 3, 4]
@@ -43,9 +43,34 @@ export async function goldenHome(tree: Tree, opts: { force?: boolean } = {}): Pr
     return { dir, home: join(dir, 'home'), fixtures: await Bun.file(ready).json() }
   console.log(`seeding golden home ${dir}…`)
   await rm(dir, { recursive: true, force: true })
-  const fixtures = await seedHome({ tree, dir, gh: { mode: 'replay' } })
+  const fixtures =
+    tree.dir !== repoRoot && (await seedWithOwnLab(tree, ready))
+      ? await Bun.file(ready).json()
+      : await seedHome({ tree, dir, gh: { mode: 'replay' } })
   await Bun.write(ready, JSON.stringify(fixtures, null, 2))
   return { dir, home: join(dir, 'home'), fixtures }
+}
+
+// Another checkout (a compare's base) seeds with its own lab when it has one: its server may
+// speak an older protocol than this lab's client, or make GitHub calls this lab's fixtures lack.
+async function seedWithOwnLab(tree: Tree, ready: string) {
+  if (!existsSync(join(tree.dir, 'perf/seed.ts'))) return false
+  const script = `
+    const { seedHome } = await import('./perf/seed.ts')
+    const tree = { label: 'seed', dir: process.cwd(), sha: '', dispose: async () => {} }
+    const fixtures = await seedHome({ tree, dir: process.env.SEED_DIR, gh: { mode: 'replay' } })
+    await Bun.write(process.env.SEED_READY, JSON.stringify(fixtures))
+    process.exit(0)`
+  const child = Bun.spawn(['bun', '-e', script], {
+    cwd: tree.dir,
+    env: { ...process.env, SEED_DIR: dirname(ready), SEED_READY: ready },
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  if ((await child.exited) === 0 && existsSync(ready)) return true
+  console.log(`${tree.label}'s own lab couldn't seed; seeding with this one`)
+  await rm(dirname(ready), { recursive: true, force: true })
+  return false
 }
 
 // Clones the golden home for one server; the project repo stays shared and read-only.
