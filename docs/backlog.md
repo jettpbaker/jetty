@@ -177,8 +177,6 @@ Everything below is for one combined review of the chat, not separate ports.
 - Usage: the page can say "Couldn't refresh" while a turn reported fresher limits
   (`provider-usage.ts` ~121). Grok's context ring is unverified mid-turn: it may
   only move at turn end.
-- Search pickers: `.search-picker [data-slot='command'] { border-radius: 0 !important }`
-  (`option_picker.css`) never applies; Tailwind's layered `rounded-xl!` wins.
 - PR view: a PR with over 100 check contexts or generated-banner heads drops the rest
   silently (`pull-request-graphql.ts` ~143, `pull-requests.ts` ~978); a failed
   detection or checks poll publishes no "Couldn't refresh" (`detect`, `refreshChecks`);

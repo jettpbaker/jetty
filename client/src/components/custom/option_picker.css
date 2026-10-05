@@ -1,16 +1,20 @@
+/* Layered: the primitives' rounded-xl! and rounded-lg! are layered !important, which beats any
+   unlayered !important. */
+@layer components {
+  .search-picker [data-slot='command'],
+  .search-picker [data-slot='input-group'] {
+    border-radius: 0 !important;
+  }
+}
 .search-picker [data-slot='command'] {
   padding: 0;
-  border-radius: 0 !important;
 }
 .search-picker [data-slot='command-input-wrapper'] {
   padding: 2px 4px;
 }
 .search-picker [data-slot='input-group'] {
-  height: 22px !important;
   border: 0;
-  border-radius: 0 !important;
   background: transparent;
-  box-shadow: none !important;
 }
 /* 8px after the icon, as a row's gap after its glyph, so the placeholder lines up with the labels below. */
 .search-picker [data-slot='command-input'] {
