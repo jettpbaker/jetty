@@ -46,8 +46,6 @@ export async function uploadGithubAttachment(params: {
   if (!bytes.length || bytes.length > type.maxBytes)
     throw new StoreError('invalid_params', 'Attachment is empty or too large')
   checkBackoff()
-  const token = await ghToken()
-  if (!token) throw new StoreError('internal', 'Sign in with gh auth login to upload attachments')
   const repository = (await restGet(`repos/${params.repo}`, { revalidate: true })) as {
     id?: number
     permissions?: { push?: boolean }
@@ -55,6 +53,9 @@ export async function uploadGithubAttachment(params: {
   if (!repository.permissions?.push)
     throw new StoreError('not_found', 'Attaching files requires write access to the repository')
   if (!repository.id) throw new StoreError('internal', 'GitHub did not return the repository ID')
+  // Read after the repository lookup, which re-reads a login gh has refreshed since.
+  const token = await ghToken()
+  if (!token) throw new StoreError('internal', 'Sign in with gh auth login to upload attachments')
   const target = new URL('https://uploads.github.com/user-attachments/assets')
   target.search = new URLSearchParams({
     name: params.name,
