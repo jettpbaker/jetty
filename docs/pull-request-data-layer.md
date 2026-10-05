@@ -107,7 +107,9 @@ render cached state first. Snapshot publication is serialized; reads overlapping
 discarded by the revision guard.
 
 Requests go straight to `api.github.com` with gh's login, read once every five
-minutes (and again after a 401), over pooled HTTPS connections. Without a readable
+minutes (and again after a 401), over pooled HTTPS connections. Writes and uploads
+read it fresh, so after `gh auth switch` they act as the new account, and a changed
+login drops the ETag and partial-read caches made for the old one. Without a readable
 login they fall back to `gh api`. `JETTY_GITHUB_API_URL` points them at a stand-in,
 the perf lab's fake GitHub, which is never sent the login.
 

@@ -226,11 +226,24 @@ async function readGhToken(): Promise<string | null> {
 
 let tokenRead: { value: Promise<string | null>; at: number } | undefined
 
-// The gh login, read every five minutes rather than spawning gh for every call.
-export function ghToken() {
-  if (!tokenRead || Date.now() - tokenRead.at > 5 * 60_000)
-    tokenRead = { value: readGhToken(), at: Date.now() }
+// The gh login, read every five minutes rather than spawning gh for every call. Writes read it
+// fresh, so after `gh auth switch` they never act as the account switched away from.
+export function ghToken({ fresh = false } = {}) {
+  if (fresh || !tokenRead || Date.now() - tokenRead.at > 5 * 60_000) {
+    const previous = tokenRead?.value
+    const value = readGhToken().then(async (token) => {
+      if (previous && (await previous) !== token) forgetLogin()
+      return token
+    })
+    tokenRead = { value, at: Date.now() }
+  }
   return tokenRead.value
+}
+
+// What GitHub told the previous login, which another account may not be shown the same way.
+function forgetLogin() {
+  restCache.clear()
+  lastPulls.clear()
 }
 
 const rateHealth = {
@@ -325,7 +338,7 @@ export function checkBackoff() {
   if (backingOff()) throw backoffFailure()
 }
 
-type ApiRequest = { method: string; path: string; body?: string }
+type ApiRequest = { method: string; path: string; body?: string; write?: boolean }
 type ApiResponse = { status: number; headers: Headers; text: string; detail: string }
 
 // Points the API at a stand-in (the perf lab's fake GitHub), which is never sent the login.
@@ -402,13 +415,12 @@ async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiRespons
 
 async function sendApi(request: ApiRequest, etag?: string) {
   if (apiUrl) return fetchApi(request, etag)
-  const token = await ghToken()
+  const token = await ghToken({ fresh: request.write })
   if (!token) return ghRequest(request, etag)
   const response = await fetchApi(request, etag, token)
   if (response.status !== 401) return response
   // gh may have refreshed its login since it was read.
-  tokenRead = undefined
-  const fresh = await ghToken()
+  const fresh = await ghToken({ fresh: true })
   return fresh && fresh !== token ? fetchApi(request, etag, fresh) : response
 }
 
@@ -525,7 +537,7 @@ function graphql(query: string, variables: Record<string, string> = {}) {
 }
 
 function githubWrite(method: string, path: string, body: string) {
-  return requestApi({ method, path, body })
+  return requestApi({ method, path, body, write: true })
 }
 
 type DiffContents = string | null | { unavailable: 'tooLarge' | 'binary' }
