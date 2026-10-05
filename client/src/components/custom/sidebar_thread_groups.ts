@@ -17,7 +17,6 @@ export type SidebarThread = {
   project: string
   projectId: string
   projectIcon?: ProjectIcon
-  parent?: string
   status: ThreadStatus
   lastActivity: string
   environment: 'local' | 'worktree'
@@ -39,14 +38,12 @@ export function sidebarThreads(
   threads = chrome.threads
 ): SidebarThread[] {
   const projects = new Map(chrome.projects.map((project) => [project.id, project]))
-  const titles = new Map(chrome.threads.map((thread) => [thread.id, thread.title]))
   return threads.map((thread) => ({
     id: thread.id,
     title: thread.title,
     project: projects.get(thread.projectId)?.title ?? '',
     projectId: thread.projectId,
     projectIcon: projects.get(thread.projectId)?.icon,
-    parent: thread.parentThreadId && titles.get(thread.parentThreadId),
     status: threadStatus(thread.status, thread.readyForReview),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length

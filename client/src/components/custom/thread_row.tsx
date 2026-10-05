@@ -1,7 +1,5 @@
 import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
-import { ArrowMoveDownRightIcon } from '@/components/custom/huge_icons'
-
 import { HeldKeybind, type Keybind } from './keybinds'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -17,7 +15,6 @@ export function ThreadRow({
   project,
   projectId,
   projectIcon,
-  parent,
   status,
   lastActivity,
   pullRequests,
@@ -36,7 +33,6 @@ export function ThreadRow({
   project: string
   projectId: string
   projectIcon?: ProjectIcon
-  parent?: string
   status: ThreadStatus
   lastActivity: string
   pullRequests: readonly ThreadPullRequest[]
@@ -94,17 +90,10 @@ export function ThreadRow({
             }
             metaClassName='gap-2.5'
           >
-            {parent ? (
-              <span className='flex min-w-0 items-center gap-1' title={`Created by ${parent}`}>
-                <ArrowMoveDownRightIcon aria-hidden='true' className='size-3 shrink-0' />
-                <span className='truncate'>{parent}</span>
-              </span>
-            ) : (
-              <span className='flex min-w-0 items-center gap-1' title={project}>
-                <ProjectGlyph icon={projectIcon} className='size-3' />
-                <span className='truncate'>{project}</span>
-              </span>
-            )}
+            <span className='flex min-w-0 items-center gap-1' title={project}>
+              <ProjectGlyph icon={projectIcon} className='size-3' />
+              <span className='truncate'>{project}</span>
+            </span>
             {pullRequests.length > 0 && (
               <span data-pull-request className='flex shrink-0'>
                 <PullRequestMark pullRequests={pullRequests} tooltip={false} />
