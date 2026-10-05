@@ -29,23 +29,39 @@ function WallpaperVideo({ src, playing }: { src: string; playing: boolean }) {
 }
 
 export function NewThreadBackdrop({ visible }: { visible: boolean }) {
-  const { wallpaper: image, video } = useAppearance()
+  const { wallpaper: image, video, backdrop } = useAppearance()
   const resolvedTheme = useResolvedTheme()
   const reducedMotion = useReducedMotion()
-  if (!image && !video) return <DitherDrift />
   const light = resolvedTheme === 'light'
-  const fadeBackground = light ? '#ffffff' : '#000000'
+  const ground = light ? '#ffffff' : '#000000'
+  const fade = { ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }
+  if (!image && !video) {
+    if (backdrop === 'pure')
+      return (
+        <div
+          className='pointer-events-none absolute inset-0'
+          style={{ background: ground }}
+          aria-hidden='true'
+        >
+          <DitherDrift base={ground} />
+        </div>
+      )
+    if (backdrop === 'fade')
+      return (
+        <OpacityFade settings={fade} background={ground}>
+          <DitherDrift />
+        </OpacityFade>
+      )
+    return <DitherDrift />
+  }
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (
-        <OpacityFade settings={videoFadeSettings} background={fadeBackground}>
+        <OpacityFade settings={videoFadeSettings} background={ground}>
           <WallpaperVideo src={video} playing={visible && !reducedMotion} />
         </OpacityFade>
       ) : (
-        <OpacityFade
-          settings={{ ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }}
-          background={fadeBackground}
-        >
+        <OpacityFade settings={fade} background={ground}>
           <DownwardBlur settings={initialBlurSettings} curve={curve}>
             <DriftingDither
               className='wallpaper'

@@ -25,8 +25,9 @@ import {
   saveVideoWallpaper,
   useAppearance,
   type Appearance,
+  type Backdrop,
 } from '@/lib/appearance'
-import { useAnimatedTheme } from '@/lib/theme'
+import { useAnimatedTheme, useResolvedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import { useEffect, useId, useRef, useState } from 'react'
 
@@ -45,6 +46,13 @@ export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
   const themeLabel = themes.find((option) => option.value === theme)?.label
   const appearance = useAppearance()
+  const light = useResolvedTheme() === 'light'
+  const backdrops: { value: Backdrop; label: string }[] = [
+    { value: 'default', label: 'Default' },
+    { value: 'pure', label: light ? 'Pure white' : 'Pure black' },
+    { value: 'fade', label: 'Fade' },
+  ]
+  const backdropLabel = backdrops.find((option) => option.value === appearance.backdrop)?.label
   const wallpaperAccentId = useId()
   const wallpaperTintId = useId()
   const [editing, setEditing] = useState(false)
@@ -89,7 +97,9 @@ export function SettingsAppearance() {
     const [file] = await pickFiles({ accept: 'image/jpeg,image/png,image/webp', multiple: false })
     await upload(file)
   }
-  async function setAuto(change: Partial<Pick<Appearance, 'autoAccent' | 'autoTint'>>) {
+  async function setPreference(
+    change: Partial<Pick<Appearance, 'autoAccent' | 'autoTint' | 'backdrop'>>
+  ) {
     try {
       await saveAppearance({ ...appearance, ...change })
       setError('')
@@ -310,6 +320,38 @@ export function SettingsAppearance() {
           </Button>
         )}
       </div>
+      {!appearance.wallpaper && !appearance.video && (
+        <div className='appearance-option-row'>
+          <span>Backdrop</span>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger
+              aria-label={`Backdrop: ${backdropLabel}`}
+              render={
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
+                />
+              }
+            >
+              {backdropLabel}
+              <ArrowDown01Icon className='size-3' />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuRadioGroup
+                value={appearance.backdrop}
+                onValueChange={(backdrop: Backdrop) => void setPreference({ backdrop })}
+              >
+                {backdrops.map(({ value, label }) => (
+                  <DropdownMenuRadioItem key={value} value={value}>
+                    {label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <DisabledTooltip reason={appearance.wallpaper ? undefined : 'Add a wallpaper first.'}>
         <div
           className='appearance-option-row'
@@ -327,7 +369,7 @@ export function SettingsAppearance() {
             id={wallpaperAccentId}
             disabled={!appearance.wallpaper}
             checked={appearance.autoAccent}
-            onCheckedChange={(autoAccent) => void setAuto({ autoAccent })}
+            onCheckedChange={(autoAccent) => void setPreference({ autoAccent })}
             className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
           />
         </div>
@@ -349,7 +391,7 @@ export function SettingsAppearance() {
             id={wallpaperTintId}
             disabled={!appearance.wallpaper}
             checked={appearance.autoTint}
-            onCheckedChange={(autoTint) => void setAuto({ autoTint })}
+            onCheckedChange={(autoTint) => void setPreference({ autoTint })}
             className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
           />
         </div>
