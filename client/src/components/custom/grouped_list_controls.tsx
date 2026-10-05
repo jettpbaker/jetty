@@ -10,7 +10,8 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 
-import { ListFilterIcon, ListTreeIcon } from './huge_icons'
+import { ListFilterIcon } from './huge_icons'
+import { Settings2Icon } from './lucide_icons'
 
 type Choice<T extends string> = { value: T; label: string }
 
@@ -29,10 +30,18 @@ export function ListFilterMenu<T extends string>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant='ghost-text' tone='muted' size='sm' className='h-7 rounded-sm' />}
+        render={
+          <Button
+            variant='ghost'
+            tone='muted'
+            size='icon'
+            className='relative'
+            aria-label='Filter'
+          />
+        }
       >
         <ListFilterIcon />
-        Filter{active && <span className='size-1 rounded-full bg-primary' />}
+        {active && <span className='absolute top-1 right-1 size-1 rounded-full bg-primary' />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-44'>
         <DropdownMenuGroup>
@@ -65,10 +74,9 @@ export function ListGroupMenu<T extends string>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant='ghost-text' tone='muted' size='sm' className='h-7 rounded-sm' />}
+        render={<Button variant='ghost' tone='muted' size='icon' aria-label='Group by' />}
       >
-        <ListTreeIcon />
-        Group
+        <Settings2Icon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-44'>
         <DropdownMenuRadioGroup

@@ -4,7 +4,12 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 10px;
+  padding: 0 10px 10px;
+}
+/* The top gap sits inside the first group, not the scroller, so a stuck heading meets the
+   scroller's edge with nothing showing above it. */
+.grouped-table-group:first-child {
+  margin-top: 10px;
 }
 .grouped-table-grid {
   display: grid;
@@ -19,7 +24,6 @@
   top: 0;
   z-index: 1;
   isolation: isolate;
-  border-radius: 6px;
   background: var(--background);
 }
 .grouped-table-heading::before {
@@ -27,7 +31,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  border-radius: inherit;
+  border-radius: 6px;
   background:
     linear-gradient(
       90deg,

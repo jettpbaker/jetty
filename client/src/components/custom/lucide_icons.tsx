@@ -1,5 +1,4 @@
 export {
-  BookMarkedIcon,
   CircleSlashIcon,
   CircleIcon,
   CircleDashedIcon,

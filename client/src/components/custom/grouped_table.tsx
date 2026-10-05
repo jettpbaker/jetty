@@ -29,7 +29,7 @@ export type GroupedColumn<T> = {
 export type TableGroup<T> = {
   id: string
   label: string
-  icon: ReactNode
+  icon?: ReactNode
   color: string
   rows: readonly T[]
   defaultCollapsed?: boolean

@@ -35,7 +35,6 @@ import {
   ShieldOffIcon,
 } from './huge_icons'
 import {
-  BookMarkedIcon,
   GitMergeIcon,
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
@@ -128,7 +127,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           id: repo,
           label: repo.split('/').at(-1) ?? repo,
           color: 'var(--muted-foreground)',
-          icon: <BookMarkedIcon className='size-3.5 text-muted-foreground' />,
           rows: rows.filter((pull) => pull.repo === repo),
         }))
       : pullRequestGroupOrder
@@ -171,7 +169,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           <PersonAvatar
             login={pull.author?.login ?? 'Unknown'}
             src={pull.author?.avatar_url}
-            className='size-4'
+            className='size-4.5 after:hidden'
           />
           <span className='sr-only'>{pull.author?.name ?? pull.author?.login ?? 'Unknown'}</span>
         </span>
@@ -207,7 +205,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       priority: 20,
       width: 98,
       render: (pull) => (
-        <span className='flex gap-2 font-mono text-xs tabular-nums'>
+        <span className='ml-auto flex gap-2 font-mono text-xs tabular-nums'>
           <span className='text-pr-open'>+{pull.additions ?? '—'}</span>
           <span className='text-destructive'>−{pull.deletions ?? '—'}</span>
         </span>

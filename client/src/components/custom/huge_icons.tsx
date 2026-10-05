@@ -205,7 +205,6 @@ export const Tag01Icon = hugeIcon(shapes.Tag01Icon)
 export const UserCircleIcon = hugeIcon(shapes.UserCircleIcon)
 
 export const ListFilterIcon = hugeIcon(shapes.ListFilterIcon)
-export const ListTreeIcon = hugeIcon(shapes.ListTreeIcon)
 
 export const FilterHorizontalIcon = hugeIcon(shapes.FilterHorizontalIcon)
 
