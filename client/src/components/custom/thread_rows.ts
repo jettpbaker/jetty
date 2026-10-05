@@ -34,8 +34,17 @@ export type ThreadRow =
       item: AssistantItem
       streaming: boolean
       loadout?: TurnLoadout
+      // What the footer copies; only the last message of a run carries one.
+      footer?: string
     }
-  | { kind: 'plan'; id: string; item: PlanItem; streaming: boolean; loadout?: TurnLoadout }
+  | {
+      kind: 'plan'
+      id: string
+      item: PlanItem
+      streaming: boolean
+      loadout?: TurnLoadout
+      footer?: string
+    }
   | {
       kind: 'work'
       id: string
@@ -583,7 +592,24 @@ export function threadRows(
   }
   // A first message waits on the worktree's setup before the agent starts.
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
+  stitchRuns(rows)
   return reuseRows(allItems[0], rows)
+}
+
+// The agent's messages between two of the user's read as one answer, whatever lands between
+// them (a report, a finish line, more work): one footer at the end, copying the whole run.
+function stitchRuns(rows: ThreadRow[]) {
+  let run: Extract<ThreadRow, { kind: 'assistant' | 'plan' }>[] = []
+  function close() {
+    const last = run.at(-1)
+    if (last) last.footer = run.map((row) => row.item.text).join('\n\n')
+    run = []
+  }
+  for (const row of rows) {
+    if (row.kind === 'user') close()
+    else if (row.kind === 'assistant' || row.kind === 'plan') run.push(row)
+  }
+  close()
 }
 
 const previousRows = new WeakMap<ThreadItem, Map<string, ThreadRow>>()

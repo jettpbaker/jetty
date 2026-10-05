@@ -18,7 +18,7 @@ const outcomes = {
 // A child's report reads as one line in the parent's chat; the parent agent gets the full text.
 export function ChildReports({ reports }: { reports: readonly ChildReport[] }) {
   return (
-    <Message align='start'>
+    <Message align='start' className='pb-4'>
       <MessageContent>
         <Bubble variant='ghost' align='start'>
           <BubbleContent className='flex flex-col gap-1'>
@@ -60,7 +60,7 @@ export function SubagentDone({
   const { color, verb, time } = subagentOutcomes[agent.status]
   const worked = agent.durationMs ? formatActivityDuration(agent.durationMs / 1000) : undefined
   return (
-    <Message align='start'>
+    <Message align='start' className='pb-4'>
       <MessageContent>
         <Bubble variant='ghost' align='start'>
           <BubbleContent>

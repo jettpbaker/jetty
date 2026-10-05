@@ -65,9 +65,9 @@ function captionHeight(id: string, caption: string | undefined, width: number, r
 export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
     case 'subagentDone':
-      return 40
+      return 52
     case 'reports':
-      return 12 + 28 * row.reports.length
+      return 28 + 28 * row.reports.length
     case 'user': {
       const { text, attachments } = row.item
       const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))
@@ -86,7 +86,11 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     }
     case 'assistant':
     case 'plan':
-      return textHeight(row.id, row.item.text, width, false, rough) + 8 + footerRow
+      return (
+        textHeight(row.id, row.item.text, width, false, rough) +
+        8 +
+        (row.footer === undefined ? 16 : footerRow)
+      )
     case 'work': {
       if (workEnded(row.status)) return 30
       let height = 32

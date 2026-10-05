@@ -90,7 +90,7 @@ function rowStamp(row: ThreadRow) {
   switch (row.kind) {
     case 'assistant':
     case 'plan':
-      return `${row.item.text.length}:${row.streaming}`
+      return `${row.item.text.length}:${row.streaming}:${row.footer?.length ?? -1}`
     case 'user':
       return row.item.text.length
     case 'reports':
@@ -184,19 +184,22 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
-      <Message align='start'>
+      // Mid-run messages have no footer; a paragraph's gap keeps them apart from what follows.
+      <Message align='start' className={cn(row.footer === undefined && 'pb-4')}>
         <MessageContent>
           <Bubble variant='ghost' align='start'>
             <BubbleContent>
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
               <Markdown streaming={row.streaming}>{row.item.text}</Markdown>
             </BubbleContent>
-            <AgentMessageFooter
-              text={row.item.text}
-              createdAt={row.item.createdAt}
-              loadout={row.loadout}
-              provider={provider}
-            />
+            {row.footer !== undefined && (
+              <AgentMessageFooter
+                text={row.footer}
+                createdAt={row.item.createdAt}
+                loadout={row.loadout}
+                provider={provider}
+              />
+            )}
           </Bubble>
         </MessageContent>
       </Message>
