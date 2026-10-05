@@ -152,6 +152,7 @@ const checkRollupFields = `commits(last:1) { nodes { commit {
 } } }`
 
 export const pullRequestChecksFields = `updatedAt headRefOid baseRefOid mergeable mergeStateStatus
+  headRepository { nameWithOwner }
   ${checkRollupFields}`
 
 export const pullRequestGraphqlFields = `

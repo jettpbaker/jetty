@@ -1411,7 +1411,11 @@ async function fetchPullRequest(
       user: user(pull.author),
       created_at: string(pull.createdAt),
       updated_at: string(pull.updatedAt),
-      head: { ref: string(pull.headRefName), sha: headSha },
+      head: {
+        ref: string(pull.headRefName),
+        sha: headSha,
+        repo: pull.headRepository ? string(record(pull.headRepository).nameWithOwner) : null,
+      },
       base: { ref: string(pull.baseRefName), sha: baseSha },
       additions: Number(pull.additions),
       deletions: Number(pull.deletions),
@@ -2101,6 +2105,12 @@ export function createPullRequests(store: Store, hub: Hub) {
           ...snapshot.data,
           pull: {
             ...snapshot.data.pull,
+            head: {
+              ...snapshot.data.pull.head,
+              repo: graph.pull.headRepository
+                ? string(record(graph.pull.headRepository).nameWithOwner)
+                : null,
+            },
             mergeable_state: mergeableState(graph.pull.mergeStateStatus),
           },
           mergeable: graph.pull.mergeable as PullRequestData['mergeable'],

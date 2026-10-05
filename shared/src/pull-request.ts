@@ -56,7 +56,11 @@ export const GitHubPullRequest = Schema.Struct({
   user: GitHubUser,
   created_at: Schema.String,
   updated_at: Schema.String,
-  head: Schema.Struct({ ref: Schema.String, sha: Schema.String }),
+  head: Schema.Struct({
+    ref: Schema.String,
+    sha: Schema.String,
+    repo: Schema.optional(Schema.NullOr(Schema.String)),
+  }),
   base: Schema.Struct({ ref: Schema.String, sha: Schema.optional(Schema.String) }),
   additions: Schema.Int,
   deletions: Schema.Int,

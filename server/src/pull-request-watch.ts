@@ -12,6 +12,8 @@ import type { Orchestrator, PullRequestNews } from './orchestrator'
 import type { PullRequestRef } from './pull-requests'
 import type { Store } from './store'
 
+import { projectRemote } from './pull-requests'
+
 // Changes that land within QUIET_MS of each other wake the agent once; none waits past MAX_WAIT_MS.
 const QUIET_MS = 15_000
 const MAX_WAIT_MS = 60_000
@@ -280,9 +282,20 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
   function owner(ref: PullRequestRef, data: PullRequestData) {
     return Effect.gen(function* () {
       const threads: ThreadMeta[] = []
+      const repositories = new Map<string, string | null>()
+      const headRepo = data.pull.head.repo?.toLowerCase()
+      if (!headRepo) return undefined
       for (const id of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
         const thread = yield* store.getThread(id)
-        if (thread) threads.push(thread)
+        if (!thread) continue
+        if (!repositories.has(thread.projectId)) {
+          const project = yield* store.getProject(thread.projectId)
+          repositories.set(
+            thread.projectId,
+            project ? yield* Effect.promise(() => projectRemote(project.path)) : null
+          )
+        }
+        if (repositories.get(thread.projectId) === headRepo) threads.push(thread)
       }
       const branch = data.pull.head.ref
       const authored =
