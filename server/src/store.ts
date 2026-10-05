@@ -1088,7 +1088,10 @@ export function createStore() {
           // it ends; all but a report also keep its hop, so a chain through a PR wake still counts
           // towards the hop limit.
           const continues =
-            carriesOn || message?.kind === 'continuation' || message?.kind === 'pull_request'
+            carriesOn ||
+            message?.carriesOn ||
+            message?.kind === 'continuation' ||
+            message?.kind === 'pull_request'
           const previous =
             continues || message?.kind === 'report'
               ? yield* latestFinishedTurn(threadId)

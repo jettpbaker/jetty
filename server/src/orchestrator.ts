@@ -832,6 +832,7 @@ export function createOrchestrator({
                   createdAt: Date.now(),
                   hop: 0,
                   attachments: saved.meta,
+                  ...(input.carriesOn && { carriesOn: true as const }),
                 }
                 // The message waits in the queue while the worktree is prepared, so a failed
                 // setup keeps it for Retry.

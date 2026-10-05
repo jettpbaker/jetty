@@ -684,7 +684,7 @@ test('Resume still continues a child the restart guard held after its report fai
 type ScriptedTurn = { turnId: string; emit: Emit; done: Deferred.Deferred<void> }
 
 // A parent with a notifying child whose agent turns the test drives through each turn's emit.
-function makeChildFixture(provider?: 'codex') {
+function makeChildFixture(provider?: 'codex', worktrees?: Worktrees) {
   return Effect.gen(function* () {
     const f = yield* makeUploadFixture()
     const parent = f.thread
@@ -699,7 +699,12 @@ function makeChildFixture(provider?: 'codex') {
         yield* emit({ type: 'turn.started', turnId: input.turnId })
         return { await: Deferred.await(done) }
       })
-    const orch = yield* createOrchestrator({ store: f.store, agent: f.agent, hub: f.hub })
+    const orch = yield* createOrchestrator({
+      store: f.store,
+      agent: f.agent,
+      hub: f.hub,
+      worktrees,
+    })
     yield* f.store.setQueuePaused(parent.id, true)
     const message = {
       id: newId(),
@@ -838,6 +843,59 @@ test('a Codex child that ends its turn asking the user reports once the answerâ€
     }).pipe(Effect.provide(TestClock.layer()))
   )
 })
+
+for (const environment of ['local', 'worktree'] as const) {
+  test(`a Codex child's async answer keeps reporting after ${environment} setup fails`, async () => {
+    await runUploadTest(
+      Effect.gen(function* () {
+        let failSetup = false
+        const worktrees = {
+          prepare: async () => {
+            if (failSetup) throw new Error('Setup failed')
+            return undefined
+          },
+          refresh: async () => {},
+        } as unknown as Worktrees
+        const f = yield* makeChildFixture('codex', worktrees)
+        if (environment === 'worktree') yield* f.store.setThreadEnvironment(f.child.id, 'HEAD')
+        const questionId = newId()
+        yield* f.turn.emit({
+          type: 'item.started',
+          item: {
+            id: questionId,
+            turnId: f.turn.turnId,
+            createdAt: Date.now(),
+            kind: 'question',
+            delivery: 'async',
+            questions: [
+              { question: 'Which database?', header: '', multiSelect: false, options: [] },
+            ],
+          },
+        })
+        yield* say(f.turn, 'I asked which database to use.')
+        yield* endTurn(f.turn)
+        yield* f.orch.resumeQueues()
+        yield* TestClock.adjust(1000)
+        expect(yield* f.reports).toEqual([])
+        failSetup = true
+        yield* f.orch.respondQuestion(f.child.id, questionId, { 'Which database?': 'Postgres' })
+        expect((yield* f.store.requireThread(f.child.id)).pendingMessages).toHaveLength(1)
+        failSetup = false
+        yield* f.store.setQueuePaused(f.child.id, false)
+        yield* Queue.offer(f.store.queueChanges, undefined)
+        yield* TestClock.adjust(1000)
+        const answered = f.turns.get(f.child.id)!
+        expect(answered.turnId).not.toBe(f.turn.turnId)
+        yield* say(answered, 'Set it up on Postgres.')
+        yield* endTurn(answered)
+        yield* TestClock.adjust(1000)
+        const reports = yield* f.reports
+        expect(reports).toMatchObject([{ kind: 'report', reports: [{ outcome: 'finished' }] }])
+        expect(reports[0]!.text).toContain('Set it up on Postgres.')
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+  })
+}
 
 test('a refused archive fails with the archive scriptâ€™s own error', async () => {
   await runUploadTest(
