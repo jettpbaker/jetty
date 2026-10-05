@@ -1695,6 +1695,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   const lastCadences = new Map<string, string>()
   const headsRead = new Map<string, string>()
   let linksPolledAt = 0
+  let linksCursor: PullRequestRef | undefined
   let observer: PullRequestObserver | undefined
 
   function revision(key: string) {
@@ -2025,9 +2026,10 @@ export function createPullRequests(store: Store, hub: Hub) {
         Date.now() - linksPolledAt < (hidden ? 60_000 : 30_000) * cadenceMultiplier()
       )
         return
-      const links = (yield* store.activePullRequestLinks()).filter((link) =>
-        validPullRequestRef(link)
-      )
+      let page = yield* store.activePullRequestLinks(linksCursor)
+      if (!page.length && linksCursor) page = yield* store.activePullRequestLinks()
+      linksCursor = page.length === 100 ? page.at(-1) : undefined
+      const links = page.filter((link) => validPullRequestRef(link))
       if (!links.length) return
       linksPolledAt = Date.now()
       yield* Effect.forEach(links, (link) => Effect.promise(() => detect(link)), {

@@ -378,3 +378,31 @@ test('migration errors fail honestly and roll back the migration ledger', async 
   cleanup.push(fixture.close)
   expect(await fixture.runtime.runPromise(fixture.store.listThreads())).toEqual([])
 })
+
+test('active PR link pages reach every linked PR beyond the first hundred', async () => {
+  const { store, runtime, thread, sql } = await setup()
+  const expected: { repo: string; number: number }[] = []
+  for (const [repo, count] of [
+    ['owner/a', 150],
+    ['owner/b', 55],
+  ] as const) {
+    for (let number = 1; number <= count; number++) {
+      await runtime.runPromise(store.linkPullRequest(thread.id, repo, number))
+      expected.push({ repo, number })
+    }
+  }
+  const archived = await runtime.runPromise(store.createThread(thread.projectId, newId()))
+  await runtime.runPromise(store.linkPullRequest(archived.id, 'owner/b', 56))
+  await runtime.runPromise(store.archiveThread(archived.id, true))
+  await runtime.runPromise(store.linkPullRequest(thread.id, 'owner/b', 57))
+  await runtime.runPromise(
+    sql`UPDATE pull_requests SET data_json = ${JSON.stringify({ pull: { state: 'closed' } })} WHERE repo = 'owner/b' AND number = 57`
+  )
+  const first = await runtime.runPromise(store.activePullRequestLinks())
+  const second = await runtime.runPromise(store.activePullRequestLinks(first.at(-1)))
+  const third = await runtime.runPromise(store.activePullRequestLinks(second.at(-1)))
+  expect([first.length, second.length, third.length]).toEqual([100, 100, 5])
+  expect([...first, ...second, ...third]).toEqual(expected)
+  expect(await runtime.runPromise(store.activePullRequestLinks(third.at(-1)))).toEqual([])
+  expect(await runtime.runPromise(store.activePullRequestLinks())).toEqual(first)
+})
