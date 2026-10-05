@@ -5,10 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressProps } from '@/lib/press'
 
+import { ContextRing } from './context_ring'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
-
-const radius = 90
-const circumference = 2 * Math.PI * radius
 
 export function ThreadHeader({
   context,
@@ -41,34 +39,7 @@ export function ThreadHeader({
           <TooltipTrigger
             render={<Button variant='ghost' tone='muted' size='icon' aria-label={label} />}
           >
-            <svg
-              viewBox='0 0 256 256'
-              aria-hidden='true'
-              className={fraction >= 0.9 ? 'text-destructive' : undefined}
-            >
-              <circle
-                cx='128'
-                cy='128'
-                r={radius}
-                fill='none'
-                strokeWidth='26'
-                className='stroke-border'
-              />
-              {context && (
-                <circle
-                  cx='128'
-                  cy='128'
-                  r={radius}
-                  fill='none'
-                  strokeWidth='26'
-                  stroke='currentColor'
-                  strokeLinecap='round'
-                  strokeDasharray={circumference}
-                  strokeDashoffset={circumference * (1 - fraction)}
-                  transform='rotate(-90 128 128)'
-                />
-              )}
-            </svg>
+            <ContextRing context={context} />
           </TooltipTrigger>
           <TooltipContent>
             {context

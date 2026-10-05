@@ -4,7 +4,6 @@ import {
   AiFileIcon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  ArrowShrink02Icon,
   BookOpenIcon,
   BrainIcon,
   FlashIcon,
@@ -15,7 +14,13 @@ import {
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
-import { useAccessMode, useBumpDraft, useLoadouts, useThreadLoadout } from '@/state'
+import {
+  useAccessMode,
+  useBumpDraft,
+  useLoadouts,
+  useThreadContext,
+  useThreadLoadout,
+} from '@/state'
 import { useChrome } from '@/state/chrome'
 import { useSkills } from '@/state/skills'
 import { useCompactThread } from '@/state/turns'
@@ -36,6 +41,7 @@ import {
   type UIEvent,
 } from 'react'
 
+import { ContextRing } from './context_ring'
 import { ProviderGlyph } from './provider_glyph'
 import './composer_slash.css'
 import {
@@ -61,7 +67,7 @@ type Entry = {
   description: string
   group: string
   icon?: ReactNode
-  value?: string
+  opens?: boolean
   selected?: boolean
   disabled?: boolean
   score: number
@@ -74,6 +80,8 @@ const accessDescriptions: Record<PermissionMode, string> = {
   full_access: 'Run anything without asking',
 }
 const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'new']
+// Below this there's little to compact, so Compact stays out of the menu.
+const compactFrom = 20_000
 const commandLabels: Record<ValueCommand, string> = {
   model: 'Model',
   effort: 'Effort',
@@ -109,6 +117,7 @@ export function useComposerSlash(
   const chrome = useChrome()
   const compactThread = useCompactThread()
   const thread = chrome?.threads.find((item) => item.id === threadId)
+  const context = useThreadContext(threadId)
   const bumpDraft = useBumpDraft()
   const navigate = useNavigate()
   const model = loadout && findModel(catalog, loadout)
@@ -265,7 +274,7 @@ export function useComposerSlash(
       name: string,
       description: string,
       icon: ReactNode,
-      value: string | undefined,
+      opens: boolean,
       run: () => void,
       disabled = false
     ): Entry => ({
@@ -275,14 +284,14 @@ export function useComposerSlash(
       description,
       group: 'Commands',
       icon,
-      value,
+      opens,
       disabled,
       score: 0,
       run,
     })
     const picker = (id: ValueCommand) => () => go(range, { picking: id })
     const compactReason = !thread?.provider
-      ? 'Send a message first'
+      ? ''
       : thread.status === 'starting' ||
           thread.status === 'running' ||
           thread.status === 'awaiting_approval'
@@ -294,13 +303,13 @@ export function useComposerSlash(
     const efforts = model?.efforts.length ?? 0
     const choosable = model?.autoMode !== false
     return [
-      command('model', 'Model', '', <BrainIcon />, name, picker('model')),
+      command('model', 'Model', '', <BrainIcon />, true, picker('model')),
       command(
         'effort',
         'Effort',
         efforts ? '' : loadout ? `${name} has no effort levels` : unset,
         <GaugeIcon />,
-        loadout?.effort && effortLabels[loadout.effort],
+        true,
         picker('effort'),
         !efforts
       ),
@@ -309,7 +318,7 @@ export function useComposerSlash(
         'Fast',
         model?.fast ? '' : loadout ? `${name} has no fast mode` : unset,
         <FlashIcon filled={loadout?.fast} />,
-        model?.fast ? (loadout?.fast ? 'On' : 'Off') : undefined,
+        false,
         () => {
           consume(range)
           if (loadout) setLoadout({ ...loadout, fast: !loadout.fast })
@@ -321,23 +330,27 @@ export function useComposerSlash(
         'Access',
         choosable ? '' : `${model.name} only supports asking first`,
         <ShieldCheckIcon />,
-        choosable ? accessLabels[accessMode] : undefined,
+        true,
         picker('access'),
         !choosable
       ),
-      command(
-        'compact',
-        'Compact',
-        compactReason,
-        <ArrowShrink02Icon />,
-        undefined,
-        () => {
-          consume(range)
-          if (threadId) compactThread(threadId)
-        },
-        Boolean(compactReason)
-      ),
-      command('new', 'New thread', '', <PencilEdit02Icon />, undefined, () => {
+      ...(context && context.usedTokens >= compactFrom
+        ? [
+            command(
+              'compact',
+              'Compact',
+              compactReason,
+              <ContextRing context={context} />,
+              false,
+              () => {
+                consume(range)
+                if (threadId) compactThread(threadId)
+              },
+              Boolean(compactReason)
+            ),
+          ]
+        : []),
+      command('new', 'New thread', '', <PencilEdit02Icon />, false, () => {
         consume(range)
         bumpDraft()
         void navigate({ to: '/' })
@@ -371,7 +384,7 @@ export function useComposerSlash(
   // Back lands on the row you came from: the command, or the Skills row after the commands.
   function up(range: SlashQuery) {
     if (picking) go(range, { active: commandOrder.indexOf(picking) })
-    else if (section) go(range, { active: commandOrder.length })
+    else if (section) go(range, { active: commandEntries(range).length })
   }
 
   function entriesFor(range: SlashQuery): Entry[] {
@@ -399,7 +412,7 @@ export function useComposerSlash(
               group: 'Skills',
               icon: <BookOpenIcon />,
               score: 0,
-              value: String(skills.length),
+              opens: true,
               run: () => go(range, { section: 'Skills' }),
             } satisfies Entry,
           ]
@@ -662,10 +675,7 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
       <span className='shrink-0 text-foreground'>{entry.name}</span>
       <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
       {entry.kind === 'option' && entry.selected && <Tick02Icon />}
-      {entry.kind !== 'option' && entry.value && (
-        <span className='shrink-0 text-muted-foreground'>{entry.value}</span>
-      )}
-      {entry.kind === 'section' && <ArrowRight01Icon />}
+      {entry.opens && <ArrowRight01Icon />}
     </div>
   )
 }

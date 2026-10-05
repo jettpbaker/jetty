@@ -20,7 +20,7 @@ export {
 } from './drafts'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
-export { useThread, useThreadJourney, useThreadRowPrefetch } from './threads'
+export { useThread, useThreadContext, useThreadJourney, useThreadRowPrefetch } from './threads'
 export {
   MAIN_TAB,
   useRequestReveal,

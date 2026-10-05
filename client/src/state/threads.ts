@@ -68,6 +68,15 @@ export function useThread(threadId: string): ThreadState | undefined {
   return useAtomValue(threadAtom(threadId))
 }
 
+// The context reading alone, so its readers skip the thread's other events.
+const threadContextAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadAtom(threadId))?.context ?? null)
+)
+
+export function useThreadContext(threadId: string | undefined) {
+  return useAtomValue(threadContextAtom(threadId ?? ''))
+}
+
 // Warms a hovered row's thread outside React, so hovering never re-renders the list. A warm
 // that hasn't loaded yet outlives the hover until it has.
 export function useThreadRowPrefetch() {
