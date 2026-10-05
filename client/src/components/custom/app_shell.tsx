@@ -1,3 +1,5 @@
+import type { SubagentStatus } from '@jetty/shared/items'
+
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tabs, TabsList } from '@/components/ui/tabs'
 import { storage } from '@/platform'
@@ -7,13 +9,23 @@ import {
   useConnectionNotice,
   useRenewQueueHolds,
   useForgetDeletedDrafts,
+  useSubagentOutcome,
   useSubagentTabs,
   useThreadTab,
   type SubagentTab,
 } from '@/state'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useMatches, useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useReducedMotion } from 'motion/react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
@@ -33,7 +45,165 @@ const openKey = 'jetty.sidebar.open'
 function subagentTabStatus(tab: SubagentTab): ThreadStatus {
   if (tab.needsInput) return 'needs-attention'
   if (tab.status === 'running') return 'working'
-  return tab.status === 'failed' ? 'error' : 'idle'
+  if (tab.status === 'failed') return 'error'
+  return tab.status === 'completed' ? 'ready' : 'idle'
+}
+
+// A tab whose subagent ended out of view holds its done colour for a beat, then shrinks away.
+type StripTab = SubagentTab & { leaving?: 'beat' | 'pending' | 'exit'; titleWidth?: number }
+
+const beatMs: Record<Exclude<SubagentStatus, 'running'>, number> = {
+  completed: 500,
+  failed: 900,
+  stopped: 300,
+}
+const exitMs = 260
+const reducedExitMs = 150
+const wash = { duration: 600, delay: 120 }
+
+function staying(tab: StripTab) {
+  return !tab.leaving || tab.leaving === 'beat'
+}
+
+// Keep each tab where it was; a viewed tab that already finished leaves without a second beat.
+function settleTabs(
+  tabs: readonly StripTab[],
+  agents: readonly SubagentTab[],
+  outcome: (id: string) => SubagentStatus | undefined
+): StripTab[] {
+  const listed = new Map(agents.map((agent) => [agent.id, agent]))
+  const next: StripTab[] = []
+  for (const tab of tabs) {
+    const agent = listed.get(tab.id)
+    listed.delete(tab.id)
+    if (agent) next.push(agent)
+    else if (tab.leaving) next.push(tab)
+    else if (tab.status !== 'running') next.push({ ...tab, leaving: 'pending' })
+    else {
+      const status = outcome(tab.id)
+      if (status && status !== 'running') next.push({ ...tab, status, leaving: 'beat' })
+    }
+  }
+  return [...next, ...listed.values()]
+}
+
+// The main tab takes a brief wash of the outcome's colour as a result lands.
+function washMainTab(main: HTMLElement, status: SubagentStatus) {
+  const base = getComputedStyle(main).backgroundColor
+  const token = getComputedStyle(main)
+    .getPropertyValue(status === 'completed' ? '--status-success' : '--status-error')
+    .trim()
+  main.animate(
+    [{ backgroundColor: `color-mix(in oklab, ${token} 22%, ${base})` }, { backgroundColor: base }],
+    { duration: wash.duration, delay: wash.delay, easing: 'ease-out' }
+  )
+}
+
+function useFinishingTabs(
+  threadId: string | undefined,
+  agents: readonly SubagentTab[],
+  scroller: RefObject<HTMLDivElement | null>
+) {
+  const outcome = useSubagentOutcome(threadId)
+  const reducedMotion = useReducedMotion()
+  const [state, setState] = useState({ threadId, agents, tabs: agents as readonly StripTab[] })
+  let tabs = state.tabs
+  if (state.threadId !== threadId || state.agents !== agents) {
+    tabs = state.threadId === threadId ? settleTabs(state.tabs, agents, outcome) : agents
+    setState({ threadId, agents, tabs })
+  }
+  const timers = useRef(new Map<string, number>())
+  const scrollTo = useRef<number>(undefined)
+
+  function update(change: (tabs: readonly StripTab[]) => StripTab[]) {
+    setState((current) => ({ ...current, tabs: change(current.tabs) }))
+  }
+
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer)
+      pending.clear()
+    }
+  }, [threadId])
+
+  useEffect(() => {
+    for (const tab of tabs) {
+      const key = `${tab.id}:${tab.leaving}`
+      if (!tab.leaving || tab.leaving === 'pending' || timers.current.has(key)) continue
+      const later = (ms: number, run: () => void) =>
+        timers.current.set(
+          key,
+          window.setTimeout(() => {
+            timers.current.delete(key)
+            run()
+          }, ms)
+        )
+      if (tab.leaving === 'beat' && tab.status !== 'running')
+        later(beatMs[tab.status], () =>
+          update((current) =>
+            current.map((entry) =>
+              entry.id === tab.id && entry.leaving === 'beat'
+                ? { ...entry, leaving: 'pending' }
+                : entry
+            )
+          )
+        )
+      if (tab.leaving === 'exit')
+        later(reducedMotion ? reducedExitMs : exitMs, () =>
+          update((current) =>
+            current.filter((entry) => entry.id !== tab.id || entry.leaving !== 'exit')
+          )
+        )
+    }
+  }, [tabs, reducedMotion])
+
+  // A tab that leaves from off-screen left goes at once; keep what's on screen still.
+  useLayoutEffect(() => {
+    if (scrollTo.current === undefined || !scroller.current) return
+    scroller.current.scrollLeft = scrollTo.current
+    scrollTo.current = undefined
+  }, [tabs, scroller])
+
+  // Measure as the exit starts: the title's width to hold, and whether the tab is on screen at all.
+  // The last tab out goes with the bar's own exit instead.
+  useLayoutEffect(() => {
+    if (!tabs.some((tab) => tab.leaving === 'pending')) return
+    const strip = scroller.current
+    const view = strip?.getBoundingClientRect()
+    const list = strip?.firstElementChild
+    const gap = list ? Number.parseFloat(getComputedStyle(list).columnGap) || 0 : 0
+    const main = strip?.querySelector<HTMLElement>('[data-main-tab]')
+    const alone = !tabs.some(staying)
+    const widths = new Map<string, number>()
+    let shift = 0
+    for (const tab of tabs) {
+      if (tab.leaving !== 'pending') continue
+      const element = strip?.querySelector<HTMLElement>(`[data-agent="${CSS.escape(tab.id)}"]`)
+      const rect = element?.getBoundingClientRect()
+      if (alone || !element || !rect || !view || rect.left >= view.right) continue
+      if (rect.right <= view.left) {
+        shift += rect.width + gap
+        continue
+      }
+      widths.set(
+        tab.id,
+        element.querySelector('.overflow-title')?.getBoundingClientRect().width ?? 0
+      )
+      if (main && (tab.status === 'completed' || tab.status === 'failed'))
+        washMainTab(main, tab.status)
+    }
+    if (shift && strip) scrollTo.current = strip.scrollLeft - shift
+    update((current) =>
+      current.flatMap((tab) => {
+        if (tab.leaving !== 'pending') return [tab]
+        const titleWidth = widths.get(tab.id)
+        return titleWidth === undefined ? [] : [{ ...tab, leaving: 'exit' as const, titleWidth }]
+      })
+    )
+  }, [tabs, scroller])
+
+  return tabs
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -85,12 +255,14 @@ function Workspace({
   const thread = useChrome()?.threads.find((entry) => entry.id === threadId)
   const agents = useSubagentTabs(threadId)
   const [tab, setTab] = useThreadTab(threadId ?? '')
-  const showThreadTabs = agents.length > 0
-  const [lastTabbed, setLastTabbed] = useState({ thread, agents })
-  if (showThreadTabs && (lastTabbed.thread !== thread || lastTabbed.agents !== agents))
-    setLastTabbed({ thread, agents })
+  const scroller = useRef<HTMLDivElement>(null)
+  const strip = useFinishingTabs(threadId, agents, scroller)
+  const showThreadTabs = strip.some(staying)
+  const [lastTabbed, setLastTabbed] = useState({ thread, strip })
+  if (showThreadTabs && (lastTabbed.thread !== thread || lastTabbed.strip !== strip))
+    setLastTabbed({ thread, strip })
   // Retain the outgoing tabs until the strip has finished fading away.
-  const tabbed = showThreadTabs ? { thread, agents } : lastTabbed
+  const tabbed = showThreadTabs ? { thread, strip } : lastTabbed
   const onNewThreadPage = pathname === '/'
 
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
@@ -118,6 +290,7 @@ function Workspace({
           <div className='flex h-(--app-tab-bar-height) items-center px-1.5 py-1.5'>
             <ShellNavigationSpace />
             <div
+              ref={scroller}
               className='app-thread-tabs no-scrollbar scroll-fade-x min-w-0 flex-1 overflow-x-auto overflow-y-hidden px-1.5'
               data-visible={showThreadTabs}
               inert={!showThreadTabs}
@@ -130,6 +303,7 @@ function Workspace({
               >
                 <ThreadTab
                   value={MAIN_TAB}
+                  data-main-tab
                   title={tabbed.thread?.title ?? 'Thread'}
                   status={
                     tabbed.thread
@@ -137,14 +311,18 @@ function Workspace({
                       : 'idle'
                   }
                 />
-                {tabbed.agents.map((agent) => (
+                {tabbed.strip.map((agent) => (
                   <ThreadTab
                     key={agent.id}
                     value={agent.id}
+                    data-agent={agent.id}
                     title={agent.title}
                     status={subagentTabStatus(agent)}
                     model={subagentLabel(agent)}
                     agentType='subagent'
+                    leaving={
+                      agent.leaving === 'exit' ? { titleWidth: agent.titleWidth ?? 0 } : undefined
+                    }
                   />
                 ))}
               </TabsList>

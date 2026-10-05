@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactElement } from 'react'
+import type { ComponentProps, CSSProperties, ReactElement } from 'react'
 
 import { renderWorkingTitle } from '@/components/custom/subagent_row'
 import { StatusGlyph, type ThreadStatus } from '@/components/custom/thread_status'
@@ -8,12 +8,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 
 import { OverflowTitle } from './overflow_title'
+import './thread_tab.css'
 
 const subagentGlyphColor: Record<ThreadStatus, string> = {
   monitoring: 'text-muted-foreground',
   working: 'text-primary',
   'needs-attention': 'text-primary',
-  idle: 'text-status-success',
+  idle: 'text-muted-foreground',
   ready: 'text-status-success',
   error: 'text-pr-closed',
 }
@@ -24,6 +25,8 @@ type ThreadTabProps = Omit<ComponentProps<typeof TabsTrigger>, 'children' | 'tit
   model?: string
   effort?: string
   agentType?: 'main' | 'subagent'
+  // A finished subagent's tab on its way out: it shrinks away with its title held at this width.
+  leaving?: { titleWidth: number }
 }
 
 export function ThreadTab({
@@ -32,6 +35,7 @@ export function ThreadTab({
   model,
   effort,
   agentType = 'main',
+  leaving,
   className,
   ...props
 }: ThreadTabProps) {
@@ -42,19 +46,20 @@ export function ThreadTab({
       data-overflow-hover
       variant='thread'
       render={trigger}
-      className={cn(isSubagent && 'gap-2 px-3', className)}
+      className={cn(isSubagent && 'finish-tab gap-2 px-3', className)}
+      data-exit={leaving ? 'shrink' : undefined}
+      style={leaving ? ({ '--title-w': `${leaving.titleWidth}px` } as CSSProperties) : undefined}
       {...props}
     >
       {isSubagent && status !== 'needs-attention' ? (
         <span className={cn('flex shrink-0 items-center', subagentGlyphColor[status])}>
           <DitherAvatar
-            key={status}
             name={String(props.value)}
             mirror='horizontal'
             animate={false}
             bloom='subtle'
             color='currentColor'
-            className='size-glyph'
+            className='finish-avatar size-glyph'
           />
           <span className='sr-only'>Subagent, {status}</span>
         </span>

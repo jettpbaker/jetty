@@ -28,6 +28,7 @@ export {
   useRequestSectionReveal,
   useRevealRow,
   useRevealSection,
+  useSubagentOutcome,
   useSubagentTabs,
   useThreadTab,
   type SubagentTab,

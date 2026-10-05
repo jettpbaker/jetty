@@ -198,10 +198,33 @@ export function DitherAvatar({
       attributes: true,
       attributeFilter: ['style', 'class', 'data-accent', 'data-accent-from'],
     })
+    // Repaint every frame while a CSS colour transition runs on the avatar, so the fill tweens with it.
+    let tween = 0
+    const follow = () => {
+      paint.redraw()
+      tween = requestAnimationFrame(follow)
+    }
+    const onColorRun = (event: TransitionEvent) => {
+      if (event.target !== root || event.propertyName !== 'color') return
+      cancelAnimationFrame(tween)
+      follow()
+    }
+    const onColorEnd = (event: TransitionEvent) => {
+      if (event.target !== root || event.propertyName !== 'color') return
+      cancelAnimationFrame(tween)
+      paint.redraw()
+    }
+    root.addEventListener('transitionrun', onColorRun)
+    root.addEventListener('transitionend', onColorEnd)
+    root.addEventListener('transitioncancel', onColorEnd)
     return () => {
       paint.stop()
+      cancelAnimationFrame(tween)
       window.removeEventListener(accentChangeEvent, paint.redraw)
       observer.disconnect()
+      root.removeEventListener('transitionrun', onColorRun)
+      root.removeEventListener('transitionend', onColorEnd)
+      root.removeEventListener('transitioncancel', onColorEnd)
     }
   }, [name, color, mirror, animate, bloom])
 

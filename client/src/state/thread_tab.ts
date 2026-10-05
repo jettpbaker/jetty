@@ -76,6 +76,19 @@ export function useSubagentTabs(threadId: string | undefined) {
   return useAtomValue(threadId ? subagentTabsAtom(threadId) : noTabs)
 }
 
+// How a subagent ended, read when its tab drops out of the list above.
+export function useSubagentOutcome(threadId: string | undefined) {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (id: string): SubagentStatus | undefined => {
+      if (!threadId) return undefined
+      const item = registry.get(threadAtom(threadId))?.items.find((entry) => entry.id === id)
+      return item?.kind === 'subagent' ? item.status : undefined
+    },
+    [registry, threadId]
+  )
+}
+
 // A one-shot request for the chat to scroll a row into view; the list clears it once handled.
 const revealAtom = Atom.family((_threadId: string) =>
   Atom.make<string | undefined>(undefined).pipe(Atom.keepAlive)
