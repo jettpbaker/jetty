@@ -270,6 +270,46 @@ describe('server skeleton', () => {
     }
   })
 
+  test('a turn whose end fails to save still ends, so the next message starts a turn', async () => {
+    const running = await boot()
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+    const client = await connect(running.port)
+    await client.subscribeThread({ threadId: thread.id }).ready
+    const db = new Database(join(running.home, 'jetty.db'))
+    try {
+      db.run(`CREATE TRIGGER reject_turn_end BEFORE INSERT ON thread_events
+        WHEN json_extract(NEW.payload_json, '$.type') IN ('turn.completed', 'turn.failed')
+        BEGIN SELECT RAISE(ABORT, 'injected turn end failure'); END`)
+      const first = await client.request('turn.start', { threadId: thread.id, text: 'first' })
+      const reply = await client.waitFor(
+        (message) =>
+          isThreadEvent(message) &&
+          message.event.type === 'item.started' &&
+          message.event.item.kind === 'assistant_message'
+      )
+      if (!isThreadEvent(reply) || reply.event.type !== 'item.started') throw new Error('No reply')
+      const replyId = reply.event.item.id
+      await client.waitFor(
+        (message) =>
+          isThreadEvent(message) &&
+          message.event.type === 'item.completed' &&
+          message.event.itemId === replyId
+      )
+      db.run('DROP TRIGGER reject_turn_end')
+      let next: unknown
+      for (let attempt = 0; attempt < 100 && !next; attempt++) {
+        next = await client
+          .request('turn.start', { threadId: thread.id, text: 'second' })
+          .catch(() => Bun.sleep(20).then(() => undefined))
+      }
+      expect(next).toMatchObject({ turnId: expect.not.stringMatching(first.turnId) })
+    } finally {
+      db.close()
+      await client.close()
+    }
+  })
+
   test('shutdown interrupts a suspended subscription before closing its database', async () => {
     const running = await boot()
     const project = await Effect.runPromise(running.store.createProject(running.home))

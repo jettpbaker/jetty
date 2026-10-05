@@ -176,6 +176,16 @@ export function createOrchestrator({
       return value
     }
 
+    // Ends the turn here too, so one whose end couldn't be saved doesn't hold up the queue, or a
+    // stop, archive or delete waiting on it, forever.
+    function settleTurn(threadId: string, turnId: string) {
+      return Effect.sync(() => {
+        const live = state(threadId)
+        if (live.turnId === turnId) live.turnId = null
+        live.ready = true
+      }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
+    }
+
     function interruptAdmittedThread(threadId: string) {
       return Effect.gen(function* () {
         const agent = yield* agentForThread(threadId)
@@ -890,15 +900,7 @@ export function createOrchestrator({
                     type: 'turn.failed',
                     turnId,
                     error: 'Unable to start turn',
-                  }).pipe(
-                    Effect.ignore,
-                    Effect.ensuring(
-                      Effect.sync(() => {
-                        if (live.turnId === turnId) live.turnId = null
-                        live.ready = true
-                      }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
-                    )
-                  )
+                  }).pipe(Effect.ignore, Effect.ensuring(settleTurn(input.threadId, turnId)))
                 )
               )
               if (resumeQueue) yield* setQueuePaused(input.threadId, false)
@@ -911,11 +913,7 @@ export function createOrchestrator({
                     Effect.ignore
                   )
                 ),
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    live.ready = true
-                  }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
-                ),
+                Effect.ensuring(settleTurn(input.threadId, turnId)),
                 Effect.forkIn(scope, { startImmediately: true })
               )
               return { turnId }
@@ -990,11 +988,7 @@ export function createOrchestrator({
                       Effect.ignore
                     )
                   ),
-                  Effect.ensuring(
-                    Effect.sync(() => {
-                      live.ready = true
-                    }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
-                  )
+                  Effect.ensuring(settleTurn(threadId, turnId))
                 )
               yield* Effect.forkIn(lifecycle, scope, { startImmediately: true })
             })
