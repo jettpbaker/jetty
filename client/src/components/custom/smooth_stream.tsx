@@ -125,8 +125,7 @@ function revealPlugin(clock: Clock) {
     // Every stretch keeps its own span for good, so React keeps each one's element, and with it
     // its running fade, from render to render. Spans whose fade is over just drop the class.
     const fading = (at: number) => now - at < fadeMs
-    const fade = (at: number, className: string) =>
-      fading(at) ? { className: [className], style: fadeStyle() } : {}
+    const fade = (at: number, className: string) => (fading(at) ? { className: [className] } : {})
     const span = (at: number, children: HastNode[]): HastNode => ({
       type: 'element',
       tagName: 'span',
@@ -165,7 +164,6 @@ function revealPlugin(clock: Clock) {
         if (mark && at !== undefined && fading(at)) {
           const properties = (child.properties ??= {})
           properties.className = [...((properties.className as string[] | undefined) ?? []), mark]
-          properties.style = fadeStyle()
         }
         if (child.tagName === 'pre') {
           offset += textOf(child).length
