@@ -25,7 +25,11 @@ const copy = cn(
 )
 
 function SentAt({ createdAt }: { createdAt: number }) {
-  return <time dateTime={new Date(createdAt).toISOString()}>{formatSentAt(createdAt)}</time>
+  return (
+    <time className='text-faint-foreground' dateTime={new Date(createdAt).toISOString()}>
+      {formatSentAt(createdAt)}
+    </time>
+  )
 }
 
 export function UserMessageFooter({ text, createdAt }: { text: string; createdAt: number }) {
