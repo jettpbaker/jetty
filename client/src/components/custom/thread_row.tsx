@@ -70,7 +70,6 @@ export function ThreadRow({
           <TwoLineRow
             render={trigger}
             variant='ghost-text'
-            className='gap-0.75 py-1'
             aria-pressed={selected}
             onClick={(event) =>
               event.target instanceof Element && event.target.closest('[data-pull-request]')
