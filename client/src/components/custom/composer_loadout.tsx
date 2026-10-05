@@ -34,6 +34,7 @@ import {
   type LoadoutSlot,
 } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
+import { useModels } from '@/state'
 import { useModelRefresh } from '@/state/models'
 import { PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
@@ -249,6 +250,7 @@ function SortableEmptyRow({
 export function ComposerLoadout({
   catalog,
   loadouts,
+  usable,
   value,
   lockedProvider,
   onChange,
@@ -258,6 +260,8 @@ export function ComposerLoadout({
 }: {
   catalog: readonly ProviderModel[]
   loadouts: readonly LoadoutSlot[]
+  // slots outside it stay listed, disabled
+  usable: readonly LoadoutSlot[]
   value?: Loadout
   lockedProvider?: ProviderId
   onChange: (loadout: Loadout) => void
@@ -269,6 +273,7 @@ export function ComposerLoadout({
   const model = value && findModel(catalog, value)
   const name = value && catalogModelName(catalog, value.provider, value.model)
   const efforts = (value && model?.efforts) ?? []
+  const allModels = useModels()
   const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
     const loadout = slotLoadout(slot)
@@ -411,7 +416,7 @@ export function ComposerLoadout({
                       onOpenSettings={onOpenSettings}
                     />
                   )
-                const slotModel = findModel(catalog, loadout)
+                const slotModel = findModel(allModels, loadout)
                 return (
                   <SortableLoadoutItem
                     key={slot.id}
@@ -420,7 +425,10 @@ export function ComposerLoadout({
                     name={slotModel ? modelLabelText(slotModel) : loadout.model}
                     details={describeLoadout(loadout)}
                     provider={loadout.provider}
-                    disabled={Boolean(lockedProvider && lockedProvider !== loadout.provider)}
+                    disabled={
+                      !usable.some((item) => item.id === slot.id) ||
+                      Boolean(lockedProvider && lockedProvider !== loadout.provider)
+                    }
                     onMove={reorder}
                     onOpenSettings={onOpenSettings}
                   />

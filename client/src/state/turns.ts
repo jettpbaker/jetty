@@ -32,7 +32,7 @@ import {
   useDraft,
   type QuestionProgress,
 } from './drafts'
-import { enabledModelsAtom, loadoutsAtom } from './loadouts'
+import { enabledModelsAtom, usableLoadoutsAtom } from './loadouts'
 import {
   awaitCreation,
   clearPatch,
@@ -366,7 +366,7 @@ export function useThreadLoadout(threadId: string | undefined) {
     : drafted && findModel(enabled, drafted)
       ? drafted
       : undefined
-  const slots = useAtomValue(loadoutsAtom)
+  const slots = useAtomValue(usableLoadoutsAtom)
   const catalog = useAtomValue(modelsAtom)
   const thread = useChrome()?.threads.find((item) => item.id === threadId)
   const saved = useMemo(() => savedLoadout(thread, slots, catalog), [catalog, slots, thread])

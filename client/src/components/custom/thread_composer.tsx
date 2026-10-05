@@ -117,7 +117,7 @@ export function ThreadComposer({
   const { own: queue, unsent } = useVisibleQueue(threadId, items)
   const editingEntry = queue.find((entry) => entry.id === editing)
   const attachments = useImageAttachments(draftKey, editingEntry !== undefined)
-  const { loadouts, catalog, setLoadouts } = useLoadouts()
+  const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
   const sendTurn = useSendTurn()
@@ -531,6 +531,7 @@ export function ThreadComposer({
           <ComposerLoadout
             catalog={catalog}
             loadouts={loadouts}
+            usable={usable}
             value={loadout}
             lockedProvider={lockedProvider}
             onChange={setLoadout}

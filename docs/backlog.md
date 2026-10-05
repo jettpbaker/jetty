@@ -171,9 +171,6 @@ Everything below is for one combined review of the chat, not separate ports.
   admission can duplicate a send; settings and pin/archive patches can mask a later
   change until unmount or a 10s timeout when another tab's push lands first
   (`settings_agent_behaviour.tsx`, `settings_title_model.tsx`, `mutations.ts`).
-- Settings: a loadout slot whose model left the catalog renders empty but is still
-  submitted (`loadout.ts` ~114); disabling a provider keeps its models in the composer
-  picker and defaults.
 - Usage: the page can say "Couldn't refresh" while a turn reported fresher limits
   (`provider-usage.ts` ~121). Grok's context ring is unverified mid-turn: it may
   only move at turn end.

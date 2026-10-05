@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { loadProviderEnabled, saveProviderEnabled } from '@/lib/provider-enabled'
+import { useProviderEnabled } from '@/state/loadouts'
 import { useModelRefresh } from '@/state/models'
 import { allUsageProviders, usageFreshMs, useRefreshProviderUsage } from '@/state/provider-usage'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
@@ -67,7 +67,7 @@ export function SettingsView() {
     refreshUsage(allUsageProviders, usageFreshMs)
   }, [refreshUsage])
   const [provider, setProvider] = useState<ProviderId>('claude')
-  const [enabled, setEnabled] = useState(loadProviderEnabled)
+  const [enabled, setEnabled] = useProviderEnabled()
   function showProvider(id: ProviderId) {
     setProvider(id)
     document.getElementById('settings-providers-heading')?.scrollIntoView({ block: 'start' })
@@ -83,11 +83,7 @@ export function SettingsView() {
               selected={provider}
               onSelect={setProvider}
               enabled={enabled}
-              onEnabledChange={(id, value) => {
-                const next = { ...enabled, [id]: value }
-                setEnabled(next)
-                saveProviderEnabled(next)
-              }}
+              onEnabledChange={(id, value) => setEnabled({ ...enabled, [id]: value })}
             />
           </Section>
           <Section
