@@ -276,6 +276,7 @@ export function ThreadComposer({
     keepKeyboardFocus
   )
   const input = useRef<HTMLTextAreaElement>(null)
+  const modelMenuRef = useRef<(() => void) | null>(null)
   const focusEdit = useRef(false)
 
   // The Edit button unmounts as its row turns into "Editing"; the loaded draft takes focus.
@@ -512,6 +513,7 @@ export function ThreadComposer({
           if (threadId) interruptTurn(threadId)
         }}
         onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
+        onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
         running={running && !item && !editingEntry}
         stop={
           running &&
@@ -569,6 +571,7 @@ export function ThreadComposer({
             onReorder={setLoadouts}
             onOpenSettings={() => void navigate({ to: '/settings' })}
             loading={!chromeReady}
+            modelMenuRef={modelMenuRef}
           />
         }
         model={loadout && findModel(catalog, loadout)}

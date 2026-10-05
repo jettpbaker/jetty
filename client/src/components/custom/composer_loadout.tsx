@@ -1,5 +1,5 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
-import type { KeyboardEvent, SyntheticEvent } from 'react'
+import type { KeyboardEvent, RefObject, SyntheticEvent } from 'react'
 
 import {
   ArrowUpRight01Icon,
@@ -257,6 +257,7 @@ export function ComposerLoadout({
   onReorder,
   onOpenSettings,
   loading = false,
+  modelMenuRef,
 }: {
   catalog: readonly ProviderModel[]
   loadouts: readonly LoadoutSlot[]
@@ -269,6 +270,7 @@ export function ComposerLoadout({
   onOpenSettings: () => void
   // Until the catalog and the thread's own pick arrive, the chip keeps its space but stays hidden.
   loading?: boolean
+  modelMenuRef?: RefObject<(() => void) | null>
 }) {
   const model = value && findModel(catalog, value)
   const name = value && catalogModelName(catalog, value.provider, value.model)
@@ -295,6 +297,8 @@ export function ComposerLoadout({
     setOpen(true)
     refresh()
   }
+
+  if (modelMenuRef) modelMenuRef.current = () => openSubmenu('model')
 
   useHotkey(
     keybinds.model.hotkey,

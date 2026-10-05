@@ -40,6 +40,7 @@ export function Composer({
   onBackgroundSubmit,
   onInterrupt,
   onContinue,
+  onChooseModel,
   running,
   stop,
   strip,
@@ -68,6 +69,8 @@ export function Composer({
   onInterrupt: () => void
   // Offered in place of Send while the composer is empty: carries on a paused thread.
   onContinue?: () => void
+  // A new thread with nothing to send as: Enter and Send open the model menu.
+  onChooseModel?: () => void
   running: boolean
   // Stop in place of Send even when a request is showing, as while an approval waits on an empty draft.
   stop?: boolean
@@ -199,6 +202,11 @@ export function Composer({
                 onKeyDown={(event) => {
                   if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return
                   if (inComposition(event.nativeEvent)) return
+                  if (onChooseModel) {
+                    event.preventDefault()
+                    onChooseModel()
+                    return
+                  }
                   const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
                   if (!send) return
                   event.preventDefault()
@@ -245,6 +253,21 @@ export function Composer({
                       <PlayIcon filled />
                     </TooltipTrigger>
                     <TooltipContent>Resume</TooltipContent>
+                  </Tooltip>
+                ) : onChooseModel ? (
+                  <Tooltip>
+                    <TooltipTrigger render={<span className='flex' />}>
+                      <InputGroupButton
+                        variant='default'
+                        size='icon-sm'
+                        aria-label='Choose a model'
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={onChooseModel}
+                      >
+                        <ArrowUp02Icon />
+                      </InputGroupButton>
+                    </TooltipTrigger>
+                    <TooltipContent>{sendHint}</TooltipContent>
                   </Tooltip>
                 ) : (
                   <Tooltip>
