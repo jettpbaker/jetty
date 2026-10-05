@@ -184,14 +184,15 @@ export function HoverKeybind({ binding, className }: { binding: Keybind; classNa
   )
 }
 
-// While its modifiers are held, the chip covers `children` (a row's status glyph).
+// While its modifiers are held, the chip takes the place of `children` (a row's status glyph).
+// Both share one grid cell, so the cell grows to fit the chip and the title truncates before it.
 export function HeldKeybind({ binding, children }: { binding?: Keybind; children: ReactNode }) {
   const held = useHeldModifiers()
   const active = binding && matches(binding, held)
   return (
-    <span className='relative flex shrink-0 items-center justify-end'>
+    <span className='grid shrink-0 items-center justify-items-end *:col-start-1 *:row-start-1'>
       <span className={cn('flex', active && 'invisible')}>{children}</span>
-      {active && <KeybindChip binding={binding} held={held} className='absolute right-0' />}
+      {active && <KeybindChip binding={binding} held={held} />}
     </span>
   )
 }
