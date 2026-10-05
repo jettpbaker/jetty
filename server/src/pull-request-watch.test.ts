@@ -97,12 +97,18 @@ async function setup() {
   async function change(previous = data(), refreshedAt = Date.now()) {
     const ref = { repo: 'owner/repo', number: 1 }
     await runtime.runPromise(
-      store.savePullRequest({ ...ref, status: 'ready', data: previous, refreshedAt })
+      store.savePullRequest({
+        ...ref,
+        status: 'ready',
+        data: previous,
+        refreshedAt,
+        dataRefreshedAt: refreshedAt,
+      })
     )
     await runtime.runPromise(
       watch.changed(
         ref,
-        { ...ref, status: 'ready', data: previous, refreshedAt },
+        { ...ref, status: 'ready', data: previous, refreshedAt, dataRefreshedAt: refreshedAt },
         commented(previous)
       )
     )
@@ -170,4 +176,47 @@ test('continuous observations still exclude individual comments older than a day
   expect(
     (await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))).pending
   ).toBeUndefined()
+})
+
+test('failed refresh attempts retain the successful comment watermark through recovery', async () => {
+  const f = await setup()
+  const owner = await f.thread('owner/repo')
+  const ref = { repo: 'owner/repo', number: 1 }
+  const previous = data()
+  const readAt = Date.now() - 30 * 60_000
+  await f.runtime.runPromise(
+    f.store.savePullRequest({
+      ...ref,
+      status: 'ready',
+      data: previous,
+      refreshedAt: readAt,
+      dataRefreshedAt: readAt,
+    })
+  )
+  for (const status of ['unavailable', 'rate_limited', 'not_found'] as const) {
+    await f.runtime.runPromise(
+      f.store.savePullRequest({ ...ref, status, error: 'Failed', refreshedAt: Date.now() })
+    )
+    const cached = await f.runtime.runPromise(f.store.getPullRequest(ref.repo, ref.number))
+    expect(cached.dataRefreshedAt).toBe(readAt)
+    expect(cached.refreshedAt).toBeGreaterThan(readAt)
+  }
+  const cached = await f.runtime.runPromise(f.store.getPullRequest(ref.repo, ref.number))
+  const next = commented(previous, readAt + 60_000)
+  await f.runtime.runPromise(f.watch.changed(ref, cached, next))
+  expect(
+    (await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))).pending?.threadId
+  ).toBe(owner.id)
+  await f.runtime.runPromise(
+    f.store.savePullRequest({
+      ...ref,
+      status: 'ready',
+      data: next,
+      refreshedAt: Date.now(),
+      dataRefreshedAt: Date.now(),
+    })
+  )
+  expect(
+    (await f.runtime.runPromise(f.store.getPullRequest(ref.repo, ref.number))).dataRefreshedAt
+  ).toBeGreaterThan(readAt)
 })

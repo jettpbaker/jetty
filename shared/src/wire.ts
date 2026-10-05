@@ -177,6 +177,7 @@ export const PullRequestSnapshot = Schema.Struct({
   status: Schema.Literals(['loading', 'ready', 'unavailable', 'not_found', 'rate_limited']),
   error: Schema.optional(Schema.String),
   refreshedAt: Schema.optional(Schema.Int),
+  dataRefreshedAt: Schema.optional(Schema.Int),
   data: Schema.optional(PullRequestData),
   rateLimit: Schema.optional(GitHubRateLimitHealth),
   pendingOperation: Schema.optional(

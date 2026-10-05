@@ -1404,7 +1404,8 @@ export function createStore() {
           status: PullRequestSnapshot['status']
           error: string | null
           refreshed_at: number | null
-        }>`SELECT data_json, status, error, refreshed_at FROM pull_requests WHERE repo = ${repo} AND number = ${number}`.pipe(
+          data_refreshed_at: number | null
+        }>`SELECT data_json, status, error, refreshed_at, data_refreshed_at FROM pull_requests WHERE repo = ${repo} AND number = ${number}`.pipe(
           Effect.map((rows): PullRequestSnapshot => {
             const row = rows[0]
             return {
@@ -1414,6 +1415,7 @@ export function createStore() {
               ...(row?.data_json ? { data: JSON.parse(row.data_json) } : {}),
               ...(row?.error ? { error: row.error } : {}),
               ...(row?.refreshed_at ? { refreshedAt: row.refreshed_at } : {}),
+              ...(row?.data_refreshed_at ? { dataRefreshedAt: row.data_refreshed_at } : {}),
             }
           }),
           Effect.mapError(storeError)
@@ -1421,10 +1423,11 @@ export function createStore() {
       },
       savePullRequest(snapshot: PullRequestSnapshot) {
         return Effect.gen(function* () {
-          yield* sql`INSERT INTO pull_requests (repo, number, data_json, status, error, refreshed_at)
-            VALUES (${snapshot.repo}, ${snapshot.number}, ${snapshot.data ? JSON.stringify(snapshot.data) : null}, ${snapshot.status}, ${snapshot.error ?? null}, ${snapshot.refreshedAt ?? null})
+          yield* sql`INSERT INTO pull_requests (repo, number, data_json, status, error, refreshed_at, data_refreshed_at)
+            VALUES (${snapshot.repo}, ${snapshot.number}, ${snapshot.data ? JSON.stringify(snapshot.data) : null}, ${snapshot.status}, ${snapshot.error ?? null}, ${snapshot.refreshedAt ?? null}, ${snapshot.dataRefreshedAt ?? null})
             ON CONFLICT(repo, number) DO UPDATE SET data_json = COALESCE(excluded.data_json, pull_requests.data_json),
-              status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at`
+              status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at,
+              data_refreshed_at = COALESCE(excluded.data_refreshed_at, pull_requests.data_refreshed_at)`
           return snapshot
         }).pipe(Effect.mapError(storeError))
       },

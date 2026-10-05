@@ -193,6 +193,12 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`ALTER TABLE pull_requests ADD COLUMN watch_json TEXT`
   }),
+  '027_pull_request_data_refresh': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE pull_requests ADD COLUMN data_refreshed_at INTEGER`
+    yield* sql`UPDATE pull_requests SET data_refreshed_at = refreshed_at
+      WHERE status = 'ready' AND data_json IS NOT NULL`
+  }),
 })
 
 export function databaseLayer(home: string) {

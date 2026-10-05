@@ -398,7 +398,7 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
         const saved = yield* store.pullRequestWatch(ref.repo, ref.number)
         const now = Date.now()
         const memory = { ...saved, observedAt: now }
-        if (now - Math.max(saved.observedAt ?? 0, previous.refreshedAt ?? 0) > STALE_MS) {
+        if (now - Math.max(saved.observedAt ?? 0, previous.dataRefreshedAt ?? 0) > STALE_MS) {
           yield* store.savePullRequestWatch(ref.repo, ref.number, memory)
           return
         }
@@ -406,7 +406,7 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
         const changes = pullRequestChanges(
           previous.data,
           next,
-          Math.max((previous.refreshedAt ?? 0) - LATE_MS, now - STALE_MS),
+          Math.max((previous.dataRefreshedAt ?? 0) - LATE_MS, now - STALE_MS),
           memory.failing ?? false
         ).filter(
           (change) =>

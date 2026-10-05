@@ -1745,15 +1745,18 @@ export function createPullRequests(store: Store, hub: Hub) {
         try {
           const graph = graphs[index]!
           if (graph instanceof GhFailure) throw graph
+          const data = await fetchPullRequest(
+            job.ref,
+            graph,
+            (await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))).data
+          )
+          const refreshedAt = Date.now()
           snapshot = {
             ...job.ref,
             status: 'ready',
-            data: await fetchPullRequest(
-              job.ref,
-              graph,
-              (await Effect.runPromise(store.getPullRequest(job.ref.repo, job.ref.number))).data
-            ),
-            refreshedAt: Date.now(),
+            data,
+            refreshedAt,
+            dataRefreshedAt: refreshedAt,
           }
         } catch (error) {
           const failure =
