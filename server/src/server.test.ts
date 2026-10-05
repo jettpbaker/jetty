@@ -740,6 +740,44 @@ describe('server skeleton', () => {
     await c.close()
   })
 
+  test('follow-ups while the first title is pending start no more title requests', async () => {
+    const titlerCalls: string[] = []
+    const release = Promise.withResolvers<void>()
+    const { port } = await boot({
+      agent: 'echo',
+      titler: (text) =>
+        Effect.promise(() => release.promise).pipe(
+          Effect.as('Fix the login bug'),
+          Effect.tap(() => Effect.sync(() => titlerCalls.push(text)))
+        ),
+    })
+    const c = await connect(port)
+    await c.subscribeChrome().ready
+    const { project } = await c.request('project.create', { path: dir('/tmp/title-once') })
+    const { thread } = await c.request('thread.create', {
+      environment: 'local',
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.subscribeThread({ threadId: thread.id }).ready
+    for (const text of ['please fix login', 'also the signup page']) {
+      const { turnId } = await c.request('turn.start', { threadId: thread.id, text })
+      await c.waitFor(
+        (m) => isThreadEvent(m) && m.event.type === 'turn.completed' && m.event.turnId === turnId
+      )
+    }
+    release.resolve()
+    await c.waitFor(
+      (m) =>
+        isChromeUpdate(m) &&
+        m.type === 'thread.upserted' &&
+        m.thread.id === thread.id &&
+        m.thread.title === 'Fix the login bug'
+    )
+    expect(titlerCalls).toEqual(['please fix login'])
+    await c.close()
+  })
+
   test('thread that already has a title never triggers titler', async () => {
     let called = false
     const { port, store } = await boot({

@@ -531,8 +531,11 @@ export function createOrchestrator({
       })
     }
 
+    // One paid title request per thread, from its opening message, however fast follow-ups land.
+    const titled = new Set<string>()
     function maybeTitle(threadId: string, provider: AgentProvider, text: string) {
-      if (!titler) return Effect.void
+      if (!titler || titled.has(threadId)) return Effect.void
+      titled.add(threadId)
       return titler(provider, text).pipe(
         Effect.flatMap((title) =>
           hub.withChromePublication(
