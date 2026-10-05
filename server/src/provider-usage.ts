@@ -1,6 +1,7 @@
 import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { join } from 'node:path'
@@ -90,6 +91,15 @@ async function claudeCredentials(): Promise<Record<string, unknown>> {
   }
 }
 
+export function claudeUsageIdentity(account: Record<string, unknown>) {
+  const user = string(account.accountUuid)
+  const organization = string(account.organizationUuid)
+  if (!user || !organization) return undefined
+  return createHash('sha256')
+    .update(JSON.stringify([user, organization]))
+    .digest('hex')
+}
+
 // The signed-in account and organization (whose plan the limits are), and its email.
 async function claudeAccount() {
   try {
@@ -97,7 +107,7 @@ async function claudeAccount() {
     const account = object(config.oauthAccount)
     const email = string(account.emailAddress)
     return {
-      id: [account.accountUuid, account.organizationUuid, email].map(string).join('/'),
+      id: claudeUsageIdentity(account) ?? '',
       email,
     }
   } catch {
@@ -115,12 +125,16 @@ export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
   const token = string(oauth.accessToken)
   const plan = claudePlan(oauth.subscriptionType, oauth.rateLimitTier)
   const { id, email } = await claudeAccount()
-  const metadata = { ...(plan ? { plan } : {}), ...(email ? { account: email } : {}) }
+  const metadata = {
+    ...(plan ? { plan } : {}),
+    ...(email ? { account: email } : {}),
+    ...(id ? { identity: id } : {}),
+  }
   if (!token) return { provider: 'claude', connected: false, windows: [], ...metadata }
   const usage = await readClaudeLimits(token, id)
   // A turn's own read is fresher than a cached or rate-limited OAuth one, so a failed OAuth read
   // under it isn't a failed refresh.
-  const turn = claudeTurn && (await claudeTurn.account) === id ? claudeTurn.usage : undefined
+  const turn = id && claudeTurn && (await claudeTurn.account) === id ? claudeTurn.usage : undefined
   if (!turn?.windows.length || (turn.asOf ?? 0) <= (usage.asOf ?? 0))
     return { ...usage, ...metadata }
   const { failed: _, ...read } = usage
@@ -128,7 +142,7 @@ export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
 }
 
 async function readClaudeLimits(token: string, account: string): Promise<ProviderUsage> {
-  const cached = claudeCache?.account === account ? claudeCache : undefined
+  const cached = account && claudeCache?.account === account ? claudeCache : undefined
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.usage
   try {
     const response = await fetch('https://api.anthropic.com/api/oauth/usage', {
@@ -139,7 +153,7 @@ async function readClaudeLimits(token: string, account: string): Promise<Provide
     const windows = claudeUsageWindows(await response.json())
     if (windows.length === 0) throw new Error('Claude usage unavailable')
     const usage: ProviderUsage = { provider: 'claude', connected: true, windows, asOf: Date.now() }
-    claudeCache = { account, at: Date.now(), usage }
+    if (account) claudeCache = { account, at: Date.now(), usage }
     return usage
   } catch {
     return {

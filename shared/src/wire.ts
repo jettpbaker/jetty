@@ -342,6 +342,7 @@ export const ProviderUsage = Schema.Struct({
   connected: Schema.Boolean,
   plan: Schema.optional(Schema.String),
   account: Schema.optional(Schema.String),
+  identity: Schema.optional(Schema.String),
   windows: Schema.Array(UsageWindow),
   asOf: Schema.optional(Schema.Finite),
   // This read failed: windows, if any, are the account's last good read, as of asOf.

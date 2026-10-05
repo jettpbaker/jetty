@@ -1,4 +1,5 @@
 import { loadProviderEnabled } from '@/lib/provider-enabled'
+import { lastGood } from '@/lib/provider-usage'
 import { storage } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
 import { ProviderUsage } from '@jetty/shared/wire'
@@ -55,13 +56,6 @@ function toggled(set: Set<UsageProvider>, provider: UsageProvider, present: bool
   if (present) next.add(provider)
   else next.delete(provider)
   return next
-}
-
-// A failed read the server has nothing for (it restarted) keeps this account's last windows.
-function lastGood(previous: ProviderUsage | undefined, usage: ProviderUsage): ProviderUsage {
-  if (!usage.failed || usage.windows.length || !previous?.windows.length) return usage
-  if (previous.account !== usage.account) return usage
-  return { ...usage, windows: previous.windows, ...(previous.asOf ? { asOf: previous.asOf } : {}) }
 }
 
 function readProviderUsage(registry: AtomRegistry.AtomRegistry, provider: UsageProvider) {

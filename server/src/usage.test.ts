@@ -2,6 +2,7 @@ import type { Query, SDKControlGetUsageResponse } from '@anthropic-ai/claude-age
 
 import { describe, expect, test } from 'bun:test'
 
+import { claudeUsageIdentity } from './provider-usage'
 import { readUsage } from './usage'
 
 type FakeResponse = Awaited<
@@ -76,4 +77,14 @@ describe('readUsage', () => {
     )
     expect(usage).toBeNull()
   })
+})
+
+test('opaque Claude identities distinguish accounts and organizations and reject incomplete metadata', () => {
+  const first = claudeUsageIdentity({ accountUuid: 'a', organizationUuid: 'org-1' })
+  expect(first).toHaveLength(64)
+  expect(claudeUsageIdentity({ accountUuid: 'a', organizationUuid: 'org-1' })).toBe(first)
+  expect(claudeUsageIdentity({ accountUuid: 'a', organizationUuid: 'org-2' })).not.toBe(first)
+  expect(claudeUsageIdentity({ accountUuid: 'b', organizationUuid: 'org-1' })).not.toBe(first)
+  expect(claudeUsageIdentity({ accountUuid: 'a' })).toBeUndefined()
+  expect(claudeUsageIdentity({})).toBeUndefined()
 })
