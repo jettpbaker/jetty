@@ -1,7 +1,7 @@
 'use client'
 
 import { SidebarLeftIcon } from '@/components/custom/huge_icons'
-import { keybinds } from '@/components/custom/keybinds'
+import { keybinds, typingOutsideComposer } from '@/components/custom/keybinds'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -84,7 +84,14 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
-  useHotkey(keybinds.sidebar.hotkey, toggleSidebar, { requireReset: true, ignoreInputs: false })
+  // ⌘B is bold in the PR and file editors, which handle it themselves.
+  useHotkey(
+    keybinds.sidebar.hotkey,
+    (event) => {
+      if (!typingOutsideComposer(event)) toggleSidebar()
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
