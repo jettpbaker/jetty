@@ -82,7 +82,7 @@ export function ComposerBranch({
   if (!onChange || disabledReason)
     return (
       <DisabledTooltip reason={disabledReason} wrap='flex'>
-        <Button variant='ghost-text' size='sm' disabled>
+        <Button variant='ghost-text' size='sm' className='gap-1.5 rounded-sm' disabled>
           <GitBranchIcon />
           {branch || 'Branch'}
         </Button>

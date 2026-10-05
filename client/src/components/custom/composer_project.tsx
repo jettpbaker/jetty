@@ -22,9 +22,14 @@ export function ComposerProject({
   const projects = chrome?.projects ?? []
 
   return (
-    <div className='relative z-10 flex items-center px-2.5 opacity-100' aria-label='Project'>
+    <div className='relative z-10 flex items-center px-2.5' aria-label='Project'>
       {projects.length === 0 ? (
-        <Button variant='ghost-text' size='sm' onClick={() => setAdding(true)}>
+        <Button
+          variant='ghost-text'
+          size='sm'
+          className='gap-1.5 rounded-sm'
+          onClick={() => setAdding(true)}
+        >
           <PlusSignIcon />
           Add project
         </Button>
