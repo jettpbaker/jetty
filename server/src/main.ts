@@ -3,7 +3,12 @@ import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wi
 
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
-import { RESTART_LIMIT, RESTART_LIMIT_NOTE, RESTART_WINDOW_MS } from '@jetty/shared/items'
+import {
+  heldByRestarts,
+  RESTART_LIMIT,
+  RESTART_LIMIT_NOTE,
+  RESTART_WINDOW_MS,
+} from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_IMAGE_BYTES, newId, type ProviderUsage } from '@jetty/shared/wire'
@@ -160,8 +165,18 @@ function reconcileOnStartup(store: Store) {
           const cutTurnId =
             state.activeTurnId ??
             (stoppedNames.length && !thread.archived ? state.items.at(-1)?.turnId : undefined)
-          if (!cutTurnId) return
-          if (!autoResume) yield* store.setQueuePaused(thread.id, true)
+          // A note an earlier start queued to resume its cut turn, and never sent, still counts
+          // towards the restart limit.
+          const unsent = (thread.pendingMessages ?? []).filter(
+            (message) => message.kind === 'continuation'
+          )
+          const turnId = cutTurnId ?? (unsent.length ? state.items.at(-1)?.turnId : undefined)
+          if (!turnId) return
+          if (!autoResume) {
+            yield* store.setQueuePaused(thread.id, true)
+            // Resume queues the note afresh, for the turn it holds.
+            for (const message of unsent) yield* store.editQueued(thread.id, message.id)
+          }
           for (const item of state.items) {
             if (item.turnId !== state.activeTurnId) continue
             if (item.kind === 'approval' && !item.decision)
@@ -189,18 +204,18 @@ function reconcileOnStartup(store: Store) {
               turnId: state.activeTurnId,
               error: 'server_restarted',
             })
-          if (!autoResume)
+          if (!autoResume && (state.activeTurnId || !heldByRestarts(state.items)))
             yield* store.appendEvent(thread.id, {
               type: 'item.started',
               item: {
                 id: newId(),
-                turnId: cutTurnId,
+                turnId,
                 createdAt: Date.now(),
                 kind: 'error',
                 message: RESTART_LIMIT_NOTE,
               },
             })
-          if (autoResume && !thread.archived)
+          if (autoResume && !thread.archived && cutTurnId)
             yield* store.enqueue(
               thread.id,
               yield* store.continuation(thread.id, cutTurnId, stoppedNames),

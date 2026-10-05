@@ -1137,6 +1137,50 @@ describe('server skeleton', () => {
     })
   })
 
+  test('a resuming note an earlier start queued and never sent is held by the restart limit', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'jetty-unsent-'))
+    homes.push(home)
+    const db = await openTestStore(home)
+    const { store } = db
+    const project = await Effect.runPromise(store.createProject(home))
+    const thread = await Effect.runPromise(store.createThread(project.id, newId()))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        for (let start = 1; start < RESTART_LIMIT; start++)
+          yield* store.recordServerStart(Date.now() - start * 1000, RESTART_WINDOW_MS)
+        yield* store.beginDelivery(thread.id, 'cut-turn', 0)
+        yield* store.appendEvents(thread.id, [
+          {
+            type: 'item.started',
+            item: {
+              id: 'prompt',
+              turnId: 'cut-turn',
+              createdAt: Date.now(),
+              kind: 'user_message',
+              text: 'Do the work',
+              attachments: [],
+            },
+          },
+          { type: 'item.completed', itemId: 'prompt' },
+          { type: 'turn.started', turnId: 'cut-turn' },
+          { type: 'turn.failed', turnId: 'cut-turn', error: 'server_restarted' },
+        ])
+        yield* store.enqueue(thread.id, yield* store.continuation(thread.id, 'cut-turn'), 0)
+      })
+    )
+    await db.close()
+
+    const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+    servers.push(running)
+    await Bun.sleep(300)
+    const meta = await Effect.runPromise(running.store.requireThread(thread.id))
+    expect(meta.queuePaused).toBe(true)
+    expect(meta.pendingMessages).toEqual([])
+    const state = await Effect.runPromise(running.store.getThreadState(thread.id))
+    expect(state.items.every((item) => item.turnId === 'cut-turn')).toBe(true)
+    expect(heldByRestarts(state.items)).toBe(true)
+  })
+
   test('a second server on the same home refuses to start, before touching the first one', async () => {
     const first = await boot()
     const c = await connect(first.port)
