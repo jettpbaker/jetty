@@ -5,7 +5,7 @@ import { constants, type Stats } from 'node:fs'
 import { open, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
 
-import { git } from './git-process'
+import { git, gitStream } from './git-process'
 import { StoreError } from './store'
 
 export type ThreadDiff = { diff: string; truncatedPaths?: string[] }
@@ -26,22 +26,56 @@ function filePath(section: string): string | null {
   return header?.[1] ?? null
 }
 
-export function truncateDiff(diff: string): ThreadDiff {
-  if (diff.trim().length === 0) return { diff: '' }
-  const sections = diff.split(/(?=^diff --git )/m).filter((s) => s.length > 0)
+const SECTION_START = '\ndiff --git '
+
+// Splits streamed diff text into its files' sections, leaving out lockfiles and files too big to
+// show. A big one is dropped as it streams in, so a huge file never sits in memory whole.
+function diffSections() {
   const kept: string[] = []
   const truncated: string[] = []
-  for (const section of sections) {
-    const path = filePath(section)
-    if (path && (isLockfile(path) || Buffer.byteLength(section) > MAX_FILE_DIFF_BYTES)) {
-      truncated.push(path)
-      continue
-    }
-    kept.push(section)
+  let text = ''
+  let dropping = false
+  let droppedPath: string | null = null
+
+  function close(section: string) {
+    const path = dropping ? droppedPath : filePath(section)
+    const tooBig = dropping || Buffer.byteLength(section) > MAX_FILE_DIFF_BYTES
+    if (path && (tooBig || isLockfile(path))) truncated.push(path)
+    else if (!dropping && section) kept.push(section)
+    dropping = false
   }
-  return truncated.length > 0
-    ? { diff: kept.join(''), truncatedPaths: truncated }
-    : { diff: kept.join('') }
+
+  return {
+    push(chunk: string) {
+      text += chunk
+      for (let at = text.indexOf(SECTION_START); at >= 0; at = text.indexOf(SECTION_START)) {
+        close(text.slice(0, at + 1))
+        text = text.slice(at + 1)
+      }
+      if (!dropping && Buffer.byteLength(text) > MAX_FILE_DIFF_BYTES) {
+        dropping = true
+        droppedPath = filePath(text)
+      }
+      // Enough of a dropped section stays to find the next one starting across chunks.
+      if (dropping) text = text.slice(-SECTION_START.length)
+    },
+    end() {
+      close(text)
+      text = ''
+    },
+    result(): ThreadDiff {
+      const diff = kept.join('')
+      return truncated.length > 0 ? { diff, truncatedPaths: truncated } : { diff }
+    },
+  }
+}
+
+export function truncateDiff(diff: string): ThreadDiff {
+  if (diff.trim().length === 0) return { diff: '' }
+  const sections = diffSections()
+  sections.push(diff)
+  sections.end()
+  return sections.result()
 }
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
@@ -61,21 +95,22 @@ export function computeThreadDiff(cwd: string, baseCommit?: string) {
   return Effect.gen(function* () {
     const head = yield* git(cwd, ['rev-parse', '--verify', 'HEAD'])
     const base = yield* diffBase(cwd, baseCommit)
+    const sections = diffSections()
     // A nested project's changes are its own folder's, relative to it like the untracked ones.
-    const tracked = yield* git(cwd, [
-      ...diffArgs,
-      '--relative',
-      head.code === 0 ? (base ?? 'HEAD') : EMPTY_TREE,
-    ])
-    if (tracked.code !== 0) return { diff: '' }
+    const tracked = yield* gitStream(
+      cwd,
+      [...diffArgs, '--relative', head.code === 0 ? (base ?? 'HEAD') : EMPTY_TREE],
+      sections.push
+    )
+    if (tracked !== 0) return { diff: '' }
+    sections.end()
     const untracked = yield* git(cwd, ['ls-files', '-z', '--others', '--exclude-standard'])
-    const parts = [tracked.out]
     for (const path of untracked.out.split('\0').filter((line) => line.length > 0)) {
       // --no-index exits 1 when the file has content; that's the success case.
-      const { out } = yield* git(cwd, [...diffArgs, '--no-index', '--', '/dev/null', path])
-      parts.push(out)
+      yield* gitStream(cwd, [...diffArgs, '--no-index', '--', '/dev/null', path], sections.push)
+      sections.end()
     }
-    return truncateDiff(parts.join(''))
+    return sections.result()
   })
 }
 

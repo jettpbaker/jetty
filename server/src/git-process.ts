@@ -1,7 +1,8 @@
 import { Effect, Stream } from 'effect'
 import { ChildProcess } from 'effect/process'
 
-export function git(cwd: string, args: string[]) {
+// Hands stdout to `onText` as it arrives, so a caller can keep only what it needs of it.
+export function gitStream(cwd: string, args: string[], onText: (text: string) => void) {
   return Effect.scoped(
     Effect.gen(function* () {
       const process = yield* ChildProcess.make('git', args, {
@@ -11,18 +12,23 @@ export function git(cwd: string, args: string[]) {
         stderr: 'ignore',
         forceKillAfter: '1 second',
       })
-      const out = yield* process.stdout.pipe(
+      yield* process.stdout.pipe(
         Stream.decodeText(),
-        Stream.runFold(
-          () => '',
-          (text, chunk) => text + chunk
-        )
+        Stream.runForEach((text) => Effect.sync(() => onText(text)))
       )
-      const code = yield* process.exitCode
-      return { code: Number(code), out }
+      return Number(yield* process.exitCode)
     })
   ).pipe(
     Effect.timeout('30 seconds'),
-    Effect.catch(() => Effect.succeed({ code: -1, out: '' }))
+    Effect.catch(() => Effect.succeed(-1))
   )
+}
+
+export function git(cwd: string, args: string[]) {
+  return Effect.suspend(() => {
+    const chunks: string[] = []
+    return gitStream(cwd, args, (text) => chunks.push(text)).pipe(
+      Effect.map((code) => ({ code, out: code === -1 ? '' : chunks.join('') }))
+    )
+  })
 }
