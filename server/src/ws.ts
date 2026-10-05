@@ -321,11 +321,13 @@ export function createRpcHandlers(
               ? yield* fromPromise(() => worktrees.resolveRef(project.path, params.ref))
               : undefined
           const thread = yield* upsertThread(
-            Effect.gen(function* () {
-              yield* store.createThread(params.projectId, params.id)
-              yield* store.setThreadEnvironment(params.id, baseCommit)
-              return yield* store.requireThread(params.id)
-            })
+            store.transaction(
+              Effect.gen(function* () {
+                yield* store.createThread(params.projectId, params.id)
+                yield* store.setThreadEnvironment(params.id, baseCommit)
+                return yield* store.requireThread(params.id)
+              })
+            )
           )
           return { thread }
         }).pipe(Effect.mapError(wireError)),

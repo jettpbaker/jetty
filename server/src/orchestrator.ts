@@ -1218,7 +1218,7 @@ export function createOrchestrator({
                     thread: yield* store.requireThread(thread.id),
                   })
               })
-            )
+            ).pipe(Effect.onError(() => Effect.sync(() => checked.delete(thread.id))))
           }
           for (const thread of yield* store.listThreads()) {
             if (closing) return
