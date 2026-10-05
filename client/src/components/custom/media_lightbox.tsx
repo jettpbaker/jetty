@@ -349,7 +349,7 @@ function Lightbox({
       />
       <DialogPrimitive.Popup
         ref={popup}
-        className='fixed inset-0 z-50 outline-none'
+        className='dark fixed inset-0 z-50 outline-none'
         initialFocus={popup}
         onKeyDown={onKeyDown}
       >
