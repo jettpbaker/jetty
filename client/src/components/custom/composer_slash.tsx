@@ -503,15 +503,12 @@ export function useComposerSlash(
   }
 
   return {
-    text,
     shown,
     tokens,
-    caret,
     query,
     open,
     entries,
     index,
-    skills,
     field,
     mirror,
     anchor,
@@ -544,10 +541,10 @@ function chips(text: string, query: SlashQuery | undefined, skills: readonly Ski
   )
 }
 
-/* Mirror: paints chips and argument hints behind the textarea's own text. */
+/* Mirror: paints chips and the menu's anchor behind the textarea's own text. */
 
 export function SlashMirror({ slash }: { slash: Slash }) {
-  const { text, shown, tokens, query, caret, skills } = slash
+  const { shown, tokens, query } = slash
   const parts: ReactNode[] = []
   let at = 0
   const marks = [
@@ -571,17 +568,6 @@ export function SlashMirror({ slash }: { slash: Slash }) {
   }
   parts.push(shown.slice(at))
 
-  const last = tokens.at(-1)
-  const lastSkill = last && skills.find((skill) => skill.name === last.name)
-  const hint =
-    !slash.open &&
-    caret === text.length &&
-    last &&
-    lastSkill?.argument &&
-    text.slice(last.end) === ' '
-      ? lastSkill.argument
-      : undefined
-
   return (
     <div
       ref={slash.mirror}
@@ -589,7 +575,6 @@ export function SlashMirror({ slash }: { slash: Slash }) {
       className='skill-chip-text pointer-events-none absolute inset-0 scroll-fade-y overflow-hidden px-2.5 py-2 text-base break-words whitespace-pre-wrap text-transparent md:text-sm'
     >
       {parts}
-      {hint && <span className='text-muted-foreground'>{hint}</span>}
       {/* Gives a trailing newline its line, as the textarea does, so the two scroll alike. */}
       {'​'}
     </div>

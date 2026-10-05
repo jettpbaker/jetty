@@ -250,7 +250,6 @@ export type UploadAttachment = Schema.Schema.Type<typeof UploadAttachment>
 export const Skill = Schema.Struct({
   name: Schema.String,
   description: Schema.String,
-  argument: Schema.optional(Schema.String),
 })
 export type Skill = Schema.Schema.Type<typeof Skill>
 
