@@ -364,9 +364,16 @@ export function useQueueHeld(threadId: string | undefined) {
   return useAtomValue(queueHeldAtom(threadId ?? ''))
 }
 
+const threadQueueOpsAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(queueOpsAtom).get(threadId))
+)
+const threadRemovedAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(removedAtom).get(threadId))
+)
+
 export function useThreadQueue(threadId: string | undefined) {
   const server = useAtomValue(pendingMessagesAtom(threadId ?? ''))
-  const ops = useAtomValue(queueOpsAtom).get(threadId ?? '')
+  const ops = useAtomValue(threadQueueOpsAtom(threadId ?? ''))
   return useMemo(() => applyOps(server ?? noMessages, ops ?? []), [ops, server])
 }
 
@@ -386,7 +393,7 @@ export function useVisibleQueue(threadId: string | undefined, items: readonly Th
 }
 
 export function useRemovedQueued(threadId: string | undefined) {
-  return useAtomValue(removedAtom).get(threadId ?? '')
+  return useAtomValue(threadRemovedAtom(threadId ?? ''))
 }
 
 // The thread's composer, as the chat's queued messages reach it: Edit loads a message into it,

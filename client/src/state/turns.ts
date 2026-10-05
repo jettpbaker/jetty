@@ -70,6 +70,25 @@ const stoppingWorkflowsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).
 // Threads the crash-loop guard held, shown as resumed and working until their turn starts.
 const continuingAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
 
+// Per thread, so another thread's send, pick or resume wakes none of this one's readers.
+const noPrompts: readonly PendingPrompt[] = []
+const noItems: readonly ThreadItem[] = []
+const threadPromptsAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(pendingPromptsAtom).get(threadId) ?? noPrompts)
+)
+const sendingIdsAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadPromptsAtom(threadId)).map((prompt) => prompt.id))
+)
+const threadPendingTurnAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(pendingTurnsAtom).has(threadId))
+)
+const threadContinuingAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(continuingAtom).has(threadId))
+)
+const threadLoadoutOverrideAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(loadoutOverridesAtom).get(threadId))
+)
+
 function withPrompts(
   prompts: ReadonlyMap<string, readonly PendingPrompt[]>,
   threadId: string,
@@ -357,12 +376,12 @@ function savedLoadout(
 // A thread's pick lives here until the server saves it; the new-thread draft keeps its own.
 export function useThreadLoadout(threadId: string | undefined) {
   const registry = useContext(RegistryContext)
-  const overrides = useAtomValue(loadoutOverridesAtom)
+  const threadOverride = useAtomValue(threadLoadoutOverrideAtom(threadId ?? ''))
   const { draft, update, read } = useDraft('')
   const enabled = useAtomValue(enabledModelsAtom)
   const drafted = draft.target?.loadout
   const override = threadId
-    ? overrides.get(threadId)
+    ? threadOverride
     : drafted && findModel(enabled, drafted)
       ? drafted
       : undefined
@@ -391,11 +410,7 @@ export function useThreadLoadout(threadId: string | undefined) {
 
 // What the user just sent, shown as sent while the server holds it in the queue for a moment.
 export function useSendingIds(threadId: string | undefined) {
-  const prompts = useAtomValue(pendingPromptsAtom)
-  return useMemo(
-    () => (prompts.get(threadId ?? '') ?? []).map((prompt) => prompt.id),
-    [prompts, threadId]
-  )
+  return useAtomValue(sendingIdsAtom(threadId ?? ''))
 }
 
 export function useDraftEpoch() {
@@ -419,7 +434,7 @@ export function useContinueThread() {
 }
 
 export function useContinuing(threadId: string) {
-  return useAtomValue(continuingAtom).has(threadId)
+  return useAtomValue(threadContinuingAtom(threadId))
 }
 
 function compactThread(registry: Registry, threadId: string) {
@@ -464,22 +479,19 @@ export function useDismissQuestion() {
 
 export function useThreadOverlay(threadId: string, thread: ThreadState | undefined) {
   const registry = useContext(RegistryContext)
-  const prompts = useAtomValue(pendingPromptsAtom)
+  const prompts = useAtomValue(threadPromptsAtom(threadId))
   const resolutions = useAtomValue(pendingResolutionsAtom)
-  const turns = useAtomValue(pendingTurnsAtom)
+  const optimistic = useAtomValue(threadPendingTurnAtom(threadId))
   const stopping = useAtomValue(stoppingWorkflowsAtom)
-  const continuing = useAtomValue(continuingAtom).has(threadId)
-  const items = useMemo(() => thread?.items ?? [], [thread])
-  const pending = useMemo(
-    () => unmatchedPrompts(prompts.get(threadId) ?? [], items),
-    [items, prompts, threadId]
-  )
-  const overlaid = useMemo(
-    () => items.map((item) => overlayItem(item, resolutions, stopping)),
-    [items, resolutions, stopping]
-  )
-  const optimistic = turns.has(threadId)
-  const promptCount = prompts.get(threadId)?.length ?? 0
+  const continuing = useAtomValue(threadContinuingAtom(threadId))
+  const items = thread?.items ?? noItems
+  const pending = unmatchedPrompts(prompts, items)
+  // Nothing answered or stopping: the server's own array, so what reads it sees a delta as one.
+  const overlaid =
+    resolutions.size === 0 && stopping.size === 0
+      ? items
+      : items.map((item) => overlayItem(item, resolutions, stopping))
+  const promptCount = prompts.length
   const status = thread?.status
   // Running workflows and subagents keep the thread running between turns; only a turn makes the
   // composer queue.
@@ -510,6 +522,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   }, [items, registry, resolutions])
 
   useEffect(() => {
+    if (stopping.size === 0) return
     const settled = items
       .filter((item) => item.kind === 'workflow' && item.status !== 'running')
       .map((item) => item.id)
@@ -527,7 +540,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   }, [live, optimistic, promptCount, registry, status, threadId])
 
   // The resumed turn's opening message, hidden like every restart note, moves the thread on.
-  const held = heldByRestarts(items)
+  const held = continuing && heldByRestarts(items)
   useEffect(() => {
     if (continuing && !held) registry.update(continuingAtom, (ids) => withoutId(ids, threadId))
   }, [continuing, held, registry, threadId])
