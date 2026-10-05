@@ -114,7 +114,7 @@ export const pullRequestConnections = {
   comments: `nodes { databaseId body createdAt url author { ${actorFields} } }`,
   reviews: `nodes { databaseId state body submittedAt url author { ${actorFields} } }`,
   reviewThreads: `nodes { id isResolved isOutdated path line diffSide startLine
-    comments(first:100) { ${pageFields} nodes { ${reviewCommentFields} } } }`,
+    comments(first:50) { ${pageFields} nodes { ${reviewCommentFields} } } }`,
   commitHistory: `nodes { commit { oid message authoredDate url author { name user { ${actorFields} } }
     parents(first:1) { totalCount } } }`,
   files: `nodes { path viewerViewedState }`,

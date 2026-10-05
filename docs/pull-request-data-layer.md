@@ -18,7 +18,9 @@ are never shown, so they aren't read), and `isRequired(pullRequestNumber:)`.
 Unsubmitted (`PENDING`) review comments are excluded from posted comments and
 their count. Reviews, threads, nested thread replies, conversation comments,
 commit history, status timeline, and viewed-file connections follow cursors until
-exhausted. Reviewer requests, latest reviews, latest opinionated reviews, labels,
+exhausted. A thread's comments come 50 to the first page (rarely outgrown; threads that
+do page in parallel), so a big PR's query asks for 5,000 nested comments, not 10,000.
+Reviewer requests, latest reviews, latest opinionated reviews, labels,
 closing issues, and check contexts remain capped at 100. `truncatedConnections`
 reports any remaining pages; check totals and the authoritative rollup remain
 available. Status events are chronological. The first ready/draft event determines
@@ -59,6 +61,10 @@ inline code, duplicates, and self-references, with a 30-reference bound. Cached
 body references join the main query as aliases; newly discovered targets require
 one follow-up. Unresolvable targets are omitted. Closing issues retain repository
 identity and open/completed/not-planned states.
+
+A query that times out (ours at 20 s, or GitHub's 502/504) or exceeds GitHub's node
+or resource limits retries with smaller pages (100, 50, 25, then 10), and a directory
+batch splits in half; any other failure fails once rather than four times.
 
 Partial GraphQL errors retain previously read fields where possible. Data tied to
 a different head is not carried over. Pagination failures affect only their own PR

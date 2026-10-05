@@ -200,7 +200,9 @@ class GhFailure extends Error {
   constructor(
     readonly kind: 'unavailable' | 'not_found' | 'rate_limited',
     message: string,
-    readonly status?: number
+    readonly status?: number,
+    // GitHub timed out or refused the query's size, so a smaller one may succeed.
+    readonly tooLarge = false
   ) {
     super(message)
   }
@@ -380,7 +382,13 @@ async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiRespons
   const split = out.search(/\r?\n\r?\n/)
   const headerText = split >= 0 ? out.slice(0, split) : ''
   const status = Number(headerText.match(/^HTTP\/\S+\s+(\d+)/)?.[1]) || (code === 0 ? 200 : 0)
-  if (!status) throw new GhFailure('unavailable', err.trim() || 'GitHub API is unavailable')
+  if (!status)
+    throw new GhFailure(
+      'unavailable',
+      err.trim() || 'GitHub API is unavailable',
+      undefined,
+      child.signalCode !== null
+    )
   const headers = new Headers()
   for (const line of headerText.split(/\r?\n/).slice(1)) {
     const colon = line.indexOf(':')
@@ -410,9 +418,14 @@ async function requestApi(request: ApiRequest): Promise<unknown> {
   try {
     response = await sendApi(request, cached?.etag)
   } catch (error) {
-    throw error instanceof GhFailure
-      ? error
-      : new GhFailure('unavailable', 'GitHub API is unavailable')
+    if (error instanceof GhFailure) throw error
+    const timedOut = error instanceof Error && error.name === 'TimeoutError'
+    throw new GhFailure(
+      'unavailable',
+      timedOut ? 'GitHub timed out' : 'GitHub API is unavailable',
+      undefined,
+      timedOut
+    )
   }
   const { status, headers, text, detail } = response
   if (process.env.JETTY_PR_FETCH_DEBUG === '1')
@@ -467,7 +480,20 @@ async function requestApi(request: ApiRequest): Promise<unknown> {
       throw new GhFailure('not_found', 'GitHub denied this operation', 403)
     if (status === 404)
       throw new GhFailure('not_found', 'Pull request not found or access denied', status)
-    throw new GhFailure('unavailable', message || 'GitHub API is unavailable', status)
+    throw new GhFailure(
+      'unavailable',
+      message || 'GitHub API is unavailable',
+      status,
+      status === 502 ||
+        status === 504 ||
+        (Array.isArray(errors) &&
+          errors.some((error) =>
+            ['MAX_NODE_LIMIT_EXCEEDED', 'RESOURCE_LIMITS_EXCEEDED'].includes(
+              string(record(error).type)
+            )
+          )) ||
+        /timeout|timed out|exceeds the maximum|complexity/i.test(message)
+    )
   }
   if (restGet) {
     cacheWrite(restNext, request.path, /rel="next"/.test(headers.get('link') ?? ''), 512)
@@ -615,7 +641,7 @@ async function queryGraphql(query: string): Promise<unknown> {
     } catch (error) {
       if (
         !(error instanceof GhFailure) ||
-        error.kind !== 'unavailable' ||
+        !error.tooLarge ||
         size === 10 ||
         !query.includes('first:100')
       )
@@ -761,40 +787,52 @@ async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unk
       }
     })
   )
-  for (const value of nodes(pull.reviewThreads)) {
-    const thread = record(value)
-    const connection = record(thread.comments)
-    while (record(connection.pageInfo).hasNextPage === true) {
-      const cursor = string(record(connection.pageInfo).endCursor)
-      if (!cursor) break
-      const response = record(
-        await graphql(`query {
-        rateLimit { cost remaining resetAt }
-        node(id:${JSON.stringify(thread.id)}) { ... on PullRequestReviewThread {
-          comments(first:100,after:${JSON.stringify(cursor)}) { ${pageFields} nodes { ${reviewCommentFields} } }
-        } }
-      }`)
-      )
-      const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
-      if (errors.some((error) => Array.isArray(error.path) && error.path[0] === 'node')) {
-        const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
-        const saved =
-          previous &&
-          previous.headRefOid === pull.headRefOid &&
-          !errors.some((error) => error.type === 'NOT_FOUND')
-            ? nodes(previous.reviewThreads).find((value) => record(value).id === thread.id)
-            : undefined
-        if (!record(saved).comments)
-          throw new GhFailure('unavailable', 'GitHub could not paginate review comments')
-        thread.comments = structuredClone(record(saved).comments)
-        break
-      }
-      const next = record(record(record(response.data).node).comments)
-      if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
-        throw new GhFailure('unavailable', 'GitHub returned an incomplete review comment page')
-      connection.nodes = [...nodes(connection), ...nodes(next)]
-      connection.pageInfo = next.pageInfo
+  // Few threads outgrow their first page of comments; those that do page in parallel.
+  await Effect.runPromise(
+    Effect.forEach(
+      nodes(pull.reviewThreads),
+      (value) => Effect.promise(() => paginateThread(ref, pull, record(value))),
+      { concurrency: 4, discard: true }
+    )
+  )
+}
+
+async function paginateThread(
+  ref: PullRequestRef,
+  pull: Record<string, unknown>,
+  thread: Record<string, unknown>
+) {
+  const connection = record(thread.comments)
+  while (record(connection.pageInfo).hasNextPage === true) {
+    const cursor = string(record(connection.pageInfo).endCursor)
+    if (!cursor) break
+    const response = record(
+      await graphql(`query {
+      rateLimit { cost remaining resetAt }
+      node(id:${JSON.stringify(thread.id)}) { ... on PullRequestReviewThread {
+        comments(first:100,after:${JSON.stringify(cursor)}) { ${pageFields} nodes { ${reviewCommentFields} } }
+      } }
+    }`)
+    )
+    const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+    if (errors.some((error) => Array.isArray(error.path) && error.path[0] === 'node')) {
+      const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
+      const saved =
+        previous &&
+        previous.headRefOid === pull.headRefOid &&
+        !errors.some((error) => error.type === 'NOT_FOUND')
+          ? nodes(previous.reviewThreads).find((value) => record(value).id === thread.id)
+          : undefined
+      if (!record(saved).comments)
+        throw new GhFailure('unavailable', 'GitHub could not paginate review comments')
+      thread.comments = structuredClone(record(saved).comments)
+      return
     }
+    const next = record(record(record(response.data).node).comments)
+    if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
+      throw new GhFailure('unavailable', 'GitHub returned an incomplete review comment page')
+    connection.nodes = [...nodes(connection), ...nodes(next)]
+    connection.pageInfo = next.pageInfo
   }
 }
 
@@ -1093,8 +1131,7 @@ async function classifyFiles(
     }`)
       )
     } catch (error) {
-      if (!(error instanceof GhFailure) || error.kind !== 'unavailable' || batch.length < 2)
-        throw error
+      if (!(error instanceof GhFailure) || !error.tooLarge || batch.length < 2) throw error
       const middle = Math.ceil(batch.length / 2)
       await loadFlags(batch.slice(0, middle))
       await loadFlags(batch.slice(middle))
