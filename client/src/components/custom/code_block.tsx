@@ -19,12 +19,19 @@ import {
 } from 'react'
 import { StreamdownContext } from 'streamdown'
 
+type HastText = { value?: string; children?: HastText[] }
+
 type CodeProps = {
   className?: string
   children?: ReactNode
-  node?: { tagName: string; properties?: { metastring?: unknown } }
+  node?: { tagName: string; properties?: { metastring?: unknown }; children?: HastText[] }
   metastring?: string
   'data-block'?: string
+}
+
+// Raw HTML like <pre><code>a<b>b</b></code></pre> leaves elements inside the code; its text is the code.
+function hastText(node: HastText): string {
+  return node.value ?? (node.children ?? []).map(hastText).join('')
 }
 
 const shellLangs = new Set(['bash', 'sh', 'shell', 'zsh', 'console'])
@@ -208,7 +215,7 @@ export function CodePre({ children }: { children?: ReactNode }) {
     <WorkerCodeBlock
       {...rest}
       className={className}
-      code={typeof code === 'string' ? code : ''}
+      code={typeof code === 'string' ? code : hastText(node)}
       meta={typeof meta === 'string' ? meta : ''}
     />
   )

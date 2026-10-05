@@ -88,6 +88,19 @@ const components = {
 // Links open in a new tab; streamdown's confirm modal is a speed bump with no focus handling.
 const linkSafety = { enabled: false }
 
+type HastNode = { tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] }
+
+// Footnote links jump within the message; streamdown would open them in a new tab like any link.
+function rehypeLocalLinks() {
+  function visit(node: HastNode) {
+    const href = node.properties?.href
+    if (node.tagName === 'a' && typeof href === 'string' && href.startsWith('#'))
+      node.properties = { ...node.properties, target: '_self', rel: undefined }
+    for (const child of node.children ?? []) visit(child)
+  }
+  return visit
+}
+
 type SanitizeSchema = { tagNames: string[]; attributes: Record<string, unknown[]> }
 const [sanitize, schema] = defaultRehypePlugins.sanitize as [unknown, SanitizeSchema]
 // Streamdown ignores allowedTags once the pipeline is custom, so they're listed here too.
@@ -106,6 +119,7 @@ const rehypePlugins = [
     },
   ],
   defaultRehypePlugins.harden,
+  rehypeLocalLinks,
   rehypeMarkdownMedia,
 ] as StreamdownProps['rehypePlugins']
 
