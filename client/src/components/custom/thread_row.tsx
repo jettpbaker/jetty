@@ -86,9 +86,10 @@ export function ThreadRow({
               </OverflowTitle>
             }
             glyph={
-              <span className='ml-auto flex shrink-0 items-center gap-1.5'>
-                {shortcut && <HeldKeybind binding={shortcut} />}
-                <StatusGlyph status={status} />
+              <span className='ml-auto flex shrink-0 items-center'>
+                <HeldKeybind binding={shortcut}>
+                  <StatusGlyph status={status} />
+                </HeldKeybind>
               </span>
             }
             metaClassName='gap-2.5'

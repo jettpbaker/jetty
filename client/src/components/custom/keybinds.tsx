@@ -62,66 +62,100 @@ export function typingOutsideComposer(event: KeyboardEvent) {
   )
 }
 
-const ModifierContext = createContext<Modifier | null>(null)
+type Held = readonly Modifier[]
+
+const ModifierContext = createContext<Held>([])
 
 const modifiers: readonly string[] = ['Meta', 'Alt', 'Shift', 'Control']
 
-// A modifier held on its own for 200ms reveals its chips; any other key (a chord) hides them until the next press.
+function heldModifiers(event: KeyboardEvent) {
+  const held: Modifier[] = []
+  if (event.metaKey) held.push('Meta')
+  if (event.altKey) held.push('Alt')
+  if (event.shiftKey) held.push('Shift')
+  if (event.ctrlKey) held.push('Control')
+  return held
+}
+
+function matches(binding: Keybind | undefined, held: Held) {
+  return (
+    held.length > 0 && !!binding && held.every((modifier) => binding.modifiers.includes(modifier))
+  )
+}
+
+// Modifiers held for 200ms reveal the chips of every binding that uses them all, and adding or
+// releasing one updates them at once; any other key (a chord) hides them until all are released.
 export function KeybindProvider({ children }: { children: ReactNode }) {
-  const [revealed, setRevealed] = useState<Modifier | null>(null)
+  const [revealed, setRevealed] = useState<Held>([])
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    function hide() {
+    let shown = false
+    let chorded = false
+    function reveal(held: Held) {
       clearTimeout(timer)
-      setRevealed(null)
+      // Plain typing reaches here on every key; nothing to hide, so no render.
+      if (!held.length && !shown) return
+      shown = held.length > 0
+      setRevealed(held)
+    }
+    function track(event: KeyboardEvent) {
+      const held = heldModifiers(event)
+      if (!held.length) chorded = false
+      if (!held.length || chorded) return reveal([])
+      if (shown) return reveal(held)
+      clearTimeout(timer)
+      timer = setTimeout(() => reveal(held), 200)
     }
     function keydown(event: KeyboardEvent) {
-      if (event.repeat && modifiers.includes(event.key)) return
-      hide()
-      const held = [event.metaKey, event.altKey, event.shiftKey, event.ctrlKey].filter(
-        Boolean
-      ).length
-      if (modifiers.includes(event.key) && held === 1)
-        timer = setTimeout(() => setRevealed(event.key as Modifier), 200)
+      if (modifiers.includes(event.key)) {
+        if (!event.repeat) track(event)
+        return
+      }
+      chorded = true
+      reveal([])
+    }
+    function blur() {
+      chorded = false
+      reveal([])
     }
     document.addEventListener('keydown', keydown, true)
-    document.addEventListener('keyup', hide, true)
-    window.addEventListener('blur', hide)
+    document.addEventListener('keyup', track, true)
+    window.addEventListener('blur', blur)
     return () => {
       clearTimeout(timer)
       document.removeEventListener('keydown', keydown, true)
-      document.removeEventListener('keyup', hide, true)
-      window.removeEventListener('blur', hide)
+      document.removeEventListener('keyup', track, true)
+      window.removeEventListener('blur', blur)
     }
   }, [])
   return <ModifierContext value={revealed}>{children}</ModifierContext>
 }
 
 export function useModifierHeld(binding?: Keybind) {
-  const modifier = useContext(ModifierContext)
-  return modifier !== null && Boolean(binding?.modifiers.includes(modifier))
+  return matches(binding, useContext(ModifierContext))
 }
 
-export function useHeldModifier() {
+export function useHeldModifiers() {
   return useContext(ModifierContext)
 }
 
 const glyphs: Record<Modifier, string> = { Meta: '⌘', Alt: '⌥', Shift: '⇧', Control: '⌃' }
 
-// While its modifier is held, a chip shows only the keys still to press ("1", not "⌥1").
+// While modifiers are held, a chip shows only the keys still to press ("1", not "⌥1").
 export function KeybindChip({
   binding,
-  held = null,
+  held = [],
   className,
 }: {
   binding: Keybind
-  held?: Modifier | null
+  held?: Held
   className?: string
 }) {
-  const label =
-    held && binding.modifiers.includes(held)
-      ? binding.label.replace(glyphs[held], '')
-      : binding.label
+  const label = held.reduce(
+    (label, modifier) =>
+      binding.modifiers.includes(modifier) ? label.replace(glyphs[modifier], '') : label,
+    binding.label
+  )
   return (
     <Kbd
       aria-label={binding.label}
@@ -138,11 +172,10 @@ export function KeybindChip({
 }
 
 export function HoverKeybind({ binding, className }: { binding: Keybind; className?: string }) {
-  const held = useHeldModifier()
-  const active = held !== null && binding.modifiers.includes(held)
+  const held = useHeldModifiers()
   return (
     <span
-      data-keybind-held={active || undefined}
+      data-keybind-held={matches(binding, held) || undefined}
       className={cn('hover-keybind shrink-0', className)}
     >
       <KeybindChip binding={binding} held={held} />
@@ -150,12 +183,16 @@ export function HoverKeybind({ binding, className }: { binding: Keybind; classNa
   )
 }
 
-// Only while its modifier is held, for a spot whose hover reveal sits elsewhere.
-export function HeldKeybind({ binding }: { binding: Keybind }) {
-  const held = useHeldModifier()
-  return held !== null && binding.modifiers.includes(held) ? (
-    <KeybindChip binding={binding} held={held} />
-  ) : null
+// While its modifiers are held, the chip covers `children` (a row's status glyph).
+export function HeldKeybind({ binding, children }: { binding?: Keybind; children: ReactNode }) {
+  const held = useHeldModifiers()
+  const active = binding && matches(binding, held)
+  return (
+    <span className='relative flex shrink-0 items-center justify-end'>
+      <span className={cn('flex', active && 'invisible')}>{children}</span>
+      {active && <KeybindChip binding={binding} held={held} className='absolute right-0' />}
+    </span>
+  )
 }
 
 export function KeybindTooltip({
@@ -166,7 +203,7 @@ export function KeybindTooltip({
   children: ReactElement
 }) {
   const held = useModifierHeld(binding)
-  const heldModifier = useHeldModifier()
+  const heldModifiers = useHeldModifiers()
   return (
     <span className='relative inline-flex shrink-0'>
       <Tooltip>
@@ -179,7 +216,7 @@ export function KeybindTooltip({
       {held && (
         <KeybindChip
           binding={binding}
-          held={heldModifier}
+          held={heldModifiers}
           className='absolute left-1/2 top-full z-40 mt-1 -translate-x-1/2'
         />
       )}
