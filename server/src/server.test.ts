@@ -33,13 +33,7 @@ import type { Agent, AgentImage, TurnInput } from './agent'
 
 import { AgentError } from './agent'
 import { createAttachments } from './attachments'
-import {
-  computeThreadDiff,
-  readDiffFile,
-  readProjectFile,
-  truncateDiff,
-  writeProjectFile,
-} from './diff'
+import { computeThreadDiff, readDiffFile, readProjectFile, writeProjectFile } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
@@ -2305,37 +2299,6 @@ describe('thread.diff', () => {
     expect(readFileSync(file, 'utf8')).toBe('agent\n')
     expect(readdirSync(project)).toEqual(['notes.md'])
     rmSync(project, { recursive: true, force: true })
-  })
-
-  test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {
-    const normal = [
-      'diff --git a/src/app.ts b/src/app.ts',
-      'index 111..222 100644',
-      '--- a/src/app.ts',
-      '+++ b/src/app.ts',
-      '@@ -1 +1 @@',
-      '-const a = 1',
-      '+const a = 2',
-      '',
-    ].join('\n')
-    const lock = [
-      'diff --git a/bun.lock b/bun.lock',
-      'index 333..444 100644',
-      '--- a/bun.lock',
-      '+++ b/bun.lock',
-      '@@ -1 +1 @@',
-      '-old',
-      '+new',
-      '',
-    ].join('\n')
-
-    const result = truncateDiff(normal + lock)
-    expect(result.diff).toContain('src/app.ts')
-    expect(result.diff).not.toContain('bun.lock\nindex') // body dropped
-    expect(result.truncatedPaths).toEqual(['bun.lock'])
-
-    expect(truncateDiff('').diff).toBe('')
-    expect(truncateDiff('   ').truncatedPaths).toBeUndefined()
   })
 })
 

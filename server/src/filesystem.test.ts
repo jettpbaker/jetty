@@ -3,11 +3,19 @@ import { describe, expect, test } from 'bun:test'
 import { Deferred, Effect, Fiber, FileSystem, Path, Stream } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
-import { computeThreadDiff, truncateDiff, writeProjectFile } from './diff'
+import { computeThreadDiff, writeProjectFile } from './diff'
 import { browse, expandHome, normalizePath } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { git } from './git-process'
 import { listSkills } from './skills'
+
+function commitAll(root: string) {
+  return Effect.gen(function* () {
+    yield* git(root, ['add', '.'])
+    const committer = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com']
+    yield* git(root, [...committer, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'init'])
+  })
+}
 
 function run<A, E>(effect: Effect.Effect<A, E, BunServices.BunServices>) {
   return Effect.runPromise(effect.pipe(Effect.provide(BunServices.layer)))
@@ -351,27 +359,6 @@ describe('Effect filesystem services', () => {
     )
   })
 
-  test('oversized quoted Git paths retain their truncation notices', () => {
-    const paths = [
-      ['tab\tfile', '"tab\\tfile"'],
-      ['line\nfile', '"line\\nfile"'],
-      ['quote"file', '"quote\\"file"'],
-      ['back\\file', '"back\\\\file"'],
-      ['café\tfile', '"caf\\303\\251\\tfile"'],
-    ] as const
-    for (const [path, quoted] of paths) {
-      const a = '"a/' + quoted.slice(1)
-      const b = '"b/' + quoted.slice(1)
-      const header = `diff --git ${a} ${b}\n`
-      for (const markers of [`+++ ${b}\n`, `--- ${a}\n+++ /dev/null\n`, '']) {
-        expect(truncateDiff(header + markers + '+' + 'x'.repeat(128 * 1024))).toEqual({
-          diff: '',
-          truncatedPaths: [path],
-        })
-      }
-    }
-  })
-
   test('streamed oversized files with Git-quoted names are reported', async () => {
     await run(
       Effect.scoped(
@@ -390,13 +377,52 @@ describe('Effect filesystem services', () => {
     )
   })
 
-  test('pure diff truncation retains ordinary patches and omits lockfiles and oversized sections', () => {
-    const normal = 'diff --git a/source.ts b/source.ts\n+++ b/source.ts\n@@ -0,0 +1 @@\n+code\n'
-    const lock = 'diff --git a/bun.lock b/bun.lock\n+++ b/bun.lock\n+lock\n'
-    const huge = 'diff --git a/huge.txt b/huge.txt\n+++ b/huge.txt\n+' + 'x'.repeat(128 * 1024)
-    expect(truncateDiff(normal + lock + huge)).toEqual({
-      diff: normal,
-      truncatedPaths: ['bun.lock', 'huge.txt'],
-    })
+  test('oversized deleted files with Git-quoted names are reported', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          expect((yield* git(root, ['init', '-q'])).code).toBe(0)
+          const names = [
+            'tab\tfile',
+            'line\nfile',
+            'quote"file',
+            'back\\file',
+            'café\tfile',
+            '\x01file',
+          ]
+          for (const name of names)
+            yield* fs.writeFileString(root + '/' + name, 'x'.repeat(140_000))
+          yield* commitAll(root)
+          for (const name of names) yield* fs.remove(root + '/' + name)
+          const result = yield* computeThreadDiff(root)
+          expect(result.diff).toBe('')
+          expect(result.truncatedPaths?.toSorted()).toEqual(names.toSorted())
+        })
+      )
+    )
+  })
+
+  test('diff keeps ordinary patches and omits lockfiles and oversized sections', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          expect((yield* git(root, ['init', '-q'])).code).toBe(0)
+          for (const name of ['source.ts', 'bun.lock', 'huge.txt'])
+            yield* fs.writeFileString(root + '/' + name, 'old\n')
+          yield* commitAll(root)
+          yield* fs.writeFileString(root + '/source.ts', 'code\n')
+          yield* fs.writeFileString(root + '/bun.lock', 'lock\n')
+          yield* fs.writeFileString(root + '/huge.txt', 'x'.repeat(128 * 1024))
+          const { diff, truncatedPaths } = yield* computeThreadDiff(root)
+          expect(diff.match(/^diff --git .*$/gm)).toEqual(['diff --git a/source.ts b/source.ts'])
+          expect(diff).toContain('+code')
+          expect(truncatedPaths).toEqual(['bun.lock', 'huge.txt'])
+        })
+      )
+    )
   })
 })

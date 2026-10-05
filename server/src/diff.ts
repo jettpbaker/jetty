@@ -115,14 +115,6 @@ function diffSections() {
   }
 }
 
-export function truncateDiff(diff: string): ThreadDiff {
-  if (diff.trim().length === 0) return { diff: '' }
-  const sections = diffSections()
-  sections.push(diff)
-  sections.end()
-  return sections.result()
-}
-
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 // Keeps non-ASCII paths readable in diff headers instead of octal-escaped.
