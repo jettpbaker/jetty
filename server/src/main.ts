@@ -109,7 +109,8 @@ function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
 }
 
 // One server per home: a second one would settle the first one's live turns as if it had crashed.
-// SQLite's lock on the file is the OS's, so it goes with the process however that ends.
+// SQLite's lock on the file is the OS's, so it goes with the process however that ends; with the
+// journal in memory, a killed server leaves no journal file behind either.
 function lockHome(home: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
@@ -119,6 +120,7 @@ function lockHome(home: string) {
         try: () => {
           const lock = new Database(join(home, 'server.lock'))
           try {
+            lock.exec('PRAGMA journal_mode = MEMORY')
             lock.exec('BEGIN EXCLUSIVE')
           } catch (error) {
             lock.close()
