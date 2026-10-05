@@ -45,10 +45,13 @@ export async function recordGh(out: string) {
           async act(ctx: Ctx) {
             await click(ctx.page, diffTab, 'the Diff tab')
             await quiet(ctx.page, 1500)
-            // A focused PR view refreshes every 30 s (polled on a 5 s tick), and a second
-            // refresh in one server revalidates its REST reads with ETags: different gh calls.
-            // The 30 s linked-PR change query lands in the same wait.
-            if (number === prNumbers[0]) await Bun.sleep(40_000)
+            // A lab home older than five minutes fully re-reads a cached PR on open, sending its
+            // head along: a different query from the cold read above.
+            await ctx.rpc.request('pullRequest.refresh', { repo: prRepo, number })
+            // A focused PR view checks for changes every 30 s (polled on a 5 s tick), and a
+            // second refresh in one server revalidates its REST reads with ETags: different gh
+            // calls. The 30 s linked-PR change query lands in the same wait.
+            await Bun.sleep(40_000)
           },
           done: () => 'true',
         },
