@@ -151,10 +151,31 @@ Everything below is for one combined review of the chat, not separate ports.
   (mergeability flips, thread resolution). If that bites, a 10-minute full
   refresh floor for linked PRs is a two-line addition (an open PR view already
   refreshes fully every 30s).
-- Decide (overnight proposals, `proposals.md` of 2026-10-06): worktree setup stopped
-  showing two recovery buttons; a refused archive leaving its threads stopped; the
-  restart-pause chrome wording; telling the user when a restart cut background work;
-  PR watcher calls; old-database migrations; images in a queued-message edit.
+- For Jett to look at when home (night-shift decisions of 2026-10-06):
+  - The thread row's Archive/More buttons, now a named AGENTS.md exception: look closer
+    at whether they should become real ghost `icon-xs` buttons after all.
+  - 14px glyphs inside buttons (the sidebar's Settings2, the PR view's ⋮, and others):
+    add 14px to the icon size ladder, or let each take its button's size? A per-family
+    pass with screenshots either way.
+  - Perf lab drift, explained properly: the atom registry applies Effect work one frame
+    at a time (`provider.tsx` `scheduleTask={nextFrame}`), so results that share a frame
+    in one run render separately in another. Change the scheduling, or accept ±1 commit
+    and compare ranges? Then whether to commit the two local journeys ("stream into a
+    long thread", "another thread streams").
+  - Agent-facing wording: `read_thread` wraps each message in `<relayed-message>`
+    (`jetty-instructions.ts` `relayedMessage`), and the new `lagged` wire error drops a
+    subscription 5,000 updates behind.
+- A refused archive leaves its threads stopped; old-database migrations (overnight
+  proposals of 2026-10-06, not yet decided).
+- Images in a queued-message edit: blocked with an inline error (edit is text-only).
+  Build real image edits.
+- The hover card's subagent rows show a grey "Ended" when the outcome is unknown. Put
+  the outcome on the wire if it starts to matter.
+- Oversized draft images through a reload (move them to browser file storage, about 100
+  lines), and diff bodies from raw.githubusercontent (a proof of concept first).
+- Codex and Grok usage identity: a failed read restores the last bars without knowing
+  whose account they were. Fixing it means reading `~/.codex/auth.json` (and Grok's
+  equivalent), which Jetty doesn't read today.
 - Chat: approvals and questions have no Stop (the send button becomes "Deny with
   note"); a failed or cancelled `/compact` vanishes silently
   (`thread_rows.ts` ~527); the `/usage` tray opens over the chat without re-pinning
