@@ -49,7 +49,6 @@ export function OptionPicker({
   placeholder: string
   icon: ReactNode
   value: string
-  // what the trigger reads, when it's more than the picked option's label
   options: readonly PickerOption[]
   onValueChange: (value: string) => void
   align?: 'start' | 'end'
