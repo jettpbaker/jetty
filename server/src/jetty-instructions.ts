@@ -25,7 +25,7 @@ export function jettyInstructions(behaviours: AgentBehaviours) {
 }
 
 // The message that opened a turn Jetty restarted before the agent started, so it never got it.
-export type UndeliveredMessage = {
+type UndeliveredMessage = {
   text: string
   from?: { threadId: string; title: string }
   attachments: readonly Attachment[]

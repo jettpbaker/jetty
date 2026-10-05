@@ -29,7 +29,7 @@ const SECTION_CAP = 12_000
 type Group = Extract<keyof AgentBehaviours, 'watchReviews' | 'watchChecks' | 'watchConflicts'>
 
 // One change on a PR: its part of the chat's line, what the agent reads, and whether it wakes it.
-export type PullRequestChange = {
+type PullRequestChange = {
   activity: PullRequestActivity
   keys: string[]
   group: Group | null
@@ -63,7 +63,7 @@ const mergeReady = new Set(['CLEAN', 'HAS_HOOKS'])
 // What changed between two reads of a PR that its agent would want to hear. The viewer's own
 // reviews and comments are left out: agents post as the user, so they may be the agent's own.
 // Bots count when they review; their top-level comments (previews, coverage) don't.
-export function pullRequestChanges(
+function pullRequestChanges(
   previous: PullRequestData,
   next: PullRequestData,
   since: number,
@@ -458,5 +458,3 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
     },
   }
 }
-
-export type PullRequestWatch = ReturnType<typeof createPullRequestWatch>

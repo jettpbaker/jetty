@@ -226,7 +226,7 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
 }
 
 export type ProjectFile = { contents: string | null } | Unavailable
-export type SavedProjectFile = { saved: true } | { conflict: ProjectFile }
+type SavedProjectFile = { saved: true } | { conflict: ProjectFile }
 
 function projectRoot(cwd: string) {
   return Effect.gen(function* () {
@@ -254,7 +254,7 @@ function resolveProjectPath(cwd: string, path: string) {
   })
 }
 
-export type ProjectEntry = { name: string; directory: boolean }
+type ProjectEntry = { name: string; directory: boolean }
 
 // One folder of the thread's project ('' is its top), without .git or anything git ignores. A
 // folder that isn't there lists nothing.

@@ -205,7 +205,6 @@ export function useCollapsedFiles(initial: () => Set<string>) {
 const fileIconResolver = createFileTreeIconResolver('standard')
 const fileIconSprite = getBuiltInSpriteSheet('standard')
 
-// The file's language glyph, from the trees library's icon set.
 export function FileLanguageIcon({ path, className }: { path: string; className?: string }) {
   const icon = fileIconResolver.resolveIcon('file-tree-icon-file', path)
   const iconMarkup = useMemo(() => {

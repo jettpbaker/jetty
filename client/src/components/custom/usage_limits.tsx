@@ -78,8 +78,6 @@ function resetIn(window: UsageWindow, now: number) {
   return window.resetsAt <= now ? 'now' : duration(window.resetsAt - now)
 }
 
-/* The bar: quota left in the provider's colour. */
-
 function UsageBar({ window, className }: { window: UsageWindow; className?: string }) {
   const left = percentLeft(window)
   return (
@@ -96,8 +94,6 @@ function UsageBar({ window, className }: { window: UsageWindow; className?: stri
     </span>
   )
 }
-
-/* One provider's windows: label, bar, what's left, and when it resets, with the pace in words when it's running out early. Hover for the exact time, the plan and the account. */
 
 function UsageRow({
   usage,
@@ -185,7 +181,6 @@ function UsageWindows({
   )
 }
 
-// A provider's first read, before anything has ever loaded: two quiet rows in the windows' grid.
 function UsageSkeleton({ compact = false }: { compact?: boolean }) {
   return (
     <div aria-hidden='true' className={cn('grid items-center', windowsGrid(compact))}>

@@ -223,7 +223,6 @@ export function QueueSeam({
   )
 }
 
-// The user's bubble on a faint accent wash with a dashed edge until it's sent.
 export function QueuedBubble({
   threadId,
   entry,

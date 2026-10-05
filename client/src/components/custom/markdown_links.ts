@@ -9,8 +9,7 @@ export type MarkdownNode = {
   data?: { hName?: string; hProperties?: Record<string, string> }
 }
 
-// Calls back with each link and its URL, a reference-style link ([text][ref]) taking its
-// definition's. The first definition of a label wins, as when the link renders.
+// The first definition of a label wins, as when the link renders.
 export function visitLinks(tree: MarkdownNode, onLink: (node: MarkdownNode, url: string) => void) {
   const definitions = new Map<string, string>()
   function define(node: MarkdownNode) {

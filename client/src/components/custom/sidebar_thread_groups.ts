@@ -100,7 +100,7 @@ function threadInGroup(thread: ListedThread, grouping: ThreadGrouping, groupId: 
   return dateGroupId(thread.updatedDay, now) === groupId
 }
 
-export type ThreadListView = {
+type ThreadListView = {
   grouping: ThreadGrouping
   query: string
   showPinned: boolean
