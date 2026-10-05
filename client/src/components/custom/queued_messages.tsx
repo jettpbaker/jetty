@@ -19,7 +19,7 @@ import {
   useVisibleQueue,
 } from '@/state'
 import { heldByRestarts } from '@jetty/shared/items'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
 import type { QueueState, TranscriptQueue } from './thread_rows'
 
@@ -46,11 +46,28 @@ export function useTranscriptQueue(
   const editing = useDraftEditing(threadId ?? '')
   const removed = useRemovedQueued(threadId)
   const held = heldByRestarts(items)
+  const lapsed = useHoldLapse(queued)
   return useMemo(
     () =>
       threadId === undefined ? undefined : { queued, unsent, own, paused, held, editing, removed },
-    [threadId, queued, unsent, own, paused, held, editing, removed]
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- a lapsed hold changes what rows read
+    [threadId, queued, unsent, own, paused, held, editing, removed, lapsed]
   )
+}
+
+// Another tab's edit hold runs out on the server with no push (that tab closed), so the queue is
+// read again when the nearest one does.
+function useHoldLapse(queued: readonly QueuedMessage[]) {
+  const [lapsed, lapse] = useReducer((count: number) => count + 1, 0)
+  const until = Math.min(
+    ...queued.map((entry) => entry.editingUntil ?? Infinity).filter((at) => at > Date.now())
+  )
+  useEffect(() => {
+    if (until === Infinity) return
+    const timer = setTimeout(lapse, until - Date.now() + 100)
+    return () => clearTimeout(timer)
+  }, [until])
+  return lapsed
 }
 
 function Images({ images }: { images: readonly Attachment[] }) {
