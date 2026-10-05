@@ -199,15 +199,23 @@ export function createRpcHandlers(
           Effect.mapError(wireError)
         ),
       'thread.retrySetup': ({ threadId }) =>
-        orch
-          .withAdmission(
-            threadId,
-            fromPromise((signal) => worktrees.prepare(threadId, signal)).pipe(
-              Effect.interruptible,
-              Effect.andThen(orch.setQueuePaused(threadId, false))
-            )
-          )
-          .pipe(Effect.as(null), Effect.mapError(wireError)),
+        store.requireThread(threadId).pipe(
+          Effect.flatMap((thread) =>
+            // The held message's turn sets the worktree up, as a first send does: with
+            // progress and Stop, and pausing the queue again if setup fails.
+            thread.pendingMessages?.length
+              ? orch.setQueuePaused(threadId, false)
+              : orch.withAdmission(
+                  threadId,
+                  fromPromise((signal) => worktrees.prepare(threadId, signal)).pipe(
+                    Effect.interruptible,
+                    Effect.andThen(orch.setQueuePaused(threadId, false))
+                  )
+                )
+          ),
+          Effect.as(null),
+          Effect.mapError(wireError)
+        ),
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'settings.providerUsage': ({ provider }) => getProviderUsage(provider),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
