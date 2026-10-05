@@ -21,12 +21,74 @@ let lastVersion = 0
 let answeredFocus = 0
 
 // The active line as a quiet band and a foreground caret, not the theme's selection blue.
+// Pierre's find widget is unlayered and unsafeCSS is @layer unsafe, so the overrides are
+// !important. 36px is the file header; the panel sticks just under it.
 const editorCSS = `
   [data-line][data-editor-active-line], [data-column-number][data-editor-active-line] {
     --diffs-computed-editor-active-line-bg: color-mix(in lab, var(--diffs-bg) 95%, var(--diffs-fg));
   }
   [data-column-number][data-editor-active-line] { color: var(--diffs-fg); }
   [data-caret] { --diffs-bg-caret-override: var(--diffs-fg); }
+  [data-search-panel] { top: calc(36px + 8px) !important; }
+  [data-search-panel] [data-editor-widget] {
+    border: 1px solid var(--border) !important;
+    background-color: var(--background) !important;
+    box-shadow: none !important;
+    border-radius: var(--radius-md) !important;
+    color: var(--foreground) !important;
+    font-family: var(--font-sans) !important;
+    padding: 4px 28px 4px 4px !important;
+  }
+  [data-input-box] input {
+    color: var(--foreground) !important;
+    background-color: transparent !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-md) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 12px !important;
+  }
+  [data-input-box] input::placeholder { color: var(--muted-foreground) !important; }
+  [data-input-box] input:focus-visible {
+    outline: none !important;
+    border-color: var(--ring) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent) !important;
+  }
+  [data-matches], [data-matches][data-no-matches] {
+    color: var(--muted-foreground) !important;
+    font-weight: 400 !important;
+  }
+  [data-search-icon] {
+    color: var(--muted-foreground) !important;
+    border-radius: min(var(--radius-md), 8px) !important;
+  }
+  [data-search-icon]:disabled {
+    opacity: 1 !important;
+    color: var(--disabled-foreground) !important;
+  }
+  [data-search-icon]:not(:disabled):hover {
+    color: var(--foreground) !important;
+    background-color: var(--accent) !important;
+  }
+  [data-search-icon]:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent) !important;
+  }
+  [data-search-icon][aria-pressed="true"] {
+    color: var(--foreground) !important;
+    background-color: var(--accent) !important;
+  }
+  [data-search-close] {
+    color: var(--muted-foreground) !important;
+    background-color: transparent !important;
+    border-radius: min(var(--radius-md), 8px) !important;
+    top: 4px !important;
+    right: 4px !important;
+    transform: none !important;
+  }
+  [data-search-close]:not(:disabled):hover {
+    color: var(--foreground) !important;
+    background-color: var(--accent) !important;
+  }
 `
 
 const createEditor: EditorFactory<undefined, undefined> = (type, options, key) =>
