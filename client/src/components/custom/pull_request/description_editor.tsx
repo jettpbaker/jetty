@@ -37,6 +37,7 @@ import { InputGroupButton } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import { whenIdle } from '@/lib/preload'
+import { githubMediaPath, githubMediaSource } from '@jetty/shared/github-media'
 import { Extension, Node, getSchema, type Editor } from '@tiptap/core'
 import Code from '@tiptap/extension-code'
 import CodeBlock from '@tiptap/extension-code-block'
@@ -94,11 +95,14 @@ function MediaNode({ node, selected, editor, deleteNode }: NodeViewProps) {
   const caret = useEditorState({ editor, selector: ({ editor }) => editor.isFocused }) && selected
   const open = useOpenMedia()
   const src = String(node.attrs.src)
+  // GitHub attachments load through the server, which holds the credentials a private repo needs.
+  const github = githubMediaSource(src)
+  const shown = github ? githubMediaPath(github) : src
   const video = node.type.name === 'video'
   // A markdown video carries no dimensions, so read them from the file to size the player to it.
-  const size = useVideoSize(src, video)
+  const size = useVideoSize(shown, video)
   const attachment = {
-    id: src,
+    id: shown,
     name: node.attrs.alt || uploads.get(src)?.name || 'Attachment',
     mimeType: video ? 'video/mp4' : 'image/png',
     sizeBytes: 0,
@@ -117,10 +121,10 @@ function MediaNode({ node, selected, editor, deleteNode }: NodeViewProps) {
     >
       <div className={node.attrs.uploading ? 'opacity-50' : ''}>
         {video ? (
-          <VideoPlayer video={attachment} src={src} />
+          <VideoPlayer video={attachment} src={shown} />
         ) : (
           <img
-            src={src}
+            src={shown}
             alt={attachment.name}
             draggable={false}
             role='button'
@@ -150,7 +154,7 @@ function MediaNode({ node, selected, editor, deleteNode }: NodeViewProps) {
       )}
       {!node.attrs.uploading && (
         <MediaActions
-          src={src}
+          src={shown}
           name={attachment.name}
           video={video}
           onExpand={
