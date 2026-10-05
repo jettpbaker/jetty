@@ -329,7 +329,8 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
       ]
     }
   }
-  const itemId = msg.tool_use_id
+  // tool_use_id is optional on later task messages; task_started recorded which item it is.
+  const itemId = msg.tool_use_id ?? (msg.task_id ? ctx.tasks.get(msg.task_id) : undefined)
   if (!itemId || !ctx.agents.has(itemId)) return []
   const tokens = natural(msg.usage?.total_tokens)
   if (msg.subtype === 'task_started') {
@@ -653,7 +654,8 @@ function toolResultToString(content: unknown): string {
 
 function translateResult(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
   const out = closeStreamItems(ctx)
-  if (msg.subtype === 'success') {
+  // An API error ends the turn as subtype success with is_error, its text in result.
+  if (msg.subtype === 'success' && !msg.is_error) {
     out.push({
       type: 'turn.completed',
       turnId: ctx.turnId,
@@ -664,7 +666,9 @@ function translateResult(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
       costUsd: msg.total_cost_usd,
     })
   } else {
-    const error = msg.errors?.length ? msg.errors.join('; ') : msg.subtype || 'turn failed'
+    const error = msg.errors?.length
+      ? msg.errors.join('; ')
+      : (msg.is_error && msg.result) || msg.subtype || 'turn failed'
     out.push({ type: 'turn.failed', turnId: ctx.turnId, error })
   }
 
