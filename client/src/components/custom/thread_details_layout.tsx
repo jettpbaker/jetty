@@ -347,7 +347,7 @@ export function ThreadDetailsLayout({
               <PageSidebarTrigger />
             </div>
           )}
-          <div className='min-w-0 flex-1 overflow-hidden'>
+          <div className='no-scrollbar scroll-fade-x min-w-0 flex-1 overflow-x-auto overflow-y-hidden'>
             <ThreadDetailsTabs
               ref={tabs}
               chat={full}

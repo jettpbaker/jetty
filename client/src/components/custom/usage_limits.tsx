@@ -159,7 +159,7 @@ function UsageRow({
 function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_4.5rem] gap-x-4 gap-y-3.5'
+    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_4.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] @max-md:gap-x-3'
 }
 
 function UsageWindows({
@@ -260,7 +260,7 @@ export function UsagePage({
         </div>
       </header>
       <div className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-        <div className='mx-auto flex w-full max-w-[708px] flex-col gap-10 px-6 py-8'>
+        <div className='@container mx-auto flex w-full max-w-[708px] flex-col gap-10 px-6 py-8'>
           {providers.map((provider) => {
             const item = usage[provider]
             return (
