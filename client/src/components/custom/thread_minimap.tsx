@@ -1,6 +1,6 @@
 import type { ThreadRow } from '@/components/custom/thread_rows'
 import type { Virtualizer } from '@tanstack/react-virtual'
-import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
+import type { KeyboardEvent, MouseEvent, RefObject, WheelEvent } from 'react'
 
 import { markdownText } from '@/components/custom/markdown'
 import { Tooltip, TooltipContent } from '@/components/ui/tooltip'
@@ -167,23 +167,36 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     if (row !== undefined) onSelect(row)
   }
 
-  function indexAt(event: PointerEvent<HTMLElement>) {
+  function indexAt(event: MouseEvent<HTMLElement>) {
     const index = Math.round(
       (event.clientY - ticks.current!.getBoundingClientRect().top) / tickSpacing
     )
     return Math.max(0, Math.min(lastIndex, index))
   }
 
-  // Scrolls the ticks just far enough to show this one clear of the fades, without moving
-  // the first or last tick off its end; the next conversation scroll takes over.
+  function shift() {
+    return ticks.current!.getBoundingClientRect().top - rail.current!.getBoundingClientRect().top
+  }
+
+  // Moves the ticks within the rail without moving the first or last tick off its end; the
+  // next conversation scroll takes over.
+  function placeWithin(offset: number, height: number) {
+    place(ticks.current!, Math.min(0, Math.max(height - lastIndex * tickSpacing, offset)), height)
+  }
+
+  // Scrolls the ticks just far enough to show this one clear of the fades.
   function reveal(index: number) {
-    const box = rail.current!
-    const layer = ticks.current!
-    const height = box.clientHeight
+    const height = rail.current!.clientHeight
     const top = index * tickSpacing
-    const shift = layer.getBoundingClientRect().top - box.getBoundingClientRect().top
-    const offset = Math.max(fade - top, Math.min(height - fade - top, shift))
-    place(layer, Math.min(0, Math.max(height - lastIndex * tickSpacing, offset)), height)
+    placeWithin(Math.max(fade - top, Math.min(height - fade - top, shift())), height)
+  }
+
+  // Wheeling the rail pans ticks that overflow it, leaving the conversation where it is.
+  function onWheel(event: WheelEvent<HTMLButtonElement>) {
+    const height = rail.current!.clientHeight
+    if (lastIndex * tickSpacing <= height) return
+    placeWithin(shift() - event.deltaY, height)
+    setActive(indexAt(event))
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -237,8 +250,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
             event.preventDefault()
             select(indexAt(event))
           }}
-          // The rail overlays the conversation rather than sitting inside it, so it passes wheels on.
-          onWheel={(event) => scroller.current?.scrollBy({ top: event.deltaY })}
+          onWheel={onWheel}
           onFocus={() => setActive((index) => index ?? current ?? 0)}
           onBlur={() => setActive(null)}
           onKeyDown={onKeyDown}
