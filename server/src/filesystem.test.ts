@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { Deferred, Effect, Fiber, FileSystem, Path, Stream } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
-import { computeThreadDiff, truncateDiff } from './diff'
+import { computeThreadDiff, truncateDiff, writeProjectFile } from './diff'
 import { browse, expandHome, normalizePath } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { git } from './git-process'
@@ -196,6 +196,41 @@ describe('Effect filesystem services', () => {
             )
           ).toEqual(['a file;name.ts'])
           expect(closed).toBe(true)
+        })
+      )
+    )
+  })
+
+  test('concurrent saves through case aliases cannot both create a file', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          yield* fs.writeFileString(root + '/probe', '')
+          if (!(yield* fs.exists(root + '/PROBE'))) return
+          for (let round = 0; round < 8; round++) {
+            const results = yield* Effect.promise(() =>
+              Promise.all([
+                run(
+                  writeProjectFile(root, `new${round}.txt`, 'a'.repeat(900_000), null).pipe(
+                    Effect.catch((error) => Effect.succeed({ error: error.code }))
+                  )
+                ),
+                run(
+                  writeProjectFile(root, `NEW${round}.txt`, 'b'.repeat(900_000), null).pipe(
+                    Effect.catch((error) => Effect.succeed({ error: error.code }))
+                  )
+                ),
+              ])
+            )
+            expect(results.filter((result) => 'saved' in result)).toHaveLength(1)
+            const contents = yield* fs.readFileString(root + `/new${round}.txt`)
+            const loser = results.find((result) => !('saved' in result))
+            expect(loser).toEqual(
+              loser && 'error' in loser ? { error: 'conflict' } : { conflict: { contents } }
+            )
+          }
         })
       )
     )

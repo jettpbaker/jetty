@@ -347,15 +347,15 @@ function holds(current: Opened, base: string | null) {
     : current.text === base
 }
 
-// Jetty's own saves to a file take turns, so each one checks the text the last one left.
+// Saves in a canonical folder take turns, including case aliases of a new file.
 const turns = new Map<string, Promise<unknown>>()
 
-function inTurn<A>(file: string, save: () => Promise<A>) {
-  const result = (turns.get(file) ?? Promise.resolve()).then(save)
+function inTurn<A>(folder: string, save: () => Promise<A>) {
+  const result = (turns.get(folder) ?? Promise.resolve()).then(save)
   const done = result.catch(() => {})
-  turns.set(file, done)
+  turns.set(folder, done)
   void done.then(() => {
-    if (turns.get(file) === done) turns.delete(file)
+    if (turns.get(folder) === done) turns.delete(folder)
   })
   return result
 }
@@ -446,7 +446,7 @@ export function writeProjectFile(cwd: string, path: string, contents: string, ba
     const saved = yield* Effect.tryPromise({
       try: async () => {
         const target = file ?? (await newFile(root, path))
-        return inTurn(target, () => replaceFile(target, bytes, base, path))
+        return inTurn(dirname(target), () => replaceFile(target, bytes, base, path))
       },
       catch: (error) =>
         error instanceof StoreError
