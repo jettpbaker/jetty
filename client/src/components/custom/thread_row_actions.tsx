@@ -134,6 +134,8 @@ export function ThreadRowActions({
             <Input
               ref={titleInput}
               aria-label='Thread title'
+              // Selected on open, so typing replaces the title and an arrow key keeps it.
+              onFocus={(event) => event.currentTarget.select()}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
             />
