@@ -1284,12 +1284,17 @@ export function createOrchestrator({
                 ...(children.get(thread.parentThreadId) ?? []),
                 thread,
               ])
+          function agentBusy(thread: ThreadMeta) {
+            const provider = thread.provider ?? registry.defaultProvider
+            return isAgentProvider(provider) && Boolean(registry.agent(provider)?.busy?.(thread.id))
+          }
           // A thread still waiting on its own children isn't done; a stopped (paused) one is.
           function busy(thread: ThreadMeta): boolean {
             const runtime = state(thread.id)
             return (
               !runtime.ready ||
               Boolean(runtime.turnId) ||
+              agentBusy(thread) ||
               (!thread.awaitingParent &&
                 (thread.status === 'running' || thread.status === 'awaiting_approval')) ||
               Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
@@ -1307,6 +1312,7 @@ export function createOrchestrator({
             )
               continue
             const working =
+              agentBusy(thread) ||
               Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
               (children.get(thread.id) ?? []).some(busy)
             const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}:${working}`
@@ -1315,7 +1321,10 @@ export function createOrchestrator({
             yield* locked(
               thread.id,
               Effect.gen(function* () {
-                const result = yield* store.reportSettledChild(thread.id, working)
+                const result = yield* store.reportSettledChild(
+                  thread.id,
+                  working || agentBusy(thread)
+                )
                 if ('note' in result && result.note) yield* publish(thread.id, result.note)
                 if ('asked' in result)
                   hub.pushChrome({

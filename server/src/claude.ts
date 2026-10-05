@@ -124,6 +124,7 @@ type WarmSession = {
   closed: boolean
   queryClosed: boolean
   awaitingResult: boolean
+  wakePending: boolean
   // the current turn is Jetty's /compact
   compact: boolean
   accepting: boolean
@@ -462,6 +463,7 @@ export function createClaudeAdapter(
               session.failReason = null
               session.ctx = createTranslateCtx(turnId, session.ctx)
               session.awaitingResult = true
+              session.wakePending = false
               session.accepting = true
               session.done = yield* Deferred.make<void, AgentError>()
               if (session.idle) yield* Fiber.interrupt(session.idle)
@@ -482,6 +484,13 @@ export function createClaudeAdapter(
             })
             const events: ThreadEvent[] = []
             for (const original of translated) {
+              if (
+                !session.awaitingResult &&
+                original.type === 'item.completed' &&
+                (session.runningAgents.has(original.itemId) ||
+                  session.runningWorkflows.has(original.itemId))
+              )
+                session.wakePending = true
               const event =
                 original.type === 'item.completed' && session.stoppedWorkflows.has(original.itemId)
                   ? { ...original, patch: { ...original.patch, stopReason: 'you' } }
@@ -794,6 +803,7 @@ export function createClaudeAdapter(
           closed: false,
           queryClosed: false,
           awaitingResult: false,
+          wakePending: false,
           compact: false,
           accepting: false,
           failReason: null,
@@ -854,6 +864,7 @@ export function createClaudeAdapter(
             started.ctx = createTranslateCtx(input.turnId, started.ctx)
             started.emit = emit
             started.awaitingResult = true
+            started.wakePending = false
             started.compact = Boolean(input.compact)
             started.accepting = !input.compact
             started.failReason = null
@@ -951,7 +962,10 @@ export function createClaudeAdapter(
       },
       busy(threadId) {
         const session = sessions.get(threadId)
-        return Boolean(session && (session.runningAgents.size || session.runningWorkflows.size))
+        return Boolean(
+          session &&
+          (session.wakePending || session.runningAgents.size || session.runningWorkflows.size)
+        )
       },
       respondToApproval(threadId, itemId, decision, message) {
         const reason = message?.trim() || undefined

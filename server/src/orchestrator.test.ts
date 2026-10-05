@@ -830,12 +830,17 @@ test('a child its background work wakes into a turn of its own reports that turn
       yield* TestClock.adjust(1000)
       expect(yield* f.reports).toEqual([])
       const woken: ScriptedTurn = { ...f.turn, turnId: newId() }
+      let wakePending = true
+      f.agent.busy = (threadId) => threadId === f.child.id && wakePending
       yield* woken.emit({
         type: 'item.completed',
         itemId: 'background',
         patch: { status: 'completed' },
       })
+      yield* TestClock.adjust(1000)
+      expect(yield* f.reports).toEqual([])
       yield* woken.emit({ type: 'turn.started', turnId: woken.turnId })
+      wakePending = false
       yield* say(woken, 'Final answer')
       yield* woken.emit({ type: 'turn.completed', turnId: woken.turnId })
       yield* TestClock.adjust(1000)

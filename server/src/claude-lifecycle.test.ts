@@ -1136,3 +1136,50 @@ test('Stop all removes every watch immediately and arms the normal idle timer', 
   await f.runtime.runPromise(TestClock.adjust(1))
   expect(q.closed).toBe(true)
 })
+
+for (const abandoned of [false, true]) {
+  test(`a completed background subagent holds settlement until its wake ${abandoned ? 'expires' : 'starts'}`, async () => {
+    const f = await setup()
+    const turn = await f.start()
+    const q = f.queries[0]!
+    q.push({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'background-agent',
+            name: 'Agent',
+            input: { description: 'Explore', prompt: 'Explore', run_in_background: true },
+          },
+        ],
+      },
+    })
+    q.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(turn.await)
+    expect(f.agent.busy?.(f.thread.id)).toBe(true)
+    q.push({
+      type: 'system',
+      subtype: 'task_notification',
+      tool_use_id: 'background-agent',
+      status: 'completed',
+    })
+    await f.runtime.runPromise(f.next('item.completed'))
+    expect(f.agent.busy?.(f.thread.id)).toBe(true)
+    if (abandoned) {
+      await f.runtime.runPromise(TestClock.adjust(2000))
+      expect(q.closed).toBe(true)
+    } else {
+      q.push({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: { content: [{ type: 'text', text: 'Final answer' }] },
+      })
+      await f.runtime.runPromise(f.next('turn.started'))
+      q.push({ type: 'result', subtype: 'success' })
+      await f.runtime.runPromise(f.next('turn.completed'))
+    }
+    expect(f.agent.busy?.(f.thread.id)).toBe(false)
+  })
+}
