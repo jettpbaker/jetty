@@ -1,7 +1,6 @@
 import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
-import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { join } from 'node:path'
@@ -68,19 +67,22 @@ export function claudeUsageWindows(raw: unknown): UsageWindow[] {
   return windows
 }
 
+async function keychainPassword(service: string): Promise<string> {
+  const child = Bun.spawn(['security', 'find-generic-password', '-s', service, '-w'], {
+    stdout: 'pipe',
+    stderr: 'ignore',
+    signal: AbortSignal.timeout(2_000),
+  })
+  const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
+  if (code !== 0) throw new Error(`no ${service} in the keychain`)
+  return out
+}
+
 async function claudeCredentials(): Promise<Record<string, unknown>> {
   try {
     const credentials =
       platform() === 'darwin'
-        ? execFileSync(
-            'security',
-            ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
-            {
-              encoding: 'utf8',
-              stdio: ['ignore', 'pipe', 'ignore'],
-              timeout: 2_000,
-            }
-          )
+        ? await keychainPassword('Claude Code-credentials')
         : await readFile(join(homedir(), '.claude', '.credentials.json'), 'utf8')
     return object(object(JSON.parse(credentials)).claudeAiOauth)
   } catch {
