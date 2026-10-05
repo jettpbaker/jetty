@@ -24,6 +24,13 @@ export function applyTheme(choice = loadTheme()) {
   document.documentElement.classList.toggle('dark', resolvedTheme(choice) === 'dark')
 }
 
+// System follows the OS as it changes, not just at load.
+export function followSystemTheme() {
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (loadTheme() === 'system') applyTheme('system')
+  })
+}
+
 let cleanupTimer: ReturnType<typeof setTimeout> | undefined
 let active: ViewTransition | undefined
 let generation = 0

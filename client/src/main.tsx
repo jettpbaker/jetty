@@ -6,13 +6,14 @@ import { createRoot } from 'react-dom/client'
 import { loadAccent } from './lib/accent'
 import { hydrateAppearance } from './lib/appearance'
 import { refreshScrollFadesWhenOverflowEnds } from './lib/scroll-fade'
-import { applyTheme } from './lib/theme'
+import { applyTheme, followSystemTheme } from './lib/theme'
 import { routeTree } from './routeTree.gen'
 import './index.css'
 import './accent.css'
 import './theme-transition.css'
 
 applyTheme()
+followSystemTheme()
 document.documentElement.dataset.accent = loadAccent()
 void hydrateAppearance()
 refreshScrollFadesWhenOverflowEnds()
