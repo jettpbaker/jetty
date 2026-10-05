@@ -68,7 +68,7 @@ function ComposerUsage({
   onOpen: () => void
   onDismiss: () => void
 }) {
-  const { reads, refresh } = useProviderUsage()
+  const { reads, failed, refresh } = useProviderUsage()
   useEffect(() => refresh([provider], usageFreshMs), [provider, asked, refresh])
   const read = reads[provider]
   const now = Math.max(useNow(60_000), read?.at ?? 0)
@@ -76,6 +76,7 @@ function ComposerUsage({
     <UsageBanner
       provider={provider}
       usage={read?.usage}
+      failed={failed.has(provider)}
       now={now}
       onOpen={onOpen}
       onDismiss={onDismiss}

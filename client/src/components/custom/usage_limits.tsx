@@ -303,12 +303,14 @@ export function UsagePage({
 export function UsageBanner({
   provider,
   usage,
+  failed,
   now,
   onOpen,
   onDismiss,
 }: {
   provider: UsageProvider
   usage: ProviderUsage | undefined
+  failed: boolean
   now: number
   onOpen: () => void
   onDismiss: () => void
@@ -349,7 +351,13 @@ export function UsageBanner({
           <Cancel01Icon />
         </Button>
       </div>
-      {usage ? <UsageWindows usage={usage} now={now} compact /> : <UsageSkeleton compact />}
+      {usage ? (
+        <UsageWindows usage={usage} now={now} compact />
+      ) : failed ? (
+        <p className='text-xs text-muted-foreground'>Usage unavailable.</p>
+      ) : (
+        <UsageSkeleton compact />
+      )}
     </div>
   )
 }
