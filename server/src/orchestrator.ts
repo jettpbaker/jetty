@@ -737,14 +737,18 @@ export function createOrchestrator({
     }
 
     // A client whose connection dropped before the reply sends the same message again; the thread
-    // answers from the first: queued (no turn), or in the turn it went into.
+    // answers from the first: queued (no turn, also once another tab removed it), or in the turn it
+    // went into.
     function sentBefore(thread: ThreadMeta, messageId: string) {
       if (thread.pendingMessages?.some((message) => message.id === messageId))
         return Effect.succeed({ turnId: '' })
       return store.getThreadState(thread.id).pipe(
-        Effect.map((state) => {
+        Effect.flatMap((state) => {
           const item = state.items.find((candidate) => candidate.id === messageId)
-          return item && { turnId: item.turnId }
+          if (item) return Effect.succeed({ turnId: item.turnId })
+          return store
+            .wasQueued(thread.id, messageId)
+            .pipe(Effect.map((queued) => (queued ? { turnId: '' } : undefined)))
         })
       )
     }

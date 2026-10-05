@@ -203,6 +203,14 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`CREATE TABLE deleted_threads (id TEXT PRIMARY KEY COLLATE NOCASE)`
   }),
+  '029_message_receipts': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE message_receipts (
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      message_id TEXT NOT NULL,
+      PRIMARY KEY (thread_id, message_id)
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {

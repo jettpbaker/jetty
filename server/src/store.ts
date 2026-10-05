@@ -419,6 +419,7 @@ export function createStore() {
         const pending = thread.pendingMessages ?? []
         if (pending.some((queued) => queued.id === message.id))
           return yield* Effect.fail(new StoreError('conflict', 'This message is already queued'))
+        yield* sql`INSERT OR IGNORE INTO message_receipts VALUES (${threadId}, ${message.id})`
         yield* updateQueue(threadId, [...pending.slice(0, at), message, ...pending.slice(at)])
         return yield* requireThread(threadId)
       })
@@ -930,6 +931,13 @@ export function createStore() {
         return atomically(effect).pipe(Effect.mapError(storeError))
       },
       turnContext,
+      // Whether the message was ever queued here, so a resend of one removed since stays removed.
+      wasQueued(threadId: string, messageId: string) {
+        return sql`SELECT 1 FROM message_receipts WHERE thread_id = ${threadId} AND message_id = ${messageId}`.pipe(
+          Effect.map((rows) => rows.length > 0),
+          Effect.mapError(storeError)
+        )
+      },
       enqueue(threadId: string, message: QueuedMessage, at?: number) {
         return enqueue(threadId, message, at).pipe(
           sql.withTransaction,
