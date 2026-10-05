@@ -227,6 +227,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         startedAt={row.startedAt}
         elapsedSeconds={row.elapsedSeconds}
         settingUp={row.settingUp}
+        restarted={row.restarted}
       />
     )
   if (row.kind === 'subagents')

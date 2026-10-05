@@ -53,6 +53,8 @@ export type ThreadRow =
       startedAt?: number
       elapsedSeconds?: number
       settingUp?: boolean
+      // a Jetty restart cut the turn off
+      restarted?: boolean
     }
   | { kind: 'compaction'; id: string; running: boolean }
   | { kind: 'restart'; id: string }
@@ -288,7 +290,7 @@ function workStatus(
   outcome: TurnOutcome | undefined,
   live: boolean
 ): ActivityStatus {
-  // A restart reads like any failed turn: the work ran, and the seam after it says what cut it off.
+  // A restart ends the block like a failed turn; its heading says it was interrupted.
   if (outcome === 'server_restarted') return 'failed'
   if (outcome) return outcome === 'completed' ? 'complete' : outcome
   if (live) return 'running'
@@ -578,6 +580,7 @@ export function threadRows(
       return update ? [{ type: 'todo', id: item.id, update }] : []
     })
     row.status = workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)
+    if (outcomes[row.turnId] === 'server_restarted') row.restarted = true
     const answerEnd =
       next?.turnId === row.turnId && next.kind !== 'compaction' ? next.completedAt : undefined
     if (row.status === 'running') row.startedAt = steps[0]?.createdAt

@@ -91,6 +91,7 @@ export function WorkBlock({
   startedAt,
   elapsedSeconds,
   settingUp,
+  restarted,
 }: {
   threadId: string
   activities: readonly WorkActivity[]
@@ -98,6 +99,7 @@ export function WorkBlock({
   startedAt?: number
   elapsedSeconds?: number
   settingUp?: boolean
+  restarted?: boolean
 }) {
   const runningSeconds = useRunningSeconds(
     status === 'running' && !settingUp ? startedAt : undefined
@@ -112,7 +114,9 @@ export function WorkBlock({
       : status === 'running'
         ? 'Working'
         : status === 'complete' || status === 'failed'
-          ? 'Worked'
+          ? restarted
+            ? 'Work interrupted'
+            : 'Worked'
           : status === 'cancelled'
             ? 'Work cancelled'
             : duration
@@ -125,7 +129,7 @@ export function WorkBlock({
         <RollingDuration seconds={runningSeconds} />
       </span>
     ) : duration ? (
-      ` ${status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} ${duration}`
+      ` ${restarted || status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} ${duration}`
     ) : (
       ''
     )
