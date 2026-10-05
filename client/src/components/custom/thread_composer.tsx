@@ -445,6 +445,7 @@ export function ThreadComposer({
             onChange={setLoadout}
             onReorder={setLoadouts}
             onOpenSettings={() => void navigate({ to: '/settings' })}
+            loading={!chrome}
           />
         }
         model={loadout && findModel(catalog, loadout)}

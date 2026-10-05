@@ -27,7 +27,7 @@ export function ComposerProject({
 
   return (
     <div className='relative z-10 flex items-center px-2.5' aria-label='Project'>
-      {projects.length === 0 ? (
+      {chrome && projects.length === 0 ? (
         <Button
           variant='ghost-text'
           size='sm'

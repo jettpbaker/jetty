@@ -232,6 +232,7 @@ export function ComposerLoadout({
   onChange,
   onReorder,
   onOpenSettings,
+  loading = false,
 }: {
   catalog: readonly ProviderModel[]
   loadouts: readonly LoadoutSlot[]
@@ -240,6 +241,8 @@ export function ComposerLoadout({
   onChange: (loadout: Loadout) => void
   onReorder: (loadouts: LoadoutSlot[]) => void
   onOpenSettings: () => void
+  // Until the catalog and the thread's own pick arrive, the chip keeps its space but stays hidden.
+  loading?: boolean
 }) {
   const model = value && findModel(catalog, value)
   const name = value && catalogModelName(catalog, value.provider, value.model)
@@ -328,7 +331,8 @@ export function ComposerLoadout({
               tone={value ? 'default' : 'muted'}
               className={cn(
                 'group/chip gap-1.5 rounded-sm',
-                value && 'text-primary not-disabled:hover:text-primary aria-expanded:text-primary'
+                value && 'text-primary not-disabled:hover:text-primary aria-expanded:text-primary',
+                loading && 'invisible'
               )}
             />
           }

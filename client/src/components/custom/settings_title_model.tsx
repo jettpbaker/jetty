@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { effortLabels, findModel, modelKey } from '@/lib/loadout'
+import { cn } from '@/lib/utils'
 import { useChrome } from '@/state'
 import { useSetTitleModel } from '@/state/models'
 import { modelLabelText } from '@jetty/shared/model-name'
@@ -70,7 +71,10 @@ export function SettingsTitleModel() {
             <Button
               variant='ghost'
               size='sm'
-              className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
+              className={cn(
+                'h-7 gap-1.5 rounded-sm text-xs text-muted-foreground',
+                !chrome && 'invisible'
+              )}
             />
           }
         >
