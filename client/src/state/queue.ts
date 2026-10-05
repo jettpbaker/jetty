@@ -327,12 +327,13 @@ function releaseQueued(registry: Registry, threadId: string, messageId: string) 
 // The server releases an edit hold after 60s, so renew every draft's hold from here rather than
 // from its composer, which unmounts when the user switches threads mid-edit. A reload brings
 // its drafts back, so their holds are taken again straight away, before the lease runs out.
+// A hidden tab's timer can run as rarely as once a minute, so coming back renews at once too.
 export function useRenewQueueHolds() {
   const registry = useContext(RegistryContext)
   useEffect(() => {
     for (const [threadId, messageId] of editingDrafts(registry))
       holdQueued(registry, threadId, messageId)
-    const timer = setInterval(() => {
+    function renew() {
       const threads = registry.get(chromeAtom)?.threads
       for (const [threadId, messageId] of editingDrafts(registry))
         if (
@@ -341,8 +342,16 @@ export function useRenewQueueHolds() {
             ?.pendingMessages?.some((message) => message.id === messageId)
         )
           holdQueued(registry, threadId, messageId)
-    }, 30_000)
-    return () => clearInterval(timer)
+    }
+    function onVisible() {
+      if (document.visibilityState === 'visible') renew()
+    }
+    const timer = setInterval(renew, 30_000)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [registry])
 }
 

@@ -153,6 +153,16 @@ export function ThreadComposer({
       update({ target: { ...read().target, projectId } })
   }, [threadId, started, projectId, picked, update, read])
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
+  // A message being edited can leave the queue under the composer: removed in another window, or
+  // delivered once its hold lapsed. The edit stays as an ordinary draft, and the footer says why.
+  const [left, setLeft] = useState<string>()
+  const editingLeft = Boolean(threadId && editing && chrome && !editingEntry)
+  useEffect(() => {
+    if (!editingLeft || !editing) return
+    setLeft(editing)
+    update({ editing: undefined })
+  }, [editingLeft, editing, update])
+  if (left !== undefined && !draft.trim()) setLeft(undefined)
   const retrySetup = useRetrySetup()
   // Retry sends the message waiting on the worktree as the queue's Resume does, so the setup it
   // reruns reads "Setting up worktree" with Stop; with nothing waiting it only sets up.
@@ -276,7 +286,7 @@ export function ThreadComposer({
       (projectId ? createThread(projectId, chosen, environment, startingRef) : undefined)
     if (!id) return
     const kept = read().target
-    setDraft('')
+    clearDraft()
     const open = () => void navigate({ to: '/threads/$threadId', params: { threadId: id } })
     // Shown at once for instant feedback, and withdrawn if the send fails so Open never dangles.
     const notice =
@@ -304,6 +314,7 @@ export function ThreadComposer({
 
   // A reply set aside to edit a queued message comes back once the edit is done.
   function clearDraft() {
+    setLeft(undefined)
     const reply = item && saved.parked?.[item.id]
     if (!item || reply === undefined) return update({ text: '', editing: undefined })
     const { [item.id]: _, ...parked } = saved.parked ?? {}
@@ -547,12 +558,18 @@ export function ThreadComposer({
                 provider={provider}
                 ring={!ambient}
                 note={
-                  editingEntry && (
+                  editingEntry ? (
                     <span className='flex min-w-0 items-center gap-1.5'>
                       <span className='truncate'>Editing a queued message</span>
                       <Kbd>Esc</Kbd>
                     </span>
-                  )
+                  ) : left !== undefined ? (
+                    <span className='truncate'>
+                      {items.some((entry) => entry.id === left)
+                        ? 'Already sent, so this is a new message'
+                        : 'No longer queued, so this is a new message'}
+                    </span>
+                  ) : undefined
                 }
               />
             </div>
