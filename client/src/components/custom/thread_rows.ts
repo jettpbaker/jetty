@@ -123,6 +123,21 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Creating', 'Created', 'thread'),
     target: (input) => (typeof input.title === 'string' ? input.title : undefined),
   },
+  list_models: {
+    action: 'List models',
+    words: words('Listing', 'Listed', 'model list'),
+    target: () => 'models',
+  },
+  stop_thread: {
+    action: 'Stop thread',
+    words: words('Stopping', 'Stopped', 'thread'),
+    target: () => 'thread',
+  },
+  archive_thread: {
+    action: 'Archive thread',
+    words: words('Archiving', 'Archived', 'thread'),
+    target: (_, output) => resultField(output, 'title'),
+  },
   send_message: {
     action: 'Send message',
     words: words('Messaging', 'Messaged', 'thread'),
@@ -363,8 +378,15 @@ export function threadRows(
       askedTurns.has(item.turnId)
     )
   }
+  // An answered question shows as its answer; Claude loading a deferred tool's schema
+  // (ToolSearch) is plumbing, not work.
+  function hidden(item: ThreadItem) {
+    return (
+      isAnsweredQuestionTool(item) || (item.kind === 'tool_call' && item.toolName === 'ToolSearch')
+    )
+  }
   function isStep(item: ThreadItem): item is WorkItem {
-    return (item.kind === 'reasoning' || item.kind === 'tool_call') && !isAnsweredQuestionTool(item)
+    return (item.kind === 'reasoning' || item.kind === 'tool_call') && !hidden(item)
   }
   // A turn's steps, and the text between them, share one work block; a steering message starts
   // another. Text after the last step stays outside the block as the answer.
@@ -422,7 +444,7 @@ export function threadRows(
   for (const [index, item] of items.entries()) {
     if (currentTurnId && currentTurnId !== item.turnId) finishTurn()
     currentTurnId = item.turnId
-    if (isAnsweredQuestionTool(item)) continue
+    if (hidden(item)) continue
     const segment = segments[index]!
     if (
       isStep(item) ||
