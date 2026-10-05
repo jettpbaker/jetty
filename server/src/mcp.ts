@@ -362,7 +362,7 @@ export function createMcpHandler(
     }
 
     async function register(server: McpServer, identity: McpIdentity) {
-      await run(accessible(identity, identity.threadId))
+      const parentId = (await run(accessible(identity, identity.threadId))).parentThreadId
       function invoke<A>(effect: Effect.Effect<A, Error>) {
         return run(
           effect.pipe(
@@ -511,6 +511,28 @@ export function createMcpHandler(
         },
         (input) => invoke(sendMessage(identity, input))
       )
+      if (parentId)
+        server.registerTool(
+          'ask_parent',
+          {
+            description:
+              'Ask the thread that created yours a question, such as a decision you need from it. Jetty sends it when your turn ends, and its answer arrives as your next message.',
+            inputSchema: { question: text },
+          },
+          ({ question }) =>
+            invoke(
+              Effect.gen(function* () {
+                const parent = yield* accessible(identity, parentId)
+                yield* store.askParent(identity.threadId, question)
+                return {
+                  threadId: parent.id,
+                  title: parent.title,
+                  detail:
+                    'Jetty sends your question when this turn ends, so end your turn now. The answer arrives as your next message.',
+                }
+              })
+            )
+        )
       server.registerTool(
         'mark_ready_for_review',
         {

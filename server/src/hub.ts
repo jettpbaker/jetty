@@ -26,7 +26,8 @@ export function createHub() {
     const tasks = backgroundTasks.get(thread.id) ?? []
     const waitingForChildren = [...(children.get(thread.id) ?? [])].some((id) => {
       const child = threads.get(id)
-      if (!child || child.archived) return false
+      // A child waiting on this thread's answer isn't something this thread waits for.
+      if (!child || child.archived || child.awaitingParent) return false
       const status = decorateThread(child).status
       return (
         status === 'starting' ||
@@ -42,7 +43,11 @@ export function createHub() {
       // Absent when none run, so chrome stays the same size for most threads.
       ...(subagents && { runningSubagents: subagents }),
       waitingForChildren,
-      status: backgroundStatus(thread.status, tasks, waitingForChildren),
+      status: backgroundStatus(
+        thread.status,
+        tasks,
+        waitingForChildren || thread.awaitingParent === true
+      ),
     }
   }
 

@@ -231,9 +231,9 @@ export type RunningSubagent = Schema.Schema.Type<typeof RunningSubagent>
 export function backgroundStatus(
   status: SessionStatus,
   tasks: readonly BackgroundTask[],
-  waitingForChildren = false
+  waiting = false
 ) {
-  return (tasks.length || waitingForChildren) && (status === 'idle' || status === 'error')
+  return (tasks.length || waiting) && (status === 'idle' || status === 'error')
     ? 'monitoring'
     : status
 }
@@ -255,6 +255,8 @@ export const ThreadMeta = Schema.Struct({
   backgroundTasks: Schema.optional(Schema.Array(BackgroundTask)),
   runningSubagents: Schema.optional(Schema.Array(RunningSubagent)),
   waitingForChildren: Schema.optional(Schema.Boolean),
+  // It asked its parent a question and no message has reached it since.
+  awaitingParent: Schema.optional(Schema.Boolean),
   queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,
   pinned: Schema.Boolean,

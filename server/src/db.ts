@@ -179,6 +179,10 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`CREATE INDEX server_starts_by_time ON server_starts (started_at)`
   }),
   '023_archive_group': addThreadColumns({ archive_group: 'TEXT' }),
+  '024_ask_parent': addThreadColumns({
+    parent_question: 'TEXT',
+    awaiting_parent: 'INTEGER NOT NULL DEFAULT 0',
+  }),
 })
 
 export function databaseLayer(home: string) {

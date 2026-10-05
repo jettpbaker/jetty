@@ -66,8 +66,13 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
     case 'subagentDone':
       return 29
-    case 'reports':
-      return 4 + 25 * row.reports.length
+    case 'reports': {
+      let height = 4 + 25 * row.reports.length
+      for (const [index, report] of row.reports.entries())
+        if (report.question)
+          height += textHeight(`${row.id}:${index}`, report.question, width, true, rough) + 4
+      return height
+    }
     case 'user': {
       const { text, attachments } = row.item
       const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))

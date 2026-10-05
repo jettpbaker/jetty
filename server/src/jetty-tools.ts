@@ -7,6 +7,7 @@ export const SELF_TOOLS = [
   'link_pull_request',
   'send_images',
   'send_video',
+  'ask_parent',
 ] as const
 
 // Tools that act on other threads. Claude's and Grok's auto reviewers judge these like any other

@@ -1082,6 +1082,11 @@ export function createOrchestrator({
               Effect.gen(function* () {
                 const result = yield* store.reportSettledChild(thread.id)
                 if ('note' in result && result.note) yield* publish(thread.id, result.note)
+                if ('asked' in result)
+                  hub.pushChrome({
+                    type: 'thread.upserted',
+                    thread: yield* store.requireThread(thread.id),
+                  })
               })
             )
           }

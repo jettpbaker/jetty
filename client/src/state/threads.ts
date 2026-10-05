@@ -48,7 +48,7 @@ export const threadAtom = Atom.family((threadId: string) =>
     const status = backgroundStatus(
       state.status,
       thread?.backgroundTasks ?? [],
-      thread?.waitingForChildren
+      thread?.waitingForChildren || thread?.awaitingParent
     )
     return status === state.status ? state : { ...state, status }
   })

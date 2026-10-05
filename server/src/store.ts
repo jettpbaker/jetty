@@ -69,6 +69,7 @@ type ThreadRow = {
   git_json: string | null
   worktree_json: string | null
   pending_messages: string
+  awaiting_parent: number
 }
 
 export type WorktreeRecord = {
@@ -146,6 +147,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
     readyForReview: row.ready_for_review !== 0,
+    ...(row.awaiting_parent ? { awaitingParent: true } : {}),
     pullRequests: [],
     updatedAt: row.updated_at,
     ...(row.turn_started_at === null ? {} : { turnStartedAt: row.turn_started_at }),
@@ -473,11 +475,22 @@ export function createStore() {
         ORDER BY e.seq DESC LIMIT 1`.pipe(Effect.map(([turn]) => turn))
     }
 
+    function parentQuestion(threadId: string) {
+      return sql<{
+        parent_question: string | null
+      }>`SELECT parent_question FROM threads WHERE id = ${threadId}`.pipe(
+        Effect.map(([row]) => row?.parent_question ?? null)
+      )
+    }
+
+    // A question from ask_parent is reported in place of the turn's final message. It reaches the
+    // parent however the turn started and even when the parent isn't notified, since it was asked.
     function reportSettledChild(threadId: string) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.createdBy !== 'agent' || !thread.parentThreadId) return { delivered: false }
-        if (!(yield* notifiesParent(threadId))) return { delivered: false }
+        const question = yield* parentQuestion(threadId)
+        if (!question && !(yield* notifiesParent(threadId))) return { delivered: false }
         const { state } = yield* loadThread(threadId)
         if (
           state.activeTurnId ||
@@ -489,11 +502,12 @@ export function createStore() {
         )
           return { delivered: false }
         const turn = yield* latestFinishedTurn(threadId)
-        if (!turn || turn.initiator_thread_id !== thread.parentThreadId) return { delivered: false }
+        if (!turn || (!question && turn.initiator_thread_id !== thread.parentThreadId))
+          return { delivered: false }
         const reportId = `report:${threadId}:${turn.turn_id}`
         const [existing] = yield* sql`SELECT 1 FROM orchestration_requests
           WHERE caller_id = ${threadId} AND request_id = ${reportId} AND operation = 'report'`
-        if (existing) return { delivered: false }
+        if (existing && !question) return { delivered: false }
         const parent = yield* getThread(thread.parentThreadId)
         const hop = turn.hop + 1
         if (!parent || parent.archived || hop > 20) {
@@ -514,15 +528,17 @@ export function createStore() {
               message: `Report to parent was not delivered: ${reason}.`,
             },
           })
-          yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: thread.parentThreadId })})`
+          yield* sql`INSERT OR IGNORE INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: thread.parentThreadId })})`
+          yield* sql`UPDATE threads SET parent_question = NULL WHERE id = ${threadId}`
           return { delivered: false, note }
         }
         const event = JSON.parse(turn.payload_json) as Extract<
           ThreadEvent,
           { type: 'turn.completed' | 'turn.failed' }
         >
-        const outcome: ReportOutcome =
-          event.type === 'turn.completed'
+        const outcome: ReportOutcome = question
+          ? { type: 'asked', question }
+          : event.type === 'turn.completed'
             ? { type: 'finished' }
             : event.error === 'interrupted'
               ? { type: 'interrupted' }
@@ -552,6 +568,7 @@ export function createStore() {
           title: thread.title,
           outcome: outcome.type,
           seconds: yield* workedSeconds(threadId),
+          ...(question && { question }),
         }
         // Reports waiting in the parent's queue merge into one message, which then comes from Jetty.
         const batch = parent.pendingMessages?.find((message) => message.kind === 'report')
@@ -581,8 +598,10 @@ export function createStore() {
             kind: 'report',
             reports: [summary],
           })
-        yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id, messageId })})`
-        return { delivered: true }
+        yield* sql`INSERT OR IGNORE INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id, messageId })})`
+        if (!question) return { delivered: true }
+        yield* sql`UPDATE threads SET parent_question = NULL, awaiting_parent = 1 WHERE id = ${threadId}`
+        return { delivered: true, asked: true }
       }).pipe(atomically, Effect.mapError(storeError))
     }
 
@@ -906,6 +925,12 @@ export function createStore() {
         )
       },
       reportSettledChild,
+      askParent(threadId: string, question: string) {
+        return sql`UPDATE threads SET parent_question = COALESCE(parent_question || char(10) || char(10), '') || ${question} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       suppressReport(threadId: string) {
         return Effect.gen(function* () {
           const thread = yield* requireThread(threadId)
@@ -914,6 +939,7 @@ export function createStore() {
           if (!turnId || !thread.parentThreadId) return
           const reportId = `report:${threadId}:${turnId}`
           yield* sql`INSERT OR IGNORE INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: thread.parentThreadId })})`
+          yield* sql`UPDATE threads SET parent_question = NULL, awaiting_parent = 0 WHERE id = ${threadId}`
         }).pipe(atomically, Effect.mapError(storeError))
       },
       threadTree(threadId: string) {
@@ -949,7 +975,7 @@ export function createStore() {
             yield* writeState(threadId, state)
             entry.state = state
             entry.persistedSeq = state.lastSeq
-            yield* sql`UPDATE threads SET status = 'starting', ready_for_review = 0 WHERE id = ${threadId}`
+            yield* sql`UPDATE threads SET status = 'starting', ready_for_review = 0, awaiting_parent = 0 WHERE id = ${threadId}`
           }
           const thread = yield* requireThread(threadId)
           const message = thread.pendingMessages?.find((m) => m.id === messageId)

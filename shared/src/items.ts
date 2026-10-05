@@ -13,12 +13,14 @@ export const Attachment = Schema.Struct({
 })
 export type Attachment = Schema.Schema.Type<typeof Attachment>
 
-// A child thread's report as the chat shows it: how its run ended and how long it worked.
+// A child thread's report as the chat shows it: how its run ended and how long it worked, or
+// the question it asked its parent.
 export const ChildReport = Schema.Struct({
   threadId: Schema.String,
   title: Schema.String,
-  outcome: Schema.Literals(['finished', 'failed', 'interrupted', 'paused']),
+  outcome: Schema.Literals(['finished', 'failed', 'interrupted', 'paused', 'asked']),
   seconds: Schema.Number,
+  question: Schema.optional(Schema.String),
 })
 export type ChildReport = Schema.Schema.Type<typeof ChildReport>
 

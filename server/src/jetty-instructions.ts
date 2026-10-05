@@ -26,7 +26,7 @@ export function restartContinuation(stoppedNames: readonly string[]) {
 }
 
 export const CHILD_REPORT_INSTRUCTION =
-  "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, end your turn with the question; its answer arrives as your next message. Mention the attachment ids of any images or videos you showed, so it can re-post them."
+  "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, ask it with ask_parent. Mention the attachment ids of any images or videos you showed, so it can re-post them."
 
 export const REPORT_CAP = 20_000
 
@@ -35,6 +35,7 @@ export type ReportOutcome =
   | { type: 'interrupted' }
   | { type: 'failed'; error: string }
   | { type: 'paused' }
+  | { type: 'asked'; question: string }
 
 const outcomeText = {
   finished: () => 'finished.',
@@ -42,6 +43,7 @@ const outcomeText = {
   failed: (error: string) => `failed: ${error.trim().replace(/\.+$/, '')}.`,
   paused: () =>
     "is paused: Jetty kept restarting, so it didn't resume this thread. It continues when the user resumes it.",
+  asked: () => 'has a question for you; answer it with send_message.',
 }
 
 // What a parent reads when its child is done. branch is null for a child in the project checkout.
@@ -60,9 +62,11 @@ export function childReport(report: {
   const where =
     report.branch === null ? 'Worked in the project checkout.' : `Branch: ${report.branch}`
   const body =
-    message.length > REPORT_CAP
-      ? `${message.slice(0, REPORT_CAP)}\n[Cut at ${REPORT_CAP.toLocaleString('en-US')} characters; read_thread with messageId ${report.messageId} has the rest.]`
-      : message
+    outcome.type === 'asked'
+      ? outcome.question
+      : message.length > REPORT_CAP
+        ? `${message.slice(0, REPORT_CAP)}\n[Cut at ${REPORT_CAP.toLocaleString('en-US')} characters; read_thread with messageId ${report.messageId} has the rest.]`
+        : message
   return [`[${title}](jetty://threads/${report.threadId}) ${status}\n${where}`, body]
     .filter(Boolean)
     .join('\n\n')
