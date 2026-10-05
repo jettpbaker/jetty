@@ -33,7 +33,7 @@ import {
 } from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
-import { WorkBlock } from '@/components/custom/work_block'
+import { handOffReply, replyHandedOff, WorkBlock } from '@/components/custom/work_block'
 import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
@@ -60,6 +60,7 @@ import {
 import { flushSync } from 'react-dom'
 
 const pinSlack = 96
+const rowGap = 12
 // Keeps a jumped-to message below the conversation's top blur.
 const jumpClearance = 96
 // A first open lays out this many window heights of rows exactly; the rest start rough.
@@ -104,6 +105,29 @@ function roughRows(rows: readonly ThreadRow[], width: number) {
     else ids.add(rows[index]!.id)
   }
   return ids
+}
+
+// A reply leaves the chat as the next step starts and the Working block above takes it in. The block
+// takes over its measured space in the same render, so the list's height holds and nothing above
+// drops for a frame while Working settles to its new size.
+function handOffMovedReplies(
+  previous: readonly ThreadRow[],
+  rows: readonly ThreadRow[],
+  virtualizer: Virtualizer<HTMLDivElement, Element>
+) {
+  const work = rows.findLast((row) => row.kind === 'work')
+  if (!work || !virtualizer.elementsCache.get(work.id)?.isConnected) return
+  for (let index = previous.length - 1; index >= 0; index--) {
+    const row = previous[index]!
+    if (row.kind === 'work') break
+    if (row.kind !== 'assistant' || replyHandedOff(row.id)) continue
+    if (!work.activities.some((activity) => activity.id === row.id)) continue
+    const reply = virtualizer.itemSizeCache.get(row.id)
+    const block = virtualizer.itemSizeCache.get(work.id)
+    if (reply === undefined || block === undefined) continue
+    virtualizer.itemSizeCache.set(work.id, block + rowGap + reply)
+    handOffReply(row.id, reply + rowGap)
+  }
 }
 
 // Follows a pinned list down as it grows on a critically damped spring, so a line added mid-glide
@@ -437,7 +461,7 @@ export function ThreadList({
     getScrollElement: () => scroller.current,
     estimateSize: (index) => estimateRow(rows[index]!, width, rough.has(rows[index]!.id)),
     overscan: 10,
-    gap: 12,
+    gap: rowGap,
     paddingStart: 24,
     paddingEnd: 24,
     getItemKey,
@@ -468,6 +492,9 @@ export function ThreadList({
     },
     [view, virtualizer, width]
   )
+
+  const latestRows = useRef(rows)
+  if (rows !== latestRows.current) handOffMovedReplies(latestRows.current, rows, virtualizer)
 
   const stamp = useMemo(() => rows.map(rowStamp).join('|'), [rows])
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
@@ -554,7 +581,6 @@ export function ThreadList({
   }, [revealId, agentId, rows, virtualizer, clearReveal, pin])
 
   const turns = useTurns(rows)
-  const latestRows = useRef(rows)
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = rows

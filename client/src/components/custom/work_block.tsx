@@ -19,6 +19,18 @@ import {
   workEnded,
 } from './work_model'
 
+// The space a reply took in the chat as it moves into Working. The block takes it over at once, so
+// the chat around it holds still, and the reply eases to its own height there.
+const handoffs = new Map<string, number>()
+
+export function handOffReply(reply: string, height: number) {
+  handoffs.set(reply, height)
+}
+
+export function replyHandedOff(reply: string) {
+  return handoffs.has(reply)
+}
+
 // Entries scrolled out of a live preview fade at that edge.
 function edges(element: HTMLElement) {
   element.toggleAttribute('data-above', element.scrollTop > 0)
@@ -68,7 +80,6 @@ function WorkHistory({
     if (closing) {
       // Shrinks from the open height, which a cap of none can't transition from.
       element.style.maxHeight = `${element.offsetHeight}px`
-      void element.offsetHeight
     }
     pinned.current = true
     function measure() {
@@ -84,6 +95,26 @@ function WorkHistory({
     observer.observe(list)
     return () => observer.disconnect()
   }, [live, view, reducedMotion])
+
+  // A handed-off reply grows the preview by its space in one step, before the cap eases on to the
+  // latest entries; growing from the old cap would drop everything above for a frame.
+  useLayoutEffect(() => {
+    let height = 0
+    for (const entry of entries) {
+      height += handoffs.get(entry.id) ?? 0
+      handoffs.delete(entry.id)
+    }
+    const element = scroller.current!
+    if (!height || !element.style.maxHeight) return
+    const style = getComputedStyle(element)
+    const cap = parseFloat(style.maxHeight)
+    element.style.transition = 'none'
+    element.style.maxHeight = `${cap + height}px`
+    // A call, not a bare property read, which the React Compiler drops: commits the new cap before
+    // the transition comes back.
+    style.getPropertyValue('max-height')
+    element.style.transition = ''
+  })
 
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
@@ -111,9 +142,11 @@ function WorkHistory({
               className='overflow-hidden'
               // A reply moving in from the chat was just on screen, so it doesn't grow in again.
               initial={
-                entry.type === 'text' && replyShown(entry.id) !== undefined
-                  ? false
-                  : { height: 0, opacity: 0 }
+                handoffs.has(entry.id)
+                  ? { height: handoffs.get(entry.id) }
+                  : entry.type === 'text' && replyShown(entry.id) !== undefined
+                    ? false
+                    : { height: 0, opacity: 0 }
               }
               animate={{ height: 'auto', opacity: 1 }}
               transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }}
