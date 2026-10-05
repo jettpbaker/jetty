@@ -1,7 +1,9 @@
 import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
+import { randomUUID } from 'node:crypto'
 import { constants, type Stats } from 'node:fs'
-import { open, realpath, stat, type FileHandle } from 'node:fs/promises'
+import { open, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises'
+import { basename, dirname, join, sep } from 'node:path'
 
 import { git } from './git-process'
 import { StoreError } from './store'
@@ -199,82 +201,94 @@ async function readOpened({
   return { file: { contents: text }, text, bytes }
 }
 
+// What's at the real path `file` now (contents null: nothing), read only while it still is that
+// path; undefined when a symlink was swapped in since it resolved.
+async function readCurrent(file: string): Promise<(Opened & { mode?: number }) | undefined> {
+  const opened = await openResolved(file, constants.O_RDONLY).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  })
+  if (opened === null) return { file: { contents: null } }
+  if (!opened) return undefined
+  try {
+    return { ...(await readOpened(opened)), mode: opened.stats.mode }
+  } finally {
+    await opened.handle.close()
+  }
+}
+
 export function readProjectFile(cwd: string, path: string) {
   return Effect.gen(function* () {
     const { file } = yield* resolveProjectPath(cwd, path)
     if (!file) return { contents: null }
-    const read = yield* Effect.promise(async (): Promise<ProjectFile | undefined> => {
-      try {
-        const opened = await openResolved(file, constants.O_RDONLY)
-        if (!opened) return undefined
-        try {
-          return (await readOpened(opened)).file
-        } finally {
-          await opened.handle.close()
-        }
-      } catch {
-        return { contents: null }
-      }
-    })
-    if (read) return read
+    const read = yield* Effect.promise(() =>
+      readCurrent(file).catch(() => ({ file: { contents: null } }))
+    )
+    if (read) return read.file
     return yield* Effect.fail(new StoreError('invalid_params', 'File changed while opening'))
   })
 }
 
-// Writes over the file in place, keeping its mode and any symlink to it, but only while it still
-// holds `base`, the text the edit started from (null: no file). Otherwise nothing is written and
-// the conflict carries what's there now.
+// Where a new file at `path` goes: its folder's real path, which must be inside `root`.
+async function newFile(root: string, path: string) {
+  const target = join(root, path)
+  const folder = await realpath(dirname(target)).catch(() => undefined)
+  if (!folder || (folder !== root && !folder.startsWith(root + sep)))
+    throw new StoreError('not_found', 'Folder not found')
+  return join(folder, basename(target))
+}
+
+// Writes a synced sibling and renames it over the real path `file`, so a failed save leaves the
+// old file whole, and a symlink to it keeps pointing at it.
+async function replaceFile(
+  file: string,
+  bytes: Buffer,
+  base: string | null,
+  path: string
+): Promise<SavedProjectFile | undefined> {
+  const current = await readCurrent(file)
+  if (!current) return undefined
+  const holds =
+    base === null
+      ? 'contents' in current.file && current.file.contents === null
+      : current.text === base
+  if (!holds) return { conflict: current.file }
+  // The text came from decoding these bytes; saving would rewrite any that weren't UTF-8.
+  if (current.text !== undefined && !current.bytes.equals(Buffer.from(current.text)))
+    throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
+  const temp = join(dirname(file), `.${basename(file)}.${randomUUID()}.jetty-save`)
+  const handle = await open(
+    temp,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+    0o666
+  )
+  try {
+    try {
+      await handle.writeFile(bytes)
+      if (current.mode !== undefined) await handle.chmod(current.mode & 0o7777)
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await rename(temp, file)
+  } catch (error) {
+    await unlink(temp).catch(() => {})
+    throw error
+  }
+  return { saved: true }
+}
+
+// Saves only while the file still holds `base`, the text the edit started from (null: no file);
+// otherwise nothing is written and the conflict carries what's there now.
 export function writeProjectFile(cwd: string, path: string, contents: string, base: string | null) {
   return Effect.gen(function* () {
     const bytes = Buffer.from(contents)
     if (bytes.length > MAX_CONTENTS_BYTES)
       return yield* Effect.fail(new StoreError('invalid_params', 'File too large to save'))
     const { root, file } = yield* resolveProjectPath(cwd, path)
-    const paths = yield* Path.Path
+    if (!file && base !== null) return { conflict: { contents: null } }
     const saved = yield* Effect.tryPromise({
-      try: async (): Promise<SavedProjectFile | undefined> => {
-        if (!file) {
-          if (base !== null) return { conflict: { contents: null } }
-          const target = paths.join(root, path)
-          const folder = await realpath(paths.dirname(target)).catch(() => undefined)
-          if (!folder || (folder !== root && !folder.startsWith(root + paths.sep)))
-            throw new StoreError('not_found', 'Folder not found')
-          const created = await open(
-            paths.join(folder, paths.basename(target)),
-            constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-            0o644
-          ).catch(() => undefined)
-          if (!created) return undefined
-          try {
-            await created.writeFile(bytes)
-          } finally {
-            await created.close()
-          }
-          return { saved: true }
-        }
-        const opened = await openResolved(file, constants.O_RDWR)
-        if (!opened) return undefined
-        try {
-          const current = await readOpened(opened)
-          if (current.text === undefined || current.text !== base) return { conflict: current.file }
-          // The text came from decoding these bytes; saving would rewrite any that weren't UTF-8.
-          if (!current.bytes.equals(Buffer.from(current.text)))
-            throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
-          await opened.handle.truncate(0)
-          for (let offset = 0; offset < bytes.length;) {
-            const { bytesWritten } = await opened.handle.write(
-              bytes,
-              offset,
-              bytes.length - offset,
-              offset
-            )
-            offset += bytesWritten
-          }
-          return { saved: true }
-        } finally {
-          await opened.handle.close()
-        }
-      },
+      try: async () => replaceFile(file ?? (await newFile(root, path)), bytes, base, path),
       catch: (error) =>
         error instanceof StoreError
           ? error
