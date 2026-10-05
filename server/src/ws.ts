@@ -308,6 +308,15 @@ export function createRpcHandlers(
             Effect.as(null)
           )
         ),
+      'project.rename': (params) =>
+        mutation(
+          store.renameProject(params.projectId, params.title).pipe(
+            Effect.tap((project) =>
+              Effect.sync(() => hub.pushChrome({ type: 'project.upserted', project: project }))
+            ),
+            Effect.as(null)
+          )
+        ),
       'thread.create': (params) =>
         Effect.gen(function* () {
           const existing = yield* store.getThread(params.id)

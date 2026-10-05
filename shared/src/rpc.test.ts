@@ -75,6 +75,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             }),
           'project.delete': () => Effect.succeed(null),
           'project.setIcon': () => Effect.succeed(null),
+          'project.rename': () => Effect.succeed(null),
           'fs.browse': ({ partialPath }) =>
             Effect.succeed({ parentPath: partialPath, entries: [] }),
           'fs.search': () => Effect.succeed({ files: [] }),

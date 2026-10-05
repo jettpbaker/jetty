@@ -55,6 +55,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('project.create'),
   unary('project.delete'),
   unary('project.setIcon'),
+  unary('project.rename'),
   unary('fs.browse'),
   unary('fs.search'),
   unary('skills.list'),

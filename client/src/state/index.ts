@@ -65,6 +65,7 @@ export {
   useCreateThread,
   useDeleteThread,
   usePinThread,
+  useRenameProject,
   useRenameThread,
   useSetProjectIcon,
 } from './mutations'

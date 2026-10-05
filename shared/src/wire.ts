@@ -449,6 +449,10 @@ export const methods = {
     params: Schema.Struct({ projectId: Schema.String, icon: Schema.NullOr(ProjectIcon) }),
     result: Schema.Null,
   },
+  'project.rename': {
+    params: Schema.Struct({ projectId: Schema.String, title: Schema.String }),
+    result: Schema.Null,
+  },
   'fs.browse': {
     params: Schema.Struct({ partialPath: Schema.String }),
     result: Schema.Struct({

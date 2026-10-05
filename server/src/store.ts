@@ -1252,6 +1252,18 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      renameProject(id: string, title: string) {
+        const trimmed = title.trim()
+        if (trimmed.length === 0)
+          return Effect.fail(new StoreError('invalid_params', 'Name is empty'))
+        return Effect.gen(function* () {
+          const rows =
+            yield* sql<ProjectRow>`UPDATE projects SET title = ${trimmed} WHERE id = ${id} RETURNING *`
+          if (!rows[0])
+            return yield* Effect.fail(new StoreError('not_found', `Project ${id} not found`))
+          return rowToProject(rows[0])
+        }).pipe(Effect.mapError(storeError))
+      },
       setProjectIcon(id: string, icon: ProjectIcon | null) {
         return Effect.gen(function* () {
           const rows =

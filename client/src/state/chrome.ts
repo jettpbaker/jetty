@@ -43,6 +43,9 @@ export const deletedProjectsAtom = Atom.make<ReadonlySet<string>>(new Set<string
 export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon | null>>(
   new Map()
 ).pipe(Atom.keepAlive)
+export const projectTitlePatchesAtom = Atom.make<ReadonlyMap<string, string>>(new Map()).pipe(
+  Atom.keepAlive
+)
 
 export type Chrome = {
   projects: readonly Project[]
@@ -131,6 +134,7 @@ function withPending(
   patches: ReadonlyMap<string, ThreadPatch>,
   deleted: ReadonlySet<string>,
   icons: ReadonlyMap<string, ProjectIcon | null>,
+  titles: ReadonlyMap<string, string>,
   deletedProjects: ReadonlySet<string>
 ): Chrome {
   if (
@@ -138,6 +142,7 @@ function withPending(
     patches.size === 0 &&
     deleted.size === 0 &&
     icons.size === 0 &&
+    titles.size === 0 &&
     deletedProjects.size === 0
   )
     return chrome
@@ -153,9 +158,15 @@ function withPending(
     })
   const projects = chrome.projects
     .filter((project) => !deletedProjects.has(project.id))
-    .map((project) =>
-      icons.has(project.id) ? { ...project, icon: icons.get(project.id) ?? undefined } : project
-    )
+    .map((project) => {
+      const title = titles.get(project.id)
+      if (!icons.has(project.id) && title === undefined) return project
+      return {
+        ...project,
+        ...(icons.has(project.id) ? { icon: icons.get(project.id) ?? undefined } : {}),
+        ...(title !== undefined ? { title } : {}),
+      }
+    })
   return { ...chrome, projects, threads }
 }
 
@@ -169,6 +180,7 @@ export const chromeAtom = Atom.readable((get) => {
       get(threadPatchesAtom),
       get(deletedThreadsAtom),
       get(projectIconPatchesAtom),
+      get(projectTitlePatchesAtom),
       get(deletedProjectsAtom)
     )
   )

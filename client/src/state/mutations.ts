@@ -12,6 +12,7 @@ import {
   deletedThreadsAtom,
   liveAtom,
   projectIconPatchesAtom,
+  projectTitlePatchesAtom,
   serverChrome,
   threadPatchesAtom,
   threadTreeIds,
@@ -346,6 +347,38 @@ function createProject(registry: Registry, path: string, onCreated?: (project: P
   )
 }
 
+function renameProject(registry: Registry, projectId: string, title: string) {
+  const trimmed = title.trim()
+  if (!trimmed) return
+  registry.update(projectTitlePatchesAtom, (patches) => new Map(patches).set(projectId, trimmed))
+  const clear = () =>
+    registry.update(projectTitlePatchesAtom, (patches) =>
+      patches.get(projectId) === trimmed ? without(patches, [projectId]) : patches
+    )
+  run(
+    registry,
+    (connection) =>
+      connection.request('project.rename', { projectId, title: trimmed }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => {
+                const project = serverChrome(registry)?.projects.find(
+                  (entry) => entry.id === projectId
+                )
+                return !project || project.title === trimmed
+              },
+              clear
+            )
+          )
+        ),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
+    clear
+  )
+}
+
 function setProjectIcon(registry: Registry, projectId: string, icon: ProjectIcon | null) {
   registry.update(projectIconPatchesAtom, (patches) => new Map(patches).set(projectId, icon))
   const clear = () =>
@@ -377,6 +410,10 @@ function setProjectIcon(registry: Registry, projectId: string, icon: ProjectIcon
 
 export function useSetProjectIcon() {
   return useAction(setProjectIcon)
+}
+
+export function useRenameProject() {
+  return useAction(renameProject)
 }
 
 export function useCreateProject() {

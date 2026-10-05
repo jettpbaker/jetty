@@ -1,8 +1,10 @@
 import { PlusSignIcon, Delete02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
-import { useChrome, useCreateProject } from '@/state'
+import { Input } from '@/components/ui/input'
+import { inComposition } from '@/lib/composition'
+import { useChrome, useCreateProject, useRenameProject } from '@/state'
 import { useDeleteProject } from '@/state/mutations'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ProjectFolderDialog } from './project_folder_dialog'
@@ -13,6 +15,7 @@ export function SettingsProjects() {
   const projects = chrome?.projects ?? []
   const createProject = useCreateProject()
   const deleteProject = useDeleteProject()
+  const renameProject = useRenameProject()
   const [adding, setAdding] = useState(false)
   const addButton = useRef<HTMLButtonElement>(null)
   function remove(projectId: string, title: string) {
@@ -53,9 +56,10 @@ export function SettingsProjects() {
               <td className='px-2 py-3'>
                 <div className='flex min-w-0 items-center gap-3'>
                   <ProjectIconPicker project={project} />
-                  <span className='truncate' title={project.title}>
-                    {project.title}
-                  </span>
+                  <ProjectName
+                    title={project.title}
+                    onRename={(title) => renameProject(project.id, title)}
+                  />
                 </div>
               </td>
               <td className='px-2 py-3 font-mono text-xs text-muted-foreground'>
@@ -97,6 +101,68 @@ export function SettingsProjects() {
         onAdd={(path) => createProject(path)}
       />
     </div>
+  )
+}
+
+function ProjectName({ title, onRename }: { title: string; onRename: (title: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(title)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const skipBlurRef = useRef(false)
+  useEffect(() => {
+    if (!editing) return
+    const input = inputRef.current
+    input?.focus()
+    input?.select()
+  }, [editing])
+  function begin() {
+    skipBlurRef.current = false
+    setDraft(title)
+    setEditing(true)
+  }
+  function cancel() {
+    skipBlurRef.current = true
+    setDraft(title)
+    setEditing(false)
+  }
+  function save() {
+    if (skipBlurRef.current) return
+    skipBlurRef.current = true
+    const next = draft.trim()
+    setEditing(false)
+    if (next && next !== title) onRename(next)
+    else setDraft(title)
+  }
+  if (!editing)
+    return (
+      <button
+        type='button'
+        className='min-w-0 truncate rounded-sm text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+        title={title}
+        onClick={begin}
+      >
+        {title}
+      </button>
+    )
+  return (
+    <Input
+      ref={inputRef}
+      aria-label='Project name'
+      value={draft}
+      className='h-7 px-1.5 text-13 md:text-13'
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (inComposition(event.nativeEvent)) return
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          save()
+        } else if (event.key === 'Escape') {
+          event.preventDefault()
+          cancel()
+        }
+      }}
+      onBlur={save}
+    />
   )
 }
 
