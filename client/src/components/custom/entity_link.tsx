@@ -17,6 +17,7 @@ import {
   type SVGProps,
 } from 'react'
 
+import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
 import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
 import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
@@ -49,20 +50,12 @@ function entityOf(url: string) {
   }
 }
 
-type MarkdownNode = {
-  type: string
-  url?: string
-  children?: MarkdownNode[]
-  data?: { hName?: string; hProperties?: Record<string, string> }
-}
-
 export function remarkEntityLinks() {
-  function visit(node: MarkdownNode) {
-    const target = node.type === 'link' && node.url ? entityOf(node.url) : undefined
-    if (target) node.data = { ...node.data, hName: 'entity-link', hProperties: target }
-    for (const child of node.children ?? []) visit(child)
-  }
-  return visit
+  return (tree: MarkdownNode) =>
+    visitLinks(tree, (node, url) => {
+      const target = entityOf(url)
+      if (target) node.data = { ...node.data, hName: 'entity-link', hProperties: target }
+    })
 }
 
 export const entityLinkTag = { 'entity-link': ['kind', 'entity'] }

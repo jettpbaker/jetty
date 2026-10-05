@@ -1,17 +1,12 @@
 import { createContext, use, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
+import { visitLinks, type MarkdownNode } from './markdown_links'
+
 export type FileTarget = { path: string; line?: number }
 
 // Opens a linked file inside Jetty; false when the file isn't in the thread's project.
 export const OpenFileLink = createContext<(target: FileTarget) => boolean>(() => false)
-
-type MarkdownNode = {
-  type: string
-  url?: string
-  children?: MarkdownNode[]
-  data?: { hName?: string; hProperties?: Record<string, string> }
-}
 
 const scheme = /^[a-z][a-z\d+.-]*:(?!\d)/i
 const lineSuffix = /:(\d+)(?::\d+)?$/
@@ -35,17 +30,16 @@ export function fileLinkTarget(url: string): FileTarget | undefined {
 
 // Turns links to files into <file-link>, which rehype's URL hardening leaves alone.
 export function remarkFileLinks() {
-  function visit(node: MarkdownNode) {
-    const target = node.type === 'link' && node.url ? fileLinkTarget(node.url) : undefined
-    if (target)
-      node.data = {
-        ...node.data,
-        hName: 'file-link',
-        hProperties: { path: target.path, ...(target.line ? { line: String(target.line) } : {}) },
-      }
-    for (const child of node.children ?? []) visit(child)
-  }
-  return visit
+  return (tree: MarkdownNode) =>
+    visitLinks(tree, (node, url) => {
+      const target = fileLinkTarget(url)
+      if (target)
+        node.data = {
+          ...node.data,
+          hName: 'file-link',
+          hProperties: { path: target.path, ...(target.line ? { line: String(target.line) } : {}) },
+        }
+    })
 }
 
 export const fileLinkTag = { 'file-link': ['path', 'line'] }

@@ -1,6 +1,7 @@
 import { CodePre } from '@/components/custom/code_block'
 import { EntityLink, entityLinkTag, remarkEntityLinks } from '@/components/custom/entity_link'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
+import { blocksWithDefinitions } from '@/components/custom/markdown_links'
 import {
   MarkdownMedia,
   markdownMediaTags,
@@ -191,6 +192,7 @@ export function Markdown({
       remarkPlugins={remarkPlugins}
       rehypePlugins={rehypePlugins}
       BlockComponent={BlockComponent}
+      parseMarkdownIntoBlocksFn={blocksWithDefinitions}
     >
       {shown}
     </Streamdown>
