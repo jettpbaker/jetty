@@ -17,8 +17,6 @@ import './grouped_table.css'
 
 export type GroupedColumn<T> = {
   id: string
-  label: string
-  icon: ReactNode
   /** Higher priorities survive longer. Title and essential columns never collapse. */
   priority: number
   width: number
@@ -83,7 +81,6 @@ export function GroupedTable<T>({
   for (const column of columns) {
     if (!collapsed.has(column.id)) required += column.width
   }
-  const naturalWidth = required
   const removable = columns
     .filter((column) => !column.title && !column.essential && !collapsed.has(column.id))
     .toSorted((a, b) => a.priority - b.priority)
@@ -98,7 +95,6 @@ export function GroupedTable<T>({
     )
     .join(' ')
   const gridStyle = { gridTemplateColumns: template }
-  const wide = width >= Math.max(760, naturalWidth)
 
   function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
     if (event.altKey || event.ctrlKey || event.metaKey || !root.current) return
@@ -130,22 +126,6 @@ export function GroupedTable<T>({
       onKeyDown={moveFocus}
       onScroll={() => onRowHover?.(null)}
     >
-      <div className='grouped-table-columns' data-wide={wide} aria-hidden={!wide}>
-        <div className='grouped-table-grid' style={gridStyle}>
-          {columns.map((column) => (
-            <span
-              key={column.id}
-              className='grouped-table-cell text-muted-foreground'
-              data-collapsed={collapsed.has(column.id)}
-              aria-hidden={collapsed.has(column.id) || undefined}
-              title={column.label}
-            >
-              {column.icon}
-              <span className='sr-only'>{column.label}</span>
-            </span>
-          ))}
-        </div>
-      </div>
       {groups.map((group) => {
         const closed = collapsedGroups[group.id] ?? group.defaultCollapsed ?? false
         const headerId = `${id}-${group.id}-header`
@@ -260,26 +240,6 @@ export function GroupedTableTitle({
       <span className='grouped-table-secondary' data-tucked={tucked} aria-hidden={!tucked}>
         <span className='truncate font-mono text-[11px] text-muted-foreground'>{secondary}</span>
       </span>
-    </span>
-  )
-}
-
-export function TableLabels({ labels }: { labels: readonly { name: string; color: string }[] }) {
-  return (
-    <span className='flex min-w-0 items-center gap-1'>
-      {labels.map((label) => (
-        <span
-          key={label.name}
-          className='inline-flex h-5 min-w-0 items-center gap-1.5 rounded-full border border-border px-1.5 text-[11px] text-muted-foreground'
-          title={label.name}
-        >
-          <span
-            className='size-1.5 shrink-0 rounded-full'
-            style={{ backgroundColor: label.color }}
-          />
-          <span className='truncate'>{label.name}</span>
-        </span>
-      ))}
     </span>
   )
 }

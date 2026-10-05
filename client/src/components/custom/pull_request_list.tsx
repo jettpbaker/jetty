@@ -23,24 +23,22 @@ import { ListFilterMenu } from './grouped_list_controls'
 import {
   GroupedTable,
   GroupedTableTitle,
-  TableLabels,
   type GroupedColumn,
   type TableGroup,
 } from './grouped_table'
-import { Refresh01Icon } from './huge_icons'
-import { Clock01Icon, Tag01Icon, UserIcon, CheckListIcon, CancelCircleIcon } from './huge_icons'
 import {
   Alert02Icon,
+  CancelCircleIcon,
+  Clock01Icon,
+  Refresh01Icon,
   ShieldCheckIcon,
   ShieldOffIcon,
-  LeftToRightListBulletIcon,
 } from './huge_icons'
 import {
-  GitPullRequestIcon,
-  GitPullRequestDraftIcon,
-  GitPullRequestClosedIcon,
   GitMergeIcon,
-  DiffIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
 } from './lucide_icons'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { PersonAvatar } from './person_avatar'
@@ -134,8 +132,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
-      label: 'State',
-      icon: <GitPullRequestIcon />,
       priority: 100,
       width: 26,
       essential: true,
@@ -143,8 +139,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'identifier',
-      label: 'Repository and number',
-      icon: <span className='text-xs'>#</span>,
       priority: 30,
       width: 122,
       render: (pull) => (
@@ -158,8 +152,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'author',
-      label: 'Creator',
-      icon: <UserIcon />,
       priority: 100,
       width: 28,
       essential: true,
@@ -176,8 +168,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'title',
-      label: 'Title',
-      icon: <LeftToRightListBulletIcon />,
       priority: 100,
       width: 280,
       title: true,
@@ -190,37 +180,19 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       ),
     },
     {
-      id: 'labels',
-      label: 'Labels',
-      icon: <Tag01Icon />,
-      priority: 10,
-      width: 150,
-      render: (pull) => (
-        <TableLabels
-          labels={(pull.labels ?? []).map((label) => ({ ...label, color: `#${label.color}` }))}
-        />
-      ),
-    },
-    {
       id: 'checks',
-      label: 'Checks',
-      icon: <CheckListIcon />,
       priority: 70,
       width: 28,
       render: (pull) => <PullRequestChecksGlyph pull={pull} />,
     },
     {
       id: 'review',
-      label: 'Review',
-      icon: <ShieldCheckIcon />,
       priority: 60,
       width: 28,
       render: (pull) => <PullRequestReviewGlyph pull={pull} />,
     },
     {
       id: 'diff',
-      label: 'Additions and deletions',
-      icon: <DiffIcon />,
       priority: 20,
       width: 98,
       render: (pull) => (
@@ -232,8 +204,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'age',
-      label: 'Updated',
-      icon: <Clock01Icon />,
       priority: 40,
       width: 48,
       render: (pull) => (

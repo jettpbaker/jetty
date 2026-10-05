@@ -5,33 +5,11 @@
   overflow: auto;
   overscroll-behavior: contain;
   padding: 10px;
-  --table-duration: 200ms;
-  --table-ease: cubic-bezier(0.25, 1, 0.5, 1);
 }
 .grouped-table-grid {
   display: grid;
   align-items: center;
   padding-inline: 10px;
-  transition: grid-template-columns var(--table-duration) var(--table-ease);
-}
-.grouped-table-columns {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows var(--table-duration) var(--table-ease),
-    opacity var(--table-duration) ease;
-}
-.grouped-table-columns[data-wide='true'] {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-.grouped-table-columns > div {
-  min-height: 0;
-  overflow: hidden;
-}
-.grouped-table-columns .grouped-table-cell {
-  height: 32px;
 }
 .grouped-table-group + .grouped-table-group {
   margin-top: 6px;
@@ -113,8 +91,6 @@
   overflow: hidden;
   padding-right: 10px;
   white-space: nowrap;
-  opacity: 1;
-  transition: opacity var(--table-duration) ease;
 }
 .grouped-table-cell > svg {
   flex-shrink: 0;
@@ -139,9 +115,6 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition:
-    grid-template-rows var(--table-duration) var(--table-ease),
-    opacity var(--table-duration) ease;
 }
 .grouped-table-secondary > span {
   min-height: 0;
@@ -150,12 +123,4 @@
 .grouped-table-secondary[data-tucked='true'] {
   grid-template-rows: 1fr;
   opacity: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .grouped-table-grid,
-  .grouped-table-cell,
-  .grouped-table-columns,
-  .grouped-table-secondary {
-    transition: none;
-  }
 }

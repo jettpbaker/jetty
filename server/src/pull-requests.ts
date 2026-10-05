@@ -2364,10 +2364,6 @@ function listItem(value: unknown): PullRequestListItem | null {
     author: { login, avatar_url, ...(name ? { name } : {}) },
     additions: Number(node.additions) || 0,
     deletions: Number(node.deletions) || 0,
-    labels: nodes(node.labels).map((value) => {
-      const label = record(value)
-      return { name: string(label.name), color: string(label.color) }
-    }),
     reviewDecision: (node.reviewDecision ?? null) as PullRequestListItem['reviewDecision'],
     mergeable: node.mergeable as PullRequestListItem['mergeable'],
     mergeStateStatus: string(node.mergeStateStatus),
@@ -2380,7 +2376,7 @@ export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[])
   const fields = `issueCount nodes { ... on PullRequest {
     id number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
     author { ${actorFields} }
-    additions deletions labels(first:10) { nodes { name color } }
+    additions deletions
     reviewDecision mergeable mergeStateStatus
     commits(last:1) { nodes { commit { statusCheckRollup { state } } } }
   } }`

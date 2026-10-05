@@ -166,9 +166,6 @@ export const PullRequestListItem = Schema.Struct({
   ),
   additions: Schema.optional(Schema.Int),
   deletions: Schema.optional(Schema.Int),
-  labels: Schema.optional(
-    Schema.Array(Schema.Struct({ name: Schema.String, color: Schema.String }))
-  ),
   reviewDecision: Schema.optional(
     Schema.NullOr(Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']))
   ),
