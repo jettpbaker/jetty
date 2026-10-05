@@ -14,7 +14,7 @@ import {
   MarkdownTableHeader,
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
-import { smoothBlocks, wholeWords } from '@/components/custom/smooth_stream'
+import { smoothBlocks, usePacedText, wholeWords } from '@/components/custom/smooth_stream'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
@@ -164,28 +164,35 @@ const MarkdownBlock = cachedBlock()
 export function Markdown({
   children,
   streaming,
+  arrived,
   className = 'text-sm leading-relaxed',
 }: {
   children: string
   streaming?: boolean
+  // Complete a moment ago, so it rolls in like a stream rather than appearing at once.
+  arrived?: boolean
   className?: string
 }) {
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
-  const [smooth] = useState(() => (streaming ? smoothBlocks(children) : undefined))
+  const [smooth] = useState(() =>
+    streaming || arrived ? smoothBlocks(arrived ? '' : children) : undefined
+  )
   const [BlockComponent] = useState(() => smooth?.SmoothBlock ?? MarkdownBlock)
   useEffect(() => smooth?.mounted(), [smooth])
+  const text = smooth && streaming ? wholeWords(children) : children
+  const shown = usePacedText(text, smooth && (arrived ? 0 : children.length))
   return (
     <Streamdown
       className={className}
       components={components}
       allowedTags={allowedTags}
       linkSafety={linkSafety}
-      isAnimating={streaming}
+      isAnimating={streaming || shown !== text}
       remarkPlugins={remarkPlugins}
       rehypePlugins={rehypePlugins}
       BlockComponent={BlockComponent}
     >
-      {smooth && streaming ? wholeWords(children) : children}
+      {shown}
     </Streamdown>
   )
 }

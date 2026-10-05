@@ -273,7 +273,13 @@ const ThreadItemRow = memo(function ThreadItemRow({
           <Bubble variant='ghost' align='start'>
             <BubbleContent>
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
-              <Markdown streaming={row.streaming}>{row.item.text}</Markdown>
+              <Markdown
+                streaming={row.streaming}
+                // Claude often sends a reply written after a tool call all at once.
+                arrived={!row.streaming && Date.now() - (row.item.completedAt ?? 0) < 1000}
+              >
+                {row.item.text}
+              </Markdown>
             </BubbleContent>
             {row.footer !== undefined && (
               <AgentMessageFooter

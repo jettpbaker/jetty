@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Block, type BlockProps } from 'streamdown'
 
 import './smooth_stream.css'
@@ -35,6 +35,46 @@ export function wholeWords(text: string) {
 // Inline style for an element whose fade began `age` ms ago, so one made again carries on.
 export function fadeStyle(age = 0) {
   return `--fade:${fadeMs}ms;--fade-delay:${-Math.round(age)}ms`
+}
+
+// A reply that lands in a lump (Claude often sends one written after a tool call all at once)
+// shows a step at a time, like a fast stream: a server batch apart, and all of it within 1.5s.
+const step = { ms: 50, chars: 50, count: 30 }
+
+// Where the word at or after `index` starts.
+function wordStart(text: string, index: number) {
+  const space = text.slice(index).search(/\s\S/)
+  return space === -1 ? text.length : index + space + 1
+}
+
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
+
+// How much of `text` to show, from `from` characters at mount: all of it, unless it has run ahead
+// by more than a step. No `from`, no pacing.
+export function usePacedText(text: string, from?: number) {
+  const [shown, setShown] = useState(from ?? 0)
+  const latest = useRef(text)
+  useLayoutEffect(() => {
+    latest.current = text
+  }, [text])
+  const behind = from === undefined ? 0 : text.length - shown
+  if (behind < 0 || (behind > 0 && (behind <= step.chars || reducedMotion.matches)))
+    setShown(text.length)
+  const pacing = behind > step.chars && !reducedMotion.matches
+  useEffect(() => {
+    if (!pacing) return
+    // Steps keep the size the lump started at, so it lands at an even pace.
+    let size = 0
+    const timer = setInterval(() => {
+      const text = latest.current
+      setShown((shown) => {
+        size = Math.max(size, step.chars, Math.ceil((text.length - shown) / step.count))
+        return wordStart(text, shown + size)
+      })
+    }, step.ms)
+    return () => clearInterval(timer)
+  }, [pacing])
+  return pacing ? wholeWords(text.slice(0, shown)) : text
 }
 
 function textOf(node: HastNode): string {
