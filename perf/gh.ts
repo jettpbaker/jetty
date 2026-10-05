@@ -65,6 +65,25 @@ const directory = [dir, fallback].find(
   (path) => existsSync(path) && readdirSync(path).some((file) => file.endsWith(`-${hash}.json`))
 )
 const name = directory && readdirSync(directory).find((file) => file.endsWith(`-${hash}.json`))
+// PR list searches cover a rolling date window, so no recording stays valid. The lab's user has
+// no PRs to list, so an unrecorded search answers empty instead of failing.
+const query = args.find((arg) => arg.startsWith('query=')) ?? ''
+if (!name && query.includes('search(')) {
+  const data: Record<string, unknown> = {
+    rateLimit: {
+      cost: 1,
+      remaining: 4999,
+      resetAt: new Date(Date.now() + 3_600_000).toISOString(),
+    },
+  }
+  for (const [, alias, field] of query.matchAll(/(\w+): (search|nodes)\(/g))
+    data[alias!] = field === 'search' ? { issueCount: 0, nodes: [] } : []
+  await emit({
+    code: 0,
+    stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ data })}`,
+    stderr: '',
+  })
+}
 if (!name) {
   if (process.env.PERF_GH_MISSES)
     appendFileSync(process.env.PERF_GH_MISSES, `${JSON.stringify({ args, hash })}\n`)
