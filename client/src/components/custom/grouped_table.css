@@ -14,7 +14,12 @@
   align-items: center;
   padding-inline: 10px;
 }
-.grouped-table-group + .grouped-table-group {
+/* Groups lay out as the table's own children, so every heading sticks across the whole table and
+   the next one slides over a stuck one (the diff view's cover handoff) instead of pushing it off. */
+.grouped-table-group {
+  display: contents;
+}
+.grouped-table-group + .grouped-table-group > .grouped-table-heading {
   margin-top: 6px;
 }
 .grouped-table-heading {
