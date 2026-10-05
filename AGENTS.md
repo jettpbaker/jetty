@@ -149,3 +149,6 @@
   service to start.
 - `bun test` forces the echo agent; the one live-Claude test is skipped unless
   `JETTY_LIVE_TEST=1` (spends tokens — leave it skipped).
+- Drive browsers through `perf/driver.ts` (`openPage`). A Chrome you launch yourself
+  needs `--use-mock-keychain --password-store=basic`, or macOS stops Jett with a
+  keychain password prompt.
