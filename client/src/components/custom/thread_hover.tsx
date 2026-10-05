@@ -17,6 +17,7 @@ import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
+import { Equal } from 'effect'
 import { animate, motionValue, type MotionValue } from 'motion'
 import { useReducedMotion } from 'motion/react'
 import {
@@ -133,7 +134,8 @@ function useFinishingSubagents(threadId: string, running: readonly RunningSubage
   const reducedMotion = useReducedMotion()
   const [state, setState] = useState(() => ({ threadId, running, rows: openingRows(running) }))
   let rows = state.rows
-  if (state.threadId !== threadId || state.running !== running) {
+  // Each chrome push for the thread brings a fresh list; only a different one settles the rows.
+  if (state.threadId !== threadId || !Equal.equals(state.running, running)) {
     rows =
       state.threadId === threadId ? settleRows(state.rows, running, outcome) : openingRows(running)
     setState({ threadId, running, rows })
