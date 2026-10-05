@@ -1113,7 +1113,9 @@ async function classifyFiles(
   baseSha: string | null,
   files: readonly PullRequestData['files'][number][],
   ref?: PullRequestRef,
-  headRepo = repo
+  headRepo = repo,
+  // Body references a cold read couldn't know to ask for ride along on the first query.
+  references: readonly PullRequestReference[] = []
 ) {
   const directories = new Map<string, { repo: string; sha: string; dir: string }>()
   for (const file of files) {
@@ -1137,7 +1139,8 @@ async function classifyFiles(
   for (let offset = 0; offset < missing.length; offset += batchSize)
     batches.push(missing.slice(offset, offset + batchSize))
   if (!batches.length && ref) batches.push([])
-  async function loadFlags(batch: typeof missing) {
+  let referenceData: unknown
+  async function loadFlags(batch: typeof missing, withReferences: boolean) {
     const [owner, name] = repo.split('/')
     let response: Record<string, unknown>
     try {
@@ -1161,16 +1164,23 @@ async function classifyFiles(
       }`
           : ''
       }
+      ${withReferences ? pullRequestReferenceFields(references, 0) : ''}
     }`)
       )
     } catch (error) {
       if (!(error instanceof GhFailure) || !error.tooLarge || batch.length < 2) throw error
       const middle = Math.ceil(batch.length / 2)
-      await loadFlags(batch.slice(0, middle))
-      await loadFlags(batch.slice(middle))
+      await loadFlags(batch.slice(0, middle), withReferences)
+      await loadFlags(batch.slice(middle), false)
       return
     }
-    if (response.errors) throw new GhFailure('unavailable', 'GitHub could not read file metadata')
+    // A reference that doesn't resolve fails on its own; file metadata must not.
+    const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+    if (
+      errors.some((error) => !/^r0_\d+$/.test(String((error.path as unknown[] | undefined)?.[0])))
+    )
+      throw new GhFailure('unavailable', 'GitHub could not read file metadata')
+    if (withReferences) referenceData = response.data
     const result = record(response.data)
     const repository = record(result.repository)
     if (ref) {
@@ -1193,13 +1203,18 @@ async function classifyFiles(
     }
   }
   await Effect.runPromise(
-    Effect.forEach(batches, (batch) => Effect.promise(() => loadFlags(batch)), {
-      concurrency: 4,
-      discard: true,
-    })
+    Effect.forEach(
+      batches,
+      (batch, index) => Effect.promise(() => loadFlags(batch, !index && references.length > 0)),
+      { concurrency: 4, discard: true }
+    )
   )
   return {
     revisionMatches,
+    references:
+      referenceData === undefined
+        ? undefined
+        : mapPullRequestReferences(referenceData, references, 0),
     files: files.map((file) => {
       const sha = file.status === 'removed' ? baseSha : headSha
       const dir = file.filename.slice(0, Math.max(0, file.filename.lastIndexOf('/')))
@@ -1274,6 +1289,10 @@ async function fetchPullRequest(
     previous.pull.additions === Number(pull.additions) &&
     previous.pull.deletions === Number(pull.deletions)
   const sameBase = previous?.pull.base.sha === baseSha
+  const targets = findPullRequestReferences(string(pull.body), ref)
+  const queried = new Set(graph.referenceTargets.map(referenceKey))
+  const missing = targets.filter((target) => !queried.has(referenceKey(target)))
+  let found: ReturnType<typeof mapPullRequestReferences> | undefined
   let files = reuseFiles
     ? previous.files
     : (await ghPages(`repos/${ref.repo}/pulls/${ref.number}/files`, Number(pull.changedFiles))).map(
@@ -1290,7 +1309,8 @@ async function fetchPullRequest(
       baseSha,
       files,
       reuseFiles && sameBase ? undefined : ref,
-      string(record(pull.headRepository).nameWithOwner, ref.repo)
+      string(record(pull.headRepository).nameWithOwner, ref.repo),
+      missing
     )
     if (!classified.revisionMatches) {
       if (retry) throw new GhFailure('unavailable', 'Pull request changed while loading its diff')
@@ -1302,6 +1322,7 @@ async function fetchPullRequest(
       return fetchPullRequest(ref, next, previous, true)
     }
     files = classified.files
+    found = classified.references
   }
   const viewed = new Map(
     nodes(pull.files).map((value) => {
@@ -1319,15 +1340,16 @@ async function fetchPullRequest(
   const repository = record(pull.repository)
   const reviewers = mapReviewers(pull)
   const { requestedUsers, requestedTeams } = requestedReviewers(reviewers.reviewRequests)
-  const targets = findPullRequestReferences(string(pull.body), ref)
-  const queried = new Set(graph.referenceTargets.map(referenceKey))
-  const missing = targets.filter((target) => !queried.has(referenceKey(target)))
   let references = graph.references
   if (missing.length) {
-    const response = record(
-      await graphql(`query { rateLimit { cost remaining resetAt } ${pullRequestReferenceFields(missing, 0)} }`)
+    found ??= mapPullRequestReferences(
+      record(
+        await graphql(`query { rateLimit { cost remaining resetAt } ${pullRequestReferenceFields(missing, 0)} }`)
+      ).data,
+      missing,
+      0
     )
-    references = [...references, ...mapPullRequestReferences(response.data, missing, 0)]
+    references = [...references, ...found]
   }
   const wanted = new Set(targets.map(referenceKey))
   const eventKinds = {

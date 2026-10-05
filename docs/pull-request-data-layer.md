@@ -59,8 +59,9 @@ remains separate and cached for five minutes.
 
 Description mentions resolve as typed issue/PR references, excluding fenced and
 inline code, duplicates, and self-references, with a 30-reference bound. Cached
-body references join the main query as aliases; newly discovered targets require
-one follow-up. Unresolvable targets are omitted. Closing issues retain repository
+body references join the main query as aliases; newly discovered targets (all of
+them on a cold read) ride along on the directory metadata query, and need a follow-up
+only when that query doesn't run. Unresolvable targets are omitted. Closing issues retain repository
 identity and open/completed/not-planned states.
 
 A query that times out (ours at 20 s, or GitHub's 502/504) or exceeds GitHub's node
