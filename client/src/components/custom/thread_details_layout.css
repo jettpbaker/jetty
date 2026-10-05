@@ -76,11 +76,11 @@
   opacity: 0;
 }
 .details-header-tab[data-active]:hover .details-tab-kind,
-.details-header-tab[data-active]:has(.details-tab-close:focus-visible) .details-tab-kind {
+.details-header-tab:has(.details-tab-close:focus-visible) .details-tab-kind {
   opacity: 0;
 }
 .details-header-tab[data-active]:hover .details-tab-close,
-.details-header-tab[data-active] .details-tab-close:focus-visible {
+.details-tab-close:focus-visible {
   pointer-events: auto;
   opacity: 1;
 }
