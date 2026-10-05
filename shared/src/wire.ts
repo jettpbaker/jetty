@@ -354,8 +354,12 @@ export const DiffScope = Schema.Literals(['branch', 'uncommitted'])
 export type DiffScope = Schema.Schema.Type<typeof DiffScope>
 
 // A file in a thread's checkout; contents null when there's no file there.
+// `utf8: false` is a lossy decode (the bytes are not UTF-8). Omitted when they are.
 export const ProjectFile = Schema.Union([
-  Schema.Struct({ contents: Schema.NullOr(Schema.String) }),
+  Schema.Struct({
+    contents: Schema.NullOr(Schema.String),
+    utf8: Schema.optional(Schema.Literal(false)),
+  }),
   Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
 ])
 export type ProjectFile = Schema.Schema.Type<typeof ProjectFile>

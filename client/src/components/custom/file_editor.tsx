@@ -96,6 +96,14 @@ const createEditor: EditorFactory<undefined, undefined> = (type, options, key) =
 
 export type Checkout = { environment?: 'local' | 'worktree'; branch?: string; path?: string }
 
+function notUtf8(file: ProjectFile) {
+  return 'utf8' in file && file.utf8 === false
+}
+
+function diskText(file: ProjectFile) {
+  return 'contents' in file ? (file.contents ?? '') : ''
+}
+
 // The file as it is in the thread's checkout, edited in place. Edits not yet saved are a draft
 // that outlives this view; saving writes only over the text the edits started from, so a file
 // that changed on disk meanwhile (agents edit files too) comes back as a conflict, never lost.
@@ -123,8 +131,9 @@ export function FileEditor({
   const save = useSaveProjectFile()
   const writeDraft = useWriteFileDraft()
   const dirty = useFileDirty(threadId, path)
-  const [opened] = useState(
-    () => readFileDraft(threadId, path)?.text ?? ('contents' in disk ? (disk.contents ?? '') : '')
+  const readOnly = notUtf8(disk)
+  const [opened] = useState(() =>
+    notUtf8(disk) ? diskText(disk) : (readFileDraft(threadId, path)?.text ?? diskText(disk))
   )
   // The text as last typed. The draft holds it with the disk text it descends from, and a save
   // settles the draft even when it completes after this view has gone.
@@ -139,6 +148,7 @@ export function FileEditor({
   const base = () => readFileDraft(threadId, path)?.base ?? text.current
 
   function edited(next: string) {
+    if (readOnly) return
     const from = base()
     text.current = next
     writeDraft(threadId, path, { ...readFileDraft(threadId, path), base: from, text: next })
@@ -169,6 +179,13 @@ export function FileEditor({
   }
 
   const diskChanged = useEffectEvent((now: ProjectFile) => {
+    if (notUtf8(now)) {
+      const nowText = diskText(now)
+      if (nowText !== text.current) adopt(nowText)
+      else if (readFileDraft(threadId, path)) writeDraft(threadId, path, undefined)
+      setConflict(undefined)
+      return
+    }
     const nowText = 'contents' in now ? now.contents : undefined
     const from = base()
     if (nowText === from) {
@@ -202,6 +219,7 @@ export function FileEditor({
   }
 
   function saveNow() {
+    if (readOnly) return
     if (dirty || conflict) void write(text.current, base())
   }
 
@@ -222,6 +240,10 @@ export function FileEditor({
   // Focus the reader has since put somewhere live stays there.
   useEffect(() => {
     if (focus <= answeredFocus) return
+    if (readOnly) {
+      answeredFocus = focus
+      return
+    }
     let frame = 0
     let frames = 0
     function place() {
@@ -236,7 +258,7 @@ export function FileEditor({
     }
     place()
     return () => cancelAnimationFrame(frame)
-  }, [focus, path])
+  }, [focus, path, readOnly])
 
   // CodeView takes new file contents as an outside edit to the document, so they change only on
   // purpose; its own edits stay in the editor.
@@ -246,12 +268,12 @@ export function FileEditor({
         id: path,
         type: 'file' as const,
         file: { name: path, contents: source, cacheKey: `${path}:${contentKey(source)}` },
-        edit: true,
+        edit: !readOnly,
         // CodeView only re-reads an item when its version changes.
         version: ++lastVersion,
       },
     ],
-    [path, source]
+    [path, source, readOnly]
   )
   const selectedLines = useMemo(
     () => (line ? { id: path, range: { start: line, end: line } } : null),
@@ -277,7 +299,7 @@ export function FileEditor({
       aria-label={path}
       className='file-changes-viewer relative isolate flex h-full min-h-0 flex-col bg-background'
     >
-      {conflict && (
+      {conflict && !readOnly && (
         <ConflictBar
           name={name}
           disk={conflict}
@@ -302,6 +324,11 @@ export function FileEditor({
             )}
             renderHeaderMetadata={() => (
               <span className='flex items-center gap-2'>
+                {readOnly && (
+                  <span className='text-xs text-muted-foreground select-none'>
+                    Read-only · not UTF-8
+                  </span>
+                )}
                 {place && (
                   <Tooltip>
                     <TooltipTrigger
@@ -333,7 +360,7 @@ export function FileEditor({
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {dirty && (
+                {dirty && !readOnly && (
                   <Button
                     variant='ghost-text'
                     size='xs'
@@ -344,7 +371,7 @@ export function FileEditor({
                     Discard
                   </Button>
                 )}
-                {dirty && (
+                {dirty && !readOnly && (
                   <KeybindTooltip binding={keybinds.save}>
                     <Button
                       variant='ghost'

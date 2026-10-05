@@ -225,7 +225,7 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
   })
 }
 
-export type ProjectFile = { contents: string | null } | Unavailable
+export type ProjectFile = { contents: string | null; utf8?: false } | Unavailable
 type SavedProjectFile = { saved: true } | { conflict: ProjectFile }
 
 function projectRoot(cwd: string) {
@@ -320,12 +320,14 @@ type Opened =
   | { file: ProjectFile; text?: never }
   | { file: ProjectFile; text: string; bytes: Buffer }
 
+// A byte-order mark stays in the text, so saving keeps it. `utf8` is whether those bytes
+// are exactly this text: a lossy decode must not be written back over the file.
 function decode(bytes: Buffer): Opened {
   if (bytes.length > MAX_CONTENTS_BYTES) return { file: tooLarge }
   if (bytes.includes(0)) return { file: binary }
-  // A byte-order mark stays in the text, so saving keeps it.
   const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes)
-  return { file: { contents: text }, text, bytes }
+  const utf8 = bytes.equals(Buffer.from(text))
+  return { file: utf8 ? { contents: text } : { contents: text, utf8: false }, text, bytes }
 }
 
 async function readOpened({
@@ -456,7 +458,7 @@ async function replaceFile(
   const current = await readCurrent(file)
   if (!current || !holds(current, base)) return current && { conflict: current.file }
   // The text came from decoding these bytes; saving would rewrite any that weren't UTF-8.
-  if (current.text !== undefined && !current.bytes.equals(Buffer.from(current.text)))
+  if (current.text !== undefined && 'utf8' in current.file && current.file.utf8 === false)
     throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
   const temp = await writeSibling(file, bytes, current.mode)
   if (!temp) return undefined

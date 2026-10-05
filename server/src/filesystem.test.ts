@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { Deferred, Effect, Fiber, FileSystem, Path, Stream } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
-import { computeThreadDiff, writeProjectFile } from './diff'
+import { computeThreadDiff, readProjectFile, writeProjectFile } from './diff'
 import { browse, expandHome, normalizePath } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { git } from './git-process'
@@ -354,6 +354,42 @@ describe('Effect filesystem services', () => {
           ).pipe(Effect.catch((error) => Effect.succeed({ error: error.code })))
           expect(rejected).toEqual({ error: 'invalid_params' })
           expect(yield* fs.exists(outside + '/missing')).toBe(false)
+        })
+      )
+    )
+  })
+
+  test('a file that is not UTF-8 opens as text marked read-only, and saving it is refused', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const path = yield* Path.Path
+          const root = yield* fs.makeTempDirectoryScoped()
+          yield* fs.writeFileString(path.join(root, 'ok.txt'), 'café\n')
+          expect(yield* readProjectFile(root, 'ok.txt')).toEqual({ contents: 'café\n' })
+          // 0xE9 is é in Latin-1 and not a UTF-8 sequence.
+          yield* fs.writeFile(
+            path.join(root, 'latin1.txt'),
+            new Uint8Array([0x63, 0x61, 0x66, 0xe9])
+          )
+          const read = yield* readProjectFile(root, 'latin1.txt')
+          expect(read).toMatchObject({ utf8: false })
+          if (!('contents' in read) || typeof read.contents !== 'string')
+            throw new Error('expected decoded text')
+          expect(Buffer.from(read.contents).equals(Buffer.from([0x63, 0x61, 0x66, 0xe9]))).toBe(
+            false
+          )
+          const refused = yield* writeProjectFile(
+            root,
+            'latin1.txt',
+            read.contents,
+            read.contents
+          ).pipe(Effect.catch((error) => Effect.succeed(error)))
+          expect(refused).toMatchObject({ code: 'invalid_params' })
+          expect(Buffer.from(yield* fs.readFile(path.join(root, 'latin1.txt')))).toEqual(
+            Buffer.from([0x63, 0x61, 0x66, 0xe9])
+          )
         })
       )
     )
