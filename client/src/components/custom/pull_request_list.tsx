@@ -19,7 +19,7 @@ import {
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { ListFilterMenu } from './grouped_list_controls'
+import { ListFilterMenu, ListGroupMenu } from './grouped_list_controls'
 import {
   GroupedTable,
   GroupedTableTitle,
@@ -35,6 +35,7 @@ import {
   ShieldOffIcon,
 } from './huge_icons'
 import {
+  BookMarkedIcon,
   GitMergeIcon,
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
@@ -117,18 +118,28 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     [tab, prefetch]
   )
   const [included, setIncluded] = useState(pullRequestGroupOrder)
+  const [groupBy, setGroupBy] = useState<'state' | 'repo'>('state')
   const rows = pulls
     .filter((pull) => included.includes(pull.state))
     .toSorted((a, b) => b.updatedAt - a.updatedAt)
-  const groups: TableGroup<PullRequestListItem>[] = pullRequestGroupOrder
-    .map((group) => ({
-      id: group,
-      label: pullRequestGroupLabel[group],
-      ...groupPresentation[group],
-      rows: rows.filter((pull) => pull.state === group),
-      defaultCollapsed: group === 'closed' || group === 'merged',
-    }))
-    .filter((group) => group.rows.length)
+  const groups: TableGroup<PullRequestListItem>[] =
+    groupBy === 'repo'
+      ? [...new Set(rows.map((pull) => pull.repo))].map((repo) => ({
+          id: repo,
+          label: repo.split('/').at(-1) ?? repo,
+          color: 'var(--muted-foreground)',
+          icon: <BookMarkedIcon className='size-3.5 text-muted-foreground' />,
+          rows: rows.filter((pull) => pull.repo === repo),
+        }))
+      : pullRequestGroupOrder
+          .map((group) => ({
+            id: group,
+            label: pullRequestGroupLabel[group],
+            ...groupPresentation[group],
+            rows: rows.filter((pull) => pull.state === group),
+            defaultCollapsed: group === 'closed' || group === 'merged',
+          }))
+          .filter((group) => group.rows.length)
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
@@ -140,13 +151,13 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'identifier',
       priority: 30,
-      width: 122,
+      width: groupBy === 'repo' ? 56 : 122,
       render: (pull) => (
         <span
           className='truncate font-mono text-xs text-muted-foreground'
           title={`${pull.repo}#${pull.number}`}
         >
-          {pullRequestIdentifier(pull)}
+          {groupBy === 'repo' ? `#${pull.number}` : pullRequestIdentifier(pull)}
         </span>
       ),
     },
@@ -270,6 +281,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 checked ? [...current, value] : current.filter((group) => group !== value)
               )
             }
+          />
+          <ListGroupMenu
+            choices={[
+              { value: 'state', label: 'Status' },
+              { value: 'repo', label: 'Repository' },
+            ]}
+            value={groupBy}
+            onChange={setGroupBy}
           />
         </div>
       </header>

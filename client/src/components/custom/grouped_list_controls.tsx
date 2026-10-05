@@ -6,9 +6,11 @@ import {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 
-import { FilterIcon } from './huge_icons'
+import { ListFilterIcon, ListTreeIcon } from './huge_icons'
 
 type Choice<T extends string> = { value: T; label: string }
 
@@ -29,7 +31,7 @@ export function ListFilterMenu<T extends string>({
       <DropdownMenuTrigger
         render={<Button variant='ghost-text' tone='muted' size='sm' className='h-7 rounded-sm' />}
       >
-        <FilterIcon />
+        <ListFilterIcon />
         Filter{active && <span className='size-1 rounded-full bg-primary' />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-44'>
@@ -46,6 +48,43 @@ export function ListFilterMenu<T extends string>({
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function ListGroupMenu<T extends string>({
+  choices,
+  value,
+  onChange,
+}: {
+  choices: readonly Choice<T>[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant='ghost-text' tone='muted' size='sm' className='h-7 rounded-sm' />}
+      >
+        <ListTreeIcon />
+        Group
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-44'>
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => {
+            const choice = choices.find((candidate) => candidate.value === next)
+            if (choice) onChange(choice.value)
+          }}
+        >
+          <DropdownMenuLabel>Group by</DropdownMenuLabel>
+          {choices.map((choice) => (
+            <DropdownMenuRadioItem key={choice.value} value={choice.value}>
+              {choice.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
