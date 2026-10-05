@@ -118,7 +118,8 @@ function bottomGlide(
     const decay = Math.exp(-stiffness * dt)
     const next = (offset + (velocity + stiffness * offset) * dt) * decay
     velocity = (velocity - stiffness * (velocity + stiffness * offset) * dt) * decay
-    const settled = Math.abs(next) < 0.5 && Math.abs(velocity) < 10
+    // scrollTop snaps to whole pixels, so the spring can stall a pixel short of the bottom.
+    const settled = Math.abs(offset) <= 1 && Math.abs(velocity) < 10
     write(settled ? target : target + next)
     frame = settled ? 0 : requestAnimationFrame(tick)
     if (!settled) return
