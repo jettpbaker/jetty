@@ -594,6 +594,14 @@ export function createWorktrees(
     })
   }
 
+  // What git renamed the temporary branch to when the record missed it: a restart cut Jetty's
+  // rename off before it was saved, or the agent renamed it.
+  async function renamedTo(projectPath: string, folder: string, temporary: string) {
+    if (await tryGit(projectPath, 'show-ref', '--verify', `refs/heads/${temporary}`)) return null
+    const current = await tryGit(folder, 'branch', '--show-current')
+    return current && current !== temporary ? current : null
+  }
+
   // Renames the temporary branch after the title once, unless it was pushed or switched.
   async function rename(threadId: string, title: string) {
     const { thread, project } = await locate(threadId)
@@ -615,6 +623,7 @@ export function createWorktrees(
         ? await git(project.path, 'ls-remote', '--heads', 'origin', `refs/heads/${temporary}`)
         : ''
       if (current !== temporary || upstream || pushed) {
+        record.branch = (await renamedTo(project.path, folder, temporary)) ?? record.branch
         record.temporaryBranch = null
         await save(threadId, record)
         return
@@ -650,6 +659,17 @@ export function createWorktrees(
         await save(threadId, record)
       }
       if (record.state === 'failed') await run(store.setQueuePaused(threadId, true))
+      const temporary = record.temporaryBranch
+      if (temporary && record.branch === temporary && record.checkoutPath) {
+        const renamed = await locate(threadId)
+          .then(({ project }) => renamedTo(project.path, folderOf(project.id, threadId), temporary))
+          .catch(() => null)
+        if (renamed) {
+          record.branch = renamed
+          record.temporaryBranch = null
+          await save(threadId, record)
+        }
+      }
     }
   }
 
