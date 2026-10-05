@@ -92,6 +92,47 @@ function whenIdle(callback: (until: number) => void) {
   else setTimeout(() => callback(performance.now() + 8), 16)
 }
 
+// Follows a pinned list down as it grows on a critically damped spring, so a line added mid-glide
+// bends the motion instead of restarting it, and the chat never jumps a whole line at once.
+function bottomGlide(element: HTMLElement, onWrite: (top: number) => void) {
+  const stiffness = 20
+  let frame = 0
+  let velocity = 0
+  let previous = 0
+  let written = Number.NaN
+  function tick(now: number) {
+    const dt = Math.min(0.05, (now - previous) / 1000)
+    previous = now
+    const target = element.scrollHeight - element.clientHeight
+    const offset = element.scrollTop - target
+    const decay = Math.exp(-stiffness * dt)
+    const next = (offset + (velocity + stiffness * offset) * dt) * decay
+    velocity = (velocity - stiffness * (velocity + stiffness * offset) * dt) * decay
+    const settled = Math.abs(next) < 0.5 && Math.abs(velocity) < 10
+    element.scrollTop = settled ? target : target + next
+    written = element.scrollTop
+    onWrite(written)
+    frame = settled ? 0 : requestAnimationFrame(tick)
+    if (settled) velocity = 0
+  }
+  return {
+    start() {
+      if (frame) return
+      previous = performance.now()
+      frame = requestAnimationFrame(tick)
+    },
+    stop() {
+      cancelAnimationFrame(frame)
+      frame = 0
+      velocity = 0
+    },
+    // Whether a scroll event is the glide's own.
+    owns: (top: number) => Math.abs(top - written) < 1,
+  }
+}
+
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
+
 function contentWidth(scrollerWidth: number) {
   return Math.max(1, Math.min(708, scrollerWidth) - 48)
 }
@@ -376,10 +417,40 @@ export function ThreadList({
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
   const totalSize = virtualizer.getTotalSize()
 
+  const glider = useRef<ReturnType<typeof bottomGlide>>(undefined)
+  const landed = useRef({ key: '', at: 0 })
+  const lastRow = useRef<{ key: unknown; start: number }>(undefined)
+  // Where the list was last scrolled to, before any clamp from content that just shrank.
+  const shownTop = useRef(0)
   useLayoutEffect(() => {
-    if (!pinned.current || rows.length === 0) return
+    if (!pinned.current || rows.length === 0 || !scroller.current) return
+    // Growth glides; opening the thread, resizing it or seeking far lands at once.
+    const key = `${view}:${width}`
+    const last = virtualizer.measurementsCache[rows.length - 1]
+    const anchor = lastRow.current
+    lastRow.current = last && { key: last.key, start: last.start }
+    const element = scroller.current
+    const behind = element.scrollHeight - element.clientHeight - element.scrollTop
+    const glides =
+      !reducedMotion.matches &&
+      behind < element.clientHeight &&
+      landed.current.key === key &&
+      performance.now() - landed.current.at > 300
+    if (glides) {
+      // Rows above the last changing size (a turn's Working line going) keep it where it is.
+      if (last && anchor?.key === last.key && anchor.start !== last.start) {
+        element.scrollTop = shownTop.current + last.start - anchor.start
+        shownTop.current = element.scrollTop
+      }
+      glider.current ??= bottomGlide(element, (top) => (shownTop.current = top))
+      glider.current.start()
+      return
+    }
+    if (landed.current.key !== key) landed.current = { key, at: performance.now() }
+    glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, totalSize])
+  }, [virtualizer, rows.length, stamp, width, totalSize, view])
+  useEffect(() => () => glider.current?.stop(), [])
 
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
@@ -388,6 +459,7 @@ export function ThreadList({
     if (index === -1) return
     clearReveal()
     pinned.current = false
+    glider.current?.stop()
     virtualizer.scrollToIndex(index, { align: 'center' })
   }, [revealId, agentId, rows, virtualizer, clearReveal])
 
@@ -450,6 +522,7 @@ export function ThreadList({
       const item = virtualizer.measurementsCache[index]
       if (!item) return
       pinned.current = false
+      glider.current?.stop()
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       virtualizer.scrollToOffset(item.start - jumpClearance, {
         behavior: reduce ? 'auto' : 'smooth',
@@ -468,8 +541,11 @@ export function ThreadList({
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
           onScroll={({ currentTarget: element }) => {
+            shownTop.current = element.scrollTop
+            if (glider.current?.owns(element.scrollTop)) return
             pinned.current =
               element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
+            if (!pinned.current) glider.current?.stop()
           }}
         >
           <div className='relative w-full' style={{ height: totalSize }}>

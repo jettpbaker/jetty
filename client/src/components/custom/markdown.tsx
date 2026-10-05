@@ -14,17 +14,17 @@ import {
   MarkdownTableHeader,
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
+import { smoothBlocks, wholeWords } from '@/components/custom/smooth_stream'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
 import { toJsxRuntime } from 'hast-util-to-jsx-runtime'
-import { useState, type ComponentProps, type ReactElement } from 'react'
+import { useEffect, useState, type ComponentProps, type ReactElement } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 import remarkBreaks from 'remark-breaks'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {
-  Block,
   type BlockProps,
   type ExtraProps,
   defaultRehypePlugins,
@@ -157,7 +157,9 @@ export function Markdown({
   className?: string
 }) {
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
-  const [BlockComponent] = useState(() => (streaming ? Block : MarkdownBlock))
+  const [smooth] = useState(() => (streaming ? smoothBlocks(children) : undefined))
+  const [BlockComponent] = useState(() => smooth?.SmoothBlock ?? MarkdownBlock)
+  useEffect(() => smooth?.mounted(), [smooth])
   return (
     <Streamdown
       className={className}
@@ -169,7 +171,7 @@ export function Markdown({
       rehypePlugins={rehypePlugins}
       BlockComponent={BlockComponent}
     >
-      {children}
+      {smooth && streaming ? wholeWords(children) : children}
     </Streamdown>
   )
 }

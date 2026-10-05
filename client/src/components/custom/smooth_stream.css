@@ -1,0 +1,14 @@
+/* smooth_stream.tsx's fade. */
+@keyframes smooth-fade {
+  from {
+    opacity: 0;
+  }
+}
+.smooth-fade {
+  animation: smooth-fade ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .smooth-fade {
+    animation: none;
+  }
+}
