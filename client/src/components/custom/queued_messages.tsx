@@ -154,7 +154,7 @@ function TextAction({
       <TooltipTrigger render={<Button variant='ghost-text' size='xs' onClick={onClick} />}>
         {label}
       </TooltipTrigger>
-      <TooltipContent>{hint}</TooltipContent>
+      <TooltipContent side='bottom'>{hint}</TooltipContent>
     </Tooltip>
   )
 }
@@ -175,7 +175,7 @@ function IconAction({
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent side='bottom'>{label}</TooltipContent>
     </Tooltip>
   )
 }
