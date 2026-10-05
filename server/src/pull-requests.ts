@@ -2818,10 +2818,21 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
 
 async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   const { searches, query } = pullRequestListGraphqlQuery(tabs)
-  const response = await graphql(
-    query,
-    Object.fromEntries(searches.map((search, index) => [`q${index}`, search]))
+  const response = record(
+    await graphql(query, Object.fromEntries(searches.map((search, index) => [`q${index}`, search])))
   )
+  // Partial data drops rows (a search or PR nulled by the error), so keep the last good list,
+  // unless every error is lost access: those rows never come back.
+  const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+  const data = record(response.data)
+  if (
+    errors.some((error) => !['FORBIDDEN', 'NOT_FOUND'].includes(string(error.type))) ||
+    searches.some((_, index) => !Array.isArray(record(data[`s${index}`]).nodes))
+  )
+    throw new GhFailure(
+      'unavailable',
+      string(errors[0]?.message) || 'GitHub returned part of the pull request list'
+    )
   return tabs.map((tab, index) => ({
     signature: listSignature(response, index),
     ids: [index * 2, index * 2 + 1].flatMap((search) =>

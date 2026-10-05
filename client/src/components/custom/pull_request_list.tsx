@@ -227,7 +227,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
   ]
   return (
-    <div className='flex h-full min-h-0 min-w-0 flex-col'>
+    <div className='@container flex h-full min-h-0 min-w-0 flex-col'>
       <header className='flex h-(--app-tab-bar-height,42px) shrink-0 items-center justify-between gap-2 border-b border-border pl-(--page-header-inset,16px) pr-3'>
         <div className='flex min-w-0 items-center gap-3'>
           <PageSidebarTrigger />
@@ -249,13 +249,18 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           </nav>
         </div>
         <div className='flex items-center gap-1'>
+          {failure && list.items && (
+            <span className='mr-1 hidden text-xs text-muted-foreground @md:inline'>
+              Couldn’t refresh
+            </span>
+          )}
           <Tooltip>
             <TooltipTrigger
               render={
                 <Button
                   variant='ghost'
                   size='icon'
-                  className={cn('h-7', failure && !refreshing && 'text-destructive')}
+                  className='h-7'
                   aria-label='Refresh'
                   {...pressProps(() => refresh(tab))}
                 />
@@ -264,7 +269,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               {refreshing ? <Spinner /> : <Refresh01Icon />}
             </TooltipTrigger>
             <TooltipContent>
-              {failure && !refreshing ? `Couldn't refresh: ${list.error}` : 'Refresh'}
+              {failure ? (list.error ?? unavailableTitle[list.status]) : 'Refresh'}
             </TooltipContent>
           </Tooltip>
           <ListFilterMenu
