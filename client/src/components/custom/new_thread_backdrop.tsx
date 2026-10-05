@@ -28,6 +28,18 @@ function WallpaperVideo({ src, playing }: { src: string; playing: boolean }) {
   return <video ref={ref} className='wallpaper' src={src} muted loop playsInline />
 }
 
+let webgl: boolean | undefined
+
+// Paper Shaders need WebGL 2, and throw from an effect where nothing can catch it.
+function hasWebGL() {
+  if (webgl === undefined) {
+    const gl = document.createElement('canvas').getContext('webgl2')
+    gl?.getExtension('WEBGL_lose_context')?.loseContext()
+    webgl = gl !== null
+  }
+  return webgl
+}
+
 export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const { wallpaper: image, video } = useAppearance()
   const resolvedTheme = useResolvedTheme()
@@ -36,11 +48,11 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const fadeBackground = light ? '#ffffff' : '#000000'
   const fade = { ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }
   if (!image && !video)
-    return (
+    return hasWebGL() ? (
       <OpacityFade settings={fade} background={fadeBackground}>
         <DitherDrift />
       </OpacityFade>
-    )
+    ) : null
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (
@@ -50,14 +62,18 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
       ) : (
         <OpacityFade settings={fade} background={fadeBackground}>
           <DownwardBlur settings={initialBlurSettings} curve={curve}>
-            <DriftingDither
-              className='wallpaper'
-              image={image}
-              {...initialDitherSettings}
-              offsetX={0}
-              offsetY={0}
-              drift={0}
-            />
+            {hasWebGL() ? (
+              <DriftingDither
+                className='wallpaper'
+                image={image}
+                {...initialDitherSettings}
+                offsetX={0}
+                offsetY={0}
+                drift={0}
+              />
+            ) : (
+              <img className='wallpaper' src={image} alt='' />
+            )}
           </DownwardBlur>
         </OpacityFade>
       )}
