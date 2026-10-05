@@ -423,6 +423,8 @@ export function createOrchestrator({
           if (closing) return
           const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
           if (terminal && state(threadId).turnId !== event.turnId) return
+          if (event.type === 'turn.started' && !state(threadId).turnId)
+            yield* store.carryOnTurn(threadId, event.turnId)
           yield* commit(threadId, event, onCommit)
         })
       )

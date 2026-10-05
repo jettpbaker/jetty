@@ -672,3 +672,95 @@ test('Resume still continues a child the restart guard held after its report fai
     }).pipe(Effect.provide(TestClock.layer()))
   )
 })
+
+type ScriptedTurn = { turnId: string; emit: Emit; done: Deferred.Deferred<void> }
+
+// A parent with a notifying child whose agent turns the test drives through each turn's emit.
+function makeChildFixture() {
+  return Effect.gen(function* () {
+    const f = yield* makeUploadFixture()
+    const parent = f.thread
+    const child = yield* f.store.createThread(parent.projectId, newId())
+    yield* f.store.markAgentThread(child.id, parent.id, true)
+    const turns = new Map<string, ScriptedTurn>()
+    f.agent.startTurn = (input, emit) =>
+      Effect.gen(function* () {
+        const done = yield* Deferred.make<void>()
+        turns.set(input.threadId, { turnId: input.turnId, emit, done })
+        yield* emit({ type: 'turn.started', turnId: input.turnId })
+        return { await: Deferred.await(done) }
+      })
+    const orch = yield* createOrchestrator({ store: f.store, agent: f.agent, hub: f.hub })
+    yield* f.store.setQueuePaused(parent.id, true)
+    const message = {
+      id: newId(),
+      text: 'Please do the work',
+      createdAt: Date.now(),
+      hop: 1,
+      from: { threadId: parent.id, title: parent.title },
+    }
+    yield* f.store.enqueue(child.id, message)
+    yield* orch.startTurnEffect({ threadId: child.id, text: message.text, queued: message })
+    const reports = f.store
+      .requireThread(parent.id)
+      .pipe(Effect.map((thread) => thread.pendingMessages ?? []))
+    return { ...f, parent, child, orch, turn: turns.get(child.id)!, turns, reports }
+  })
+}
+
+function say({ emit, turnId }: ScriptedTurn, text: string) {
+  const id = newId()
+  return emit({
+    type: 'item.started',
+    item: { id, turnId, createdAt: Date.now(), kind: 'assistant_message', text },
+  }).pipe(Effect.andThen(emit({ type: 'item.completed', itemId: id })))
+}
+
+function runSubagent({ emit, turnId }: ScriptedTurn, id: string) {
+  return emit({
+    type: 'item.started',
+    item: {
+      id,
+      turnId,
+      createdAt: Date.now(),
+      kind: 'subagent',
+      title: 'Explorer',
+      prompt: 'Explore',
+      status: 'running',
+    },
+  })
+}
+
+function endTurn({ emit, turnId, done }: ScriptedTurn) {
+  return emit({ type: 'turn.completed', turnId }).pipe(
+    Effect.andThen(Deferred.succeed(done, undefined))
+  )
+}
+
+test('a child its background work wakes into a turn of its own reports that turn’s answer', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeChildFixture()
+      yield* runSubagent(f.turn, 'background')
+      yield* say(f.turn, 'Interim answer')
+      yield* endTurn(f.turn)
+      yield* f.orch.resumeQueues()
+      yield* TestClock.adjust(1000)
+      expect(yield* f.reports).toEqual([])
+      const woken: ScriptedTurn = { ...f.turn, turnId: newId() }
+      yield* woken.emit({
+        type: 'item.completed',
+        itemId: 'background',
+        patch: { status: 'completed' },
+      })
+      yield* woken.emit({ type: 'turn.started', turnId: woken.turnId })
+      yield* say(woken, 'Final answer')
+      yield* woken.emit({ type: 'turn.completed', turnId: woken.turnId })
+      yield* TestClock.adjust(1000)
+      const reports = yield* f.reports
+      expect(reports).toHaveLength(1)
+      expect(reports[0]!.text).toContain('Final answer')
+      expect(reports[0]!.text).not.toContain('Interim answer')
+    }).pipe(Effect.provide(TestClock.layer()))
+  )
+})

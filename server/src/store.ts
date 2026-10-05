@@ -990,6 +990,14 @@ export function createStore() {
           if (messageId) yield* removeQueued(threadId, messageId)
         }).pipe(atomically, Effect.mapError(storeError))
       },
+      // A turn the agent starts itself, woken by its background work, carries on the turn before it.
+      carryOnTurn(threadId: string, turnId: string) {
+        return Effect.gen(function* () {
+          const previous = yield* latestFinishedTurn(threadId)
+          if (previous)
+            yield* sql`INSERT OR IGNORE INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${previous.hop}, ${previous.initiator_thread_id})`
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
       getPermissionMode(threadId: string) {
         return sql<{
           permission_mode: PermissionMode | null
