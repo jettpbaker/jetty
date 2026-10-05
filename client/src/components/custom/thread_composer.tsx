@@ -55,8 +55,8 @@ const noItems: readonly ThreadItem[] = []
 // How long a request must be on screen before text started in the composer answers it.
 const noticeMs = 1000
 
-// /usage's tray reads usage itself: the composer would otherwise re-render on every background
-// usage read, each provider's separately.
+// /usage's tray reads usage itself: the composer would otherwise re-render on every usage read
+// (pointing at Usage, opening it or Settings), each provider's separately.
 function ComposerUsage({
   provider,
   asked,

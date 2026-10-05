@@ -4,7 +4,7 @@ import { useAtomValue } from '@effect/atom-react'
 import { ProviderUsage } from '@jetty/shared/wire'
 import { Effect, Schema } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 
 import { run, useAction } from './connection'
 
@@ -14,7 +14,7 @@ export type UsageRead = Schema.Schema.Type<typeof UsageRead>
 export type UsageReads = Partial<Record<UsageProvider, UsageRead>>
 export const allUsageProviders: readonly UsageProvider[] = ['claude', 'codex', 'grok']
 
-// The providers Usage shows and keeps warm: those not switched off in Settings.
+// The providers Usage shows: those not switched off in Settings.
 export function usageProviders() {
   const enabled = loadProviderEnabled()
   return allUsageProviders.filter((provider) => enabled[provider])
@@ -22,7 +22,9 @@ export function usageProviders() {
 
 // Each provider's last read survives reloads, so Usage and /usage open on it while a fresh read
 // catches up. Providers are read separately: a slow one (Codex starts its app-server) never holds
-// up the others.
+// up the others. Reads start only when Usage is pointed at or opened, /usage runs, or Settings
+// shows the providers: never at launch or in the background, where they'd cost every launch a
+// child process for a page most never open.
 const cacheKey = 'jetty.provider-usage'
 const isRead = Schema.is(UsageRead)
 
@@ -42,8 +44,6 @@ const failedAtom = Atom.make(new Set<UsageProvider>()).pipe(Atom.keepAlive)
 
 // A read this recent is good enough to open on; pointing at Usage or opening it refreshes older ones.
 export const usageFreshMs = 30_000
-// Kept warm in the background at this cadence, while the window is visible.
-const warmMs = 5 * 60_000
 
 // The same set when nothing changes, so a read that settles as expected re-renders nothing.
 function toggled(set: Set<UsageProvider>, provider: UsageProvider, present: boolean) {
@@ -121,24 +121,4 @@ export function useRefreshProviderUsage() {
 export function usePrefetchProviderUsage() {
   const refresh = useRefreshProviderUsage()
   return useCallback(() => refresh(usageProviders(), usageFreshMs), [refresh])
-}
-
-// Mounted once, for the app's life: Usage and /usage then open on a read minutes old at most.
-export function useWarmProviderUsage() {
-  const refresh = useAction(refreshProviderUsage)
-  useEffect(() => {
-    function warm() {
-      if (document.visibilityState === 'visible') refresh(usageProviders(), usageFreshMs)
-    }
-    function returned() {
-      if (document.visibilityState === 'visible') refresh(usageProviders(), warmMs)
-    }
-    warm()
-    const timer = window.setInterval(warm, warmMs)
-    document.addEventListener('visibilitychange', returned)
-    return () => {
-      window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', returned)
-    }
-  }, [refresh])
 }
