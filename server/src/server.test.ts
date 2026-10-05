@@ -25,7 +25,13 @@ import type { Agent, AgentImage, TurnInput } from './agent'
 
 import { AgentError } from './agent'
 import { createAttachments } from './attachments'
-import { computeThreadDiff, readDiffFile, readProjectFile, truncateDiff } from './diff'
+import {
+  computeThreadDiff,
+  readDiffFile,
+  readProjectFile,
+  truncateDiff,
+  writeProjectFile,
+} from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
 import { startServer } from './main'
@@ -1933,6 +1939,18 @@ describe('thread.diff', () => {
     expect(await withBun(readDiffFile(app, 'new.txt'))).toEqual({ before: null, after: 'new\n' })
     expect(await withBun(readProjectFile(app, 'x'))).toEqual({ contents: 'project edited\n' })
     expect(await withBun(readProjectFile(app, 'root.txt'))).toEqual({ contents: null })
+  })
+
+  test('opening or saving a FIFO answers instead of waiting for a writer', async () => {
+    const project = dir(join(tmpdir(), `jetty-fifo-${newId()}`))
+    if (Bun.spawnSync(['mkfifo', join(project, 'pipe')]).exitCode !== 0) return
+    const withBun = <A, E>(effect: Effect.Effect<A, E, BunServices.BunServices>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(BunServices.layer)))
+    expect(await withBun(readProjectFile(project, 'pipe'))).toEqual({ contents: null })
+    const saved = await withBun(writeProjectFile(project, 'pipe', 'text', null)).catch(
+      (error: unknown) => error
+    )
+    expect(saved).toMatchObject({ code: 'invalid_params' })
   })
 
   test('truncateDiff strips lockfiles and pathological files, keeps normal ones', () => {

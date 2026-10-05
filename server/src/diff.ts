@@ -168,7 +168,8 @@ function resolveProjectPath(cwd: string, path: string) {
 
 // Opens the real path `file` only while it still is one: no symlink swapped in since it resolved.
 async function openResolved(file: string, flags: number) {
-  const handle = await open(file, flags | constants.O_NOFOLLOW)
+  // Without O_NONBLOCK, opening a FIFO waits for a writer.
+  const handle = await open(file, flags | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const [actual, stats, fromPath] = await Promise.all([realpath(file), handle.stat(), stat(file)])
     if (actual === file && stats.dev === fromPath.dev && stats.ino === fromPath.ino)
@@ -192,7 +193,7 @@ async function readOpened({
   handle: FileHandle
   stats: Stats
 }): Promise<Opened> {
-  if (!stats.isFile()) return { file: { contents: null } }
+  if (!stats.isFile()) throw new StoreError('invalid_params', 'Not a regular file')
   if (stats.size > MAX_CONTENTS_BYTES) return { file: tooLarge }
   const bytes = await handle.readFile()
   if (bytes.includes(0)) return { file: binary }
