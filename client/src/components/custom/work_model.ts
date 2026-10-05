@@ -176,7 +176,8 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
         ? `${current.status === 'failed' ? 'Failed' : 'Stopped'} ${description}`
         : description,
     target,
-    prose: first.words !== undefined,
+    // A count ("2 files") is words. A single path or command stays machine text.
+    prose: first.words !== undefined || summarise,
     active,
     failed,
     notices,
