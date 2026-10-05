@@ -85,6 +85,7 @@
   automatically (compound variant) and hover with bg fill + text→foreground.
   Text buttons that shouldn't fill use `variant='ghost-text'`: text shift only,
   never a bg. Don't fight ghost with `hover:bg-transparent!`.
+- Frosted media controls over photos and video keep bright glyphs; they don't idle muted.
 - Controls side by side share one size step: an icon button beside a text button
   takes the matching icon size (`xs` ↔ `icon-xs`, `sm` ↔ `icon-sm`), never a
   smaller size stretched with height classes. Radius follows size, so mixed
