@@ -226,20 +226,26 @@ export function createMcpHandler(
                 `Unsupported effort for ${selected[0].name}. Choose: ${selected[0].efforts.join(', ') || 'none'}`
               )
             )
+          const callerMode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
+          const mode =
+            selected[0]?.autoMode === false ||
+            findProviderModel(catalog, caller.provider, caller.model)?.autoMode === false
+              ? 'auto'
+              : callerMode
+          if (accessLevel({ provider, model }, mode) > accessLevel(caller, callerMode))
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                'This thread asks before acting, so its threads must too: leave out model and provider to use your own model'
+              )
+            )
           const id = newId()
           yield* store.createThread(caller.projectId, id)
           yield* store.setThreadEnvironment(id, baseCommit)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
-          const mode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
-          yield* store.setPermissionMode(
-            id,
-            selected[0]?.autoMode === false ||
-              findProviderModel(models() ?? [], caller.provider, caller.model)?.autoMode === false
-              ? 'auto'
-              : mode
-          )
+          yield* store.setPermissionMode(id, mode)
           if (input.title) yield* store.setThreadTitle(id, input.title)
           yield* store.enqueue(id, {
             id: newId(),
