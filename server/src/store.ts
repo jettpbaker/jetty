@@ -1056,10 +1056,12 @@ export function createStore() {
           }
           const thread = yield* requireThread(threadId)
           const message = thread.pendingMessages?.find((m) => m.id === messageId)
-          // A continuation, a child's report or the user's answer to the turn's question carries on
-          // the turn before it, so whoever started that turn still hears how it ends; all but a
-          // report also keep its hop.
-          const continues = carriesOn || message?.kind === 'continuation'
+          // A continuation, PR watcher news, a child's report or the user's answer to the turn's
+          // question carries on the turn before it, so whoever started that turn still hears how
+          // it ends; all but a report also keep its hop, so a chain through a PR wake still counts
+          // towards the hop limit.
+          const continues =
+            carriesOn || message?.kind === 'continuation' || message?.kind === 'pull_request'
           const previous =
             continues || message?.kind === 'report'
               ? yield* latestFinishedTurn(threadId)
