@@ -2,7 +2,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 import type { DiffScope, ThreadMeta } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
-import { Effect } from 'effect'
+import { Cause, Effect } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -232,9 +232,13 @@ function saveProjectFile(
             refreshDiff(registry, `${threadId}\0${scope}`)
         })
       ),
-      Effect.catch((error) =>
+      // Defects too (a server that doesn't know thread.writeFile yet), or the save fails silently.
+      Effect.catchCause((cause) =>
         Effect.sync(() => {
-          toast.error(`Couldn't save ${path.split('/').at(-1)}`, { description: error.message })
+          const error = Cause.squash(cause)
+          toast.error(`Couldn't save ${path.split('/').at(-1)}`, {
+            description: error instanceof Error ? error.message : String(error),
+          })
           return undefined
         })
       )
