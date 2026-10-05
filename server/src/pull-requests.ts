@@ -10,7 +10,7 @@ import type {
   PullRequestSnapshot,
 } from '@jetty/shared/wire'
 
-import { PullRequestData } from '@jetty/shared/pull-request'
+import { PullRequestData, rollupChecks } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { Hub } from './hub'
@@ -2329,14 +2329,6 @@ function listSearches(tab: PullRequestListTab): string[] {
   ]
 }
 
-const checkStates: Record<string, PullRequestListItem['checks']> = {
-  SUCCESS: 'success',
-  FAILURE: 'failure',
-  ERROR: 'failure',
-  PENDING: 'pending',
-  EXPECTED: 'pending',
-}
-
 function listItem(value: unknown): PullRequestListItem | null {
   const node = record(value)
   const repo = string(record(node.repository).nameWithOwner).toLowerCase()
@@ -2346,7 +2338,7 @@ function listItem(value: unknown): PullRequestListItem | null {
     record(record((record(node.commits).nodes as unknown[] | undefined)?.[0]).commit)
       .statusCheckRollup
   )
-  const checks = checkStates[string(rollup.state)]
+  const checks = rollupChecks[string(rollup.state)]
   const { login, avatar_url, name } = user(node.author)
   return {
     repo,

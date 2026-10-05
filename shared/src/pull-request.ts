@@ -132,6 +132,24 @@ export const GitHubCheckRun = Schema.Struct({
   app: Schema.Struct({ name: Schema.String }),
 })
 
+export const failedCheckConclusions = [
+  'failure',
+  'timed_out',
+  'action_required',
+  'cancelled',
+  'stale',
+  'startup_failure',
+]
+
+// A head commit's statusCheckRollup state. One failed check makes it FAILURE while the rest still run.
+export const rollupChecks: Record<string, 'pending' | 'success' | 'failure'> = {
+  SUCCESS: 'success',
+  FAILURE: 'failure',
+  ERROR: 'failure',
+  PENDING: 'pending',
+  EXPECTED: 'pending',
+}
+
 export const GitHubCommit = Schema.Struct({
   parents: Schema.optional(Schema.Int),
   sha: Schema.String,

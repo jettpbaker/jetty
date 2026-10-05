@@ -1,3 +1,4 @@
+import { failedCheckConclusions } from '@jetty/shared/pull-request'
 import { createContext } from 'react'
 
 import type { PrCheck, PrFile, PrPull, PrThread, PrUser } from './adapter'
@@ -6,10 +7,7 @@ export { DiffStyleContext, DiffWrapContext } from '../diff/model'
 // Quote reply: hands a comment's markdown to the conversation's comment box.
 export const QuoteContext = createContext<(body: string) => void>(() => {})
 
-export const failed = (c: PrCheck) =>
-  ['failure', 'timed_out', 'action_required', 'cancelled', 'stale', 'startup_failure'].includes(
-    c.conclusion ?? ''
-  )
+export const failed = (c: PrCheck) => failedCheckConclusions.includes(c.conclusion ?? '')
 export const running = (c: PrCheck) => c.status !== 'completed'
 // GitHub's profile display name when set, else the login.
 // GitHub sends bots with a login like `copilot-pull-request-reviewer[bot]` and no display name, so

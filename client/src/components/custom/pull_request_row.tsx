@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import { useOpenPullRequest, usePullRequestSummary } from '@/state'
 
 import { OverflowTitle } from './overflow_title'
-import { pullRequestState } from './pull_request_model'
 import { linkPresentation } from './thread_pull_request'
 import { TwoLineRow } from './two_line_row'
 
@@ -20,8 +19,8 @@ export function PullRequestRow({
   now: number
 }) {
   const open = useOpenPullRequest()
-  const pull = usePullRequestSummary(link)
-  const pr = linkPresentation(pull ? pullRequestState(pull) : link.state)
+  const pull = usePullRequestSummary(link)?.pull
+  const pr = linkPresentation(link)
   const age = formatAge(link.updatedAt ?? link.linkedAt, now)
   return (
     <TwoLineRow

@@ -133,6 +133,12 @@ export const PullRequestLink = Schema.Struct({
   title: Schema.optional(Schema.String),
   updatedAt: Schema.optional(Schema.Int),
   linkedAt: Schema.Int,
+  checks: Schema.optional(Schema.Literals(['pending', 'success', 'failure'])),
+  failingChecks: Schema.optional(Schema.Int),
+  reviewDecision: Schema.optional(
+    Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'])
+  ),
+  mergeable: Schema.optional(Schema.Literals(['MERGEABLE', 'CONFLICTING', 'UNKNOWN'])),
 })
 export type PullRequestLink = Schema.Schema.Type<typeof PullRequestLink>
 

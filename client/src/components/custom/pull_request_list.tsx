@@ -40,9 +40,9 @@ import {
   pullRequestGroupLabel,
   pullRequestGroupOrder,
   pullRequestIdentifier,
-  pullRequestSignals,
   type PullRequestGroup,
 } from './pull_request_list_model'
+import { linkPresentation } from './thread_pull_request'
 
 type PullRequestListProps = {
   tab: PullRequestListTab
@@ -301,7 +301,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 pullRequestIdentifier(pull),
                 pull.title,
                 `by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`,
-                ...pullRequestSignals(pull),
+                linkPresentation(pull).label,
               ].join(', ')
             }
             onSelect={onSelect}
@@ -338,22 +338,26 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   )
 }
 
+// The list draws draft muted and closed destructive; an open PR takes its readiness colour.
+const listColor = {
+  draft: 'text-muted-foreground',
+  merged: 'text-pr-merged',
+  closed: 'text-destructive',
+}
+
 function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
-  const Icon =
-    pull.state === 'draft'
-      ? GitPullRequestDraftIcon
-      : pull.state === 'merged'
-        ? GitMergeIcon
-        : pull.state === 'closed'
-          ? GitPullRequestClosedIcon
-          : GitPullRequestIcon
-  const color =
-    pull.state === 'draft'
-      ? 'text-muted-foreground'
-      : pull.state === 'merged'
-        ? 'text-pr-merged'
-        : pull.state === 'closed'
-          ? 'text-destructive'
-          : 'text-pr-open'
-  return <Icon className={`size-3.5 ${color}`} aria-label={pull.state} />
+  const { icon: Icon, color, label } = linkPresentation(pull)
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className={cn('flex', pull.state === 'open' ? color : listColor[pull.state])} />
+        }
+      >
+        <Icon aria-hidden='true' className='size-3.5' />
+        <span className='sr-only'>{label}</span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
 }

@@ -83,6 +83,7 @@
   --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);
   --status-error-wash: color-mix(in oklch, var(--status-error) 16%, transparent);
   --pr-open: var(--status-success);
+  --pr-running: oklch(0.68 0.138 90);
   --pr-draft: oklch(0.697 0.003 286.325);
   --pr-merged: oklch(0.552 0.148 276.827);
   --pr-closed: oklch(0.6 0.2 23.018);
@@ -94,6 +95,7 @@
   --status-attention: oklch(0.765 0.145 63);
   --status-success: oklch(0.698 0.125 158.358);
   --pr-closed: oklch(0.655 0.201 23.018);
+  --pr-running: oklch(0.88 0.17 97);
   color-scheme: dark;
   --tint: var(--tint-c);
   --background: oklch(0.195 var(--tint) var(--tint-h));
@@ -135,6 +137,7 @@
   --color-status-success: var(--status-success);
   --color-tick-complete: var(--tick-complete);
   --color-pr-open: var(--pr-open);
+  --color-pr-running: var(--pr-running);
   --color-pr-draft: var(--pr-draft);
   --color-pr-merged: var(--pr-merged);
   --color-pr-closed: var(--pr-closed);

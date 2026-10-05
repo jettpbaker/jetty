@@ -235,13 +235,15 @@ export function ThreadDetailsTabs({
           />
         ))}
         {pullRequests.visible.map((link) => {
-          const pr = linkPresentation(link.state)
+          const pr = linkPresentation(link)
           return (
             <TabsTrigger
               key={pullRequestTabId(link)}
               value={pullRequestTabId(link)}
               className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
-              title={link.title ? `${link.title} · ${link.repo}#${link.number}` : link.url}
+              title={
+                link.title ? `${link.title} · ${link.repo}#${link.number} · ${pr.label}` : link.url
+              }
             >
               <TabLabel
                 label={`#${link.number}`}
@@ -297,7 +299,7 @@ export function ThreadDetailsTabs({
             })}
             <DropdownMenuSeparator />
             {pullRequests.links.map((link) => {
-              const pr = linkPresentation(link.state)
+              const pr = linkPresentation(link)
               const open = pullRequests.visible.includes(link)
               return (
                 <DropdownMenuCheckboxItem

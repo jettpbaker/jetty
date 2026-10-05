@@ -1,5 +1,6 @@
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment } from '@jetty/shared/items'
+import { failedCheckConclusions, rollupChecks } from '@jetty/shared/pull-request'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
   agentBehaviours,
@@ -185,9 +186,20 @@ export function createStore() {
       merged: number | null
       draft: number | null
       updated_at: string | null
+      check_rollup: string | null
+      failing_checks: number
+      review_decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null
+      mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN' | null
     }
 
     function rowToLink(row: LinkRow): PullRequestLink {
+      const state = row.merged
+        ? ('merged' as const)
+        : row.state === 'closed'
+          ? ('closed' as const)
+          : row.draft
+            ? ('draft' as const)
+            : ('open' as const)
       return {
         repo: row.repo,
         number: row.number,
@@ -196,27 +208,41 @@ export function createStore() {
         ...(row.title
           ? {
               title: row.title,
-              state: row.merged
-                ? ('merged' as const)
-                : row.state === 'closed'
-                  ? ('closed' as const)
-                  : row.draft
-                    ? ('draft' as const)
-                    : ('open' as const),
+              state,
               updatedAt: Date.parse(row.updated_at ?? ''),
+              ...(state === 'open' ? readiness(row) : {}),
             }
           : {}),
       }
     }
 
+    // What an open PR's readiness colour reads: its checks, review and mergeability.
+    function readiness(row: LinkRow) {
+      const checks = rollupChecks[row.check_rollup ?? '']
+      return {
+        ...(checks ? { checks } : {}),
+        ...(checks === 'failure' && row.failing_checks
+          ? { failingChecks: row.failing_checks }
+          : {}),
+        ...(row.review_decision ? { reviewDecision: row.review_decision } : {}),
+        ...(row.mergeable ? { mergeable: row.mergeable } : {}),
+      }
+    }
+
+    const linkRows = sql`SELECT l.*, json_extract(p.data_json, '$.pull.title') AS title,
+      json_extract(p.data_json, '$.pull.state') AS state,
+      json_extract(p.data_json, '$.pull.merged') AS merged,
+      json_extract(p.data_json, '$.pull.draft') AS draft,
+      json_extract(p.data_json, '$.pull.updated_at') AS updated_at,
+      json_extract(p.data_json, '$.checkRollupState') AS check_rollup,
+      (SELECT count(*) FROM json_each(p.data_json, '$.checkRuns')
+        WHERE json_extract(value, '$.conclusion') IN ${sql.in(failedCheckConclusions)}) AS failing_checks,
+      json_extract(p.data_json, '$.reviewDecision') AS review_decision,
+      json_extract(p.data_json, '$.mergeable') AS mergeable FROM thread_pull_requests l
+      JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number`
+
     function getLinks(threadId: string) {
-      return sql<LinkRow>`SELECT l.*, json_extract(p.data_json, '$.pull.title') AS title,
-        json_extract(p.data_json, '$.pull.state') AS state,
-        json_extract(p.data_json, '$.pull.merged') AS merged,
-        json_extract(p.data_json, '$.pull.draft') AS draft,
-        json_extract(p.data_json, '$.pull.updated_at') AS updated_at FROM thread_pull_requests l
-        JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
-        WHERE l.thread_id = ${threadId} ORDER BY l.linked_at DESC`.pipe(
+      return sql<LinkRow>`${linkRows} WHERE l.thread_id = ${threadId} ORDER BY l.linked_at DESC`.pipe(
         Effect.map((rows) => rows.map(rowToLink))
       )
     }
@@ -1050,13 +1076,7 @@ export function createStore() {
       listThreads() {
         return Effect.gen(function* () {
           const rows = yield* sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`
-          const links =
-            yield* sql<LinkRow>`SELECT l.*, json_extract(p.data_json, '$.pull.title') AS title,
-            json_extract(p.data_json, '$.pull.state') AS state,
-            json_extract(p.data_json, '$.pull.merged') AS merged,
-            json_extract(p.data_json, '$.pull.draft') AS draft,
-            json_extract(p.data_json, '$.pull.updated_at') AS updated_at FROM thread_pull_requests l
-            JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number ORDER BY l.linked_at DESC`
+          const links = yield* sql<LinkRow>`${linkRows} ORDER BY l.linked_at DESC`
           const byThread = new Map<string, PullRequestLink[]>()
           for (const link of links) {
             const list = byThread.get(link.thread_id) ?? []

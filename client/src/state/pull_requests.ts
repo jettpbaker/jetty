@@ -74,7 +74,6 @@ const summaryAtom = Atom.family((key: string) =>
   Atom.readable(
     (get) =>
       (get(cacheAtom(key)) ?? AsyncResult.getOrElse(get(fetchedAtom(key)), () => undefined))?.data
-        ?.pull
   )
 )
 

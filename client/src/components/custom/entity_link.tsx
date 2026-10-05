@@ -26,10 +26,10 @@ import {
 } from 'react'
 
 import { OverflowTitle } from './overflow_title'
-import { pullRequestState, type GitHubPullRequest } from './pull_request_model'
+import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
 import { sidebarThreads } from './sidebar_thread_groups'
 import { ThreadHoverContent } from './thread_hover'
-import { linkPresentation, prPresentation } from './thread_pull_request'
+import { linkPresentation } from './thread_pull_request'
 import { statusPresentation, threadStatus } from './thread_status'
 
 type Kind = 'thread' | 'pr' | 'issue' | 'commit'
@@ -195,9 +195,16 @@ function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
 const previewShell =
   'flex w-72 max-w-[calc(100vw-24px)] flex-col gap-1.5 rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'
 
-function PullPreview({ entity, pull }: { entity: string; pull: GitHubPullRequest }) {
+function PullPreview({
+  entity,
+  pull,
+  look,
+}: {
+  entity: string
+  pull: GitHubPullRequest
+  look: ReturnType<typeof linkPresentation>
+}) {
   const now = useNow(60_000)
-  const look = prPresentation[pullRequestState(pull)]
   return (
     <>
       <OverflowTitle>{pull.title}</OverflowTitle>
@@ -233,20 +240,20 @@ function PullLink({ entity }: { entity: string }) {
     to: '/pull-requests/$owner/$repo/$number',
     params: { owner, repo: name, number },
   } as const
-  const pull = usePullRequestSummary({ repo, number: Number(number) })
-  // Until GitHub has been read, a thread's link to it may already know its state.
+  const data = usePullRequestSummary({ repo, number: Number(number) })
+  // A thread's link to it follows GitHub live; a PR no thread links shows its last read.
   const linked = chrome?.threads
     .flatMap((thread) => thread.pullRequests ?? [])
     .find((link) => link.repo === repo && link.number === Number(number))
-  const look = linkPresentation(pull ? pullRequestState(pull) : linked?.state)
+  const look = linkPresentation(linked?.state ? linked : data && pullRequestFacts(data))
   const content = (
     <Lead icon={look.icon} color={look.color} label={look.label} size={pullGlyph}>
       {home.has(repo) ? `#${number}` : entity}
     </Lead>
   )
-  if (!pull)
+  if (!data)
     return (
-      <Link {...target} className={linkClass}>
+      <Link {...target} className={linkClass} title={look.label}>
         {content}
       </Link>
     )
@@ -268,7 +275,7 @@ function PullLink({ entity }: { entity: string }) {
               'transition-opacity duration-100 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0 data-ending-style:duration-0 motion-reduce:transition-none'
             )}
           >
-            <PullPreview entity={entity} pull={pull} />
+            <PullPreview entity={entity} pull={data.pull} look={look} />
           </PreviewCard.Popup>
         </PreviewCard.Positioner>
       </PreviewCard.Portal>

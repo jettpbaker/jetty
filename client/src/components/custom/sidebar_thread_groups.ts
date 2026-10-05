@@ -72,28 +72,14 @@ const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
 // Only links GitHub has resolved count; a pending or not-found one mustn't hide the rest.
 // The PR still in flight represents the thread when clicked, newest first within a state.
 function threadPullRequests(links: readonly PullRequestLink[]) {
-  const resolved = links.flatMap((link) =>
-    link.state
-      ? [
-          {
-            repo: link.repo,
-            number: link.number,
-            state: link.state,
-            at: link.updatedAt ?? link.linkedAt,
-          },
-        ]
-      : []
-  )
+  const resolved = links.flatMap((link) => (link.state ? [{ ...link, state: link.state }] : []))
   const latest = resolved.reduce<(typeof resolved)[number] | undefined>((best, link) => {
     if (!best) return link
     const rank = stateRank[link.state] - stateRank[best.state]
     if (rank !== 0) return rank < 0 ? link : best
-    return link.at > best.at ? link : best
+    return (link.updatedAt ?? link.linkedAt) > (best.updatedAt ?? best.linkedAt) ? link : best
   }, undefined)
-  return {
-    pullRequests: resolved.map(({ repo, number, state }) => ({ repo, number, state })),
-    pullRequest: latest && { repo: latest.repo, number: latest.number, state: latest.state },
-  }
+  return { pullRequests: resolved, pullRequest: latest }
 }
 
 const statusGroups = (
