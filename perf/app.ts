@@ -1,3 +1,5 @@
+import type { Client } from '@jetty/server/src/rpc-test-client'
+
 import {
   constants,
   copyFileSync,
@@ -126,6 +128,7 @@ export type Server = {
   pid: number
   origin: string
   home: string
+  connect(): Promise<Client>
   stop(): Promise<void>
 }
 
@@ -191,6 +194,14 @@ export async function startServer(opts: {
     pid: child.pid,
     origin,
     home: opts.home,
+    // Through the tree's own wire schema: the lab's fails to decode any result whose shape
+    // changed between the lab and the tree under test.
+    async connect() {
+      const client: typeof import('@jetty/server/src/rpc-test-client') = await import(
+        join(opts.tree.dir, 'server/src/rpc-test-client.ts')
+      )
+      return client.connect(port)
+    },
     async stop() {
       if (exited) return
       killGroup(child.pid, 'SIGTERM')

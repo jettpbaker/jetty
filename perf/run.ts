@@ -1,4 +1,5 @@
-import { connect, type Client } from '@jetty/server/src/rpc-test-client'
+import type { Client } from '@jetty/server/src/rpc-test-client'
+
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { cpus, loadavg } from 'node:os'
 import { join } from 'node:path'
@@ -158,7 +159,7 @@ function serverFor(variant: Variant, env: { [key: string]: string } = {}, out: s
         gh: { mode: variant.gh, misses: join(out, 'gh-misses.ndjson') },
         env,
       })
-      return { server, rpc: await connect(server.port) }
+      return { server, rpc: await server.connect() }
     })()
     variant.servers.set(key, entry)
   }

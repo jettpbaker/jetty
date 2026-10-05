@@ -1,7 +1,8 @@
 // The golden JETTY_HOME: one project (a git repo with a branch) and the fixture threads,
 // seeded through the real WebSocket protocol so it survives schema changes. Cached by a hash
 // of everything that shapes it; runs clone it with `cp -c` (an instant APFS clone).
-import { connect, type Client } from '@jetty/server/src/rpc-test-client'
+import type { Client } from '@jetty/server/src/rpc-test-client'
+
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -68,7 +69,7 @@ export async function seedHome(opts: { tree: Tree; dir: string; gh: GhMode }): P
   })
   let client: Client | undefined
   try {
-    client = await connect(server.port)
+    client = await server.connect()
     const { project } = await client.request('project.create', { path: repo })
     const threads = {
       small: await seedThread(client, project.id, 'small', smallTurns()),

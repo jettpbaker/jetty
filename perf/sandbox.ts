@@ -3,7 +3,6 @@
 // threads linked to pr-lab's `sandbox` PRs, so merges and reviews really happen. --replay runs
 // a fresh clone of the lab's golden home on recorded GitHub instead, offline.
 // usage: bun sandbox [--fresh | --replay]
-import { connect } from '@jetty/server/src/rpc-test-client'
 import { existsSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -64,7 +63,7 @@ const server = await startServer({
 })
 
 if (fixtures) {
-  const client = await connect(server.port)
+  const client = await server.connect()
   await seedThread(client, fixtures.projectId, 'markdown', [markdownTurn])
   for (const [title, numbers] of sandboxPrs) {
     const text = `Picking up ${numbers.map((n) => `#${n}`).join(' and ')}.`
