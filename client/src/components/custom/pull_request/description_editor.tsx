@@ -35,6 +35,7 @@ import { VideoPlayer } from '@/components/custom/video_message'
 import { Button } from '@/components/ui/button'
 import { InputGroupButton } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
+import { revokeBlobUrl } from '@/lib/blob_urls'
 import { whenIdle } from '@/lib/preload'
 import { Extension, Node, getSchema, type Editor } from '@tiptap/core'
 import Code from '@tiptap/extension-code'
@@ -974,7 +975,7 @@ export function MarkdownEditor({
         .finally(() => {
           pendingUploads.current.delete(src)
           uploads.delete(src)
-          URL.revokeObjectURL(src)
+          revokeBlobUrl(src)
           if (!editor.isDestroyed) save(editor)
         })
     }

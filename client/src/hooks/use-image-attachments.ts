@@ -1,3 +1,4 @@
+import { revokeBlobUrl } from '@/lib/blob_urls'
 import { useDraft } from '@/state'
 import {
   MAX_IMAGE_BYTES,
@@ -101,7 +102,7 @@ export function useImageAttachments(key: string, editing = false) {
   }
 
   function drop(url: string, problem: string | undefined) {
-    URL.revokeObjectURL(url)
+    revokeBlobUrl(url)
     patch(url, () => undefined)
     setError(problem)
   }
