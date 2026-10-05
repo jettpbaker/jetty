@@ -117,7 +117,12 @@ export async function seedThread(
   const sub = client.subscribeThread({ threadId: id })
   await sub.ready
   for (const text of turns) {
-    const { turnId } = await client.request('turn.start', { threadId: id, text })
+    // Bound to a provider the UI's echo models speak, as a thread started there would be.
+    const { turnId } = await client.request('turn.start', {
+      threadId: id,
+      text,
+      provider: 'claude',
+    })
     await sub.waitFor(
       (message) =>
         message.type === 'event' &&
