@@ -65,7 +65,7 @@ function Switch({ name, glyph, options }: (typeof switches)[number]) {
 // Temporary: tries the context ring's contrast and the light readiness yellow in place.
 export function VariantSwitcher() {
   return (
-    <div className='fixed right-3 bottom-3 z-50 flex flex-col items-stretch gap-1'>
+    <div className='fixed right-3 bottom-64 z-50 flex flex-col items-stretch gap-1'>
       {switches.map((entry) => (
         <Switch key={entry.name} {...entry} />
       ))}
