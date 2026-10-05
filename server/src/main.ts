@@ -3,6 +3,7 @@ import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wi
 
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
+import { RESTART_LIMIT, RESTART_LIMIT_NOTE, RESTART_WINDOW_MS } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import {
@@ -46,12 +47,7 @@ import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
-import {
-  RESTART_LIMIT,
-  RESTART_LIMIT_NOTE,
-  RESTART_WINDOW_MS,
-  restartContinuation,
-} from './jetty-instructions'
+import { restartContinuation } from './jetty-instructions'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'

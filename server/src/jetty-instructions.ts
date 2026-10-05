@@ -15,11 +15,6 @@ export function jettyInstructions(behaviours: AgentBehaviours) {
   ].join('\n\n')
 }
 
-export const RESTART_LIMIT = 3
-export const RESTART_WINDOW_MS = 10 * 60_000
-
-export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
-
 export function restartContinuation(stoppedNames: readonly string[]) {
   const names = stoppedNames.length ? `: ${stoppedNames.join(', ')}` : ''
   return `Jetty restarted while you were working and cut off your last turn. Anything you had running in the background (commands, monitors, subagents) was stopped and won't report back${names}. Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`

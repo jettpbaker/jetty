@@ -1,8 +1,8 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
-import type { ChildReport, ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { awaitsInput } from '@/state/thread_tab'
+import { RESTART_LIMIT_NOTE, type ChildReport, type ThreadItem } from '@jetty/shared/items'
 import { claudeModelLabel } from '@jetty/shared/model-name'
 
 import type { Subagent } from './subagent_row'
@@ -52,10 +52,12 @@ export type ThreadRow =
       status: ActivityStatus
       startedAt?: number
       elapsedSeconds?: number
-      restarted?: boolean
       settingUp?: boolean
     }
   | { kind: 'compaction'; id: string; running: boolean }
+  | { kind: 'restart'; id: string }
+  // the crash-loop guard held the turn; resumed once anything follows it
+  | { kind: 'restartLimit'; id: string; resumed: boolean }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
@@ -286,8 +288,9 @@ function workStatus(
   outcome: TurnOutcome | undefined,
   live: boolean
 ): ActivityStatus {
-  if (outcome && outcome !== 'server_restarted')
-    return outcome === 'completed' ? 'complete' : outcome
+  // A restart reads like any failed turn: the work ran, and the seam after it says what cut it off.
+  if (outcome === 'server_restarted') return 'failed'
+  if (outcome) return outcome === 'completed' ? 'complete' : outcome
   if (live) return 'running'
   // Only the live block is where the agent works now; an earlier one's lingering step (a
   // background command, say) keeps its own running state without the block ticking.
@@ -343,6 +346,7 @@ export function threadRows(
     outcomes = {},
     loadouts = {},
     projectPath,
+    threadId,
     agentId,
     settingUp = false,
   }: {
@@ -351,6 +355,7 @@ export function threadRows(
     outcomes?: Readonly<Record<string, TurnOutcome>>
     loadouts?: Readonly<Record<string, TurnLoadout>>
     projectPath?: string
+    threadId?: string
     agentId?: string
     settingUp?: boolean
   }
@@ -389,10 +394,13 @@ export function threadRows(
     )
   }
   // An answered question shows as its answer; Claude loading a deferred tool's schema
-  // (ToolSearch) is plumbing, not work.
+  // (ToolSearch) is plumbing, not work. Jetty's note to the agent after a restart is for the
+  // agent: the restart's seam tells the user.
   function hidden(item: ThreadItem) {
     return (
-      isAnsweredQuestionTool(item) || (item.kind === 'tool_call' && item.toolName === 'ToolSearch')
+      isAnsweredQuestionTool(item) ||
+      (item.kind === 'tool_call' && item.toolName === 'ToolSearch') ||
+      (item.kind === 'user_message' && item.from?.threadId === threadId && !item.reports)
     )
   }
   function isStep(item: ThreadItem): item is WorkItem {
@@ -452,24 +460,16 @@ export function threadRows(
     }
   }
   let currentTurnId: string | undefined
-  function finishTurn() {
+  const heldTurns = new Set<string>()
+  function finishTurn(resumed: boolean) {
     if (!currentTurnId || outcomes[currentTurnId] !== 'server_restarted') return
-    const lastRow = rows.at(-1)
-    if (lastRow?.kind === 'work' && lastRow.turnId === currentTurnId) {
-      lastRow.restarted = true
-      return
-    }
-    rows.push({
-      kind: 'work',
-      id: `${currentTurnId}:restarted`,
-      turnId: currentTurnId,
-      activities: [],
-      status: 'interrupted',
-      restarted: true,
-    })
+    const id = `${currentTurnId}:restart`
+    rows.push(
+      heldTurns.has(currentTurnId) ? { kind: 'restartLimit', id, resumed } : { kind: 'restart', id }
+    )
   }
   for (const [index, item] of items.entries()) {
-    if (currentTurnId && currentTurnId !== item.turnId) finishTurn()
+    if (currentTurnId && currentTurnId !== item.turnId) finishTurn(true)
     currentTurnId = item.turnId
     if (hidden(item)) continue
     if (item.kind === 'subagent') launched.push(item)
@@ -528,7 +528,8 @@ export function threadRows(
           rows.push({ kind: 'compaction', id: item.id, running: item.status === 'running' })
         break
       case 'error':
-        rows.push({ kind: 'error', id: item.id, message: item.message })
+        if (item.message === RESTART_LIMIT_NOTE) heldTurns.add(item.turnId)
+        else rows.push({ kind: 'error', id: item.id, message: item.message })
         break
       case 'image_gallery':
         rows.push({ kind: 'gallery', id: item.id, item })
@@ -552,7 +553,7 @@ export function threadRows(
   // A compaction's seam is the live line until the agent does something after it.
   if (liveSegment && tail && items.find((item) => item.id === liveSegment)?.kind !== 'compaction')
     openBlock(liveSegment, tail.turnId)
-  finishTurn()
+  finishTurn(false)
   // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
   const todos = agentId ? undefined : foldTodos(allItems).updates
   for (const [segment, { row, steps, next }] of blocks) {
@@ -576,9 +577,7 @@ export function threadRows(
       const update = todos.get(item.id)
       return update ? [{ type: 'todo', id: item.id, update }] : []
     })
-    row.status = row.restarted
-      ? 'interrupted'
-      : workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)
+    row.status = workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)
     const answerEnd =
       next?.turnId === row.turnId && next.kind !== 'compaction' ? next.completedAt : undefined
     if (row.status === 'running') row.startedAt = steps[0]?.createdAt

@@ -3,9 +3,12 @@ import {
   Comment01Icon,
   Cancel01Icon,
   HistoryIcon,
+  PauseIcon,
+  Refresh01Icon,
 } from '@/components/custom/huge_icons'
+import { RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
 
-import { ChatSeam, SeamIcon } from './chat_seam'
+import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
 import { SourceLabel } from './source_label'
@@ -119,6 +122,32 @@ export function CompactionSeam({ running }: { running: boolean }) {
     <ChatSeam>
       <SeamIcon icon={HistoryIcon} />
       {running ? <span className='shimmer'>Compacting</span> : 'Compacted'}
+    </ChatSeam>
+  )
+}
+
+export function RestartSeam() {
+  return (
+    <ChatSeam>
+      <SeamIcon icon={Refresh01Icon} />
+      <span className='truncate'>Jetty restarted</span>
+    </ChatSeam>
+  )
+}
+
+// Resume stays disabled until the app can resume a held turn.
+export function RestartLimitSeam({ resumed }: { resumed: boolean }) {
+  return (
+    <ChatSeam>
+      <SeamIcon icon={PauseIcon} />
+      <span className='truncate'>
+        Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes
+      </span>
+      {resumed ? (
+        <span className='px-1'>Resumed</span>
+      ) : (
+        <ChatSeamAction disabled>Resume</ChatSeamAction>
+      )}
     </ChatSeam>
   )
 }

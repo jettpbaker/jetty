@@ -17,7 +17,12 @@ import {
   type SubagentItem,
   type ThreadRow,
 } from '@/components/custom/thread_rows'
-import { CompactionSeam, TranscriptMarker } from '@/components/custom/transcript_marker'
+import {
+  CompactionSeam,
+  RestartLimitSeam,
+  RestartSeam,
+  TranscriptMarker,
+} from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
 import { WorkBlock } from '@/components/custom/work_block'
@@ -109,6 +114,10 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
       return row.running
+    case 'restart':
+      return ''
+    case 'restartLimit':
+      return row.resumed
     case 'marker':
       return row.item.kind
     case 'work':
@@ -212,7 +221,6 @@ const ThreadItemRow = memo(function ThreadItemRow({
         status={row.status}
         startedAt={row.startedAt}
         elapsedSeconds={row.elapsedSeconds}
-        restarted={row.restarted}
         settingUp={row.settingUp}
       />
     )
@@ -222,6 +230,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'subagentDone')
     return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
   if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
+  if (row.kind === 'restart') return <RestartSeam />
+  if (row.kind === 'restartLimit') return <RestartLimitSeam resumed={row.resumed} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
@@ -264,8 +274,17 @@ export function ThreadList({
 }) {
   const rows = useMemo(
     () =>
-      threadRows(items, { status, running, outcomes, loadouts, projectPath, agentId, settingUp }),
-    [items, status, running, outcomes, loadouts, projectPath, agentId, settingUp]
+      threadRows(items, {
+        status,
+        running,
+        outcomes,
+        loadouts,
+        projectPath,
+        threadId,
+        agentId,
+        settingUp,
+      }),
+    [items, status, running, outcomes, loadouts, projectPath, threadId, agentId, settingUp]
   )
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {

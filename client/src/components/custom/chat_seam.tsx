@@ -1,5 +1,6 @@
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentProps, ComponentType, ReactNode } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { cn } from 'cn'
 
 // A divider across the transcript that carries a short state between messages: queued, paused,
@@ -30,5 +31,17 @@ export function SeamIcon({
     <span className={cn('flex shrink-0', tone)}>
       <Icon className='size-3.5' />
     </span>
+  )
+}
+
+// An action inside a seam (Resume): text that brightens on hover, sized to the seam's line.
+export function ChatSeamAction({ className, ...props }: ComponentProps<typeof Button>) {
+  return (
+    <Button
+      variant='ghost-text'
+      size='xs'
+      className={cn('h-6 px-1 text-sm font-normal text-foreground', className)}
+      {...props}
+    />
   )
 }
