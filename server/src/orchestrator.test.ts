@@ -9,6 +9,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { Worktrees } from './worktrees'
+
 import { AgentError, type Agent, type Emit, createEchoAdapter } from './agent'
 import { createAttachments } from './attachments'
 import { databaseLayer } from './db'
@@ -821,5 +823,28 @@ test('a Codex child that ends its turn asking the user reports once the answerâ€
       expect(reports).toMatchObject([{ kind: 'report', reports: [{ outcome: 'finished' }] }])
       expect(reports[0]!.text).toContain('Set it up on Postgres.')
     }).pipe(Effect.provide(TestClock.layer()))
+  )
+})
+
+test('a refused archive fails with the archive scriptâ€™s own error', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const worktrees = {
+        dirty: async () => 0,
+        cleanUp: async () => {
+          throw new Error('Worktree archive failed: docker is not running')
+        },
+      } as unknown as Worktrees
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        worktrees,
+      })
+      const refused = yield* Effect.flip(orch.archiveThread(f.thread.id, true))
+      expect(refused.message).toBe('Worktree archive failed: docker is not running')
+      expect((yield* f.store.requireThread(f.thread.id)).archived).toBe(false)
+    })
   )
 })

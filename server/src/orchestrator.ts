@@ -95,6 +95,17 @@ function toAgentError(error: Error) {
   return new AgentError(error.message)
 }
 
+// A worktree failure reaches the user with its own message, such as an archive script's output.
+function worktreeTask<A>(task: (signal: AbortSignal) => Promise<A>) {
+  return Effect.tryPromise({
+    try: task,
+    catch: (error) =>
+      error instanceof StoreError
+        ? error
+        : new StoreError('internal', error instanceof Error ? error.message : String(error)),
+  })
+}
+
 function runningSubagents(items: readonly ThreadItem[]): RunningSubagent[] {
   return items.flatMap((item) =>
     item.kind === 'subagent' && item.status === 'running'
@@ -238,10 +249,10 @@ export function createOrchestrator({
                   yield* checkTreeClean(tree)
                   if (worktrees) {
                     for (const thread of group)
-                      yield* Effect.tryPromise(() => worktrees.cleanUp(thread.id))
+                      yield* worktreeTask(() => worktrees.cleanUp(thread.id))
                     yield* checkTreeClean(tree)
                     for (const thread of [...group].reverse())
-                      yield* Effect.tryPromise(() => worktrees.remove(thread.id, false, true))
+                      yield* worktreeTask(() => worktrees.remove(thread.id, false, true))
                   }
                 }
                 yield* hub.withChromePublication(
@@ -270,7 +281,7 @@ export function createOrchestrator({
                 )
                 if (!archived && worktrees)
                   for (const thread of group)
-                    yield* Effect.tryPromise((signal) => worktrees.prepare(thread.id, signal))
+                    yield* worktreeTask((signal) => worktrees.prepare(thread.id, signal))
               })
           )
         })
@@ -281,7 +292,7 @@ export function createOrchestrator({
       return Effect.gen(function* () {
         if (!worktrees) return
         for (const thread of tree) {
-          if (yield* Effect.tryPromise(() => worktrees.dirty(thread.id)))
+          if (yield* worktreeTask(() => worktrees.dirty(thread.id)))
             return yield* Effect.fail(
               new StoreError(
                 'conflict',
@@ -753,10 +764,9 @@ export function createOrchestrator({
                 }
                 const preparing = state(input.threadId)
                 preparing.ready = false
-                const prepared = yield* Effect.tryPromise({
-                  try: (signal) => worktrees.prepare(input.threadId, signal),
-                  catch: (error) => new StoreError('internal', String(error)),
-                }).pipe(
+                const prepared = yield* worktreeTask((signal) =>
+                  worktrees.prepare(input.threadId, signal)
+                ).pipe(
                   Effect.interruptible,
                   Effect.result,
                   Effect.ensuring(
@@ -915,10 +925,7 @@ export function createOrchestrator({
               if (!project)
                 return yield* Effect.fail(new StoreError('not_found', 'Thread project not found'))
               const cwd = worktrees
-                ? yield* Effect.tryPromise({
-                    try: (signal) => worktrees.prepare(threadId, signal),
-                    catch: (error) => new StoreError('internal', String(error)),
-                  })
+                ? yield* worktreeTask((signal) => worktrees.prepare(threadId, signal))
                 : (thread.workingPath ?? project.path)
               const turnId = newId()
               live.turnId = turnId
@@ -1345,18 +1352,14 @@ export function createOrchestrator({
                 for (const thread of tree) yield* stopAdmittedThread(thread.id)
                 for (const thread of [...tree].reverse()) {
                   if (worktrees)
-                    yield* Effect.tryPromise(() => worktrees.cleanUp(thread.id)).pipe(
-                      Effect.catch((error) => Effect.logWarning(`Archive script failed: ${error}`))
+                    yield* worktreeTask(() => worktrees.cleanUp(thread.id)).pipe(
+                      Effect.catch((error) => Effect.logWarning(error.message))
                     )
                   yield* locked(
                     thread.id,
                     Effect.gen(function* () {
                       yield* flushDelta(thread.id)
-                      if (worktrees)
-                        yield* Effect.tryPromise({
-                          try: () => worktrees.remove(thread.id, true),
-                          catch: (error) => new StoreError('internal', String(error)),
-                        })
+                      if (worktrees) yield* worktreeTask(() => worktrees.remove(thread.id, true))
                       const attachmentIds = yield* store.deleteThread(thread.id)
                       if (attachments)
                         yield* Effect.forEach(attachmentIds, (id) => attachments.remove(id), {
