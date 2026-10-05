@@ -52,9 +52,14 @@ export const keybinds = {
   ),
 } satisfies Record<string, Keybind | Keybind[]>
 
+// Where a key went, even inside a shadow root: past one, event.target is retargeted to its host.
+export function keyTarget(event: KeyboardEvent) {
+  return event.composedPath()[0] ?? event.target
+}
+
 // Keys typed into a text field stay there, except in the composer.
 export function typingOutsideComposer(event: KeyboardEvent) {
-  const field = event.target
+  const field = keyTarget(event)
   return (
     field instanceof HTMLElement &&
     (field.isContentEditable || field.matches('input, textarea, select')) &&

@@ -11,6 +11,7 @@ import {
   type SlashScope,
 } from '@/components/custom/composer_slash'
 import { StopIcon, ArrowUp02Icon, PlayIcon } from '@/components/custom/huge_icons'
+import { keyTarget } from '@/components/custom/keybinds'
 import {
   InputGroup,
   InputGroupAddon,
@@ -125,7 +126,7 @@ export function Composer({
         event.key.length !== 1
       )
         return
-      const target = event.target
+      const target = keyTarget(event)
       if (
         target instanceof HTMLElement &&
         (target.isContentEditable ||

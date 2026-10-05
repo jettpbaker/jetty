@@ -102,6 +102,7 @@ import { byTreeOrder } from '../diff/model'
 import { DiffToolbar, DiffToolbarButton, useDiffStyle, useDiffWrap } from '../diff/toolbar'
 import { primeDiffHighlights, DiffWorkerPoolProvider } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
+import { keyTarget } from '../keybinds'
 import { githubUser, prFile } from './adapter'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import {
@@ -1839,14 +1840,15 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const [diffStyle, setDiffStyle] = useDiffStyle()
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      const target = keyTarget(e)
       if (
         e.defaultPrevented ||
         e.metaKey ||
         e.ctrlKey ||
         e.altKey ||
-        (e.target instanceof HTMLElement &&
-          (e.target.isContentEditable ||
-            e.target.closest('input, textarea, [role=dialog], [role=menu], [role=listbox]')))
+        (target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.closest('input, textarea, [role=dialog], [role=menu], [role=listbox]')))
       )
         return
       if (e.key === '1' || e.key === '2') {
