@@ -42,6 +42,7 @@ import {
   useThreadMeta,
   useVisibleQueue,
 } from '@/state'
+import { createItemSelection } from '@/state/item_selection'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
 import { isQueuedEditing } from '@/state/queue_editing'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
@@ -57,6 +58,12 @@ const noItems: readonly ThreadItem[] = []
 
 // How long a request must be on screen before text started in the composer answers it.
 const noticeMs = 1000
+
+// Requests for input and the subagents that ask them: a streamed reply leaves them, and the strip
+// built from them, alone.
+const requestItems = createItemSelection(
+  (item) => item.kind === 'approval' || item.kind === 'question' || item.kind === 'subagent'
+)
 
 // The project a new-thread draft pinned itself to when it was started, rather than one picked.
 let draftPin: string | undefined
@@ -203,9 +210,11 @@ export function ThreadComposer({
     setUsageAsked((asked) => asked + 1)
   }
 
+  // The compiler leaves this component alone, so this memo is still needed.
+  const requests = requestItems(items)
   const pending = useMemo(
-    () => pendingItems(items, { provider, projectPath, projectTitle }),
-    [items, projectPath, projectTitle, provider]
+    () => pendingItems(requests, { provider, projectPath, projectTitle }),
+    [requests, projectPath, projectTitle, provider]
   )
   const index = Math.max(
     0,
