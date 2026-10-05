@@ -69,11 +69,9 @@ export function FileEditor({
   const [conflict, setConflict] = useState<ProjectFile>()
   const [saving, setSaving] = useState(false)
   const writing = useRef(false)
-  const persist = useRef<ReturnType<typeof setTimeout>>(undefined)
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
 
   function storeDraft() {
-    clearTimeout(persist.current)
     writeDraft(
       threadId,
       path,
@@ -83,14 +81,8 @@ export function FileEditor({
 
   function edited(next: string) {
     text.current = next
-    const nowDirty = next !== base.current
-    if (nowDirty !== dirty) {
-      setDirty(nowDirty)
-      storeDraft()
-    } else if (nowDirty) {
-      clearTimeout(persist.current)
-      persist.current = setTimeout(storeDraft, 300)
-    }
+    setDirty(next !== base.current)
+    storeDraft()
   }
 
   // Taking the disk's text is one more edit, so ⌘Z brings back what it replaced.
@@ -128,10 +120,6 @@ export function FileEditor({
     setConflict(undefined)
     storeDraft()
   }
-
-  // The view sits in a hidden tab as often as a shown one, so leaving it stores the draft at once.
-  const leave = useEffectEvent(storeDraft)
-  useEffect(() => () => leave(), [])
 
   const diskChanged = useEffectEvent((now: ProjectFile) => {
     const nowText = 'contents' in now ? now.contents : undefined

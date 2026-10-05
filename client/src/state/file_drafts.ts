@@ -1,23 +1,23 @@
 import { session } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
+import { toast } from 'sonner'
 
 import { useAction } from './connection'
 
-// Unsaved edits to a file in a thread's checkout, kept for the browser tab's life, so closing the
-// file, switching threads or reloading never loses them. `base` is the file's text on disk that
-// the edits started from.
+// Unsaved edits to a file in a thread's checkout. They live here for the page's life, and a copy
+// in session storage brings them back after a reload, so closing the file, switching threads or
+// reloading never loses them. `base` is the file's text on disk that the edits started from.
 export type FileDraft = { base: string; text: string }
 
 const storageKey = (threadId: string, path: string) => `jetty.file-draft:${threadId}:${path}`
 
-const dirtyAtom = Atom.family((key: string) =>
-  Atom.make(session.get(key) !== undefined).pipe(Atom.keepAlive)
-)
+// null: known to have none.
+const drafts = new Map<string, FileDraft | null>()
 
-export function readFileDraft(threadId: string, path: string): FileDraft | undefined {
+function stored(key: string): FileDraft | null {
   try {
-    const draft: unknown = JSON.parse(session.get(storageKey(threadId, path)) ?? 'null')
+    const draft: unknown = JSON.parse(session.get(key) ?? 'null')
     if (
       draft &&
       typeof (draft as FileDraft).base === 'string' &&
@@ -27,7 +27,47 @@ export function readFileDraft(threadId: string, path: string): FileDraft | undef
   } catch {
     // A corrupt draft reads as none.
   }
-  return undefined
+  return null
+}
+
+function draftAt(key: string) {
+  let draft = drafts.get(key)
+  if (draft === undefined) {
+    draft = stored(key)
+    drafts.set(key, draft)
+  }
+  return draft ?? undefined
+}
+
+const dirtyAtom = Atom.family((key: string) =>
+  Atom.make(draftAt(key) !== undefined).pipe(Atom.keepAlive)
+)
+
+export function readFileDraft(threadId: string, path: string): FileDraft | undefined {
+  return draftAt(storageKey(threadId, path))
+}
+
+// Typing changes a draft many times a second, so its stored copy catches up a moment later.
+const unstored = new Set<string>()
+let storing: ReturnType<typeof setTimeout> | undefined
+let warned = false
+
+function storeDrafts() {
+  clearTimeout(storing)
+  for (const key of unstored) {
+    const draft = drafts.get(key)
+    if (!draft) session.remove(key)
+    else if (!session.set(key, JSON.stringify(draft))) {
+      // An older copy would come back after a reload as if it were the latest.
+      session.remove(key)
+      if (!warned)
+        toast.error("Unsaved edits won't survive a reload", {
+          description: "Browser storage is full. They're kept while this tab stays open.",
+        })
+      warned = true
+    }
+  }
+  unstored.clear()
 }
 
 // No draft once the edits are saved or gone.
@@ -38,9 +78,11 @@ function writeFileDraft(
   draft: FileDraft | undefined
 ) {
   const key = storageKey(threadId, path)
-  if (draft) session.set(key, JSON.stringify(draft))
-  else session.remove(key)
+  drafts.set(key, draft ?? null)
   registry.set(dirtyAtom(key), draft !== undefined)
+  unstored.add(key)
+  clearTimeout(storing)
+  storing = setTimeout(storeDrafts, 300)
 }
 
 export const useWriteFileDraft = () => useAction(writeFileDraft)
