@@ -1,7 +1,7 @@
 import { blobs, storage } from '@/platform'
 import { useEffect, useState } from 'react'
 
-import { loadAccent, setAccent } from './accent'
+import { accentStorageKey, loadAccent, setAccent } from './accent'
 import { applyWallpaperAccent } from './wallpaper-accent'
 import { wallpaperPixelSize, wallpaperQuality, type WallpaperCrop } from './wallpaper-crop'
 
@@ -192,6 +192,13 @@ function syncAppearanceAccent() {
     if (current === generation) restorePreset()
   }
   image.src = prefs.wallpaper
+}
+
+// An accent picked in another window applies here too, unless this one's wallpaper sets it.
+export function followAccent() {
+  window.addEventListener('storage', (event) => {
+    if (event.key === accentStorageKey) syncAppearanceAccent()
+  })
 }
 
 export function hydrateAppearance({ changedElsewhere = false } = {}) {

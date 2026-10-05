@@ -1,5 +1,5 @@
 import { storage } from '@/platform'
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 
 type ThemeChoice = 'light' | 'dark' | 'system'
@@ -24,10 +24,14 @@ export function applyTheme(choice = loadTheme()) {
   document.documentElement.classList.toggle('dark', resolvedTheme(choice) === 'dark')
 }
 
-// System follows the OS as it changes, not just at load.
-export function followSystemTheme() {
+// System follows the OS as it changes, not just at load, and a choice made in another window
+// applies here too.
+export function followTheme() {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (loadTheme() === 'system') applyTheme('system')
+  })
+  window.addEventListener('storage', (event) => {
+    if (event.key === key) applyTheme()
   })
 }
 
@@ -37,6 +41,13 @@ let generation = 0
 
 export function useAnimatedTheme() {
   const [theme, setThemeState] = useState(loadTheme)
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key === key) setThemeState(loadTheme())
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
 
   function setTheme(next: unknown) {
     if (!isThemeChoice(next) || next === theme) return

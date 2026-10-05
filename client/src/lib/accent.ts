@@ -9,14 +9,14 @@ export const accentPresets = [
 ] as const
 
 export type Accent = (typeof accentPresets)[number]['value']
-const storageKey = 'jetty.accent'
+export const accentStorageKey = 'jetty.accent'
 
 export function isAccent(value: unknown): value is Accent {
   return accentPresets.some((preset) => preset.value === value)
 }
 
 export function loadAccent(): Accent {
-  const saved = storage.get(storageKey)
+  const saved = storage.get(accentStorageKey)
   return isAccent(saved) ? saved : 'lilac'
 }
 
@@ -34,6 +34,6 @@ export function setAccent(value: Accent) {
   root.style.removeProperty('--tint-c')
   delete root.dataset.accentFrom
   root.dataset.accent = value
-  storage.set(storageKey, value)
+  storage.set(accentStorageKey, value)
   notifyAccentChange()
 }
