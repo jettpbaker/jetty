@@ -55,6 +55,9 @@ const noItems: readonly ThreadItem[] = []
 // How long a request must be on screen before text started in the composer answers it.
 const noticeMs = 1000
 
+// The project a new-thread draft pinned itself to when it was started, rather than one picked.
+let draftPin: string | undefined
+
 // /usage's tray reads usage itself: the composer would otherwise re-render on every usage read
 // (pointing at Usage, opening it or Settings), each provider's separately.
 function ComposerUsage({
@@ -146,12 +149,24 @@ export function ThreadComposer({
     update({ target: { ...read().target, ...patch } })
   }
   // A started draft keeps the project it was started in, though a thread elsewhere may become the
-  // most recent while it's written.
+  // most recent while it's written. Emptied and left, it lets go, so coming back follows the most
+  // recent thread again; a picked project stays.
   const started = draft.trim() !== '' || attachments.images.length > 0
   useEffect(() => {
-    if (!threadId && started && projectId && !picked)
-      update({ target: { ...read().target, projectId } })
+    if (threadId || !started || !projectId || picked) return
+    draftPin = projectId
+    update({ target: { ...read().target, projectId } })
   }, [threadId, started, projectId, picked, update, read])
+  useEffect(() => {
+    if (threadId) return
+    return () => {
+      const { text, images, target } = read()
+      if (draftPin === undefined || target?.projectId !== draftPin) return
+      if (text.trim() || images.length > 0) return
+      draftPin = undefined
+      update({ target: { ...target, projectId: undefined } })
+    }
+  }, [threadId, update, read])
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
   // A message being edited can leave the queue under the composer: removed in another window, or
   // delivered once its hold lapsed. The edit stays as an ordinary draft, and the footer says why.
@@ -536,6 +551,7 @@ export function ThreadComposer({
             <ComposerProject
               projectId={projectId}
               onProjectChange={(id) => {
+                draftPin = undefined
                 if (id !== projectId)
                   retarget({ projectId: id, environment: undefined, ref: undefined })
               }}
