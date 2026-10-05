@@ -238,6 +238,25 @@ async function newFile(root: string, path: string) {
   return join(folder, basename(target))
 }
 
+function holds(current: Opened, base: string | null) {
+  return base === null
+    ? 'contents' in current.file && current.file.contents === null
+    : current.text === base
+}
+
+// Jetty's own saves to a file take turns, so each one checks the text the last one left.
+const turns = new Map<string, Promise<unknown>>()
+
+function inTurn<A>(file: string, save: () => Promise<A>) {
+  const result = (turns.get(file) ?? Promise.resolve()).then(save)
+  const done = result.catch(() => {})
+  turns.set(file, done)
+  void done.then(() => {
+    if (turns.get(file) === done) turns.delete(file)
+  })
+  return result
+}
+
 // Writes a synced sibling and renames it over the real path `file`, so a failed save leaves the
 // old file whole, and a symlink to it keeps pointing at it.
 async function replaceFile(
@@ -247,12 +266,7 @@ async function replaceFile(
   path: string
 ): Promise<SavedProjectFile | undefined> {
   const current = await readCurrent(file)
-  if (!current) return undefined
-  const holds =
-    base === null
-      ? 'contents' in current.file && current.file.contents === null
-      : current.text === base
-  if (!holds) return { conflict: current.file }
+  if (!current || !holds(current, base)) return current && { conflict: current.file }
   // The text came from decoding these bytes; saving would rewrite any that weren't UTF-8.
   if (current.text !== undefined && !current.bytes.equals(Buffer.from(current.text)))
     throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
@@ -275,6 +289,10 @@ async function replaceFile(
     } finally {
       await handle.close()
     }
+    // Agents write without asking, so the file is checked again just before the rename. A write
+    // landing after this check is still lost: Node has no rename-if-unchanged.
+    const now = await readCurrent(file)
+    if (!now || !holds(now, base)) return now && { conflict: now.file }
     await rename(temp, file)
     renamed = true
   } finally {
@@ -293,7 +311,10 @@ export function writeProjectFile(cwd: string, path: string, contents: string, ba
     const { root, file } = yield* resolveProjectPath(cwd, path)
     if (!file && base !== null) return { conflict: { contents: null } }
     const saved = yield* Effect.tryPromise({
-      try: async () => replaceFile(file ?? (await newFile(root, path)), bytes, base, path),
+      try: async () => {
+        const target = file ?? (await newFile(root, path))
+        return inTurn(target, () => replaceFile(target, bytes, base, path))
+      },
       catch: (error) =>
         error instanceof StoreError
           ? error
