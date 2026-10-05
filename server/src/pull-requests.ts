@@ -1481,6 +1481,39 @@ function mergeableState(status: unknown) {
   return mergeStates[status as keyof typeof mergeStates] ?? 'unknown'
 }
 
+// Who subscribes to each key, and the closest attention any of them pays.
+function createWatches<K>() {
+  const watches = new Map<K, Map<symbol, GitHubActivity>>()
+  return {
+    has: (key: K) => watches.has(key),
+    keys: () => [...watches.keys()],
+    activity(key: K): GitHubActivity {
+      const values = [...(watches.get(key)?.values() ?? [])]
+      return values.includes('focused')
+        ? 'focused'
+        : values.includes('blurred')
+          ? 'blurred'
+          : 'hidden'
+    },
+    watch(key: K, state: GitHubActivity) {
+      const token = Symbol()
+      return Effect.acquireRelease(
+        Effect.sync(() => {
+          const subscribers = watches.get(key) ?? new Map()
+          subscribers.set(token, state)
+          watches.set(key, subscribers)
+        }),
+        () =>
+          Effect.sync(() => {
+            const subscribers = watches.get(key)
+            subscribers?.delete(token)
+            if (!subscribers?.size) watches.delete(key)
+          })
+      )
+    },
+  }
+}
+
 function prKey(ref: PullRequestRef) {
   return `${ref.repo}#${ref.number}`
 }
@@ -1514,7 +1547,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   const queue: Job[] = []
   let activeVisible = 0
   let activePrefetches = 0
-  const watches = new Map<string, Map<symbol, GitHubActivity>>()
+  const watches = createWatches<string>()
   const lastChecks = new Map<string, number>()
   const checking = new Set<string>()
   const lastCadences = new Map<string, string>()
@@ -1702,31 +1735,8 @@ export function createPullRequests(store: Store, hub: Hub) {
     )
   }
 
-  function activity(ref: PullRequestRef): GitHubActivity {
-    const values = [...(watches.get(prKey(ref))?.values() ?? [])]
-    return values.includes('focused')
-      ? 'focused'
-      : values.includes('blurred')
-        ? 'blurred'
-        : 'hidden'
-  }
-
   function watch(ref: PullRequestRef, state: GitHubActivity) {
-    const key = prKey(ref)
-    const token = Symbol()
-    return Effect.acquireRelease(
-      Effect.sync(() => {
-        const subscribers = watches.get(key) ?? new Map()
-        subscribers.set(token, state)
-        watches.set(key, subscribers)
-      }),
-      () =>
-        Effect.sync(() => {
-          const subscribers = watches.get(key)
-          subscribers?.delete(token)
-          if (!subscribers?.size) watches.delete(key)
-        })
-    )
+    return watches.watch(prKey(ref), state)
   }
 
   function cadence(closed: boolean, state: GitHubActivity, list: boolean) {
@@ -1738,7 +1748,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   function decorate(snapshot: PullRequestSnapshot): PullRequestSnapshot {
     const key = prKey(snapshot)
     const watched = watches.has(key)
-    const state = watched ? activity(snapshot) : hub.githubActivity()
+    const state = watched ? watches.activity(key) : hub.githubActivity()
     const interval = cadence(snapshot.data?.pull.state === 'closed', state, !watched)
     const checksInterval =
       interval !== null && (checksRunning(snapshot.data) || mergeUnknown(snapshot.data))
@@ -2593,8 +2603,7 @@ function listSignature(value: unknown, tabIndex = 0) {
   return JSON.stringify(searches)
 }
 
-async function probePullRequestLists(ids: readonly string[]) {
-  const tabs = ['for-you', 'created'] as const
+async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: readonly string[]) {
   const searches = tabs.flatMap(listSearches)
   // New identities force a full read; only cached PRs need a checks connection.
   // nodes(ids:) avoids multiplying that connection by each search's requested size.
@@ -2688,28 +2697,53 @@ export function createPullRequestLists(
   pulls: ReturnType<typeof createPullRequests>,
   scope: Scope.Scope
 ) {
-  const listCadence = 30_000
   const signatures = new Map<PullRequestListTab, string>()
   const checksIds = new Map<PullRequestListTab, string[]>()
-  let probeInFlight: ReturnType<typeof probePullRequestLists> | undefined
-  let probedAt = 0
-  let probed = new Map<PullRequestListTab, string>()
+  const watches = createWatches<PullRequestListTab>()
+  const probed = new Map<PullRequestListTab, { at: number; signature: string }>()
+  const probing = new Map<PullRequestListTab, Promise<string>>()
+  const queuedProbes = new Map<
+    PullRequestListTab,
+    { resolve: (signature: string) => void; reject: (error: unknown) => void }
+  >()
 
-  function probe(maxAge: number) {
-    if (probeInFlight) return probeInFlight
-    if (probedAt && Date.now() - probedAt < maxAge * cadenceMultiplier())
-      return Promise.resolve(probed)
-    probeInFlight = probePullRequestLists([...new Set([...checksIds.values()].flat())])
-      .then((result) => {
-        probed = result
-        probedAt = Date.now()
-        return result
+  // Tabs probed in the same tick share one query.
+  function probe(tab: PullRequestListTab, maxAge: number) {
+    const pending = probing.get(tab)
+    if (pending) return pending
+    const last = probed.get(tab)
+    if (last && Date.now() - last.at < maxAge * cadenceMultiplier())
+      return Promise.resolve(last.signature)
+    const promise = new Promise<string>((resolve, reject) =>
+      queuedProbes.set(tab, { resolve, reject })
+    )
+    probing.set(tab, promise)
+    if (queuedProbes.size === 1)
+      queueMicrotask(() => {
+        const batch = [...queuedProbes]
+        queuedProbes.clear()
+        const tabs = batch.map(([tab]) => tab)
+        void probePullRequestLists(tabs, [
+          ...new Set(tabs.flatMap((tab) => checksIds.get(tab) ?? [])),
+        ]).then(
+          (result) => {
+            for (const [tab, { resolve }] of batch) {
+              probing.delete(tab)
+              probed.set(tab, { at: Date.now(), signature: result.get(tab)! })
+              resolve(result.get(tab)!)
+            }
+          },
+          (error) => {
+            for (const [tab, { reject }] of batch) {
+              probing.delete(tab)
+              reject(error)
+            }
+          }
+        )
       })
-      .finally(() => {
-        probeInFlight = undefined
-      })
-    return probeInFlight
+    return promise
   }
+
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
   const publication = {
@@ -2719,11 +2753,16 @@ export function createPullRequestLists(
   const queued = new Map<PullRequestListTab, (list: PullRequestList) => void>()
   let flushQueued = false
 
-  function decorate(list: PullRequestList, activity = hub.githubActivity()): PullRequestList {
-    const paused = activity === 'hidden' || backingOff()
+  // A tab polls only while a list shows it.
+  function listInterval(state: GitHubActivity) {
+    return state === 'hidden' || backingOff() ? null : state === 'focused' ? 30_000 : 120_000
+  }
+
+  function decorate(list: PullRequestList, state = watches.activity(list.tab)): PullRequestList {
+    const interval = listInterval(state)
     return {
       ...list,
-      rateLimit: githubRateLimitHealth(paused ? null : listCadence * cadenceMultiplier()),
+      rateLimit: githubRateLimitHealth(interval && interval * cadenceMultiplier()),
     }
   }
 
@@ -2771,14 +2810,14 @@ export function createPullRequestLists(
       if (cached.refreshedAt && Date.now() - cached.refreshedAt < maxAge * cadenceMultiplier())
         return cached
       const loaded = yield* Effect.tryPromise({
-        try: () => probe(maxAge),
+        try: () => probe(tab, maxAge),
         catch: (error) => error,
       }).pipe(
         Effect.matchEffect({
           onFailure: (error) => Effect.succeed(failedList(tab, error)),
-          onSuccess: (changes) => {
+          onSuccess: (signature) => {
             const unchanged =
-              cached.status === 'ready' && cached.items && signatures.get(tab) === changes.get(tab)
+              cached.status === 'ready' && cached.items && signatures.get(tab) === signature
             return unchanged
               ? Effect.succeed({ ...cached, refreshedAt: Date.now() })
               : Effect.promise(() => load(tab))
@@ -2805,25 +2844,21 @@ export function createPullRequestLists(
     }).pipe(publication[tab].withPermit)
   }
 
+  // Every focus change resubscribes, so this catches up only lists older than the blurred cadence.
   function refreshOnArrival() {
-    return Effect.forEach(['for-you', 'created'] as const, (tab) => refresh(tab, 10_000), {
+    return Effect.forEach(['for-you', 'created'] as const, (tab) => refresh(tab, 120_000), {
       concurrency: 'unbounded',
       discard: true,
     })
   }
 
-  function refreshIfStale(tab: PullRequestListTab, activity: GitHubActivity = 'focused') {
-    return Effect.gen(function* () {
-      const list = decorate(yield* store.getPullRequestList(tab), activity)
-      const maxAge = list.rateLimit?.cadenceMs
-      if (!maxAge || (list.refreshedAt && Date.now() - list.refreshedAt < maxAge)) return list
-      return yield* refresh(tab, listCadence)
-    })
+  function refreshIfStale(tab: PullRequestListTab, state: GitHubActivity) {
+    const interval = listInterval(state)
+    return interval ? refresh(tab, interval) : get(tab)
   }
 
   function poll() {
-    const activity = hub.githubActivity()
-    return Effect.forEach(['for-you', 'created'] as const, (tab) => refreshIfStale(tab, activity), {
+    return Effect.forEach(watches.keys(), (tab) => refreshIfStale(tab, watches.activity(tab)), {
       concurrency: 'unbounded',
       discard: true,
     })
@@ -2834,6 +2869,7 @@ export function createPullRequestLists(
     refresh,
     refreshOnArrival,
     refreshIfStale,
+    watch: watches.watch,
     poll,
   }
 }

@@ -69,14 +69,15 @@ base comparison; it is null on a cold read or when that head no longer matches.
 
 ## Refresh policy
 
-| Context          | Change detection        | Running checks            |
-| ---------------- | ----------------------- | ------------------------- |
-| Focused PR       | 30 seconds              | 10 seconds                |
-| Blurred PR       | 2 minutes               | 30 seconds                |
-| Linked PRs       | 30 seconds              | Rollup in the state query |
-| PR list tabs     | 2-minute batched search | 30-second batched rollup  |
-| Hidden clients   | Paused                  | Paused                    |
-| Closed/merged PR | 30 minutes              | Paused                    |
+| Context              | Change detection                   | Running checks            |
+| -------------------- | ---------------------------------- | ------------------------- |
+| Focused PR           | 30 seconds                         | 10 seconds                |
+| Blurred PR           | 2 minutes                          | 30 seconds                |
+| Linked PRs           | 30 seconds                         | Rollup in the state query |
+| Shown PR list tab    | 30 seconds (2 minutes blurred)     | Rollup in the probe       |
+| Unshown PR list tabs | Sidebar hover; arrival after 2 min | Rollup in the probe       |
+| Hidden clients       | Paused                             | Paused                    |
+| Closed/merged PR     | 30 minutes                         | Paused                    |
 
 Visible refreshes first read `updatedAt`, head/base SHAs, and the check rollup.
 Metadata or revision changes trigger a full load; rollup-only changes patch checks

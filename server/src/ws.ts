@@ -495,6 +495,7 @@ export function createRpcHandlers(
         Stream.unwrap(
           Effect.gen(function* () {
             yield* hub.watchGithubActivity(activity)
+            yield* pullRequestLists.watch(tab, activity)
             const queue = yield* hub.subscribePullRequestList(tab)
             const list = yield* pullRequestLists.get(tab)
             yield* pullRequestLists.refreshIfStale(tab, activity).pipe(
