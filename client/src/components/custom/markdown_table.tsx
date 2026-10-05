@@ -19,9 +19,9 @@ const align = 'text-left [&[align=center]]:text-center [&[align=right]]:text-rig
 const well = 'bg-[color-mix(in_oklch,var(--muted)_60%,var(--background))]'
 // A bordered card, full width; a table whose content can't fit grows past the column and scrolls.
 // Separate borders, or the rounded border doesn't draw. Inline code steps down to the table's size and
-// wraps rather than running into the next column.
+// wraps rather than running into the next column, but a short token stays whole.
 const table =
-  'w-full border-separate border-spacing-0 rounded-md border border-border text-xs tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere'
+  'w-full border-separate border-spacing-0 rounded-md border border-border text-xs tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere [&_code[data-token]]:whitespace-nowrap'
 
 // Long tables show this many rows behind a "Show all" toggle; two over isn't worth hiding.
 const rowLimit = 8
@@ -110,7 +110,15 @@ export function MarkdownTableHeader({ node: _node, className: _className, ...pro
   )
 }
 
-// Long prose wraps at 24rem so one wordy cell can't stretch the whole table.
+function textLength(node: ReactNode): number {
+  if (typeof node === 'string') return node.length
+  if (Array.isArray(node)) return node.reduce((sum: number, child) => sum + textLength(child), 0)
+  if (isValidElement<{ children?: ReactNode }>(node)) return textLength(node.props.children)
+  return 0
+}
+
+// Long prose wraps at 24rem so one wordy cell can't stretch the whole table, and keeps 10rem when
+// whole code tokens crowd the table, rather than a word a line.
 export function MarkdownTableCell({
   node: _node,
   className: _className,
@@ -119,7 +127,12 @@ export function MarkdownTableCell({
 }: Props<'td'>) {
   return (
     <td className={cn('border-b border-border px-3 py-2 align-top', align)} {...props}>
-      <div className='max-w-96 [[align=center]>&]:mx-auto [[align=right]>&]:ml-auto'>
+      <div
+        className={cn(
+          'max-w-96 [[align=center]>&]:mx-auto [[align=right]>&]:ml-auto',
+          textLength(children) > 40 && 'min-w-40'
+        )}
+      >
         {children}
       </div>
     </td>
