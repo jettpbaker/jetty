@@ -71,10 +71,9 @@
   draw 1.125× their slot through an inset viewBox, centred, without changing
   layout; Lucide draws at slot size.
 - Fill (`filled`) only solid metaphors: stop, fast-mode flash, video play/pause,
-  the pinned pin, and the merged PR's rings (a solid version of open). Checks passed/failed reuse the status discs; selected answers
+  the pinned pin. Checks passed/failed reuse the status discs; selected answers
   stay stroked. GitHub is the official filled svgl mark. Provider logos, the
-  in-progress glyph, status discs, context ring and the merged/closed PR glyphs
-  (redrawn on Lucide's open PR, in lucide_icons.tsx) stay custom.
+  in-progress glyph, status discs and context ring stay custom.
 - Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
   `size-glyph` (18px) is for tab status glyphs only. No arbitrary `size-[Npx]`.
 - One muted: `text-muted-foreground`. No `/50`, `/60`, or `opacity-*` tints on

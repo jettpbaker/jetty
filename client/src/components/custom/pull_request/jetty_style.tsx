@@ -25,7 +25,6 @@ import {
   CircleSlashIcon,
   GitCommitHorizontalIcon,
   GitMergeIcon,
-  GitPullRequestMergedIcon,
 } from '@/components/custom/lucide_icons'
 import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
@@ -1038,7 +1037,7 @@ function Activity({ pr }: { pr: PrPull }) {
             at: pr.mergedAt,
             content: (
               <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                <GitPullRequestMergedIcon className='size-3.5 text-pr-merged' />
+                <GitMergeIcon className='size-3.5 text-pr-merged' />
                 <span>
                   Merged by {personName(pr.mergedBy ?? pr.author)} <Ago at={pr.mergedAt} />
                 </span>
