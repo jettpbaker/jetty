@@ -35,7 +35,12 @@ import { awaitsInput } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
 
-type PendingPrompt = { text: string; priorCount: number; images: readonly Attachment[] }
+type PendingPrompt = {
+  text: string
+  priorCount: number
+  images: readonly Attachment[]
+  sentAt: number
+}
 type Resolution = Readonly<Record<string, unknown>>
 
 const loadoutOverridesAtom = Atom.make<ReadonlyMap<string, Loadout>>(new Map()).pipe(Atom.keepAlive)
@@ -115,7 +120,7 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
     kind: 'user_message',
     id: `pending:${index}:${prompt.priorCount}:${prompt.text}`,
     turnId: 'pending',
-    createdAt: 0,
+    createdAt: prompt.sentAt,
     text: prompt.text,
     attachments: prompt.images,
   }))
@@ -138,6 +143,7 @@ function sendTurn(
   const prompt: PendingPrompt = {
     text,
     priorCount,
+    sentAt: Date.now(),
     images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
       name,
