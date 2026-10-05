@@ -8,7 +8,9 @@ import { useAction } from './connection'
 // Unsaved edits to a file in a thread's checkout. They live here for the page's life, and a copy
 // in session storage brings them back after a reload, so closing the file, switching threads or
 // reloading never loses them. `base` is the file's text on disk that the edits started from.
-export type FileDraft = { base: string; text: string }
+// `unverified`: a save that didn't confirm (a conflict, a lost reply) may have written over `base`,
+// so edits undone back to it stay a draft until the disk is read again.
+export type FileDraft = { base: string; text: string; unverified?: boolean }
 
 const storageKey = (threadId: string, path: string) => `jetty.file-draft:${threadId}:${path}`
 
@@ -85,7 +87,7 @@ export function writeFileDraft(
   draft: FileDraft | undefined
 ) {
   const key = storageKey(threadId, path)
-  if (draft?.text === draft?.base && !saving.has(key)) draft = undefined
+  if (draft?.text === draft?.base && !draft?.unverified && !saving.has(key)) draft = undefined
   drafts.set(key, draft ?? null)
   registry.set(dirtyAtom(key), draft !== undefined)
   unstored.add(key)
@@ -103,7 +105,9 @@ export function endFileSave(registry: AtomRegistry.AtomRegistry, threadId: strin
   const pending = (saving.get(key) ?? 1) - 1
   if (pending) saving.set(key, pending)
   else saving.delete(key)
-  writeFileDraft(registry, threadId, path, readFileDraft(threadId, path))
+  const draft = readFileDraft(threadId, path)
+  if (draft && draft.text === draft.base && !pending)
+    writeFileDraft(registry, threadId, path, { ...draft, unverified: true })
 }
 
 // A save put `saved` on disk, possibly after its editor closed. The draft goes, unless it was

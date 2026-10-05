@@ -75,7 +75,7 @@ export function FileEditor({
   function edited(next: string) {
     const from = base()
     text.current = next
-    writeDraft(threadId, path, { base: from, text: next })
+    writeDraft(threadId, path, { ...readFileDraft(threadId, path), base: from, text: next })
   }
 
   // Taking the disk's text is one more edit, so ⌘Z brings back what it replaced.
@@ -105,8 +105,11 @@ export function FileEditor({
   const diskChanged = useEffectEvent((now: ProjectFile) => {
     const nowText = 'contents' in now ? now.contents : undefined
     const from = base()
-    if (nowText === from) setConflict(undefined)
-    else if (typeof nowText === 'string' && nowText === text.current) {
+    if (nowText === from) {
+      const draft = readFileDraft(threadId, path)
+      if (draft?.unverified) writeDraft(threadId, path, { base: draft.base, text: draft.text })
+      setConflict(undefined)
+    } else if (typeof nowText === 'string' && nowText === text.current) {
       writeDraft(threadId, path, undefined)
       setConflict(undefined)
     } else if (

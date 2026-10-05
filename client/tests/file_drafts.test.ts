@@ -36,14 +36,18 @@ test('undo to the original base survives a save, including closing and reopening
   }
 })
 
-test('an undone draft becomes clean if the save fails', () => {
+test('an undone draft survives a conflict or lost save reply until disk is verified', () => {
   const registry = AtomRegistry.make()
   try {
     writeFileDraft(registry, 'failed-save', 'file', { base: 'A', text: 'B' })
     beginFileSave('failed-save', 'file')
     writeFileDraft(registry, 'failed-save', 'file', { base: 'A', text: 'A' })
     endFileSave(registry, 'failed-save', 'file')
-    expect(readFileDraft('failed-save', 'file')).toBeUndefined()
+    expect(readFileDraft('failed-save', 'file')).toEqual({ base: 'A', text: 'A', unverified: true })
+    writeFileDraft(registry, 'failed-save', 'file', readFileDraft('failed-save', 'file'))
+    expect(readFileDraft('failed-save', 'file')?.text).toBe('A')
+    settleFileDraft(registry, 'failed-save', 'file', 'C')
+    expect(readFileDraft('failed-save', 'file')).toEqual({ base: 'C', text: 'A' })
   } finally {
     registry.dispose()
   }
