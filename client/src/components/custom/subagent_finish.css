@@ -1,0 +1,119 @@
+/* A finished subagent's tab and hover-card row: the avatar shades to the outcome, then the tab
+   shrinks back toward the main tab and the row wipes back to its avatar as it closes (sketchpad
+   /components/subagent-finish, C1). */
+.finish-avatar {
+  transition: color 250ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .finish-tab {
+    --close: 260ms cubic-bezier(0.645, 0.045, 0.355, 1);
+    --leave: 120ms var(--ease-out) 140ms;
+    transition:
+      width var(--close),
+      min-width var(--close),
+      padding-inline var(--close),
+      margin-inline-end var(--close),
+      opacity var(--leave);
+  }
+  /* The slot closes in flow, so the tabs after it follow. The pill stays solid and gives up its
+     padding too, rather than let the next tab ride over it; the fade waits until it's mostly gone. */
+  .finish-tab[data-exit] {
+    width: 0;
+    min-width: 0;
+    padding-inline: 0;
+    margin-inline-end: -0.5rem;
+    overflow: hidden;
+    opacity: 0;
+  }
+}
+.finish-tab[data-exit] {
+  pointer-events: none;
+}
+.finish-tab[data-exit] .overflow-title {
+  flex: none;
+  width: var(--title-w);
+}
+
+/* Hover rows, "+N more" and the Subagents section close by their grid track, so the card's
+   measured height follows them down. Each wraps an unpadded box, which can close all the way. */
+.finish-row,
+.finish-more,
+.finish-section {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+:is(.finish-row, .finish-more, .finish-section) > * {
+  min-height: 0;
+}
+.finish-row,
+.finish-more[data-hidden] {
+  overflow-y: clip;
+}
+/* Rows wipe back to their avatar; every row carries the clip so the exit has something to tween
+   from. */
+.finish-row {
+  clip-path: inset(-4px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(.finish-row, .finish-more) {
+    --close: 220ms cubic-bezier(0.645, 0.045, 0.355, 1);
+    --leave: 120ms var(--ease-out) 140ms;
+    transition:
+      grid-template-rows var(--close),
+      clip-path var(--close),
+      opacity var(--leave);
+  }
+  .finish-row[data-exit] {
+    grid-template-rows: 0fr;
+    clip-path: inset(-4px calc(100% + 4px) -4px -4px);
+    opacity: 0;
+  }
+  /* A row promoted from "+N more" opens as the leaving one closes. */
+  @starting-style {
+    .finish-row[data-enter] {
+      grid-template-rows: 0fr;
+      opacity: 0;
+    }
+  }
+  .finish-section {
+    transition:
+      grid-template-rows 200ms var(--motion-sidebar-ease),
+      margin-top 200ms var(--motion-sidebar-ease),
+      opacity 150ms var(--ease-out);
+  }
+}
+.finish-row[data-exit],
+.finish-more[data-hidden] {
+  pointer-events: none;
+}
+.finish-more[data-hidden] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+/* The last row out takes the section with it, its gap above included. */
+.finish-section[data-hidden] {
+  grid-template-rows: 0fr;
+  margin-top: -0.375rem;
+  opacity: 0;
+}
+.finish-section[data-hidden] > * {
+  overflow: hidden;
+}
+
+/* Reduced motion keeps the beat and fades; the gap closes in one step once the fade is done. */
+@media (prefers-reduced-motion: reduce) {
+  .finish-tab,
+  .finish-row {
+    transition: opacity 150ms ease;
+  }
+  :is(.finish-tab, .finish-row)[data-exit] {
+    opacity: 0;
+  }
+  :is(.finish-more, .finish-section) {
+    transition:
+      opacity 150ms ease,
+      grid-template-rows 0s 150ms,
+      margin-top 0s 150ms;
+  }
+}

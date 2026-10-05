@@ -4,7 +4,7 @@ import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Atom } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
-import { threadAtom } from './threads'
+import { peekThread, threadAtom } from './threads'
 
 export const MAIN_TAB = 'main'
 
@@ -76,13 +76,14 @@ export function useSubagentTabs(threadId: string | undefined) {
   return useAtomValue(threadId ? subagentTabsAtom(threadId) : noTabs)
 }
 
-// How a subagent ended, read when its tab drops out of the list above.
+// How a subagent ended, read when it drops out of a running list (its tab, a hover card's row).
+// Only a loaded thread knows; asking never subscribes to one.
 export function useSubagentOutcome(threadId: string | undefined) {
   const registry = useContext(RegistryContext)
   return useCallback(
     (id: string): SubagentStatus | undefined => {
       if (!threadId) return undefined
-      const item = registry.get(threadAtom(threadId))?.items.find((entry) => entry.id === id)
+      const item = peekThread(registry, threadId)?.items.find((entry) => entry.id === id)
       return item?.kind === 'subagent' ? item.status : undefined
     },
     [registry, threadId]

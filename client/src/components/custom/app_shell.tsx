@@ -34,6 +34,7 @@ import { NewThreadBackdrop } from './new_thread_backdrop'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
+import { beatMs, exitMs, reducedExitMs } from './subagent_finish'
 import { subagentLabel } from './thread_rows'
 import { threadStatus, type ThreadStatus } from './thread_status'
 import { ThreadTab } from './thread_tab'
@@ -52,13 +53,6 @@ function subagentTabStatus(tab: SubagentTab): ThreadStatus {
 // A tab whose subagent ended out of view holds its done colour for a beat, then shrinks away.
 type StripTab = SubagentTab & { leaving?: 'beat' | 'pending' | 'exit'; titleWidth?: number }
 
-const beatMs: Record<Exclude<SubagentStatus, 'running'>, number> = {
-  completed: 500,
-  failed: 900,
-  stopped: 300,
-}
-const exitMs = 260
-const reducedExitMs = 150
 const wash = { duration: 600, delay: 120 }
 
 function staying(tab: StripTab) {

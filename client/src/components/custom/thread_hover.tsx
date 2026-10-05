@@ -1,3 +1,4 @@
+import type { SubagentStatus } from '@jetty/shared/items'
 import type { ProviderId, RunningSubagent } from '@jetty/shared/wire'
 
 import { DitherAvatar } from '@/components/dither-kit/avatar'
@@ -5,12 +6,19 @@ import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
 import { cn } from '@/lib/utils'
-import { useChrome, useOpenOverview, useOpenPullRequest, useThreadJourney } from '@/state'
+import {
+  useChrome,
+  useOpenOverview,
+  useOpenPullRequest,
+  useSubagentOutcome,
+  useThreadJourney,
+} from '@/state'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 import { animate, motionValue, type MotionValue } from 'motion'
+import { useReducedMotion } from 'motion/react'
 import {
   createContext,
   useCallback,
@@ -28,10 +36,12 @@ import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { RollingDuration } from './rolling_duration'
 import { threadPullRequests } from './sidebar_thread_groups'
+import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
 import { renderWorkingTitle } from './subagent_row'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
 import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { formatActivityDuration } from './work_model'
+import './subagent_finish.css'
 import './thread_hover.css'
 
 type ThreadLink = { id: string; title: string; status: ThreadStatus }
@@ -47,7 +57,7 @@ type ThreadHoverPanelProps = {
   parent?: ThreadLink
   pullRequests: readonly ThreadPullRequest[]
   childThreads: readonly (ThreadLink & { archived: boolean })[]
-  subagents: readonly RunningSubagent[]
+  subagents: readonly SubagentRow[]
   onOpenThread: (id: string) => void
   onOpenPullRequest: (pr: ThreadPullRequest) => void
   onOpenOverview: () => void
@@ -61,6 +71,120 @@ type SharedPreview = {
 const ThreadHoverContext = createContext<SharedPreview | null>(null)
 
 const listLimit = 4
+
+// A running subagent, or one that just ended: it holds its row in its done colour for a beat, then
+// the row closes, or the whole section does when it was the last (sketchpad
+// /components/subagent-finish, C1). How it ended is unknown when the thread isn't loaded.
+type SubagentRow = RunningSubagent & {
+  endedAt?: number
+  outcome?: Ended
+  exit?: 'row' | 'section'
+  // Not on show when the card opened, so it grows in.
+  enter?: boolean
+}
+
+const noSubagents: readonly RunningSubagent[] = []
+const sectionExitMs = 200
+
+function openingRows(running: readonly RunningSubagent[]): SubagentRow[] {
+  return running.map((agent, index) => (index < listLimit ? agent : { ...agent, enter: true }))
+}
+
+// Keep each row where it was; one that left the running list has ended.
+function settleRows(
+  rows: readonly SubagentRow[],
+  running: readonly RunningSubagent[],
+  outcome: (id: string) => SubagentStatus | undefined
+): SubagentRow[] {
+  const listed = new Map(running.map((agent) => [agent.id, agent]))
+  const endedAt = Date.now()
+  const next: SubagentRow[] = []
+  for (const row of rows) {
+    const agent = listed.get(row.id)
+    listed.delete(row.id)
+    if (agent) next.push(row.enter ? { ...agent, enter: true } : agent)
+    else if (row.endedAt !== undefined) next.push(row)
+    else {
+      const status = outcome(row.id)
+      next.push({ ...row, endedAt, outcome: status === 'running' ? undefined : status })
+    }
+  }
+  return [...next, ...[...listed.values()].map((agent) => ({ ...agent, enter: true }))]
+}
+
+// After its beat a row on show closes, taking the section with it when no other row is left; one
+// behind "+N more" just goes.
+function leaveRows(rows: readonly SubagentRow[], ids: readonly string[]): SubagentRow[] {
+  const leaving = (row: SubagentRow) =>
+    ids.includes(row.id) && row.endedAt !== undefined && !row.exit
+  const present = rows.filter((row) => !row.exit)
+  const shown = new Set(present.slice(0, listLimit).map((row) => row.id))
+  const last = present.every(leaving)
+  return rows.flatMap((row) => {
+    if (!leaving(row)) return [row]
+    return shown.has(row.id)
+      ? [{ ...row, exit: last ? ('section' as const) : ('row' as const) }]
+      : []
+  })
+}
+
+function useFinishingSubagents(threadId: string, running: readonly RunningSubagent[]) {
+  const outcome = useSubagentOutcome(threadId)
+  const reducedMotion = useReducedMotion()
+  const [state, setState] = useState(() => ({ threadId, running, rows: openingRows(running) }))
+  let rows = state.rows
+  if (state.threadId !== threadId || state.running !== running) {
+    rows =
+      state.threadId === threadId ? settleRows(state.rows, running, outcome) : openingRows(running)
+    setState({ threadId, running, rows })
+  }
+  const timers = useRef(new Map<string, number>())
+
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer)
+      pending.clear()
+    }
+  }, [threadId])
+
+  // Rows that ended together leave together: one timer per beat, then one per exit.
+  useEffect(() => {
+    const groups = new Map<string, { ms: number; beat: boolean; ids: string[] }>()
+    for (const row of rows) {
+      if (row.endedAt === undefined) continue
+      const beat = beatMs[row.outcome ?? 'stopped']
+      const key = `${row.exit ?? 'beat'}:${row.endedAt}:${beat}`
+      const ms = !row.exit
+        ? beat
+        : row.exit === 'section'
+          ? sectionExitMs
+          : reducedMotion
+            ? reducedExitMs
+            : exitMs
+      const group = groups.get(key) ?? { ms, beat: !row.exit, ids: [] }
+      group.ids.push(row.id)
+      groups.set(key, group)
+    }
+    for (const [key, group] of groups) {
+      if (timers.current.has(key)) continue
+      timers.current.set(
+        key,
+        window.setTimeout(() => {
+          timers.current.delete(key)
+          setState((current) => ({
+            ...current,
+            rows: group.beat
+              ? leaveRows(current.rows, group.ids)
+              : current.rows.filter((row) => !(row.exit && group.ids.includes(row.id))),
+          }))
+        }, group.ms)
+      )
+    }
+  }, [rows, reducedMotion])
+
+  return rows
+}
 
 // Threads that want you lead, then the ones still running.
 const childOrder: ThreadStatus[] = ['needs-attention', 'working']
@@ -243,6 +367,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const openOverview = useOpenOverview()
   const thread = chrome?.threads.find((candidate) => candidate.id === threadId)
   const checkout = useCheckout(thread?.environment === 'local' ? thread.projectId : undefined)
+  const subagents = useFinishingSubagents(threadId, thread?.runningSubagents ?? noSubagents)
   if (!chrome || !thread) return null
   const parent = chrome.threads.find((candidate) => candidate.id === thread.parentThreadId)
   const branch = threadBranch(thread)
@@ -266,7 +391,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
       }
       pullRequests={threadPullRequests(thread.pullRequests ?? []).pullRequests}
       childThreads={childThreads}
-      subagents={thread.runningSubagents ?? []}
+      subagents={subagents}
       onOpenThread={(id) => {
         startThreadJourney(id)
         void navigate({ to: '/threads/$threadId', params: { threadId: id } })
@@ -340,10 +465,7 @@ function ThreadHoverPanel({
         </Section>
       )}
       {subagents.length > 0 && (
-        <Section label='Subagents'>
-          <SubagentRows subagents={subagents.slice(0, listLimit)} />
-          <More count={subagents.length - listLimit} onPress={onOpenOverview} />
-        </Section>
+        <SubagentSection subagents={subagents} onOpenOverview={onOpenOverview} />
       )}
     </div>
   )
@@ -430,26 +552,105 @@ function More({ count, onPress }: { count: number; onPress: () => void }) {
   )
 }
 
-function SubagentRows({ subagents }: { subagents: readonly RunningSubagent[] }) {
+const outcomeLabels: Record<Ended, string> = {
+  completed: 'Completed',
+  failed: 'Failed',
+  stopped: 'Stopped',
+}
+
+// The avatar keeps the accent while it runs, then shades to green, red, or grey for a stop (or an
+// ending the card can't see).
+const avatarColor: Record<Ended | 'running', string> = {
+  running: 'text-primary',
+  completed: 'text-status-success',
+  failed: 'text-status-error-glyph',
+  stopped: 'text-muted-foreground',
+}
+
+const endedTitle = (text: string) => <span className='text-muted-foreground'>{text}</span>
+const failedTitle = (text: string) => <span className='text-status-error'>{text}</span>
+
+function SubagentSection({
+  subagents,
+  onOpenOverview,
+}: {
+  subagents: readonly SubagentRow[]
+  onOpenOverview: () => void
+}) {
+  const present = subagents.filter((agent) => !agent.exit)
+  const shown = new Set(present.slice(0, listLimit).map((agent) => agent.id))
+  const more = Math.max(0, present.length - listLimit)
+  // "+N more" keeps its count while it closes.
+  const [lastMore, setLastMore] = useState(more)
+  if (more > 0 && more !== lastMore) setLastMore(more)
+  return (
+    <div className='finish-section' data-hidden={present.length ? undefined : ''}>
+      <div>
+        <Section label='Subagents'>
+          <SubagentRows
+            subagents={subagents.filter((agent) => agent.exit || shown.has(agent.id))}
+          />
+          <div className='finish-more' data-hidden={more ? undefined : ''} inert={!more}>
+            <div>
+              <Row onPress={onOpenOverview}>
+                <span className='pl-5 text-muted-foreground'>+{more || lastMore} more</span>
+              </Row>
+            </div>
+          </div>
+        </Section>
+      </div>
+    </div>
+  )
+}
+
+function SubagentRows({ subagents }: { subagents: readonly SubagentRow[] }) {
   const { now, ticked } = useClock()
   return subagents.map((agent) => {
-    const seconds = Math.max(0, Math.floor((now - agent.startedAt) / 1000))
+    const ended = agent.endedAt !== undefined
+    const seconds = Math.max(0, Math.floor(((agent.endedAt ?? now) - agent.startedAt) / 1000))
+    const duration = formatActivityDuration(seconds)
     return (
-      <div key={agent.id} data-overflow-hover className={rowClass}>
-        <DitherAvatar
-          name={agent.id}
-          mirror='horizontal'
-          animate={false}
-          color='var(--primary)'
-          className='size-3 shrink-0'
-        />
-        <RowTitle renderText={renderWorkingTitle}>{agent.title}</RowTitle>
-        <span
-          className='shrink-0 text-muted-foreground'
-          aria-label={`Running for ${formatActivityDuration(seconds)}`}
-        >
-          <RollingDuration seconds={seconds} still={!ticked} />
-        </span>
+      <div
+        key={agent.id}
+        className='finish-row'
+        data-exit={agent.exit === 'row' ? '' : undefined}
+        data-enter={agent.enter || undefined}
+      >
+        <div>
+          <div data-overflow-hover className={rowClass}>
+            <span
+              className={cn(
+                'flex shrink-0 items-center',
+                avatarColor[ended ? (agent.outcome ?? 'stopped') : 'running']
+              )}
+            >
+              <DitherAvatar
+                name={agent.id}
+                mirror='horizontal'
+                animate={false}
+                color='currentColor'
+                className='finish-avatar size-3'
+              />
+            </span>
+            <RowTitle
+              renderText={
+                !ended ? renderWorkingTitle : agent.outcome === 'failed' ? failedTitle : endedTitle
+              }
+            >
+              {agent.title}
+            </RowTitle>
+            <span
+              className='shrink-0 text-muted-foreground'
+              aria-label={
+                ended
+                  ? `${agent.outcome ? outcomeLabels[agent.outcome] : 'Ended'} after ${duration}`
+                  : `Running for ${duration}`
+              }
+            >
+              <RollingDuration seconds={seconds} still={!ticked} />
+            </span>
+          </div>
+        </div>
       </div>
     )
   })

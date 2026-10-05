@@ -54,6 +54,19 @@ export const threadAtom = Atom.family((threadId: string) =>
   })
 )
 
+// A thread's state while it's loaded or cached, read without subscribing to it.
+export function peekThread(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string
+): ThreadState | undefined {
+  const nodes = registry.getNodes()
+  const live: AsyncResult.AsyncResult<ThreadState, unknown> | undefined = nodes
+    .get(liveAtom(threadId))
+    ?.value()
+  if (live && AsyncResult.isSuccess(live)) return live.value
+  return nodes.get(resumeAtom(threadId))?.value()
+}
+
 function startThreadJourney(registry: AtomRegistry.AtomRegistry, threadId: string) {
   const live = registry.getNodes().get(liveAtom(threadId))?.value()
   perf.threadClick(

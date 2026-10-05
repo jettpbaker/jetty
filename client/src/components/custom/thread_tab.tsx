@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 
 import { OverflowTitle } from './overflow_title'
-import './thread_tab.css'
+import './subagent_finish.css'
 
 const subagentGlyphColor: Record<ThreadStatus, string> = {
   monitoring: 'text-muted-foreground',
