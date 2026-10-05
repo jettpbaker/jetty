@@ -207,6 +207,23 @@ export function useProjectFile(threadId: string, path: string) {
   }
 }
 
+// Lists one folder of the thread's working folder ('' is its top).
+export function useFolderReader(threadId: string) {
+  const registry = useContext(RegistryContext)
+  return useCallback(
+    (path: string) =>
+      Effect.runPromise(
+        AtomRegistry.getResult(registry, connectionAtom).pipe(
+          Effect.flatMap((connection) =>
+            connection.request('thread.readDirectory', { threadId, path })
+          ),
+          Effect.map(({ entries }) => entries)
+        )
+      ),
+    [registry, threadId]
+  )
+}
+
 const fileSearchAtom = Atom.family((key: string) => {
   const [projectId = '', threadId = '', query = ''] = key.split('\0')
   const params = { projectId, threadId, query, limit: 50 }
@@ -217,8 +234,9 @@ const fileSearchAtom = Atom.family((key: string) => {
   ).pipe(Atom.setIdleTTL('1 minute'))
 })
 
-// The tracked files in the thread's working folder that fuzzy-match the query, best first. The last
-// list stays while the next one loads, so typing never blanks it; `fresh` says it's this query's.
+// The files git doesn't ignore in the thread's working folder that fuzzy-match the query, best
+// first. The last list stays while the next one loads, so typing never blanks it; `fresh` says
+// it's this query's.
 export function useFileSearch(projectId: string, threadId: string, query: string) {
   const result = useAtomValue(fileSearchAtom(`${projectId}\0${threadId}\0${query}`))
   const [shown, setShown] = useState<readonly string[]>()

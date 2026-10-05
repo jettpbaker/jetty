@@ -42,7 +42,7 @@ export const keybinds = {
   effort: { hotkey: 'Mod+Alt+E', label: '⌥⌘E', name: 'Effort', modifiers: ['Alt', 'Meta'] },
   access: { hotkey: 'Mod+Alt+A', label: '⌥⌘A', name: 'Access mode', modifiers: ['Alt', 'Meta'] },
   save: { hotkey: 'Mod+S', label: '⌘S', name: 'Save file', modifiers: ['Meta'] },
-  openFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Open file', modifiers: ['Meta'] },
+  findFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Find a file', modifiers: ['Meta'] },
   threads: Array.from(
     { length: 9 },
     (_, index): Keybind => ({

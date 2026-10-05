@@ -1,4 +1,4 @@
-import type { GitStatus } from '@pierre/trees'
+import type { FileTreeVisibleRow, GitStatus } from '@pierre/trees'
 
 import { charmedFolderNames, charmedFolderSymbols } from '@/components/custom/charmed_folders'
 import {
@@ -96,6 +96,19 @@ const treeUnsafeCSS = [
   '[data-item-git-status] > [data-item-section="content"] { color: inherit; }',
   '[data-item-section="git"] { font-size: var(--text-xs); }',
 ].join('\n')
+const namesRowHeight = 28
+
+// The Changes tree's look, Charmed icons on Linear's rows, for a tree that isn't of changes.
+export const charmedTree = {
+  itemHeight: namesRowHeight,
+  unsafeCSS: [treeUnsafeCSS, namesUnsafeCSS, charmedFolderUnsafeCSS].join('\n'),
+  icons: charmedIcons,
+  folderDecoration: (row: FileTreeVisibleRow) => ({
+    icon: charmedIcon(
+      charmedFolder(row.flattenedSegments?.at(-1)?.name ?? row.name, row.isExpanded)
+    ),
+  }),
+}
 
 export function ChangedFilesTree({
   files,
@@ -129,7 +142,7 @@ export function ChangedFilesTree({
     paths: files.map((file) => file.path),
     initialExpansion: 'open',
     flattenEmptyDirectories: true,
-    itemHeight: markers === 'names' ? 28 : treeRowHeight,
+    itemHeight: markers === 'names' ? namesRowHeight : treeRowHeight,
     icons: icons === 'charmed' ? charmedIcons([...paths]) : builtInIcons,
     unsafeCSS: [
       treeUnsafeCSS,
@@ -142,14 +155,8 @@ export function ChangedFilesTree({
     initialSelectedPaths: selected ? [selected] : [],
     gitStatus: files.map(({ path, status }) => ({ path, status })),
     renderRowDecoration: ({ row }) => {
-      if (row.kind === 'directory') {
-        if (icons !== 'charmed') return null
-        return {
-          icon: charmedIcon(
-            charmedFolder(row.flattenedSegments?.at(-1)?.name ?? row.name, row.isExpanded)
-          ),
-        }
-      }
+      if (row.kind === 'directory')
+        return icons === 'charmed' ? charmedTree.folderDecoration(row) : null
       const lines = counts?.[row.path]
       if (lines) {
         const parts = [

@@ -3,6 +3,7 @@ import type { PullRequestLink } from '@jetty/shared/wire'
 import {
   BubbleChatIcon,
   File01Icon,
+  Files01Icon,
   HierarchySquare01Icon,
   LeftToRightListBulletIcon,
   Link01Icon,
@@ -32,7 +33,6 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
-  useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -42,7 +42,6 @@ import {
 } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { FilePicker } from './file_picker'
 import { KeybindChip, keybinds } from './keybinds'
 import { LinkPullRequestDialog } from './pull_request_link'
 import { linkPresentation } from './thread_pull_request'
@@ -51,12 +50,17 @@ const tabs = {
   chat: { label: 'Chat', Icon: BubbleChatIcon },
   overview: { label: 'Overview', Icon: LeftToRightListBulletIcon },
   changes: { label: 'Changes', Icon: DiffIcon },
+  files: { label: 'Files', Icon: Files01Icon },
   threads: { label: 'Threads', Icon: HierarchySquare01Icon },
 }
 type TabId = keyof typeof tabs
 // Selects a tab, reopening it first if the user had closed it.
 export type DetailsTabsHandle = { show: (id: TabId) => void }
-const sortableIds: TabId[] = ['overview', 'changes', 'threads']
+const sortableIds: TabId[] = ['overview', 'changes', 'files', 'threads']
+// Files opens from the + menu or ⌘P, so it starts closed.
+const closedAtFirst: TabId[] = ['files']
+// Changes and Files read the project's git checkout.
+const needsGit = new Set<TabId>(['changes', 'files'])
 const storageKey = 'jetty.details-tabs'
 const sensors = [
   PointerSensor.configure({
@@ -80,15 +84,19 @@ function loadState(): { order: TabId[]; closed: TabId[] } {
     ) {
       const { order, closed } = saved as { order: unknown[]; closed: unknown[] }
       const known = order.filter((id): id is TabId => sortableIds.includes(id as TabId))
+      const added = sortableIds.filter((id) => !known.includes(id))
       return {
         order: [...new Set([...known, ...sortableIds])],
-        closed: closed.filter((id): id is TabId => typeof id === 'string' && id in tabs),
+        closed: [
+          ...closed.filter((id): id is TabId => typeof id === 'string' && id in tabs),
+          ...added.filter((id) => closedAtFirst.includes(id)),
+        ],
       }
     }
   } catch {
     // A corrupt saved order falls back to the default.
   }
-  return { order: sortableIds, closed: [] }
+  return { order: sortableIds, closed: closedAtFirst }
 }
 
 export type PullRequestTabs = {
@@ -105,10 +113,9 @@ export function ThreadDetailsTabs({
   threadCount,
   pullRequests,
   file,
-  filePicker,
   value,
   onValueChange,
-  changesDisabled,
+  gitDisabled,
 }: {
   ref?: Ref<DetailsTabsHandle>
   chat?: boolean
@@ -116,22 +123,14 @@ export function ThreadDetailsTabs({
   threadCount: number
   pullRequests: PullRequestTabs
   file?: { path: string; dirty: boolean; onClose: () => void }
-  // Finding a project file to open in the file tab, from this bar's + menu or ⌘P.
-  filePicker?: {
-    projectId: string
-    threadId: string
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onPick: (path: string) => void
-  }
   value: string
   onValueChange: (value: string) => void
-  changesDisabled?: string
+  // Why Changes and Files can't open.
+  gitDisabled?: string
 }) {
   const [{ order, closed }, setState] = useState(loadState)
   const [announcement, setAnnouncement] = useState('')
   const [linking, setLinking] = useState(false)
-  const plus = useRef<HTMLButtonElement>(null)
   const closedSet = new Set(closed)
   const chatOpen = chat && !closedSet.has('chat')
   const available = order.filter((id) => id !== 'threads' || threadCount > 0)
@@ -242,7 +241,7 @@ export function ThreadDetailsTabs({
             id={id}
             index={index}
             count={id === 'threads' ? threadCount : undefined}
-            disabledReason={id === 'changes' ? changesDisabled : undefined}
+            disabledReason={needsGit.has(id) ? gitDisabled : undefined}
             canClose={canClose}
             onMove={reorder}
             onClose={closeTab}
@@ -292,9 +291,7 @@ export function ThreadDetailsTabs({
         )}
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <Button ref={plus} variant='ghost' size='icon-sm' className='shrink-0 rounded-sm' />
-            }
+            render={<Button variant='ghost' size='icon-sm' className='shrink-0 rounded-sm' />}
             aria-label='Open tab'
           >
             <PlusSignIcon />
@@ -316,16 +313,12 @@ export function ThreadDetailsTabs({
                 >
                   <Icon />
                   {label}
+                  {id === 'files' && (
+                    <KeybindChip binding={keybinds.findFile} className='ml-auto' />
+                  )}
                 </DropdownMenuCheckboxItem>
               )
             })}
-            {filePicker && (
-              <DropdownMenuItem onClick={() => filePicker.onOpenChange(true)}>
-                <File01Icon />
-                Open file…
-                <KeybindChip binding={keybinds.openFile} className='ml-auto' />
-              </DropdownMenuItem>
-            )}
             <DropdownMenuSeparator />
             {pullRequests.links.map((link) => {
               const pr = linkPresentation(link)
@@ -355,7 +348,6 @@ export function ThreadDetailsTabs({
       </TabsList>
       <output className='sr-only'>{announcement}</output>
       <LinkPullRequestDialog threadId={threadId} open={linking} onOpenChange={setLinking} />
-      {filePicker && <FilePicker anchor={plus} {...filePicker} />}
     </DragDropProvider>
   )
 }

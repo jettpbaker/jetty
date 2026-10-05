@@ -13,7 +13,7 @@ export function FileGlyph({ file }: { file: DiffFile }) {
     </span>
   )
 }
-function CharmedFileIcon({ path }: { path: string }) {
+export function CharmedFileIcon({ path }: { path: string }) {
   const name = (path.split('/').at(-1) ?? path).toLowerCase()
   let icon = Object.hasOwn(charmedFileNames, name) ? charmedFileNames[name] : undefined
   if (!icon) {

@@ -7,6 +7,7 @@ export {
   defaultDiffScope,
   useDiffFileLoader,
   useFileSearch,
+  useFolderReader,
   useProjectFile,
   useSaveProjectFile,
   useThreadDiff,

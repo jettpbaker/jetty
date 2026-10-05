@@ -44,6 +44,7 @@ import { LivePullRequestView } from './pull_request_view'
 import { ThreadChanges, useThreadChangesPrefetch } from './thread_changes'
 import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
 import { ThreadFile } from './thread_file'
+import { ThreadFiles } from './thread_files'
 import { ThreadOverview, useHasOverview } from './thread_overview'
 import './thread_details_layout.css'
 
@@ -97,18 +98,19 @@ export function ThreadDetailsLayout({
   const [pickedTab, setTab] = useState('changes')
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
   const git = useProjectGit(meta?.projectId)?.git
-  const changesDisabled =
+  const gitDisabled =
     git === 'not-git'
       ? 'Not a git repository'
       : git === 'missing'
         ? 'Project folder not found'
         : undefined
-  // Changes needs git, so those projects open on Overview.
-  const tab = changesDisabled && pickedTab === 'changes' ? 'overview' : pickedTab
+  // Changes and Files need git, so those projects open on Overview.
+  const tab =
+    gitDisabled && (pickedTab === 'changes' || pickedTab === 'files') ? 'overview' : pickedTab
   // An open pane has Changes mounted already.
   useThreadChangesPrefetch(
     threadId,
-    meta && !open && !changesDisabled ? defaultDiffScope(meta) : undefined,
+    meta && !open && !gitDisabled ? defaultDiffScope(meta) : undefined,
     meta?.turnEndedAt
   )
   const tabs = useRef<DetailsTabsHandle>(null)
@@ -180,7 +182,7 @@ export function ThreadDetailsLayout({
     (target: FileTarget) => {
       const path = projectPath && projectRelativePath(target.path, projectPath)
       if (!path) return false
-      if (changesDisabled) {
+      if (gitDisabled) {
         showFile({ threadId, target: { ...target, path } })
         setTab('file')
       } else {
@@ -188,13 +190,13 @@ export function ThreadDetailsLayout({
         tabs.current?.show('changes')
       }
       if (!open) {
-        openingTab.current = changesDisabled ? 'file' : 'changes'
+        openingTab.current = gitDisabled ? 'file' : 'changes'
         if (root.current) setAvailable(root.current.clientWidth)
         setOpen(true)
       }
       return true
     },
-    [projectPath, threadId, open, changesDisabled, showFile]
+    [projectPath, threadId, open, gitDisabled, showFile]
   )
 
   const settleFile = useCallback(
@@ -214,15 +216,13 @@ export function ThreadDetailsLayout({
     },
     [threadId, showFile]
   )
-  const [findingFile, setFindingFile] = useState(false)
   const projectId = meta?.projectId
-  const filePicker = useMemo(
-    () =>
-      projectId && !changesDisabled
-        ? { projectId, threadId, open: findingFile, onOpenChange: setFindingFile, onPick: editFile }
-        : undefined,
-    [projectId, threadId, changesDisabled, findingFile, editFile]
-  )
+  // ⌘P's requests for Files' search, counted.
+  const [findFile, setFindFile] = useState(0)
+  // Files mounts once it's shown for this thread, and stays while the thread does.
+  const [filesShownFor, setFilesShownFor] = useState<string>()
+  if (open && tab === 'files' && filesShownFor !== threadId) setFilesShownFor(threadId)
+  const filesShown = filesShownFor === threadId
 
   // A just-linked PR's tab can be requested before the thread's links include it.
   const requestShown =
@@ -251,13 +251,17 @@ export function ThreadDetailsLayout({
     { requireReset: true, ignoreInputs: false }
   )
   useHotkey(
-    keybinds.openFile.hotkey,
+    keybinds.findFile.hotkey,
     (event) => {
       if (inDialog(event)) return
-      if (!open) toggle()
-      setFindingFile(true)
+      tabs.current?.show('files')
+      setFindFile((count) => count + 1)
+      if (open) return
+      openingTab.current = 'files'
+      if (root.current) setAvailable(root.current.clientWidth)
+      setOpen(true)
     },
-    { enabled: !!filePicker, requireReset: true, ignoreInputs: false }
+    { enabled: !gitDisabled, requireReset: true, ignoreInputs: false }
   )
 
   useLayoutEffect(() => {
@@ -354,10 +358,9 @@ export function ThreadDetailsLayout({
                   onClose: () => showFile(undefined),
                 }
               }
-              filePicker={filePicker}
               value={tab}
               onValueChange={setTab}
-              changesDisabled={changesDisabled}
+              gitDisabled={gitDisabled}
             />
           </div>
           {!narrow && (
@@ -422,6 +425,24 @@ export function ThreadDetailsLayout({
                 ) : (
                   <Loading />
                 ))}
+            </TabsContent>
+            <TabsContent
+              keepMounted
+              value='files'
+              inert={tab !== 'files'}
+              aria-hidden={tab !== 'files'}
+              className='details-tab-panel'
+            >
+              {open && ready && filesShown && projectId && (
+                <ThreadFiles
+                  key={threadId}
+                  threadId={threadId}
+                  projectId={projectId}
+                  openPath={viewedFile?.path}
+                  find={findFile}
+                  onOpen={editFile}
+                />
+              )}
             </TabsContent>
             <TabsContent
               keepMounted
@@ -496,8 +517,10 @@ export function ThreadDetailsLayout({
       showFile,
       settleFile,
       editFile,
-      filePicker,
-      changesDisabled,
+      gitDisabled,
+      projectId,
+      findFile,
+      filesShown,
     ]
   )
 
