@@ -145,15 +145,15 @@ export function RestartSeam({ label = 'Jetty restarted' }: { label?: string }) {
 export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resumed: boolean }) {
   const continuing = useContinuing(threadId)
   const continueThread = useContinueThread()
+  const done = resumed || continuing
   return (
     <ChatSeam>
-      <SeamIcon icon={PauseIcon} />
+      <SeamIcon icon={done ? Tick02Icon : PauseIcon} />
       <span className='truncate'>
-        Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes
+        {done ? 'Resumed' : 'Paused'} after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000}{' '}
+        minutes
       </span>
-      {resumed || continuing ? (
-        <span className='px-1'>Resumed</span>
-      ) : (
+      {done ? null : (
         <ChatSeamAction onClick={() => continueThread(threadId)}>Resume</ChatSeamAction>
       )}
     </ChatSeam>

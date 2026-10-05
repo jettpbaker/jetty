@@ -237,14 +237,14 @@ export function Composer({
                         <InputGroupButton
                           variant='default'
                           size='icon-sm'
-                          aria-label='Continue'
+                          aria-label='Resume'
                           onClick={onContinue}
                         />
                       }
                     >
                       <PlayIcon filled />
                     </TooltipTrigger>
-                    <TooltipContent>Continue</TooltipContent>
+                    <TooltipContent>Resume</TooltipContent>
                   </Tooltip>
                 ) : (
                   <Tooltip>
