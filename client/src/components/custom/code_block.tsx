@@ -182,7 +182,7 @@ function WorkerCodeBlock({
         </span>
         <pre
           className={cn(
-            'scrollbar-subtle min-w-0 flex-1 overflow-x-auto',
+            'scrollbar-subtle scroll-fade-x min-w-0 flex-1 overflow-x-auto',
             wrapped && 'whitespace-pre-wrap wrap-anywhere'
           )}
         >
@@ -206,7 +206,7 @@ function WorkerCodeBlock({
       <pre
         ref={body}
         className={cn(
-          'scrollbar-subtle overflow-x-auto px-3 py-2.5 text-xs leading-5',
+          'scrollbar-subtle scroll-fade-x overflow-x-auto px-3 py-2.5 text-xs leading-5',
           capped && 'overflow-y-auto',
           wrapped && 'whitespace-pre-wrap wrap-anywhere'
         )}
