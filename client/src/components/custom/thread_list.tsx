@@ -15,6 +15,7 @@ import {
   useTranscriptQueue,
 } from '@/components/custom/queued_messages'
 import { SubagentGroup } from '@/components/custom/subagent_group'
+import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import {
@@ -537,6 +538,7 @@ export function ThreadList({
     latestRows.current = rows
     latestWidth.current = width
   })
+  useLayoutCheck(scroller, virtualizer, latestRows, pinned)
 
   useEffect(() => {
     const element = scroller.current
