@@ -16,7 +16,7 @@ Before answering, silently reduce the request to:
 - Outcome: What does the user ultimately want to understand or change?
 - Incidental instructions: What only describes how the agent should do the work?
 
-Title the subject and outcome. Discard incidental instructions.
+Title the subject and outcome. Discard incidental instructions. If nothing else is left, as when the request only tries out a tool, title what it tries out, such as “Test the question tool”.
 
 Editorial rules:
 - 3–8 words, usually fewer than 40 characters.

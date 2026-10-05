@@ -85,7 +85,9 @@ const createInput = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe('Sidebar title. Generated from the prompt when omitted.'),
+    .describe(
+      'Sidebar title: a few words naming what the thread is for. You know its purpose better than a title generated from the prompt, which is the fallback.'
+    ),
   provider: z.enum(['claude', 'codex', 'grok']).optional(),
   model: z
     .string()
