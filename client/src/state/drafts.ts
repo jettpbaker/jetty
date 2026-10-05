@@ -5,7 +5,7 @@ import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel } from '@jetty/shared/events'
 import { ProviderId, UploadAttachment } from '@jetty/shared/wire'
-import { Schema } from 'effect'
+import { Equal, Schema } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 
@@ -333,43 +333,72 @@ export function stageSend(registry: Registry, key: string | undefined, sending: 
   }
 }
 
+type UnsureSend = { key: string; entry: Sending; known: boolean; queued: boolean }
+
+// Each new message a reload cut off, and whether the server knows its thread or holds it queued.
+// Equal while those hold, so a chrome push doesn't restart the watches.
+const unsureSendsAtom = Atom.readable((get): readonly UnsureSend[] | undefined => {
+  const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
+  if (!chrome) return undefined
+  const sends: UnsureSend[] = []
+  for (const [key, draft] of get(draftsAtom))
+    for (const entry of draft.unsure ?? []) {
+      const { threadId, messageId } = entry.sent!
+      const thread = chrome.threads.find((candidate) => candidate.id === threadId)
+      const queued = thread?.pendingMessages?.some((message) => message.id === messageId) ?? false
+      sends.push({ key, entry, known: thread !== undefined, queued })
+    }
+  return sends
+}).pipe(Atom.withEquality(sameSends))
+
+function sameSends(a?: readonly UnsureSend[], b?: readonly UnsureSend[]) {
+  return (
+    a === b ||
+    (a?.length === b?.length &&
+      (a ?? []).every((send, index) => {
+        const other = b![index]!
+        return (
+          send.key === other.key &&
+          send.entry === other.entry &&
+          send.known === other.known &&
+          send.queued === other.queued
+        )
+      }))
+  )
+}
+
 // A new message a reload cut off goes back to its composer unless the server has it: waiting in
 // the thread's queue, or in the thread once that has loaded.
 export function useSettleUnsureSends() {
   const registry = useContext(RegistryContext)
-  const live = useAtomValue(liveAtom)
+  const sends = useAtomValue(unsureSendsAtom)
   useEffect(() => {
-    const chrome = AsyncResult.getOrElse(live, () => undefined)
-    if (!chrome) return
+    if (!sends) return
     const watches: (() => void)[] = []
-    for (const [key, draft] of registry.get(draftsAtom))
-      for (const entry of draft.unsure ?? []) {
-        const { threadId, messageId } = entry.sent!
-        const thread = chrome.threads.find((candidate) => candidate.id === threadId)
-        if (!thread) settleUnsure(registry, key, entry, true)
-        else if (thread.pendingMessages?.some((message) => message.id === messageId))
-          settleUnsure(registry, key, entry, false)
-        else
-          watches.push(
-            registry.subscribe(
-              threadAtom(threadId),
-              (state) => {
-                if (state)
-                  settleUnsure(
-                    registry,
-                    key,
-                    entry,
-                    !state.items.some((item) => item.id === messageId)
-                  )
-              },
-              { immediate: true }
-            )
+    for (const { key, entry, known, queued } of sends) {
+      const { threadId, messageId } = entry.sent!
+      if (!known || queued) settleUnsure(registry, key, entry, !known)
+      else
+        watches.push(
+          registry.subscribe(
+            threadAtom(threadId),
+            (state) => {
+              if (state)
+                settleUnsure(
+                  registry,
+                  key,
+                  entry,
+                  !state.items.some((item) => item.id === messageId)
+                )
+            },
+            { immediate: true }
           )
-      }
+        )
+    }
     return () => {
       for (const stop of watches) stop()
     }
-  }, [live, registry])
+  }, [sends, registry])
 }
 
 function settleUnsure(registry: Registry, key: string, entry: Sending, restore: boolean) {
@@ -381,26 +410,32 @@ function settleUnsure(registry: Registry, key: string, entry: Sending, restore: 
   if (restore) restoreDraft(registry, key, entry)
 }
 
+// By value, so only a thread or draft coming or going runs the cleanup below.
+const serverThreadIdsAtom = Atom.readable((get) => {
+  const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
+  return chrome && new Set(chrome.threads.map((thread) => thread.id))
+}).pipe(Atom.withEquality(Equal.equals))
+const draftKeysAtom = Atom.readable((get) => new Set(get(draftsAtom).keys())).pipe(
+  Atom.withEquality(Equal.equals)
+)
+
 // A thread gone from the server takes its draft with it. One hidden in an undo window (its own
 // delete or its project's) is still on the server, so it keeps its draft until the delete commits.
 export function useForgetDeletedDrafts() {
   const registry = useContext(RegistryContext)
-  const live = useAtomValue(liveAtom)
+  const threads = useAtomValue(serverThreadIdsAtom)
   const created = useAtomValue(createdThreadsAtom)
+  const keys = useAtomValue(draftKeysAtom)
   useEffect(() => {
-    const chrome = AsyncResult.getOrElse(live, () => undefined)
-    if (!chrome) return
-    const threads = new Set(chrome.threads.map((thread) => thread.id))
-    const gone = [...registry.get(draftsAtom).keys()].filter(
-      (key) => key && !threads.has(key) && !created.has(key)
-    )
+    if (!threads) return
+    const gone = [...keys].filter((key) => key && !threads.has(key) && !created.has(key))
     if (!gone.length) return
     registry.update(draftsAtom, (drafts) => without(drafts, gone))
     for (const key of gone) {
       writeStored(textsKey, key, undefined)
       writeStored(imagesKey, key, undefined)
     }
-  }, [live, created, registry])
+  }, [threads, created, keys, registry])
 }
 
 export function useDraft(key: string) {
