@@ -77,6 +77,14 @@ const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNo
 
 const openedRows: Partial<Record<PullRequestListTab, string>> = {}
 
+const compactLines = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 })
+
+// Whole thousands from 10k keep the widest count ("+9999 −9999") inside its column.
+function formatLines(lines: number | undefined) {
+  if (lines === undefined) return '—'
+  return lines < 10_000 ? String(lines) : compactLines.format(lines).toLowerCase()
+}
+
 export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const { list, refreshing } = usePullRequestList(tab)
   const refresh = useRefreshPullRequestList()
@@ -205,9 +213,12 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       priority: 20,
       width: 98,
       render: (pull) => (
-        <span className='ml-auto flex gap-2 font-mono text-xs tabular-nums'>
-          <span className='text-pr-open'>+{pull.additions ?? '—'}</span>
-          <span className='text-destructive'>−{pull.deletions ?? '—'}</span>
+        <span
+          className='ml-auto flex gap-2 font-mono text-xs tabular-nums'
+          title={`+${pull.additions ?? '—'} −${pull.deletions ?? '—'}`}
+        >
+          <span className='text-pr-open'>+{formatLines(pull.additions)}</span>
+          <span className='text-destructive'>−{formatLines(pull.deletions)}</span>
         </span>
       ),
     },
