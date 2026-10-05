@@ -87,7 +87,9 @@ export function createRpcHandlers(
     codex: 'loading',
     grok: 'loading',
   }),
-  getProviderUsage: () => Effect.Effect<readonly ProviderUsage[]> = () => Effect.succeed([])
+  getProviderUsage: (provider: ProviderUsage['provider']) => Effect.Effect<ProviderUsage> = (
+    provider
+  ) => Effect.succeed({ provider, connected: false, windows: [] })
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -208,7 +210,7 @@ export function createRpcHandlers(
           )
           .pipe(Effect.as(null), Effect.mapError(wireError)),
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
-      'settings.providerUsage': () => getProviderUsage(),
+      'settings.providerUsage': ({ provider }) => getProviderUsage(provider),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
       'settings.setTitleModel': (choice) =>
         mutation(

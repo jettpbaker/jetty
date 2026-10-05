@@ -43,6 +43,7 @@ import {
   useRefreshPullRequestListsOnArrival,
 } from '@/state'
 import { threadTreeIds } from '@/state/chrome'
+import { usePrefetchProviderUsage } from '@/state/provider-usage'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
@@ -121,6 +122,7 @@ export function AppSidebar() {
     storage.set(viewKey, JSON.stringify(next))
   }
   const prefetch = useThreadRowPrefetch()
+  const prefetchUsage = usePrefetchProviderUsage()
   const openPullRequest = useOpenPullRequest()
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
@@ -474,6 +476,7 @@ export function AppSidebar() {
                 className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
                 aria-label='Usage'
                 aria-current={onUsage ? 'page' : undefined}
+                onPointerEnter={prefetchUsage}
                 {...pressProps(() => void navigate({ to: '/usage' }))}
               />
             }

@@ -40,7 +40,7 @@ import {
   useThreadLoadout,
   useVisibleQueue,
 } from '@/state'
-import { useProviderUsage } from '@/state/provider-usage'
+import { usageFreshMs, useProviderUsage } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -120,12 +120,13 @@ export function ThreadComposer({
   const needsModel = !threadId && !loadout
   const [usageOpen, setUsageOpen] = useState(false)
   const usage = useProviderUsage()
-  const usageNow = Math.max(useNow(60_000, usageOpen), usage.updatedAt ?? 0)
   const usageProvider = lockedProvider ?? loadout?.provider
+  const usageRead = usageProvider && usage.reads[usageProvider]
+  const usageNow = Math.max(useNow(60_000, usageOpen), usageRead ? usageRead.at : 0)
   const usageBanner = usageOpen && usageProvider && (
     <UsageBanner
       provider={usageProvider}
-      usage={usage.usage.find((entry) => entry.provider === usageProvider)}
+      usage={usageRead ? usageRead.usage : undefined}
       now={usageNow}
       onOpen={() => void navigate({ to: '/usage' })}
       onDismiss={() => setUsageOpen(false)}
@@ -133,7 +134,7 @@ export function ThreadComposer({
   )
   function showUsage() {
     setUsageOpen(true)
-    usage.refresh()
+    if (usageProvider) usage.refresh([usageProvider], usageFreshMs)
   }
 
   const pending = useMemo(

@@ -15,6 +15,7 @@ import {
   useThreadTab,
   type SubagentTab,
 } from '@/state'
+import { useWarmProviderUsage } from '@/state/provider-usage'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useMatches, useNavigate, useParams } from '@tanstack/react-router'
 import { useReducedMotion } from 'motion/react'
@@ -265,6 +266,7 @@ function Workspace({
   useForgetDeletedDrafts()
   useSettleUnsureSends()
   useConnectionNotice()
+  useWarmProviderUsage()
 
   useHotkey(
     keybinds.settings.hotkey,

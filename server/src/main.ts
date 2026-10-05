@@ -471,20 +471,16 @@ function createServer(opts: ServerOptions = {}) {
       pullRequests,
       worktrees,
       () => modelDiscovery,
-      () =>
-        Effect.gen(function* () {
-          if (agentKind === 'echo') return echoUsage()
-          return yield* Effect.all(
-            [
-              Effect.promise(() => readClaudeProviderUsage()),
-              readCodexProviderUsage(home, opts.codex).pipe(
-                Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-              ),
-              Effect.promise(() => readGrokProviderUsage()),
-            ],
-            { concurrency: 'unbounded' }
+      (provider) => {
+        if (agentKind === 'echo') return Effect.succeed(echoUsage(provider))
+        if (provider === 'codex')
+          return readCodexProviderUsage(home, opts.codex).pipe(
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
           )
-        })
+        return Effect.promise(() =>
+          provider === 'grok' ? readGrokProviderUsage() : readClaudeProviderUsage()
+        )
+      }
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

@@ -1,10 +1,10 @@
+import type { ProviderEnabled } from '@/lib/provider-enabled'
 import type { ProviderModel } from '@jetty/shared/wire'
 
 import { Tick02Icon, Copy01Icon, Refresh01Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { copilotModels } from '@/lib/loadout'
-import { storage } from '@/platform'
 import { useChrome } from '@/state/chrome'
 import { useModelAvailability } from '@/state/loadouts'
 import { useProviderUsage } from '@/state/provider-usage'
@@ -34,25 +34,7 @@ export const providerOptions = [
   },
 ] as const
 export type ProviderId = (typeof providerOptions)[number]['id']
-export type ProviderEnabled = Record<ProviderId, boolean>
-
-const enabledKey = 'jetty.provider-enabled'
-
-export function loadProviderEnabled(): ProviderEnabled {
-  const enabled = { claude: true, codex: true, grok: true, copilot: true }
-  try {
-    const saved = JSON.parse(storage.get(enabledKey) ?? '{}')
-    for (const item of providerOptions)
-      if (typeof saved?.[item.id] === 'boolean') enabled[item.id] = saved[item.id]
-  } catch {
-    return enabled
-  }
-  return enabled
-}
-
-export function saveProviderEnabled(enabled: ProviderEnabled) {
-  storage.set(enabledKey, JSON.stringify(enabled))
-}
+export type { ProviderEnabled }
 
 function providerModels(id: ProviderId, catalog: readonly ProviderModel[]) {
   if (id === 'copilot') return copilotModels.map((name) => ({ id: name, name, provider: id }))
@@ -83,8 +65,9 @@ export function SettingsProviders({
   const provider = providerOptions.find((item) => item.id === selected)!
   const { catalog, enabled: modelEnabled, setEnabled: setModelEnabled } = useModelAvailability()
   const discovery = useChrome()?.modelDiscovery
-  const { usage, loaded } = useProviderUsage()
-  const account = usage.find((item) => item.provider === selected)
+  const { reads, failed } = useProviderUsage()
+  const account = selected === 'copilot' ? undefined : reads[selected]?.usage
+  const checkFailed = selected !== 'copilot' && failed.has(selected)
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState('')
   const usable = enabled[selected] && provider.ready
@@ -165,7 +148,7 @@ export function SettingsProviders({
                   ? account.connected
                     ? `Authenticated${account.plan ? ` · ${account.plan}` : ''}`
                     : 'Not signed in'
-                  : loaded
+                  : checkFailed
                     ? 'Couldn’t check sign-in'
                     : 'Checking sign-in…'}
             </p>

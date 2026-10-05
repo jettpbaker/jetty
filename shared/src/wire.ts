@@ -309,7 +309,7 @@ export const UsageWindow = Schema.Struct({
 export type UsageWindow = Schema.Schema.Type<typeof UsageWindow>
 
 export const ProviderUsage = Schema.Struct({
-  provider: Schema.Literals(['claude', 'codex', 'grok']),
+  provider: ProviderId,
   connected: Schema.Boolean,
   plan: Schema.optional(Schema.String),
   account: Schema.optional(Schema.String),
@@ -340,8 +340,8 @@ export type Branch = Schema.Schema.Type<typeof Branch>
 
 export const methods = {
   'settings.providerUsage': {
-    params: Schema.Struct({}),
-    result: Schema.Array(ProviderUsage),
+    params: Schema.Struct({ provider: ProviderId }),
+    result: ProviderUsage,
   },
   'models.refresh': {
     params: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),

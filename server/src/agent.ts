@@ -145,10 +145,10 @@ export const ECHO_MODELS: ProviderModel[] = [
   },
 ]
 
-export function echoUsage(): ProviderUsage[] {
+export function echoUsage(provider: ProviderUsage['provider']): ProviderUsage {
   const now = Date.now()
-  return [
-    {
+  const fixtures: Record<ProviderUsage['provider'], ProviderUsage> = {
+    claude: {
       provider: 'claude',
       connected: true,
       plan: 'Max 20×',
@@ -172,7 +172,7 @@ export function echoUsage(): ProviderUsage[] {
         },
       ],
     },
-    {
+    codex: {
       provider: 'codex',
       connected: true,
       plan: 'Pro',
@@ -195,7 +195,7 @@ export function echoUsage(): ProviderUsage[] {
         },
       ],
     },
-    {
+    grok: {
       provider: 'grok',
       connected: true,
       account: 'you@example.com',
@@ -210,7 +210,8 @@ export function echoUsage(): ProviderUsage[] {
         },
       ],
     },
-  ]
+  }
+  return fixtures[provider]
 }
 
 type EchoSession = {
@@ -374,7 +375,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
               costUsd: 0,
             })
 
-            hooks.onUsage?.(echoUsage()[0]!)
+            hooks.onUsage?.(echoUsage('claude'))
           }).pipe(
             Effect.onInterrupt(() =>
               emit({ type: 'turn.failed', turnId: input.turnId, error: session.reason }).pipe(

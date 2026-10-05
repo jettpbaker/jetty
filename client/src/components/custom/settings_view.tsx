@@ -10,8 +10,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { loadProviderEnabled, saveProviderEnabled } from '@/lib/provider-enabled'
 import { useModelRefresh } from '@/state/models'
-import { useProviderUsage } from '@/state/provider-usage'
+import { allUsageProviders, usageFreshMs, useProviderUsage } from '@/state/provider-usage'
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
@@ -20,12 +21,7 @@ import { SettingsAppearance } from './settings_appearance'
 import { SettingsIntegrations } from './settings_integrations'
 import { SettingsLoadout } from './settings_loadout'
 import { SettingsProjects } from './settings_projects'
-import {
-  SettingsProviders,
-  loadProviderEnabled,
-  saveProviderEnabled,
-  type ProviderId,
-} from './settings_providers'
+import { SettingsProviders, type ProviderId } from './settings_providers'
 import { SettingsTitleModel } from './settings_title_model'
 import { SettingsWorktrees } from './settings_worktrees'
 
@@ -68,7 +64,7 @@ export function SettingsView() {
   }, [refresh])
   // The providers panel shows each account's plan.
   useEffect(() => {
-    refreshUsage()
+    refreshUsage(allUsageProviders, usageFreshMs)
   }, [refreshUsage])
   const [provider, setProvider] = useState<ProviderId>('claude')
   const [enabled, setEnabled] = useState(loadProviderEnabled)
