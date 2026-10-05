@@ -166,9 +166,9 @@ Everything below is for one combined review of the chat, not separate ports.
   the Working block mid roll-in snaps the rest in.
 - Queued follow-ups ignore a model/effort/access change made while the turn runs
   (`queue.add` carries text only). Snapshot the loadout at queue time?
-- Drafts and multi-tab: a reload between `turn.start` reaching the server and image
-  admission can duplicate a send; pin/archive patches can mask a later change for a
-  10s timeout when another tab's push lands first (`mutations.ts`).
+- Drafts: a reload between `turn.start` reaching the server and image admission can
+  duplicate a send (`drafts.ts`). Needs an API call: an admission-locked "was this
+  message accepted?" RPC, or keeping the original id for a retried send.
 - Usage: the page can say "Couldn't refresh" while a turn reported fresher limits
   (`provider-usage.ts` ~121). Grok's context ring is unverified mid-turn: it may
   only move at turn end.

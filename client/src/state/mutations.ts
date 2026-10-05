@@ -105,10 +105,43 @@ function createThread(
   return id
 }
 
+// Each patched key watches for the server's agreement from the moment it's set: the agreeing push
+// can land, and another tab's change supersede it, before this tab's reply.
+const agreements = new Map<string, { value: unknown; seen: boolean; stop: () => void }>()
+
+function serverHolds<K extends keyof ThreadPatch>(
+  registry: Registry,
+  threadId: string,
+  key: K,
+  value: ThreadPatch[K]
+) {
+  const thread = serverChrome(registry)?.threads.find((entry) => entry.id === threadId)
+  return !thread || thread[key] === value
+}
+
 export function setPatch(registry: Registry, threadId: string, patch: ThreadPatch) {
   registry.update(threadPatchesAtom, (patches) =>
     new Map(patches).set(threadId, { ...patches.get(threadId), ...patch })
   )
+  for (const key of Object.keys(patch) as (keyof ThreadPatch)[]) {
+    const id = `${threadId}:${key}`
+    agreements.get(id)?.stop()
+    const agreement = { value: patch[key], seen: false, stop: () => {} }
+    agreement.stop = registry.subscribe(liveAtom, () => {
+      agreement.seen ||= serverHolds(registry, threadId, key, patch[key])
+    })
+    agreements.set(id, agreement)
+  }
+}
+
+// Stops watching a key (only one still watching `value`, when given); says whether it agreed.
+function endAgreement(threadId: string, key: keyof ThreadPatch, value?: unknown) {
+  const id = `${threadId}:${key}`
+  const agreement = agreements.get(id)
+  if (!agreement || (value !== undefined && agreement.value !== value)) return false
+  agreement.stop()
+  agreements.delete(id)
+  return agreement.seen
 }
 
 // With `value`, only a patch still holding it clears, so a newer toggle survives an older reply.
@@ -118,6 +151,7 @@ export function clearPatch<K extends keyof ThreadPatch>(
   key: K,
   value?: ThreadPatch[K]
 ) {
+  endAgreement(threadId, key, value)
   registry.update(threadPatchesAtom, (patches) => {
     const current = patches.get(threadId)
     if (current?.[key] === undefined) return patches
@@ -153,12 +187,10 @@ export function settlePatch<K extends keyof ThreadPatch>(
   key: K,
   value: ThreadPatch[K]
 ) {
+  if (endAgreement(threadId, key, value)) return clearPatch(registry, threadId, key, value)
   settleWhen(
     registry,
-    () => {
-      const thread = serverChrome(registry)?.threads.find((entry) => entry.id === threadId)
-      return !thread || thread[key] === value
-    },
+    () => serverHolds(registry, threadId, key, value),
     () => clearPatch(registry, threadId, key, value)
   )
 }
