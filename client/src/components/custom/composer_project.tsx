@@ -1,5 +1,6 @@
-import { Settings01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
+import { FolderGit2Icon, Settings01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
+import { pressProps } from '@/lib/press'
 import { useChrome, useCreateProject } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -11,9 +12,12 @@ import { ProjectGlyph } from './project_glyph'
 export function ComposerProject({
   projectId,
   onProjectChange,
+  onSetUpWorktrees,
 }: {
   projectId?: string
   onProjectChange: (projectId: string) => void
+  // Offered while the project has no worktree config.
+  onSetUpWorktrees?: () => void
 }) {
   const chrome = useChrome()
   const createProject = useCreateProject()
@@ -55,6 +59,19 @@ export function ComposerProject({
           }))}
           onValueChange={onProjectChange}
         />
+      )}
+      {onSetUpWorktrees && (
+        <Button
+          variant='ghost-text'
+          size='sm'
+          className='gap-1.5 rounded-sm'
+          // Keeps focus in the composer the prompt was just written into.
+          onMouseDown={(event) => event.preventDefault()}
+          {...pressProps(onSetUpWorktrees)}
+        >
+          <FolderGit2Icon />
+          Set up worktrees
+        </Button>
       )}
       <ProjectFolderDialog
         open={adding}

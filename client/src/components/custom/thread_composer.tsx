@@ -107,6 +107,7 @@ export function ThreadComposer({
   const projectGit = useProjectGit(projectId)
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
+  const setupGuide = projectGit?.git === 'ok' ? projectGit.setupGuide : undefined
   const environment = noGit ? 'local' : (target?.environment ?? projectDefault ?? 'worktree')
   const startingRef = target?.ref
   function retarget(patch: DraftTarget) {
@@ -211,6 +212,13 @@ export function ThreadComposer({
   function keepKeyboardFocus() {
     if (document.activeElement?.matches(':focus-visible'))
       input.current?.focus({ preventScroll: true })
+  }
+
+  // Writes the prompt for the user to send, after anything already typed.
+  function setUpWorktrees(guide: string) {
+    const prompt = `Set up Jetty worktrees for this project. Read ${guide} and follow it.`
+    if (!draft.includes(prompt)) setDraft(draft.trim() ? `${draft.trimEnd()}\n\n${prompt}` : prompt)
+    input.current?.focus({ preventScroll: true })
   }
 
   // In the background, the new-thread page stays put with its picks for the next prompt.
@@ -454,6 +462,7 @@ export function ThreadComposer({
                 if (id !== projectId)
                   retarget({ projectId: id, environment: undefined, ref: undefined })
               }}
+              onSetUpWorktrees={setupGuide ? () => setUpWorktrees(setupGuide) : undefined}
             />
           )
         }
