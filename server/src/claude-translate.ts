@@ -364,6 +364,23 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
   return []
 }
 
+// The id a tool call's item has, or gets once its tool_use is translated: a permission prompt can
+// arrive before the message that carries the call. Subagents and hidden tools get no tool_call item.
+export function toolCallItemId(
+  ctx: TranslateCtx,
+  toolUseId: string,
+  name: string,
+  agentId?: string
+) {
+  const owner = agentId ? ctx.agents.get(agentId) : ctx
+  if (!owner || HIDDEN_TOOLS.has(name) || AGENT_TOOLS.has(name)) return undefined
+  const known = owner.toolUseToItemId.get(toolUseId)
+  if (known) return known
+  const itemId = newId()
+  owner.toolUseToItemId.set(toolUseId, itemId)
+  return itemId
+}
+
 function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unknown): ThreadItem {
   if (AGENT_TOOLS.has(name) && toolUseId) {
     agentCtx(ctx, toolUseId)
@@ -380,8 +397,7 @@ function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unk
       status: 'running',
     }
   }
-  const itemId = newId()
-  if (toolUseId) ctx.toolUseToItemId.set(toolUseId, itemId)
+  const itemId = (toolUseId && toolCallItemId(ctx, toolUseId, name)) || newId()
   return {
     id: itemId,
     ...itemBase(ctx),

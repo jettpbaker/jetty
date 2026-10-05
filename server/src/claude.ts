@@ -44,6 +44,7 @@ import { claudeBin } from './claude-bin'
 import {
   createTranslateCtx,
   subagentOf,
+  toolCallItemId,
   translate,
   type SdkLikeMessage,
   type TranslateCtx,
@@ -576,6 +577,7 @@ export function createClaudeAdapter(
               })
             } else {
               const changes = approvalChanges(toolName, toolInput)
+              const toolCallId = toolCallItemId(session.ctx, options.toolUseID, toolName, agentId)
               session.pendingApprovals.set(itemId, {
                 result,
                 input: toolInput,
@@ -588,6 +590,7 @@ export function createClaudeAdapter(
                   kind: 'approval',
                   title: options.title ?? toolName,
                   toolName,
+                  ...(toolCallId ? { toolCallId } : {}),
                   input: changes.length ? approvalInputWithoutChanges(toolInput) : toolInput,
                   suggestions: options.suggestions ?? [],
                   ...(changes.length ? { changes } : {}),

@@ -143,6 +143,12 @@ for (const decision of ['allow', 'deny'] as const)
     expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
       result: { decision: decision === 'allow' ? 'accept' : 'decline' },
     })
+    if (decision === 'deny') {
+      const tool = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'tool_call')
+      if (tool?.type !== 'item.started' || approval.item.kind !== 'approval')
+        throw new Error('Missing declined tool')
+      expect(approval.item.toolCallId).toBe(tool.item.id)
+    }
   })
 
 test('question responses map question text to provider ids; unknown requests fail closed', async () => {

@@ -156,8 +156,7 @@ Everything below is for one combined review of the chat, not separate ports.
   restart-pause chrome wording; telling the user when a restart cut background work;
   PR watcher calls; old-database migrations; images in a queued-message edit.
 - Chat: approvals and questions have no Stop (the send button becomes "Deny with
-  note"); a denied tool shows both a Failed row and a Denied row
-  (`codex-translate.ts` ~63); a failed or cancelled `/compact` vanishes silently
+  note"); a failed or cancelled `/compact` vanishes silently
   (`thread_rows.ts` ~527); the `/usage` tray opens over the chat without re-pinning
   it; a tool cut off by Stop spins in its old work block while a later turn runs
   (`toActivity` keys on thread-wide `sessionActive`); sending in a long-code thread

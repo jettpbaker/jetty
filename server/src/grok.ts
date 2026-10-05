@@ -243,6 +243,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           }
           session.pending.set(itemId, { id, options })
           const changes = approvalChanges(string(tool.kind), tool.rawInput)
+          const toolCallId =
+            string(tool.toolCallId) && session.translator.toolItemId(string(tool.toolCallId))
           yield* session.emit({
             type: 'item.started',
             item: {
@@ -250,6 +252,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               kind: 'approval',
               title: string(tool.title) || 'Run tool',
               toolName: string(tool.kind) || 'tool',
+              ...(toolCallId ? { toolCallId } : {}),
               input: changes.length
                 ? approvalInputWithoutChanges(object(tool.rawInput))
                 : (tool.rawInput ?? {}),

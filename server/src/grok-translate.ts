@@ -6,6 +6,8 @@ import { object, string } from './stdio-rpc'
 
 export function createGrokTranslator(turnId: string, workflows = new Set<string>()) {
   const tools = new Map<string, { id: string; done: boolean }>()
+  // ids handed out for tool calls Grok hasn't reported yet (a permission prompt can come first)
+  const reserved = new Map<string, string>()
   const hiddenTools = new Set<string>()
   let text: { id: string; kind: 'assistant_message' | 'reasoning' } | undefined
   let compactionId: string | undefined
@@ -178,7 +180,7 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
       let tool = tools.get(key)
       if (tool?.done) return events
       if (!tool) {
-        tool = { id: newId(), done: false }
+        tool = { id: reserved.get(key) ?? newId(), done: false }
         tools.set(key, tool)
         events.push({
           type: 'item.started',
@@ -229,7 +231,14 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
     }
     return events
   }
-  return { translate, finish, workflows }
+  function toolItemId(toolCallId: string) {
+    const known = tools.get(toolCallId)?.id ?? reserved.get(toolCallId)
+    if (known) return known
+    const id = newId()
+    reserved.set(toolCallId, id)
+    return id
+  }
+  return { translate, finish, workflows, toolItemId }
 }
 
 // `_x.ai/session/info` backs Grok's /context: `used` is the last request's prompt size.

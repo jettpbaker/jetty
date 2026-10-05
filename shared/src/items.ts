@@ -150,6 +150,8 @@ export const ThreadItem = Schema.Union([
     ),
     decision: Schema.optional(ApprovalDecision),
     deniedReason: Schema.optional(Schema.String),
+    // the tool_call item it gates, when the provider says which
+    toolCallId: Schema.optional(Schema.String),
   }),
   Schema.Struct({
     ...itemBase,

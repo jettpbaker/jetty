@@ -125,6 +125,17 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ id, result: {} })
       complete('interrupted')
     }
-  } else if (id === 'approval-1')
+  } else if (id === 'approval-1') {
+    if (message.result?.decision === 'decline')
+      notify('item/completed', {
+        item: {
+          id: 'tool',
+          type: 'commandExecution',
+          command: 'echo test',
+          cwd: process.cwd(),
+          status: 'declined',
+        },
+      })
     answer(JSON.stringify({ pending, result: message.result, error: message.error }))
+  }
 }

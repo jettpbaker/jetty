@@ -405,6 +405,13 @@ export function threadRows(
   const askedTurns = new Set(
     items.filter((item) => item.kind === 'question').map((item) => item.turnId)
   )
+  const deniedTools = new Set(
+    allItems.flatMap((item) =>
+      item.kind === 'approval' && item.decision === 'deny' && item.toolCallId
+        ? [item.toolCallId]
+        : []
+    )
+  )
   function isAnsweredQuestionTool(item: ThreadItem) {
     return (
       item.kind === 'tool_call' &&
@@ -412,12 +419,13 @@ export function threadRows(
       askedTurns.has(item.turnId)
     )
   }
-  // An answered question shows as its answer; Claude loading a deferred tool's schema
-  // (ToolSearch) is plumbing, not work. Jetty's note to the agent after a restart is for the
-  // agent: the restart's seam tells the user.
+  // An answered question shows as its answer, and a denied tool as its Denied marker; Claude
+  // loading a deferred tool's schema (ToolSearch) is plumbing, not work. Jetty's note to the agent
+  // after a restart is for the agent: the restart's seam tells the user.
   function hidden(item: ThreadItem) {
     return (
       isAnsweredQuestionTool(item) ||
+      (item.kind === 'tool_call' && item.status !== 'succeeded' && deniedTools.has(item.id)) ||
       (item.kind === 'tool_call' && item.toolName === 'ToolSearch') ||
       (item.kind === 'user_message' && item.from?.threadId === threadId && !item.reports)
     )

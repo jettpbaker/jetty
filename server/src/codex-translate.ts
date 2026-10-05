@@ -8,9 +8,11 @@ import { object, string, type RpcMessage } from './stdio-rpc'
 export function createCodexTranslator(turnId: string) {
   const items = new Map<string, ThreadItem>()
   const completed = new Set<string>()
+  // ids handed out for items Codex hasn't started yet (an approval comes before its command)
+  const reserved = new Map<string, string>()
 
   function itemFrom(raw: Record<string, unknown>): ThreadItem | undefined {
-    const base = { id: newId(), turnId, createdAt: Date.now() }
+    const base = { id: reserved.get(string(raw.id)) ?? newId(), turnId, createdAt: Date.now() }
     switch (raw.type) {
       case 'agentMessage':
         return { ...base, kind: 'assistant_message', text: string(raw.text), streaming: true }
@@ -141,7 +143,15 @@ export function createCodexTranslator(turnId: string) {
     return events
   }
 
-  return { translate, finish }
+  function toolItemId(codexId: string) {
+    const known = items.get(codexId)?.id ?? reserved.get(codexId)
+    if (known) return known
+    const id = newId()
+    reserved.set(codexId, id)
+    return id
+  }
+
+  return { translate, finish, toolItemId }
 }
 
 function toolName(raw: Record<string, unknown>): string {

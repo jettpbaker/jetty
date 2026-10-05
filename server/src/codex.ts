@@ -130,6 +130,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           if (method === 'item/fileChange/requestApproval' && !changes.length)
             session.fileChangeApprovals.set(string(params.itemId), itemId)
           session.pending.set(itemId, { id })
+          const toolCallId =
+            string(params.itemId) && session.translator.toolItemId(string(params.itemId))
           yield* session.emit({
             type: 'item.started',
             item: {
@@ -138,6 +140,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               title: string(params.reason) || string(params.command) || 'Apply file changes',
               toolName:
                 method === 'item/fileChange/requestApproval' ? 'fileChange' : 'commandExecution',
+              ...(toolCallId ? { toolCallId } : {}),
               input: params,
               suggestions: [],
               ...(changes.length ? { changes } : {}),
