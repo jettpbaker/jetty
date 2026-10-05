@@ -6,10 +6,10 @@ import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel } from '@jetty/shared/events'
 import { ProviderId, UploadAttachment } from '@jetty/shared/wire'
 import { Schema } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/reactivity'
+import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 
-import { chromeAtom, deletedThreadsAtom } from './chrome'
+import { createdThreadsAtom, liveAtom } from './chrome'
 import { without } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -257,16 +257,18 @@ export function stageSend(registry: Registry, key: string | undefined, sending: 
   }
 }
 
-// A thread gone from the server takes its draft with it; one still in its undo window keeps it.
+// A thread gone from the server takes its draft with it. One hidden in an undo window (its own
+// delete or its project's) is still on the server, so it keeps its draft until the delete commits.
 export function useForgetDeletedDrafts() {
   const registry = useContext(RegistryContext)
-  const chrome = useAtomValue(chromeAtom)
-  const deleted = useAtomValue(deletedThreadsAtom)
+  const live = useAtomValue(liveAtom)
+  const created = useAtomValue(createdThreadsAtom)
   useEffect(() => {
+    const chrome = AsyncResult.getOrElse(live, () => undefined)
     if (!chrome) return
     const threads = new Set(chrome.threads.map((thread) => thread.id))
     const gone = [...registry.get(draftsAtom).keys()].filter(
-      (key) => key && !threads.has(key) && !deleted.has(key)
+      (key) => key && !threads.has(key) && !created.has(key)
     )
     if (!gone.length) return
     registry.update(draftsAtom, (drafts) => without(drafts, gone))
@@ -274,7 +276,7 @@ export function useForgetDeletedDrafts() {
       writeStored(textsKey, key, undefined)
       writeStored(imagesKey, key, undefined)
     }
-  }, [chrome, deleted, registry])
+  }, [live, created, registry])
 }
 
 export function useDraft(key: string) {
