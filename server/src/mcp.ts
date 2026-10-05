@@ -1,3 +1,4 @@
+import { heldByRestarts } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
 import { newId, type ProviderModel, type WireError } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -332,8 +333,13 @@ export function createMcpHandler(
             }
           })
         )
-        // A parent's message restarts a child it stopped.
-        if (response.ownChild) yield* orch.setQueuePaused(response.threadId, false)
+        // A parent's message restarts a child it stopped, but one the restart guard holds waits for
+        // the user's Resume.
+        if (
+          response.ownChild &&
+          !heldByRestarts((yield* store.getThreadState(response.threadId)).items)
+        )
+          yield* orch.setQueuePaused(response.threadId, false)
         let delivery = 'queued'
         if (input.steer && !response.duplicate && response.messageId) {
           const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId, false).pipe(
