@@ -3,6 +3,7 @@ import type { ProviderId, RunningSubagent } from '@jetty/shared/wire'
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
+import { threadBranch } from '@/lib/thread_worktree'
 import { cn } from '@/lib/utils'
 import { useChrome, useOpenOverview, useOpenPullRequest, useThreadJourney } from '@/state'
 import { useBranches, useBranchList } from '@/state/worktrees'
@@ -244,7 +245,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const checkout = useCheckout(thread?.environment === 'local' ? thread.projectId : undefined)
   if (!chrome || !thread) return null
   const parent = chrome.threads.find((candidate) => candidate.id === thread.parentThreadId)
-  const branch = thread.git?.branch ?? thread.worktree?.branch ?? undefined
+  const branch = threadBranch(thread)
   return (
     <ThreadHoverPanel
       title={thread.title}

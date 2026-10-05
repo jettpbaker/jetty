@@ -78,6 +78,10 @@ function createThread(
       id,
       projectId,
       environment,
+      // Known before the server answers, so the chat reads "Setting up worktree" from the first frame.
+      ...(environment === 'worktree' && {
+        worktree: { state: 'pending', error: null, branch: null },
+      }),
       title: 'New thread',
       status: 'idle',
       archived: false,

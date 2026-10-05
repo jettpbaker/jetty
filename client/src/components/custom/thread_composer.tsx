@@ -21,6 +21,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { newThreadProject } from '@/lib/thread_project'
+import { settingUpWorktree, threadBranch } from '@/lib/thread_worktree'
 import {
   useAccessMode,
   useChrome,
@@ -108,7 +109,7 @@ export function ThreadComposer({
     update({ target: { ...read().target, ...patch } })
   }
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
-  const settingUp = meta?.worktree?.state === 'setting_up'
+  const settingUp = settingUpWorktree(meta)
   // While the worktree sets up, the first message already shows as sent; only follow-ups queue.
   const queue = useMemo(() => {
     const own = queued.filter((entry) => !entry.from)
@@ -459,7 +460,7 @@ export function ThreadComposer({
               <ThreadFooter
                 threadId={threadId}
                 environment={meta?.environment}
-                branch={meta?.worktree?.branch ?? meta?.git?.branch}
+                branch={meta && threadBranch(meta)}
                 path={projectPath}
                 provider={provider}
                 ring={!ambient}

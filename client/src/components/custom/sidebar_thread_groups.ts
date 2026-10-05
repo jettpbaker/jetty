@@ -2,6 +2,7 @@ import type { Chrome } from '@/state'
 import type { ProjectIcon, ProviderId, PullRequestLink } from '@jetty/shared/wire'
 
 import { effortLabels } from '@/lib/loadout'
+import { threadBranch } from '@/lib/thread_worktree'
 import { formatAge, formatElapsed } from '@/lib/time'
 import { catalogModelName } from '@jetty/shared/model-name'
 
@@ -50,7 +51,7 @@ export function sidebarThreads(
         ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
         : formatAge(thread.updatedAt, now),
     environment: thread.environment,
-    branch: thread.git?.branch ?? thread.worktree?.branch ?? undefined,
+    branch: threadBranch(thread),
     updatedAt: thread.updatedAt,
     pinned: thread.pinned,
     archived: thread.archived,

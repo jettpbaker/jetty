@@ -8,6 +8,7 @@ import { ThreadList } from '@/components/custom/thread_list'
 import { threadSubagents } from '@/components/custom/thread_rows'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
+import { settingUpWorktree } from '@/lib/thread_worktree'
 import { perf } from '@/perf'
 import {
   MAIN_TAB,
@@ -100,7 +101,7 @@ function Thread() {
                   : (thread?.status ?? 'idle')
               }
               running={agent ? false : overlay.running}
-              settingUp={!agent && meta?.worktree?.state === 'setting_up'}
+              settingUp={!agent && settingUpWorktree(meta)}
               outcomes={agent ? undefined : thread?.turnOutcomes}
               loadouts={agent ? undefined : thread?.turnLoadouts}
               projectPath={projectPath}
