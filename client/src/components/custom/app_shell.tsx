@@ -29,7 +29,7 @@ import {
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
-import { keybinds } from './keybinds'
+import { inDialog, keybinds } from './keybinds'
 import { NewThreadBackdrop } from './new_thread_backdrop'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
@@ -264,10 +264,13 @@ function Workspace({
   useForgetDeletedDrafts()
   useConnectionNotice()
 
-  useHotkey(keybinds.settings.hotkey, () => void navigate({ to: '/settings' }), {
-    requireReset: true,
-    ignoreInputs: false,
-  })
+  useHotkey(
+    keybinds.settings.hotkey,
+    (event) => {
+      if (!inDialog(event)) void navigate({ to: '/settings' })
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
 
   return (
     <PageSidebarTriggerContext value={!showThreadTabs}>

@@ -37,7 +37,7 @@ import { toast } from 'sonner'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
-import { KeybindTooltip, keybinds } from './keybinds'
+import { inDialog, KeybindTooltip, keybinds } from './keybinds'
 import { Loading } from './loading'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { LivePullRequestView } from './pull_request_view'
@@ -243,10 +243,17 @@ export function ThreadDetailsLayout({
     setOpen(true)
   }, [requestedTab, requestShown, consume, open])
 
-  useHotkey(keybinds.details.hotkey, toggle, { requireReset: true, ignoreInputs: false })
+  useHotkey(
+    keybinds.details.hotkey,
+    (event) => {
+      if (!inDialog(event)) toggle()
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
   useHotkey(
     keybinds.openFile.hotkey,
-    () => {
+    (event) => {
+      if (inDialog(event)) return
       if (!open) toggle()
       setFindingFile(true)
     },

@@ -56,7 +56,8 @@ import {
   KeybindIcon,
   KeybindTooltip,
   keybinds,
-  typingOutsideComposer,
+  appShortcut,
+  inDialog,
 } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
@@ -164,7 +165,16 @@ export function AppSidebar() {
   useHotkeys(
     keybinds.threads.flatMap((binding, index) => {
       const thread = numbered[index]
-      return thread ? [{ hotkey: binding.hotkey, callback: () => openThread(thread.id) }] : []
+      return thread
+        ? [
+            {
+              hotkey: binding.hotkey,
+              callback: (event: KeyboardEvent) => {
+                if (!inDialog(event)) openThread(thread.id)
+              },
+            },
+          ]
+        : []
     }),
     { requireReset: true, ignoreInputs: true }
   )
@@ -172,7 +182,7 @@ export function AppSidebar() {
   useHotkey(
     keybinds.pin.hotkey,
     (event) => {
-      if (current && !typingOutsideComposer(event)) pinThread(current.id, !current.pinned)
+      if (current && appShortcut(event)) pinThread(current.id, !current.pinned)
     },
     { enabled: current !== undefined, requireReset: true, ignoreInputs: false }
   )
@@ -185,7 +195,7 @@ export function AppSidebar() {
   useHotkey(
     keybinds.newThread.hotkey,
     (event) => {
-      if (!typingOutsideComposer(event)) newThread()
+      if (appShortcut(event)) newThread()
     },
     { requireReset: true, ignoreInputs: false }
   )

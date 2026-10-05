@@ -17,7 +17,7 @@ import { useHotkey } from '@tanstack/react-hotkeys'
 import { useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { KeybindTooltip, keybinds, typingOutsideComposer } from './keybinds'
+import { KeybindTooltip, keybinds, appShortcut } from './keybinds'
 
 const modes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> = {
   auto: { label: 'Auto', Icon: ShieldCheckIcon },
@@ -42,7 +42,7 @@ export function ComposerAccessMode({
   useHotkey(
     keybinds.access.hotkey,
     (event) => {
-      if (!typingOutsideComposer(event)) setOpen(true)
+      if (appShortcut(event)) setOpen(true)
     },
     { enabled: choosable, requireReset: true, ignoreInputs: false }
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import { SidebarLeftIcon } from '@/components/custom/huge_icons'
-import { keybinds, typingOutsideComposer } from '@/components/custom/keybinds'
+import { keybinds, appShortcut } from '@/components/custom/keybinds'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -89,7 +89,7 @@ function SidebarProvider({
   useHotkey(
     keybinds.sidebar.hotkey,
     (event) => {
-      if (!typingOutsideComposer(event)) toggleSidebar()
+      if (appShortcut(event)) toggleSidebar()
     },
     { requireReset: true, ignoreInputs: false }
   )

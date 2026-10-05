@@ -45,7 +45,7 @@ import { useReducedMotion } from 'motion/react'
 import { useRef, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { KeybindChip, KeybindTooltip, keybinds, typingOutsideComposer } from './keybinds'
+import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
@@ -272,14 +272,14 @@ export function ComposerLoadout({
   useHotkey(
     keybinds.model.hotkey,
     (event) => {
-      if (!typingOutsideComposer(event)) openSubmenu('model')
+      if (appShortcut(event)) openSubmenu('model')
     },
     { requireReset: true, ignoreInputs: false }
   )
   useHotkey(
     keybinds.effort.hotkey,
     (event) => {
-      if (!typingOutsideComposer(event)) openSubmenu('effort')
+      if (appShortcut(event)) openSubmenu('effort')
     },
     { requireReset: true, ignoreInputs: false }
   )

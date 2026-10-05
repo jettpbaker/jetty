@@ -69,6 +69,20 @@ export function typingOutsideComposer(event: KeyboardEvent) {
   )
 }
 
+// Keys pressed in a dialog are the dialog's: an app shortcut would act behind it, or navigate it
+// away (⌥1 from the media lightbox).
+export function inDialog(event: KeyboardEvent) {
+  const target = keyTarget(event)
+  return (
+    target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]') !== null
+  )
+}
+
+// An app shortcut runs unless its key went into a dialog, or a text field outside the composer.
+export function appShortcut(event: KeyboardEvent) {
+  return !inDialog(event) && !typingOutsideComposer(event)
+}
+
 type Held = readonly Modifier[]
 
 const ModifierContext = createContext<Held>([])
