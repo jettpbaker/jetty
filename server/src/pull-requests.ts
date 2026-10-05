@@ -1247,13 +1247,6 @@ async function fetchPullRequest(
       .filter((comment) => record(comment).state !== 'PENDING')
       .map((comment) => mapReviewComment(comment, thread))
   })
-  const mergeStates = {
-    CLEAN: 'clean',
-    BLOCKED: 'blocked',
-    DIRTY: 'dirty',
-    UNSTABLE: 'unstable',
-    BEHIND: 'behind',
-  } as const
   const fixture = {
     pull: {
       node_id: string(pull.id),
@@ -1277,7 +1270,7 @@ async function fetchPullRequest(
       commits: Number(record(pull.commitHistory).totalCount),
       comments: Number(record(pull.comments).totalCount),
       review_comments: reviewComments.length,
-      mergeable_state: mergeStates[pull.mergeStateStatus as keyof typeof mergeStates] ?? 'unknown',
+      mergeable_state: mergeableState(pull.mergeStateStatus),
       requested_reviewers: requestedUsers,
       labels: nodes(pull.labels).map((value) => ({ name: string(record(value).name) })),
     },
@@ -1466,6 +1459,26 @@ function checksRunning(data: PullRequestData | undefined) {
       data.checkRollupState === 'EXPECTED' ||
       data.checkRuns.some((run) => run.status !== 'completed'))
   )
+}
+
+// GitHub works mergeability out lazily, so an open PR can read UNKNOWN for a while.
+function mergeUnknown(data: PullRequestData | undefined) {
+  return (
+    data?.pull.state === 'open' &&
+    (data.mergeable === 'UNKNOWN' || data.mergeStateStatus === 'UNKNOWN')
+  )
+}
+
+const mergeStates = {
+  CLEAN: 'clean',
+  BLOCKED: 'blocked',
+  DIRTY: 'dirty',
+  UNSTABLE: 'unstable',
+  BEHIND: 'behind',
+} as const
+
+function mergeableState(status: unknown) {
+  return mergeStates[status as keyof typeof mergeStates] ?? 'unknown'
 }
 
 function prKey(ref: PullRequestRef) {
@@ -1728,7 +1741,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     const state = watched ? activity(snapshot) : hub.githubActivity()
     const interval = cadence(snapshot.data?.pull.state === 'closed', state, !watched)
     const checksInterval =
-      interval !== null && checksRunning(snapshot.data)
+      interval !== null && (checksRunning(snapshot.data) || mergeUnknown(snapshot.data))
         ? (watched && state === 'focused' ? 10_000 : 30_000) * cadenceMultiplier()
         : null
     const health = `${interval ?? 'paused'}/${checksInterval ?? 'paused'}`
@@ -1836,7 +1849,9 @@ export function createPullRequests(store: Store, hub: Hub) {
       lastChecks.set(key, Date.now())
       const fetchedRevision = revision(key)
       const [graph] = yield* Effect.tryPromise({
-        try: () => fetchGraphqlBatch([ref], checkRollupFields),
+        // Merge readiness rides along: checks finishing (or GitHub settling an UNKNOWN) changes it
+        // without touching updatedAt, so the change detector alone would leave it stale.
+        try: () => fetchGraphqlBatch([ref], `mergeable mergeStateStatus ${checkRollupFields}`),
         catch: (error) => new StoreError('internal', String(error)),
       }).pipe(Effect.ensuring(Effect.sync(() => checking.delete(key))))
       const snapshot = yield* get(ref)
@@ -1847,6 +1862,12 @@ export function createPullRequests(store: Store, hub: Hub) {
       }
       const data = {
         ...snapshot.data,
+        pull: {
+          ...snapshot.data.pull,
+          mergeable_state: mergeableState(graph.pull.mergeStateStatus),
+        },
+        mergeable: graph.pull.mergeable as PullRequestData['mergeable'],
+        mergeStateStatus: string(graph.pull.mergeStateStatus, 'UNKNOWN'),
         checkRuns: mapCheckRuns(graph.checks),
         checkRollupState: graph.checkRollupState,
         checkRunsTotalCount: graph.checkRunsTotalCount,
