@@ -408,6 +408,8 @@ export function createStore() {
             )
           )
         const pending = thread.pendingMessages ?? []
+        if (pending.some((queued) => queued.id === message.id))
+          return yield* Effect.fail(new StoreError('conflict', 'This message is already queued'))
         yield* updateQueue(threadId, [...pending.slice(0, at), message, ...pending.slice(at)])
         return yield* requireThread(threadId)
       })
