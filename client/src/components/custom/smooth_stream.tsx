@@ -30,11 +30,20 @@ type Clock = {
 const unspaced = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}'
 const partWord = new RegExp(`[^\\s${unspaced}]+$`, 'u')
 const nextWord = new RegExp(`(?<=\\s)[^\\s${unspaced}]|[${unspaced}]`, 'u')
+// A mark or variation selector after a character belongs to it (は+゛ is ば), so a cut never falls
+// between them. Only text past ASCII can have one, so English never pays for the segmenter.
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+function graphemeEnd(text: string, index: number) {
+  if (index <= 0 || text.charCodeAt(index) < 128) return index
+  const cluster = graphemes.segment(text).containing(index)
+  return cluster && cluster.index < index ? cluster.index + cluster.segment.length : index
+}
 
 // While streaming, text up to its last whole word, without a list item that has no words yet.
 export function wholeWords(text: string) {
   const part = text.search(partWord)
-  const whole = part === -1 ? text : text.slice(0, part)
+  const whole = part === -1 ? text : text.slice(0, graphemeEnd(text, part))
   return whole.replace(/(^|\n)[ \t]*(?:[-*+>]|\d+[.)])[ \t]*$/, '$1')
 }
 
@@ -51,7 +60,7 @@ const step = { ms: 50, chars: 50, count: 30, lump: 200 }
 // Where the word at or after `index` starts.
 function wordStart(text: string, index: number) {
   const start = text.slice(index).search(nextWord)
-  return start === -1 ? text.length : index + start
+  return start === -1 ? text.length : graphemeEnd(text, index + start)
 }
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
