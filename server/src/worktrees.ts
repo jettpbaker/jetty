@@ -536,6 +536,22 @@ export function createWorktrees(
     await runScript('archive', archive, folder, scriptEnv(folder, record?.slot ?? null))
   }
 
+  // A linked merged PR vouches only for a branch whose every commit it merged, so a branch
+  // switched to later, or one that moved on after the merge, survives the thread's delete.
+  async function mergedAway(cwd: string, branch: string, thread: ThreadMeta) {
+    if (!(await tryGit(cwd, 'show-ref', '--verify', `refs/heads/${branch}`))) return false
+    for (const link of thread.pullRequests ?? []) {
+      if (link.state !== 'merged') continue
+      const head = (await run(store.getPullRequest(link.repo, link.number))).data?.pull.head.sha
+      if (!head) continue
+      const contained = await git(cwd, 'merge-base', '--is-ancestor', `refs/heads/${branch}`, head)
+        .then(() => true)
+        .catch(() => false)
+      if (contained) return true
+    }
+    return false
+  }
+
   async function remove(threadId: string, deleting = false, cleanedUp = false) {
     const { thread, project } = await locate(threadId)
     if (thread.environment !== 'worktree') return
@@ -570,12 +586,7 @@ export function createWorktrees(
         )
       }
       await git(project.path, 'worktree', 'prune')
-      if (
-        deleting &&
-        record.branch &&
-        thread.pullRequests?.some((link) => link.state === 'merged') &&
-        (await tryGit(project.path, 'show-ref', '--verify', `refs/heads/${record.branch}`))
-      )
+      if (deleting && record.branch && (await mergedAway(project.path, record.branch, thread)))
         await git(project.path, 'branch', '-D', '--', record.branch)
       record.slot = null
       record.state = 'pending'
