@@ -106,8 +106,12 @@ export function useComposerSlash(
   // The slash word being typed, which stays plain text until the caret leaves it.
   const [editing, setEditing] = useState<number>()
   const [dismissed, setDismissed] = useState<number>()
-  const [section, setSection] = useState<Section>()
-  const [picking, setPicking] = useState<ValueCommand>()
+  // The submenu open, on the slash word it was opened from.
+  const [level, setLevel] = useState<{
+    start: number
+    section?: Section
+    picking?: ValueCommand
+  }>()
   const [active, setActive] = useState<number>()
   const { catalog } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
@@ -137,6 +141,9 @@ export function useComposerSlash(
       ? typed
       : undefined
   const open = focused && query !== undefined && dismissed !== query.start
+  const own = level && level.start === query?.start ? level : undefined
+  const section = own?.section
+  const picking = own?.picking
   const tokens = chips(text, query, skills)
   const shown = chipped(text, tokens)
 
@@ -164,8 +171,7 @@ export function useComposerSlash(
     setActive(undefined)
     if (!activeSlash(next, nextCaret)) {
       setDismissed(undefined)
-      setSection(undefined)
-      setPicking(undefined)
+      setLevel(undefined)
     }
   }
 
@@ -201,8 +207,7 @@ export function useComposerSlash(
   ) {
     if (range.query)
       update(`${text.slice(0, range.start)}/${text.slice(range.end)}`, range.start + 1)
-    setSection(next.section)
-    setPicking(next.picking)
+    setLevel({ start: range.start, section: next.section, picking: next.picking })
     setActive(next.active)
   }
 
