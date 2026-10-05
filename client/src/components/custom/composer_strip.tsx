@@ -359,8 +359,9 @@ export function useQuestion(
   item: Question | undefined,
   saved: Draft,
   update: (patch: Partial<Draft>) => void,
-  answer: (item: Question, answers: Record<string, string>) => void,
-  dismiss: (item: Question) => void,
+  // each gets the progress it clears, to bring back if the server doesn't take it
+  answer: (item: Question, answers: Record<string, string>, progress: QuestionProgress) => void,
+  dismiss: (item: Question, progress: QuestionProgress) => void,
   keepFocus: () => void
 ) {
   const draft = saved.text
@@ -401,7 +402,7 @@ export function useQuestion(
     save({ ...progress, step: to, custom }, custom[to] ?? '')
   }
   function next() {
-    if (!item || !current) return
+    if (!item || !progress || !current) return
     if (!last) {
       go(step + 1)
       return
@@ -412,14 +413,15 @@ export function useQuestion(
       item,
       Object.fromEntries(
         item.questions.map((question, index) => [question.question, answerAt(index)])
-      )
+      ),
+      { ...progress, custom: progress.custom.with(step, draft) }
     )
   }
   function onDismiss() {
-    if (!item) return
+    if (!item || !progress) return
     keepFocus()
     save(undefined, '')
-    dismiss(item)
+    dismiss(item, { ...progress, custom: progress.custom.with(step, draft) })
   }
   function onKey(event: KeyboardEvent) {
     if (event.defaultPrevented || !spec) return false

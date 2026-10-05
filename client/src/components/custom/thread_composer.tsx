@@ -220,14 +220,14 @@ export function ThreadComposer({
     item?.kind === 'question' ? item : undefined,
     stripDraft,
     stripUpdate,
-    (entry, answers) => {
+    (entry, answers, progress) => {
       if (!threadId) return
-      respondQuestion(threadId, entry.id, answers)
+      respondQuestion(threadId, entry.id, answers, progress)
       settled(entry)
     },
-    (entry) => {
+    (entry, progress) => {
       if (!threadId) return
-      dismissQuestion(threadId, entry.id)
+      dismissQuestion(threadId, entry.id, progress)
       settled(entry)
     },
     keepKeyboardFocus

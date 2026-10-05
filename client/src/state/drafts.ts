@@ -268,6 +268,24 @@ function restoreDraft(registry: Registry, key: string, restored: Sending) {
   }))
 }
 
+// What was typed for a request whose answer didn't go through: back in the composer, answering
+// it again, unless something else is typed there; then it waits for the request to show again.
+export function restoreAnswer(
+  registry: Registry,
+  key: string,
+  itemId: string,
+  text: string,
+  progress?: QuestionProgress
+) {
+  change(registry, key, (draft) => {
+    const questions = progress ? { ...draft.questions, [itemId]: progress } : draft.questions
+    if (!draft.text.trim())
+      return { ...draft, questions, text, typedFor: itemId, pendingId: itemId }
+    if (!text.trim()) return { ...draft, questions }
+    return { ...draft, questions, parked: { ...draft.parked, [itemId]: text } }
+  })
+}
+
 // A fresh new thread starts from the defaults; one with something typed keeps its target.
 export function resetDraftTarget(registry: Registry) {
   change(registry, '', (draft) =>

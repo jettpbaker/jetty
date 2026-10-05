@@ -24,7 +24,13 @@ import { toast } from 'sonner'
 import { accessModeAtom } from './access_mode'
 import { chromeAtom, modelsAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
-import { resetDraftTarget, stageSend, useDraft } from './drafts'
+import {
+  resetDraftTarget,
+  restoreAnswer,
+  stageSend,
+  useDraft,
+  type QuestionProgress,
+} from './drafts'
 import { enabledModelsAtom, loadoutsAtom } from './loadouts'
 import {
   awaitCreation,
@@ -97,18 +103,24 @@ function overlayItem(
   return resolution ? ({ ...item, ...resolution } as ThreadItem) : item
 }
 
+// A refused answer brings the request back with what was typed for it.
 function resolve(
   registry: Registry,
+  threadId: string,
   itemId: string,
   resolution: Resolution,
-  request: Parameters<typeof run>[1]
+  request: Parameters<typeof run>[1],
+  typed: { text?: string; progress?: QuestionProgress },
+  problem: string
 ) {
   registry.update(pendingResolutionsAtom, (map) => new Map(map).set(itemId, resolution))
-  run(registry, request, () =>
+  run(registry, request, () => {
     registry.update(pendingResolutionsAtom, (map) =>
       map.get(itemId) === resolution ? without(map, [itemId]) : map
     )
-  )
+    restoreAnswer(registry, threadId, itemId, typed.text ?? '', typed.progress)
+    toast.error(problem)
+  })
 }
 
 // The turn a message shown as sent belongs to until the server's copy arrives.
@@ -262,6 +274,7 @@ function respondApproval(
   const message = note?.trim() || undefined
   resolve(
     registry,
+    threadId,
     itemId,
     { decision, ...(decision === 'deny' && message ? { deniedReason: message } : {}) },
     (connection) =>
@@ -270,7 +283,9 @@ function respondApproval(
         itemId,
         decision,
         message,
-      })
+      }),
+    { text: message },
+    "Couldn't send your answer"
   )
 }
 
@@ -278,16 +293,34 @@ function respondQuestion(
   registry: Registry,
   threadId: string,
   itemId: string,
-  answers: Record<string, string>
+  answers: Record<string, string>,
+  progress: QuestionProgress
 ) {
-  resolve(registry, itemId, { answers }, (connection) =>
-    connection.request('question.respond', { threadId, itemId, answers })
+  resolve(
+    registry,
+    threadId,
+    itemId,
+    { answers },
+    (connection) => connection.request('question.respond', { threadId, itemId, answers }),
+    { text: progress.custom[progress.step], progress },
+    "Couldn't send your answer"
   )
 }
 
-function dismissQuestion(registry: Registry, threadId: string, itemId: string) {
-  resolve(registry, itemId, { dismissed: true }, (connection) =>
-    connection.request('question.dismiss', { threadId, itemId })
+function dismissQuestion(
+  registry: Registry,
+  threadId: string,
+  itemId: string,
+  progress: QuestionProgress
+) {
+  resolve(
+    registry,
+    threadId,
+    itemId,
+    { dismissed: true },
+    (connection) => connection.request('question.dismiss', { threadId, itemId }),
+    { text: progress.custom[progress.step], progress },
+    "Couldn't dismiss the question"
   )
 }
 
