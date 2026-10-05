@@ -1,5 +1,6 @@
 import type { Attachment } from '@jetty/shared/items'
 
+import { MessageCopyButton } from '@/components/custom/copy_button'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -155,6 +156,7 @@ export function UserMessage({
               </span>
             ))}
           </BubbleContent>
+          {text && <MessageCopyButton text={text} align='end' />}
         </Bubble>
       </MessageContent>
     </Message>

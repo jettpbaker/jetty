@@ -3,6 +3,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { CreatedThreads } from '@/components/custom/child_threads'
+import { MessageCopyButton } from '@/components/custom/copy_button'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
@@ -176,6 +177,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
               <Markdown streaming={row.streaming}>{row.item.text}</Markdown>
             </BubbleContent>
+            <MessageCopyButton text={row.item.text} align='start' />
           </Bubble>
         </MessageContent>
       </Message>

@@ -2,7 +2,8 @@ import { cachedHtml, highlightHtml } from '@/components/custom/code_highlight'
 import { plainHtml } from '@/components/custom/code_html'
 
 import './code_block.css'
-import { Copy01Icon, Tick02Icon, TextWrapIcon } from '@/components/custom/huge_icons'
+import { CopyButton } from '@/components/custom/copy_button'
+import { TextWrapIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -166,7 +167,7 @@ function WorkerCodeBlock({
           {content}
         </pre>
         {wrapButton}
-        <CopyCodeButton code={code} />
+        <CopyButton text={code} label='Copy code' />
       </div>
     )
   return (
@@ -174,7 +175,7 @@ function WorkerCodeBlock({
       copy={
         <>
           {wrapButton}
-          <CopyCodeButton code={code} />
+          <CopyButton text={code} label='Copy code' />
         </>
       }
     >
@@ -210,29 +211,6 @@ export function CodePre({ children }: { children?: ReactNode }) {
       code={typeof code === 'string' ? code : ''}
       meta={typeof meta === 'string' ? meta : ''}
     />
-  )
-}
-
-export function CopyCodeButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 1200)
-    return () => clearTimeout(timer)
-  }, [copied])
-  return (
-    <Button
-      variant='ghost'
-      tone='muted'
-      size='icon-xs'
-      aria-label={copied ? 'Copied' : 'Copy code'}
-      onClick={() => {
-        void navigator.clipboard.writeText(code)
-        setCopied(true)
-      }}
-    >
-      {copied ? <Tick02Icon /> : <Copy01Icon />}
-    </Button>
   )
 }
 

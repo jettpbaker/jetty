@@ -19,6 +19,8 @@ import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
 const font = '14px "Geist Variable"'
 const lineHeight = 23
+// The copy button under a message, and the bubble's gap above it.
+const copyRow = 28
 // Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
 type Measured = { text: string; prepared: PreparedText; width?: number; height: number }
@@ -72,6 +74,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
           ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
           : full)
       if (row.item.from) height += 22
+      if (text) height += copyRow
       if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
       for (const attachment of attachments)
         if (!attachment.mimeType.startsWith('image/')) height += lineHeight
@@ -79,7 +82,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     }
     case 'assistant':
     case 'plan':
-      return textHeight(row.id, row.item.text, width, false, rough) + 8
+      return textHeight(row.id, row.item.text, width, false, rough) + 8 + copyRow
     case 'work': {
       if (workEnded(row.status)) return 30
       let height = 32

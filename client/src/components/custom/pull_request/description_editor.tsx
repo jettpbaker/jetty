@@ -1,7 +1,8 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
-import { CodeWell, CopyCodeButton } from '@/components/custom/code_block'
+import { CodeWell } from '@/components/custom/code_block'
 import { highlightTokens, loadLanguages } from '@/components/custom/code_highlight'
+import { CopyButton } from '@/components/custom/copy_button'
 import {
   Attachment01Icon,
   ArrowUp02Icon,
@@ -231,7 +232,7 @@ const Video = Node.create({
 function CodeNode({ node }: NodeViewProps) {
   return (
     <NodeViewWrapper>
-      <CodeWell copy={<CopyCodeButton code={node.textContent} />} className='my-4'>
+      <CodeWell copy={<CopyButton text={node.textContent} label='Copy code' />} className='my-4'>
         <pre className='scrollbar-subtle overflow-x-auto px-3 py-2.5 text-xs leading-5'>
           <NodeViewContent<'code'> as='code' className='code-block-tokens' />
         </pre>
