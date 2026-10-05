@@ -2157,7 +2157,6 @@ export function createPullRequests(store: Store, hub: Hub) {
       } else if (checksInterval) {
         const checkedAt = Math.max(lastChecks.get(key) ?? 0, snapshot.refreshedAt ?? 0)
         if (Date.now() - checkedAt >= checksInterval) yield* refreshChecks([ref])
-        snapshot = yield* get(ref)
       } else if (
         !detecting.has(key) &&
         Date.now() - (lastDetection.get(key) ?? snapshot.refreshedAt ?? 0) >= interval
