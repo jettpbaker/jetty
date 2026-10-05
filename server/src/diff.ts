@@ -2,7 +2,7 @@ import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 import { randomUUID } from 'node:crypto'
 import { constants, type Stats } from 'node:fs'
-import { open, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises'
+import { open, readdir, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
 
 import { git, gitStream } from './git-process'
@@ -183,6 +183,16 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
 export type ProjectFile = { contents: string | null } | Unavailable
 export type SavedProjectFile = { saved: true } | { conflict: ProjectFile }
 
+function projectRoot(cwd: string) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const root = yield* fs.realPath(cwd).pipe(Effect.option)
+    if (Option.isNone(root))
+      return yield* Effect.fail(new StoreError('not_found', 'Project folder not found'))
+    return root.value
+  })
+}
+
 // Paths are relative to the thread's project; symlinks may not lead outside it. `file` is the
 // real path, absent when nothing is there.
 function resolveProjectPath(cwd: string, path: string) {
@@ -191,13 +201,57 @@ function resolveProjectPath(cwd: string, path: string) {
       return yield* Effect.fail(new StoreError('invalid_params', `Invalid path: ${path}`))
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
-    const root = yield* fs.realPath(cwd).pipe(Effect.option)
-    if (Option.isNone(root))
-      return yield* Effect.fail(new StoreError('not_found', 'Project folder not found'))
-    const file = yield* fs.realPath(paths.join(root.value, path)).pipe(Effect.option)
-    if (Option.isSome(file) && !file.value.startsWith(root.value + paths.sep))
+    const root = yield* projectRoot(cwd)
+    const file = yield* fs.realPath(paths.join(root, path)).pipe(Effect.option)
+    if (Option.isSome(file) && !file.value.startsWith(root + paths.sep))
       return yield* Effect.fail(new StoreError('invalid_params', `${path} is outside the project`))
-    return { root: root.value, file: Option.getOrUndefined(file) }
+    return { root, file: Option.getOrUndefined(file) }
+  })
+}
+
+export type ProjectEntry = { name: string; directory: boolean }
+
+// One folder of the thread's project ('' is its top), without .git or anything git ignores. A
+// folder that isn't there lists nothing.
+export function readProjectDirectory(cwd: string, path: string) {
+  return Effect.gen(function* () {
+    const paths = yield* Path.Path
+    const { root, file: folder } =
+      path === ''
+        ? { root: yield* projectRoot(cwd), file: undefined }
+        : yield* resolveProjectPath(cwd, path)
+    const listed = path === '' ? root : folder
+    if (!listed) return []
+    const entries = yield* Effect.promise(async () => {
+      const dirents = await readdir(listed, { withFileTypes: true }).catch(() => [])
+      return Promise.all(
+        dirents
+          .filter((dirent) => dirent.name !== '.git')
+          .map(
+            async (dirent): Promise<ProjectEntry> => ({
+              name: dirent.name,
+              directory:
+                dirent.isDirectory() ||
+                (dirent.isSymbolicLink() &&
+                  (await stat(paths.join(listed, dirent.name)).then(
+                    (stats) => stats.isDirectory(),
+                    () => false
+                  ))),
+            })
+          )
+      )
+    })
+    if (entries.length === 0) return entries
+    const relative = (name: string) => (path === '' ? name : `${path}/${name}`)
+    const { out, code } = yield* git(
+      root,
+      ['check-ignore', '-z', '--stdin'],
+      entries.map((entry) => relative(entry.name)).join('\0')
+    )
+    // 1: nothing is ignored; 128: not a git repository, so nothing is.
+    if (code !== 0) return entries
+    const ignored = new Set(out.split('\0'))
+    return entries.filter((entry) => !ignored.has(relative(entry.name)))
   })
 }
 
@@ -370,6 +424,7 @@ export const GitDiff = Context.Service<{
     baseCommit?: string
   ) => Effect.Effect<DiffFile, StoreError>
   readProjectFile: (cwd: string, path: string) => Effect.Effect<ProjectFile, StoreError>
+  readProjectDirectory: (cwd: string, path: string) => Effect.Effect<ProjectEntry[], StoreError>
   writeProjectFile: (
     cwd: string,
     path: string,
@@ -391,6 +446,8 @@ export const GitDiffLive = Layer.effect(
         readDiffFile(cwd, path, prevPath, baseCommit).pipe(Effect.provideContext(services)),
       readProjectFile: (cwd: string, path: string) =>
         readProjectFile(cwd, path).pipe(Effect.provideContext(services)),
+      readProjectDirectory: (cwd: string, path: string) =>
+        readProjectDirectory(cwd, path).pipe(Effect.provideContext(services)),
       writeProjectFile: (cwd: string, path: string, contents: string, base: string | null) =>
         writeProjectFile(cwd, path, contents, base).pipe(Effect.provideContext(services)),
     }

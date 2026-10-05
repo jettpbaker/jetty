@@ -381,6 +381,12 @@ export function createRpcHandlers(
           Effect.flatMap((root) => diff.readProjectFile(root.path, params.path)),
           Effect.mapError(wireError)
         ),
+      'thread.readDirectory': (params) =>
+        threadRoot(params.threadId).pipe(
+          Effect.flatMap((root) => diff.readProjectDirectory(root.path, params.path)),
+          Effect.map((entries) => ({ entries })),
+          Effect.mapError(wireError)
+        ),
       'thread.writeFile': (params) =>
         threadRoot(params.threadId).pipe(
           Effect.flatMap((root) =>

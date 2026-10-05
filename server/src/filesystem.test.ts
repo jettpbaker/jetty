@@ -60,7 +60,7 @@ describe('Effect filesystem services', () => {
     await run(program)
   })
 
-  test('search ranks tracked files and excludes ignored and untracked files', async () => {
+  test('search ranks tracked and untracked files and excludes ignored ones', async () => {
     await run(
       Effect.scoped(
         Effect.gen(function* () {
@@ -76,7 +76,11 @@ describe('Effect filesystem services', () => {
           expect((yield* git(root, ['add', 'src/button.ts', 'button.md', '.gitignore'])).code).toBe(
             0
           )
-          expect(yield* searchFiles(root, 'btn')).toEqual(['button.md', 'src/button.ts'])
+          expect(yield* searchFiles(root, 'btn')).toEqual([
+            'button.md',
+            'src/button.ts',
+            'untracked-button.ts',
+          ])
           expect(yield* searchFiles(root, 'btn', 1)).toEqual(['button.md'])
           expect(yield* searchFiles(root, '')).toEqual([])
           expect(fuzzyMatch('button.md', 'missing')).toBeNull()
@@ -165,7 +169,13 @@ describe('Effect filesystem services', () => {
             Effect.gen(function* () {
               expect(command._tag).toBe('StandardCommand')
               if (command._tag === 'StandardCommand')
-                expect(command.args).toEqual(['ls-files', '-z'])
+                expect(command.args).toEqual([
+                  'ls-files',
+                  '-z',
+                  '--cached',
+                  '--others',
+                  '--exclude-standard',
+                ])
               const handle = yield* real.spawn(
                 ChildProcess.make(process.execPath, [
                   '-e',

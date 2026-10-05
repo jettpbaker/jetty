@@ -39,8 +39,15 @@ export function fuzzyMatch(path: string, query: string): number | null {
 export function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT) {
   return Effect.gen(function* () {
     if (query.length === 0) return []
-    // -z: real names, not Git's quoted escapes for café.ts or a name with a tab.
-    const { out, code } = yield* git(cwd, ['ls-files', '-z'])
+    // -z: real names, not Git's quoted escapes for café.ts or a name with a tab. Untracked files
+    // count too (an agent's new ones), as in the Files tree; ignored ones don't.
+    const { out, code } = yield* git(cwd, [
+      'ls-files',
+      '-z',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+    ])
     if (code !== 0) return []
 
     const scored: { path: string; score: number }[] = []

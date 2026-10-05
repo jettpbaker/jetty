@@ -491,6 +491,13 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, path: Schema.String }),
     result: ProjectFile,
   },
+  // One folder of the thread's working folder ('' is its top), without what git ignores.
+  'thread.readDirectory': {
+    params: Schema.Struct({ threadId: Schema.String, path: Schema.String }),
+    result: Schema.Struct({
+      entries: Schema.Array(Schema.Struct({ name: Schema.String, directory: Schema.Boolean })),
+    }),
+  },
   // Saves only while the file still holds `base`, the text the edit started from (null: no
   // file yet); otherwise the conflict carries what's on disk now.
   'thread.writeFile': {

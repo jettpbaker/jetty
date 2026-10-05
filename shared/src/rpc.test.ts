@@ -100,6 +100,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'thread.diff': () => Effect.succeed({ diff: '' }),
           'thread.diffFile': () => Effect.succeed({ before: null, after: null }),
           'thread.readFile': () => Effect.succeed({ contents: null }),
+          'thread.readDirectory': () => Effect.succeed({ entries: [] }),
           'thread.writeFile': () => Effect.succeed({ saved: true as const }),
           'pullRequest.link': () =>
             Effect.fail({ code: 'not_found' as const, message: 'Not found' }),
