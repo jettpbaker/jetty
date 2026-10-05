@@ -294,10 +294,12 @@ export function ThreadComposer({
       input.current?.focus({ preventScroll: true })
   }
 
-  // Writes the prompt for the user to send, after anything already typed.
+  // Writes the prompt for the user to send, after anything already typed, and points the draft
+  // at the project checkout. Jetty reads the config from there. The picker can still switch it.
   function setUpWorktrees(guide: string) {
     const prompt = `Set up Jetty worktrees for this project. Read ${guide} and follow it.`
     if (!draft.includes(prompt)) setDraft(draft.trim() ? `${draft.trimEnd()}\n\n${prompt}` : prompt)
+    retarget({ environment: 'local' })
     input.current?.focus({ preventScroll: true })
   }
 
