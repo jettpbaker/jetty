@@ -354,21 +354,24 @@ export function createMcpHandler(
           )
           if (sent) delivery = 'delivered'
         }
+        const detail =
+          delivery === 'delivered'
+            ? response.busy
+              ? 'Steered into the running turn.'
+              : 'Delivered in a new turn.'
+            : (yield* store.isQueuePaused(response.threadId))
+              ? 'Queued, but the thread is paused, so this waits until the user resumes it.'
+              : response.busy
+                ? 'Queued; it reads this when its current turn ends.'
+                : 'Queued; it starts on this within a second or so.'
         return {
           threadId: response.threadId,
           title: response.title,
           messageId: response.messageId,
           delivery,
-          detail:
-            delivery === 'delivered'
-              ? response.busy
-                ? 'Steered into the running turn.'
-                : 'Delivered in a new turn.'
-              : (yield* store.isQueuePaused(response.threadId))
-                ? 'Queued, but the thread is paused, so this waits until the user resumes it.'
-                : response.busy
-                  ? 'Queued; it reads this when its current turn ends.'
-                  : 'Queued; it starts on this within a second or so.',
+          detail: response.ownChild
+            ? `${detail} Its report reaches you only once your turn ends, so end it now instead of waiting.`
+            : detail,
         }
       })
     }
