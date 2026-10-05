@@ -4,7 +4,7 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
-import { Effect, Exit } from 'effect'
+import { Effect, Exit, Fiber } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
@@ -82,7 +82,7 @@ function track(
       drop()
     }
   }
-  run(registry, (connection) =>
+  return run(registry, (connection) =>
     request(connection).pipe(
       Effect.onExit((exit) =>
         Effect.sync(() => {
@@ -97,6 +97,20 @@ function track(
       )
     )
   )
+}
+
+// In-flight adds by message id, and each thread's latest add.
+const adding = new Map<string, Fiber.Fiber<unknown, unknown>>()
+const latestAdd = new Map<string, Fiber.Fiber<unknown, unknown>>()
+
+// A remove, edit or send-now on a message still being added waits for the add, or the server
+// wouldn't know the message yet and the add would land after it.
+function awaitAdd(messageId: string) {
+  return awaitFiber(adding.get(messageId))
+}
+
+function awaitFiber(fiber: Fiber.Fiber<unknown, unknown> | undefined) {
+  return fiber ? Fiber.join(fiber).pipe(Effect.ignore) : Effect.void
 }
 
 function isArchived(registry: Registry, threadId: string) {
@@ -125,12 +139,16 @@ function addQueued(
   }
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
   const staged = stageSend(registry, threadId, { text, images })
-  track(
+  // Adds go out one at a time per thread, so a message whose images take a while to store still
+  // reaches the queue before a text-only one sent after it.
+  const previous = latestAdd.get(threadId)
+  const add = track(
     registry,
     threadId,
     { kind: 'add', message },
     (connection) =>
-      unarchive(connection).pipe(
+      awaitFiber(previous).pipe(
+        Effect.andThen(unarchive(connection)),
         Effect.andThen(
           connection.request('queue.add', {
             threadId,
@@ -159,11 +177,19 @@ function addQueued(
       },
     }
   )
+  adding.set(message.id, add)
+  latestAdd.set(threadId, add)
+  add.addObserver(() => {
+    adding.delete(message.id)
+    if (latestAdd.get(threadId) === add) latestAdd.delete(threadId)
+  })
 }
 
 function removeQueued(registry: Registry, threadId: string, messageId: string) {
   track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
-    connection.request('queue.remove', { threadId, messageId })
+    awaitAdd(messageId).pipe(
+      Effect.andThen(connection.request('queue.remove', { threadId, messageId }))
+    )
   )
 }
 
@@ -173,7 +199,10 @@ function editQueued(registry: Registry, threadId: string, messageId: string, tex
     registry,
     threadId,
     { kind: 'edit', id: messageId, text },
-    (connection) => connection.request('queue.edit', { threadId, messageId, text }),
+    (connection) =>
+      awaitAdd(messageId).pipe(
+        Effect.andThen(connection.request('queue.edit', { threadId, messageId, text }))
+      ),
     {
       onSuccess: staged.sent,
       onFailure() {
@@ -200,6 +229,7 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
     registry,
     (connection) =>
       unarchive(connection).pipe(
+        Effect.andThen(awaitAdd(message.id)),
         Effect.andThen(connection.request('queue.sendNow', { threadId, messageId: message.id }))
       ),
     () => {
@@ -210,11 +240,19 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
 }
 
 function holdQueued(registry: Registry, threadId: string, messageId: string) {
-  run(registry, (connection) => connection.request('queue.hold', { threadId, messageId }))
+  run(registry, (connection) =>
+    awaitAdd(messageId).pipe(
+      Effect.andThen(connection.request('queue.hold', { threadId, messageId }))
+    )
+  )
 }
 
 function releaseQueued(registry: Registry, threadId: string, messageId: string) {
-  run(registry, (connection) => connection.request('queue.release', { threadId, messageId }))
+  run(registry, (connection) =>
+    awaitAdd(messageId).pipe(
+      Effect.andThen(connection.request('queue.release', { threadId, messageId }))
+    )
+  )
 }
 
 // The server releases an edit hold after 60s, so renew every draft's hold from here rather than
