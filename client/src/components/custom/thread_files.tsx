@@ -3,7 +3,13 @@ import type { FileTreeBatchOperation, FileTreeVisibleRow } from '@pierre/trees'
 import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { useChrome, useFileSearch, useFolderReader, useToolsSettled } from '@/state'
+import {
+  useChrome,
+  useFileSearch,
+  useFolderReader,
+  useRefreshOnFocus,
+  useToolsSettled,
+} from '@/state'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import {
   useCallback,
@@ -255,10 +261,7 @@ function FolderTree({
   const turnEndedAt = useChrome()?.threads.find((thread) => thread.id === threadId)?.turnEndedAt
   const catchUp = useCallback(() => refresh.current?.(), [])
   useToolsSettled(threadId, catchUp)
-  useEffect(() => {
-    window.addEventListener('focus', catchUp)
-    return () => window.removeEventListener('focus', catchUp)
-  }, [catchUp])
+  useRefreshOnFocus(catchUp)
   const turnEnded = useRef(turnEndedAt)
   useEffect(() => {
     if (turnEnded.current === turnEndedAt) return

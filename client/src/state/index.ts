@@ -11,6 +11,7 @@ export {
   useProjectFile,
   useSaveProjectFile,
   useThreadDiff,
+  useRefreshOnFocus,
   useThreadDiffFetch,
   useToolsSettled,
 } from './diff'

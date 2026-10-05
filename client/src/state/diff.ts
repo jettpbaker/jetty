@@ -68,6 +68,24 @@ const toolsSettledAtom = Atom.family((threadId: string) =>
   })
 )
 
+// Coming back to the window re-reads what's on screen, but at most once every 30s, so
+// alt-tabbing back and forth doesn't re-read the open file and every open folder each time.
+const focusRefreshMs = 30_000
+
+export function useRefreshOnFocus(refresh: () => void) {
+  useEffect(() => {
+    let last = performance.now()
+    function focused() {
+      const now = performance.now()
+      if (now - last < focusRefreshMs) return
+      last = now
+      refresh()
+    }
+    window.addEventListener('focus', focused)
+    return () => window.removeEventListener('focus', focused)
+  }, [refresh])
+}
+
 // Calls back each time the thread's tool calls settle, without rendering.
 export function useToolsSettled(threadId: string, onSettled: () => void) {
   const registry = useContext(RegistryContext)
@@ -183,7 +201,7 @@ const projectFileAtom = Atom.family((key: string) => {
 
 // A reopened file renders from cache at once and is re-read behind it. An open file follows
 // edits on disk: it's re-read when the thread's tool calls settle, when a turn ends and when the
-// window regains focus.
+// window regains focus (at most every 30s).
 export function useProjectFile(threadId: string, path: string) {
   const atom = projectFileAtom(`${threadId}\0${path}`)
   const result = useAtomValue(atom)
@@ -192,10 +210,7 @@ export function useProjectFile(threadId: string, path: string) {
   const turnEnded = useRef(turnEndedAt)
   useToolsSettled(threadId, refresh)
   useRefreshCached(atom, refresh)
-  useEffect(() => {
-    window.addEventListener('focus', refresh)
-    return () => window.removeEventListener('focus', refresh)
-  }, [refresh])
+  useRefreshOnFocus(refresh)
   useEffect(() => {
     if (turnEnded.current === turnEndedAt) return
     turnEnded.current = turnEndedAt
