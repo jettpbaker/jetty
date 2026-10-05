@@ -90,8 +90,9 @@
   takes the matching icon size (`xs` ↔ `icon-xs`, `sm` ↔ `icon-sm`), never a
   smaller size stretched with height classes. Radius follows size, so mixed
   sizes give mismatched corners.
-- The tab close button is deliberately its own thing (tiny, no bg hover) — leave
-  it.
+- The tab close button and the thread row's Archive/More buttons
+  (`thread_row_actions.tsx`) are deliberately their own thing (tiny, no bg
+  hover, sized glyphs) — leave them.
 - Status colors are semantic: amber = awaiting approval, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
