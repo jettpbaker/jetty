@@ -4,8 +4,6 @@ import { Dithering } from '@paper-design/shaders-react'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 
-import './dither_drift.css'
-
 let probe: CanvasRenderingContext2D | null | undefined
 
 // Shaders take rgb; the theme speaks oklch, so the canvas mixes and converts.
@@ -54,7 +52,7 @@ export function DitherDrift({ base }: { base?: string }) {
   if (!colors) return null
   return (
     <Dithering
-      className='dither-drift'
+      className='pointer-events-none absolute inset-0'
       aria-hidden='true'
       colorBack={base ?? colors.back}
       colorFront={colors.front}
