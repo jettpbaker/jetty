@@ -9,7 +9,7 @@ import type {
   ProviderId,
   ProviderModel,
   ThreadMeta,
-  RateLimits,
+  ProviderUsage,
 } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
@@ -45,7 +45,7 @@ export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon 
 export type Chrome = {
   projects: readonly Project[]
   threads: readonly ThreadMeta[]
-  usage?: RateLimits
+  usage?: ProviderUsage
   models?: readonly ProviderModel[]
   modelDiscovery?: ModelDiscovery
   providerCapabilities?: ProviderCapabilities

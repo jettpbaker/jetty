@@ -3,7 +3,6 @@ import type {
   ChromePushData,
   ProviderModel,
   ProviderUsage,
-  RateLimits,
   ThreadMeta,
 } from '@jetty/shared/wire'
 
@@ -78,7 +77,7 @@ export function createRpcHandlers(
   store: Store,
   orch: Orchestrator,
   hub: Hub,
-  getUsage: () => RateLimits | null,
+  getUsage: () => ProviderUsage | null,
   getModels: () => readonly ProviderModel[] | null,
   refreshModels: (force?: boolean) => Effect.Effect<void> = () => Effect.void,
   pullRequests = createPullRequests(store, hub),

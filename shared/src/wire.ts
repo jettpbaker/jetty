@@ -299,18 +299,21 @@ export const Skill = Schema.Struct({
 })
 export type Skill = Schema.Schema.Type<typeof Skill>
 
+export const UsageWindow = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  pct: Schema.Finite,
+  resetsAt: Schema.optional(Schema.Finite),
+  minutes: Schema.optional(Schema.Finite),
+})
+export type UsageWindow = Schema.Schema.Type<typeof UsageWindow>
+
 export const ProviderUsage = Schema.Struct({
-  provider: Schema.Literals(['claude', 'codex']),
+  provider: Schema.Literals(['claude', 'codex', 'grok']),
   connected: Schema.Boolean,
   plan: Schema.optional(Schema.String),
-  windows: Schema.Array(
-    Schema.Struct({
-      id: Schema.String,
-      label: Schema.String,
-      pct: Schema.Finite,
-      resetsAt: Schema.optional(Schema.Finite),
-    })
-  ),
+  account: Schema.optional(Schema.String),
+  windows: Schema.Array(UsageWindow),
   asOf: Schema.optional(Schema.Finite),
 })
 export type ProviderUsage = Schema.Schema.Type<typeof ProviderUsage>
@@ -735,36 +738,12 @@ export type ErrorCode = Schema.Schema.Type<typeof ErrorCode>
 export const WireError = Schema.Struct({ code: ErrorCode, message: Schema.String })
 export type WireError = Schema.Schema.Type<typeof WireError>
 
-// pct is 0–100
-export const UsageWindow = Schema.Struct({
-  pct: Schema.Finite,
-  resetsAt: Schema.Finite,
-})
-export type UsageWindow = Schema.Schema.Type<typeof UsageWindow>
-
-// amounts are in major currency units
-export const ExtraUsage = Schema.Struct({
-  used: Schema.Finite,
-  limit: Schema.Finite,
-  pct: Schema.Finite,
-  currency: Schema.String,
-})
-export type ExtraUsage = Schema.Schema.Type<typeof ExtraUsage>
-
-export const RateLimits = Schema.Struct({
-  fiveHour: UsageWindow,
-  sevenDay: UsageWindow,
-  extraUsage: Schema.optional(ExtraUsage),
-  asOf: Schema.Finite,
-})
-export type RateLimits = Schema.Schema.Type<typeof RateLimits>
-
 export const ChromePushData = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('snapshot'),
     projects: Schema.Array(Project),
     threads: Schema.Array(ThreadMeta),
-    usage: Schema.optional(RateLimits),
+    usage: Schema.optional(ProviderUsage),
     models: Schema.optional(Schema.Array(ProviderModel)),
     providerCapabilities: Schema.optional(ProviderCapabilities),
     modelDiscovery: Schema.optional(ModelDiscovery),
@@ -776,7 +755,7 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('thread.removed'), threadId: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('usage'), usage: RateLimits }),
+  Schema.Struct({ type: Schema.Literal('usage'), usage: ProviderUsage }),
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
   Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
   Schema.Struct({ type: Schema.Literal('branchPrefix'), prefix: Schema.String }),

@@ -6,12 +6,7 @@ import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import { RESTART_LIMIT, RESTART_LIMIT_NOTE, RESTART_WINDOW_MS } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import {
-  MAX_TURN_IMAGE_BYTES,
-  newId,
-  type ProviderUsage,
-  type RateLimits,
-} from '@jetty/shared/wire'
+import { MAX_TURN_IMAGE_BYTES, newId, type ProviderUsage } from '@jetty/shared/wire'
 import {
   Context,
   Deferred,
@@ -32,7 +27,14 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
 
-import { AgentService, ECHO_MODELS, echoLayer, type Agent, type AgentHooks } from './agent'
+import {
+  AgentService,
+  ECHO_MODELS,
+  echoUsage,
+  echoLayer,
+  type Agent,
+  type AgentHooks,
+} from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { claudeLayer } from './claude'
 import { claudeBin } from './claude-bin'
@@ -52,7 +54,11 @@ import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { createPerfSink } from './perf-sink'
-import { readClaudeProviderUsage, readCodexProviderUsage } from './provider-usage'
+import {
+  readClaudeProviderUsage,
+  readCodexProviderUsage,
+  readGrokProviderUsage,
+} from './provider-usage'
 import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
@@ -271,7 +277,7 @@ function createServer(opts: ServerOptions = {}) {
     const githubMedia = createGithubMedia(home)
     const perfSink = createPerfSink(home)
     const mcp = createMcpSessions()
-    let lastUsage: RateLimits | null = null
+    let lastUsage: ProviderUsage | null = null
     const hooks: AgentHooks = {
       onBackgroundTasks(threadId, tasks) {
         return hub
@@ -285,7 +291,7 @@ function createServer(opts: ServerOptions = {}) {
           )
           .pipe(Effect.ignore)
       },
-      onUsage(usage: RateLimits) {
+      onUsage(usage: ProviderUsage) {
         lastUsage = usage
         Effect.runFork(
           hub.withChromePublication(Effect.sync(() => hub.pushChrome({ type: 'usage', usage })))
@@ -460,25 +466,24 @@ function createServer(opts: ServerOptions = {}) {
       () => modelDiscovery,
       () =>
         Effect.gen(function* () {
-          const claude = yield* Effect.promise(() =>
-            readClaudeProviderUsage(() => {
-              if (!lastUsage) return undefined
-              const windows = [
-                { id: 'five-hour', label: '5 hour', ...lastUsage.fiveHour },
-                { id: 'seven-day', label: 'Weekly', ...lastUsage.sevenDay },
-              ].map(({ id, label, pct, resetsAt }) => ({ id, label, pct, resetsAt }))
-              return {
-                provider: 'claude',
-                connected: true,
-                windows,
-                asOf: lastUsage.asOf,
-              } satisfies ProviderUsage
-            })
+          if (agentKind === 'echo') return echoUsage()
+          const [oauth, codex, grok] = yield* Effect.all(
+            [
+              Effect.promise(() => readClaudeProviderUsage()),
+              readCodexProviderUsage(home, opts.codex).pipe(
+                Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+              ),
+              Effect.promise(() => readGrokProviderUsage()),
+            ],
+            { concurrency: 'unbounded' }
           )
-          const codex = yield* readCodexProviderUsage(home, opts.codex).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
-          return [claude, codex]
+          // A turn's own read is fresher than a cached or rate-limited OAuth one.
+          const sdk = lastUsage
+          const claude =
+            sdk?.windows.length && (sdk.asOf ?? 0) > (oauth.asOf ?? 0)
+              ? { ...oauth, connected: true, windows: sdk.windows, asOf: sdk.asOf }
+              : oauth
+          return [claude, codex, grok]
         })
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)

@@ -4,8 +4,8 @@ import type {
   BackgroundTask,
   PermissionMode,
   ProviderModel,
+  ProviderUsage,
   UploadAttachment,
-  RateLimits,
 } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
@@ -33,7 +33,7 @@ export type TurnInput = {
 
 export type AgentHooks = {
   onBackgroundTasks?: (threadId: string, tasks: readonly BackgroundTask[]) => Effect.Effect<void>
-  onUsage?: (usage: RateLimits) => void
+  onUsage?: (usage: ProviderUsage) => void
 }
 
 export class AgentError extends Error {
@@ -144,6 +144,74 @@ export const ECHO_MODELS: ProviderModel[] = [
     autoMode: true,
   },
 ]
+
+export function echoUsage(): ProviderUsage[] {
+  const now = Date.now()
+  return [
+    {
+      provider: 'claude',
+      connected: true,
+      plan: 'Max 20×',
+      account: 'you@example.com',
+      asOf: now,
+      windows: [
+        { id: 'five-hour', label: '5-hour', pct: 72, minutes: 300, resetsAt: now + 110 * 60_000 },
+        {
+          id: 'seven-day',
+          label: 'Weekly',
+          pct: 41,
+          minutes: 10_080,
+          resetsAt: now + 76 * 3_600_000,
+        },
+        {
+          id: 'seven-day-fable',
+          label: 'Weekly · Fable',
+          pct: 95,
+          minutes: 10_080,
+          resetsAt: now + 76 * 3_600_000,
+        },
+      ],
+    },
+    {
+      provider: 'codex',
+      connected: true,
+      plan: 'Pro',
+      account: 'you@example.com',
+      asOf: now,
+      windows: [
+        {
+          id: 'codex-primary',
+          label: '5-hour',
+          pct: 100,
+          minutes: 300,
+          resetsAt: now + 38 * 60_000,
+        },
+        {
+          id: 'codex-secondary',
+          label: 'Weekly',
+          pct: 64,
+          minutes: 10_080,
+          resetsAt: now + 122 * 3_600_000,
+        },
+      ],
+    },
+    {
+      provider: 'grok',
+      connected: true,
+      account: 'you@example.com',
+      asOf: now,
+      windows: [
+        {
+          id: 'grok-period',
+          label: 'Weekly',
+          pct: 30,
+          minutes: 10_080,
+          resetsAt: now + 57 * 3_600_000,
+        },
+      ],
+    },
+  ]
+}
 
 type EchoSession = {
   fiber: Fiber.Fiber<void, AgentError>
@@ -306,12 +374,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
               costUsd: 0,
             })
 
-            hooks.onUsage?.({
-              fiveHour: { pct: 42, resetsAt: Date.now() + 2 * 60 * 60 * 1000 },
-              sevenDay: { pct: 18, resetsAt: Date.now() + 3 * 24 * 60 * 60 * 1000 },
-              extraUsage: { used: 12.4, limit: 50, pct: 24.8, currency: 'USD' },
-              asOf: Date.now(),
-            })
+            hooks.onUsage?.(echoUsage()[0]!)
           }).pipe(
             Effect.onInterrupt(() =>
               emit({ type: 'turn.failed', turnId: input.turnId, error: session.reason }).pipe(

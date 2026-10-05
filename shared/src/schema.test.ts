@@ -77,13 +77,29 @@ describe('domain schema constraints', () => {
   })
 
   test('keeps finite decimal usage values without imposing new percentage bounds', () => {
-    expect(Schema.decodeUnknownSync(UsageWindow)({ pct: 101.5, resetsAt: -0.5 })).toEqual({
+    expect(
+      Schema.decodeUnknownSync(UsageWindow)({
+        id: 'five-hour',
+        label: '5-hour',
+        pct: 101.5,
+        resetsAt: -0.5,
+      })
+    ).toEqual({
+      id: 'five-hour',
+      label: '5-hour',
       pct: 101.5,
       resetsAt: -0.5,
     })
     for (const value of [NaN, Infinity, -Infinity]) {
       expect(
-        Result.isFailure(Schema.decodeUnknownResult(UsageWindow)({ pct: value, resetsAt: 0 }))
+        Result.isFailure(
+          Schema.decodeUnknownResult(UsageWindow)({
+            id: 'five-hour',
+            label: '5-hour',
+            pct: value,
+            resetsAt: 0,
+          })
+        )
       ).toBe(true)
       expect(
         Result.isFailure(
