@@ -1,6 +1,7 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
 import {
+  ArrowRight01Icon,
   CircleIcon,
   Settings01Icon,
   Archive02Icon,
@@ -29,6 +30,7 @@ import {
 import { useNow } from '@/hooks/use-now'
 import { effortLabels } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
+import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { formatAge, formatElapsed } from '@/lib/time'
 import { storage } from '@/platform'
 import {
@@ -163,6 +165,11 @@ export function AppSidebar() {
   const [query, setQuery] = useState('')
   const [view, setView] = useState(storedView)
   const { grouping, showPinned, showArchived } = view
+  const [archivedOpen, setArchivedOpen] = useStoredState(
+    'jetty.sidebar.archivedOpen',
+    false,
+    isBoolean
+  )
   function changeView(patch: Partial<SidebarView>) {
     const next = { ...view, ...patch }
     setView(next)
@@ -177,7 +184,7 @@ export function AppSidebar() {
     .flatMap((group) => (group.archived ? [] : group.threads))
     .slice(0, keybinds.threads.length)
   const current = threads.find((thread) => thread.id === selectedId)
-  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
+  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
   const items = groups.flatMap((group) => [
     {
       kind: 'heading' as const,
@@ -192,7 +199,11 @@ export function AppSidebar() {
           : undefined,
       projectIcon: group.threads[0]?.projectIcon,
     },
-    ...group.threads.map((thread) => ({ kind: 'thread' as const, id: thread.id, thread })),
+    ...(group.archived && !archivedOpen ? [] : group.threads).map((thread) => ({
+      kind: 'thread' as const,
+      id: thread.id,
+      thread,
+    })),
   ])
   const bumpDraft = useBumpDraft()
   const startThreadJourney = useThreadJourney()
@@ -376,12 +387,9 @@ export function AppSidebar() {
           <nav aria-label='Threads'>
             <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
               {items.map((item) => {
-                if (item.kind === 'heading')
-                  return (
-                    <h3
-                      key={item.id}
-                      className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
-                    >
+                if (item.kind === 'heading') {
+                  const heading = (
+                    <>
                       {item.pinned && (
                         <PinIcon filled className='size-3 shrink-0' aria-hidden='true' />
                       )}
@@ -398,6 +406,12 @@ export function AppSidebar() {
                       )}
                       <span className='flex min-w-0 flex-1 items-baseline gap-1'>
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>
+                        {item.archived && (
+                          <ArrowRight01Icon
+                            className='size-3 shrink-0 self-center group-aria-expanded/button:rotate-90'
+                            aria-hidden='true'
+                          />
+                        )}
                         <span
                           className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
                           aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
@@ -405,8 +419,28 @@ export function AppSidebar() {
                           {item.count}
                         </span>
                       </span>
+                    </>
+                  )
+                  return item.archived ? (
+                    <h3 key={item.id} className='mt-5 flex first:mt-0'>
+                      <Button
+                        variant='ghost-text'
+                        className='h-auto w-full justify-start gap-1.5 rounded-sm border-0 px-2.5 py-1 text-xs font-normal aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
+                        aria-expanded={archivedOpen}
+                        onClick={() => setArchivedOpen((open) => !open)}
+                      >
+                        {heading}
+                      </Button>
+                    </h3>
+                  ) : (
+                    <h3
+                      key={item.id}
+                      className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
+                    >
+                      {heading}
                     </h3>
                   )
+                }
                 const thread = item.thread
                 return (
                   <motion.div
