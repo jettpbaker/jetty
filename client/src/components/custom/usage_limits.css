@@ -1,0 +1,16 @@
+/* Provider colours, from T3 Code's usage page: Claude's clay, Codex in ink, Grok a step lighter. */
+[data-usage-provider='claude'] {
+  --usage-color: oklch(0.67 0.13 39);
+}
+[data-usage-provider='codex'] {
+  --usage-color: var(--foreground);
+}
+[data-usage-provider='grok'] {
+  --usage-color: color-mix(in oklab, var(--foreground) 55%, var(--background));
+}
+
+/* Stacked over another strip, the banner keeps the top corners. */
+[data-strip] + [data-strip] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}

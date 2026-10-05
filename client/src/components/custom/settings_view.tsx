@@ -1,5 +1,4 @@
 import {
-  ChartHistogramIcon,
   PaintBrush01Icon,
   Plug01Icon,
   PuzzleIcon,
@@ -28,7 +27,6 @@ import {
   type ProviderId,
 } from './settings_providers'
 import { SettingsTitleModel } from './settings_title_model'
-import { SettingsUsage } from './settings_usage'
 import { SettingsWorktrees } from './settings_worktrees'
 
 function Section({
@@ -64,14 +62,13 @@ function Section({
 
 export function SettingsView() {
   const { refreshing, refresh } = useModelRefresh()
-  const { usage, loaded, failed, refresh: refreshUsage } = useProviderUsage()
+  const { refresh: refreshUsage } = useProviderUsage()
   useEffect(() => {
     refresh()
   }, [refresh])
+  // The providers panel shows each account's plan.
   useEffect(() => {
     refreshUsage()
-    const timer = window.setInterval(refreshUsage, 60_000)
-    return () => window.clearInterval(timer)
   }, [refreshUsage])
   const [provider, setProvider] = useState<ProviderId>('claude')
   const [enabled, setEnabled] = useState(loadProviderEnabled)
@@ -137,14 +134,6 @@ export function SettingsView() {
           <Section id='appearance' label='Appearance' icon={PaintBrush01Icon}>
             <SettingsAppearance />
           </Section>
-          {(enabled.claude || enabled.codex) &&
-            (!loaded ||
-              failed ||
-              usage.some((item) => enabled[item.provider] && item.connected)) && (
-              <Section id='usage' label='Usage' icon={ChartHistogramIcon}>
-                <SettingsUsage enabled={enabled} usage={usage} failed={failed} />
-              </Section>
-            )}
         </div>
       </div>
     </div>

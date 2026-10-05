@@ -1,5 +1,6 @@
 import {
   ArrowRight01Icon,
+  ChartHistogramIcon,
   Settings01Icon,
   Archive02Icon,
   PencilEdit02Icon,
@@ -24,6 +25,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
@@ -48,7 +50,13 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { HoverKeybind, keybinds, typingOutsideComposer } from './keybinds'
+import {
+  HoverKeybind,
+  KeybindIcon,
+  KeybindTooltip,
+  keybinds,
+  typingOutsideComposer,
+} from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import { groupSidebarThreads, sidebarThreads, type ThreadGrouping } from './sidebar_thread_groups'
@@ -88,6 +96,7 @@ export function AppSidebar() {
   const selectedId = useParams({ strict: false }).threadId
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onSettings = pathname === '/settings'
+  const onUsage = pathname === '/usage'
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
   const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
@@ -141,7 +150,6 @@ export function AppSidebar() {
   const renameThread = useRenameThread()
   const pinThread = usePinThread()
   const deleteThread = useDeleteThread()
-  const openSettings = () => navigate({ to: '/settings' })
 
   function openThread(threadId: string) {
     startThreadJourney(threadId)
@@ -420,18 +428,40 @@ export function AppSidebar() {
           </nav>
         </MotionSidebarContent>
       </ThreadHoverGroup>
-      <SidebarFooter className='shrink-0 border-t border-sidebar-border p-0'>
-        <Button
-          variant='ghost'
-          className='keybind-target h-auto w-full justify-start gap-2 rounded-none px-4 py-2 font-normal text-muted-foreground not-disabled:hover:bg-sidebar-accent not-disabled:hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
-          aria-current={onSettings ? 'page' : undefined}
-          aria-label='Settings'
-          {...pressProps(openSettings)}
-        >
-          <Settings01Icon />
-          Settings
-          <HoverKeybind binding={keybinds.settings} className='ml-auto' />
-        </Button>
+      <SidebarFooter className='shrink-0 flex-row items-center gap-1 border-t border-sidebar-border px-2.5 py-1.5'>
+        <KeybindTooltip binding={keybinds.settings}>
+          <Button
+            variant='ghost'
+            tone='muted'
+            size='icon'
+            className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+            aria-label='Settings'
+            aria-current={onSettings ? 'page' : undefined}
+            {...pressProps(() => void navigate({ to: '/settings' }))}
+          >
+            <KeybindIcon binding={keybinds.settings}>
+              <Settings01Icon />
+            </KeybindIcon>
+          </Button>
+        </KeybindTooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                tone='muted'
+                size='icon'
+                className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+                aria-label='Usage'
+                aria-current={onUsage ? 'page' : undefined}
+                {...pressProps(() => void navigate({ to: '/usage' }))}
+              />
+            }
+          >
+            <ChartHistogramIcon />
+          </TooltipTrigger>
+          <TooltipContent>Usage</TooltipContent>
+        </Tooltip>
       </SidebarFooter>
       <Dialog
         open={Boolean(deletePrompt)}

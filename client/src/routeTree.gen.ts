@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as UsageRouteImport } from './routes/usage'
 import { Route as PullRequestsIndexRouteImport } from './routes/pull-requests.index'
 import { Route as ThreadsThreadIdRouteImport } from './routes/threads.$threadId'
 import { Route as PullRequestsOwnerRepoNumberRouteImport } from './routes/pull-requests.$owner.$repo.$number'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsageRoute = UsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PullRequestsIndexRoute = PullRequestsIndexRouteImport.update({
@@ -45,6 +51,7 @@ const PullRequestsOwnerRepoNumberRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/usage': typeof UsageRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
   '/pull-requests/': typeof PullRequestsIndexRoute
   '/pull-requests/$owner/$repo/$number': typeof PullRequestsOwnerRepoNumberRoute
@@ -52,6 +59,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/usage': typeof UsageRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
   '/pull-requests': typeof PullRequestsIndexRoute
   '/pull-requests/$owner/$repo/$number': typeof PullRequestsOwnerRepoNumberRoute
@@ -60,6 +68,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/usage': typeof UsageRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
   '/pull-requests/': typeof PullRequestsIndexRoute
   '/pull-requests/$owner/$repo/$number': typeof PullRequestsOwnerRepoNumberRoute
@@ -69,6 +78,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
+    | '/usage'
     | '/threads/$threadId'
     | '/pull-requests/'
     | '/pull-requests/$owner/$repo/$number'
@@ -76,6 +86,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/settings'
+    | '/usage'
     | '/threads/$threadId'
     | '/pull-requests'
     | '/pull-requests/$owner/$repo/$number'
@@ -83,6 +94,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/settings'
+    | '/usage'
     | '/threads/$threadId'
     | '/pull-requests/'
     | '/pull-requests/$owner/$repo/$number'
@@ -91,6 +103,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
+  UsageRoute: typeof UsageRoute
   ThreadsThreadIdRoute: typeof ThreadsThreadIdRoute
   PullRequestsIndexRoute: typeof PullRequestsIndexRoute
   PullRequestsOwnerRepoNumberRoute: typeof PullRequestsOwnerRepoNumberRoute
@@ -110,6 +123,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pull-requests/': {
@@ -139,6 +159,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
+  UsageRoute: UsageRoute,
   ThreadsThreadIdRoute: ThreadsThreadIdRoute,
   PullRequestsIndexRoute: PullRequestsIndexRoute,
   PullRequestsOwnerRepoNumberRoute: PullRequestsOwnerRepoNumberRoute,
