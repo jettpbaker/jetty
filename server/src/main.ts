@@ -144,15 +144,11 @@ function reconcileOnStartup(store: Store) {
                 patch: { skipped: true },
               })
           }
-          yield* store.appendEvent(
-            thread.id,
-            {
-              type: 'turn.failed',
-              turnId: state.activeTurnId!,
-              error: 'server_restarted',
-            },
-            autoResume ? false : 'restart'
-          )
+          yield* store.appendEvent(thread.id, {
+            type: 'turn.failed',
+            turnId: state.activeTurnId!,
+            error: 'server_restarted',
+          })
           if (!autoResume)
             yield* store.appendEvent(thread.id, {
               type: 'item.started',

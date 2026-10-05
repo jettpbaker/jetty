@@ -13,6 +13,10 @@ export function jettyInstructions(behaviours: AgentBehaviours) {
 export const RESTART_LIMIT_NOTE =
   "Jetty restarted 3 times in 10 minutes, so it didn't resume automatically."
 
+// How a child's report to its parent describes a turn the crash-loop guard left paused.
+export const RESTART_LIMIT_OUTCOME =
+  "stopped: Jetty restarted 3 times in 10 minutes, so it didn't resume it automatically"
+
 export function restartContinuation(stoppedNames: readonly string[]) {
   const names = stoppedNames.length ? `: ${stoppedNames.join(', ')}` : ''
   return `Jetty restarted while you were working, so your last turn was cut off. Background tasks, monitors and subagents you had running were stopped and won't report back${names}. Approvals or questions that were waiting were cancelled. Your last command may or may not have finished: check the current state before redoing anything, then carry on.`

@@ -24,7 +24,7 @@ import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { normalizePath } from './fs-browse'
-import { RESTART_LIMIT_NOTE } from './jetty-instructions'
+import { RESTART_LIMIT_OUTCOME } from './jetty-instructions'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
@@ -441,7 +441,9 @@ export function createStore() {
             ? 'done'
             : event.error === 'interrupted'
               ? 'interrupted'
-              : `failed: ${event.error}`
+              : event.error === 'server_restarted'
+                ? RESTART_LIMIT_OUTCOME
+                : `failed: ${event.error}`
         const final = state.items.findLast(
           (item) =>
             item.turnId === turn.turn_id &&
@@ -496,11 +498,7 @@ export function createStore() {
       }).pipe(atomically, Effect.mapError(storeError))
     }
 
-    function append(
-      threadId: string,
-      event: ThreadEvent,
-      notifyParent: boolean | 'restart' = true
-    ) {
+    function append(threadId: string, event: ThreadEvent) {
       return Effect.gen(function* () {
         const [threadRow] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
         if (!threadRow)
@@ -531,32 +529,6 @@ export function createStore() {
           for (const attachment of media)
             yield* sql`INSERT OR IGNORE INTO attachment_refs (thread_id, attachment_id, metadata_json)
               VALUES (${threadId}, ${attachment.id}, ${JSON.stringify(attachment)})`
-        }
-        if (
-          notifyParent === 'restart' &&
-          event.type === 'turn.failed' &&
-          !prev.turnOutcomes[event.turnId]
-        ) {
-          yield* Effect.gen(function* () {
-            const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
-            const [turn] = yield* sql<{
-              hop: number
-              initiator_thread_id: string | null
-            }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
-            const hop = (turn?.hop ?? 0) + 1
-            if (!parent || parent.archived || thread.createdBy !== 'agent') return
-            if (hop > 20)
-              return yield* Effect.logWarning(
-                `Failure notification from ${threadId} dropped: message hop limit exceeded`
-              )
-            yield* enqueue(parent.id, {
-              id: newId(),
-              createdAt: ts,
-              hop,
-              from: { threadId, title: thread.title },
-              text: `Thread ${thread.title} failed: ${RESTART_LIMIT_NOTE}`,
-            })
-          }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         }
         const turnStartedAt =
           validated.type === 'turn.started' ? ts : (thread.turnStartedAt ?? null)
@@ -1300,8 +1272,8 @@ export function createStore() {
           return yield* requireThread(threadId)
         }).pipe(Effect.mapError(storeError))
       },
-      appendEvent(threadId: string, event: ThreadEvent, notifyParent: boolean | 'restart' = true) {
-        return append(threadId, event, notifyParent).pipe(
+      appendEvent(threadId: string, event: ThreadEvent) {
+        return append(threadId, event).pipe(
           atomically,
           Effect.tap(() =>
             event.type === 'turn.completed' || event.type === 'turn.failed'
