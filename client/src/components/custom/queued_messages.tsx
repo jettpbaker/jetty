@@ -66,7 +66,7 @@ function useHoldLapse(queued: readonly QueuedMessage[]) {
     if (until === Infinity) return
     const timer = setTimeout(lapse, until - Date.now() + 100)
     return () => clearTimeout(timer)
-  }, [until])
+  }, [until, lapsed])
   return lapsed
 }
 
