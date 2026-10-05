@@ -41,6 +41,7 @@ export const keybinds = {
   model: { hotkey: 'Mod+Alt+M', label: '⌥⌘M', name: 'Model', modifiers: ['Alt', 'Meta'] },
   effort: { hotkey: 'Mod+Alt+E', label: '⌥⌘E', name: 'Effort', modifiers: ['Alt', 'Meta'] },
   access: { hotkey: 'Mod+Alt+A', label: '⌥⌘A', name: 'Access mode', modifiers: ['Alt', 'Meta'] },
+  save: { hotkey: 'Mod+S', label: '⌘S', name: 'Save file', modifiers: ['Meta'] },
   threads: Array.from(
     { length: 9 },
     (_, index): Keybind => ({

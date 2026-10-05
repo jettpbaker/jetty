@@ -1,6 +1,7 @@
 import type { CodeViewOptions } from '@pierre/diffs'
 
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -202,15 +203,8 @@ export function useCollapsedFiles(initial: () => Set<string>) {
 const fileIconResolver = createFileTreeIconResolver('standard')
 const fileIconSprite = getBuiltInSpriteSheet('standard')
 
-function FileCollapseButton({
-  path,
-  collapsed,
-  onToggle,
-}: {
-  path: string
-  collapsed: boolean
-  onToggle: () => void
-}) {
+// The file's language glyph, from the trees library's icon set.
+export function FileLanguageIcon({ path, className }: { path: string; className?: string }) {
   const icon = fileIconResolver.resolveIcon('file-tree-icon-file', path)
   const iconMarkup = useMemo(() => {
     const start = fileIconSprite.indexOf(`<symbol id="${icon.name}"`)
@@ -221,6 +215,25 @@ function FileCollapseButton({
       .replace(`<symbol id="${icon.name}"`, '<svg')
       .replace('</symbol>', '</svg>')
   }, [icon.name])
+  return (
+    <span
+      className={cn('file-language-icon size-5', className)}
+      data-language={icon.token}
+      aria-hidden='true'
+      dangerouslySetInnerHTML={{ __html: iconMarkup }}
+    />
+  )
+}
+
+function FileCollapseButton({
+  path,
+  collapsed,
+  onToggle,
+}: {
+  path: string
+  collapsed: boolean
+  onToggle: () => void
+}) {
   const Chevron = collapsed ? ArrowDown01Icon : ArrowRight01Icon
   return (
     <Button
@@ -232,12 +245,7 @@ function FileCollapseButton({
       onClick={onToggle}
       data-collapsed={collapsed}
     >
-      <span
-        className='file-language-icon absolute size-5'
-        data-language={icon.token}
-        aria-hidden='true'
-        dangerouslySetInnerHTML={{ __html: iconMarkup }}
-      />
+      <FileLanguageIcon path={path} className='absolute' />
       <Chevron className='file-collapse-chevron absolute' aria-hidden='true' />
     </Button>
   )

@@ -5,9 +5,10 @@ import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-reac
 import { Effect } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 
 import { useChrome } from './chrome'
-import { connectionAtom } from './connection'
+import { connectionAtom, useAction } from './connection'
 import { threadAtom, useThread } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
@@ -162,17 +163,63 @@ const projectFileAtom = Atom.family((key: string) => {
   ).pipe(Atom.setIdleTTL('10 minutes'))
 })
 
-// A reopened file renders from cache at once and is re-read behind it.
+// A reopened file renders from cache at once and is re-read behind it. An open file follows
+// edits on disk: it's re-read when the thread's tool calls settle, when a turn ends and when the
+// window regains focus.
 export function useProjectFile(threadId: string, path: string) {
   const atom = projectFileAtom(`${threadId}\0${path}`)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
   const cachedOnMount = useRef(!AsyncResult.isInitial(result))
+  const turnEndedAt = useChrome()?.threads.find((thread) => thread.id === threadId)?.turnEndedAt
+  const turnEnded = useRef(turnEndedAt)
+  useToolsSettled(threadId, refresh)
   useEffect(() => {
     if (cachedOnMount.current) refresh()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
   }, [refresh])
+  useEffect(() => {
+    if (turnEnded.current === turnEndedAt) return
+    turnEnded.current = turnEndedAt
+    refresh()
+  }, [turnEndedAt, refresh])
   return {
     file: AsyncResult.getOrElse(result, () => undefined),
     failed: AsyncResult.isFailure(result),
   }
 }
+
+// Saves only while the file on disk still holds `base`; a save refreshes the cached file and the
+// thread's diffs behind it. A failed save says why and resolves to undefined.
+function saveProjectFile(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  path: string,
+  contents: string,
+  base: string | null
+) {
+  return Effect.runPromise(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(
+      Effect.flatMap((connection) =>
+        connection.request('thread.writeFile', { threadId, path, contents, base })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          if (!('saved' in result)) return
+          registry.refresh(projectFileAtom(`${threadId}\0${path}`))
+          for (const scope of ['branch', 'uncommitted'] as const)
+            refreshDiff(registry, `${threadId}\0${scope}`)
+        })
+      ),
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          toast.error(`Couldn't save ${path.split('/').at(-1)}`, { description: error.message })
+          return undefined
+        })
+      )
+    )
+  )
+}
+
+export const useSaveProjectFile = () => useAction(saveProjectFile)

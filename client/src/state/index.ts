@@ -7,6 +7,7 @@ export {
   defaultDiffScope,
   useDiffFileLoader,
   useProjectFile,
+  useSaveProjectFile,
   useThreadDiff,
   useThreadDiffFetch,
   useToolsSettled,
@@ -18,6 +19,7 @@ export {
   type DraftTarget,
   type QuestionProgress,
 } from './drafts'
+export { readFileDraft, useFileDirty, useWriteFileDraft, type FileDraft } from './file_drafts'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export { useThread, useThreadContext, useThreadJourney, useThreadRowPrefetch } from './threads'

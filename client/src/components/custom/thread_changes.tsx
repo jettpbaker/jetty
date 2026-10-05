@@ -20,6 +20,7 @@ import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
 
 // A file link lands here first; `found` says whether it's among the changed files.
 type OnTarget = (target: FileTarget, found: boolean) => void
+type OnEditFile = (path: string) => void
 
 function PatchViewer({
   threadId,
@@ -29,6 +30,7 @@ function PatchViewer({
   onTarget,
   scope,
   onScopeChange,
+  onEditFile,
 }: {
   threadId: string
   patch: string
@@ -37,6 +39,7 @@ function PatchViewer({
   onTarget: OnTarget
   scope: DiffScope
   onScopeChange: (scope: DiffScope) => void
+  onEditFile: OnEditFile
 }) {
   const { FileChangesViewer, parseFileChanges } = diffViewer.useLoaded()
   const files = useMemo(() => parseFileChanges(patch), [patch, parseFileChanges])
@@ -57,6 +60,7 @@ function PatchViewer({
       files={files}
       loadFile={loadFile}
       reveal={reveal}
+      onEditFile={onEditFile}
       footer={notShown.length > 0 && <NotShown paths={notShown} />}
     />
   )
@@ -105,10 +109,12 @@ export function ThreadChanges({
   threadId,
   target,
   onTarget,
+  onEditFile,
 }: {
   threadId: string
   target?: FileTarget
   onTarget: OnTarget
+  onEditFile: OnEditFile
 }) {
   const [pickedScope, setScope] = useState<DiffScope>()
   const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
@@ -148,6 +154,7 @@ export function ThreadChanges({
         notShown={notShown}
         target={target}
         onTarget={onTarget}
+        onEditFile={onEditFile}
       />
     </Suspense>
   )

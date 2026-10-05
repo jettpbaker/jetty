@@ -110,7 +110,7 @@ export function ThreadDetailsTabs({
   threadId: string
   threadCount: number
   pullRequests: PullRequestTabs
-  file?: { path: string; onClose: () => void }
+  file?: { path: string; dirty: boolean; onClose: () => void }
   value: string
   onValueChange: (value: string) => void
   changesDisabled?: string
@@ -258,7 +258,7 @@ export function ThreadDetailsTabs({
           <TabsTrigger
             value='file'
             className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
-            title={file.path}
+            title={file.dirty ? `${file.path} · Unsaved changes` : file.path}
           >
             <TabLabel
               label={fileName!}
@@ -266,6 +266,12 @@ export function ThreadDetailsTabs({
               canClose={canClose}
               onClose={closeFile}
             />
+            {file.dirty && (
+              <>
+                <span aria-hidden='true' className='size-1.5 shrink-0 rounded-full bg-current' />
+                <span className='sr-only'>Unsaved changes</span>
+              </>
+            )}
           </TabsTrigger>
         )}
         <DropdownMenu>

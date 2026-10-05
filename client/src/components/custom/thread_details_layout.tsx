@@ -6,11 +6,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
+import { threadBranch } from '@/lib/thread_worktree'
 import {
   defaultDiffScope,
   pullRequestTabId,
+  readFileDraft,
   useChrome,
   useDetailsRequest,
+  useFileDirty,
   usePullRequestTabs,
   useThreadPullRequests,
 } from '@/state'
@@ -30,6 +33,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { toast } from 'sonner'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
@@ -113,6 +117,39 @@ export function ThreadDetailsLayout({
   const [fileView, setFileView] = useState<ThreadFileTarget>()
   const requestedFile = fileRequest?.threadId === threadId ? fileRequest.target : undefined
   const viewedFile = fileView?.threadId === threadId ? fileView.target : undefined
+  const fileDirty = useFileDirty(threadId, viewedFile?.path ?? '')
+  const checkout = useMemo(
+    () => ({
+      environment: meta?.environment,
+      branch: meta && threadBranch(meta),
+      path: meta?.workingPath ?? projectPath,
+    }),
+    [meta, projectPath]
+  )
+  // A file's unsaved edits outlive its tab as a draft; letting go of the tab says where they went.
+  const fileViewNow = useRef(fileView)
+  fileViewNow.current = fileView
+  const showFile = useCallback((next: ThreadFileTarget | undefined) => {
+    const left = fileViewNow.current
+    setFileView(next)
+    if (
+      !left ||
+      left.threadId !== (next?.threadId ?? left.threadId) ||
+      left.target.path === next?.target.path ||
+      !readFileDraft(left.threadId, left.target.path)
+    )
+      return
+    toast(`Unsaved changes to ${left.target.path.split('/').at(-1)} kept`, {
+      description: 'They come back when you open it again.',
+      action: {
+        label: 'Reopen',
+        onClick: () => {
+          setFileView(left)
+          setTab('file')
+        },
+      },
+    })
+  }, [])
   const allChildThreads = useChildThreads(threadId)
   const childThreads = useMemo(
     () => allChildThreads.filter((child) => !child.archived),
@@ -144,7 +181,7 @@ export function ThreadDetailsLayout({
       const path = projectPath && projectRelativePath(target.path, projectPath)
       if (!path) return false
       if (changesDisabled) {
-        setFileView({ threadId, target: { ...target, path } })
+        showFile({ threadId, target: { ...target, path } })
         setTab('file')
       } else {
         setFileRequest({ threadId, target: { ...target, path } })
@@ -157,17 +194,25 @@ export function ThreadDetailsLayout({
       }
       return true
     },
-    [projectPath, threadId, open, changesDisabled]
+    [projectPath, threadId, open, changesDisabled, showFile]
   )
 
   const settleFile = useCallback(
     (target: FileTarget, changed: boolean) => {
       setFileRequest(undefined)
       if (changed) return
-      setFileView({ threadId, target })
+      showFile({ threadId, target })
       setTab('file')
     },
-    [threadId]
+    [threadId, showFile]
+  )
+
+  const editFile = useCallback(
+    (path: string) => {
+      showFile({ threadId, target: { path } })
+      setTab('file')
+    },
+    [threadId, showFile]
   )
 
   // A just-linked PR's tab can be requested before the thread's links include it.
@@ -278,7 +323,13 @@ export function ThreadDetailsLayout({
               threadId={threadId}
               threadCount={childThreads.length}
               pullRequests={pullRequests}
-              file={viewedFile && { path: viewedFile.path, onClose: () => setFileView(undefined) }}
+              file={
+                viewedFile && {
+                  path: viewedFile.path,
+                  dirty: fileDirty,
+                  onClose: () => showFile(undefined),
+                }
+              }
               value={tab}
               onValueChange={setTab}
               changesDisabled={changesDisabled}
@@ -341,6 +392,7 @@ export function ThreadDetailsLayout({
                     threadId={threadId}
                     target={requestedFile}
                     onTarget={settleFile}
+                    onEditFile={editFile}
                   />
                 ) : (
                   <Loading />
@@ -386,7 +438,12 @@ export function ThreadDetailsLayout({
               >
                 {open &&
                   (ready ? (
-                    <ThreadFile key={viewedFile.path} threadId={threadId} target={viewedFile} />
+                    <ThreadFile
+                      key={viewedFile.path}
+                      threadId={threadId}
+                      target={viewedFile}
+                      checkout={checkout}
+                    />
                   ) : (
                     <Loading label='Loading file' />
                   ))}
@@ -409,7 +466,11 @@ export function ThreadDetailsLayout({
       pullRequestLinks,
       requestedFile,
       viewedFile,
+      fileDirty,
+      checkout,
+      showFile,
       settleFile,
+      editFile,
       changesDisabled,
     ]
   )

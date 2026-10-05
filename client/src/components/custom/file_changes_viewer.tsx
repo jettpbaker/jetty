@@ -1,6 +1,7 @@
 import type { DiffScope } from '@jetty/shared/wire'
 import type { FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
+import { Button } from '@/components/ui/button'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { ChangesScopePicker } from './changes_scope'
@@ -20,6 +21,7 @@ import {
   type FileChange,
   type LoadDiffFile,
 } from './file_diff_model'
+import { PencilEdit02Icon } from './huge_icons'
 
 const filePrefetchConcurrency = 4
 
@@ -32,6 +34,7 @@ export function FileChangesViewer({
   footer,
   loadFile,
   reveal,
+  onEditFile,
 }: {
   scope?: DiffScope
   onScopeChange?: (scope: DiffScope) => void
@@ -39,6 +42,7 @@ export function FileChangesViewer({
   footer?: ReactNode
   loadFile?: LoadDiffFile
   reveal?: { path: string }
+  onEditFile?: (path: string) => void
 }) {
   const root = useRef<HTMLDivElement>(null)
   const paneId = useId()
@@ -224,6 +228,21 @@ export function FileChangesViewer({
                       })
                     }
                     height={Math.max(80, file.diff.unifiedLineCount * 20 + 32)}
+                    actions={
+                      onEditFile &&
+                      file.status !== 'removed' && (
+                        <Button
+                          variant='ghost'
+                          size='icon-xs'
+                          className='-my-1'
+                          aria-label={`Edit ${file.path}`}
+                          title='Edit file'
+                          onClick={() => onEditFile(file.path)}
+                        >
+                          <PencilEdit02Icon />
+                        </Button>
+                      )
+                    }
                   >
                     {() =>
                       file.diff.hunks.length === 0 ? (
