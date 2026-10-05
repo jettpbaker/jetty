@@ -1,14 +1,32 @@
-/* smooth_stream.tsx's fade. */
+/* smooth_stream.tsx's fades; elements set --fade and --fade-delay inline. */
 @keyframes smooth-fade {
   from {
     opacity: 0;
   }
 }
+@keyframes smooth-marker {
+  from {
+    color: transparent;
+  }
+}
+@keyframes smooth-border {
+  from {
+    border-color: transparent;
+  }
+}
 .smooth-fade {
-  animation: smooth-fade ease-out both;
+  animation: smooth-fade var(--fade) ease-out var(--fade-delay) both;
+}
+.smooth-li::marker {
+  animation: smooth-marker var(--fade) ease-out var(--fade-delay) both;
+}
+.smooth-blockquote {
+  animation: smooth-border var(--fade) ease-out var(--fade-delay) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .smooth-fade {
+  .smooth-fade,
+  .smooth-li::marker,
+  .smooth-blockquote {
     animation: none;
   }
 }

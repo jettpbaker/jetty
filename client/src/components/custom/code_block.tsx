@@ -1,9 +1,10 @@
 import { cachedHtml, highlightHtml } from '@/components/custom/code_highlight'
 import { plainHtml } from '@/components/custom/code_html'
+import { CopyButton } from '@/components/custom/copy_button'
 
 import './code_block.css'
-import { CopyButton } from '@/components/custom/copy_button'
 import { TextWrapIcon } from '@/components/custom/huge_icons'
+import { fadeMs, fadeStyle } from '@/components/custom/smooth_stream'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -67,11 +68,13 @@ function useHighlightedHtml(code: string, language: string, numbered: boolean) {
 }
 
 // A block mounts with its lines in one innerHTML. Later results replace only the lines from the
-// first changed one, so a selection above a streaming end survives it.
-function usePatchedLines(html: readonly string[], command: boolean) {
+// first changed one, so a selection above a streaming end survives it. Lines a stream adds fade in,
+// each on its own clock, so a rewritten line carries on its fade instead of restarting it.
+function usePatchedLines(html: readonly string[], command: boolean, streaming: boolean) {
   const code = useRef<HTMLElement>(null)
   const shownElement = useRef<HTMLElement | null>(null)
   const shown = useRef(html)
+  const [born] = useState(() => html.map(() => -Infinity))
   const [mounted] = useState(() => ({ __html: html.join('') }))
   useLayoutEffect(() => {
     const element = code.current
@@ -80,20 +83,24 @@ function usePatchedLines(html: readonly string[], command: boolean) {
     if (!element) return
     const remounted = shownElement.current !== null && shownElement.current !== element
     shownElement.current = element
-    if (remounted) {
-      element.innerHTML = html.join('')
-      return
-    }
-    if (previous === html) return
     let same = 0
-    while (same < html.length && previous[same] === html[same]) same++
-    if (same === 0) {
-      element.innerHTML = html.join('')
-      return
+    if (!remounted) {
+      if (previous === html) return
+      while (same < html.length && previous[same] === html[same]) same++
     }
-    while (element.childNodes.length > same) element.lastChild!.remove()
-    if (same < html.length) element.insertAdjacentHTML('beforeend', html.slice(same).join(''))
-  }, [html, command])
+    if (same === 0) element.innerHTML = html.join('')
+    else {
+      while (element.childNodes.length > same) element.lastChild!.remove()
+      if (same < html.length) element.insertAdjacentHTML('beforeend', html.slice(same).join(''))
+    }
+    const now = performance.now()
+    for (let index = same; index < element.children.length; index++) {
+      const age = now - (born[index] ??= streaming ? now : -Infinity)
+      if (age >= fadeMs) continue
+      element.children[index]!.classList.add('smooth-fade')
+      element.children[index]!.setAttribute('style', fadeStyle(age))
+    }
+  }, [html, command, streaming, born])
   return [code, mounted] as const
 }
 
@@ -121,16 +128,21 @@ function useFollowEnd(streaming: boolean, capped: boolean, html: readonly string
   return body
 }
 
+// `fade` is the smooth stream's fade for a block that just showed.
+type Fade = { className?: string; style?: CSSProperties }
+
 function WorkerCodeBlock({
   className,
   code,
   meta: _meta,
+  fade,
   ...rest
 }: {
   className?: string
   code: string
   meta: string
   metastring?: string
+  fade?: Fade
 }) {
   const { codeBlockMaxHeight, isAnimating } = useContext(StreamdownContext)
   const language = className?.match(/language-([^\s]+)/)?.[1] ?? ''
@@ -152,15 +164,17 @@ function WorkerCodeBlock({
   const capped = Boolean(codeBlockMaxHeight)
   const command = shellLangs.has(language) && !code.trimEnd().includes('\n')
   const body = useFollowEnd(isAnimating, capped && !command, html)
-  const [lines, mounted] = usePatchedLines(html, command)
+  const [lines, mounted] = usePatchedLines(html, command, isAnimating)
   const content = <code className='font-mono' ref={lines} dangerouslySetInnerHTML={mounted} />
   if (command)
     return (
       <div
         className={cn(
           'my-3 flex min-h-9 items-center gap-2 rounded-md py-1.5 pr-1 pl-3 text-xs',
-          well
+          well,
+          fade?.className
         )}
+        style={fade?.style}
       >
         <span aria-hidden className='font-mono text-faint-foreground select-none'>
           $
@@ -179,6 +193,8 @@ function WorkerCodeBlock({
     )
   return (
     <CodeWell
+      className={fade?.className}
+      style={fade?.style}
       copy={
         <>
           {wrapButton}
@@ -206,7 +222,11 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
   return <WorkerCodeBlock code={code} className={`language-${lang}`} meta='' />
 }
 
-export function CodePre({ children }: { children?: ReactNode }) {
+export function CodePre({
+  children,
+  className: fadeClass,
+  style: fadeInline,
+}: { children?: ReactNode } & Fade) {
   if (!isValidElement<CodeProps>(children)) return children
   const { className, children: code, node, ...rest } = children.props
   if (node?.tagName !== 'code') return cloneElement(children, { 'data-block': 'true' })
@@ -217,6 +237,7 @@ export function CodePre({ children }: { children?: ReactNode }) {
       className={className}
       code={typeof code === 'string' ? code : hastText(node)}
       meta={typeof meta === 'string' ? meta : ''}
+      fade={{ className: fadeClass, style: fadeInline }}
     />
   )
 }
@@ -225,14 +246,16 @@ export function CodePre({ children }: { children?: ReactNode }) {
 export function CodeWell({
   copy,
   className,
+  style,
   children,
 }: {
   copy: ReactNode
   className?: string
+  style?: CSSProperties
   children: ReactNode
 }) {
   return (
-    <div className={cn('group/code relative my-3 rounded-md', well, className)}>
+    <div className={cn('group/code relative my-3 rounded-md', well, className)} style={style}>
       {children}
       <div
         contentEditable={false}
