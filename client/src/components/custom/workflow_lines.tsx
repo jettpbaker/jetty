@@ -1,11 +1,8 @@
-import type { ThreadItem } from '@jetty/shared/items'
-
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
-import { useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { formatSubagentTokens } from './subagent_row'
@@ -20,86 +17,35 @@ import {
   type Workflow,
 } from './workflow_parts'
 
-// Running workflows, and ones stopped since you last wrote.
-function pinnedWorkflows(items: readonly ThreadItem[]) {
-  const lastPrompt = items.findLast((item) => item.kind === 'user_message')?.createdAt ?? 0
-  return items.filter(
-    (item): item is Workflow =>
-      item.kind === 'workflow' &&
-      (item.status === 'running' ||
-        (item.status === 'stopped' && (item.completedAt ?? Infinity) > lastPrompt))
-  )
-}
-
-// The composer footer's px-2.5, plus its buttons' 1px border and padding, so glyphs and trailing text line up with project and branch.
-export function WorkflowLines({
-  threadId,
-  items,
-}: {
-  threadId: string
-  items: readonly ThreadItem[]
-}) {
-  return (
-    <WorkflowLineGrid
-      threadId={threadId}
-      workflows={pinnedWorkflows(items)}
-      limit={3}
-      className='px-2.5'
-      lineClassName='pr-2.25 pl-1.75'
-    />
-  )
-}
-
 export function WorkflowLineGrid({
   threadId,
   workflows,
-  limit = Infinity,
   onOpen,
-  className,
   lineClassName,
 }: {
   threadId: string
   workflows: readonly Workflow[]
-  limit?: number
-  onOpen?: (workflow: Workflow) => void
-  className?: string
+  onOpen: (workflow: Workflow) => void
   lineClassName?: string
 }) {
-  const [expanded, setExpanded] = useState(false)
   const stopWorkflow = useStopWorkflow()
   const now = useNow(
     1000,
     workflows.some((workflow) => workflow.status === 'running')
   )
   if (workflows.length === 0) return null
-  const shown = expanded ? workflows : workflows.slice(0, limit)
   return (
-    <div
-      className={cn(
-        'grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-x-3 text-xs',
-        className
-      )}
-    >
-      {shown.map((workflow) => (
+    <div className='grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-x-3 text-xs'>
+      {workflows.map((workflow) => (
         <WorkflowLine
           key={workflow.id}
           workflow={workflow}
           now={now}
           className={lineClassName}
-          onOpen={onOpen && (() => onOpen(workflow))}
+          onOpen={() => onOpen(workflow)}
           onStop={() => stopWorkflow(threadId, workflow.taskId)}
         />
       ))}
-      {workflows.length > limit && (
-        <Button
-          variant='ghost-text'
-          size='sm'
-          className='col-span-full w-fit rounded-sm px-1.5 font-normal'
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? 'Show fewer' : `+${workflows.length - limit} more`}
-        </Button>
-      )}
     </div>
   )
 }
@@ -116,7 +62,7 @@ function WorkflowLine({
   workflow: Workflow
   now: number
   className?: string
-  onOpen?: () => void
+  onOpen: () => void
   onStop: () => void
 }) {
   const status = workflowStatus(workflow)
@@ -130,14 +76,12 @@ function WorkflowLine({
         className
       )}
     >
-      {onOpen && (
-        <button
-          type='button'
-          aria-label={`Show ${workflow.name} in chat`}
-          className='absolute inset-0 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
-          onClick={onOpen}
-        />
-      )}
+      <button
+        type='button'
+        aria-label={`Show ${workflow.name} in chat`}
+        className='absolute inset-0 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
+        onClick={onOpen}
+      />
       <span className='flex items-center gap-1.5'>
         <WorkflowGlyph workflow={workflow} className='size-3' />
         <span className='text-foreground'>{workflow.name}</span>

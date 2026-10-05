@@ -16,7 +16,6 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { currentTodos, pendingItems } from '@/components/custom/composer_strip_model'
-import { WorkflowLines } from '@/components/custom/workflow_lines'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
@@ -464,7 +463,6 @@ export function ThreadComposer({
               {meta?.backgroundTasks?.length ? (
                 <MonitoringLine key={threadId} threadId={threadId} tasks={meta.backgroundTasks} />
               ) : null}
-              <WorkflowLines threadId={threadId} items={items} />
               <ThreadFooter
                 threadId={threadId}
                 environment={meta?.environment}
