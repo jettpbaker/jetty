@@ -1,6 +1,9 @@
 import type { Query, SDKControlGetUsageResponse } from '@anthropic-ai/claude-agent-sdk'
 
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { claudeUsageIdentity } from './provider-usage'
 import { readUsage } from './usage'
@@ -92,35 +95,60 @@ test('opaque Claude identities distinguish accounts and organizations and reject
   expect(claudeUsageIdentity({})).toBeUndefined()
 })
 
+// The account check reads ~/.claude.json, which only a fresh process with HOME set can redirect.
+async function readUsageSignedIn(script: string) {
+  const home = mkdtempSync(join(tmpdir(), 'jetty-usage-'))
+  try {
+    const child = Bun.spawn([process.execPath, '-e', signedIn + script], {
+      cwd: import.meta.dir,
+      env: { ...process.env, HOME: home },
+      stdout: 'pipe',
+    })
+    return JSON.parse(await new Response(child.stdout).text())
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+}
+
+const signedIn = `
+import { writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { claudeUsageIdentity } from './provider-usage'
+import { readUsage } from './usage'
+
+function signIn(accountUuid) {
+  const oauthAccount = { accountUuid, organizationUuid: 'org', emailAddress: 'account@example.com', organizationName: 'org' }
+  writeFileSync(join(homedir(), '.claude.json'), JSON.stringify({ oauthAccount }))
+}
+function query(onRead) {
+  return {
+    accountInfo: async () => ({ email: 'account@example.com', organization: 'org' }),
+    usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => {
+      onRead()
+      return { rate_limits_available: true, rate_limits: { five_hour: { utilization: 42 } } }
+    },
+  }
+}
+const accountA = claudeUsageIdentity({ accountUuid: 'a', organizationUuid: 'org' })
+`
+
 test('turn usage keeps its session identity and is discarded if credentials change during the read', async () => {
-  let identity = 'account-a/org-a'
-  const unchanged = await readUsage(
-    fakeQuery(async () => baseResponse()),
-    identity,
-    async () => identity
-  )
-  expect(unchanged?.identity).toBe('account-a/org-a')
-  const changed = await readUsage(
-    fakeQuery(async () => {
-      identity = 'account-b/org-b'
-      return baseResponse()
-    }),
-    identity,
-    async () => identity
-  )
-  expect(changed).toBeNull()
+  const result = await readUsageSignedIn(`
+    signIn('a')
+    const unchanged = await readUsage(query(() => {}), accountA)
+    const changed = await readUsage(query(() => signIn('b')), accountA)
+    console.log(JSON.stringify([unchanged?.identity === accountA, changed]))
+  `)
+  expect(result).toEqual([true, null])
 })
 
 test('a warm session belonging to a prior account cannot attribute usage to the current account', async () => {
-  let requested = false
-  const result = await readUsage(
-    fakeQuery(async () => {
-      requested = true
-      return baseResponse()
-    }),
-    'session-account-a',
-    async () => 'current-account-b'
-  )
-  expect(requested).toBe(false)
-  expect(result).toBeNull()
+  const result = await readUsageSignedIn(`
+    signIn('b')
+    let requested = false
+    const usage = await readUsage(query(() => { requested = true }), accountA)
+    console.log(JSON.stringify([requested, usage]))
+  `)
+  expect(result).toEqual([false, null])
 })
