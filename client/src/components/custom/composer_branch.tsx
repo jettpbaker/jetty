@@ -3,6 +3,7 @@ import type { Branch } from '@jetty/shared/wire'
 
 import { GitBranchIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { OptionPicker, type PickerOption } from './option_picker'
@@ -79,12 +80,18 @@ export function ComposerBranch({
   onChange?: (ref: string) => void
   onOpen?: () => void
 }) {
+  // Without a branch or a problem to show, the list is still loading.
   if (!onChange || disabledReason)
     return (
       <DisabledTooltip reason={disabledReason} wrap='flex'>
-        <Button variant='ghost-text' size='sm' className='gap-1.5 rounded-sm' disabled>
+        <Button
+          variant='ghost-text'
+          size='sm'
+          className={cn('gap-1.5 rounded-sm', !branch && !disabledReason && 'invisible')}
+          disabled
+        >
           <GitBranchIcon />
-          {branch || 'Branch'}
+          {branch || (disabledReason && 'Branch')}
         </Button>
       </DisabledTooltip>
     )
@@ -97,6 +104,7 @@ export function ComposerBranch({
       className='w-64'
       icon={<GitBranchIcon />}
       value={branch ?? ''}
+      valueLabel={fromOrigin ? branch?.replace(/^origin\//, '') : branch}
       options={list ? baseRefs(list, fromOrigin) : []}
       toggle={
         list && onOrigin(list)

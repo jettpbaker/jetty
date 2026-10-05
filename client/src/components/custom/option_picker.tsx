@@ -39,7 +39,7 @@ export function OptionPicker({
   actions,
   toggle,
   disabled = false,
-  emptyLabel = 'Select',
+  valueLabel,
   onOpen,
   className,
   'aria-describedby': describedBy,
@@ -56,7 +56,9 @@ export function OptionPicker({
   toggle?: PickerToggle
   disabled?: boolean
   onOpen?: () => void
-  emptyLabel?: string
+  // Names the value while the options don't hold it yet; with neither, the trigger keeps its
+  // space but stays hidden.
+  valueLabel?: string
   className?: string
   'aria-describedby'?: string
 }) {
@@ -68,6 +70,7 @@ export function OptionPicker({
   const search = query.trim().toLowerCase()
   const results = options.filter((option) => option.label.toLowerCase().includes(search))
   const selected = options.find((option) => option.value === value)
+  const shown = selected?.label ?? valueLabel
 
   function select(action: () => void) {
     setOpen(false)
@@ -87,19 +90,23 @@ export function OptionPicker({
       }}
     >
       <PopoverTrigger
-        aria-label={selected ? `${name}: ${selected.label}` : label}
+        aria-label={shown ? `${name}: ${shown}` : label}
         aria-describedby={describedBy}
         disabled={disabled}
         render={
           <Button
             variant='ghost-text'
             size='sm'
-            className={cn('gap-1.5 rounded-sm', disabled && 'pointer-events-none')}
+            className={cn(
+              'gap-1.5 rounded-sm',
+              disabled && 'pointer-events-none',
+              !shown && 'invisible'
+            )}
           />
         }
       >
         {selected?.icon ?? icon}
-        {selected?.label ?? emptyLabel}
+        {shown}
       </PopoverTrigger>
       <PopoverContent
         align={align}
