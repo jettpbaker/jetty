@@ -2,6 +2,18 @@
   list-style-type: '- ';
 }
 
+/* A top-level list sits a paragraph's gap from its neighbours, so its edge items drop their outer padding. */
+:not([data-streamdown='list-item'])
+  > :is([data-streamdown='unordered-list'], [data-streamdown='ordered-list'])
+  > [data-streamdown='list-item']:first-child {
+  padding-top: 0;
+}
+:not([data-streamdown='list-item'])
+  > :is([data-streamdown='unordered-list'], [data-streamdown='ordered-list'])
+  > [data-streamdown='list-item']:last-child {
+  padding-bottom: 0;
+}
+
 /* GitHub task items render their checkbox in place of the bullet. */
 [data-streamdown='list-item']:has(> input[type='checkbox']) {
   list-style: none;

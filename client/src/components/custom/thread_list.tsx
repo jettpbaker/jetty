@@ -184,8 +184,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
-      // Mid-run messages have no footer; a paragraph's gap keeps them apart from what follows.
-      <Message align='start' className={cn(row.footer === undefined && 'pb-4')}>
+      // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
+      <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
         <MessageContent>
           <Bubble variant='ghost' align='start'>
             <BubbleContent>
