@@ -6,8 +6,10 @@ export const INLINE_IMAGE_MAX_HEIGHT = 480
 export const BUBBLE_THUMBNAIL_SIZE = 48
 export const GALLERY_GAP = 8
 
+// Unsent images are blob: URLs, or data: ones when a reload brought the draft back.
 export function mediaUrl(attachment: Attachment) {
   return attachment.id.startsWith('blob:') ||
+    attachment.id.startsWith('data:image/') ||
     attachment.id.startsWith('/') ||
     /^https?:\/\//.test(attachment.id)
     ? attachment.id
