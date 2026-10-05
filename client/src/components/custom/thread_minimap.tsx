@@ -102,10 +102,15 @@ export const ThreadMinimap = memo(function ThreadMinimap({
           : next
       )
       // Like an editor's minimap, ticks taller than the rail scroll through it with the
-      // conversation. 100% is the rail's height, so ticks that fit stay put.
+      // conversation, clamped so uneven turns can't push the on-screen ticks out of the rail.
+      // 100% is the rail's height, so ticks that fit stay put.
       const range = element.scrollHeight - element.clientHeight
       const progress = range > 0 ? element.scrollTop / range : 0
-      layer.style.transform = `translateY(calc(${progress} * (100% - ${length}px)))`
+      const offset = `calc(${progress} * (100% - ${length}px))`
+      layer.style.transform =
+        next.first === -1
+          ? `translateY(${offset})`
+          : `translateY(clamp(${-next.first * tickSpacing}px, ${offset}, calc(100% - ${next.last * tickSpacing}px)))`
     }
     const frame = requestAnimationFrame(update)
     element.addEventListener('scroll', update, { passive: true })
