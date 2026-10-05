@@ -764,3 +764,27 @@ test('a child its background work wakes into a turn of its own reports that turn
     }).pipe(Effect.provide(TestClock.layer()))
   )
 })
+
+test("a child's question reaches its parent when its turn ends, while its background work runs on", async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeChildFixture()
+      yield* runSubagent(f.turn, 'background')
+      f.hub.setBackgroundTasks(f.child.id, [
+        { id: 'monitor', label: 'Watching the build', startedAt: Date.now() },
+      ])
+      yield* f.store.askParent(f.child.id, 'Which database should I use?')
+      yield* say(f.turn, 'Asked my parent.')
+      yield* endTurn(f.turn)
+      yield* f.orch.resumeQueues()
+      yield* TestClock.adjust(1000)
+      expect(yield* f.reports).toMatchObject([
+        {
+          kind: 'report',
+          reports: [{ outcome: 'asked', question: 'Which database should I use?' }],
+        },
+      ])
+      expect((yield* f.store.requireThread(f.child.id)).awaitingParent).toBe(true)
+    }).pipe(Effect.provide(TestClock.layer()))
+  )
+})

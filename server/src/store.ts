@@ -485,17 +485,19 @@ export function createStore() {
     }
 
     // A question from ask_parent is reported in place of the turn's final message. It reaches the
-    // parent however the turn started and even when the parent isn't notified, since it was asked.
-    function reportSettledChild(threadId: string) {
+    // parent however the turn started and even when the parent isn't notified, since it was asked,
+    // and as soon as the turn ends: a report also waits for background work and busy children.
+    function reportSettledChild(threadId: string, working = false) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.createdBy !== 'agent' || !thread.parentThreadId) return { delivered: false }
         const question = yield* parentQuestion(threadId)
-        if (!question && !(yield* notifiesParent(threadId))) return { delivered: false }
+        if (!question && (working || !(yield* notifiesParent(threadId))))
+          return { delivered: false }
         const { state } = yield* loadThread(threadId)
+        if (state.activeTurnId || thread.pendingMessages?.length) return { delivered: false }
         if (
-          state.activeTurnId ||
-          thread.pendingMessages?.length ||
+          !question &&
           state.items.some(
             (item) =>
               (item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running'

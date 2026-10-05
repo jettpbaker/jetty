@@ -1157,18 +1157,19 @@ export function createOrchestrator({
               thread.createdBy !== 'agent' ||
               !thread.parentThreadId ||
               !state(thread.id).ready ||
-              state(thread.id).turnId ||
-              hub.decorateThread(thread).backgroundTasks?.length ||
-              (children.get(thread.id) ?? []).some(busy)
+              state(thread.id).turnId
             )
               continue
-            const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}`
+            const working =
+              Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
+              (children.get(thread.id) ?? []).some(busy)
+            const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}:${working}`
             if (checked.get(thread.id) === key) continue
             checked.set(thread.id, key)
             yield* locked(
               thread.id,
               Effect.gen(function* () {
-                const result = yield* store.reportSettledChild(thread.id)
+                const result = yield* store.reportSettledChild(thread.id, working)
                 if ('note' in result && result.note) yield* publish(thread.id, result.note)
                 if ('asked' in result)
                   hub.pushChrome({
