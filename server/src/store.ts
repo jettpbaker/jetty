@@ -914,10 +914,12 @@ export function createStore() {
           }
           const thread = yield* requireThread(threadId)
           const message = thread.pendingMessages?.find((m) => m.id === messageId)
-          const continuation = message?.kind === 'continuation'
-          const previous = continuation ? yield* latestFinishedTurn(threadId) : undefined
+          // A continuation or a child's report carries on the turn before it, so whoever started
+          // that turn still hears how it ends; only a continuation also keeps its hop.
+          const carriesOn = message?.kind === 'continuation' || message?.kind === 'report'
+          const previous = carriesOn ? yield* latestFinishedTurn(threadId) : undefined
           const initiator = previous?.initiator_thread_id ?? message?.from?.threadId ?? null
-          if (previous) hop = previous.hop
+          if (previous && message?.kind === 'continuation') hop = previous.hop
           yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${hop}, ${initiator}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
           if (messageId) yield* removeQueued(threadId, messageId)
         }).pipe(atomically, Effect.mapError(storeError))

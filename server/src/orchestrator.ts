@@ -1055,6 +1055,24 @@ export function createOrchestrator({
         const checked = new Map<string, string>()
         const drain = Effect.gen(function* () {
           const threads = yield* store.listThreads()
+          const children = new Map<string, ThreadMeta[]>()
+          for (const thread of threads)
+            if (thread.parentThreadId && !thread.archived)
+              children.set(thread.parentThreadId, [
+                ...(children.get(thread.parentThreadId) ?? []),
+                thread,
+              ])
+          // A thread still waiting on its own children isn't done; a stopped (paused) one is.
+          function busy(thread: ThreadMeta): boolean {
+            const runtime = state(thread.id)
+            return (
+              !runtime.ready ||
+              Boolean(runtime.turnId) ||
+              Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
+              Boolean(thread.pendingMessages?.length && !thread.queuePaused) ||
+              (children.get(thread.id) ?? []).some(busy)
+            )
+          }
           for (const thread of threads) {
             if (closing) return
             if (
@@ -1062,7 +1080,8 @@ export function createOrchestrator({
               !thread.parentThreadId ||
               !state(thread.id).ready ||
               state(thread.id).turnId ||
-              hub.decorateThread(thread).backgroundTasks?.length
+              hub.decorateThread(thread).backgroundTasks?.length ||
+              (children.get(thread.id) ?? []).some(busy)
             )
               continue
             const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}`
