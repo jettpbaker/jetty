@@ -7,6 +7,7 @@ import {
   Refresh01Icon,
 } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useContinueThread, useContinuing } from '@/state'
 import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
 import { Link } from '@tanstack/react-router'
@@ -183,6 +184,53 @@ function describeActivity({ type, actor, count, detail }: PullRequestActivity) {
   }
 }
 
+// One line shows the worst news only. The hover keeps the full list, names and checks included.
+const activityRank: Record<PullRequestActivity['type'], number> = {
+  merged: 0,
+  closed: 1,
+  checks_failed: 2,
+  conflict: 3,
+  changes_requested: 4,
+  commented: 5,
+  ready: 6,
+  approved: 7,
+  checks_passed: 8,
+}
+
+function worstActivity(activity: readonly PullRequestActivity[]) {
+  let worst: PullRequestActivity | undefined
+  for (const entry of activity) {
+    if (!worst || activityRank[entry.type] < activityRank[worst.type]) worst = entry
+  }
+  return worst
+}
+
+function headline(entry: PullRequestActivity, activity: readonly PullRequestActivity[]) {
+  switch (entry.type) {
+    case 'checks_failed':
+      return 'checks failed'
+    case 'checks_passed':
+      return 'checks passing'
+    case 'changes_requested':
+      return 'changes requested'
+    case 'approved':
+      return 'approved'
+    case 'commented': {
+      let count = 0
+      for (const each of activity) if (each.type === 'commented') count += each.count ?? 1
+      return count > 1 ? 'new comments' : 'new comment'
+    }
+    case 'conflict':
+      return 'merge conflict'
+    case 'ready':
+      return 'ready to merge'
+    case 'merged':
+      return 'merged'
+    case 'closed':
+      return 'closed'
+  }
+}
+
 // The glyph takes the PR's state once it's settled, else the colour of its worst news.
 function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
   const types = new Set(activity.map((entry) => entry.type))
@@ -201,21 +249,35 @@ function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
 export function PullRequestSeam({ item }: { item: PullRequestItem }) {
   const [owner = '', repo = ''] = item.repo.split('/')
   const { icon, tone } = pullRequestSeamLook(item.activity)
+  const lead = worstActivity(item.activity)
+  const summary = item.activity.map(describeActivity).join(' · ')
+  const line = (
+    <>
+      <Link
+        to='/pull-requests/$owner/$repo/$number'
+        params={{ owner, repo, number: String(item.number) }}
+        title={`${item.repo}#${item.number}`}
+        className='text-foreground/90 hover:text-foreground hover:underline'
+      >
+        #{item.number}
+      </Link>
+      {lead && ` ${headline(lead, item.activity)}`}
+      {item.held && ' · not woken, too many wakes this hour'}
+    </>
+  )
   return (
     <ChatSeam>
       <SeamIcon icon={icon} tone={tone} />
-      <span className='truncate'>
-        <Link
-          to='/pull-requests/$owner/$repo/$number'
-          params={{ owner, repo, number: String(item.number) }}
-          title={`${item.repo}#${item.number}`}
-          className='text-foreground/90 hover:text-foreground hover:underline'
-        >
-          #{item.number}
-        </Link>{' '}
-        {item.activity.map(describeActivity).join(' · ')}
-        {item.held && ' · not woken, too many wakes this hour'}
-      </span>
+      {summary ? (
+        <Tooltip>
+          <TooltipTrigger render={<span className='truncate' />}>{line}</TooltipTrigger>
+          <TooltipContent className='max-w-sm'>
+            <span className='text-left'>{summary}</span>
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <span className='truncate'>{line}</span>
+      )}
     </ChatSeam>
   )
 }
