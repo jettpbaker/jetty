@@ -24,8 +24,13 @@ const backoff = Schedule.min([
   Schedule.spaced('5 seconds'),
 ])
 
+// A subscription the server ended for falling behind picks up where it got to, as after a drop.
 const reconnect = backoff.pipe(
-  Schedule.while(({ input }) => input instanceof RpcClientError.RpcClientError)
+  Schedule.while(
+    ({ input }) =>
+      input instanceof RpcClientError.RpcClientError ||
+      (typeof input === 'object' && input !== null && 'code' in input && input.code === 'lagged')
+  )
 )
 
 // A call the server takes once however often it arrives (it knows the message or thread by id) is

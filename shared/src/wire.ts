@@ -805,6 +805,7 @@ export const ErrorCode = Schema.Literals([
   'not_found',
   'conflict',
   'internal',
+  'lagged',
 ])
 export type ErrorCode = Schema.Schema.Type<typeof ErrorCode>
 
