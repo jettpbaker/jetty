@@ -57,8 +57,10 @@ Everything below is for one combined review of the chat, not separate ports.
   continuation render as user-looking relayed bubbles. Agents should get a real
   Jetty sender (e.g. `<jetty-notice kind="…">`) instead of the restart note's
   borrowed `from: { self, 'Jetty' }`.
-- Compaction: nothing shows it today. Needs a server event (Claude's SDK emits
-  `compact_boundary`) and the seam design above.
+- Compaction: Compact (the / command) and every automatic compaction leave a
+  placeholder "Conversation compacted · 142.3k → 12k tokens" line. It needs the
+  seam design above, and a "Compacting…" state: a real compaction can take tens
+  of seconds with nothing in the transcript.
 - Queued messages, `/components/queued-messages`: queued messages as dashed
   bubbles in the transcript instead of the strip above the composer (B, a dashed
   seam with the count or "Paused · Resume", was recommended, with in-place
@@ -74,11 +76,6 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
-- Claude's own commands in the / menu (compact, context, init) show disabled at
-  the start of a Claude message. To work, the server needs the SDK's announced
-  command list (its init message) instead of three hardcoded names, and to turn
-  each command's output into transcript items instead of dropping it. Overlaps
-  the chat review's compaction seam: `/compact`'s output is that seam.
 - Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
   Merge through GitHub's async merge API (GA 2026-10-01): a PUT to
   `/repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
