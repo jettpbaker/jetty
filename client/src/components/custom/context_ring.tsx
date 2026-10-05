@@ -78,6 +78,10 @@ function hue(label: string) {
   return hues[label] ?? 'var(--muted-foreground)'
 }
 
+function largestFirst(context: ContextUsage): ContextUsage {
+  return { ...context, slices: context.slices.toSorted((a, b) => b.tokens - a.tokens) }
+}
+
 // Measured against the whole window, so the bar reads as full as the ring; the header has the
 // figures. A provider that sends only a total gets a single segment.
 function ContextBar({ context }: { context: ContextUsage }) {
@@ -186,7 +190,7 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         sideOffset={6}
         className='context-popover w-72 gap-3 p-3 text-xs'
       >
-        <ContextBreakdown context={context} provider={provider} />
+        <ContextBreakdown context={context && largestFirst(context)} provider={provider} />
       </PopoverContent>
     </Popover>
   )
