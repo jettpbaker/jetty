@@ -1029,3 +1029,95 @@ test('group Resume records setup intent for every member before preparing the fi
     })
   )
 })
+
+for (const action of ['archive', 'delete'] as const) {
+  test(`${action} cancels group Resume before waiting for its lifecycle permit`, async () => {
+    await runUploadTest(
+      Effect.gen(function* () {
+        const f = yield* makeUploadFixture()
+        const member = yield* f.store.createThread(f.thread.projectId, newId())
+        yield* f.store.markAgentThread(member.id, f.thread.id, false)
+        const group = [f.thread.id, member.id]
+        for (const id of group) yield* f.store.archiveThread(id, true)
+        yield* f.store.setArchiveGroup(group, f.thread.id)
+        const entered = yield* Deferred.make<void>()
+        const started: string[] = []
+        const worktrees = {
+          prepare: async (id: string, signal: AbortSignal) => {
+            if (signal.aborted) throw new Error('stopped')
+            started.push(id)
+            const pending = new Promise<string>((_resolve, reject) => {
+              signal.addEventListener('abort', () => reject(new Error('stopped')), { once: true })
+            })
+            await Effect.runPromise(Deferred.succeed(entered, undefined))
+            return pending
+          },
+          stopSetup: () => false,
+          dirty: async () => 0,
+          detached: async () => false,
+          cleanUp: async () => {},
+          remove: async () => {},
+        } as unknown as Worktrees
+        const orch = yield* createOrchestrator({
+          store: f.store,
+          agent: f.agent,
+          hub: f.hub,
+          worktrees,
+        })
+        const resuming = yield* orch
+          .archiveThread(f.thread.id, false)
+          .pipe(Effect.result, Effect.forkScoped)
+        yield* Deferred.await(entered)
+        const cancelled =
+          action === 'archive'
+            ? orch.archiveThread(f.thread.id, true)
+            : orch.deleteThread(f.thread.id)
+        yield* cancelled.pipe(Effect.timeout(1000))
+        expect((yield* Fiber.join(resuming))._tag).toBe('Failure')
+        expect(started).toEqual([f.thread.id])
+      })
+    )
+  })
+}
+
+test('Stop cancels a later group member before Resume starts its setup', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const member = yield* f.store.createThread(f.thread.projectId, newId())
+      const group = [f.thread.id, member.id]
+      for (const id of group) yield* f.store.archiveThread(id, true)
+      yield* f.store.setArchiveGroup(group, f.thread.id)
+      const entered = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const started: string[] = []
+      const worktrees = {
+        prepare: async (id: string, signal: AbortSignal) => {
+          if (signal.aborted) throw new Error('stopped')
+          started.push(id)
+          if (id === f.thread.id) {
+            await Effect.runPromise(Deferred.succeed(entered, undefined))
+            await Effect.runPromise(Deferred.await(release))
+          }
+          return f.home
+        },
+        stopSetup: () => false,
+      } as unknown as Worktrees
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+        worktrees,
+      })
+      const resuming = yield* orch
+        .archiveThread(f.thread.id, false)
+        .pipe(Effect.result, Effect.forkScoped)
+      yield* Deferred.await(entered)
+      yield* orch.interrupt(member.id).pipe(Effect.forkScoped)
+      yield* Effect.yieldNow
+      yield* Deferred.succeed(release, undefined)
+      expect((yield* Fiber.join(resuming))._tag).toBe('Failure')
+      expect(started).toEqual([f.thread.id])
+    })
+  )
+})

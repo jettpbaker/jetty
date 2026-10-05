@@ -420,6 +420,7 @@ export function createWorktrees(
   }
 
   async function prepareNow(threadId: string, signal?: AbortSignal) {
+    if (signal?.aborted) throw new Error('Worktree setup stopped')
     const { thread, project } = await locate(threadId)
     if (thread.environment !== 'worktree') {
       const head = await revParse(project.path, 'HEAD')

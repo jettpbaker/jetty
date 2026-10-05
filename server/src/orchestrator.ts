@@ -143,6 +143,7 @@ export function createOrchestrator({
     const scope = yield* Effect.scope
     let closing = false
     const lifecycle = Semaphore.makeUnsafe(1)
+    const resuming = new Map<string, AbortController>()
     hub.setThreads(yield* store.listThreads())
     const threads = new Map<
       string,
@@ -202,7 +203,12 @@ export function createOrchestrator({
 
     // A worktree setup holds its thread's admission until it ends, so a stop ends the setup first.
     function stopSetup(threadId: string) {
-      return Effect.sync(() => worktrees?.stopSetup(threadId) ?? false)
+      return Effect.sync(() => {
+        const resume = resuming.get(threadId)
+        resume?.abort()
+        const stopped = worktrees?.stopSetup(threadId) ?? false
+        return stopped || resume !== undefined
+      })
     }
 
     function stopTreeSetups(threadId: string) {
@@ -261,10 +267,22 @@ export function createOrchestrator({
       })
     }
 
+    // Archive and Delete stop the tree's setups before queueing for the permit, which a group
+    // Resume holds through every member's setup.
+    function withLifecycle<A, E>(threadId: string, stopping: boolean, action: Effect.Effect<A, E>) {
+      return (stopping ? stopTreeSetups(threadId) : Effect.void).pipe(
+        Effect.andThen(lifecycle.withPermit(action))
+      )
+    }
+
     function archiveThread(threadId: string, archived: boolean) {
-      return lifecycle.withPermit(
+      return withLifecycle(
+        threadId,
+        archived,
         Effect.gen(function* () {
           if (archived) yield* stopTreeSetups(threadId)
+          const resumed = !archived && worktrees ? yield* store.archiveGroup(threadId) : []
+          for (const thread of resumed) resuming.set(thread.id, new AbortController())
           yield* withTreeAdmission(
             archived ? store.threadTree(threadId) : store.archiveGroup(threadId),
             (tree) =>
@@ -322,14 +340,24 @@ export function createOrchestrator({
                   // A failed setup is its own thread's to Retry; the rest of the group still comes back.
                   const failures: StoreError[] = []
                   for (const thread of group) {
+                    const resume = resuming.get(thread.id)?.signal
                     const prepared = yield* worktreeTask((signal) =>
-                      worktrees.prepare(thread.id, signal)
+                      worktrees.prepare(
+                        thread.id,
+                        resume ? AbortSignal.any([signal, resume]) : signal
+                      )
                     ).pipe(Effect.result)
                     if (prepared._tag === 'Failure') failures.push(prepared.failure)
                   }
                   if (failures[0]) return yield* Effect.fail(failures[0])
                 }
               })
+          ).pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                for (const thread of resumed) resuming.delete(thread.id)
+              })
+            )
           )
         })
       )
@@ -1502,7 +1530,9 @@ export function createOrchestrator({
         })
       },
       deleteThread(threadId: string) {
-        return lifecycle.withPermit(
+        return withLifecycle(
+          threadId,
+          true,
           Effect.gen(function* () {
             yield* stopTreeSetups(threadId)
             yield* withTreeAdmission(store.threadTree(threadId), (tree) =>
