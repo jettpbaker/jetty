@@ -211,6 +211,12 @@ const migrations = SqliteMigrator.fromRecord({
       PRIMARY KEY (thread_id, message_id)
     )`
   }),
+  '030_live_background': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE live_background (
+      thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {

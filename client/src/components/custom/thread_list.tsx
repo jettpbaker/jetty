@@ -220,6 +220,7 @@ function rowStamp(row: ThreadRow) {
     case 'pullRequest':
       return row.item.activity.length
     case 'restart':
+    case 'backgroundStopped':
       return ''
     case 'restartLimit':
       return row.resumed
@@ -362,6 +363,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
   if (row.kind === 'pullRequest') return <PullRequestSeam item={row.item} />
   if (row.kind === 'restart') return <RestartSeam />
+  if (row.kind === 'backgroundStopped')
+    return <RestartSeam label='Background work stopped when Jetty restarted' />
   if (row.kind === 'restartLimit')
     return <RestartLimitSeam threadId={threadId} resumed={row.resumed} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />

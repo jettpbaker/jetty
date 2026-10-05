@@ -133,11 +133,11 @@ export function CompactionSeam({ running }: { running: boolean }) {
   )
 }
 
-export function RestartSeam() {
+export function RestartSeam({ label = 'Jetty restarted' }: { label?: string }) {
   return (
     <ChatSeam>
       <SeamIcon icon={Refresh01Icon} />
-      <span className='truncate'>Jetty restarted</span>
+      <span className='truncate'>{label}</span>
     </ChatSeam>
   )
 }

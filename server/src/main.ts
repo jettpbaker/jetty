@@ -245,6 +245,7 @@ function reconcileOnStartup(store: Store) {
         })
       )
     }
+    yield* store.stoppedBackground()
   })
 }
 
@@ -372,6 +373,8 @@ function createServer(opts: ServerOptions = {}) {
           .withChromePublication(
             Effect.gen(function* () {
               hub.setBackgroundTasks(threadId, tasks)
+              if (tasks.length) yield* store.noteLiveBackground(threadId)
+              else yield* store.clearLiveBackground(threadId)
               const thread = yield* store.requireThread(threadId)
               hub.pushChrome({ type: 'thread.upserted', thread })
               yield* Queue.offer(store.queueChanges, undefined)

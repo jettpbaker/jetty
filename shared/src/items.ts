@@ -214,6 +214,8 @@ export const ThreadItem = Schema.Union([
     stopReason: Schema.optional(Schema.Literals(['you', 'crash'])),
   }),
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
+  // Background tasks or Monitor watches were still running when Jetty last shut down or crashed.
+  Schema.Struct({ ...itemBase, kind: Schema.Literal('background_stopped') }),
   // A line in the chat for the PR watcher; what woke the agent reaches it as a message from Jetty.
   Schema.Struct({
     ...itemBase,
@@ -234,13 +236,15 @@ export const RESTART_WINDOW_MS = 10 * 60_000
 export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
 
 // The thread's last turn is one the guard held, and nothing has come after it. The guard's note
-// closes that turn; only errors about it, such as an undelivered report, and PR watcher lines
-// can follow.
+// closes that turn; only errors about it, such as an undelivered report, PR watcher lines, and
+// the note that a restart stopped background work can follow.
 export function heldByRestarts(items: readonly ThreadItem[]) {
-  const turnId = items.findLast((item) => item.kind !== 'pull_request')?.turnId
+  const trailing = (item: ThreadItem) =>
+    item.kind === 'pull_request' || item.kind === 'background_stopped'
+  const turnId = items.findLast((item) => !trailing(item))?.turnId
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!
-    if (item.kind === 'pull_request') continue
+    if (trailing(item)) continue
     if (item.kind !== 'error' || item.turnId !== turnId) return false
     if (item.message === RESTART_LIMIT_NOTE) return true
   }

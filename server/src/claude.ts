@@ -333,9 +333,10 @@ export function createClaudeAdapter(
             })
             .pipe(Effect.ignore)
         session.runningWorkflows.clear()
+        // Shutdown leaves the persisted "still running" flag. The next boot says the work stopped.
         if (session.backgroundTasks.tasks().length) {
           session.backgroundTasks.clear()
-          yield* publishBackgroundTasks(session)
+          if (reason !== 'server shutdown') yield* publishBackgroundTasks(session)
         }
         if (session.awaitingResult) {
           session.awaitingResult = false

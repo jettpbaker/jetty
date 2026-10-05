@@ -743,6 +743,40 @@ export function createStore() {
 
     return {
       queueChanges,
+      noteLiveBackground(threadId: string) {
+        return sql`INSERT OR IGNORE INTO live_background (thread_id) VALUES (${threadId})`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      clearLiveBackground(threadId: string) {
+        return sql`DELETE FROM live_background WHERE thread_id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      // One line per thread, then the flag is gone, so the next boot doesn't repeat it.
+      stoppedBackground() {
+        return Effect.gen(function* () {
+          const rows = yield* sql<{ thread_id: string }>`SELECT thread_id FROM live_background`
+          for (const row of rows) {
+            const [thread] = yield* sql<{
+              id: string
+            }>`SELECT id FROM threads WHERE id = ${row.thread_id}`
+            if (thread)
+              yield* append(row.thread_id, {
+                type: 'item.started',
+                item: {
+                  id: newId(),
+                  turnId: newId(),
+                  createdAt: Date.now(),
+                  kind: 'background_stopped',
+                },
+              })
+            yield* sql`DELETE FROM live_background WHERE thread_id = ${row.thread_id}`
+          }
+        }).pipe(atomically, Effect.mapError(storeError))
+      },
       // A clean exit leaves `cleanShutdown` in settings. Missing, this start counts: a crash,
       // kill -9, or power loss. The row is consumed either way, so the next start is judged alone.
       recordServerStart(startedAt: number, windowMs: number) {

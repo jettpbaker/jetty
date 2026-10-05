@@ -66,6 +66,7 @@ export type ThreadRow =
   | { kind: 'compaction'; id: string; running: boolean }
   | { kind: 'pullRequest'; id: string; item: PullRequestItem }
   | { kind: 'restart'; id: string }
+  | { kind: 'backgroundStopped'; id: string }
   // the crash-loop guard held the turn; resumed once anything follows it
   | { kind: 'restartLimit'; id: string; resumed: boolean }
   | { kind: 'error'; id: string; message: string }
@@ -510,7 +511,8 @@ export function threadRows(
     else if (outcomes[currentTurnId] === 'server_restarted') rows.push({ kind: 'restart', id })
   }
   for (const [index, item] of items.entries()) {
-    if (currentTurnId && currentTurnId !== item.turnId) finishTurn(true)
+    if (currentTurnId && currentTurnId !== item.turnId)
+      finishTurn(items.slice(index).some((next) => next.kind !== 'background_stopped'))
     currentTurnId = item.turnId
     const steered = item.turnId !== pendingTurnId && startedTurns.has(item.turnId)
     startedTurns.add(item.turnId)
@@ -582,6 +584,9 @@ export function threadRows(
         break
       case 'pull_request':
         rows.push({ kind: 'pullRequest', id: item.id, item })
+        break
+      case 'background_stopped':
+        rows.push({ kind: 'backgroundStopped', id: item.id })
         break
       case 'image_gallery':
         rows.push({ kind: 'gallery', id: item.id, item })
