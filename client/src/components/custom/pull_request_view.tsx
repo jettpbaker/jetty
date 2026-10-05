@@ -119,7 +119,6 @@ function RefreshFailed({ link, error }: { link: PullRequestAddress; error: strin
           render={
             <Button
               variant='ghost'
-              tone='muted'
               size='icon'
               aria-label='Retry'
               aria-busy={refreshing}
