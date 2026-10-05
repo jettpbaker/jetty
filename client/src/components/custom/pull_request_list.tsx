@@ -26,14 +26,7 @@ import {
   type GroupedColumn,
   type TableGroup,
 } from './grouped_table'
-import {
-  Alert02Icon,
-  CancelCircleIcon,
-  Clock01Icon,
-  Refresh01Icon,
-  ShieldCheckIcon,
-  ShieldOffIcon,
-} from './huge_icons'
+import { Refresh01Icon } from './huge_icons'
 import {
   GitMergeIcon,
   GitPullRequestClosedIcon,
@@ -75,8 +68,6 @@ const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNo
   },
 }
 
-const openedRows: Partial<Record<PullRequestListTab, string>> = {}
-
 const compactLines = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 })
 
 // Whole thousands from 10k keep the widest count ("+9999 −9999") inside its column.
@@ -99,14 +90,11 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     })
   }, [list?.status, tab, prefetchList])
   const hover = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [opened, setOpened] = useState(() => ({ ...openedRows }))
   const now = useNow(60_000)
   const pulls = list?.items ?? []
   const failure = list && list.status !== 'ready' && list.status !== 'loading'
   function onSelect(pull: PullRequestListItem) {
     perf.start('pr.open', { pr: pull.number })
-    openedRows[tab] = pull.url
-    setOpened({ ...openedRows })
   }
   function onRowHover(pull: PullRequestListItem | null) {
     if (hover.current !== null) clearTimeout(hover.current)
@@ -195,18 +183,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           tucked={collapsed.has('identifier')}
         />
       ),
-    },
-    {
-      id: 'checks',
-      priority: 70,
-      width: 28,
-      render: (pull) => <PullRequestChecksGlyph pull={pull} />,
-    },
-    {
-      id: 'review',
-      priority: 60,
-      width: 28,
-      render: (pull) => <PullRequestReviewGlyph pull={pull} />,
     },
     {
       id: 'diff',
@@ -318,7 +294,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             }
             onSelect={onSelect}
             onRowHover={onRowHover}
-            selectedKey={opened[tab]}
             renderRow={(pull) => {
               const [owner = '', repo = ''] = pull.repo.split('/')
               return (
@@ -369,41 +344,4 @@ function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
           ? 'text-destructive'
           : 'text-pr-open'
   return <Icon className={`size-3.5 ${color}`} aria-label={pull.state} />
-}
-
-function PullRequestChecksGlyph({ pull }: { pull: PullRequestListItem }) {
-  if (pull.checks !== 'failure' && pull.checks !== 'pending') return null
-  const failing = pull.checks === 'failure'
-  const Icon = failing ? CancelCircleIcon : Clock01Icon
-  return (
-    <span
-      title={failing ? 'Checks failing' : 'Checks running'}
-      className={failing ? 'text-destructive' : 'text-status-attention'}
-    >
-      <Icon className='size-3.5' />
-      <span className='sr-only'>{failing ? 'Checks failing' : 'Checks running'}</span>
-    </span>
-  )
-}
-
-function PullRequestReviewGlyph({ pull }: { pull: PullRequestListItem }) {
-  if (pull.mergeable === 'CONFLICTING' && pull.state === 'open')
-    return (
-      <span title='Merge conflicts' className='text-destructive'>
-        <Alert02Icon className='size-3.5' />
-        <span className='sr-only'>Merge conflicts</span>
-      </span>
-    )
-  if (!pull.reviewDecision || pull.reviewDecision === 'REVIEW_REQUIRED') return null
-  const approved = pull.reviewDecision === 'APPROVED'
-  const Icon = approved ? ShieldCheckIcon : ShieldOffIcon
-  return (
-    <span
-      title={approved ? 'Approved' : 'Changes requested'}
-      className={approved ? 'text-pr-open' : 'text-destructive'}
-    >
-      <Icon className='size-3.5' />
-      <span className='sr-only'>{approved ? 'Approved' : 'Changes requested'}</span>
-    </span>
-  )
 }

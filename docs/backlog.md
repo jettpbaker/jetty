@@ -25,10 +25,13 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   - PR description edits are last-writer-wins across devices; an "edited
     elsewhere" guard is possible.
   - ⌥1–9 opens pinned threads; the alternative is driving tabs.
-- Failing and running checks on sidebar thread rows:
-  `/components/thread-row-checks`. Red already means a closed PR, so the mark
-  can't just turn red. C (a separate failure disc and count) was recommended,
-  but its running ring is the working-agent glyph and could read as "agent busy".
+- How lists show a PR's checks and review state. The PR list's checks and review
+  columns are gone: five unlabelled glyphs (failing, running, conflict, approved,
+  changes requested) confused more than they told, and didn't look right yet.
+  Worth finding one clear way to communicate it, in the PR list and on sidebar
+  thread rows alike (`/components/thread-row-checks`: red already means a closed
+  PR, so a mark can't just turn red; C, a separate failure disc and count, was
+  recommended, but its running ring is the working-agent glyph).
 - An icon for the PR overview's Thread row: `/components/icon-picks` (thread
   section). B (Message multiple 01) was recommended.
 

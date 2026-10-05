@@ -74,9 +74,6 @@
   cursor: pointer;
   outline: none;
 }
-.grouped-table-row[data-selected='true'] {
-  background: color-mix(in oklch, var(--accent) 75%, transparent);
-}
 @media (hover: hover) {
   .grouped-table-row:hover {
     background: color-mix(in oklch, var(--accent) 60%, transparent);

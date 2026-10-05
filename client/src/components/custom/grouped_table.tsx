@@ -41,7 +41,6 @@ type GroupedTableProps<T> = {
   groups: readonly TableGroup<T>[]
   rowKey: (row: T) => string | number
   rowLabel: (row: T) => string
-  selectedKey?: string | number
   onSelect?: (row: T) => void
   onRowHover?: (row: T | null) => void
   renderRow?: (row: T) => ReactElement
@@ -55,7 +54,6 @@ export function GroupedTable<T>({
   groups,
   rowKey,
   rowLabel,
-  selectedKey,
   onSelect,
   onRowHover,
   renderRow,
@@ -182,8 +180,6 @@ export function GroupedTable<T>({
                     data-table-focus
                     className='grouped-table-grid grouped-table-row'
                     style={gridStyle}
-                    data-selected={rowKey(row) === selectedKey}
-                    aria-current={rowKey(row) === selectedKey || undefined}
                     aria-label={rowLabel(row)}
                     onClick={() => onSelect?.(row)}
                     onPointerEnter={() => onRowHover?.(row)}
