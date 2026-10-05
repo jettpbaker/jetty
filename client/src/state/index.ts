@@ -1,6 +1,18 @@
 export { useAccessMode } from './access_mode'
 export { useBrowse } from './browse'
-export { useChrome, useModels, type Chrome } from './chrome'
+export {
+  useChildThreadMetas,
+  useChrome,
+  useChromeReady,
+  useLinkedPull,
+  useModels,
+  useNewThreadProject,
+  useProject,
+  useProjectRepos,
+  useProjects,
+  useThreadMeta,
+  type Chrome,
+} from './chrome'
 export { useConnectionNotice } from './connection'
 export { useMarkThreadSeen } from './mutations'
 export {

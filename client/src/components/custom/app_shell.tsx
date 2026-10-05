@@ -5,13 +5,13 @@ import { Tabs, TabsList } from '@/components/ui/tabs'
 import { storage } from '@/platform'
 import {
   MAIN_TAB,
-  useChrome,
   useConnectionNotice,
-  useRenewQueueHolds,
   useForgetDeletedDrafts,
+  useRenewQueueHolds,
   useSettleUnsureSends,
   useSubagentOutcome,
   useSubagentTabs,
+  useThreadMeta,
   useThreadTab,
   type SubagentTab,
 } from '@/state'
@@ -247,7 +247,7 @@ function Workspace({
   const { setOpenMobile } = useSidebar()
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const threadId = useParams({ strict: false }).threadId
-  const thread = useChrome()?.threads.find((entry) => entry.id === threadId)
+  const thread = useThreadMeta(threadId)
   const agents = useSubagentTabs(threadId)
   const [tab, setTab] = useThreadTab(threadId ?? '')
   const scroller = useRef<HTMLDivElement>(null)

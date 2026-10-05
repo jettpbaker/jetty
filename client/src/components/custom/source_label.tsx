@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
-import { useChrome } from '@/state'
+import { useThreadMeta } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 
 import { ProviderGlyph } from './provider_glyph'
@@ -37,7 +37,7 @@ export function ThreadSourceLabel({
   className?: string
 }) {
   const navigate = useNavigate()
-  const provider = useChrome()?.threads.find((thread) => thread.id === from.threadId)?.provider
+  const provider = useThreadMeta(from.threadId)?.provider
   return (
     <SourceLabel provider={provider} className={className}>
       <button

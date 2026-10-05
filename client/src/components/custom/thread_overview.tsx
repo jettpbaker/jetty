@@ -6,11 +6,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useNow } from '@/hooks/use-now'
 import { storage } from '@/platform'
 import {
-  useChrome,
   useOverviewItems,
   useRequestReveal,
   useRevealSection,
   useThreadDiff,
+  useThreadMeta,
   useThreadTab,
 } from '@/state'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -37,7 +37,7 @@ function threadWorkflows(items: readonly ThreadItem[]) {
 
 export function useHasOverview(threadId: string, childThreads: readonly ChildThread[]) {
   const { items, lastTurn } = useOverviewItems(threadId)
-  const pullRequests = useChrome()?.threads.find((thread) => thread.id === threadId)?.pullRequests
+  const pullRequests = useThreadMeta(threadId)?.pullRequests
   const hasItems =
     items.some((item) => item.kind === 'subagent' || item.kind === 'workflow') ||
     currentTodos(items, lastTurn).length > 0
@@ -83,7 +83,7 @@ export function ThreadOverview({
   onShowChanges: () => void
 }) {
   const { items, lastTurn } = useOverviewItems(threadId)
-  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const meta = useThreadMeta(threadId)
   const [tab, setTab] = useThreadTab(threadId)
   const reveal = useRequestReveal()
   const { diff } = useThreadDiff(threadId)

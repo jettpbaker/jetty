@@ -7,7 +7,7 @@ import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useChrome } from './chrome'
+import { useThreadMeta } from './chrome'
 import { connectionAtom, useAction } from './connection'
 import { beginFileSave, endFileSave, settleFileDraft } from './file_drafts'
 import { threadAtom, threadStatusAtom } from './threads'
@@ -125,7 +125,7 @@ export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
 // Mount only while the diff is on screen: a cached diff renders at once and is
 // refreshed behind it, and settled tool calls and every finished turn refresh it again.
 export function useThreadDiff(threadId: string, scope?: DiffScope) {
-  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const meta = useThreadMeta(threadId)
   const key = `${threadId}\0${scope ?? defaultDiffScope(meta)}`
   const atom = diffAtom(key)
   const result = useAtomValue(atom)
@@ -206,7 +206,7 @@ export function useProjectFile(threadId: string, path: string) {
   const atom = projectFileAtom(`${threadId}\0${path}`)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
-  const turnEndedAt = useChrome()?.threads.find((thread) => thread.id === threadId)?.turnEndedAt
+  const turnEndedAt = useThreadMeta(threadId)?.turnEndedAt
   const turnEnded = useRef(turnEndedAt)
   useToolsSettled(threadId, refresh)
   useRefreshCached(atom, refresh)

@@ -4,10 +4,10 @@ import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
-  useChrome,
   useFileSearch,
   useFolderReader,
   useRefreshOnFocus,
+  useThreadMeta,
   useToolsSettled,
 } from '@/state'
 import { FileTree, useFileTree } from '@pierre/trees/react'
@@ -255,7 +255,7 @@ function FolderTree({
     }
   }, [model, listing, read])
 
-  const turnEndedAt = useChrome()?.threads.find((thread) => thread.id === threadId)?.turnEndedAt
+  const turnEndedAt = useThreadMeta(threadId)?.turnEndedAt
   const catchUp = useCallback(() => refresh.current?.(), [])
   useToolsSettled(threadId, catchUp)
   useRefreshOnFocus(catchUp)

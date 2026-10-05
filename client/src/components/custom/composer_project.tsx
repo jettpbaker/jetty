@@ -1,7 +1,7 @@
 import { FolderGit2Icon, Settings01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
-import { useChrome, useCreateProject } from '@/state'
+import { useCreateProject, useProjects } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
@@ -19,15 +19,15 @@ export function ComposerProject({
   // Offered while the project has no worktree config.
   onSetUpWorktrees?: () => void
 }) {
-  const chrome = useChrome()
+  const loaded = useProjects()
   const createProject = useCreateProject()
   const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
-  const projects = chrome?.projects ?? []
+  const projects = loaded ?? []
 
   return (
     <div className='relative z-10 flex items-center px-2.5' aria-label='Project'>
-      {chrome && projects.length === 0 ? (
+      {loaded && projects.length === 0 ? (
         <Button
           variant='ghost-text'
           size='sm'

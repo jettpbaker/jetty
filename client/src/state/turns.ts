@@ -23,7 +23,7 @@ import { useCallback, useContext, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { accessModeAtom } from './access_mode'
-import { chromeAtom, modelsAtom, useChrome } from './chrome'
+import { chromeAtom, modelsAtom, useThreadMeta } from './chrome'
 import { run, useAction } from './connection'
 import {
   resetDraftTarget,
@@ -368,7 +368,7 @@ export function useThreadLoadout(threadId: string | undefined) {
       : undefined
   const slots = useAtomValue(usableLoadoutsAtom)
   const catalog = useAtomValue(modelsAtom)
-  const thread = useChrome()?.threads.find((item) => item.id === threadId)
+  const thread = useThreadMeta(threadId)
   const saved = useMemo(() => savedLoadout(thread, slots, catalog), [catalog, slots, thread])
   const settled = Boolean(override && saved && sameLoadoutIn(catalog, override, saved))
 
@@ -488,7 +488,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
     status === 'starting' ||
     status === 'awaiting_approval'
   // A queue about to send its next message keeps the composer busy into that message's turn.
-  const meta = useChrome()?.threads.find((entry) => entry.id === threadId)
+  const meta = useThreadMeta(threadId)
   const delivering = meta !== undefined && deliversQueue(meta)
 
   useEffect(() => {

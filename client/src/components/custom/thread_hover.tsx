@@ -7,11 +7,12 @@ import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
 import { cn } from '@/lib/utils'
 import {
-  useChrome,
+  useModels,
   useOpenOverview,
   useOpenPullRequest,
   useSubagentOutcome,
   useThreadJourney,
+  useThreadMeta,
 } from '@/state'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
@@ -363,17 +364,17 @@ function useCheckout(projectId?: string): Checkout | undefined {
 // Everything the card shows comes from chrome, which the sidebar already holds: opening a card
 // never waits on the network, and it follows the thread live while it's open.
 export function ThreadHoverDetails({ threadId }: { threadId: string }) {
-  const chrome = useChrome()
+  const models = useModels()
   const childThreads = useChildThreads(threadId)
   const navigate = useNavigate()
   const startThreadJourney = useThreadJourney()
   const openPullRequest = useOpenPullRequest()
   const openOverview = useOpenOverview()
-  const thread = chrome?.threads.find((candidate) => candidate.id === threadId)
+  const thread = useThreadMeta(threadId)
+  const parent = useThreadMeta(thread?.parentThreadId)
   const checkout = useCheckout(thread?.environment === 'local' ? thread.projectId : undefined)
   const subagents = useFinishingSubagents(threadId, thread?.runningSubagents ?? noSubagents)
-  if (!chrome || !thread) return null
-  const parent = chrome.threads.find((candidate) => candidate.id === thread.parentThreadId)
+  if (!thread) return null
   const branch = threadBranch(thread)
   return (
     <ThreadHoverPanel
@@ -381,7 +382,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
       provider={thread.provider}
       model={
         thread.provider && thread.model
-          ? catalogModelName(chrome.models, thread.provider, thread.model)
+          ? catalogModelName(models, thread.provider, thread.model)
           : undefined
       }
       environment={thread.environment}

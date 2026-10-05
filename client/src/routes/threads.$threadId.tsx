@@ -14,9 +14,11 @@ import {
   MAIN_TAB,
   useArchiveThread,
   useBumpDraft,
-  useChrome,
+  useChromeReady,
   useMarkThreadSeen,
+  useProject,
   useThread,
+  useThreadMeta,
   useThreadOverlay,
   useThreadTab,
 } from '@/state'
@@ -31,8 +33,8 @@ function Thread() {
   perf.threadLocal(threadId, thread !== undefined)
   useLayoutEffect(() => perf.threadShown(threadId, thread !== undefined))
   const overlay = useThreadOverlay(threadId, thread)
-  const chrome = useChrome()
-  const meta = chrome?.threads.find((item) => item.id === threadId)
+  const chromeReady = useChromeReady()
+  const meta = useThreadMeta(threadId)
   const markSeen = useMarkThreadSeen()
   const readyForReview = useRef(false)
   // Updated in an effect, not during render: switching threads re-renders with the next
@@ -46,7 +48,7 @@ function Thread() {
     },
     [markSeen, threadId]
   )
-  const project = chrome?.projects.find((entry) => entry.id === meta?.projectId)
+  const project = useProject(meta?.projectId)
   const projectPath = meta?.workingPath ?? project?.path
   const [tab, setTab] = useThreadTab(threadId)
   const archiveThread = useArchiveThread()
@@ -73,7 +75,7 @@ function Thread() {
       projectTitle={project?.title}
     />
   )
-  if (chrome && !meta) return <ThreadNotFound />
+  if (chromeReady && !meta) return <ThreadNotFound />
   if (!meta && !thread && overlay.empty)
     return (
       <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>

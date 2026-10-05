@@ -17,7 +17,7 @@ import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { chromeAtom, useChrome } from './chrome'
+import { chromeAtom, useThreadMeta } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
 import { detailsRequestAtom } from './thread_tab'
 
@@ -424,7 +424,7 @@ function sortedLinks(links: readonly PullRequestLink[] = noLinks) {
 }
 
 export function useThreadPullRequests(threadId: string) {
-  const links = useChrome()?.threads.find((entry) => entry.id === threadId)?.pullRequests
+  const links = useThreadMeta(threadId)?.pullRequests
   return useMemo(() => sortedLinks(links), [links])
 }
 

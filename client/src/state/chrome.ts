@@ -8,11 +8,13 @@ import type {
   ProjectIcon,
   ProviderId,
   ProviderModel,
+  PullRequestLink,
   ThreadMeta,
 } from '@jetty/shared/wire'
 
+import { newThreadProject } from '@/lib/thread_project'
 import { useAtomValue } from '@effect/atom-react'
-import { Stream } from 'effect'
+import { Equal, Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 
 import { subscribe, useAction } from './connection'
@@ -191,4 +193,104 @@ function readChrome(registry: AtomRegistry.AtomRegistry) {
 // Chrome as it is when called, for handlers that shouldn't re-render on every push.
 export function useReadChrome() {
   return useAction(readChrome)
+}
+
+const threadsByIdAtom = Atom.readable(
+  (get) => new Map(get(chromeAtom)?.threads.map((thread) => [thread.id, thread]))
+)
+
+// One thread's metadata, by value: a push for any other thread leaves its readers alone.
+export const threadMetaAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadsByIdAtom).get(threadId)).pipe(Atom.withEquality(Equal.equals))
+)
+
+export function useThreadMeta(threadId: string | undefined) {
+  return useAtomValue(threadMetaAtom(threadId ?? ''))
+}
+
+const projectsAtom = Atom.readable((get) => get(chromeAtom)?.projects).pipe(
+  Atom.withEquality(Equal.equals)
+)
+
+export function useProjects() {
+  return useAtomValue(projectsAtom)
+}
+
+export const projectAtom = Atom.family((projectId: string) =>
+  Atom.readable((get) => get(projectsAtom)?.find((project) => project.id === projectId))
+)
+
+export function useProject(projectId: string | undefined) {
+  return useAtomValue(projectAtom(projectId ?? ''))
+}
+
+const providerCapabilitiesAtom = Atom.readable((get) => get(chromeAtom)?.providerCapabilities)
+
+export function useProviderCapabilities() {
+  return useAtomValue(providerCapabilitiesAtom)
+}
+
+const chromeReadyAtom = Atom.readable((get) => get(chromeAtom) !== undefined)
+
+export function useChromeReady() {
+  return useAtomValue(chromeReadyAtom)
+}
+
+const noThreads: readonly ThreadMeta[] = []
+
+const childThreadsAtom = Atom.family((parentId: string) =>
+  Atom.readable(
+    (get) =>
+      get(chromeAtom)?.threads.filter((thread) => thread.parentThreadId === parentId) ?? noThreads
+  ).pipe(Atom.withEquality(Equal.equals))
+)
+
+export function useChildThreadMetas(parentId: string) {
+  return useAtomValue(childThreadsAtom(parentId))
+}
+
+// Each linked PR by repo#number (the first thread's link to it), and each project's PR repos.
+const pullLinksAtom = Atom.readable((get) => {
+  const pulls = new Map<string, PullRequestLink>()
+  const repos = new Map<string, Set<string>>()
+  for (const thread of get(chromeAtom)?.threads ?? [])
+    for (const link of thread.pullRequests ?? []) {
+      const key = `${link.repo}#${link.number}`
+      if (!pulls.has(key)) pulls.set(key, link)
+      repos.set(thread.projectId, (repos.get(thread.projectId) ?? new Set()).add(link.repo))
+    }
+  return { pulls, repos }
+})
+
+const linkedPullAtom = Atom.family((key: string) =>
+  Atom.readable((get) => get(pullLinksAtom).pulls.get(key)).pipe(Atom.withEquality(Equal.equals))
+)
+
+export function useLinkedPull(repo: string, number: number) {
+  return useAtomValue(linkedPullAtom(`${repo}#${number}`))
+}
+
+const noRepos: ReadonlySet<string> = new Set()
+
+const projectReposAtom = Atom.family((projectId: string) =>
+  Atom.readable((get) => get(pullLinksAtom).repos.get(projectId) ?? noRepos).pipe(
+    Atom.withEquality(Equal.equals)
+  )
+)
+
+export function useProjectRepos(projectId: string | undefined) {
+  return useAtomValue(projectReposAtom(projectId ?? ''))
+}
+
+const newThreadProjectAtom = Atom.family((selectedId: string) =>
+  Atom.readable((get) => {
+    const chrome = get(chromeAtom)
+    return chrome && newThreadProject(chrome, selectedId || undefined)
+  })
+)
+const noProjectAtom = Atom.make<string | undefined>(undefined)
+
+// The project a new thread starts in when none is picked; only worked out while `wanted`.
+export function useNewThreadProject(wanted: boolean, selectedId: string | undefined) {
+  return useAtomValue(wanted ? newThreadProjectAtom(selectedId ?? '') : noProjectAtom)
 }

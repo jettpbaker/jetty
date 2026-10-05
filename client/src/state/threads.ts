@@ -9,7 +9,7 @@ import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useRef } from 'react'
 
-import { chromeAtom } from './chrome'
+import { threadMetaAtom } from './chrome'
 import { subscribe, useAction } from './connection'
 import { createItemSelection, noteItemDelta, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
@@ -74,7 +74,7 @@ export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
     const resume = get(resumeAtom(threadId))
     const state = AsyncResult.getOrElse(get(liveAtom(threadId)), () => resume)
-    const thread = get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
+    const thread = get(threadMetaAtom(threadId))
     if (!state) return state
     const status = backgroundStatus(
       state.status,

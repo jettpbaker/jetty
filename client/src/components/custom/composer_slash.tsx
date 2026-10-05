@@ -22,7 +22,7 @@ import {
   useThreadContext,
   useThreadLoadout,
 } from '@/state'
-import { useChrome } from '@/state/chrome'
+import { useProviderCapabilities, useThreadMeta } from '@/state/chrome'
 import { useSkills } from '@/state/skills'
 import { useCompactThread } from '@/state/turns'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
@@ -117,9 +117,9 @@ export function useComposerSlash(
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
   const { skills: listed, refresh } = useSkills(projectId)
-  const chrome = useChrome()
+  const capabilities = useProviderCapabilities()
   const compactThread = useCompactThread()
-  const thread = chrome?.threads.find((item) => item.id === threadId)
+  const thread = useThreadMeta(threadId)
   const context = useThreadContext(threadId)
   const bumpDraft = useBumpDraft()
   const navigate = useNavigate()
@@ -300,7 +300,7 @@ export function useComposerSlash(
           thread.status === 'running' ||
           thread.status === 'awaiting_approval'
         ? 'Wait for this turn to finish'
-        : !chrome?.providerCapabilities?.[thread.provider].compaction
+        : !capabilities?.[thread.provider].compaction
           ? 'This provider can’t compact'
           : ''
     const unset = 'Choose a model first'

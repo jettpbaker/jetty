@@ -4,26 +4,15 @@ import { useAtomValue } from '@effect/atom-react'
 import { Equal } from 'effect'
 import { Atom } from 'effect/reactivity'
 
-import { chromeAtom } from './chrome'
-
-const threadsAtom = Atom.readable(
-  (get) => new Map(get(chromeAtom)?.threads.map((thread) => [thread.id, thread]))
-)
-const projectsAtom = Atom.readable((get) => get(chromeAtom)?.projects)
-
-// By value, and per thread first so a thread a push left alone costs one comparison.
-const metaAtom = Atom.family((threadId: string) =>
-  Atom.readable((get) => get(threadsAtom).get(threadId)).pipe(Atom.withEquality(Equal.equals))
-)
+import { chromeAtom, projectAtom, threadMetaAtom } from './chrome'
 
 export type SidebarRow = { thread: ThreadMeta; project?: Project }
 
 // A row's inputs, by value: a push for one thread re-renders only its row.
 const rowAtom = Atom.family((threadId: string) =>
   Atom.readable((get): SidebarRow | undefined => {
-    const thread = get(metaAtom(threadId))
-    const project = get(projectsAtom)?.find((project) => project.id === thread?.projectId)
-    return thread && { thread, project }
+    const thread = get(threadMetaAtom(threadId))
+    return thread && { thread, project: get(projectAtom(thread.projectId)) }
   }).pipe(Atom.withEquality(Equal.equals))
 )
 

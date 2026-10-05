@@ -1,5 +1,5 @@
 import { isBoolean, useStoredState } from '@/lib/stored-state'
-import { useChrome } from '@/state'
+import { useProject } from '@/state'
 import { useBranches, useBranchList, type BranchList } from '@/state/worktrees'
 import { useEffect, useEffectEvent } from 'react'
 
@@ -19,7 +19,6 @@ export function ComposerFooter({
   onStartingRefChange: (ref: string) => void
   projectId?: string
 }) {
-  const chrome = useChrome()
   const fetchBranches = useBranches()
   const localOnly = environment === 'local'
   const branchList = useBranchList(projectId, localOnly)
@@ -45,7 +44,7 @@ export function ComposerFooter({
     if (list && !localOnly) settle(list)
   }, [list, localOnly])
 
-  const project = chrome?.projects.find((entry) => entry.id === projectId)
+  const project = useProject(projectId)
   const noGit =
     known?.git === 'missing'
       ? 'Project folder not found'

@@ -6,16 +6,16 @@ import {
 import { useNow } from '@/hooks/use-now'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { useChrome, usePullRequestSummary, useThreadRowPrefetch } from '@/state'
+import {
+  useLinkedPull,
+  useProjectRepos,
+  usePullRequestSummary,
+  useThreadMeta,
+  useThreadRowPrefetch,
+} from '@/state'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { Link, useParams } from '@tanstack/react-router'
-import {
-  useMemo,
-  type ComponentProps,
-  type ComponentType,
-  type ReactNode,
-  type SVGProps,
-} from 'react'
+import { type ComponentProps, type ComponentType, type ReactNode, type SVGProps } from 'react'
 
 import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
@@ -101,17 +101,9 @@ function shorten(title: string, limit = 40) {
 
 // A repo is home when this page's project has a PR in it; links to anything else name their repo.
 function useHomeRepos() {
-  const chrome = useChrome()
   const { threadId, owner, repo } = useParams({ strict: false })
-  return useMemo(() => {
-    if (owner && repo) return new Set([`${owner}/${repo}`.toLowerCase()])
-    const projectId = chrome?.threads.find((thread) => thread.id === threadId)?.projectId
-    return new Set(
-      chrome?.threads.flatMap((thread) =>
-        thread.projectId === projectId ? (thread.pullRequests ?? []).map((link) => link.repo) : []
-      )
-    )
-  }, [chrome, threadId, owner, repo])
+  const projectRepos = useProjectRepos(useThreadMeta(threadId)?.projectId)
+  return owner && repo ? new Set([`${owner}/${repo}`.toLowerCase()]) : projectRepos
 }
 
 function GitHubAnchor({ children, ...props }: ComponentProps<'a'>) {
@@ -132,10 +124,9 @@ export function ThreadLink({
   fallback: ReactNode
   outcome?: Status
 }) {
-  const chrome = useChrome()
   const prefetch = useThreadRowPrefetch()
-  const meta = chrome?.threads.find((thread) => thread.id === id)
-  if (!chrome || !meta) return fallback
+  const meta = useThreadMeta(id)
+  if (!meta) return fallback
   const look = statusPresentation[outcome ?? threadStatus(meta.status, meta.readyForReview)]
   const [first, ...rest] = shorten(meta.title).split(' ')
   return (
@@ -206,7 +197,6 @@ function PullPreview({
 
 // A permalink (a review comment, the Files tab) opens there on GitHub; Jetty's view has no anchors.
 function PullLink({ entity, permalink }: { entity: string; permalink?: string }) {
-  const chrome = useChrome()
   const home = useHomeRepos()
   const [repo = '', number = ''] = entity.split('#')
   const [owner = '', name = ''] = repo.split('/')
@@ -216,9 +206,7 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
   } as const
   const data = usePullRequestSummary({ repo, number: Number(number) })
   // A thread's link to it follows GitHub live; a PR no thread links shows its last read.
-  const linked = chrome?.threads
-    .flatMap((thread) => thread.pullRequests ?? [])
-    .find((link) => link.repo === repo && link.number === Number(number))
+  const linked = useLinkedPull(repo, Number(number))
   const look = linkPresentation(linked?.state ? linked : data && pullRequestFacts(data))
   const content = (
     <Lead icon={look.icon} color={look.color} label={look.label} size={pullGlyph}>

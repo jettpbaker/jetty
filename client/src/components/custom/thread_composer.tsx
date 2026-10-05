@@ -21,23 +21,25 @@ import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
-import { newThreadProject } from '@/lib/thread_project'
 import { threadBranch } from '@/lib/thread_worktree'
 import {
   useAccessMode,
-  useChrome,
+  useChromeReady,
   useContinueThread,
   useCreateThread,
   useDismissQuestion,
   useDraft,
   useInterruptTurn,
   useLoadouts,
+  useNewThreadProject,
+  useProject,
   useQueueActions,
   useQueueComposer,
   useRespondApproval,
   useRespondQuestion,
   useSendTurn,
   useThreadLoadout,
+  useThreadMeta,
   useVisibleQueue,
 } from '@/state'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
@@ -130,16 +132,13 @@ export function ThreadComposer({
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
   const navigate = useNavigate()
-  const chrome = useChrome()
+  const chromeReady = useChromeReady()
   const selectedId = useParams({ strict: false }).threadId
   const target = saved.target
-  const picked = chrome?.projects.some((project) => project.id === target?.projectId)
+  const picked = useProject(target?.projectId) !== undefined
+  const latestProject = useNewThreadProject(!threadId && !picked, selectedId)
   const projectId =
-    !threadId && chrome
-      ? picked
-        ? target?.projectId
-        : newThreadProject(chrome, selectedId)
-      : undefined
+    !threadId && chromeReady ? (picked ? target?.projectId : latestProject) : undefined
   const projectGit = useProjectGit(projectId)
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
@@ -168,11 +167,11 @@ export function ThreadComposer({
       update({ target: { ...target, projectId: undefined } })
     }
   }, [threadId, update, read])
-  const meta = chrome?.threads.find((thread) => thread.id === threadId)
+  const meta = useThreadMeta(threadId)
   // A message being edited can leave the queue under the composer: removed in another window, or
   // delivered once its hold lapsed. The edit stays as an ordinary draft, and the footer says why.
   const [left, setLeft] = useState<string>()
-  const editingLeft = Boolean(threadId && editing && chrome && !editingEntry)
+  const editingLeft = Boolean(threadId && editing && chromeReady && !editingEntry)
   useEffect(() => {
     if (!editingLeft || !editing) return
     setLeft(editing)
@@ -538,7 +537,7 @@ export function ThreadComposer({
             onChange={setLoadout}
             onReorder={setLoadouts}
             onOpenSettings={() => void navigate({ to: '/settings' })}
-            loading={!chrome}
+            loading={!chromeReady}
           />
         }
         model={loadout && findModel(catalog, loadout)}

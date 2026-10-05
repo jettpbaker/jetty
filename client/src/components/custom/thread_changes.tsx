@@ -4,10 +4,10 @@ import { Loading } from '@/components/custom/loading'
 import { whenIdle } from '@/lib/preload'
 import {
   defaultDiffScope,
-  useChrome,
   useDiffFileLoader,
   useThreadDiff,
   useThreadDiffFetch,
+  useThreadMeta,
   useToolsSettled,
 } from '@/state'
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -116,7 +116,7 @@ export function ThreadChanges({
   onEditFile: OnEditFile
 }) {
   const [pickedScope, setScope] = useState<DiffScope>()
-  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const meta = useThreadMeta(threadId)
   const scope = pickedScope ?? defaultDiffScope(meta)
   const { diff, failed } = useThreadDiff(threadId, scope)
   const nothingChanged = failed || diff?.diff === ''

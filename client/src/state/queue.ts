@@ -11,7 +11,7 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
-import { chromeAtom } from './chrome'
+import { chromeAtom, threadMetaAtom } from './chrome'
 import { run, useAction } from './connection'
 import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
@@ -342,14 +342,10 @@ export function useRenewQueueHolds() {
   }, [registry])
 }
 
-function threadMeta(get: Atom.AtomContext, threadId: string) {
-  return get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
-}
-
 // Per thread and by value, so a chrome update that leaves this thread's queue as it was (each
 // status change brings a fresh copy) doesn't rebuild the chat's rows.
 const pendingMessagesAtom = Atom.family((threadId: string) =>
-  Atom.make((get) => threadMeta(get, threadId)?.pendingMessages).pipe(
+  Atom.make((get) => get(threadMetaAtom(threadId))?.pendingMessages).pipe(
     Atom.withEquality<readonly QueuedMessage[] | undefined>(
       (a, b) => (!a?.length && !b?.length) || Equal.equals(a, b)
     )
@@ -357,7 +353,7 @@ const pendingMessagesAtom = Atom.family((threadId: string) =>
 )
 const queueHeldAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
-    const thread = threadMeta(get, threadId)
+    const thread = get(threadMetaAtom(threadId))
     return Boolean(thread?.queuePaused || thread?.archived)
   })
 )

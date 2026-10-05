@@ -11,10 +11,10 @@ import {
   defaultDiffScope,
   pullRequestTabId,
   readFileDraft,
-  useChrome,
   useDetailsRequest,
   useFileDirty,
   usePullRequestTabs,
+  useThreadMeta,
   useThreadPullRequests,
 } from '@/state'
 import { useProjectGit } from '@/state/worktrees'
@@ -96,7 +96,7 @@ export function ThreadDetailsLayout({
   const [preferredWidth, setPreferredWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
   const [pickedTab, setTab] = useState('changes')
-  const meta = useChrome()?.threads.find((thread) => thread.id === threadId)
+  const meta = useThreadMeta(threadId)
   const git = useProjectGit(meta?.projectId)?.git
   const gitDisabled =
     git === 'not-git'

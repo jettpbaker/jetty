@@ -3,10 +3,9 @@ import type { ProviderId } from '@jetty/shared/wire'
 import { useNow } from '@/hooks/use-now'
 import { formatAge, formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { useChrome, useThreadRowPrefetch, type Chrome } from '@/state'
+import { useChildThreadMetas, useModels, useThreadRowPrefetch } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
 
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
@@ -36,34 +35,28 @@ const statusOrder: ThreadStatus[] = [
   'idle',
 ]
 
-function childThreads(chrome: Chrome | undefined, parentId: string) {
-  if (!chrome) return []
-  return chrome.threads
-    .filter((thread) => thread.parentThreadId === parentId)
-    .map(
-      (thread): ChildThread => ({
-        id: thread.id,
-        title: thread.title,
-        provider: thread.provider,
-        model:
-          thread.provider && thread.model
-            ? catalogModelName(chrome.models, thread.provider, thread.model)
-            : undefined,
-        status: threadStatus(thread.status, thread.readyForReview),
-        updatedAt: thread.updatedAt,
-        run:
-          thread.turnStartedAt === undefined ||
-          (thread.status === 'starting' && thread.turnEndedAt !== undefined)
-            ? undefined
-            : { startedAt: thread.turnStartedAt, endedAt: thread.turnEndedAt },
-        archived: thread.archived,
-      })
-    )
-}
-
 export function useChildThreads(parentId: string) {
-  const chrome = useChrome()
-  return useMemo(() => childThreads(chrome, parentId), [chrome, parentId])
+  const threads = useChildThreadMetas(parentId)
+  const models = useModels()
+  return threads.map(
+    (thread): ChildThread => ({
+      id: thread.id,
+      title: thread.title,
+      provider: thread.provider,
+      model:
+        thread.provider && thread.model
+          ? catalogModelName(models, thread.provider, thread.model)
+          : undefined,
+      status: threadStatus(thread.status, thread.readyForReview),
+      updatedAt: thread.updatedAt,
+      run:
+        thread.turnStartedAt === undefined ||
+        (thread.status === 'starting' && thread.turnEndedAt !== undefined)
+          ? undefined
+          : { startedAt: thread.turnStartedAt, endedAt: thread.turnEndedAt },
+      archived: thread.archived,
+    })
+  )
 }
 
 function useOpenThread(): Open {
