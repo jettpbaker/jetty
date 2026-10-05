@@ -63,15 +63,35 @@ export function GroupedTable<T>({
   const root = useRef<HTMLDivElement>(null)
   const id = useId()
   const [width, setWidth] = useState(0)
+  const [height, setHeight] = useState(0)
+  const [fill, setFill] = useState(0)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   useLayoutEffect(() => {
     const element = root.current
     if (!element) return
     setWidth(element.clientWidth)
-    const observer = new ResizeObserver(() => setWidth(element.clientWidth))
+    setHeight(element.clientHeight)
+    const observer = new ResizeObserver(() => {
+      setWidth(element.clientWidth)
+      setHeight(element.clientHeight)
+    })
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+  // Group headings cover each other, so a scrolling list whose last group is shorter than the view
+  // would stop mid-handoff with the previous heading peeking above it. Pad the end just enough for
+  // the last heading to reach the top, and only when the list scrolls anyway.
+  useLayoutEffect(() => {
+    const element = root.current
+    const headings = element?.querySelectorAll<HTMLElement>('.grouped-table-heading')
+    const last = headings?.[headings.length - 1]
+    if (!element || !last) return
+    const view = element.clientHeight - parseFloat(getComputedStyle(element).paddingBottom)
+    const rows = last.nextElementSibling as HTMLElement | null
+    const group = last.offsetHeight + (rows?.offsetHeight ?? 0)
+    const next = element.scrollHeight - fill > element.clientHeight ? Math.max(0, view - group) : 0
+    if (next !== fill) setFill(next)
+  }, [groups, collapsedGroups, width, height, fill])
 
   const collapsed = new Set(
     columns.filter((column) => column.visible === false).map((column) => column.id)
@@ -204,6 +224,7 @@ export function GroupedTable<T>({
           </section>
         )
       })}
+      {fill > 0 && <div aria-hidden='true' style={{ height: fill }} />}
       {!groups.some((group) => group.rows.length) && (
         <p className='p-8 text-center text-sm text-muted-foreground'>{empty}</p>
       )}
