@@ -77,9 +77,13 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
         items: state.items.map((item) => settleStreaming(item, ts)),
       })
     case 'item.started':
+      // A user message opens its turn: the server marks the turn starting as it appends the
+      // message, before the agent reports it started.
       return deriveStatus({
         ...state,
         items: [...state.items, event.item],
+        ...(event.item.kind === 'user_message' &&
+          !state.activeTurnId && { activeTurnId: event.item.turnId, status: 'starting' as const }),
       })
     case 'item.delta':
       return updateItem(state, event.itemId, appendDelta(event.delta, event.tokens))
