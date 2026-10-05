@@ -297,7 +297,11 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
       ),
     () => {
       settle?.()
-      toast.error("Couldn't send message")
+      // A worktree setup that failed or was stopped says so itself, with Retry.
+      const worktree = registry
+        .get(chromeAtom)
+        ?.threads.find((entry) => entry.id === threadId)?.worktree
+      if (!worktree || worktree.state === 'ready') toast.error("Couldn't send message")
     }
   )
 }

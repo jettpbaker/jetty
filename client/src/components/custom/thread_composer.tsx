@@ -111,7 +111,7 @@ export function ThreadComposer({
   const draft = saved.text
   const editing = saved.editing
   // The queue shows in the chat; here it's only the message being edited.
-  const { own: queue } = useVisibleQueue(threadId, items)
+  const { own: queue, unsent } = useVisibleQueue(threadId, items)
   const editingEntry = queue.find((entry) => entry.id === editing)
   const attachments = useImageAttachments(draftKey, editingEntry !== undefined)
   const { loadouts, catalog, setLoadouts } = useLoadouts()
@@ -154,6 +154,14 @@ export function ThreadComposer({
   }, [threadId, started, projectId, picked, update, read])
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
   const retrySetup = useRetrySetup()
+  // Retry sends the message waiting on the worktree as the queue's Resume does, so the setup it
+  // reruns reads "Setting up worktree" with Stop; with nothing waiting it only sets up.
+  function retry() {
+    if (!threadId) return
+    const next = unsent.find((entry) => entry.id !== editing)
+    if (next) queueActions.sendNow(threadId, next)
+    else retrySetup(threadId)
+  }
   const needsModel = !threadId && !loadout
   // Each /usage asks again; 0 is closed.
   const [usageAsked, setUsageAsked] = useState(0)
@@ -441,11 +449,7 @@ export function ThreadComposer({
       {meta?.worktree?.state === 'failed' && (
         <div role='alert' className='flex items-center gap-2 pb-2 text-xs text-destructive'>
           <span>{meta.worktree.error}</span>
-          <Button
-            variant='outline'
-            size='sm'
-            {...pressProps(() => threadId && retrySetup(threadId))}
-          >
+          <Button variant='outline' size='sm' {...pressProps(retry)}>
             Retry
           </Button>
         </div>
