@@ -122,12 +122,11 @@ function RefreshFailed({ link, error }: { link: PullRequestAddress; error: strin
               size='icon'
               aria-label='Retry'
               aria-busy={refreshing}
-              disabled={refreshing}
               {...pressProps(() => refresh(link))}
             />
           }
         >
-          {refreshing ? <Spinner className='size-3' /> : <Refresh01Icon />}
+          {refreshing ? <Spinner /> : <Refresh01Icon />}
         </TooltipTrigger>
         <TooltipContent>{error}</TooltipContent>
       </Tooltip>

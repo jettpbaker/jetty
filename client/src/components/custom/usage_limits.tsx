@@ -249,12 +249,11 @@ export function UsagePage({
                   size='icon'
                   aria-label='Refresh usage'
                   aria-busy={refreshing}
-                  disabled={refreshing}
                   onClick={onRefresh}
                 />
               }
             >
-              {refreshing ? <Spinner className='size-3' /> : <Refresh01Icon />}
+              {refreshing ? <Spinner /> : <Refresh01Icon />}
             </TooltipTrigger>
             <TooltipContent>Refresh usage</TooltipContent>
           </Tooltip>

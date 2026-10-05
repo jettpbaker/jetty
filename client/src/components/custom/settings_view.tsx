@@ -92,17 +92,18 @@ export function SettingsView() {
             icon={DashboardSquare01Icon}
             action={
               <Tooltip>
-                <TooltipTrigger render={<span className='inline-flex' />}>
-                  <Button
-                    variant='ghost'
-                    size='icon-sm'
-                    aria-label='Refresh models'
-                    aria-busy={refreshing}
-                    disabled={refreshing}
-                    onClick={() => refresh(true)}
-                  >
-                    {refreshing ? <Spinner className='size-3' /> : <Refresh01Icon />}
-                  </Button>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant='ghost'
+                      size='icon-sm'
+                      aria-label='Refresh models'
+                      aria-busy={refreshing}
+                      onClick={() => refresh(true)}
+                    />
+                  }
+                >
+                  {refreshing ? <Spinner className='size-3' /> : <Refresh01Icon />}
                 </TooltipTrigger>
                 <TooltipContent>Refresh models</TooltipContent>
               </Tooltip>
