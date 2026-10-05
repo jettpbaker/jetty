@@ -106,6 +106,9 @@
 - The companion rule: prefer easy undo over confirm dialogs. Act fast, make it
   reversible — don't use a modal as a safety net for an action that could just be
   undoable.
+- Geist Mono is for machine text and compact numeric readouts: paths, commands, code,
+  branches, SHAs, ids, PR and issue numbers, times like `2m`, token counts, `2/5`. Words
+  are Geist Sans, including Jetty tool targets ("Archived 3 threads").
 - Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
   inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still.
 
