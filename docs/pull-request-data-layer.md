@@ -35,7 +35,8 @@ refresh. Legacy snapshots lacking file flags receive classification on their nex
 full load.
 
 One additional GraphQL query batches distinct parent directories as aliased
-repository objects. Head-side files use the head repository and SHA; removed files
+repository objects, at most 20 to a query and split evenly (21 directories take two
+queries). Head-side files use the head repository and SHA; removed files
 use the base repository and SHA. Each tree entry supplies `isGenerated` and its
 blob's `isBinary`. Results are cached by repository, SHA, and directory. The same
 query verifies head and base after the REST patch pages. If either moved, the

@@ -1132,7 +1132,8 @@ async function classifyFiles(
   const missing = [...directories].filter(([key]) => !directoryFlags.has(key))
   let revisionMatches = true
   const batches = []
-  const batchSize = missing.length > 20 ? 5 : 20
+  // At most 20 directories a query, split evenly.
+  const batchSize = Math.ceil(missing.length / Math.ceil(missing.length / 20))
   for (let offset = 0; offset < missing.length; offset += batchSize)
     batches.push(missing.slice(offset, offset + batchSize))
   if (!batches.length && ref) batches.push([])
