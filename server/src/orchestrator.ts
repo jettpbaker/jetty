@@ -297,9 +297,17 @@ export function createOrchestrator({
                       )
                     )
                 )
-                if (!archived && worktrees)
-                  for (const thread of group)
-                    yield* worktreeTask((signal) => worktrees.prepare(thread.id, signal))
+                if (!archived && worktrees) {
+                  // A failed setup is its own thread's to Retry; the rest of the group still comes back.
+                  const failures: StoreError[] = []
+                  for (const thread of group) {
+                    const prepared = yield* worktreeTask((signal) =>
+                      worktrees.prepare(thread.id, signal)
+                    ).pipe(Effect.result)
+                    if (prepared._tag === 'Failure') failures.push(prepared.failure)
+                  }
+                  if (failures[0]) return yield* Effect.fail(failures[0])
+                }
               })
           )
         })
