@@ -2,7 +2,16 @@ import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 import { randomUUID } from 'node:crypto'
 import { constants, type Stats } from 'node:fs'
-import { open, readdir, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises'
+import {
+  mkdir,
+  open,
+  readdir,
+  realpath,
+  rename,
+  stat,
+  unlink,
+  type FileHandle,
+} from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
 
 import { git, gitStream } from './git-process'
@@ -332,13 +341,23 @@ export function readProjectFile(cwd: string, path: string) {
   })
 }
 
-// Where a new file at `path` goes: its folder's real path, which must be inside `root`.
+// Creates missing parents one at a time, checking each real folder stays inside the project.
 async function newFile(root: string, path: string) {
-  const target = join(root, path)
-  const folder = await realpath(dirname(target)).catch(() => undefined)
-  if (!folder || (folder !== root && !folder.startsWith(root + sep)))
-    throw new StoreError('not_found', 'Folder not found')
-  return join(folder, basename(target))
+  const parts = path.split('/')
+  let folder = root
+  for (const part of parts.slice(0, -1)) {
+    const next = join(folder, part)
+    folder = await realpath(next).catch(async (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error
+      await mkdir(next).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'EEXIST') throw error
+      })
+      return realpath(next)
+    })
+    if (folder !== root && !folder.startsWith(root + sep))
+      throw new StoreError('invalid_params', `${path} is outside the project`)
+  }
+  return join(folder, basename(path))
 }
 
 function holds(current: Opened, base: string | null) {

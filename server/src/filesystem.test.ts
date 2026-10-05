@@ -252,6 +252,38 @@ describe('Effect filesystem services', () => {
     )
   })
 
+  test('saving anyway restores deleted parent folders without following outside symlinks', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          yield* fs.makeDirectory(root + '/sub/nested', { recursive: true })
+          yield* fs.writeFileString(root + '/sub/nested/file.txt', 'old')
+          yield* fs.remove(root + '/sub', { recursive: true })
+          expect(yield* writeProjectFile(root, 'sub/nested/file.txt', 'new', 'old')).toEqual({
+            conflict: { contents: null },
+          })
+          expect(yield* fs.exists(root + '/sub')).toBe(false)
+          expect(yield* writeProjectFile(root, 'sub/nested/file.txt', 'new', null)).toEqual({
+            saved: true,
+          })
+          expect(yield* fs.readFileString(root + '/sub/nested/file.txt')).toBe('new')
+          const outside = yield* fs.makeTempDirectoryScoped()
+          yield* fs.symlink(outside, root + '/escape')
+          const rejected = yield* writeProjectFile(
+            root,
+            'escape/missing/file.txt',
+            'new',
+            null
+          ).pipe(Effect.catch((error) => Effect.succeed({ error: error.code })))
+          expect(rejected).toEqual({ error: 'invalid_params' })
+          expect(yield* fs.exists(outside + '/missing')).toBe(false)
+        })
+      )
+    )
+  })
+
   test('pure diff truncation retains ordinary patches and omits lockfiles and oversized sections', () => {
     const normal = 'diff --git a/source.ts b/source.ts\n+++ b/source.ts\n@@ -0,0 +1 @@\n+code\n'
     const lock = 'diff --git a/bun.lock b/bun.lock\n+++ b/bun.lock\n+lock\n'
