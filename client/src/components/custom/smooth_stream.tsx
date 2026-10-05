@@ -25,6 +25,9 @@ const reveals: Record<Exclude<StreamingStyle, 'off'>, Reveal> = {
   quick: { className: 'smooth-fade', duration: 300 },
   blur: { className: 'smooth-blur', duration: 600 },
   softBlur: { className: 'smooth-blur-soft', duration: 600 },
+  faintBlur: { className: 'smooth-blur-faint', duration: 600 },
+  sharpen: { className: 'smooth-sharpen', duration: 600 },
+  ink: { className: 'smooth-ink', duration: 600 },
 }
 
 // When each stretch of a block's rendered text first showed, as character offsets.

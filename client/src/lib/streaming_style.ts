@@ -7,6 +7,9 @@ export const streamingStyles = [
   { value: 'quick', label: 'Quick fade' },
   { value: 'blur', label: 'Blur 4px' },
   { value: 'softBlur', label: 'Blur 2px' },
+  { value: 'faintBlur', label: 'Blur 1px' },
+  { value: 'sharpen', label: 'Sharpen early' },
+  { value: 'ink', label: 'Ink in' },
   { value: 'off', label: 'Off' },
 ] as const
 
