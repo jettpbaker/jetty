@@ -78,7 +78,9 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
       {` token${activity.tokens === 1 ? '' : 's'}`}
     </>
   )
-  const duration = ended && formatActivityDuration(activity.elapsedSeconds)
+  // Under a second, or with no timing from the provider, a bare "Thought" beats "for 0s".
+  const duration =
+    ended && (activity.elapsedSeconds ?? 0) >= 1 && formatActivityDuration(activity.elapsedSeconds)
   const state = active
     ? 'Thinking'
     : activity.status === 'complete'
