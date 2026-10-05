@@ -1,4 +1,4 @@
-import type { SessionStatus } from '@jetty/shared/events'
+import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
@@ -23,8 +23,14 @@ type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 
 export type ThreadRow =
   | { kind: 'user'; id: string; item: UserItem }
-  | { kind: 'assistant'; id: string; item: AssistantItem; streaming: boolean }
-  | { kind: 'plan'; id: string; item: PlanItem; streaming: boolean }
+  | {
+      kind: 'assistant'
+      id: string
+      item: AssistantItem
+      streaming: boolean
+      loadout?: TurnLoadout
+    }
+  | { kind: 'plan'; id: string; item: PlanItem; streaming: boolean; loadout?: TurnLoadout }
   | {
       kind: 'work'
       id: string
@@ -306,12 +312,14 @@ export function threadRows(
     status,
     running,
     outcomes = {},
+    loadouts = {},
     projectPath,
     agentId,
   }: {
     status: SessionStatus
     running: boolean
     outcomes?: Readonly<Record<string, TurnOutcome>>
+    loadouts?: Readonly<Record<string, TurnLoadout>>
     projectPath?: string
     agentId?: string
   }
@@ -449,6 +457,7 @@ export function threadRows(
           id: item.id,
           item,
           streaming: textRunning(item, item === tail, sessionRunning),
+          loadout: loadouts[item.turnId],
         })
         break
       case 'plan':
@@ -457,6 +466,7 @@ export function threadRows(
           id: item.id,
           item,
           streaming: textRunning(item, item === tail, sessionRunning),
+          loadout: loadouts[item.turnId],
         })
         break
       case 'error':

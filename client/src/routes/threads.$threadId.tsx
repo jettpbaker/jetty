@@ -102,6 +102,7 @@ function Thread() {
               }
               running={agent ? false : overlay.running}
               outcomes={agent ? undefined : thread?.turnOutcomes}
+              loadouts={agent ? undefined : thread?.turnLoadouts}
               projectPath={projectPath}
               provider={meta?.provider}
               agentId={agent?.id}

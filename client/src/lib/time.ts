@@ -35,3 +35,25 @@ export function formatDuration(seconds: number) {
   if (minutes < 60) return `${minutes}m ${total % 60}s`
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
+
+const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+const dayClock = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+const fullDate = new Intl.DateTimeFormat(undefined, {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+})
+
+// When a message was sent: the time today, the day and time this year, the date before that.
+export function formatSentAt(timestamp: number) {
+  const date = new Date(timestamp)
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) return clock.format(date)
+  if (date.getFullYear() === today.getFullYear()) return dayClock.format(date)
+  return fullDate.format(date)
+}

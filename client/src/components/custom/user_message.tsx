@@ -1,8 +1,8 @@
 import type { Attachment } from '@jetty/shared/items'
 
-import { MessageCopyButton } from '@/components/custom/copy_button'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
+import { UserMessageFooter } from '@/components/custom/message_footer'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
@@ -33,11 +33,13 @@ export function UserMessage({
   text,
   attachments,
   from,
+  createdAt,
 }: {
   id: string
   text: string
   attachments: readonly Attachment[]
   from?: MessageSource
+  createdAt: number
 }) {
   const openMedia = useOpenMedia()
   const textRef = useRef<HTMLParagraphElement>(null)
@@ -156,7 +158,7 @@ export function UserMessage({
               </span>
             ))}
           </BubbleContent>
-          {text && <MessageCopyButton text={text} align='end' />}
+          <UserMessageFooter text={text} createdAt={createdAt} />
         </Bubble>
       </MessageContent>
     </Message>

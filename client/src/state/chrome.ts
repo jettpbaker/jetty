@@ -151,3 +151,7 @@ export const modelsAtom = Atom.readable(
 export function useChrome(): Chrome | undefined {
   return useAtomValue(chromeAtom)
 }
+
+export function useModels() {
+  return useAtomValue(modelsAtom)
+}

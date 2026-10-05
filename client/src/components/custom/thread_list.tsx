@@ -1,13 +1,13 @@
-import type { SessionStatus } from '@jetty/shared/events'
+import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { CreatedThreads } from '@/components/custom/child_threads'
-import { MessageCopyButton } from '@/components/custom/copy_button'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
+import { AgentMessageFooter } from '@/components/custom/message_footer'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
@@ -166,6 +166,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         text={row.item.text}
         attachments={row.item.attachments}
         from={row.item.from}
+        createdAt={row.item.createdAt}
       />
     )
   if (row.kind === 'assistant' || row.kind === 'plan')
@@ -177,7 +178,12 @@ const ThreadItemRow = memo(function ThreadItemRow({
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
               <Markdown streaming={row.streaming}>{row.item.text}</Markdown>
             </BubbleContent>
-            <MessageCopyButton text={row.item.text} align='start' />
+            <AgentMessageFooter
+              text={row.item.text}
+              createdAt={row.item.createdAt}
+              loadout={row.loadout}
+              provider={provider}
+            />
           </Bubble>
         </MessageContent>
       </Message>
@@ -217,6 +223,7 @@ export function ThreadList({
   status,
   running,
   outcomes,
+  loadouts,
   projectPath,
   provider,
   agentId,
@@ -227,14 +234,15 @@ export function ThreadList({
   status: SessionStatus
   running: boolean
   outcomes?: Readonly<Record<string, TurnOutcome>>
+  loadouts?: Readonly<Record<string, TurnLoadout>>
   projectPath?: string
   provider?: string
   agentId?: string
   onSelectAgent: (id: string) => void
 }) {
   const rows = useMemo(
-    () => threadRows(items, { status, running, outcomes, projectPath, agentId }),
-    [items, status, running, outcomes, projectPath, agentId]
+    () => threadRows(items, { status, running, outcomes, loadouts, projectPath, agentId }),
+    [items, status, running, outcomes, loadouts, projectPath, agentId]
   )
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {
