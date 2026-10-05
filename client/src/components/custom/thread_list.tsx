@@ -32,7 +32,12 @@ import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
 import { useRevealRow } from '@/state'
-import { useVirtualizer, type Virtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import {
+  measureElement,
+  useVirtualizer,
+  type Virtualizer,
+  type VirtualItem,
+} from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 
@@ -339,6 +344,14 @@ export function ThreadList({
     paddingEnd: 24,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,
+    // The virtualizer keeps only measurements that differ from the estimate, so a row whose
+    // estimate was exact would take its next estimate while its content is still animating in.
+    measureElement: (element, entry, instance) => {
+      const size = measureElement(element, entry, instance)
+      const item = instance.measurementsCache[instance.indexFromElement(element)]
+      if (item?.size === size) instance.itemSizeCache.set(item.key, size)
+      return size
+    },
     // A pinned thread mounts its bottom rows, not its top; the scroller is never taller than the window.
     initialOffset: (): number =>
       saved?.anchor && saved.index !== -1
@@ -404,14 +417,9 @@ export function ThreadList({
       const width = latestWidth.current
       const top = virtualizer.getVirtualItemForOffset(virtualizer.scrollOffset ?? 0)?.index ?? 0
       let shift = 0
-      for (const [index, row] of rows.entries()) {
-        if (!rough.has(row.id) || virtualizer.itemSizeCache.has(row.id)) continue
-        const size = estimateRow(row, width, true)
-        // A mounted row whose estimate matched its measurement keeps that size.
-        if (virtualizer.elementsCache.get(row.id)?.isConnected)
-          virtualizer.itemSizeCache.set(row.id, size)
-        else if (index < top) shift += estimateRow(row, width) - size
-      }
+      for (const row of rows.slice(0, top))
+        if (rough.has(row.id) && !virtualizer.itemSizeCache.has(row.id))
+          shift += estimateRow(row, width) - estimateRow(row, width, true)
       // Moved before the commit, so it renders the rows that stay on screen.
       virtualizer.scrollOffset = (virtualizer.scrollOffset ?? 0) + shift
       flushSync(() => setRough(new Set()))
