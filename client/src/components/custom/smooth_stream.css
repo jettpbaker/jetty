@@ -7,63 +7,8 @@
 .smooth-fade {
   animation: smooth-fade ease-out both;
 }
-@keyframes smooth-blur {
-  from {
-    opacity: 0;
-    filter: blur(4px);
-  }
-}
-.smooth-blur {
-  animation: smooth-blur ease-out both;
-}
-@keyframes smooth-blur-soft {
-  from {
-    opacity: 0;
-    filter: blur(2px);
-  }
-}
-.smooth-blur-soft {
-  animation: smooth-blur-soft ease-out both;
-}
-@keyframes smooth-blur-faint {
-  from {
-    opacity: 0;
-    filter: blur(1px);
-  }
-}
-.smooth-blur-faint {
-  animation: smooth-blur-faint ease-out both;
-}
-/* The blur clears in the first third, so the text is sharp while it finishes fading in. */
-@keyframes smooth-sharpen {
-  0% {
-    opacity: 0;
-    filter: blur(2px);
-  }
-  35% {
-    filter: blur(0);
-  }
-}
-.smooth-sharpen {
-  animation: smooth-sharpen ease-out both;
-}
-/* New text arrives in the muted colour and darkens into the body colour. */
-@keyframes smooth-ink {
-  from {
-    opacity: 0;
-    color: var(--muted-foreground);
-  }
-}
-.smooth-ink {
-  animation: smooth-ink ease-out both;
-}
 @media (prefers-reduced-motion: reduce) {
-  .smooth-fade,
-  .smooth-blur,
-  .smooth-blur-soft,
-  .smooth-blur-faint,
-  .smooth-sharpen,
-  .smooth-ink {
+  .smooth-fade {
     animation: none;
   }
 }
