@@ -29,31 +29,24 @@ export function linkPresentation(state?: keyof typeof prPresentation) {
 // In-flight PRs lead, matching how the app ranks a thread's PRs.
 const stateOrder: ThreadPullRequest['state'][] = ['open', 'draft', 'merged', 'closed']
 
-// A thread's PRs as its row and hover card show them: one by number, several as a count per state.
+// A thread's PRs as its row and hover card show them: a count per state, even for one.
 export function PullRequestMark({ pullRequests }: { pullRequests: readonly ThreadPullRequest[] }) {
-  const [only] = pullRequests
-  const groups =
-    pullRequests.length === 1 && only
-      ? [{ state: only.state, text: `#${only.number}` }]
-      : stateOrder.flatMap((state) => {
-          const count = pullRequests.filter((pr) => pr.state === state).length
-          return count ? [{ state, text: `${count}` }] : []
-        })
-  const title =
-    pullRequests.length === 1 && only
-      ? `${prPresentation[only.state].label} PR #${only.number}`
-      : groups
-          .map(({ state, text }) => `${text} ${prPresentation[state].label.toLowerCase()}`)
-          .join(', ')
+  const groups = stateOrder.flatMap((state) => {
+    const count = pullRequests.filter((pr) => pr.state === state).length
+    return count ? [{ state, count }] : []
+  })
+  const title = groups
+    .map(({ state, count }) => `${count} ${prPresentation[state].label.toLowerCase()}`)
+    .join(', ')
 
   return (
     <span className='flex shrink-0 items-center gap-1.5' title={title}>
-      {groups.map(({ state, text }) => {
+      {groups.map(({ state, count }) => {
         const pr = prPresentation[state]
         return (
           <span key={state} className={cn('flex items-center gap-1', pr.color)}>
             <pr.icon aria-hidden='true' className='size-3' />
-            <span className='font-mono'>{text}</span>
+            <span className='font-mono'>{count}</span>
             <span className='sr-only'>{pr.label}</span>
           </span>
         )
