@@ -1,5 +1,3 @@
-import type { ThreadMeta } from '@jetty/shared/wire'
-
 import {
   CircleDotIcon,
   GitBranchIcon,
@@ -8,13 +6,7 @@ import {
 import { useNow } from '@/hooks/use-now'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import {
-  useChrome,
-  useOpenPullRequest,
-  usePullRequestSummary,
-  useThreadRowPrefetch,
-  type Chrome,
-} from '@/state'
+import { useChrome, usePullRequestSummary, useThreadRowPrefetch } from '@/state'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { Link, useParams } from '@tanstack/react-router'
 import {
@@ -27,8 +19,7 @@ import {
 
 import { OverflowTitle } from './overflow_title'
 import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
-import { sidebarThreads } from './sidebar_thread_groups'
-import { ThreadHoverContent } from './thread_hover'
+import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
 import { linkPresentation } from './thread_pull_request'
 import { statusPresentation, threadStatus } from './thread_status'
 
@@ -136,22 +127,6 @@ function GitHubAnchor({ children, ...props }: ComponentProps<'a'>) {
   )
 }
 
-function ThreadPreview({ meta, chrome }: { meta: ThreadMeta; chrome: Chrome }) {
-  const now = useNow(60_000)
-  const openPullRequest = useOpenPullRequest()
-  const [thread] = sidebarThreads(chrome, now, [meta])
-  if (!thread) return null
-  return (
-    <ThreadHoverContent
-      details={thread}
-      model={thread.model}
-      effort={thread.effort}
-      status={thread.status}
-      onOpenPullRequest={() => thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)}
-    />
-  )
-}
-
 function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
   const chrome = useChrome()
   const prefetch = useThreadRowPrefetch()
@@ -179,13 +154,9 @@ function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
         </Lead>
         {rest.length > 0 && ` ${rest.join(' ')}`}
       </PreviewCard.Trigger>
-      <PreviewCard.Portal>
-        <PreviewCard.Positioner side='bottom' align='start' sideOffset={8} className='z-50'>
-          <PreviewCard.Popup className='thread-hover-shared'>
-            <ThreadPreview meta={meta} chrome={chrome} />
-          </PreviewCard.Popup>
-        </PreviewCard.Positioner>
-      </PreviewCard.Portal>
+      <ThreadHoverPopup side='bottom'>
+        <ThreadHoverDetails threadId={id} />
+      </ThreadHoverPopup>
     </PreviewCard.Root>
   )
 }

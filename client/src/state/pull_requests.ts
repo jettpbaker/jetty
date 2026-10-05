@@ -467,6 +467,19 @@ export function useOpenPullRequest() {
   )
 }
 
+// The thread's Overview tab, through the same request the details pane takes for a PR's tab.
+export function useOpenOverview() {
+  const registry = useContext(RegistryContext)
+  const navigate = useNavigate()
+  return useCallback(
+    (threadId: string) => {
+      registry.set(detailsRequestAtom, { threadId, tab: 'overview' })
+      void navigate({ to: '/threads/$threadId', params: { threadId } })
+    },
+    [registry, navigate]
+  )
+}
+
 function linkedRef(
   links: readonly PullRequestLink[],
   reference: string

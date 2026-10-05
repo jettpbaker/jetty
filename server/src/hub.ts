@@ -7,6 +7,7 @@ import type {
   PullRequestList,
   PullRequestListTab,
   PullRequestSnapshot,
+  RunningSubagent,
   WireError,
 } from '@jetty/shared/wire'
 
@@ -19,6 +20,7 @@ export function createHub() {
   const threads = new Map<string, ThreadMeta>()
   const children = new Map<string, Set<string>>()
   const backgroundTasks = new Map<string, readonly BackgroundTask[]>()
+  const runningSubagents = new Map<string, readonly RunningSubagent[]>()
 
   function decorateThread(thread: ThreadMeta): ThreadMeta {
     const tasks = backgroundTasks.get(thread.id) ?? []
@@ -33,9 +35,12 @@ export function createHub() {
         status === 'awaiting_approval'
       )
     })
+    const subagents = runningSubagents.get(thread.id)
     return {
       ...thread,
       backgroundTasks: tasks,
+      // Absent when none run, so chrome stays the same size for most threads.
+      ...(subagents && { runningSubagents: subagents }),
       waitingForChildren,
       status: backgroundStatus(thread.status, tasks, waitingForChildren),
     }
@@ -108,6 +113,7 @@ export function createHub() {
       parentId = threads.get(data.threadId)?.parentThreadId
       forgetThread(data.threadId)
       backgroundTasks.delete(data.threadId)
+      runningSubagents.delete(data.threadId)
     }
     offerChrome(data)
     while (parentId) {
@@ -211,6 +217,15 @@ export function createHub() {
     setBackgroundTasks(threadId: string, tasks: readonly BackgroundTask[]) {
       if (tasks.length) backgroundTasks.set(threadId, tasks)
       else backgroundTasks.delete(threadId)
+    },
+    // Whether the thread's running subagents changed, so chrome is pushed only when one starts or stops.
+    setRunningSubagents(threadId: string, subagents: readonly RunningSubagent[]) {
+      const key = (list: readonly RunningSubagent[] = []) =>
+        list.map((agent) => `${agent.id}:${agent.title}`).join('\n')
+      if (key(runningSubagents.get(threadId)) === key(subagents)) return false
+      if (subagents.length) runningSubagents.set(threadId, subagents)
+      else runningSubagents.delete(threadId)
+      return true
     },
     withChromePublication: chromePublication.withPermit,
     pushChrome,

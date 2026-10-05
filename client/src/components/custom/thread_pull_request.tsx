@@ -22,11 +22,12 @@ type PullRequestReadiness = Pick<
 > &
   Pick<PullRequestLink, 'failingChecks' | 'baseRef' | 'reviewRequestCount'>
 
-export type ThreadPullRequest = PullRequestReadiness & {
-  repo: string
-  number: number
-  state: keyof typeof prPresentation
-}
+export type ThreadPullRequest = PullRequestReadiness &
+  Pick<PullRequestLink, 'title'> & {
+    repo: string
+    number: number
+    state: keyof typeof prPresentation
+  }
 
 // GitHub's mergeStateStatus; anything else, including UNKNOWN while it computes, reads as Open.
 const mergeVerdicts: Record<string, string> = {
@@ -80,6 +81,17 @@ export function linkPresentation(
 const stateOrder: ThreadPullRequest['state'][] = ['open', 'draft', 'merged', 'closed']
 const readinessOrder = ['text-status-error', 'text-pr-running', 'text-pr-open']
 
+// Each PR with its look, in that order.
+export function rankPullRequests<T extends ThreadPullRequest>(pullRequests: readonly T[]) {
+  return pullRequests
+    .map((pr) => ({ pr, ...linkPresentation(pr) }))
+    .toSorted(
+      (a, b) =>
+        stateOrder.indexOf(a.pr.state) - stateOrder.indexOf(b.pr.state) ||
+        readinessOrder.indexOf(a.color) - readinessOrder.indexOf(b.color)
+    )
+}
+
 // A thread's PRs as its row and hover card show them: a count per glyph and colour, even for one,
 // so readiness splits the open count. The tooltip lists each PR's readiness.
 export function PullRequestMark({
@@ -89,13 +101,7 @@ export function PullRequestMark({
   pullRequests: readonly ThreadPullRequest[]
   tooltip?: boolean
 }) {
-  const looks = pullRequests
-    .map((pr) => ({ pr, ...linkPresentation(pr) }))
-    .toSorted(
-      (a, b) =>
-        stateOrder.indexOf(a.pr.state) - stateOrder.indexOf(b.pr.state) ||
-        readinessOrder.indexOf(a.color) - readinessOrder.indexOf(b.color)
-    )
+  const looks = rankPullRequests(pullRequests)
   const groups: ((typeof looks)[number] & { count: number })[] = []
   for (const look of looks) {
     const group = groups.find((existing) => existing.color === look.color)

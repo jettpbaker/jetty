@@ -1,37 +1,27 @@
-/* Base UI positions its floating surface with physical offsets. */
-.thread-hover-positioner {
-  transition:
-    top 200ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    left 200ms cubic-bezier(0.645, 0.045, 0.355, 1);
-}
-.thread-hover-positioner[data-instant] {
-  transition: none;
-}
-.thread-hover-shared {
+/* Base UI moves the positioner in one step; the spring in thread_hover.tsx moves the card. */
+.thread-hover-panel {
   transition: opacity 100ms ease;
 }
-.thread-hover-shared[data-starting-style],
-.thread-hover-shared[data-ending-style] {
+.thread-hover-panel[data-starting-style],
+.thread-hover-panel[data-ending-style] {
   opacity: 0;
 }
-.thread-hover-viewport {
+
+/* The content's measured height lands here; rows' hover fill reaches 8px into the card's padding. */
+.thread-hover-panel-viewport {
   position: relative;
+  overflow: clip;
+  overflow-clip-margin: 8px;
 }
-.thread-hover-viewport > [data-current],
-.thread-hover-viewport > [data-previous] {
+.thread-hover-panel-viewport > [data-current],
+.thread-hover-panel-viewport > [data-previous] {
   transition: opacity 120ms ease;
 }
-.thread-hover-viewport > [data-previous] {
-  position: absolute;
-  inset: 0;
+.thread-hover-panel-viewport > [data-previous] {
+  inset: 0 0 auto;
   pointer-events: none;
 }
-.thread-hover-viewport > [data-current][data-starting-style],
-.thread-hover-viewport > [data-previous][data-ending-style] {
+.thread-hover-panel-viewport > [data-current][data-starting-style],
+.thread-hover-panel-viewport > [data-previous][data-ending-style] {
   opacity: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .thread-hover-positioner {
-    transition: none;
-  }
 }

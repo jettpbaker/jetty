@@ -47,6 +47,7 @@ export {
   pullRequestTabId,
   useThreadPullRequests,
   useLinkPullRequest,
+  useOpenOverview,
   useOpenPullRequest,
   usePrefetchPullRequest,
   usePrefetchPullRequestList,

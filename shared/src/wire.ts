@@ -217,6 +217,14 @@ export const BackgroundTask = Schema.Struct({
 })
 export type BackgroundTask = Schema.Schema.Type<typeof BackgroundTask>
 
+// A subagent the thread is running right now, for cards that can't wait on the thread's items.
+export const RunningSubagent = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  startedAt: Schema.Int,
+})
+export type RunningSubagent = Schema.Schema.Type<typeof RunningSubagent>
+
 export function backgroundStatus(
   status: SessionStatus,
   tasks: readonly BackgroundTask[],
@@ -242,6 +250,7 @@ export const ThreadMeta = Schema.Struct({
   title: Schema.String,
   status: SessionStatus,
   backgroundTasks: Schema.optional(Schema.Array(BackgroundTask)),
+  runningSubagents: Schema.optional(Schema.Array(RunningSubagent)),
   waitingForChildren: Schema.optional(Schema.Boolean),
   queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,

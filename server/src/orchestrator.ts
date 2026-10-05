@@ -1,5 +1,5 @@
 import type { EffortLevel, ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, Attachment } from '@jetty/shared/items'
+import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
 import type {
   PermissionMode,
   ProviderId,
@@ -7,6 +7,7 @@ import type {
   ProviderModel,
   ProviderCapabilities,
   UploadAttachment,
+  RunningSubagent,
   ThreadMeta,
 } from '@jetty/shared/wire'
 
@@ -77,6 +78,14 @@ function escapeAttribute(value: string) {
 
 function toAgentError(error: Error) {
   return new AgentError(error.message)
+}
+
+function runningSubagents(items: readonly ThreadItem[]): RunningSubagent[] {
+  return items.flatMap((item) =>
+    item.kind === 'subagent' && item.status === 'running'
+      ? [{ id: item.id, title: item.title, startedAt: item.createdAt }]
+      : []
+  )
 }
 
 type OrchestratorOptions = {
@@ -271,7 +280,12 @@ export function createOrchestrator({
           ts: appended.ts,
           event: appended.event,
         })
-        if (appended.state.status !== appended.prevStatus) {
+        const subagentsChanged =
+          (appended.event.type === 'item.started' ||
+            appended.event.type === 'item.updated' ||
+            appended.event.type === 'item.completed') &&
+          hub.setRunningSubagents(threadId, runningSubagents(appended.state.items))
+        if (appended.state.status !== appended.prevStatus || subagentsChanged) {
           const thread = yield* store.requireThread(threadId)
           hub.pushChrome({ type: 'thread.upserted', thread })
         }

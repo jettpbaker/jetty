@@ -1,4 +1,4 @@
-import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
+import type { ProjectIcon } from '@jetty/shared/wire'
 
 import { HeldKeybind, type Keybind } from './keybinds'
 import { OverflowTitle } from './overflow_title'
@@ -11,36 +11,26 @@ import { TwoLineRow } from './two_line_row'
 import './thread_row.css'
 
 export function ThreadRow({
+  id,
   title,
   project,
-  projectId,
   projectIcon,
   status,
   lastActivity,
   pullRequests,
-  environment,
-  branch,
-  provider,
-  model,
-  effort,
   shortcut,
   selected,
   actions,
   onSelect,
   onOpenPullRequest,
 }: {
+  id: string
   title: string
   project: string
-  projectId: string
   projectIcon?: ProjectIcon
   status: ThreadStatus
   lastActivity: string
   pullRequests: readonly ThreadPullRequest[]
-  environment: 'local' | 'worktree'
-  branch?: string
-  provider?: ProviderId
-  model?: string
-  effort?: string
   shortcut?: Keybind
   selected: boolean
   actions: Omit<ThreadRowActionsProps, 'title' | 'shortcut'>
@@ -49,23 +39,7 @@ export function ThreadRow({
 }) {
   return (
     <div className='thread-row keybind-target' data-selected={selected || undefined}>
-      <ThreadHoverCard
-        details={{
-          title,
-          project,
-          projectId,
-          projectIcon,
-          provider,
-          lastActivity,
-          pullRequests,
-          environment,
-          branch,
-        }}
-        onOpenPullRequest={onOpenPullRequest}
-        model={model}
-        effort={effort}
-        status={status}
-      >
+      <ThreadHoverCard threadId={id}>
         {(trigger) => (
           <TwoLineRow
             render={trigger}
