@@ -67,9 +67,11 @@ const server = await startServer({
 if (fixtures) {
   const client = await connect(server.port)
   await seedThread(client, fixtures.projectId, 'markdown', [markdownTurn])
-  for (const [title, numbers] of sandboxPrs) {
+  for (const [index, [title, numbers]] of sandboxPrs.entries()) {
     const text = `Picking up ${numbers.map((n) => `#${n}`).join(' and ')}.`
     const threadId = await seedThread(client, fixtures.projectId, title, [text])
+    // Pinned threads carry the ⌥1–9 keybind chips.
+    if (index < 2) await client.request('thread.pin', { threadId, pinned: true })
     for (const number of numbers)
       await client.request('pullRequest.link', {
         threadId,
