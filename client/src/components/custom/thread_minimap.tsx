@@ -5,7 +5,7 @@ import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
 import { markdownText } from '@/components/custom/markdown'
 import { Tooltip, TooltipContent } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 const minTurns = 2
 const tickSpacing = 12
@@ -44,17 +44,6 @@ function turnPreview(rows: readonly ThreadRow[], index: number) {
     title: compact(user?.kind === 'user' ? user.item.text : undefined) ?? 'User message',
     reply: compact(reply),
   }
-}
-
-function topPercent(index: number, count: number) {
-  return count <= 1 ? 0 : (Math.max(0, Math.min(index, count - 1)) / (count - 1)) * 100
-}
-
-function indexAt(event: PointerEvent<HTMLElement>, count: number) {
-  const rect = event.currentTarget.getBoundingClientRect()
-  if (count <= 1 || rect.height <= 0) return 0
-  const progress = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
-  return Math.round(progress * (count - 1))
 }
 
 // The first turn whose message is on screen, else the last one scrolled past.
@@ -96,12 +85,15 @@ export const ThreadMinimap = memo(function ThreadMinimap({
 }) {
   const [view, setView] = useState(emptyView)
   const [active, setActive] = useState<number | null>(null)
-  const [rail, setRail] = useState<HTMLButtonElement | null>(null)
+  const rail = useRef<HTMLButtonElement>(null)
+  const ticks = useRef<HTMLSpanElement>(null)
   const enough = turns.length >= minTurns
 
   useEffect(() => {
     const element = scroller.current
-    if (!element || !enough) return
+    const layer = ticks.current
+    if (!element || !layer || !enough) return
+    const length = (turns.length - 1) * tickSpacing
     const update = () => {
       const next = viewOf(element, virtualizer, turns)
       setView((view) =>
@@ -109,6 +101,11 @@ export const ThreadMinimap = memo(function ThreadMinimap({
           ? view
           : next
       )
+      // Like an editor's minimap, ticks taller than the rail scroll through it with the
+      // conversation. 100% is the rail's height, so ticks that fit stay put.
+      const range = element.scrollHeight - element.clientHeight
+      const progress = range > 0 ? element.scrollTop / range : 0
+      layer.style.transform = `translateY(calc(${progress} * (100% - ${length}px)))`
     }
     const frame = requestAnimationFrame(update)
     element.addEventListener('scroll', update, { passive: true })
@@ -119,22 +116,18 @@ export const ThreadMinimap = memo(function ThreadMinimap({
   }, [scroller, virtualizer, turns, enough])
 
   const activeIndex = active !== null && active < turns.length ? active : null
+  const tick = activeIndex === null ? undefined : ticks.current?.children[activeIndex]
   const anchor = useMemo(
     () =>
-      rail && activeIndex !== null
-        ? {
-            getBoundingClientRect: () => {
-              const rect = rail.getBoundingClientRect()
-              return DOMRect.fromRect({
-                x: rect.left,
-                y: rect.top + (rect.height * topPercent(activeIndex, turns.length)) / 100,
-                width: previewOffset,
-                height: 0,
-              })
-            },
-          }
-        : undefined,
-    [rail, activeIndex, turns.length]
+      tick && {
+        // Tracking the tick keeps the preview beside it while the ticks scroll.
+        contextElement: tick,
+        getBoundingClientRect: () => {
+          const { left, top, height } = tick.getBoundingClientRect()
+          return DOMRect.fromRect({ x: left, y: top + height / 2, width: previewOffset, height: 0 })
+        },
+      },
+    [tick]
   )
 
   if (!enough) return null
@@ -150,6 +143,22 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     if (row !== undefined) onSelect(row)
   }
 
+  function indexAt(event: PointerEvent<HTMLElement>) {
+    const index = Math.round(
+      (event.clientY - ticks.current!.getBoundingClientRect().top) / tickSpacing
+    )
+    return Math.max(0, Math.min(lastIndex, index))
+  }
+
+  // Scrolls the ticks just far enough to show this one; the next conversation scroll takes over.
+  function reveal(index: number) {
+    const box = rail.current!
+    const layer = ticks.current!
+    const top = index * tickSpacing
+    const shift = layer.getBoundingClientRect().top - box.getBoundingClientRect().top
+    layer.style.transform = `translateY(${Math.max(-top, Math.min(box.clientHeight - top, shift))}px)`
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const move: Record<string, (index: number) => number> = {
       ArrowDown: (index) => Math.min(lastIndex, index + 1),
@@ -159,7 +168,9 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     }
     if (event.key in move) {
       event.preventDefault()
-      setActive((index) => move[event.key]!(index ?? 0))
+      const index = move[event.key]!(activeIndex ?? 0)
+      setActive(index)
+      reveal(index)
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       select(activeIndex)
@@ -187,44 +198,51 @@ export const ThreadMinimap = memo(function ThreadMinimap({
         }}
       >
         <button
-          ref={setRail}
+          ref={rail}
           type='button'
           aria-label={`Jump to message: ${preview?.title ?? 'User message'}`}
           className='absolute inset-y-0 left-0 w-full cursor-pointer bg-transparent focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:outline-none'
-          onPointerMove={(event) => setActive(indexAt(event, turns.length))}
+          onPointerMove={(event) => setActive(indexAt(event))}
           onPointerLeave={() => setActive(null)}
           onPointerDown={(event) => {
             if (event.button !== 0) return
             // Keeps focus where it was, so a pointer jump shows no focus ring.
             event.preventDefault()
-            select(indexAt(event, turns.length))
+            select(indexAt(event))
           }}
+          // The rail overlays the conversation rather than sitting inside it, so it passes wheels on.
+          onWheel={(event) => scroller.current?.scrollBy({ top: event.deltaY })}
           onFocus={() => setActive((index) => index ?? current ?? 0)}
           onBlur={() => setActive(null)}
           onKeyDown={onKeyDown}
         >
           <span className='absolute top-0 left-3 h-full w-px bg-border/15' />
-          {turns.map((row, index) => {
-            const distance = activeIndex === null ? null : Math.abs(index - activeIndex)
-            return (
-              <span
-                key={row}
-                aria-hidden='true'
-                data-in-view={(index >= view.first && index <= view.last) || undefined}
-                className={cn(
-                  'pointer-events-none absolute left-0 h-0.5 -translate-y-1/2 rounded-full bg-muted-foreground/35 transition-[width,background-color] duration-150 data-in-view:bg-foreground/90 motion-reduce:transition-none',
-                  distance === 0
-                    ? 'w-9 bg-muted-foreground/75'
-                    : distance === 1
-                      ? 'w-6'
-                      : distance === 2
-                        ? 'w-3.75'
-                        : 'w-3'
-                )}
-                style={{ top: `${topPercent(index, turns.length)}%` }}
-              />
-            )
-          })}
+          {/* Clips ticks to the rail, keeping the half of an end tick that overhangs it. */}
+          <span className='pointer-events-none absolute inset-x-0 -inset-y-px overflow-y-clip'>
+            <span ref={ticks} className='absolute inset-x-0 inset-y-px'>
+              {turns.map((row, index) => {
+                const distance = activeIndex === null ? null : Math.abs(index - activeIndex)
+                return (
+                  <span
+                    key={row}
+                    aria-hidden='true'
+                    data-in-view={(index >= view.first && index <= view.last) || undefined}
+                    className={cn(
+                      'absolute left-0 h-0.5 -translate-y-1/2 rounded-full bg-muted-foreground/35 transition-[width,background-color] duration-150 data-in-view:bg-foreground/90 motion-reduce:transition-none',
+                      distance === 0
+                        ? 'w-9 bg-muted-foreground/75'
+                        : distance === 1
+                          ? 'w-6'
+                          : distance === 2
+                            ? 'w-3.75'
+                            : 'w-3'
+                    )}
+                    style={{ top: index * tickSpacing }}
+                  />
+                )
+              })}
+            </span>
+          </span>
         </button>
       </div>
       <Tooltip open={preview !== null}>
