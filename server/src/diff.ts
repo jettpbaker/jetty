@@ -262,8 +262,13 @@ async function replaceFile(
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
     0o666
   )
+  let renamed = false
   try {
     try {
+      // Node can't create relative to the folder it checked, so resolving the sibling again is
+      // what shows it went there, not through a symlink swapped in since. The rename finds it
+      // through the same path, so it can only land beside it.
+      if ((await realpath(temp).catch(() => undefined)) !== temp) return undefined
       await handle.writeFile(bytes)
       if (current.mode !== undefined) await handle.chmod(current.mode & 0o7777)
       await handle.sync()
@@ -271,9 +276,9 @@ async function replaceFile(
       await handle.close()
     }
     await rename(temp, file)
-  } catch (error) {
-    await unlink(temp).catch(() => {})
-    throw error
+    renamed = true
+  } finally {
+    if (!renamed) await unlink(temp).catch(() => {})
   }
   return { saved: true }
 }
