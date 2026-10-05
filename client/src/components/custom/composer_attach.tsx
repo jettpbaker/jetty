@@ -15,15 +15,24 @@ import { pickFiles } from '@/platform'
 
 import { DisabledTooltip } from './disabled_tooltip'
 
-export function ComposerAttach({ onAttach }: { onAttach: (files: File[]) => void }) {
+export function ComposerAttach({
+  onAttach,
+  disabledReason,
+}: {
+  onAttach: (files: File[]) => void
+  disabledReason?: string
+}) {
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        aria-label='Add attachment'
-        render={<Button variant='ghost' size='icon' />}
-      >
-        <PlusSignIcon />
-      </DropdownMenuTrigger>
+      <DisabledTooltip reason={disabledReason} wrap='flex'>
+        <DropdownMenuTrigger
+          aria-label='Add attachment'
+          disabled={disabledReason !== undefined}
+          render={<Button variant='ghost' size='icon' />}
+        >
+          <PlusSignIcon />
+        </DropdownMenuTrigger>
+      </DisabledTooltip>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuGroup>
           <DropdownMenuItem

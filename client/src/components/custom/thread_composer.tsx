@@ -44,7 +44,7 @@ import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/prov
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { MonitoringLine } from './monitoring_line'
@@ -110,7 +110,10 @@ export function ThreadComposer({
   const { draft: saved, update, read } = useDraft(draftKey)
   const draft = saved.text
   const editing = saved.editing
-  const attachments = useImageAttachments(draftKey)
+  // The queue shows in the chat; here it's only the message being edited.
+  const { own: queue } = useVisibleQueue(threadId, items)
+  const editingEntry = queue.find((entry) => entry.id === editing)
+  const attachments = useImageAttachments(draftKey, editingEntry !== undefined)
   const { loadouts, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
@@ -150,8 +153,6 @@ export function ThreadComposer({
       update({ target: { ...read().target, projectId } })
   }, [threadId, started, projectId, picked, update, read])
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
-  // The queue shows in the chat; here it's only the message being edited.
-  const { own: queue } = useVisibleQueue(threadId, items)
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
   // Each /usage asks again; 0 is closed.
@@ -233,7 +234,6 @@ export function ThreadComposer({
     },
     keepKeyboardFocus
   )
-  const editingEntry = queue.find((entry) => entry.id === editing)
   const input = useRef<HTMLTextAreaElement>(null)
   const focusEdit = useRef(false)
 
@@ -285,8 +285,10 @@ export function ThreadComposer({
 
   function submit(background = false) {
     const text = draft.trim()
-    if (!text && attachments.images.length === 0) return
-    if (threadId && text && editingEntry) queueActions.edit(threadId, editingEntry.id, text)
+    if (threadId && editingEntry) {
+      if (!text) return
+      queueActions.edit(threadId, editingEntry.id, text)
+    } else if (!text && attachments.images.length === 0) return
     else if (threadId && running) queueActions.add(threadId, text, attachments.take())
     else return startTurn(text, background)
     clearDraft()
@@ -309,13 +311,17 @@ export function ThreadComposer({
   }
 
   // Edit on a queued message in the chat loads it here, sending or queueing what was typed.
+  // An image still being read when Edit is pressed holds the edit back until it's ready, so the
+  // message queued with it keeps it.
   function editQueued(entry: QueuedMessage) {
     if (!threadId) return
     const previous = draft.trim()
     const reply = answering && previous ? item : undefined
+    const queues = !editingEntry && !reply && (previous || attachments.images.length > 0)
+    if (queues && !attachments.ready) return setWaitingEdit(entry)
     if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
     else if (editingEntry) queueActions.release(threadId, editingEntry.id)
-    else if (previous && !reply) queueActions.add(threadId, previous, attachments.take())
+    else if (queues) queueActions.add(threadId, previous, attachments.take())
     queueActions.hold(threadId, entry.id)
     focusEdit.current = true
     update({
@@ -325,6 +331,13 @@ export function ThreadComposer({
       ...(reply && { parked: { ...saved.parked, [reply.id]: draft } }),
     })
   }
+  const [waitingEdit, setWaitingEdit] = useState<QueuedMessage>()
+  const editWhenReady = useEffectEvent(editQueued)
+  useEffect(() => {
+    if (!waitingEdit || !attachments.ready) return
+    setWaitingEdit(undefined)
+    editWhenReady(waitingEdit)
+  }, [waitingEdit, attachments.ready])
   useQueueComposer(threadId, { edit: editQueued, keepFocus: keepKeyboardFocus })
 
   // Each pending item keeps its own typed text, so paging never answers one with another's.
@@ -410,7 +423,10 @@ export function ThreadComposer({
                 ? 'Queue as a follow-up'
                 : 'Queue'
               : 'Send',
-          sendDisabled: (!threadId && !projectId) || needsModel || loading ? true : undefined,
+          sendDisabled:
+            (!threadId && !projectId) || needsModel || loading || (editingEntry && !typed)
+              ? true
+              : undefined,
           onSubmit: () => submit(),
           onKeyDown: keyHandler((event) => {
             if (event.key !== 'Escape' || !editing) return false

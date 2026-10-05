@@ -207,7 +207,7 @@ export function Composer({
             </div>
             <InputGroupAddon align='block-end' className='justify-between'>
               <div className='flex items-center gap-0'>
-                <ComposerAttach onAttach={attachments.add} />
+                <ComposerAttach onAttach={attachments.add} disabledReason={attachments.refused} />
                 {loadout}
                 <ComposerAccessMode
                   value={accessMode}

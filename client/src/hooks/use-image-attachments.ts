@@ -77,7 +77,10 @@ async function encode(file: File, type: ImageType) {
   }
 }
 
-export function useImageAttachments(key: string) {
+// A queued message keeps the images it was queued with; an edit changes its text.
+const editingNotice = "Images can't be added while editing a queued message."
+
+export function useImageAttachments(key: string, editing = false) {
   const { draft, update: updateDraft, read } = useDraft(key)
   const images = draft.images
   const [error, setError] = useState<string>()
@@ -114,6 +117,7 @@ export function useImageAttachments(key: string) {
   }
 
   function add(files: Iterable<File>) {
+    if (editing) return setError(editingNotice)
     const problems: string[] = []
     const added: ComposerImage[] = []
     let overflow = false
@@ -159,7 +163,9 @@ export function useImageAttachments(key: string) {
 
   return {
     images,
-    error,
+    error: error === editingNotice && !editing ? undefined : error,
+    // why images can't be added now
+    refused: editing ? editingNotice : undefined,
     ready: images.every((image) => image.dataUrl),
     add,
     remove,
