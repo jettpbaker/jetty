@@ -6,6 +6,7 @@ import {
 } from '@/lib/provider-enabled'
 import { storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { Equal } from 'effect'
 import { Atom } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
@@ -53,19 +54,22 @@ export const loadoutsAtom = Atom.readable((get) =>
   restoreLoadouts(get(storedAtom), get(modelsAtom))
 )
 
+const discoveryAtom = Atom.map(chromeAtom, (chrome) => chrome?.modelDiscovery)
+
 // The slots a send can use: not one whose provider or model is switched off, or whose model left
-// the catalog once its provider's discovery finished.
+// the catalog once its provider's discovery finished. By value, so a chrome push re-renders none
+// of its readers.
 export const usableLoadoutsAtom = Atom.readable((get) => {
   const catalog = get(enabledModelsAtom)
   const providers = get(providerEnabledAtom)
-  const discovery = get(chromeAtom)?.modelDiscovery
+  const discovery = get(discoveryAtom)
   return get(loadoutsAtom).filter(
     (slot) =>
       slot.model !== null &&
       (findModel(catalog, slot) !== undefined ||
         (providers[slot.provider] && discovery?.[slot.provider] !== 'ready'))
   )
-})
+}).pipe(Atom.withEquality(Equal.equals))
 
 export function useLoadouts() {
   const registry = useContext(RegistryContext)
