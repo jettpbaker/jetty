@@ -32,22 +32,17 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 )
 
-function preloadMainRoutes() {
-  for (const id of [
-    '/threads/$threadId',
-    '/pull-requests/',
-    '/pull-requests/$owner/$repo/$number',
-    '/settings',
-  ] as const) {
-    void router.loadRouteChunk(router.routesById[id])?.catch(() => {})
-  }
+// Every page's code, once the app is idle: a first visit never waits on its chunk.
+function preloadRoutes() {
+  for (const route of Object.values(router.routesById))
+    void router.loadRouteChunk(route)?.catch(() => {})
 }
 
 window.addEventListener(
   'load',
   () => {
-    if ('requestIdleCallback' in window) window.requestIdleCallback(preloadMainRoutes)
-    else setTimeout(preloadMainRoutes, 0)
+    if ('requestIdleCallback' in window) window.requestIdleCallback(preloadRoutes)
+    else setTimeout(preloadRoutes, 0)
   },
   { once: true }
 )
