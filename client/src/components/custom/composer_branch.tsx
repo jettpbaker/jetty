@@ -89,7 +89,7 @@ export function ComposerBranch({
           size='sm'
           className={cn(
             'gap-1.5 rounded-sm',
-            branch && 'font-mono',
+            branch && !disabledReason && 'font-mono',
             !branch && !disabledReason && 'invisible'
           )}
           disabled
