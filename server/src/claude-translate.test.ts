@@ -27,6 +27,14 @@ describe('translate()', () => {
 
   test('subagent-internal messages (parent_tool_use_id) leave the main streaming state alone', () => {
     const ctx = createTranslateCtx('t1')
+    translate(
+      {
+        type: 'stream_event',
+        parent_tool_use_id: 'toolu_agent_1',
+        event: { type: 'message_start', message: { id: 'msg_sub' } },
+      },
+      ctx
+    )
     const inner: SdkLikeMessage = {
       type: 'stream_event',
       parent_tool_use_id: 'toolu_agent_1',
@@ -43,15 +51,21 @@ describe('translate()', () => {
     const innerAssistant: SdkLikeMessage = {
       type: 'assistant',
       parent_tool_use_id: 'toolu_agent_1',
-      message: { content: [{ type: 'text', text: 'subagent text' }] },
+      message: { id: 'msg_sub', content: [{ type: 'text', text: 'subagent text' }] },
     }
-    translate(innerAssistant, ctx)
+    expect(translate(innerAssistant, ctx)).toEqual([
+      { type: 'item.completed', itemId: startedItemId([started!]) },
+    ])
     expect(ctx.currentAssistantId).toBeNull()
-    expect(ctx.sawPartials).toBe(false)
+    expect(ctx.streamedMessages.size).toBe(0)
   })
 
   test('streaming text via stream_event deltas', () => {
     const ctx = createTranslateCtx('t1')
+    translate(
+      { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_1' } } },
+      ctx
+    )
     const start = translate(
       {
         type: 'stream_event',
@@ -110,12 +124,26 @@ describe('translate()', () => {
       {
         type: 'assistant',
         message: {
+          id: 'msg_1',
           content: [{ type: 'text', text: 'Hello world' }],
         },
       },
       ctx
     )
     expect(final).toEqual([])
+
+    // A complete-only message after the stream (a synthetic API error) still shows
+    const error = translate(
+      {
+        type: 'assistant',
+        message: { id: 'synthetic', content: [{ type: 'text', text: 'API Error: overloaded' }] },
+      },
+      ctx
+    )
+    expect(error).toMatchObject([
+      { type: 'item.started', item: { kind: 'assistant_message', text: 'API Error: overloaded' } },
+      { type: 'item.completed' },
+    ])
   })
 
   test('thinking → reasoning item', () => {

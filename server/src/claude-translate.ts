@@ -27,7 +27,8 @@ export type TranslateCtx = {
   toolBlocks: Map<number, { id: string; name: string; json: string }>
   // a thinking block's estimated_tokens is a running total; deltas carry the increment
   thinkingTokens: Map<number, number>
-  sawPartials: boolean
+  // messages that arrived as stream events; their complete copies would repeat them
+  streamedMessages: Set<string>
   sawModel: boolean
   sessionId: string | null
   // the compaction Claude reported starting and hasn't finished
@@ -52,7 +53,7 @@ export function createTranslateCtx(
     blockKinds: new Map(),
     toolBlocks: new Map(),
     thinkingTokens: new Map(),
-    sawPartials: false,
+    streamedMessages: new Set(),
     sawModel: false,
     sessionId: null,
     compactionId: null,
@@ -66,6 +67,7 @@ export type SdkLikeMessage = {
   session_id?: string
   event?: StreamEvent
   message?: {
+    id?: string
     content?: unknown
     model?: string
   }
@@ -96,6 +98,7 @@ export type SdkLikeMessage = {
 type StreamEvent = {
   type: string
   index?: number
+  message?: { id?: string }
   content_block?: {
     type: string
     text?: string
@@ -395,6 +398,10 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
   const out: ThreadEvent[] = []
 
   switch (event.type) {
+    case 'message_start':
+      if (event.message?.id) ctx.streamedMessages.add(event.message.id)
+      return []
+
     case 'content_block_start': {
       const index = event.index ?? 0
       const block = event.content_block
@@ -407,12 +414,10 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         const openId = ctx[OPEN_FIELD[kind]]
         if (!openId) startStreamItem(ctx, out, kind, text)
         else if (text) out.push({ type: 'item.delta', itemId: openId, delta: text })
-        ctx.sawPartials = true
       } else if (block.type === 'tool_use') {
         ctx.blockKinds.set(index, 'tool_use')
         // block.input is a `{}` placeholder; the real input arrives via input_json_delta.
         ctx.toolBlocks.set(index, { id: block.id ?? '', name: block.name ?? 'tool', json: '' })
-        ctx.sawPartials = true
       }
       return out
     }
@@ -524,7 +529,6 @@ function streamDelta(
     delta,
     ...(typeof tokens === 'number' ? { tokens } : {}),
   })
-  ctx.sawPartials = true
 }
 
 function closeStreamItem(ctx: TranslateCtx, kind: StreamKind): ThreadEvent[] {
@@ -549,13 +553,15 @@ function translateAssistant(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent
 }
 
 function translateAssistantContent(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
-  if (ctx.sawPartials)
+  const messageId = msg.message?.id
+  if (messageId && ctx.streamedMessages.has(messageId))
     return closeStreamItem(ctx, ctx.currentAssistantId ? 'assistant_message' : 'reasoning')
 
   const content = msg.message?.content
   if (!Array.isArray(content)) return []
 
-  const out: ThreadEvent[] = []
+  // A complete-only message (a synthetic API error, say) follows whatever stream came before it.
+  const out: ThreadEvent[] = closeStreamItems(ctx)
   for (const block of content) {
     if (!block || typeof block !== 'object') continue
     const b = block as {
@@ -685,7 +691,7 @@ function translateResult(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
     out.push({ type: 'turn.failed', turnId: ctx.turnId, error })
   }
 
-  ctx.sawPartials = false
+  ctx.streamedMessages.clear()
   ctx.blockKinds.clear()
   ctx.toolBlocks.clear()
   return out
