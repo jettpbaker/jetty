@@ -96,6 +96,7 @@ export function Composer({
   const stop = running && empty
   const play = !running && empty && onContinue !== undefined
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
+  const { field } = menu
 
   useLayoutEffect(() => perf.rendered('app.launch'), [])
 
@@ -176,7 +177,7 @@ export function Composer({
           >
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
             <div
-              ref={menu.field}
+              ref={field}
               data-composing={menu.composing || undefined}
               className='skill-chip-field relative w-full'
             >

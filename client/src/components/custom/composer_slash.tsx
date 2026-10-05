@@ -586,7 +586,7 @@ function chips(text: string, query: SlashQuery | undefined, skills: readonly Ski
 /* Mirror: paints the textarea's text, chips and all, behind its transparent text. */
 
 export function SlashMirror({ slash }: { slash: Slash }) {
-  const { shown, tokens, query } = slash
+  const { shown, tokens, query, anchor, mirror } = slash
   const parts: ReactNode[] = []
   let at = 0
   const marks = [
@@ -595,7 +595,7 @@ export function SlashMirror({ slash }: { slash: Slash }) {
   ].sort((a, b) => a.start - b.start)
   for (const mark of marks) {
     parts.push(shown.slice(at, mark.start))
-    if (mark.anchor) parts.push(<span key='anchor' ref={slash.anchor} />)
+    if (mark.anchor) parts.push(<span key='anchor' ref={anchor} />)
     else
       parts.push(
         <span key={mark.start} className='skill-chip'>
@@ -612,7 +612,7 @@ export function SlashMirror({ slash }: { slash: Slash }) {
 
   return (
     <div
-      ref={slash.mirror}
+      ref={mirror}
       aria-hidden='true'
       className='skill-chip-text skill-chip-mirror pointer-events-none absolute inset-0 scroll-fade-y px-2.5 py-2 text-base break-words whitespace-pre-wrap md:text-sm'
     >
