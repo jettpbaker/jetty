@@ -33,7 +33,6 @@ import { storage } from '@/platform'
 import {
   useArchiveThread,
   useBumpDraft,
-  useChrome,
   useDeleteThread,
   useOpenPullRequest,
   usePinThread,
@@ -42,13 +41,14 @@ import {
   useRenameThread,
   useRefreshPullRequestListsOnArrival,
 } from '@/state'
-import { threadTreeIds } from '@/state/chrome'
+import { threadTreeIds, useReadChrome, type Chrome } from '@/state/chrome'
 import { usePrefetchProviderUsage } from '@/state/provider-usage'
+import { useSidebarList, useSidebarRow } from '@/state/sidebar'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
-import { useState } from 'react'
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { DisabledTooltip } from './disabled_tooltip'
@@ -59,10 +59,11 @@ import {
   keybinds,
   appShortcut,
   inDialog,
+  type Keybind,
 } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
-import { groupSidebarThreads, sidebarThreads, type ThreadGrouping } from './sidebar_thread_groups'
+import { sidebarGroups, sidebarThread, type ThreadGrouping } from './sidebar_thread_groups'
 import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
 import { StatusGlyph } from './thread_status'
@@ -94,8 +95,8 @@ function uncommitted(count: number) {
   return count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`
 }
 
-export function AppSidebar() {
-  const chrome = useChrome()
+export const AppSidebar = memo(function AppSidebar() {
+  const readChrome = useReadChrome()
   const now = useNow(60_000)
   const navigate = useNavigate()
   const refreshPullRequestLists = useRefreshPullRequestListsOnArrival()
@@ -125,31 +126,18 @@ export function AppSidebar() {
   const prefetchUsage = usePrefetchProviderUsage()
   const openPullRequest = useOpenPullRequest()
 
-  const threads = chrome ? sidebarThreads(chrome, now) : []
-  const groups = groupSidebarThreads(threads, grouping, query, showPinned, showArchived)
-  const numbered = groups
+  const list = useSidebarList()
+  const groups = list && sidebarGroups(list, { ...view, query }, now)
+  const numbered = (groups ?? [])
     .flatMap((group) => (group.archived ? [] : group.threads))
     .slice(0, keybinds.threads.length)
-  const current = threads.find((thread) => thread.id === selectedId)
-  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
-  const items = groups.flatMap((group) => [
-    {
-      kind: 'heading' as const,
-      id: `heading:${group.id}`,
-      label: group.label,
-      pinned: group.pinned,
-      archived: group.archived,
-      count: group.threads.length,
-      status:
-        !group.pinned && !group.archived && grouping === 'status'
-          ? group.threads[0]?.status
-          : undefined,
-      projectIcon: group.threads[0]?.projectIcon,
-    },
-    ...(group.archived && !archivedOpen ? [] : group.threads).map((thread) => ({
+  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
+  const items = (groups ?? []).flatMap((group) => [
+    { kind: 'heading' as const, ...group, id: `heading:${group.id}`, count: group.threads.length },
+    ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
       kind: 'thread' as const,
-      id: thread.id,
-      thread,
+      id,
+      archived: group.archived,
     })),
   ])
   const bumpDraft = useBumpDraft()
@@ -159,10 +147,13 @@ export function AppSidebar() {
   const pinThread = usePinThread()
   const deleteThread = useDeleteThread()
 
-  function openThread(threadId: string) {
-    startThreadJourney(threadId)
-    void navigate({ to: '/threads/$threadId', params: { threadId } })
-  }
+  const openThread = useCallback(
+    (threadId: string) => {
+      startThreadJourney(threadId)
+      void navigate({ to: '/threads/$threadId', params: { threadId } })
+    },
+    [startThreadJourney, navigate]
+  )
 
   useHotkeys(
     keybinds.threads.flatMap((binding, index) => {
@@ -172,7 +163,7 @@ export function AppSidebar() {
             {
               hotkey: binding.hotkey,
               callback: (event: KeyboardEvent) => {
-                if (!inDialog(event)) openThread(thread.id)
+                if (!inDialog(event)) openThread(thread)
               },
             },
           ]
@@ -184,9 +175,10 @@ export function AppSidebar() {
   useHotkey(
     keybinds.pin.hotkey,
     (event) => {
+      const current = readChrome()?.threads.find((thread) => thread.id === selectedId)
       if (current && appShortcut(event)) pinThread(current.id, !current.pinned)
     },
-    { enabled: current !== undefined, requireReset: true, ignoreInputs: false }
+    { enabled: selectedId !== undefined, requireReset: true, ignoreInputs: false }
   )
 
   function newThread() {
@@ -202,78 +194,92 @@ export function AppSidebar() {
     { requireReset: true, ignoreInputs: false }
   )
 
-  // Leaves a thread that's going away; the returned undo comes back to it if nothing else was opened.
-  function leaveIfSelected(threadId: string) {
-    const selected = selectedId
-    if (!selected || !threadTreeIds(chrome?.threads ?? [], threadId).includes(selected))
-      return () => {}
-    void navigate({ to: '/' })
-    return () => {
-      if (router.state.location.pathname === '/')
-        void navigate({ to: '/threads/$threadId', params: { threadId: selected } })
-    }
-  }
+  // Read when a row acts, so a thread switch leaves the rows' callbacks, and so the rows, alone.
+  const selectedRef = useRef(selectedId)
+  useLayoutEffect(() => {
+    selectedRef.current = selectedId
+  })
 
-  // Archive and delete take the thread's children along, so any worktree among them counts.
-  function hasWorktree(threadId: string) {
-    const threads = chrome?.threads ?? []
-    const tree = threadTreeIds(threads, threadId)
-    return threads.some((thread) => tree.includes(thread.id) && thread.environment === 'worktree')
-  }
+  // Leaves a thread that's going away; the returned undo comes back to it if nothing else was opened.
+  const leaveIfSelected = useCallback(
+    (threadId: string) => {
+      const selected = selectedRef.current
+      if (!selected || !threadTreeIds(readChrome()?.threads ?? [], threadId).includes(selected))
+        return () => {}
+      void navigate({ to: '/' })
+      return () => {
+        if (router.state.location.pathname === '/')
+          void navigate({ to: '/threads/$threadId', params: { threadId: selected } })
+      }
+    },
+    [readChrome, navigate, router]
+  )
+
+  const confirmArchive = useCallback(
+    (threadId: string) => {
+      archiveThread(threadId, true)
+      const comeBack = leaveIfSelected(threadId)
+      toast('Thread archived', {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            archiveThread(threadId, false)
+            comeBack()
+          },
+        },
+      })
+    },
+    [archiveThread, leaveIfSelected]
+  )
 
   // The server refuses a worktree with uncommitted changes; check first so we never claim success.
-  function archive(threadId: string) {
-    if (!hasWorktree(threadId)) {
-      confirmArchive(threadId)
-      return
-    }
-    checkChanges(threadId, (count) => {
-      if (count > 0)
-        toast.error(`Commit or discard ${uncommitted(count)} before archiving this worktree`)
-      else confirmArchive(threadId)
-    })
-  }
+  const archive = useCallback(
+    (threadId: string) => {
+      if (!hasWorktree(readChrome(), threadId)) {
+        confirmArchive(threadId)
+        return
+      }
+      checkChanges(threadId, (count) => {
+        if (count > 0)
+          toast.error(`Commit or discard ${uncommitted(count)} before archiving this worktree`)
+        else confirmArchive(threadId)
+      })
+    },
+    [readChrome, confirmArchive, checkChanges]
+  )
 
-  function confirmArchive(threadId: string) {
-    archiveThread(threadId, true)
-    const comeBack = leaveIfSelected(threadId)
-    toast('Thread archived', {
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          archiveThread(threadId, false)
-          comeBack()
+  const confirmRemove = useCallback(
+    (threadId: string) => {
+      const comeBack = leaveIfSelected(threadId)
+      const deletion = deleteThread(threadId)
+      toast('Thread deleted', {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            deletion.undo()
+            comeBack()
+          },
         },
-      },
-    })
-  }
+        onAutoClose: deletion.commit,
+        onDismiss: deletion.commit,
+      })
+    },
+    [deleteThread, leaveIfSelected]
+  )
 
-  function remove(threadId: string) {
-    if (!hasWorktree(threadId)) {
-      confirmRemove(threadId)
-      return
-    }
-    checkChanges(threadId, (count) => {
-      if (count > 0) setDeletePrompt({ threadId, count })
-      else confirmRemove(threadId)
-    })
-  }
-
-  function confirmRemove(threadId: string) {
-    const deletion = deleteThread(threadId)
-    const comeBack = leaveIfSelected(threadId)
-    toast('Thread deleted', {
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          deletion.undo()
-          comeBack()
-        },
-      },
-      onAutoClose: deletion.commit,
-      onDismiss: deletion.commit,
-    })
-  }
+  const remove = useCallback(
+    (threadId: string) => {
+      if (!hasWorktree(readChrome(), threadId)) {
+        confirmRemove(threadId)
+        return
+      }
+      checkChanges(threadId, (count) => {
+        if (count > 0) setDeletePrompt({ threadId, count })
+        else confirmRemove(threadId)
+      })
+    },
+    [readChrome, confirmRemove, checkChanges]
+  )
 
   return (
     <Sidebar
@@ -403,13 +409,12 @@ export function AppSidebar() {
                     </h3>
                   )
                 }
-                const thread = item.thread
                 return (
                   <motion.div
-                    key={thread.id}
+                    key={item.id}
                     data-thread-row
                     className={
-                      thread.archived && thread.id !== selectedId
+                      item.archived && item.id !== selectedId
                         ? 'opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100'
                         : undefined
                     }
@@ -418,34 +423,27 @@ export function AppSidebar() {
                     initial={false}
                     transition={{ layout: rowLayoutTransition }}
                     onPointerEnter={() => {
-                      if (thread.id === selectedId) return
-                      prefetch.enter(thread.id)
+                      if (item.id !== selectedId) prefetch.enter(item.id)
                     }}
-                    onPointerLeave={() => prefetch.leave(thread.id)}
+                    onPointerLeave={() => prefetch.leave(item.id)}
                   >
-                    <ThreadRow
-                      {...thread}
-                      shortcut={keybinds.threads[numbered.indexOf(thread)]}
-                      selected={selectedId === thread.id}
-                      actions={{
-                        pinned: thread.pinned,
-                        archived: thread.archived,
-                        onArchive: () =>
-                          thread.archived ? archiveThread(thread.id, false) : archive(thread.id),
-                        onDelete: () => remove(thread.id),
-                        onPin: () => pinThread(thread.id, !thread.pinned),
-                        pinKeybind: thread === current ? keybinds.pin : undefined,
-                        onRename: (title) => renameThread(thread.id, title),
-                      }}
-                      onSelect={() => openThread(thread.id)}
-                      onOpenPullRequest={() =>
-                        thread.pullRequest && openPullRequest(thread.id, thread.pullRequest)
-                      }
+                    <SidebarThreadRow
+                      id={item.id}
+                      now={now}
+                      shortcut={keybinds.threads[numbered.indexOf(item.id)]}
+                      selected={selectedId === item.id}
+                      onSelect={openThread}
+                      onArchive={archive}
+                      onUnarchive={archiveThread}
+                      onDelete={remove}
+                      onPin={pinThread}
+                      onRename={renameThread}
+                      onOpenPullRequest={openPullRequest}
                     />
                   </motion.div>
                 )
               })}
-              {chrome && !groups.length && (
+              {groups && !groups.length && (
                 <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
               )}
             </div>
@@ -517,4 +515,58 @@ export function AppSidebar() {
       </Dialog>
     </Sidebar>
   )
+})
+
+function hasWorktree(chrome: Chrome | undefined, threadId: string) {
+  const threads = chrome?.threads ?? []
+  const tree = threadTreeIds(threads, threadId)
+  return threads.some((thread) => tree.includes(thread.id) && thread.environment === 'worktree')
 }
+
+const SidebarThreadRow = memo(function SidebarThreadRow({
+  id,
+  now,
+  shortcut,
+  selected,
+  onSelect,
+  onArchive,
+  onUnarchive,
+  onDelete,
+  onPin,
+  onRename,
+  onOpenPullRequest,
+}: {
+  id: string
+  now: number
+  shortcut?: Keybind
+  selected: boolean
+  onSelect: (id: string) => void
+  onArchive: (id: string) => void
+  onUnarchive: ReturnType<typeof useArchiveThread>
+  onDelete: (id: string) => void
+  onPin: ReturnType<typeof usePinThread>
+  onRename: ReturnType<typeof useRenameThread>
+  onOpenPullRequest: ReturnType<typeof useOpenPullRequest>
+}) {
+  const row = useSidebarRow(id)
+  if (!row) return null
+  const thread = sidebarThread(row, now)
+  return (
+    <ThreadRow
+      {...thread}
+      shortcut={shortcut}
+      selected={selected}
+      actions={{
+        pinned: thread.pinned,
+        archived: thread.archived,
+        onArchive: () => (thread.archived ? onUnarchive(id, false) : onArchive(id)),
+        onDelete: () => onDelete(id),
+        onPin: () => onPin(id, !thread.pinned),
+        pinKeybind: selected ? keybinds.pin : undefined,
+        onRename: (title) => onRename(id, title),
+      }}
+      onSelect={() => onSelect(id)}
+      onOpenPullRequest={() => thread.pullRequest && onOpenPullRequest(id, thread.pullRequest)}
+    />
+  )
+})

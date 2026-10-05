@@ -1,0 +1,61 @@
+import type { Project, ThreadMeta } from '@jetty/shared/wire'
+
+import { useAtomValue } from '@effect/atom-react'
+import { Equal } from 'effect'
+import { Atom } from 'effect/reactivity'
+
+import { chromeAtom } from './chrome'
+
+const threadsAtom = Atom.readable(
+  (get) => new Map(get(chromeAtom)?.threads.map((thread) => [thread.id, thread]))
+)
+const projectsAtom = Atom.readable((get) => get(chromeAtom)?.projects)
+
+// By value, and per thread first so a thread a push left alone costs one comparison.
+const metaAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadsAtom).get(threadId)).pipe(Atom.withEquality(Equal.equals))
+)
+
+export type SidebarRow = { thread: ThreadMeta; project?: Project }
+
+// A row's inputs, by value: a push for one thread re-renders only its row.
+const rowAtom = Atom.family((threadId: string) =>
+  Atom.readable((get): SidebarRow | undefined => {
+    const thread = get(metaAtom(threadId))
+    const project = get(projectsAtom)?.find((project) => project.id === thread?.projectId)
+    return thread && { thread, project }
+  }).pipe(Atom.withEquality(Equal.equals))
+)
+
+export function useSidebarRow(threadId: string) {
+  return useAtomValue(rowAtom(threadId))
+}
+
+// What the list orders and groups by, by value: a push that streams into a thread leaves the
+// list alone. Date groups read updatedAt by the day, and every push moves it.
+const listAtom = Atom.readable((get) => {
+  const chrome = get(chromeAtom)
+  return (
+    chrome && {
+      projects: chrome.projects,
+      threads: chrome.threads.map((thread) => ({
+        id: thread.id,
+        title: thread.title,
+        projectId: thread.projectId,
+        status: thread.status,
+        readyForReview: thread.readyForReview,
+        updatedDay: new Date(thread.updatedAt).setHours(0, 0, 0, 0),
+        // The last turn start, so streaming never reshuffles the list.
+        lastStartedAt: thread.turnStartedAt ?? thread.updatedAt,
+        pinned: thread.pinned,
+        archived: thread.archived,
+      })),
+    }
+  )
+}).pipe(Atom.withEquality(Equal.equals))
+
+export type SidebarList = NonNullable<Atom.Type<typeof listAtom>>
+
+export function useSidebarList() {
+  return useAtomValue(listAtom)
+}

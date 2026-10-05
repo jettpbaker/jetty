@@ -15,7 +15,7 @@ import { useAtomValue } from '@effect/atom-react'
 import { Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 
-import { subscribe } from './connection'
+import { subscribe, useAction } from './connection'
 
 export type ThreadPatch = {
   title?: string
@@ -182,4 +182,13 @@ export function useChrome(): Chrome | undefined {
 
 export function useModels() {
   return useAtomValue(modelsAtom)
+}
+
+function readChrome(registry: AtomRegistry.AtomRegistry) {
+  return registry.get(chromeAtom)
+}
+
+// Chrome as it is when called, for handlers that shouldn't re-render on every push.
+export function useReadChrome() {
+  return useAction(readChrome)
 }

@@ -1,10 +1,7 @@
-import type { Chrome } from '@/state'
-import type { ProjectIcon, ProviderId, PullRequestLink } from '@jetty/shared/wire'
+import type { SidebarList, SidebarRow } from '@/state/sidebar'
+import type { ProjectIcon, PullRequestLink } from '@jetty/shared/wire'
 
-import { effortLabels } from '@/lib/loadout'
-import { threadBranch } from '@/lib/thread_worktree'
 import { formatAge, formatElapsed } from '@/lib/time'
-import { catalogModelName } from '@jetty/shared/model-name'
 
 import type { ThreadPullRequest } from './thread_pull_request'
 
@@ -16,56 +13,31 @@ export type SidebarThread = {
   id: string
   title: string
   project: string
-  projectId: string
   projectIcon?: ProjectIcon
   status: ThreadStatus
   lastActivity: string
-  environment: 'local' | 'worktree'
-  branch?: string
-  updatedAt: number
-  // Orders the list: the last turn start, so streaming never reshuffles it.
-  lastStartedAt: number
   pinned: boolean
   archived: boolean
   pullRequests: ThreadPullRequest[]
   // The one a click opens: the PR still in flight, newest first within a state.
   pullRequest?: ThreadPullRequest
-  provider?: ProviderId
-  model?: string
-  effort?: string
 }
 
-export function sidebarThreads(
-  chrome: Chrome,
-  now: number,
-  threads = chrome.threads
-): SidebarThread[] {
-  const projects = new Map(chrome.projects.map((project) => [project.id, project]))
-  return threads.map((thread) => ({
+export function sidebarThread({ thread, project }: SidebarRow, now: number): SidebarThread {
+  return {
     id: thread.id,
     title: thread.title,
-    project: projects.get(thread.projectId)?.title ?? '',
-    projectId: thread.projectId,
-    projectIcon: projects.get(thread.projectId)?.icon,
+    project: project?.title ?? '',
+    projectIcon: project?.icon,
     status: threadStatus(thread.status, thread.readyForReview),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
         ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
         : formatAge(thread.updatedAt, now),
-    environment: thread.environment,
-    branch: threadBranch(thread),
-    updatedAt: thread.updatedAt,
-    lastStartedAt: thread.turnStartedAt ?? thread.updatedAt,
     pinned: thread.pinned,
     archived: thread.archived,
     ...threadPullRequests(thread.pullRequests ?? []),
-    provider: thread.provider,
-    model:
-      thread.provider && thread.model
-        ? catalogModelName(chrome.models, thread.provider, thread.model)
-        : undefined,
-    effort: thread.effort && effortLabels[thread.effort],
-  }))
+  }
 }
 
 const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
@@ -112,7 +84,7 @@ function dateGroupId(updatedAt: number, now: Date) {
   return 'earlier'
 }
 
-function groupsFor(grouping: ThreadGrouping, threads: SidebarThread[]) {
+function groupsFor(grouping: ThreadGrouping, threads: ListedThread[]) {
   // By id: two checkouts can share a folder name and still be different projects.
   if (grouping === 'project')
     return [...new Map(threads.map((thread) => [thread.projectId, thread.project])).entries()]
@@ -122,25 +94,36 @@ function groupsFor(grouping: ThreadGrouping, threads: SidebarThread[]) {
   return dateGroups
 }
 
-function threadInGroup(
-  thread: SidebarThread,
-  grouping: ThreadGrouping,
-  groupId: string,
-  now: Date
-) {
+function threadInGroup(thread: ListedThread, grouping: ThreadGrouping, groupId: string, now: Date) {
   if (grouping === 'project') return thread.projectId === groupId
   if (grouping === 'status') return thread.status === groupId
-  return dateGroupId(thread.updatedAt, now) === groupId
+  return dateGroupId(thread.updatedDay, now) === groupId
 }
 
-export function groupSidebarThreads(
-  threads: SidebarThread[],
-  grouping: ThreadGrouping,
-  query: string,
-  showPinned: boolean,
+export type ThreadListView = {
+  grouping: ThreadGrouping
+  query: string
+  showPinned: boolean
   showArchived: boolean
+}
+
+function listedThreads({ threads, projects }: SidebarList) {
+  const byId = new Map(projects.map((project) => [project.id, project]))
+  return threads.map((thread) => ({
+    ...thread,
+    project: byId.get(thread.projectId)?.title ?? '',
+    projectIcon: byId.get(thread.projectId)?.icon,
+    status: threadStatus(thread.status, thread.readyForReview),
+  }))
+}
+
+type ListedThread = ReturnType<typeof listedThreads>[number]
+
+function groupSidebarThreads(
+  threads: ListedThread[],
+  { grouping, query, showPinned, showArchived }: ThreadListView,
+  now: Date
 ) {
-  const now = new Date()
   const search = query.trim().toLowerCase()
   const matching = threads
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
@@ -179,4 +162,19 @@ export function groupSidebarThreads(
         ]
       : []),
   ].filter((group) => group.threads.length > 0)
+}
+
+// The list as groups of thread ids: rows read their own threads.
+export function sidebarGroups(list: SidebarList, view: ThreadListView, now: number) {
+  return groupSidebarThreads(listedThreads(list), view, new Date(now)).map(
+    ({ threads, ...group }) => ({
+      ...group,
+      status:
+        !group.pinned && !group.archived && view.grouping === 'status'
+          ? threads[0]?.status
+          : undefined,
+      projectIcon: threads[0]?.projectIcon,
+      threads: threads.map((thread) => thread.id),
+    })
+  )
 }

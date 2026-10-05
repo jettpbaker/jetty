@@ -25,6 +25,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactElement,
@@ -312,8 +313,9 @@ export function ThreadHoverPopup({
 export function ThreadHoverGroup({ children }: { children: ReactNode }) {
   const [handle] = useState(() => PreviewCard.createHandle<ReactElement>())
   const [open, setOpen] = useState(false)
+  const value = useMemo(() => ({ handle, open }), [handle, open])
   return (
-    <ThreadHoverContext.Provider value={{ handle, open }}>
+    <ThreadHoverContext.Provider value={value}>
       {children}
       <PreviewCard.Root handle={handle} onOpenChange={setOpen}>
         {({ payload }) => <ThreadHoverPopup>{payload}</ThreadHoverPopup>}
