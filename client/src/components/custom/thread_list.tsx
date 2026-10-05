@@ -2,7 +2,7 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
-import { ChildReports } from '@/components/custom/child_reports'
+import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
@@ -95,6 +95,8 @@ function rowStamp(row: ThreadRow) {
       return row.item.text.length
     case 'reports':
       return row.reports.map((report) => report.threadId).join(',')
+    case 'subagentDone':
+      return row.agent.status
     case 'error':
       return row.message.length
     case 'gallery':
@@ -133,14 +135,20 @@ function SubagentsRow({
   selectedId?: string
   onSelect: (id: string) => void
 }) {
-  const now = useNow(
-    1000,
-    agents.some((agent) => agent.status === 'running')
-  )
+  const running = agents.some((agent) => agent.status === 'running')
+  const now = useNow(1000, running)
+  // Open while any run; closes itself once the last one finishes, and reopens if another starts.
+  const [open, setOpen] = useState(running)
+  const [wasRunning, setWasRunning] = useState(running)
+  if (running !== wasRunning) {
+    setWasRunning(running)
+    setOpen(running)
+  }
   return (
     <SubagentGroup
       agents={agents.map((agent) => toSubagent(agent, now))}
-      defaultOpen
+      open={open}
+      onOpenChange={setOpen}
       selectedId={selectedId}
       onSelect={onSelect}
     />
@@ -208,6 +216,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
+  if (row.kind === 'subagentDone')
+    return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
   if (row.kind === 'compaction') return <CompactionMarker item={row.item} />
   if (row.kind === 'error') return <ErrorMessage message={row.message} />
   if (row.kind === 'gallery')

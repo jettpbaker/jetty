@@ -1,9 +1,11 @@
-import type { ChildReport } from '@jetty/shared/items'
+import type { ChildReport, ThreadItem } from '@jetty/shared/items'
 
+import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 
-import { ThreadLink } from './entity_link'
+import { inlineLinkClass, ThreadLink } from './entity_link'
+import { subagentAvatarColor } from './subagent_row'
 import { formatActivityDuration } from './work_model'
 
 const outcomes = {
@@ -31,6 +33,49 @@ export function ChildReports({ reports }: { reports: readonly ChildReport[] }) {
                 </p>
               )
             })}
+          </BubbleContent>
+        </Bubble>
+      </MessageContent>
+    </Message>
+  )
+}
+
+const subagentOutcomes = {
+  completed: { color: subagentAvatarColor.complete, verb: 'finished', time: 'worked for' },
+  failed: { color: subagentAvatarColor.error, verb: 'failed', time: 'after' },
+  stopped: { color: subagentAvatarColor.stopped, verb: 'was stopped', time: 'after' },
+} as const
+
+// A background subagent's finish, where its result reached the agent; it opens the subagent's tab.
+export function SubagentDone({
+  agent,
+  onSelect,
+}: {
+  agent: Extract<ThreadItem, { kind: 'subagent' }>
+  onSelect: (id: string) => void
+}) {
+  if (agent.status === 'running') return null
+  const { color, verb, time } = subagentOutcomes[agent.status]
+  const worked = agent.durationMs ? formatActivityDuration(agent.durationMs / 1000) : undefined
+  return (
+    <Message align='start'>
+      <MessageContent>
+        <Bubble variant='ghost' align='start'>
+          <BubbleContent>
+            <p>
+              <button type='button' className={inlineLinkClass} onClick={() => onSelect(agent.id)}>
+                <DitherAvatar
+                  name={agent.id}
+                  mirror='horizontal'
+                  animate={false}
+                  color={color}
+                  className='mr-1 inline-block size-3.5 align-[-2px]'
+                />
+                {agent.title}
+              </button>{' '}
+              {verb}
+              {worked && `, ${time} ${worked}`}
+            </p>
           </BubbleContent>
         </Bubble>
       </MessageContent>

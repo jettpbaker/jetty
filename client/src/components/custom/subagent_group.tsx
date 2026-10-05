@@ -7,12 +7,14 @@ import { SubagentRow, formatSubagentTokens, type Subagent } from './subagent_row
 
 export function SubagentGroup({
   agents,
-  defaultOpen = false,
+  open,
+  onOpenChange,
   selectedId,
   onSelect,
 }: {
   agents: readonly Subagent[]
-  defaultOpen?: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
   selectedId?: string
   onSelect: (id: string) => void
 }) {
@@ -21,7 +23,7 @@ export function SubagentGroup({
   const stopped = agents.filter((agent) => agent.status === 'stopped').length
   const totalTokens = agents.reduce((total, agent) => total + agent.tokens, 0)
   return (
-    <Collapsible defaultOpen={defaultOpen} className='w-full min-w-0'>
+    <Collapsible open={open} onOpenChange={onOpenChange} className='w-full min-w-0'>
       <CollapsibleTrigger
         disabled={agents.length === 0}
         render={<Button variant='ghost' />}

@@ -64,6 +64,8 @@ function captionHeight(id: string, caption: string | undefined, width: number, r
 // Rough estimates count lines from text length instead of laying the text out.
 export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
+    case 'subagentDone':
+      return 40
     case 'reports':
       return 12 + 28 * row.reports.length
     case 'user': {

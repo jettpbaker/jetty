@@ -27,6 +27,7 @@ type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 export type ThreadRow =
   | { kind: 'user'; id: string; item: UserItem }
   | { kind: 'reports'; id: string; reports: readonly ChildReport[] }
+  | { kind: 'subagentDone'; id: string; agent: SubagentItem }
   | {
       kind: 'assistant'
       id: string
@@ -425,6 +426,23 @@ export function threadRows(
     }
     return block
   }
+  // A background subagent the agent talked past gets a line where it finished: its result
+  // otherwise arrives as a second answer with nothing to say why.
+  const finished = items
+    .filter(
+      (item): item is SubagentItem =>
+        item.kind === 'subagent' && item.status !== 'running' && item.completedAt !== undefined
+    )
+    .toSorted((a, b) => a.completedAt! - b.completedAt!)
+  const launched: SubagentItem[] = []
+  const talkedPast = new Set<string>()
+  function flushFinished(before: number) {
+    while (finished[0] && finished[0].completedAt! <= before) {
+      const agent = finished.shift()!
+      if (talkedPast.has(agent.id))
+        rows.push({ kind: 'subagentDone', id: `${agent.id}:done`, agent })
+    }
+  }
   let currentTurnId: string | undefined
   function finishTurn() {
     if (!currentTurnId || outcomes[currentTurnId] !== 'server_restarted') return
@@ -446,6 +464,7 @@ export function threadRows(
     if (currentTurnId && currentTurnId !== item.turnId) finishTurn()
     currentTurnId = item.turnId
     if (hidden(item)) continue
+    if (item.kind === 'subagent') launched.push(item)
     const segment = segments[index]!
     if (
       isStep(item) ||
@@ -475,6 +494,7 @@ export function threadRows(
         )
         break
       case 'assistant_message':
+        flushFinished(item.createdAt)
         rows.push({
           kind: 'assistant',
           id: item.id,
@@ -482,6 +502,8 @@ export function threadRows(
           streaming: textRunning(item, item === tail, sessionRunning),
           loadout: loadouts[item.turnId],
         })
+        for (const agent of launched)
+          if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)
         break
       case 'plan':
         rows.push({
@@ -516,6 +538,7 @@ export function threadRows(
         break
     }
   }
+  flushFinished(Infinity)
   if (liveSegment && tail) openBlock(liveSegment, tail.turnId)
   finishTurn()
   // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
