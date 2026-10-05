@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useState } from 'react'
 
 const minTurns = 2
-const tickSpacing = 8
+const tickSpacing = 12
 // A gutter this wide holds the minimap without covering the conversation, so it stays visible.
 const persistentGutter = 48
 const stripLeft = 12
