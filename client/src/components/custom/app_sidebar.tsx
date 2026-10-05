@@ -394,7 +394,17 @@ export function AppSidebar() {
                         <PinIcon filled className='size-3 shrink-0' aria-hidden='true' />
                       )}
                       {item.archived && (
-                        <Archive02Icon className='size-3 shrink-0' aria-hidden='true' />
+                        // Linear-style: the icon turns into the disclosure caret on hover or focus.
+                        <span className='grid size-3 shrink-0 *:col-start-1 *:row-start-1'>
+                          <Archive02Icon
+                            className='size-3 group-hover/button:invisible group-focus-visible/button:invisible'
+                            aria-hidden='true'
+                          />
+                          <ArrowRight01Icon
+                            className='invisible size-3 group-hover/button:visible group-focus-visible/button:visible group-aria-expanded/button:rotate-90'
+                            aria-hidden='true'
+                          />
+                        </span>
                       )}
                       {!item.pinned && !item.archived && grouping === 'project' && (
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
@@ -406,12 +416,6 @@ export function AppSidebar() {
                       )}
                       <span className='flex min-w-0 flex-1 items-baseline gap-1'>
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>
-                        {item.archived && (
-                          <ArrowRight01Icon
-                            className='size-3 shrink-0 self-center group-aria-expanded/button:rotate-90'
-                            aria-hidden='true'
-                          />
-                        )}
                         <span
                           className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
                           aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
