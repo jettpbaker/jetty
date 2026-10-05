@@ -581,3 +581,43 @@ for (const stopped of [false, true]) {
     }
   )
 }
+
+test("a queued message that fails to start reports its error under the thread's publication lock", async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const orch = yield* createOrchestrator({ store: f.store, agent: f.agent, hub: f.hub })
+      yield* f.store.setThreadProviderIfAbsent(f.thread.id, 'missing')
+      yield* f.store.enqueue(f.thread.id, {
+        id: newId(),
+        text: 'queued',
+        createdAt: Date.now(),
+        hop: 0,
+      })
+      const held = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const holder = yield* orch
+        .withPublication(
+          f.thread.id,
+          Deferred.succeed(held, undefined).pipe(Effect.andThen(Deferred.await(release)))
+        )
+        .pipe(Effect.forkScoped)
+      yield* Deferred.await(held)
+      yield* orch.resumeQueues()
+      yield* TestClock.adjust(100)
+      expect(yield* f.store.getEventsAfter(f.thread.id, 0)).toEqual([])
+      yield* Deferred.succeed(release, undefined)
+      yield* Fiber.join(holder)
+      yield* TestClock.adjust(100)
+      expect(yield* f.store.getEventsAfter(f.thread.id, 0)).toMatchObject([
+        {
+          event: {
+            type: 'item.started',
+            item: { kind: 'error', message: expect.stringContaining('missing') },
+          },
+        },
+      ])
+      expect((yield* f.store.requireThread(f.thread.id)).queuePaused).toBe(true)
+    }).pipe(Effect.provide(TestClock.layer()))
+  )
+})

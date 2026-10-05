@@ -1205,44 +1205,40 @@ export function createOrchestrator({
               queued: queue[0],
             }).pipe(
               Effect.catchCause((cause) =>
-                hub
-                  .withChromePublication(
-                    store
-                      .transaction(
-                        Effect.gen(function* () {
-                          const current = yield* store.getThread(thread.id)
-                          const pending = current?.pendingMessages?.find(
-                            (m) => m.id === queue[0]!.id
-                          )
-                          if (!pending) return
-                          yield* store.setQueuePaused(thread.id, true)
-                          const appended = yield* store.appendEvent(thread.id, {
-                            type: 'item.started',
-                            item: {
-                              id: newId(),
-                              turnId: newId(),
-                              createdAt: Date.now(),
-                              kind: 'error',
-                              message: String(cause),
-                            },
-                          })
-                          return appended
-                        })
-                      )
-                      .pipe(
-                        Effect.tap((result) =>
-                          Effect.gen(function* () {
-                            if (!result) return
-                            yield* publish(thread.id, result)
-                            hub.pushChrome({
-                              type: 'thread.upserted',
-                              thread: yield* store.requireThread(thread.id),
-                            })
-                          })
+                locked(
+                  thread.id,
+                  Effect.gen(function* () {
+                    yield* flushDelta(thread.id)
+                    const appended = yield* store.transaction(
+                      Effect.gen(function* () {
+                        const current = yield* store.getThread(thread.id)
+                        // The first failure pauses the queue; starts that failed alongside it add nothing.
+                        if (
+                          !current?.pendingMessages?.some((m) => m.id === queue[0]!.id) ||
+                          current.queuePaused
                         )
-                      )
-                  )
-                  .pipe(Effect.catchCause((failure) => Effect.logError(failure)))
+                          return
+                        yield* store.setQueuePaused(thread.id, true)
+                        return yield* store.appendEvent(thread.id, {
+                          type: 'item.started',
+                          item: {
+                            id: newId(),
+                            turnId: newId(),
+                            createdAt: Date.now(),
+                            kind: 'error',
+                            message: String(cause),
+                          },
+                        })
+                      })
+                    )
+                    if (!appended) return
+                    yield* publish(thread.id, appended)
+                    hub.pushChrome({
+                      type: 'thread.upserted',
+                      thread: yield* store.requireThread(thread.id),
+                    })
+                  })
+                ).pipe(Effect.catchCause((failure) => Effect.logError(failure)))
               )
             )
             yield* start.pipe(Effect.forkIn(scope))
