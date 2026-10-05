@@ -10,6 +10,7 @@ import {
   INLINE_IMAGE_MAX_HEIGHT,
   videoHeight,
 } from './media_layout'
+import { clampsQueued } from './queued_messages'
 import {
   collapseAfterHeight,
   collapsedTextHeight,
@@ -104,6 +105,21 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         if (!attachment.mimeType.startsWith('image/')) height += lineHeight
       return height
     }
+    case 'queued': {
+      const { text, attachments = [] } = row.entry
+      let height =
+        28 +
+        footerRow +
+        (clampsQueued(text)
+          ? 4 * lineHeight + 28
+          : textHeight(row.id, text, width * 0.8, true, rough))
+      if (attachments.length > 0) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
+      return height
+    }
+    case 'queueRemoved':
+      return 36
+    case 'queueSeam':
+      return 24
     case 'assistant':
     case 'plan':
       return (

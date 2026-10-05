@@ -34,12 +34,16 @@ export function UserMessage({
   attachments,
   from,
   createdAt,
+  steered,
+  steering,
 }: {
   id: string
   text: string
   attachments: readonly Attachment[]
   from?: MessageSource
   createdAt: number
+  steered?: boolean
+  steering?: boolean
 }) {
   const openMedia = useOpenMedia()
   const textRef = useRef<HTMLParagraphElement>(null)
@@ -158,7 +162,12 @@ export function UserMessage({
               </span>
             ))}
           </BubbleContent>
-          <UserMessageFooter text={text} createdAt={createdAt} />
+          <UserMessageFooter
+            text={text}
+            createdAt={createdAt}
+            steered={steered}
+            steering={steering}
+          />
         </Bubble>
       </MessageContent>
     </Message>

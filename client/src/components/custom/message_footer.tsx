@@ -14,8 +14,9 @@ import { SourceLabel } from './source_label'
 const revealWholeFooter = true
 
 const hidden = 'opacity-0 group-hover/message:opacity-100 [@media(hover:none)]:opacity-100'
+const line = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
 const footer = cn(
-  'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground',
+  line,
   revealWholeFooter &&
     `${hidden} transition-opacity has-focus-visible:opacity-100 motion-reduce:transition-none`
 )
@@ -32,9 +33,33 @@ function SentAt({ createdAt }: { createdAt: number }) {
   )
 }
 
-export function UserMessageFooter({ text, createdAt }: { text: string; createdAt: number }) {
+// A message steered into a running turn reads "Steering…" until the server has it, then
+// "Steered" beside its time.
+export function UserMessageFooter({
+  text,
+  createdAt,
+  steered,
+  steering,
+}: {
+  text: string
+  createdAt: number
+  steered?: boolean
+  steering?: boolean
+}) {
+  if (steering)
+    return (
+      <div className={cn(line, 'self-end')}>
+        <span className='shimmer px-1'>Steering…</span>
+      </div>
+    )
   return (
     <div className={cn(footer, 'self-end')}>
+      {steered && (
+        <>
+          <span>Steered</span>
+          <span aria-hidden='true'>·</span>
+        </>
+      )}
       <SentAt createdAt={createdAt} />
       {text && <CopyButton text={text} label='Copy message' className={copy} />}
     </div>

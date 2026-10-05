@@ -8,6 +8,12 @@ import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
+import {
+  QueuedBubble,
+  QueueRemoved,
+  QueueSeam,
+  useTranscriptQueue,
+} from '@/components/custom/queued_messages'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
@@ -133,6 +139,9 @@ function bottomGlide(element: HTMLElement, onWrite: (top: number) => void) {
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 
+// Messages keep a little air either side.
+const paddedRows = new Set<ThreadRow['kind']>(['user', 'queued', 'queueRemoved'])
+
 function contentWidth(scrollerWidth: number) {
   return Math.max(1, Math.min(708, scrollerWidth) - 48)
 }
@@ -144,6 +153,12 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.text.length}:${row.streaming}:${row.footer?.length ?? -1}`
     case 'user':
       return row.item.text.length
+    case 'queued':
+      return `${row.entry.text.length}:${row.editing}`
+    case 'queueSeam':
+      return `${row.state}:${row.count}`
+    case 'queueRemoved':
+      return ''
     case 'reports':
       return row.reports.map((report) => report.threadId).join(',')
     case 'subagentDone':
@@ -234,8 +249,17 @@ const ThreadItemRow = memo(function ThreadItemRow({
         attachments={row.item.attachments}
         from={row.item.from}
         createdAt={row.item.createdAt}
+        steered={row.steered}
+        steering={row.steering}
       />
     )
+  if (row.kind === 'queued')
+    return (
+      <QueuedBubble threadId={threadId} entry={row.entry} editing={row.editing} steer={row.steer} />
+    )
+  if (row.kind === 'queueSeam')
+    return <QueueSeam threadId={threadId} state={row.state} count={row.count} resume={row.resume} />
+  if (row.kind === 'queueRemoved') return <QueueRemoved threadId={threadId} />
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
@@ -320,6 +344,7 @@ export function ThreadList({
   settingUp?: boolean
   onSelectAgent: (id: string) => void
 }) {
+  const queue = useTranscriptQueue(agentId ? undefined : threadId, items)
   const rows = useMemo(
     () =>
       threadRows(items, {
@@ -331,8 +356,9 @@ export function ThreadList({
         threadId,
         agentId,
         settingUp,
+        queue,
       }),
-    [items, status, running, outcomes, loadouts, projectPath, threadId, agentId, settingUp]
+    [items, status, running, outcomes, loadouts, projectPath, threadId, agentId, settingUp, queue]
   )
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {
@@ -560,7 +586,7 @@ export function ThreadList({
                 <div
                   className={cn(
                     'mx-auto w-full max-w-[708px] px-6',
-                    rows[virtualRow.index]!.kind === 'user' && 'py-1.5'
+                    paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'
                   )}
                 >
                   <ThreadItemRow

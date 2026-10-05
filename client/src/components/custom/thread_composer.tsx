@@ -10,7 +10,6 @@ import {
   ApprovalStrip,
   PendingHeader,
   QuestionStrip,
-  QueueTray,
   useApproval,
   useQuestion,
 } from '@/components/custom/composer_strip'
@@ -34,12 +33,12 @@ import {
   useInterruptTurn,
   useLoadouts,
   useQueueActions,
+  useQueueComposer,
   useRespondApproval,
   useRespondQuestion,
-  useSendingIds,
   useSendTurn,
   useThreadLoadout,
-  useThreadQueue,
+  useVisibleQueue,
 } from '@/state'
 import { useProviderUsage } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
@@ -94,11 +93,9 @@ export function ThreadComposer({
   const respondQuestion = useRespondQuestion()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
-  const queued = useThreadQueue(threadId)
   const navigate = useNavigate()
   const chrome = useChrome()
   const selectedId = useParams({ strict: false }).threadId
-  const [queueOpen, setQueueOpen] = useState(false)
   const target = saved.target
   const picked = chrome?.projects.some((project) => project.id === target?.projectId)
   const projectId =
@@ -117,19 +114,8 @@ export function ThreadComposer({
     update({ target: { ...read().target, ...patch } })
   }
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
-  const sending = useSendingIds(threadId)
-  // A message just sent already shows as sent, though the server queues it for a moment (or
-  // until the worktree is ready); one already in the thread can still be in the queue until
-  // that update arrives. Only real follow-ups belong in the tray; other threads' messages wait
-  // unseen.
-  const { queue, relayed } = useMemo(() => {
-    if (queued.length === 0) return { queue: queued, relayed: 0 }
-    const shown = new Set(sending)
-    for (const item of items) if (item.kind === 'user_message') shown.add(item.id)
-    const unsent = queued.filter((entry) => !shown.has(entry.id))
-    const own = unsent.filter((entry) => !entry.from)
-    return { queue: own, relayed: unsent.length - own.length }
-  }, [items, queued, sending])
+  // The queue shows in the chat; here it's only the message being edited.
+  const { own: queue } = useVisibleQueue(threadId, items)
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
   const [usageOpen, setUsageOpen] = useState(false)
@@ -228,7 +214,7 @@ export function ThreadComposer({
   }, [editing])
 
   // Steer, Remove and strip answers unmount their button; a keyboard user would otherwise be
-  // dropped on the page.
+  // dropped on the page. Queued messages in the chat use it too.
   function keepKeyboardFocus() {
     if (document.activeElement?.matches(':focus-visible'))
       input.current?.focus({ preventScroll: true })
@@ -279,40 +265,32 @@ export function ThreadComposer({
     update({ text: reply, editing: undefined, typedFor: item.id, parked })
   }
 
-  const paused = Boolean(chrome?.threads.find((thread) => thread.id === threadId)?.queuePaused)
-  const queueControl = {
-    queue,
-    waiting: paused ? relayed : 0,
-    running,
-    paused,
-    editing,
-    sendNow(entry: QueuedMessage) {
-      if (!threadId) return
-      keepKeyboardFocus()
-      queueActions.sendNow(threadId, entry)
-    },
-    edit(entry: QueuedMessage) {
-      if (!threadId) return
-      const previous = draft.trim()
-      const reply = answering && previous ? item : undefined
-      if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
-      else if (editingEntry) queueActions.release(threadId, editingEntry.id)
-      else if (previous && !reply) queueActions.add(threadId, previous, attachments.take())
-      queueActions.hold(threadId, entry.id)
-      focusEdit.current = true
-      update({
-        text: entry.text,
-        editing: entry.id,
-        typedFor: undefined,
-        ...(reply && { parked: { ...saved.parked, [reply.id]: draft } }),
-      })
-    },
-    remove(entry: QueuedMessage) {
-      if (!threadId) return
-      keepKeyboardFocus()
-      queueActions.remove(threadId, entry.id)
-    },
+  // ⌘↵ while a turn runs sends straight into it, rather than queueing. Text typed during a
+  // request stays a follow-up.
+  const steers = Boolean(threadId) && running && !item && !editingEntry
+  function steer() {
+    const text = draft.trim()
+    if (text || attachments.images.length > 0) startTurn(text, false)
   }
+
+  // Edit on a queued message in the chat loads it here, sending or queueing what was typed.
+  function editQueued(entry: QueuedMessage) {
+    if (!threadId) return
+    const previous = draft.trim()
+    const reply = answering && previous ? item : undefined
+    if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
+    else if (editingEntry) queueActions.release(threadId, editingEntry.id)
+    else if (previous && !reply) queueActions.add(threadId, previous, attachments.take())
+    queueActions.hold(threadId, entry.id)
+    focusEdit.current = true
+    update({
+      text: entry.text,
+      editing: entry.id,
+      typedFor: undefined,
+      ...(reply && { parked: { ...saved.parked, [reply.id]: draft } }),
+    })
+  }
+  useQueueComposer(threadId, { edit: editQueued, keepFocus: keepKeyboardFocus })
 
   // Each pending item keeps its own typed text, so paging never answers one with another's.
   function choose(to: number) {
@@ -333,16 +311,8 @@ export function ThreadComposer({
     })
   }
 
-  const header = item && (pending.length > 1 || queue.length > 0 || queueControl.waiting > 0) && (
-    <PendingHeader
-      index={index}
-      total={pending.length}
-      source={item.source}
-      q={queueControl}
-      open={queueOpen}
-      onToggle={() => setQueueOpen((open) => !open)}
-      onChoose={choose}
-    />
+  const header = item && pending.length > 1 && (
+    <PendingHeader index={index} total={pending.length} source={item.source} onChoose={choose} />
   )
 
   function keyHandler(handle: (event: KeyboardEvent) => boolean) {
@@ -392,17 +362,19 @@ export function ThreadComposer({
     answer && answering
       ? answer
       : {
-          strip:
-            answer?.strip ??
-            (queue.length > 0 || queueControl.waiting > 0 ? (
-              <QueueTray q={queueControl} />
-            ) : undefined),
+          strip: answer?.strip,
           placeholder: !threadId
             ? undefined
             : running
               ? 'Queue a follow-up while the agent works'
               : 'Ask for follow-up changes',
-          sendLabel: running ? (item ? 'Queue as a follow-up' : 'Queue') : 'Send',
+          sendLabel: editingEntry
+            ? 'Save'
+            : running
+              ? item
+                ? 'Queue as a follow-up'
+                : 'Queue'
+              : 'Send',
           sendDisabled: (!threadId && !projectId) || needsModel || loading ? true : undefined,
           onSubmit: () => submit(),
           onKeyDown: keyHandler((event) => {
@@ -431,12 +403,12 @@ export function ThreadComposer({
         value={draft}
         onValueChange={setDraft}
         onSubmit={mode.onSubmit}
-        onBackgroundSubmit={threadId ? undefined : () => submit(true)}
+        onBackgroundSubmit={threadId ? (steers ? steer : undefined) : () => submit(true)}
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
         }}
         onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
-        running={running && !item}
+        running={running && !item && !editingEntry}
         strip={
           usageBanner ? (
             <>
@@ -453,6 +425,15 @@ export function ThreadComposer({
         sendHint={
           needsModel ? (
             'Choose a model first'
+          ) : steers ? (
+            <span className='flex flex-col gap-1'>
+              <span className='flex items-center justify-between gap-3'>
+                Queue <Kbd>↵</Kbd>
+              </span>
+              <span className='flex items-center justify-between gap-3'>
+                Steer now <Kbd>⌘↵</Kbd>
+              </span>
+            </span>
           ) : threadId ? undefined : (
             <span className='flex flex-col gap-1'>
               <span className='flex items-center justify-between gap-3'>
@@ -510,6 +491,14 @@ export function ThreadComposer({
                 path={projectPath}
                 provider={provider}
                 ring={!ambient}
+                note={
+                  editingEntry && (
+                    <span className='flex min-w-0 items-center gap-1.5'>
+                      <span className='truncate'>Editing a queued message</span>
+                      <Kbd>Esc</Kbd>
+                    </span>
+                  )
+                }
               />
             </div>
           ) : (

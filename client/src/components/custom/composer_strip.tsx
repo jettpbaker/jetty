@@ -1,8 +1,6 @@
 import type { Draft, QuestionProgress } from '@/state'
-import type { QueuedMessage } from '@jetty/shared/wire'
 
 import {
-  ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   ArrowUp01Icon,
@@ -11,15 +9,11 @@ import {
   RadioButtonIcon,
   SquareIcon,
   Tick02Icon,
-  Clock01Icon,
-  Edit03Icon,
-  Cancel01Icon,
 } from '@/components/custom/huge_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
-import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
 
@@ -30,8 +24,7 @@ import { NeedsInputIcon } from './circle_status_icon'
 import { loadDiffWorkerPool } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
-import { mediaUrl } from './media_layout'
-import { SourceLabel, ThreadSourceLabel } from './source_label'
+import { SourceLabel } from './source_label'
 
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -62,10 +55,6 @@ function fieldValue(event: KeyboardEvent) {
     : null
 }
 
-function firstLine(text: string) {
-  return text.split('\n')[0]
-}
-
 function StripButton(props: ComponentProps<typeof Button>) {
   return <Button size='sm' {...props} className={cn('rounded-sm', props.className)} />
 }
@@ -75,17 +64,6 @@ function FlushShell({ children }: { children: ReactNode }) {
     <div
       data-strip='banner'
       className='flex flex-col gap-2 rounded-t-md border border-b-0 border-border bg-(--strip-bg) px-3 py-2 text-sm'
-    >
-      {children}
-    </div>
-  )
-}
-
-function TrayShell({ children }: { children: ReactNode }) {
-  return (
-    <div
-      data-strip='tray'
-      className='flex flex-col gap-2 rounded-t-md border border-b-0 border-border bg-(--strip-bg) px-3 py-2.5 text-sm'
     >
       {children}
     </div>
@@ -137,29 +115,6 @@ export function Pager({
         <ArrowRight01Icon />
       </Button>
     </span>
-  )
-}
-
-function StripToggle({
-  open,
-  onToggle,
-  label,
-}: {
-  open: boolean
-  onToggle: () => void
-  label: string
-}) {
-  return (
-    <Button
-      variant='ghost'
-      tone='muted'
-      size='icon'
-      className='-my-1 -mr-1.5 shrink-0'
-      aria-label={open ? `Hide ${label}` : `Show ${label}`}
-      onClick={onToggle}
-    >
-      {open ? <ArrowDown01Icon /> : <ArrowUp01Icon />}
-    </Button>
   )
 }
 
@@ -599,179 +554,6 @@ export function QuestionStrip({
   )
 }
 
-export type QueueControl = {
-  // only what the user queued; messages from other threads wait unseen
-  queue: readonly QueuedMessage[]
-  // messages from other threads held by a pause
-  waiting: number
-  running: boolean
-  // held after a stop or restart until the user sends or steers one
-  paused: boolean
-  editing?: string
-  sendNow: (entry: QueuedMessage) => void
-  edit: (entry: QueuedMessage) => void
-  remove: (entry: QueuedMessage) => void
-}
-
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant='ghost' tone='muted' size='icon' aria-label={label} onClick={onClick} />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function SteerButton({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
-  if (!q.running)
-    return (
-      <StripButton variant='ghost-text' onClick={() => q.sendNow(entry)}>
-        Send
-      </StripButton>
-    )
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={<StripButton variant='ghost-text' onClick={() => q.sendNow(entry)} />}
-      >
-        Steer
-      </TooltipTrigger>
-      <TooltipContent>Send into the running turn</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function QueueActions({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
-  return (
-    <span className='flex shrink-0 items-center'>
-      <SteerButton entry={entry} q={q} />
-      <IconAction label='Edit' onClick={() => q.edit(entry)}>
-        <Edit03Icon />
-      </IconAction>
-      <IconAction label='Remove' onClick={() => q.remove(entry)}>
-        <Cancel01Icon />
-      </IconAction>
-    </span>
-  )
-}
-
-function QueuedImages({ entry }: { entry: QueuedMessage }) {
-  const images = (entry.attachments ?? []).filter((attachment) =>
-    attachment.mimeType.startsWith('image/')
-  )
-  if (images.length === 0) return null
-  return (
-    <span className='flex shrink-0 gap-1'>
-      {images.map((image) => (
-        <img
-          key={image.id}
-          src={mediaUrl(image)}
-          alt={image.name}
-          decoding='async'
-          draggable={false}
-          className='size-5 rounded-xs object-cover'
-        />
-      ))}
-    </span>
-  )
-}
-
-function QueuedLine({ entry }: { entry: QueuedMessage }) {
-  return (
-    <>
-      <QueuedImages entry={entry} />
-      {entry.from && <ThreadSourceLabel from={entry.from} className='max-w-40 shrink-0' />}
-      <span className='min-w-0 flex-1 truncate'>{firstLine(entry.text)}</span>
-    </>
-  )
-}
-
-function QueueRow({ entry, q }: { entry: QueuedMessage; q: QueueControl }) {
-  if (entry.id === q.editing)
-    return (
-      <div className='flex h-7 min-w-0 items-center gap-2 text-muted-foreground'>
-        <QueuedLine entry={entry} />
-        <span className='shrink-0 text-xs'>Editing</span>
-      </div>
-    )
-  return (
-    <div className='group/row flex h-7 min-w-0 items-center gap-2'>
-      <QueuedLine entry={entry} />
-      <span className='-mr-1.5 flex opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100'>
-        <QueueActions entry={entry} q={q} />
-      </span>
-    </div>
-  )
-}
-
-function queueSummary(q: QueueControl) {
-  return [
-    q.queue.length > 0 && `${q.queue.length} queued`,
-    q.waiting > 0 && `${q.waiting} waiting`,
-    q.paused && 'Paused',
-  ]
-    .filter(Boolean)
-    .join(' · ')
-}
-
-export function QueueTray({ q }: { q: QueueControl }) {
-  const [open, setOpen] = useState(true)
-  const [head] = q.queue
-  if (!head && !q.waiting) return null
-  if (head && q.queue.length === 1 && !q.waiting)
-    return (
-      <TrayShell>
-        <div className='flex min-w-0 items-center gap-2'>
-          <Clock01Icon className='size-3.5 shrink-0 text-muted-foreground' />
-          {q.paused && <span className='shrink-0 text-xs text-muted-foreground'>Paused</span>}
-          <div className='min-w-0 flex-1'>
-            <QueueRow entry={head} q={q} />
-          </div>
-        </div>
-      </TrayShell>
-    )
-  const next = q.queue.find((entry) => entry.id !== q.editing)
-  return (
-    <TrayShell>
-      <div className='flex min-h-5 min-w-0 items-center gap-2'>
-        <Clock01Icon className='size-3.5 shrink-0 text-muted-foreground' />
-        <span className='shrink-0 text-xs text-muted-foreground'>{queueSummary(q)}</span>
-        {head && (
-          <>
-            {open ? <span className='flex-1' /> : <QueuedLine entry={next ?? head} />}
-            <StripToggle
-              open={open}
-              onToggle={() => setOpen((value) => !value)}
-              label='queued messages'
-            />
-          </>
-        )}
-      </div>
-      {head && open && (
-        <div className='flex flex-col'>
-          {q.queue.map((entry) => (
-            <QueueRow key={entry.id} entry={entry} q={q} />
-          ))}
-        </div>
-      )}
-    </TrayShell>
-  )
-}
-
 function TodoIcon({ status }: { status: Todo['status'] }) {
   if (status === 'done') return <Tick02Icon className='size-3.5 shrink-0 text-muted-foreground' />
   if (status === 'active')
@@ -800,69 +582,29 @@ export function TodoList({ list }: { list: readonly Todo[] }) {
   )
 }
 
-// Queued messages sit behind requests; the hint opens them for Steer, Edit and Remove.
+// Pages between pending requests, beside whose the shown one is.
 export function PendingHeader({
   index,
   total,
   source,
-  q,
-  open,
-  onToggle,
   onChoose,
 }: {
   index: number
   total: number
   source: Source
-  q: QueueControl
-  open: boolean
-  onToggle: () => void
   onChoose: (index: number) => void
 }) {
-  const queued = q.queue.length
   return (
-    <>
-      <div className='flex min-w-0 items-center gap-2 pt-1 text-xs text-muted-foreground'>
-        {total > 1 && (
-          <Pager
-            noun='request'
-            className='-ml-1.5'
-            index={index}
-            total={total}
-            onPrev={() => onChoose(index - 1)}
-            onNext={() => onChoose(index + 1)}
-          />
-        )}
-        <RequestSource source={source} />
-        {queued === 0 && q.waiting > 0 && (
-          <span className='ml-auto flex shrink-0 items-center gap-1'>
-            <Clock01Icon className='size-3' />
-            {queueSummary(q)}
-          </span>
-        )}
-        {queued > 0 && (
-          <Button
-            variant='ghost-text'
-            size='xs'
-            aria-expanded={open}
-            className='-my-1 ml-auto -mr-2 font-normal'
-            {...pressProps(onToggle)}
-          >
-            <Clock01Icon />
-            {queueSummary(q)}
-            {open ? <ArrowDown01Icon /> : <ArrowUp01Icon />}
-          </Button>
-        )}
-      </div>
-      {open && queued > 0 && (
-        <>
-          <div className='flex flex-col'>
-            {q.queue.map((entry) => (
-              <QueueRow key={entry.id} entry={entry} q={q} />
-            ))}
-          </div>
-          <div className='-mx-3 border-t border-border' />
-        </>
-      )}
-    </>
+    <div className='flex min-w-0 items-center gap-2 pt-1 text-xs text-muted-foreground'>
+      <Pager
+        noun='request'
+        className='-ml-1.5'
+        index={index}
+        total={total}
+        onPrev={() => onChoose(index - 1)}
+        onNext={() => onChoose(index + 1)}
+      />
+      <RequestSource source={source} />
+    </div>
   )
 }

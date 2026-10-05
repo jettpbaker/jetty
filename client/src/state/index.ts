@@ -15,6 +15,7 @@ export {
 } from './diff'
 export {
   useDraft,
+  useDraftEditing,
   useForgetDeletedDrafts,
   type Draft,
   type DraftTarget,
@@ -69,7 +70,16 @@ export {
   useUnlinkPullRequest,
   type PullRequestRef,
 } from './pull_requests'
-export { useQueueActions, useRenewQueueHolds, useThreadQueue } from './queue'
+export {
+  queueComposer,
+  useQueueActions,
+  useQueueComposer,
+  useQueueHeld,
+  useRemovedQueued,
+  useRenewQueueHolds,
+  useThreadQueue,
+  useVisibleQueue,
+} from './queue'
 export {
   useBumpDraft,
   useContinueThread,

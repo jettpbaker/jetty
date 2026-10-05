@@ -1,24 +1,26 @@
 import type { ReadyImage } from '@/hooks/use-image-attachments'
 import type { Connection } from '@/net/connection'
+import type { ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
 import { Effect, Exit, Fiber } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
-import { useContext, useEffect, useMemo } from 'react'
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
-import { chromeAtom, useChrome } from './chrome'
+import { chromeAtom } from './chrome'
 import { run, useAction } from './connection'
 import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
-import { showSent } from './turns'
+import { showSent, useSendingIds } from './turns'
 
 type Registry = AtomRegistry.AtomRegistry
 
 type QueueOp =
   | { kind: 'add'; message: QueuedMessage }
+  | { kind: 'restore'; message: QueuedMessage; index: number }
   | { kind: 'remove'; id: string }
   | { kind: 'edit'; id: string; text: string }
 
@@ -31,7 +33,8 @@ const queueOpsAtom = Atom.make<ReadonlyMap<string, readonly QueueOp[]>>(new Map(
 )
 
 function shows(queue: readonly QueuedMessage[], op: QueueOp) {
-  if (op.kind === 'add') return queue.some((message) => message.id === op.message.id)
+  if (op.kind === 'add' || op.kind === 'restore')
+    return queue.some((message) => message.id === op.message.id)
   const entry = queue.find((message) => message.id === op.id)
   return op.kind === 'remove' ? !entry : !entry || entry.text === op.text
 }
@@ -39,8 +42,10 @@ function shows(queue: readonly QueuedMessage[], op: QueueOp) {
 function applyOps(queue: readonly QueuedMessage[], ops: readonly QueueOp[]) {
   let list = queue
   for (const op of ops) {
-    if (op.kind === 'add') {
-      if (!list.some((message) => message.id === op.message.id)) list = [...list, op.message]
+    if (op.kind === 'add' || op.kind === 'restore') {
+      const at = op.kind === 'add' ? list.length : op.index
+      if (!list.some((message) => message.id === op.message.id))
+        list = [...list.slice(0, at), op.message, ...list.slice(at)]
     } else if (op.kind === 'remove') list = list.filter((message) => message.id !== op.id)
     else
       list = list.map((message) => (message.id === op.id ? { ...message, text: op.text } : message))
@@ -185,11 +190,60 @@ function addQueued(
   })
 }
 
+function currentQueue(registry: Registry, threadId: string) {
+  return applyOps(
+    registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.pendingMessages ??
+      noMessages,
+    registry.get(queueOpsAtom).get(threadId) ?? []
+  )
+}
+
+type Removed = { message: QueuedMessage; index: number }
+
+// Each thread's last removed message, offered back with Undo for a few seconds; the server keeps
+// it a while longer, so an Undo pressed at the last moment still lands.
+const removedAtom = Atom.make<ReadonlyMap<string, Removed>>(new Map()).pipe(Atom.keepAlive)
+const undoMs = 6000
+// In-flight removes by message id, which an Undo waits for.
+const removing = new Map<string, Fiber.Fiber<unknown, unknown>>()
+
 function removeQueued(registry: Registry, threadId: string, messageId: string) {
-  track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
+  const queue = currentQueue(registry, threadId)
+  const index = queue.findIndex((message) => message.id === messageId)
+  if (index !== -1) {
+    const removed = { message: queue[index]!, index }
+    registry.update(removedAtom, (map) => new Map(map).set(threadId, removed))
+    setTimeout(() => {
+      registry.update(removedAtom, (map) =>
+        map.get(threadId) === removed ? without(map, [threadId]) : map
+      )
+    }, undoMs)
+  }
+  const remove = track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
     awaitAdd(messageId).pipe(
       Effect.andThen(connection.request('queue.remove', { threadId, messageId }))
     )
+  )
+  removing.set(messageId, remove)
+  remove.addObserver(() => {
+    if (removing.get(messageId) === remove) removing.delete(messageId)
+  })
+}
+
+function restoreQueued(registry: Registry, threadId: string) {
+  const removed = registry.get(removedAtom).get(threadId)
+  if (!removed) return
+  registry.update(removedAtom, (map) => without(map, [threadId]))
+  const { message, index } = removed
+  track(
+    registry,
+    threadId,
+    { kind: 'restore', message, index },
+    (connection) =>
+      awaitFiber(removing.get(message.id)).pipe(
+        Effect.andThen(connection.request('queue.restore', { threadId, messageId: message.id }))
+      ),
+    { onFailure: () => toast.error("Couldn't put the message back") }
   )
 }
 
@@ -219,12 +273,16 @@ function editQueued(registry: Registry, threadId: string, messageId: string, tex
 
 function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMessage) {
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
-  const settle = showSent(registry, threadId, {
-    id: message.id,
-    text: message.text,
-    images: message.attachments ?? [],
-    sentAt: Date.now(),
-  })
+  // Only the user's own message shows as sent at once; another thread's waits for the server's
+  // copy, which carries its source.
+  const settle = message.from
+    ? undefined
+    : showSent(registry, threadId, {
+        id: message.id,
+        text: message.text,
+        images: message.attachments ?? [],
+        sentAt: Date.now(),
+      })
   run(
     registry,
     (connection) =>
@@ -233,7 +291,7 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
         Effect.andThen(connection.request('queue.sendNow', { threadId, messageId: message.id }))
       ),
     () => {
-      settle()
+      settle?.()
       toast.error("Couldn't send message")
     }
   )
@@ -277,16 +335,84 @@ export function useRenewQueueHolds() {
   }, [registry])
 }
 
+function threadMeta(get: Atom.AtomContext, threadId: string) {
+  return get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
+}
+
+// Per thread, so a change to another thread's chrome doesn't re-render this one's chat.
+const pendingMessagesAtom = Atom.family((threadId: string) =>
+  Atom.make((get) => threadMeta(get, threadId)?.pendingMessages)
+)
+const queueHeldAtom = Atom.family((threadId: string) =>
+  Atom.make((get) => {
+    const thread = threadMeta(get, threadId)
+    return Boolean(thread?.queuePaused || thread?.archived)
+  })
+)
+
+// Whether the queue waits for the user: paused after a stop, a restart or a failed setup, or
+// archived.
+export function useQueueHeld(threadId: string | undefined) {
+  return useAtomValue(queueHeldAtom(threadId ?? ''))
+}
+
 export function useThreadQueue(threadId: string | undefined) {
-  const server = useChrome()?.threads.find((thread) => thread.id === threadId)?.pendingMessages
+  const server = useAtomValue(pendingMessagesAtom(threadId ?? ''))
   const ops = useAtomValue(queueOpsAtom).get(threadId ?? '')
   return useMemo(() => applyOps(server ?? noMessages, ops ?? []), [ops, server])
+}
+
+// The queue as the chat shows it: what's still waiting (a message already in the chat can stay
+// queued until chrome catches up), and the user's own messages among it. Other threads' messages
+// wait unseen.
+export function useVisibleQueue(threadId: string | undefined, items: readonly ThreadItem[]) {
+  const queued = useThreadQueue(threadId)
+  const sending = useSendingIds(threadId)
+  return useMemo(() => {
+    if (queued.length === 0) return { queued, unsent: queued, own: queued }
+    const shown = new Set(sending)
+    for (const item of items) if (item.kind === 'user_message') shown.add(item.id)
+    const unsent = queued.filter((entry) => !shown.has(entry.id))
+    return { queued, unsent, own: unsent.filter((entry) => !entry.from) }
+  }, [items, queued, sending])
+}
+
+export function useRemovedQueued(threadId: string | undefined) {
+  return useAtomValue(removedAtom).get(threadId ?? '')
+}
+
+// The thread's composer, as the chat's queued messages reach it: Edit loads a message into it,
+// and Steer and Remove hand keyboard focus back to it.
+type QueueComposer = { edit: (entry: QueuedMessage) => void; keepFocus: () => void }
+const composers = new Map<string, QueueComposer>()
+
+export function useQueueComposer(threadId: string | undefined, composer: QueueComposer) {
+  const latest = useRef(composer)
+  useLayoutEffect(() => {
+    latest.current = composer
+  })
+  useEffect(() => {
+    if (!threadId) return
+    const entry: QueueComposer = {
+      edit: (message) => latest.current.edit(message),
+      keepFocus: () => latest.current.keepFocus(),
+    }
+    composers.set(threadId, entry)
+    return () => {
+      if (composers.get(threadId) === entry) composers.delete(threadId)
+    }
+  }, [threadId])
+}
+
+export function queueComposer(threadId: string) {
+  return composers.get(threadId)
 }
 
 export function useQueueActions() {
   return {
     add: useAction(addQueued),
     remove: useAction(removeQueued),
+    restore: useAction(restoreQueued),
     edit: useAction(editQueued),
     sendNow: useAction(sendQueuedNow),
     hold: useAction(holdQueued),

@@ -195,6 +195,10 @@ const draftAtom = Atom.family((key: string) =>
   Atom.make((get) => get(draftsAtom).get(key) ?? emptyDraft)
 )
 
+const draftEditingAtom = Atom.family((key: string) =>
+  Atom.make((get) => get(draftAtom(key)).editing)
+)
+
 function change(registry: Registry, key: string, edit: (draft: Draft) => Draft) {
   const previous = registry.get(draftsAtom).get(key) ?? emptyDraft
   const draft = edit(previous)
@@ -289,4 +293,9 @@ export function useDraft(key: string) {
   // the latest draft, for work that finishes after a render
   const read = useCallback(() => registry.get(draftAtom(key)), [key, registry])
   return { draft, update, read }
+}
+
+// The queued message a thread's draft rewrites, without re-rendering on each keystroke.
+export function useDraftEditing(key: string) {
+  return useAtomValue(draftEditingAtom(key))
 }

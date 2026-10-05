@@ -45,13 +45,10 @@ Everything below is for one combined review of the chat, not separate ports.
   render as user-looking relayed bubbles. Agents should get a real Jetty sender
   (e.g. `<jetty-notice kind="…">`) instead of the restart note's borrowed
   `from: { self, 'Jetty' }`.
-- Queued messages, `/components/queued-messages`: queued messages as dashed
-  bubbles in the transcript instead of the strip above the composer (B, a dashed
-  seam with the count or "Paused · Resume", was recommended, with in-place
-  editing; ⌘↵ to steer is an option). Needs: show relays and child reports the
-  client filters out today, a stored pause reason, a resume, a short hold so
-  Cancel can Undo, an edit hold longer than 60s, and a "steered" marker worked
-  out from turn order.
+- Queued messages, `/components/queued-messages`: B is ported. Left out: a
+  stored pause reason (the seam says only "Paused"), and an edit hold past 60s on
+  the server (the client renews it every 30s while a draft edits). Relays and
+  child reports stay hidden until they land, as Jett asked.
 - Child thread card, `/components/child-card`: one card per turn for the
   threads a parent starts, and how a report arrives later (C, bare rows, was
   recommended). Not picked yet.

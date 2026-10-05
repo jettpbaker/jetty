@@ -1,7 +1,9 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { TurnOutcome } from '@jetty/shared/reducer'
+import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { awaitsInput } from '@/state/thread_tab'
+import { pendingTurnId } from '@/state/turns'
 import { RESTART_LIMIT_NOTE, type ChildReport, type ThreadItem } from '@jetty/shared/items'
 import { claudeModelLabel } from '@jetty/shared/model-name'
 
@@ -23,8 +25,11 @@ type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 
+export type QueueState = 'queued' | 'paused' | 'editing' | 'sending'
+
 export type ThreadRow =
-  | { kind: 'user'; id: string; item: UserItem }
+  // steered: it went into a running turn; steering: on its way into one
+  | { kind: 'user'; id: string; item: UserItem; steered?: boolean; steering?: boolean }
   | { kind: 'reports'; id: string; reports: readonly ChildReport[] }
   | { kind: 'subagentDone'; id: string; agent: SubagentItem }
   | {
@@ -67,6 +72,13 @@ export type ThreadRow =
   | { kind: 'marker'; id: string; item: ApprovalItem | QuestionItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
+  // The queue under the chat: a seam with its state, the user's queued messages, and Undo where
+  // one was just removed. Resume sends the queue's next message, or continues a held thread.
+  | { kind: 'queueSeam'; id: string; state: QueueState; count: number; resume?: Resume }
+  | { kind: 'queued'; id: string; entry: QueuedMessage; editing: boolean; steer: boolean }
+  | { kind: 'queueRemoved'; id: string }
+
+type Resume = QueuedMessage | 'continue'
 
 function toolKind(name: string): ToolKind {
   switch (name.toLowerCase()) {
@@ -351,6 +363,7 @@ export function threadRows(
     threadId,
     agentId,
     settingUp = false,
+    queue,
   }: {
     status: SessionStatus
     running: boolean
@@ -360,6 +373,8 @@ export function threadRows(
     threadId?: string
     agentId?: string
     settingUp?: boolean
+    // what waits to be sent, shown under the chat
+    queue?: TranscriptQueue
   }
 ): ThreadRow[] {
   // A subagent's requests for input also surface on the main timeline, attributed to it.
@@ -463,6 +478,11 @@ export function threadRows(
   }
   let currentTurnId: string | undefined
   const heldTurns = new Set<string>()
+  // A message that isn't the first of its turn was steered into it. One shown as sent ahead of
+  // the server's copy is steering when a turn is running.
+  const startedTurns = new Set<string>()
+  const lastSent = items.findLast((item) => item.turnId !== pendingTurnId)
+  const steering = sessionActive && lastSent !== undefined && !outcomes[lastSent.turnId]
   function finishTurn(resumed: boolean) {
     if (!currentTurnId || outcomes[currentTurnId] !== 'server_restarted') return
     const id = `${currentTurnId}:restart`
@@ -473,6 +493,8 @@ export function threadRows(
   for (const [index, item] of items.entries()) {
     if (currentTurnId && currentTurnId !== item.turnId) finishTurn(true)
     currentTurnId = item.turnId
+    const steered = item.turnId !== pendingTurnId && startedTurns.has(item.turnId)
+    startedTurns.add(item.turnId)
     if (hidden(item)) continue
     if (item.kind === 'subagent') launched.push(item)
     const segment = segments[index]!
@@ -500,7 +522,13 @@ export function threadRows(
         rows.push(
           item.reports?.length
             ? { kind: 'reports', id: item.id, reports: item.reports }
-            : { kind: 'user', id: item.id, item }
+            : {
+                kind: 'user',
+                id: item.id,
+                item,
+                ...(steered && { steered }),
+                ...(steering && item.turnId === pendingTurnId && { steering }),
+              }
         )
         break
       case 'assistant_message':
@@ -599,6 +627,7 @@ export function threadRows(
   // A first message waits on the worktree's setup before the agent starts.
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   stitchRuns(rows)
+  if (queue) rows.push(...queueRows(queue, running))
   return reuseRows(allItems[0], rows)
 }
 
@@ -646,4 +675,57 @@ function same(a: unknown, b: unknown): boolean {
     if (x !== y && !same(x, y)) return false
   }
   return true
+}
+
+export type TranscriptQueue = {
+  // the whole queue, what of it isn't in the chat yet, and the user's own messages among that
+  queued: readonly QueuedMessage[]
+  unsent: readonly QueuedMessage[]
+  own: readonly QueuedMessage[]
+  paused: boolean
+  // the crash-loop guard held the thread, so Resume continues it
+  held: boolean
+  editing?: string
+  removed?: { message: QueuedMessage; index: number }
+}
+
+// The queue as B in the sketchpad's queued messages: a seam, then each of the user's messages
+// in order, with Undo in a removed one's place. Other threads' messages wait unseen, but a paused
+// queue still shows its seam for them.
+function queueRows(
+  { queued, unsent, own, paused, held, editing, removed }: TranscriptQueue,
+  running: boolean
+): ThreadRow[] {
+  const rows: ThreadRow[] = []
+  const head = own[0]
+  if (head || (paused && unsent.length > 0)) {
+    const resume = held ? 'continue' : unsent.find((entry) => entry.id !== editing)
+    rows.push({
+      kind: 'queueSeam',
+      id: 'queue:seam',
+      state: paused
+        ? 'paused'
+        : running
+          ? 'queued'
+          : head && editing === head.id
+            ? 'editing'
+            : 'sending',
+      count: own.length,
+      ...(paused && resume && { resume }),
+    })
+  }
+  const first = rows.length
+  for (const entry of own)
+    rows.push({
+      kind: 'queued',
+      id: `${entry.id}:queued`,
+      entry,
+      editing: entry.id === editing,
+      steer: running,
+    })
+  if (removed && !queued.some((entry) => entry.id === removed.message.id)) {
+    const before = own.filter((entry) => queued.indexOf(entry) < removed.index).length
+    rows.splice(first + before, 0, { kind: 'queueRemoved', id: `${removed.message.id}:removed` })
+  }
+  return rows
 }

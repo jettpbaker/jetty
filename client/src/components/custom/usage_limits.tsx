@@ -292,7 +292,7 @@ export function UsagePage({
   )
 }
 
-/* /usage: the current thread's provider over the composer, in the queue tray's shell */
+/* /usage: the current thread's provider in a tray over the composer */
 
 export function UsageBanner({
   provider,
