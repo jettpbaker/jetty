@@ -285,12 +285,14 @@ function toActivity(
         ? name
         : toolTarget(item.toolName, item.input, projectPath),
     description: toolDescription(item.input),
+    // A tool Stop cut off is completed with its status left unsettled; a later turn keeps the
+    // session active, but that tool stays stopped.
     status:
       item.status === 'failed'
         ? 'failed'
         : item.status === 'succeeded'
           ? 'complete'
-          : sessionActive
+          : sessionActive && item.completedAt === undefined
             ? 'running'
             : 'interrupted',
     input,
