@@ -58,7 +58,6 @@ import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import {
   groupSidebarThreads,
-  pinnedThreads,
   type SidebarThread,
   type ThreadGrouping,
 } from './sidebar_thread_groups'
@@ -174,7 +173,9 @@ export function AppSidebar() {
 
   const threads = chrome ? sidebarThreads(chrome, now) : []
   const groups = groupSidebarThreads(threads, grouping, query, showPinned, showArchived)
-  const pinned = pinnedThreads(threads).slice(0, keybinds.pinned.length)
+  const numbered = groups
+    .flatMap((group) => (group.archived ? [] : group.threads))
+    .slice(0, keybinds.threads.length)
   const current = threads.find((thread) => thread.id === selectedId)
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${threads.map((thread) => `${thread.id}:${thread.project}:${thread.status}:${thread.pinned}:${thread.archived}:${thread.updatedAt}`).join(',')}`
   const items = groups.flatMap((group) => [
@@ -207,8 +208,8 @@ export function AppSidebar() {
   }
 
   useHotkeys(
-    keybinds.pinned.flatMap((binding, index) => {
-      const thread = pinned[index]
+    keybinds.threads.flatMap((binding, index) => {
+      const thread = numbered[index]
       return thread ? [{ hotkey: binding.hotkey, callback: () => openThread(thread.id) }] : []
     }),
     { requireReset: true, ignoreInputs: true }
@@ -423,7 +424,7 @@ export function AppSidebar() {
                   >
                     <ThreadRow
                       {...thread}
-                      shortcut={keybinds.pinned[pinned.indexOf(thread)]}
+                      shortcut={keybinds.threads[numbered.indexOf(thread)]}
                       selected={selectedId === thread.id}
                       actions={{
                         pinned: thread.pinned,

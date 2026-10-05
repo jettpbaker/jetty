@@ -25,7 +25,7 @@ type ActionOverlay = 'closed' | 'menu' | 'edit'
 
 export type ThreadRowActionsProps = {
   title: string
-  // A pinned thread's ⌥N, which hover shows here since these actions cover the title row's end.
+  // The row's ⌥N, which hover shows here since these actions cover the title row's end.
   shortcut?: Keybind
   pinned: boolean
   archived?: boolean

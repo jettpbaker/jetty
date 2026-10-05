@@ -80,13 +80,6 @@ function threadInGroup(
   return dateGroupId(thread.updatedAt, now) === groupId
 }
 
-// The Pinned group's order whatever the search, so a pinned thread keeps its shortcut.
-export function pinnedThreads(threads: SidebarThread[]) {
-  return threads
-    .filter((thread) => thread.pinned && !thread.archived)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-}
-
 export function groupSidebarThreads(
   threads: SidebarThread[],
   grouping: ThreadGrouping,

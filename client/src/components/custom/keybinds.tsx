@@ -41,12 +41,12 @@ export const keybinds = {
   model: { hotkey: 'Mod+Alt+M', label: '⌥⌘M', name: 'Model', modifiers: ['Alt', 'Meta'] },
   effort: { hotkey: 'Mod+Alt+E', label: '⌥⌘E', name: 'Effort', modifiers: ['Alt', 'Meta'] },
   access: { hotkey: 'Mod+Alt+A', label: '⌥⌘A', name: 'Access mode', modifiers: ['Alt', 'Meta'] },
-  pinned: Array.from(
+  threads: Array.from(
     { length: 9 },
     (_, index): Keybind => ({
       hotkey: { code: `Digit${index + 1}`, alt: true },
       label: `⌥${index + 1}`,
-      name: `Open pinned thread ${index + 1}`,
+      name: `Open thread ${index + 1}`,
       modifiers: ['Alt'],
     })
   ),
