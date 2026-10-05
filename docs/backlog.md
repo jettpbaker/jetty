@@ -169,9 +169,7 @@ Everything below is for one combined review of the chat, not separate ports.
 - Drafts: a reload between `turn.start` reaching the server and image admission can
   duplicate a send (`drafts.ts`). Needs an API call: an admission-locked "was this
   message accepted?" RPC, or keeping the original id for a retried send.
-- Usage: the page can say "Couldn't refresh" while a turn reported fresher limits
-  (`provider-usage.ts` ~121). Grok's context ring is unverified mid-turn: it may
-  only move at turn end.
+- Usage: Grok's context ring is unverified mid-turn: it may only move at turn end.
 - PR view: a PR with over 100 check contexts or generated-banner heads drops the rest
   silently (`pull-request-graphql.ts` ~143, `pull-requests.ts` ~978);
   100+ old closed PRs can crowd out recent closes ("Showing latest 0").

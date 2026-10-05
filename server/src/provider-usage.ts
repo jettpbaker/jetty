@@ -118,11 +118,13 @@ export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
   const metadata = { ...(plan ? { plan } : {}), ...(email ? { account: email } : {}) }
   if (!token) return { provider: 'claude', connected: false, windows: [], ...metadata }
   const usage = await readClaudeLimits(token, id)
-  // A turn's own read is fresher than a cached or rate-limited OAuth one.
+  // A turn's own read is fresher than a cached or rate-limited OAuth one, so a failed OAuth read
+  // under it isn't a failed refresh.
   const turn = claudeTurn && (await claudeTurn.account) === id ? claudeTurn.usage : undefined
-  return turn?.windows.length && (turn.asOf ?? 0) > (usage.asOf ?? 0)
-    ? { ...usage, connected: true, windows: turn.windows, asOf: turn.asOf, ...metadata }
-    : { ...usage, ...metadata }
+  if (!turn?.windows.length || (turn.asOf ?? 0) <= (usage.asOf ?? 0))
+    return { ...usage, ...metadata }
+  const { failed: _, ...read } = usage
+  return { ...read, connected: true, windows: turn.windows, asOf: turn.asOf, ...metadata }
 }
 
 async function readClaudeLimits(token: string, account: string): Promise<ProviderUsage> {
