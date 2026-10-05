@@ -1,5 +1,6 @@
 import type { Attachment } from '@jetty/shared/items'
 
+import { MediaActions } from '@/components/custom/media_actions'
 import {
   fittedStyle,
   GALLERY_GAP,
@@ -79,29 +80,31 @@ export function ImageThumbnail({
   onError?: () => void
 }) {
   return (
-    <button
-      ref={ref}
-      type='button'
-      aria-label={`Open ${image.name}`}
-      className={cn(
-        'block cursor-zoom-in overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-        cover ? 'aspect-[4/3]' : 'w-fit max-w-full'
-      )}
+    <div
+      className={cn('group/media relative', cover ? 'aspect-[4/3]' : 'w-fit max-w-full')}
       style={cover ? undefined : fittedStyle(image, INLINE_IMAGE_MAX_HEIGHT)}
-      onClick={onOpen}
     >
-      <img
-        src={mediaUrl(image)}
-        alt={image.name}
-        loading='lazy'
-        decoding='async'
-        draggable={false}
-        className={cn(
-          !cover && !image.width ? 'max-h-120 max-w-full' : 'size-full',
-          cover ? 'object-cover' : 'object-contain'
-        )}
-        onError={onError}
-      />
-    </button>
+      <button
+        ref={ref}
+        type='button'
+        aria-label={`Open ${image.name}`}
+        className='block size-full cursor-zoom-in overflow-hidden rounded-md bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
+        onClick={onOpen}
+      >
+        <img
+          src={mediaUrl(image)}
+          alt={image.name}
+          loading='lazy'
+          decoding='async'
+          draggable={false}
+          className={cn(
+            !cover && !image.width ? 'max-h-120 max-w-full' : 'size-full',
+            cover ? 'object-cover' : 'object-contain'
+          )}
+          onError={onError}
+        />
+      </button>
+      <MediaActions src={mediaUrl(image)} name={image.name} onExpand={onOpen} />
+    </div>
   )
 }

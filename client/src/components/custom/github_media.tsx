@@ -201,8 +201,8 @@ export function GithubMedia({
         Couldn't load attachment · Open on GitHub
       </a>
     )
-  if (!resolved) return <div className='aspect-video max-h-120 w-full rounded-lg bg-muted' />
-  if (resolved === 'video') return <VideoPlayer video={attachment} onError={failed} />
+  if (!resolved) return <div className='aspect-video max-h-120 w-full rounded-md bg-muted' />
+  if (resolved === 'video') return <VideoPlayer video={attachment} actions onError={failed} />
   if (linked)
     return (
       <img
@@ -210,7 +210,7 @@ export function GithubMedia({
         alt={attachment.name}
         loading='lazy'
         decoding='async'
-        className={cn('max-w-full rounded-lg', !attachment.width && 'max-h-120')}
+        className={cn('max-w-full rounded-md', !attachment.width && 'max-h-120')}
         style={fittedStyle(attachment, INLINE_IMAGE_MAX_HEIGHT)}
         onError={failed}
       />
