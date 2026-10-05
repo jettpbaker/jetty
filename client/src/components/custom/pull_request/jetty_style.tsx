@@ -1694,6 +1694,18 @@ const mergeTone = 'bg-pr-open not-disabled:hover:bg-pr-open/80 aria-expanded:bg-
 
 // GitHub's split merge button: it merges by the picked method, and its caret, there when the repo
 // allows more than one, picks another. A blocked merge dims both halves, but the caret still picks.
+const mergeMethods = ['MERGE', 'SQUASH', 'REBASE'] as const
+
+function isMergeMethod(value: unknown): value is PrMergeMethod {
+  return typeof value === 'string' && mergeMethods.some((method) => method === value)
+}
+
+function isMergeMethodMap(value: unknown): value is Record<string, PrMergeMethod> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  for (const method of Object.values(value)) if (!isMergeMethod(method)) return false
+  return true
+}
+
 function MergeButton({
   pr,
   reason,
@@ -1704,9 +1716,22 @@ function MergeButton({
   onMerge: (method: PrMergeMethod) => Promise<boolean>
 }) {
   const options = mergeMethodOptions.filter((option) => pr.mergeMethods.includes(option.method))
+  const repo = repoPath(pr)
+  // GitHub's viewer default only moves after a merge on github.com. A merge from Jetty is
+  // remembered here, per repo, and wins for the default and the "(last used)" tag.
+  const [remembered, setRemembered] = useStoredState<Record<string, PrMergeMethod>>(
+    'jetty.pr.mergeMethod',
+    {},
+    isMergeMethodMap
+  )
   const [picked, setPicked] = useState<PrMergeMethod | null>(null)
   const [merging, setMerging] = useState(false)
-  const method = picked ?? pr.viewerDefaultMergeMethod
+  const stored = remembered[repo]
+  const lastUsed =
+    stored && options.some((option) => option.method === stored)
+      ? stored
+      : pr.viewerDefaultMergeMethod
+  const method = picked ?? lastUsed
   const current =
     options.find((option) => option.method === method) ?? options[0] ?? mergeMethodOptions[0]!
   const split = options.length > 1
@@ -1725,8 +1750,13 @@ function MergeButton({
       aria-busy={merging}
       onClick={() => {
         if (merging) return
+        const chosen = current.method
         setMerging(true)
-        void onMerge(current.method).finally(() => setMerging(false))
+        void onMerge(chosen)
+          .then((merged) => {
+            if (merged) setRemembered((methods) => ({ ...methods, [repo]: chosen }))
+          })
+          .finally(() => setMerging(false))
       }}
     >
       {/* Busy stays at full colour, and both labels share one grid cell, so the button keeps the
@@ -1785,7 +1815,7 @@ function MergeButton({
                 <span className='flex flex-col gap-0.5 pr-2'>
                   <span>
                     {option.label}
-                    {option.method === pr.viewerDefaultMergeMethod ? ' (last used)' : ''}
+                    {option.method === lastUsed ? ' (last used)' : ''}
                   </span>
                   <span className='whitespace-nowrap text-muted-foreground'>
                     {option.description}
