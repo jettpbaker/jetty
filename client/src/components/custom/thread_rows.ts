@@ -1,5 +1,5 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { ChildReport, ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { awaitsInput } from '@/state/thread_tab'
@@ -26,6 +26,7 @@ type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 
 export type ThreadRow =
   | { kind: 'user'; id: string; item: UserItem }
+  | { kind: 'reports'; id: string; reports: readonly ChildReport[] }
   | {
       kind: 'assistant'
       id: string
@@ -467,7 +468,11 @@ export function threadRows(
         rows.push({ kind: 'workflow', id: item.id, item })
         break
       case 'user_message':
-        rows.push({ kind: 'user', id: item.id, item })
+        rows.push(
+          item.reports?.length
+            ? { kind: 'reports', id: item.id, reports: item.reports }
+            : { kind: 'user', id: item.id, item }
+        )
         break
       case 'assistant_message':
         rows.push({

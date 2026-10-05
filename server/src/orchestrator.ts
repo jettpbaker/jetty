@@ -425,6 +425,7 @@ export function createOrchestrator({
           createdAt: Date.now(),
           kind: 'user_message' as const,
           ...(queued ? { from: queued.from, hop: queued.hop } : {}),
+          ...(queued?.reports && { reports: queued.reports }),
           text,
           attachments: meta,
         }

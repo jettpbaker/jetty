@@ -2,6 +2,7 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
+import { ChildReports } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
@@ -92,6 +93,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.text.length}:${row.streaming}`
     case 'user':
       return row.item.text.length
+    case 'reports':
+      return row.reports.map((report) => report.threadId).join(',')
     case 'error':
       return row.message.length
     case 'gallery':
@@ -170,6 +173,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         createdAt={row.item.createdAt}
       />
     )
+  if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
       <Message align='start'>

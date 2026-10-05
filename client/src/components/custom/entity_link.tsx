@@ -21,7 +21,7 @@ import { OverflowTitle } from './overflow_title'
 import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
 import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
 import { linkPresentation } from './thread_pull_request'
-import { statusPresentation, threadStatus } from './thread_status'
+import { statusPresentation, threadStatus, type Status } from './thread_status'
 
 type Kind = 'thread' | 'pr' | 'issue' | 'commit'
 type Glyph = ComponentType<SVGProps<SVGSVGElement>>
@@ -127,12 +127,21 @@ function GitHubAnchor({ children, ...props }: ComponentProps<'a'>) {
   )
 }
 
-export function ThreadLink({ id, fallback }: { id: string; fallback: ReactNode }) {
+// `outcome` shows how a run ended in place of the thread's live status.
+export function ThreadLink({
+  id,
+  fallback,
+  outcome,
+}: {
+  id: string
+  fallback: ReactNode
+  outcome?: Status
+}) {
   const chrome = useChrome()
   const prefetch = useThreadRowPrefetch()
   const meta = chrome?.threads.find((thread) => thread.id === id)
   if (!chrome || !meta) return fallback
-  const look = statusPresentation[threadStatus(meta.status, meta.readyForReview)]
+  const look = statusPresentation[outcome ?? threadStatus(meta.status, meta.readyForReview)]
   const [first, ...rest] = shorten(meta.title).split(' ')
   return (
     <PreviewCard.Root>

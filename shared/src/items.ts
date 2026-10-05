@@ -13,6 +13,15 @@ export const Attachment = Schema.Struct({
 })
 export type Attachment = Schema.Schema.Type<typeof Attachment>
 
+// A child thread's report as the chat shows it: how its run ended and how long it worked.
+export const ChildReport = Schema.Struct({
+  threadId: Schema.String,
+  title: Schema.String,
+  outcome: Schema.Literals(['finished', 'failed', 'interrupted', 'paused']),
+  seconds: Schema.Number,
+})
+export type ChildReport = Schema.Schema.Type<typeof ChildReport>
+
 export const ApprovalDecision = Schema.Literals(['allow', 'always', 'deny'])
 export type ApprovalDecision = Schema.Schema.Type<typeof ApprovalDecision>
 
@@ -66,6 +75,7 @@ export const ThreadItem = Schema.Union([
     kind: Schema.Literal('user_message'),
     from: Schema.optional(Schema.Struct({ threadId: Schema.String, title: Schema.String })),
     hop: Schema.optional(Schema.Natural),
+    reports: Schema.optional(Schema.Array(ChildReport)),
     text: Schema.String,
     attachments: Schema.Array(Attachment),
   }),

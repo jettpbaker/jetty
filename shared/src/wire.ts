@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { EffortLevel, SessionStatus } from './events'
-import { ApprovalDecision, Attachment } from './items'
+import { ApprovalDecision, Attachment, ChildReport } from './items'
 import {
   GitHubActivity,
   GitHubFile,
@@ -207,6 +207,7 @@ export const QueuedMessage = Schema.Struct({
   from: Schema.optional(MessageSource),
   // Jetty's own messages: a restart continuation, or a child's report.
   kind: Schema.optional(Schema.Literals(['continuation', 'report'])),
+  reports: Schema.optional(Schema.Array(ChildReport)),
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),
 })

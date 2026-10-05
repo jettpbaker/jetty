@@ -428,6 +428,37 @@ export function createStore() {
       )
     }
 
+    // Time a child spent in turns since its last report; waiting on its own children doesn't count.
+    function workedSeconds(threadId: string) {
+      return Effect.gen(function* () {
+        const [last] = yield* sql<{
+          request_id: string
+        }>`SELECT request_id FROM orchestration_requests
+          WHERE caller_id = ${threadId} AND operation = 'report' ORDER BY rowid DESC LIMIT 1`
+        const lastTurn = last?.request_id.split(':').at(-1)
+        const [since] = lastTurn
+          ? yield* sql<{ seq: number }>`SELECT seq FROM thread_events WHERE thread_id = ${threadId}
+              AND json_extract(payload_json, '$.turnId') = ${lastTurn}
+              AND json_extract(payload_json, '$.type') IN ('turn.completed', 'turn.failed')`
+          : []
+        const events = yield* sql<{ ts: number; type: string }>`SELECT ts,
+            json_extract(payload_json, '$.type') AS type FROM thread_events
+          WHERE thread_id = ${threadId} AND seq > ${since?.seq ?? 0}
+            AND json_extract(payload_json, '$.type') IN ('turn.started', 'turn.completed', 'turn.failed')
+          ORDER BY seq`
+        let worked = 0
+        let started: number | undefined
+        for (const { ts, type } of events) {
+          if (type === 'turn.started') started = ts
+          else if (started !== undefined) {
+            worked += ts - started
+            started = undefined
+          }
+        }
+        return Math.round(worked / 1000)
+      })
+    }
+
     function latestFinishedTurn(threadId: string) {
       return sql<{
         turn_id: string
@@ -516,6 +547,12 @@ export function createStore() {
           message: final?.kind === 'assistant_message' ? final.text.trim() : '',
           messageId: final?.id,
         })
+        const summary = {
+          threadId,
+          title: thread.title,
+          outcome: outcome.type,
+          seconds: yield* workedSeconds(threadId),
+        }
         // Reports waiting in the parent's queue merge into one message, which then comes from Jetty.
         const batch = parent.pendingMessages?.find((message) => message.kind === 'report')
         const messageId = batch?.id ?? reportId
@@ -528,6 +565,7 @@ export function createStore() {
                     ...message,
                     text: `${message.text}\n\n---\n\n${text}`,
                     from: { threadId: parent.id, title: 'Jetty' },
+                    reports: [...(message.reports ?? []), summary],
                     hop: Math.max(message.hop, hop),
                   }
                 : message
@@ -541,6 +579,7 @@ export function createStore() {
             hop,
             from: { threadId, title: thread.title },
             kind: 'report',
+            reports: [summary],
           })
         yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id, messageId })})`
         return { delivered: true }
