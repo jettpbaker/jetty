@@ -151,11 +151,16 @@ function sendTurn(
   onFailure?: () => void
 ) {
   const journey = perf.start('turn.send', { threadId })
-  const staged = stageSend(registry, fromDraft, { text, images })
+  const id = newId()
+  const staged = stageSend(registry, fromDraft, {
+    text,
+    images,
+    sent: { threadId, messageId: id },
+  })
   if (loadout)
     registry.update(loadoutOverridesAtom, (overrides) => new Map(overrides).set(threadId, loadout))
   const prompt: PendingPrompt = {
-    id: newId(),
+    id,
     text,
     sentAt: Date.now(),
     images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({

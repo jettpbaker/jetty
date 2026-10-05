@@ -11,6 +11,7 @@ import { useCallback, useContext, useEffect } from 'react'
 
 import { createdThreadsAtom, liveAtom } from './chrome'
 import { without } from './mutations'
+import { threadAtom } from './threads'
 
 type Registry = AtomRegistry.AtomRegistry
 
@@ -29,12 +30,14 @@ export type DraftTarget = {
   loadout?: Loadout
 }
 
-// A message that has left the composer but that the server hasn't taken yet.
+// A message that has left the composer but that the server hasn't taken yet. A new one carries
+// the id it will have in its thread, so a reload can tell whether the server took it after all.
 type Sending = {
   text: string
   images: readonly ReadyImage[]
   editing?: string
   target?: DraftTarget
+  sent?: { threadId: string; messageId: string }
 }
 
 // The unsent composer state of one thread; the new-thread composer uses the key ''.
@@ -44,6 +47,9 @@ export type Draft = {
   // the queued message this draft rewrites
   editing?: string
   sending?: readonly Sending[]
+  // new messages a reload cut off before the server answered, back in the composer only if it
+  // never got them
+  unsure?: readonly Sending[]
   // the pending approval or question on show, and what was typed for the others
   pendingId?: string
   // the pending item the text was started for; absent, the text is a follow-up message
@@ -75,6 +81,7 @@ const StoredDraft = Schema.Struct({
         text: Schema.String,
         editing: Schema.optional(Schema.String),
         target: Schema.optional(StoredTarget),
+        sent: Schema.optional(Schema.Struct({ threadId: Schema.String, messageId: Schema.String })),
       })
     )
   ),
@@ -91,6 +98,8 @@ const StoredImage = Schema.Struct({
   dataUrl: Schema.String,
   width: Schema.optional(Schema.Number),
   height: Schema.optional(Schema.Number),
+  // the unsure send it belongs to; absent, it's the composer's
+  messageId: Schema.optional(Schema.String),
 })
 const isStoredDraft = Schema.is(StoredDraft)
 const isStoredImage = Schema.is(StoredImage)
@@ -128,32 +137,49 @@ function loadDrafts() {
   const drafts = new Map<string, Draft>()
   for (const [key, stored] of Object.entries(readStored(textsKey)))
     if (isStoredDraft(stored)) {
-      // Sends still unconfirmed died with the page; they come back to the composer to send again.
+      // Sends still unconfirmed died with the page. An edit comes back to the composer to send
+      // again; a new message waits until the server says whether it got it.
       const { sending = [], ...draft } = stored
+      const back = sending.filter((entry) => !entry.sent)
+      const unsure = sending.flatMap((entry) => (entry.sent ? [{ ...entry, images: [] }] : []))
       drafts.set(key, {
         ...draft,
-        text: [...sending.map((sent) => sent.text), draft.text]
+        text: [...back.map((entry) => entry.text), draft.text]
           .filter((text) => text.trim())
           .join('\n\n'),
-        editing: draft.editing ?? sending.find((sent) => sent.editing)?.editing,
-        target: draft.target ?? sending.find((sent) => sent.target)?.target,
+        editing: draft.editing ?? back.find((entry) => entry.editing)?.editing,
+        target: draft.target ?? back.find((entry) => entry.target)?.target,
         images: [],
+        ...(unsure.length > 0 && { unsure }),
       })
     }
   for (const [key, stored] of Object.entries(readStored(imagesKey))) {
     if (!Array.isArray(stored)) continue
+    const draft = drafts.get(key) ?? emptyDraft
     // A restored image's data URL is its identity, so a picture attached twice comes back once.
     const images = new Map<string, ComposerImage>()
-    for (const image of stored)
-      if (isStoredImage(image)) images.set(image.dataUrl, { ...image, url: image.dataUrl })
-    if (images.size)
-      drafts.set(key, { ...(drafts.get(key) ?? emptyDraft), images: [...images.values()] })
+    const unsure = new Map((draft.unsure ?? []).map((entry) => [entry.sent?.messageId, entry]))
+    for (const image of stored) {
+      if (!isStoredImage(image)) continue
+      const { messageId, ...rest } = image
+      const entry = unsure.get(messageId)
+      const restored = { ...rest, url: rest.dataUrl }
+      if (messageId && entry)
+        unsure.set(messageId, { ...entry, images: [...entry.images, restored] })
+      else images.set(image.dataUrl, restored)
+    }
+    drafts.set(key, {
+      ...draft,
+      images: [...images.values()],
+      ...(draft.unsure && { unsure: [...unsure.values()] }),
+    })
   }
   return drafts
 }
 
 function persist(key: string, current: Draft, previous: Draft) {
-  const { images, sending = [], ...draft } = current
+  const { images, sending: inFlight = [], unsure = [], ...draft } = current
+  const sending = [...unsure, ...inFlight]
   const kept =
     draft.text !== '' ||
     draft.editing !== undefined ||
@@ -168,23 +194,39 @@ function persist(key: string, current: Draft, previous: Draft) {
       ? {
           ...draft,
           ...(sending.length > 0 && {
-            sending: sending.map(({ text, editing, target }) => ({ text, editing, target })),
+            sending: sending.map(({ text, editing, target, sent }) => ({
+              text,
+              editing,
+              target,
+              sent,
+            })),
           }),
         }
       : undefined
   )
-  if (images === previous.images && current.sending === previous.sending) return
+  if (
+    images === previous.images &&
+    current.sending === previous.sending &&
+    current.unsure === previous.unsure
+  )
+    return
   const stored = readStored(imagesKey)
   delete stored[key]
   let room = imageBudget - JSON.stringify(stored).length
   const saved = []
-  for (const { name, mimeType, sizeBytes, dataUrl, width, height } of [
-    ...images,
-    ...sending.flatMap((sent) => sent.images),
-  ]) {
+  const owned = [
+    ...images.map((image) => ({ image, messageId: undefined })),
+    ...sending.flatMap((entry) =>
+      entry.images.map((image) => ({ image, messageId: entry.sent?.messageId }))
+    ),
+  ]
+  for (const {
+    image: { name, mimeType, sizeBytes, dataUrl, width, height },
+    messageId,
+  } of owned) {
     if (!dataUrl || dataUrl.length > room) continue
     room -= dataUrl.length
-    saved.push({ name, mimeType, sizeBytes, dataUrl, width, height })
+    saved.push({ name, mimeType, sizeBytes, dataUrl, width, height, messageId })
   }
   writeStored(imagesKey, key, saved.length ? saved : undefined, stored)
 }
@@ -259,6 +301,54 @@ export function stageSend(registry: Registry, key: string | undefined, sending: 
       restoreDraft(registry, into, message)
     },
   }
+}
+
+// A new message a reload cut off goes back to its composer unless the server has it: waiting in
+// the thread's queue, or in the thread once that has loaded.
+export function useSettleUnsureSends() {
+  const registry = useContext(RegistryContext)
+  const live = useAtomValue(liveAtom)
+  useEffect(() => {
+    const chrome = AsyncResult.getOrElse(live, () => undefined)
+    if (!chrome) return
+    const watches: (() => void)[] = []
+    for (const [key, draft] of registry.get(draftsAtom))
+      for (const entry of draft.unsure ?? []) {
+        const { threadId, messageId } = entry.sent!
+        const thread = chrome.threads.find((candidate) => candidate.id === threadId)
+        if (!thread) settleUnsure(registry, key, entry, true)
+        else if (thread.pendingMessages?.some((message) => message.id === messageId))
+          settleUnsure(registry, key, entry, false)
+        else
+          watches.push(
+            registry.subscribe(
+              threadAtom(threadId),
+              (state) => {
+                if (state)
+                  settleUnsure(
+                    registry,
+                    key,
+                    entry,
+                    !state.items.some((item) => item.id === messageId)
+                  )
+              },
+              { immediate: true }
+            )
+          )
+      }
+    return () => {
+      for (const stop of watches) stop()
+    }
+  }, [live, registry])
+}
+
+function settleUnsure(registry: Registry, key: string, entry: Sending, restore: boolean) {
+  if (!registry.get(draftsAtom).get(key)?.unsure?.includes(entry)) return
+  change(registry, key, (draft) => ({
+    ...draft,
+    unsure: draft.unsure?.filter((candidate) => candidate !== entry),
+  }))
+  if (restore) restoreDraft(registry, key, entry)
 }
 
 // A thread gone from the server takes its draft with it. One hidden in an undo window (its own

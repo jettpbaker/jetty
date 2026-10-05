@@ -9,6 +9,7 @@ import {
   useConnectionNotice,
   useRenewQueueHolds,
   useForgetDeletedDrafts,
+  useSettleUnsureSends,
   useSubagentOutcome,
   useSubagentTabs,
   useThreadTab,
@@ -262,6 +263,7 @@ function Workspace({
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
   useRenewQueueHolds()
   useForgetDeletedDrafts()
+  useSettleUnsureSends()
   useConnectionNotice()
 
   useHotkey(

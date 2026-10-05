@@ -144,7 +144,11 @@ function addQueued(
     })),
   }
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
-  const staged = stageSend(registry, threadId, { text, images })
+  const staged = stageSend(registry, threadId, {
+    text,
+    images,
+    sent: { threadId, messageId: message.id },
+  })
   // Adds go out one at a time per thread, so a message whose images take a while to store still
   // reaches the queue before a text-only one sent after it.
   const previous = latestAdd.get(threadId)
