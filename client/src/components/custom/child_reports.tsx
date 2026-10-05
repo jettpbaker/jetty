@@ -28,8 +28,10 @@ export function ChildReports({ reports }: { reports: readonly ChildReport[] }) {
               return (
                 <p key={report.threadId}>
                   <ThreadLink id={report.threadId} outcome={status} fallback={report.title} />{' '}
-                  {verb}
-                  {worked && `, ${time} ${worked}`}
+                  <span className='text-muted-foreground'>
+                    {verb}
+                    {worked && `, ${time} ${worked}`}
+                  </span>
                 </p>
               )
             })}
@@ -73,8 +75,10 @@ export function SubagentDone({
                 />
                 {agent.title}
               </button>{' '}
-              {verb}
-              {worked && `, ${time} ${worked}`}
+              <span className='text-muted-foreground'>
+                {verb}
+                {worked && `, ${time} ${worked}`}
+              </span>
             </p>
           </BubbleContent>
         </Bubble>
