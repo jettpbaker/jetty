@@ -26,9 +26,15 @@ type Clock = {
   shown: boolean
 }
 
+// Chinese and Japanese put no spaces between words, so each of their characters stands whole.
+const unspaced = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}'
+const partWord = new RegExp(`[^\\s${unspaced}]+$`, 'u')
+const nextWord = new RegExp(`(?<=\\s)[^\\s${unspaced}]|[${unspaced}]`, 'u')
+
 // While streaming, text up to its last whole word, without a list item that has no words yet.
 export function wholeWords(text: string) {
-  const whole = /\s$/.test(text) ? text : text.slice(0, text.search(/\S+$/))
+  const part = text.search(partWord)
+  const whole = part === -1 ? text : text.slice(0, part)
   return whole.replace(/(^|\n)[ \t]*(?:[-*+>]|\d+[.)])[ \t]*$/, '$1')
 }
 
@@ -43,8 +49,8 @@ const step = { ms: 50, chars: 50, count: 30 }
 
 // Where the word at or after `index` starts.
 function wordStart(text: string, index: number) {
-  const space = text.slice(index).search(/\s\S/)
-  return space === -1 ? text.length : index + space + 1
+  const start = text.slice(index).search(nextWord)
+  return start === -1 ? text.length : index + start
 }
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
@@ -154,11 +160,12 @@ function revealPlugin(clock: Clock) {
       children,
     })
 
-    // The birth an offset's text came in with, if any.
+    // The birth an offset's text came in with, if any. Text is visited in order, so the search
+    // carries on from the last offset's birth.
+    let birth = -1
     function birthAt(offset: number) {
-      for (let index = births.length - 1; index >= 0; index--)
-        if (births[index]!.from <= offset) return index
-      return -1
+      while (birth + 1 < births.length && births[birth + 1]!.from <= offset) birth++
+      return birth
     }
 
     let offset = 0
