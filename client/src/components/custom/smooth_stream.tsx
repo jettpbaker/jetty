@@ -1,3 +1,5 @@
+import type { StreamingStyle } from '@/lib/streaming_style'
+
 import { useMemo, useState } from 'react'
 import { Block, type BlockProps } from 'streamdown'
 
@@ -14,6 +16,14 @@ type HastNode = {
   value?: string
   properties?: Record<string, unknown>
   children?: HastNode[]
+}
+
+type Reveal = { className: string; duration: number }
+
+const reveals: Record<Exclude<StreamingStyle, 'off'>, Reveal> = {
+  fade: { className: 'smooth-fade', duration: 600 },
+  quick: { className: 'smooth-fade', duration: 300 },
+  blur: { className: 'smooth-blur', duration: 600 },
 }
 
 // When each stretch of a block's rendered text first showed, as character offsets.
@@ -39,7 +49,7 @@ function atomic(tagName: string) {
 let plugins = 0
 
 // Streamdown caches a processor per plugin name, so each block's needs a name of its own.
-function revealPlugin(clock: Clock, duration: number) {
+function revealPlugin(clock: Clock, { className, duration }: Reveal) {
   const plugin = () => reveal
   Object.defineProperty(plugin, 'name', { value: `smoothReveal${plugins++}` })
   return plugin
@@ -65,7 +75,7 @@ function revealPlugin(clock: Clock, duration: number) {
       tagName: 'span',
       properties:
         now - at < duration
-          ? { className: ['smooth-fade'], style: `animation-duration:${duration}ms` }
+          ? { className: [className], style: `animation-duration:${duration}ms` }
           : {},
       children,
     })
@@ -113,14 +123,15 @@ function revealPlugin(clock: Clock, duration: number) {
 
 // A BlockComponent for one streaming message. Text it already had when it mounted (a thread opened
 // mid-reply) shows at once; everything after fades. `mounted` ends the mount.
-export function smoothBlocks(text: string, duration = 600) {
+export function smoothBlocks(text: string, style: Exclude<StreamingStyle, 'off'>) {
+  const reveal = reveals[style]
   const clocks: Clock[] = []
   let mounting = text.length > 0
   function SmoothBlock({ rehypePlugins, ...props }: BlockProps) {
     const { index } = props
     const [clock] = useState(() => (clocks[index] ??= { text: '', births: [], settle: mounting }))
     const plugins = useMemo(
-      () => [...(rehypePlugins ?? []), revealPlugin(clock, duration)],
+      () => [...(rehypePlugins ?? []), revealPlugin(clock, reveal)],
       [rehypePlugins, clock]
     )
     return <Block {...props} rehypePlugins={plugins} />

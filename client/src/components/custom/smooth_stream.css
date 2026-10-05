@@ -7,8 +7,18 @@
 .smooth-fade {
   animation: smooth-fade ease-out both;
 }
+@keyframes smooth-blur {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+.smooth-blur {
+  animation: smooth-blur ease-out both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .smooth-fade {
+  .smooth-fade,
+  .smooth-blur {
     animation: none;
   }
 }

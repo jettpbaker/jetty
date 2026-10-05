@@ -26,6 +26,12 @@ import {
   useAppearance,
   type Appearance,
 } from '@/lib/appearance'
+import {
+  readStreamingStyle,
+  saveStreamingStyle,
+  streamingStyles,
+  type StreamingStyle,
+} from '@/lib/streaming_style'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -43,6 +49,8 @@ const themes = [
 
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
+  const [streamingStyle, setStreamingStyle] = useState(readStreamingStyle)
+  const streamingLabel = streamingStyles.find(({ value }) => value === streamingStyle)!.label
   const themeLabel = themes.find((option) => option.value === theme)?.label
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
@@ -172,6 +180,39 @@ export function SettingsAppearance() {
       <div className='appearance-option-row'>
         <span>Accent</span>
         <AccentPicker />
+      </div>
+      <div className='appearance-option-row'>
+        <span>Streaming text</span>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            aria-label={`Streaming text: ${streamingLabel}`}
+            render={
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
+              />
+            }
+          >
+            {streamingLabel}
+            <ArrowDown01Icon className='size-3' />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuRadioGroup
+              value={streamingStyle}
+              onValueChange={(style: StreamingStyle) => {
+                saveStreamingStyle(style)
+                setStreamingStyle(style)
+              }}
+            >
+              {streamingStyles.map(({ value, label }) => (
+                <DropdownMenuRadioItem key={value} value={value}>
+                  {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className='appearance-option-row'>
         <span>Wallpaper</span>
