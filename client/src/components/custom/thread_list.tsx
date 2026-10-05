@@ -115,13 +115,17 @@ function bottomGlide(element: HTMLElement, onWrite: (top: number) => void) {
     const next = (offset + (velocity + stiffness * offset) * dt) * decay
     velocity = (velocity - stiffness * (velocity + stiffness * offset) * dt) * decay
     const settled = Math.abs(next) < 0.5 && Math.abs(velocity) < 10
-    element.scrollTop = settled ? target : target + next
-    written = element.scrollTop
-    onWrite(written)
+    write(settled ? target : target + next)
     frame = settled ? 0 : requestAnimationFrame(tick)
     if (settled) velocity = 0
   }
+  function write(top: number) {
+    element.scrollTop = top
+    written = element.scrollTop
+    onWrite(written)
+  }
   return {
+    write,
     start() {
       if (frame) return
       previous = performance.now()
@@ -448,6 +452,17 @@ export function ThreadList({
   const lastRow = useRef<{ key: unknown; start: number }>(undefined)
   // Where the list was last scrolled to, before any clamp from content that just shrank.
   const shownTop = useRef(0)
+  // A pinned list keeps its own scroll position: the virtualizer would hold rows that resize above
+  // the fold in place from an offset a gliding frame stale, dragging the list back up.
+  const pin = useCallback(
+    (value: boolean) => {
+      pinned.current = value
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = value ? () => false : undefined
+      if (!value) glider.current?.stop()
+    },
+    [virtualizer]
+  )
+  useLayoutEffect(() => pin(pinned.current), [pin])
   useLayoutEffect(() => {
     if (!pinned.current || rows.length === 0 || !scroller.current) return
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
@@ -463,12 +478,10 @@ export function ThreadList({
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
     if (glides) {
-      // Rows above the last changing size (a turn's Working line going) keep it where it is.
-      if (last && anchor?.key === last.key && anchor.start !== last.start) {
-        element.scrollTop = shownTop.current + last.start - anchor.start
-        shownTop.current = element.scrollTop
-      }
       glider.current ??= bottomGlide(element, (top) => (shownTop.current = top))
+      // Rows above the last changing size (a turn's Working line going) keep it where it is.
+      if (last && anchor?.key === last.key && anchor.start !== last.start)
+        glider.current.write(shownTop.current + last.start - anchor.start)
       glider.current.start()
       return
     }
@@ -484,10 +497,9 @@ export function ThreadList({
     const index = rows.findIndex((row) => row.id === revealId)
     if (index === -1) return
     clearReveal()
-    pinned.current = false
-    glider.current?.stop()
+    pin(false)
     virtualizer.scrollToIndex(index, { align: 'center' })
-  }, [revealId, agentId, rows, virtualizer, clearReveal])
+  }, [revealId, agentId, rows, virtualizer, clearReveal, pin])
 
   const turns = useTurns(rows)
   const latestRows = useRef(rows)
@@ -547,14 +559,13 @@ export function ThreadList({
       finishRefining.current?.()
       const item = virtualizer.measurementsCache[index]
       if (!item) return
-      pinned.current = false
-      glider.current?.stop()
+      pin(false)
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       virtualizer.scrollToOffset(item.start - jumpClearance, {
         behavior: reduce ? 'auto' : 'smooth',
       })
     },
-    [virtualizer]
+    [virtualizer, pin]
   )
 
   return (
@@ -567,11 +578,13 @@ export function ThreadList({
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
           onScroll={({ currentTarget: element }) => {
+            const shown = shownTop.current
             shownTop.current = element.scrollTop
             if (glider.current?.owns(element.scrollTop)) return
-            pinned.current =
-              element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack
-            if (!pinned.current) glider.current?.stop()
+            if (element.scrollHeight - element.scrollTop - element.clientHeight < pinSlack)
+              pin(true)
+            // Only the reader moves a pinned list up; while it glides it can trail the bottom.
+            else if (element.scrollTop < shown - 1) pin(false)
           }}
         >
           <div className='relative w-full' style={{ height: totalSize }}>
