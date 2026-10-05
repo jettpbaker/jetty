@@ -1855,8 +1855,9 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  // One cheap query notices change on every linked PR; only changed ones pay for a full read.
-  // Check runs don't bump updatedAt, so the rollup state is compared too.
+  // One cheap query notices change on every open linked PR; only changed ones pay for a full
+  // read. Check runs don't bump updatedAt, so the rollup state is compared too. Closed and merged
+  // links are left to a PR view's own 30-minute cadence.
   function refreshChangedLinks() {
     return Effect.gen(function* () {
       if (
