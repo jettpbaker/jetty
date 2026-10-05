@@ -58,7 +58,7 @@ export function SettingsProjects() {
                   </span>
                 </div>
               </td>
-              <td className='px-2 py-3 text-xs text-muted-foreground'>
+              <td className='px-2 py-3 font-mono text-xs text-muted-foreground'>
                 <span className='block truncate' title={project.path}>
                   {project.path}
                 </span>

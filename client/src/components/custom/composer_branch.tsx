@@ -87,7 +87,11 @@ export function ComposerBranch({
         <Button
           variant='ghost-text'
           size='sm'
-          className={cn('gap-1.5 rounded-sm', !branch && !disabledReason && 'invisible')}
+          className={cn(
+            'gap-1.5 rounded-sm',
+            branch && 'font-mono',
+            !branch && !disabledReason && 'invisible'
+          )}
           disabled
         >
           <GitBranchIcon />
@@ -105,6 +109,7 @@ export function ComposerBranch({
       icon={<GitBranchIcon />}
       value={branch ?? ''}
       valueLabel={fromOrigin ? branch?.replace(/^origin\//, '') : branch}
+      mono
       options={list ? baseRefs(list, fromOrigin) : []}
       toggle={
         list && onOrigin(list)

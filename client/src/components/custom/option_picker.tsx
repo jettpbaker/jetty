@@ -40,6 +40,7 @@ export function OptionPicker({
   toggle,
   disabled = false,
   valueLabel,
+  mono = false,
   onOpen,
   className,
   'aria-describedby': describedBy,
@@ -59,6 +60,7 @@ export function OptionPicker({
   // Names the value while the options don't hold it yet; with neither, the trigger keeps its
   // space but stays hidden.
   valueLabel?: string
+  mono?: boolean
   className?: string
   'aria-describedby'?: string
 }) {
@@ -99,6 +101,7 @@ export function OptionPicker({
             size='sm'
             className={cn(
               'gap-1.5 rounded-sm',
+              mono && 'font-mono',
               disabled && 'pointer-events-none',
               !shown && 'invisible'
             )}
@@ -149,7 +152,9 @@ export function OptionPicker({
                     onSelect={() => select(() => onValueChange(option.value))}
                   >
                     {option.icon ?? icon}
-                    <span className='flex-1 truncate'>{option.label}</span>
+                    <span className={cn('flex-1 truncate', mono && 'font-mono')}>
+                      {option.label}
+                    </span>
                     {option.hint && <span className='text-muted-foreground'>{option.hint}</span>}
                   </CommandItem>
                 ))}

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 import { environments } from './composer_environment'
 import { ThreadContextRing } from './context_ring'
@@ -43,7 +44,7 @@ export function ThreadFooter({
             }
           >
             {place && <place.Icon className='size-3 shrink-0' />}
-            <span className='truncate'>
+            <span className={cn('truncate', branch && 'font-mono')}>
               {branch && place && <span className='sr-only'>{place.label} </span>}
               {branch ?? place?.label}
             </span>
@@ -51,7 +52,7 @@ export function ThreadFooter({
           <TooltipContent align='start' className='max-w-lg'>
             <span className='flex flex-col'>
               {place && <span>{place.label}</span>}
-              {path && <span className='text-muted-foreground'>{path}</span>}
+              {path && <span className='font-mono text-muted-foreground'>{path}</span>}
             </span>
           </TooltipContent>
         </Tooltip>

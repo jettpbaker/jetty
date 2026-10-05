@@ -44,11 +44,15 @@ export function MonitoringLine({
           ) : (
             <>
               <span className='truncate font-mono text-muted-foreground'>{tasks[0]!.label}</span>
-              {many && <span className='shrink-0 text-muted-foreground'>+{tasks.length - 1}</span>}
+              {many && (
+                <span className='shrink-0 font-mono text-muted-foreground'>
+                  +{tasks.length - 1}
+                </span>
+              )}
             </>
           )}
         </span>
-        <span className='pointer-events-none shrink-0 text-muted-foreground tabular-nums'>
+        <span className='pointer-events-none shrink-0 font-mono text-muted-foreground tabular-nums'>
           {formatElapsed(longest)}
         </span>
         <Button
@@ -70,7 +74,7 @@ export function MonitoringLine({
               <span className='min-w-0 flex-1 truncate font-mono text-muted-foreground'>
                 {task.label}
               </span>
-              <span className='shrink-0 text-muted-foreground tabular-nums'>
+              <span className='shrink-0 font-mono text-muted-foreground tabular-nums'>
                 {formatElapsed(now - task.startedAt)}
               </span>
               <Button

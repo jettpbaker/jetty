@@ -260,6 +260,7 @@ export function ThreadDetailsTabs({
             >
               <TabLabel
                 label={`#${link.number}`}
+                mono
                 icon={<pr.icon className={cn('details-tab-kind size-3', pr.color)} />}
                 canClose={canClose}
                 onClose={() => closePullRequest(link)}
@@ -275,6 +276,7 @@ export function ThreadDetailsTabs({
           >
             <TabLabel
               label={fileName!}
+              mono
               icon={<File01Icon className='details-tab-kind size-3' />}
               canClose={canClose}
               onClose={closeFile}
@@ -435,12 +437,14 @@ function StaticTabLabel({
 
 function TabLabel({
   label,
+  mono = false,
   icon,
   count,
   canClose,
   onClose,
 }: {
   label: string
+  mono?: boolean
   icon: ReactNode
   count?: number
   canClose: boolean
@@ -476,7 +480,7 @@ function TabLabel({
           </span>
         )}
       </span>
-      {label}
+      {mono ? <span className='font-mono'>{label}</span> : label}
       {count !== undefined && <span className='font-mono text-muted-foreground'>{count}</span>}
     </>
   )
