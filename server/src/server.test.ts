@@ -1267,6 +1267,34 @@ describe('server skeleton', () => {
     await client.close()
   })
 
+  test('overlapping queue.add repeats are taken once and drop their own uploads', async () => {
+    const running = await boot()
+    const project = await Effect.runPromise(running.store.createProject(running.home))
+    const thread = await Effect.runPromise(running.store.createThread(project.id, newId()))
+    await Effect.runPromise(running.store.setQueuePaused(thread.id, true))
+    const client = await connect(running.port)
+    const add = {
+      threadId: thread.id,
+      messageId: 'raced',
+      text: 'later',
+      attachments: [{ name: 'shot.png', mimeType: 'image/png', dataUrl: TINY_PNG_DATA_URL }],
+    } as const
+    const pending = async () =>
+      (await Effect.runPromise(running.store.requireThread(thread.id))).pendingMessages ?? []
+    await Promise.all([1, 2, 3].map(() => client.request('queue.add', add)))
+    const [queued, ...extra] = await pending()
+    expect(extra).toEqual([])
+    expect(queued?.attachments).toHaveLength(1)
+    expect(readdirSync(join(running.home, 'attachments'))).toEqual([
+      `${queued!.attachments![0]!.id}.png`,
+    ])
+
+    await client.request('queue.remove', { threadId: thread.id, messageId: 'raced' })
+    await Promise.all([1, 2].map(() => client.request('queue.add', add)))
+    expect(await pending()).toEqual([])
+    await client.close()
+  })
+
   test('thread.create rejects same id under a different project', async () => {
     const { port } = await boot()
     const c = await connect(port)

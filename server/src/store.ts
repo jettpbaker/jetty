@@ -945,6 +945,19 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      // A message id this thread ever queued is taken once, so a repeat racing the first, or one
+      // after it ran or was removed, adds nothing: undefined.
+      enqueueOnce(threadId: string, message: QueuedMessage) {
+        return Effect.gen(function* () {
+          const seen =
+            yield* sql`SELECT 1 FROM message_receipts WHERE thread_id = ${threadId} AND message_id = ${message.id}`
+          return seen.length ? undefined : yield* enqueue(threadId, message)
+        }).pipe(
+          sql.withTransaction,
+          Effect.tap(() => signalQueueChange),
+          Effect.mapError(storeError)
+        )
+      },
       // Reads a queued message for the turn starting with it and claims it in one transaction, so
       // nothing merges into it unseen. The turn releases it once delivered or given up.
       claimQueued(threadId: string, messageId: string) {

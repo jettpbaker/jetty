@@ -1238,10 +1238,10 @@ export function createOrchestrator({
             return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
           if (yield* sentBefore(yield* store.requireThread(threadId), messageId)) return
           const saved = attachments ? yield* attachments.persist(uploads) : EMPTY_ATTACHMENTS
-          yield* hub
+          const thread = yield* hub
             .withChromePublication(
               store
-                .enqueue(threadId, {
+                .enqueueOnce(threadId, {
                   id: messageId,
                   text,
                   createdAt: Date.now(),
@@ -1250,12 +1250,15 @@ export function createOrchestrator({
                 })
                 .pipe(
                   Effect.tap((thread) =>
-                    Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+                    Effect.sync(() => {
+                      if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
+                    })
                   ),
                   Effect.uninterruptible
                 )
             )
             .pipe(Effect.onError(() => removeAttachments(saved.meta)))
+          if (!thread) yield* removeAttachments(saved.meta)
         })
       },
       editQueued(threadId: string, messageId: string, text?: string) {
