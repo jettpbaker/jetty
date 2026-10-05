@@ -321,6 +321,13 @@ export type ProviderUsage = Schema.Schema.Type<typeof ProviderUsage>
 export const DiffScope = Schema.Literals(['branch', 'uncommitted'])
 export type DiffScope = Schema.Schema.Type<typeof DiffScope>
 
+// A file in a thread's checkout; contents null when there's no file there.
+export const ProjectFile = Schema.Union([
+  Schema.Struct({ contents: Schema.NullOr(Schema.String) }),
+  Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
+])
+export type ProjectFile = Schema.Schema.Type<typeof ProjectFile>
+
 // One entry per name, whether it's a local branch, on origin, or both.
 export const Branch = Schema.Struct({
   name: Schema.String,
@@ -470,9 +477,20 @@ export const methods = {
   },
   'thread.readFile': {
     params: Schema.Struct({ threadId: Schema.String, path: Schema.String }),
+    result: ProjectFile,
+  },
+  // Saves only while the file still holds `base`, the text the edit started from (null: no
+  // file yet); otherwise the conflict carries what's on disk now.
+  'thread.writeFile': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      path: Schema.String,
+      contents: Schema.String,
+      base: Schema.NullOr(Schema.String),
+    }),
     result: Schema.Union([
-      Schema.Struct({ contents: Schema.NullOr(Schema.String) }),
-      Schema.Struct({ unavailable: Schema.Literals(['tooLarge', 'binary']) }),
+      Schema.Struct({ saved: Schema.Literal(true) }),
+      Schema.Struct({ conflict: ProjectFile }),
     ]),
   },
   'pullRequest.link': {

@@ -1,7 +1,7 @@
 import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
-import { constants } from 'node:fs'
-import { open, realpath, stat } from 'node:fs/promises'
+import { constants, type Stats } from 'node:fs'
+import { open, realpath, stat, type FileHandle } from 'node:fs/promises'
 
 import { git } from './git-process'
 import { StoreError } from './store'
@@ -139,9 +139,11 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
 }
 
 export type ProjectFile = { contents: string | null } | Unavailable
+export type SavedProjectFile = { saved: true } | { conflict: ProjectFile }
 
-// Paths are relative to the thread's project; symlinks may not lead outside it.
-export function readProjectFile(cwd: string, path: string) {
+// Paths are relative to the thread's project; symlinks may not lead outside it. `file` is the
+// real path, absent when nothing is there.
+function resolveProjectPath(cwd: string, path: string) {
   return Effect.gen(function* () {
     if (!isRepoPath(path))
       return yield* Effect.fail(new StoreError('invalid_params', `Invalid path: ${path}`))
@@ -156,40 +158,130 @@ export function readProjectFile(cwd: string, path: string) {
       if (top.code === 0)
         file = yield* fs.realPath(paths.join(top.out.trim(), path)).pipe(Effect.option)
     }
-    if (Option.isNone(file)) return { contents: null }
-    if (!file.value.startsWith(root.value + paths.sep))
+    if (Option.isSome(file) && !file.value.startsWith(root.value + paths.sep))
       return yield* Effect.fail(new StoreError('invalid_params', `${path} is outside the project`))
-    const opened = yield* Effect.promise(async () => {
+    return { root: root.value, file: Option.getOrUndefined(file) }
+  })
+}
+
+// Opens the real path `file` only while it still is one: no symlink swapped in since it resolved.
+async function openResolved(file: string, flags: number) {
+  const handle = await open(file, flags | constants.O_NOFOLLOW)
+  try {
+    const [actual, stats, fromPath] = await Promise.all([realpath(file), handle.stat(), stat(file)])
+    if (actual === file && stats.dev === fromPath.dev && stats.ino === fromPath.ino)
+      return { handle, stats }
+  } catch (error) {
+    await handle.close()
+    throw error
+  }
+  await handle.close()
+  return undefined
+}
+
+type Opened =
+  | { file: ProjectFile; text?: never }
+  | { file: ProjectFile; text: string; bytes: Buffer }
+
+async function readOpened({
+  handle,
+  stats,
+}: {
+  handle: FileHandle
+  stats: Stats
+}): Promise<Opened> {
+  if (!stats.isFile()) return { file: { contents: null } }
+  if (stats.size > MAX_CONTENTS_BYTES) return { file: tooLarge }
+  const bytes = await handle.readFile()
+  if (bytes.includes(0)) return { file: binary }
+  // A byte-order mark stays in the text, so saving keeps it.
+  const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes)
+  return { file: { contents: text }, text, bytes }
+}
+
+export function readProjectFile(cwd: string, path: string) {
+  return Effect.gen(function* () {
+    const { file } = yield* resolveProjectPath(cwd, path)
+    if (!file) return { contents: null }
+    const read = yield* Effect.promise(async (): Promise<ProjectFile | undefined> => {
       try {
-        const handle = await open(file.value, constants.O_RDONLY | constants.O_NOFOLLOW)
+        const opened = await openResolved(file, constants.O_RDONLY)
+        if (!opened) return undefined
         try {
-          const [actual, fromHandle, fromPath] = await Promise.all([
-            realpath(file.value),
-            handle.stat(),
-            stat(file.value),
-          ])
-          if (
-            actual !== file.value ||
-            fromHandle.dev !== fromPath.dev ||
-            fromHandle.ino !== fromPath.ino
-          )
-            return { changed: true } as const
-          if (!fromHandle.isFile()) return { contents: null } as const
-          if (fromHandle.size > MAX_CONTENTS_BYTES) return tooLarge
-          return { bytes: await handle.readFile() } as const
+          return (await readOpened(opened)).file
         } finally {
-          await handle.close()
+          await opened.handle.close()
         }
       } catch {
-        return { contents: null } as const
+        return { contents: null }
       }
     })
-    if ('changed' in opened)
-      return yield* Effect.fail(new StoreError('invalid_params', 'File changed while opening'))
-    if ('unavailable' in opened && opened.unavailable) return tooLarge
-    const bytes = 'bytes' in opened ? opened.bytes : undefined
-    if (!bytes) return { contents: null }
-    return bytes.includes(0) ? binary : { contents: new TextDecoder().decode(bytes) }
+    if (read) return read
+    return yield* Effect.fail(new StoreError('invalid_params', 'File changed while opening'))
+  })
+}
+
+// Writes over the file in place, keeping its mode and any symlink to it, but only while it still
+// holds `base`, the text the edit started from (null: no file). Otherwise nothing is written and
+// the conflict carries what's there now.
+export function writeProjectFile(cwd: string, path: string, contents: string, base: string | null) {
+  return Effect.gen(function* () {
+    const bytes = Buffer.from(contents)
+    if (bytes.length > MAX_CONTENTS_BYTES)
+      return yield* Effect.fail(new StoreError('invalid_params', 'File too large to save'))
+    const { root, file } = yield* resolveProjectPath(cwd, path)
+    const paths = yield* Path.Path
+    const saved = yield* Effect.tryPromise({
+      try: async (): Promise<SavedProjectFile | undefined> => {
+        if (!file) {
+          if (base !== null) return { conflict: { contents: null } }
+          const target = paths.join(root, path)
+          const folder = await realpath(paths.dirname(target)).catch(() => undefined)
+          if (!folder || (folder !== root && !folder.startsWith(root + paths.sep)))
+            throw new StoreError('not_found', 'Folder not found')
+          const created = await open(
+            paths.join(folder, paths.basename(target)),
+            constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+            0o644
+          ).catch(() => undefined)
+          if (!created) return undefined
+          try {
+            await created.writeFile(bytes)
+          } finally {
+            await created.close()
+          }
+          return { saved: true }
+        }
+        const opened = await openResolved(file, constants.O_RDWR)
+        if (!opened) return undefined
+        try {
+          const current = await readOpened(opened)
+          if (current.text === undefined || current.text !== base) return { conflict: current.file }
+          // The text came from decoding these bytes; saving would rewrite any that weren't UTF-8.
+          if (!current.bytes.equals(Buffer.from(current.text)))
+            throw new StoreError('invalid_params', `${path} isn't UTF-8 text`)
+          await opened.handle.truncate(0)
+          for (let offset = 0; offset < bytes.length;) {
+            const { bytesWritten } = await opened.handle.write(
+              bytes,
+              offset,
+              bytes.length - offset,
+              offset
+            )
+            offset += bytesWritten
+          }
+          return { saved: true }
+        } finally {
+          await opened.handle.close()
+        }
+      },
+      catch: (error) =>
+        error instanceof StoreError
+          ? error
+          : new StoreError('internal', `Couldn't save ${path}`, { cause: error }),
+    })
+    if (saved) return saved
+    return yield* Effect.fail(new StoreError('conflict', 'File changed while saving'))
   })
 }
 
@@ -202,6 +294,12 @@ export const GitDiff = Context.Service<{
     baseCommit?: string
   ) => Effect.Effect<DiffFile, StoreError>
   readProjectFile: (cwd: string, path: string) => Effect.Effect<ProjectFile, StoreError>
+  writeProjectFile: (
+    cwd: string,
+    path: string,
+    contents: string,
+    base: string | null
+  ) => Effect.Effect<SavedProjectFile, StoreError>
 }>('jetty/GitDiff')
 
 export const GitDiffLive = Layer.effect(
@@ -217,6 +315,8 @@ export const GitDiffLive = Layer.effect(
         readDiffFile(cwd, path, prevPath, baseCommit).pipe(Effect.provideContext(services)),
       readProjectFile: (cwd: string, path: string) =>
         readProjectFile(cwd, path).pipe(Effect.provideContext(services)),
+      writeProjectFile: (cwd: string, path: string, contents: string, base: string | null) =>
+        writeProjectFile(cwd, path, contents, base).pipe(Effect.provideContext(services)),
     }
   })
 )

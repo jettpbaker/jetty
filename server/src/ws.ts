@@ -357,6 +357,13 @@ export function createRpcHandlers(
           Effect.flatMap((root) => diff.readProjectFile(root.path, params.path)),
           Effect.mapError(wireError)
         ),
+      'thread.writeFile': (params) =>
+        threadRoot(params.threadId).pipe(
+          Effect.flatMap((root) =>
+            diff.writeProjectFile(root.path, params.path, params.contents, params.base)
+          ),
+          Effect.mapError(wireError)
+        ),
       'pullRequest.link': (params) =>
         pullRequestLinks.link(params.threadId, params.reference).pipe(
           Effect.map(({ thread }) => ({ thread })),
