@@ -220,7 +220,8 @@ export function UsagePage({
   now: number
   updatedAt?: number
   refreshing: boolean
-  failed: boolean
+  // the providers whose latest read failed
+  failed: ReadonlySet<UsageProvider>
   onRefresh: () => void
 }) {
   return (
@@ -231,7 +232,7 @@ export function UsagePage({
           <h1 className='truncate text-sm font-medium'>Usage</h1>
         </div>
         <div className='flex items-center gap-2'>
-          {failed ? (
+          {providers.length > 0 && providers.every((provider) => failed.has(provider)) ? (
             <span className='text-xs text-muted-foreground'>Couldn’t refresh</span>
           ) : (
             updatedAt !== undefined && (
@@ -275,7 +276,7 @@ export function UsagePage({
                   <h2 id={`usage-${provider}`} className='text-sm font-medium'>
                     {providerNames[provider]}
                   </h2>
-                  {item?.failed && item.windows.length > 0 && (
+                  {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
                     <span className='ml-auto text-xs'>
                       Couldn’t refresh
                       {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
@@ -284,7 +285,7 @@ export function UsagePage({
                 </div>
                 {item ? (
                   <UsageWindows usage={item} now={now} />
-                ) : failed ? (
+                ) : failed.has(provider) ? (
                   <p className='text-xs text-muted-foreground'>Usage unavailable.</p>
                 ) : (
                   <UsageSkeleton />

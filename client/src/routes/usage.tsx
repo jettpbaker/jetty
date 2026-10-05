@@ -40,7 +40,7 @@ function Usage() {
       now={now}
       updatedAt={at.length ? Math.min(...at) : undefined}
       refreshing={providers.some((provider) => loading.has(provider))}
-      failed={providers.some((provider) => failed.has(provider))}
+      failed={failed}
       onRefresh={() => refresh(providers)}
     />
   )
