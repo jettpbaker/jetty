@@ -19,13 +19,23 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
     preview `/components/app?palette=a|b`.
   - Settings redesign, two looks (A Document, B Window): `/components/settings`,
     or `/components/app?settings=a|b`.
-  - Issues view (`/components/issues`, `/components/issue-page`), keybind chips
-    (`/components/keybinds`), and PR view E's review flows (comment from the
-    gutter, start a review, suggest, submit with a verdict). In its comment box,
-    selecting text opens the formatting toolbar below the selection, not above it.
+  - Issues view (`/components/issues`, `/components/issue-page`) and PR view E's
+    review flows (comment from the gutter, start a review, suggest, submit with a
+    verdict). In its comment box, selecting text opens the formatting toolbar
+    below the selection, not above it.
   - PR description edits are last-writer-wins across devices; an "edited
     elsewhere" guard is possible.
-  - ⌥1–9 opens pinned threads; the alternative is driving tabs.
+- Thread hover panel redesign, `/components/thread-hover`: linked PRs one per
+  row, three variations against today's (B, the row's own header with PRs and
+  child threads as rows and a quiet footer, was recommended). Needs a
+  back-and-forth session with Jett before porting. The panel doesn't get child
+  threads or per-PR checks and review state yet.
+- Automated messages, `/components/auto-messages`: one family for everything
+  Jetty or another thread sends into a chat (restart resume and limit, child
+  reports, relays, compaction, PR watch wakes, a background command exiting).
+  Jett: C's seams are directionally right; riff on it together before porting.
+  Agents should get a real Jetty sender (e.g. `<jetty-notice kind="…">`) instead
+  of the restart note's borrowed `from: { self, 'Jetty' }`.
 - How lists show a PR's checks and review state. The PR list's checks and review
   columns are gone: five unlabelled glyphs (failing, running, conflict, approved,
   changes requested) confused more than they told, and didn't look right yet.
