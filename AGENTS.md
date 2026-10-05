@@ -133,6 +133,9 @@
 - Commit work before creating children that build on it. Archive requires a clean
   worktree and removes its folder while keeping its branch; resume recreates it
   and reruns setup. Delete removes the branch only for a linked merged PR.
+- `docs/worktree-setup.md` explains all this to an agent setting up a project's
+  worktrees (the new-thread page's Set up worktrees button points it there). Keep
+  it in step with this section.
 
 ## Cloud Agent specific instructions
 

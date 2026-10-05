@@ -355,6 +355,9 @@ export const methods = {
         branches: Schema.Array(Branch),
         // from the project's .jetty/worktree.json
         defaultEnvironment: Schema.optional(Schema.Literals(['local', 'worktree'])),
+        // Absolute path of Jetty's worktree setup guide, sent while the project has no
+        // .jetty/worktree.json.
+        setupGuide: Schema.optional(Schema.String),
       }),
       Schema.Struct({ git: Schema.Literals(['missing', 'not-git']) }),
     ]),

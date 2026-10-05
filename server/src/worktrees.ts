@@ -12,6 +12,9 @@ import { DEFAULT_THREAD_TITLE, StoreError } from './store'
 export type Worktrees = ReturnType<typeof createWorktrees>
 
 const SETUP_TIMEOUT = 15 * 60_000
+const CONFIG = '.jetty/worktree.json'
+// Shipped with Jetty; an agent reads it by absolute path to write a project's worktree config.
+const setupGuide = resolve(import.meta.dir, '../../docs/worktree-setup.md')
 
 export const isFolder = (path: string) =>
   stat(path).then(
@@ -93,9 +96,9 @@ type WorktreeScript = 'setup' | 'archive'
 
 // Read from the project checkout, never a worktree: the agent can edit the worktree's copy.
 async function worktreeConfig(root: string) {
-  const config = await readJson(join(root, '.jetty/worktree.json'))
+  const config = await readJson(join(root, CONFIG))
   if (config === undefined) return {}
-  const invalid = () => new Error('Invalid .jetty/worktree.json')
+  const invalid = () => new Error(`Invalid ${CONFIG}`)
   if (!config || typeof config !== 'object') throw invalid()
   const fields = config as Partial<Record<WorktreeScript | 'environment', unknown>>
   function script(key: WorktreeScript) {
@@ -234,16 +237,17 @@ export function createWorktrees(
         worktree: checkedOut.has(name),
       })
     }
+    const top = await git(cwd, 'rev-parse', '--show-toplevel')
     // A broken config only loses the default here; setup reports it.
-    const config = await worktreeConfig(await git(cwd, 'rev-parse', '--show-toplevel')).catch(
-      () => undefined
-    )
+    const config = await worktreeConfig(top).catch(() => undefined)
+    const configured = await Bun.file(join(top, CONFIG)).exists()
     return {
       git: state,
       defaultRef: base,
       currentBranch,
       branches: [...byName.values()],
       defaultEnvironment: config?.environment,
+      ...(configured ? {} : { setupGuide }),
     }
   }
 
