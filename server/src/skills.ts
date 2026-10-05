@@ -7,6 +7,7 @@ type SkillSources = { projectPath?: string; userHome?: string }
 
 type Frontmatter = {
   description: string
+  argument?: string
   userInvocable: boolean
 }
 
@@ -23,6 +24,7 @@ export function parseSkillFrontmatter(text: string): Frontmatter {
     const key = line.slice(0, colon).trim()
     const value = unquote(line.slice(colon + 1).trim())
     if (key === 'description') meta.description = value
+    if (key === 'argument-hint') meta.argument = value
     if (key === 'user-invocable') meta.userInvocable = value !== 'false'
   }
   return meta
@@ -44,7 +46,7 @@ function addSkill(into: Map<string, Skill>, name: string, filePath: string) {
       Effect.catch(() => Effect.succeed(null))
     )
     if (!meta || !meta.userInvocable) return
-    into.set(name, { name, description: meta.description })
+    into.set(name, { name, description: meta.description, argument: meta.argument })
   })
 }
 
