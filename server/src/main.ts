@@ -164,8 +164,7 @@ function reconcileOnStartup(store: Store) {
                 message: RESTART_LIMIT_NOTE,
               },
             })
-          if (autoResume)
-            yield* store.enqueue(thread.id, restartNote(thread.id, stoppedNames), true)
+          if (autoResume) yield* store.enqueue(thread.id, restartNote(thread.id, stoppedNames), 0)
         })
       )
     }

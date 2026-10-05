@@ -512,6 +512,10 @@ export function createRpcHandlers(
         orch
           .editQueued(params.threadId, params.messageId)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'queue.restore': (params) =>
+        orch
+          .restoreQueued(params.threadId, params.messageId)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'queue.edit': (params) =>
         orch
           .editQueued(params.threadId, params.messageId, params.text)

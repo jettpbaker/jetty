@@ -18,7 +18,7 @@ import {
 } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { newId } from '@jetty/shared/wire'
-import { Context, Effect, Layer, Queue, Semaphore } from 'effect'
+import { Context, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Hub } from './hub'
@@ -44,6 +44,8 @@ import { isFolder } from './worktrees'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
 const DELTA_BATCH = '50 millis'
+// How long a removed queued message is kept, attachments and all, for Undo to put it back.
+const REMOVED_KEPT = '30 seconds'
 
 type ItemDelta = Extract<ThreadEvent, { type: 'item.delta' }>
 
@@ -562,6 +564,30 @@ export function createOrchestrator({
         : Effect.void
     }
 
+    const removedQueued = new Map<
+      string,
+      { threadId: string; message: QueuedMessage; index: number; fiber: Fiber.Fiber<void> }
+    >()
+
+    function forgetRemoved(messageId: string) {
+      return Effect.suspend(() => {
+        const entry = removedQueued.get(messageId)
+        if (!entry) return Effect.void
+        removedQueued.delete(messageId)
+        return removeAttachments(entry.message.attachments ?? [])
+      })
+    }
+
+    function keepRemoved(threadId: string, message: QueuedMessage, index: number) {
+      return Effect.gen(function* () {
+        const fiber = yield* Effect.sleep(REMOVED_KEPT).pipe(
+          Effect.ensuring(forgetRemoved(message.id)),
+          Effect.forkIn(scope)
+        )
+        removedQueued.set(message.id, { threadId, message, index, fiber })
+      })
+    }
+
     function setQueuePaused(threadId: string, paused: boolean) {
       return hub.withChromePublication(
         Effect.gen(function* () {
@@ -966,7 +992,7 @@ export function createOrchestrator({
                 Effect.gen(function* () {
                   const thread = yield* store.requireThread(threadId)
                   if (!thread.pendingMessages?.some((message) => message.kind === 'continuation'))
-                    yield* store.enqueue(threadId, restartNote(threadId), true)
+                    yield* store.enqueue(threadId, restartNote(threadId), 0)
                   yield* store.setQueuePaused(threadId, false)
                 })
               )
@@ -1031,10 +1057,28 @@ export function createOrchestrator({
               const before = yield* store.requireThread(threadId)
               const thread = yield* store.editQueued(threadId, messageId, text)
               hub.pushChrome({ type: 'thread.upserted', thread })
-              if (text === undefined)
-                yield* removeAttachments(
-                  before.pendingMessages?.find((m) => m.id === messageId)?.attachments ?? []
-                )
+              const index = before.pendingMessages?.findIndex((m) => m.id === messageId) ?? -1
+              if (text === undefined && index !== -1)
+                yield* keepRemoved(threadId, before.pendingMessages![index]!, index)
+            }).pipe(Effect.uninterruptible)
+          )
+        )
+      },
+      // Undo for a remove: the message goes back where it was, if it was removed recently.
+      restoreQueued(threadId: string, messageId: string) {
+        return state(threadId).admission.withPermit(
+          hub.withChromePublication(
+            Effect.gen(function* () {
+              const entry = removedQueued.get(messageId)
+              if (entry?.threadId !== threadId)
+                return yield* Effect.fail(new StoreError('not_found', 'Removed message not found'))
+              removedQueued.delete(messageId)
+              yield* Fiber.interrupt(entry.fiber)
+              const { editingUntil: _, ...message } = entry.message
+              const thread = yield* store
+                .enqueue(threadId, message, entry.index)
+                .pipe(Effect.onError(() => removeAttachments(message.attachments ?? [])))
+              hub.pushChrome({ type: 'thread.upserted', thread })
             }).pipe(Effect.uninterruptible)
           )
         )

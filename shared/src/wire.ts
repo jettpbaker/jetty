@@ -666,6 +666,11 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
     result: Schema.Null,
   },
+  // Puts a message removed in the last few seconds back where it was.
+  'queue.restore': {
+    params: Schema.Struct({ threadId: Schema.String, messageId: Schema.String }),
+    result: Schema.Null,
+  },
   'queue.edit': {
     params: Schema.Struct({
       threadId: Schema.String,

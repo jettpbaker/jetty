@@ -145,6 +145,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'queue.hold': () => Effect.succeed(null),
           'queue.release': () => Effect.succeed(null),
           'queue.remove': () => Effect.succeed(null),
+          'queue.restore': () => Effect.succeed(null),
           'queue.sendNow': () => Effect.succeed(null),
           'turn.start': () =>
             Effect.fail({ code: 'not_found' as const, message: 'Thread not found' }),

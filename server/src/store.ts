@@ -394,7 +394,8 @@ export function createStore() {
       return sql`UPDATE threads SET pending_messages = ${JSON.stringify(messages)} WHERE id = ${threadId}`
     }
 
-    function enqueue(threadId: string, message: QueuedMessage, front = false) {
+    // `at` places the message at that index (0 for the front); by default it goes last.
+    function enqueue(threadId: string, message: QueuedMessage, at = Infinity) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.archived)
@@ -407,7 +408,7 @@ export function createStore() {
             )
           )
         const pending = thread.pendingMessages ?? []
-        yield* updateQueue(threadId, front ? [message, ...pending] : [...pending, message])
+        yield* updateQueue(threadId, [...pending.slice(0, at), message, ...pending.slice(at)])
         return yield* requireThread(threadId)
       })
     }
@@ -877,8 +878,8 @@ export function createStore() {
         return atomically(effect).pipe(Effect.mapError(storeError))
       },
       turnContext,
-      enqueue(threadId: string, message: QueuedMessage, front = false) {
-        return enqueue(threadId, message, front).pipe(
+      enqueue(threadId: string, message: QueuedMessage, at?: number) {
+        return enqueue(threadId, message, at).pipe(
           sql.withTransaction,
           Effect.tap(() => signalQueueChange),
           Effect.mapError(storeError)
