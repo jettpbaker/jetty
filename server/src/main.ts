@@ -348,8 +348,11 @@ function createServer(opts: ServerOptions = {}) {
       },
       onUsage: noteClaudeTurnUsage,
     }
+    const discovers = typeof agentKind === 'string' && agentKind !== 'echo'
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
-    let modelDiscovery: ModelDiscovery = { claude: 'loading', codex: 'loading', grok: 'loading' }
+    let modelDiscovery: ModelDiscovery = discovers
+      ? { claude: 'loading', codex: 'loading', grok: 'loading' }
+      : { claude: 'ready', codex: 'ready', grok: 'ready' }
     let registerClaudeMcp:
       | ((
           server: McpSdkServerConfigWithInstance['instance'],
@@ -389,7 +392,7 @@ function createServer(opts: ServerOptions = {}) {
       return Effect.uninterruptibleMask((restore) =>
         Effect.suspend(() => {
           if (inFlight) return restore(Deferred.await(inFlight))
-          if (typeof agentKind !== 'string' || agentKind === 'echo') return Effect.void
+          if (!discovers) return Effect.void
           if (!force && Date.now() - lastDiscovery < 60_000) return Effect.void
           lastDiscovery = Date.now()
           const done = Deferred.makeUnsafe<void>()
