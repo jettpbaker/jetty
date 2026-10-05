@@ -1,7 +1,7 @@
 import { useAppearance } from '@/lib/appearance'
 import { initialBlurSettings } from '@/lib/blur-settings'
 import { initialDitherSettings } from '@/lib/dither-settings'
-import { initialFadeSettings, videoFadeSettings } from '@/lib/fade-settings'
+import { initialFadeSettings } from '@/lib/fade-settings'
 import { useResolvedTheme } from '@/lib/theme'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
@@ -56,7 +56,7 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (
-        <OpacityFade settings={videoFadeSettings} background={fadeBackground}>
+        <OpacityFade settings={fade} background={fadeBackground}>
           <WallpaperVideo src={video} playing={visible && !reducedMotion} />
         </OpacityFade>
       ) : (
