@@ -192,7 +192,10 @@ export function WorkBlock({
         <RollingDuration seconds={runningSeconds} />
       </span>
     ) : duration ? (
-      ` ${restarted || status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} ${duration}`
+      <>
+        {` ${restarted || status === 'cancelled' || status === 'interrupted' ? 'after' : 'for'} `}
+        <span className='font-mono'>{duration}</span>
+      </>
     ) : (
       ''
     )

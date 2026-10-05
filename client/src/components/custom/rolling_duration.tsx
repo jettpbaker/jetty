@@ -5,7 +5,7 @@ import { formatActivityDuration } from './work_model'
 export function RollingDuration({ seconds, still = false }: { seconds: number; still?: boolean }) {
   const parts = (formatActivityDuration(seconds) ?? '0s').split(' ')
   return (
-    <span className='inline-flex items-baseline gap-1'>
+    <span className='inline-flex items-baseline gap-1 font-mono'>
       {parts.map((part) => {
         const unit = part.slice(-1)
         const value = Number(part.slice(0, -1))
