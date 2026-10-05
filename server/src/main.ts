@@ -55,6 +55,7 @@ import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { createPerfSink } from './perf-sink'
 import {
+  noteClaudeTurnUsage,
   readClaudeProviderUsage,
   readCodexProviderUsage,
   readGrokProviderUsage,
@@ -297,6 +298,7 @@ function createServer(opts: ServerOptions = {}) {
       },
       onUsage(usage: ProviderUsage) {
         lastUsage = usage
+        noteClaudeTurnUsage(usage)
         Effect.runFork(
           hub.withChromePublication(Effect.sync(() => hub.pushChrome({ type: 'usage', usage })))
         )
@@ -471,7 +473,7 @@ function createServer(opts: ServerOptions = {}) {
       () =>
         Effect.gen(function* () {
           if (agentKind === 'echo') return echoUsage()
-          const [oauth, codex, grok] = yield* Effect.all(
+          return yield* Effect.all(
             [
               Effect.promise(() => readClaudeProviderUsage()),
               readCodexProviderUsage(home, opts.codex).pipe(
@@ -481,13 +483,6 @@ function createServer(opts: ServerOptions = {}) {
             ],
             { concurrency: 'unbounded' }
           )
-          // A turn's own read is fresher than a cached or rate-limited OAuth one.
-          const sdk = lastUsage
-          const claude =
-            sdk?.windows.length && (sdk.asOf ?? 0) > (oauth.asOf ?? 0)
-              ? { ...oauth, connected: true, windows: sdk.windows, asOf: sdk.asOf }
-              : oauth
-          return [claude, codex, grok]
         })
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)

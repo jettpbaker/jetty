@@ -9,9 +9,11 @@ import { join } from 'node:path'
 import { openCodexConnection } from './codex-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
 
+// Each read is kept for the account it was read for; signing in as another starts afresh.
 const CACHE_MS = 60_000
-let claudeCache: { at: number; usage: ProviderUsage } | undefined
-let grokCache: { at: number; usage: ProviderUsage } | undefined
+let claudeCache: { account: string; at: number; usage: ProviderUsage } | undefined
+let claudeTurn: { account: Promise<string>; usage: ProviderUsage } | undefined
+let grokCache: { account: string; at: number; usage: ProviderUsage } | undefined
 
 function capitalized(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -86,24 +88,44 @@ async function claudeCredentials(): Promise<Record<string, unknown>> {
   }
 }
 
-async function claudeAccount(): Promise<string | undefined> {
+// The signed-in account and organization (whose plan the limits are), and its email.
+async function claudeAccount() {
   try {
     const config = object(JSON.parse(await readFile(join(homedir(), '.claude.json'), 'utf8')))
-    return string(object(config.oauthAccount).emailAddress) || undefined
+    const account = object(config.oauthAccount)
+    const email = string(account.emailAddress)
+    return {
+      id: [account.accountUuid, account.organizationUuid, email].map(string).join('/'),
+      email,
+    }
   } catch {
-    return undefined
+    return { id: '', email: '' }
   }
+}
+
+// A turn reads its own usage, for whoever is signed in when it arrives.
+export function noteClaudeTurnUsage(usage: ProviderUsage) {
+  claudeTurn = { account: claudeAccount().then(({ id }) => id), usage }
 }
 
 export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
   const oauth = await claudeCredentials()
   const token = string(oauth.accessToken)
   const plan = claudePlan(oauth.subscriptionType, oauth.rateLimitTier)
-  const account = await claudeAccount()
-  const metadata = { ...(plan ? { plan } : {}), ...(account ? { account } : {}) }
+  const { id, email } = await claudeAccount()
+  const metadata = { ...(plan ? { plan } : {}), ...(email ? { account: email } : {}) }
   if (!token) return { provider: 'claude', connected: false, windows: [], ...metadata }
-  if (claudeCache && Date.now() - claudeCache.at < CACHE_MS)
-    return { ...claudeCache.usage, ...metadata }
+  const usage = await readClaudeLimits(token, id)
+  // A turn's own read is fresher than a cached or rate-limited OAuth one.
+  const turn = claudeTurn && (await claudeTurn.account) === id ? claudeTurn.usage : undefined
+  return turn?.windows.length && (turn.asOf ?? 0) > (usage.asOf ?? 0)
+    ? { ...usage, connected: true, windows: turn.windows, asOf: turn.asOf, ...metadata }
+    : { ...usage, ...metadata }
+}
+
+async function readClaudeLimits(token: string, account: string): Promise<ProviderUsage> {
+  const cached = claudeCache?.account === account ? claudeCache : undefined
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.usage
   try {
     const response = await fetch('https://api.anthropic.com/api/oauth/usage', {
       headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' },
@@ -112,20 +134,11 @@ export async function readClaudeProviderUsage(): Promise<ProviderUsage> {
     if (!response.ok) throw new Error('Claude usage unavailable')
     const windows = claudeUsageWindows(await response.json())
     if (windows.length === 0) throw new Error('Claude usage unavailable')
-    const usage: ProviderUsage = {
-      provider: 'claude',
-      connected: true,
-      windows,
-      ...metadata,
-      asOf: Date.now(),
-    }
-    claudeCache = { at: Date.now(), usage }
+    const usage: ProviderUsage = { provider: 'claude', connected: true, windows, asOf: Date.now() }
+    claudeCache = { account, at: Date.now(), usage }
     return usage
   } catch {
-    return {
-      ...(claudeCache?.usage ?? { provider: 'claude', connected: true, windows: [] }),
-      ...metadata,
-    }
+    return cached?.usage ?? { provider: 'claude', connected: true, windows: [] }
   }
 }
 
@@ -244,7 +257,9 @@ export async function readGrokProviderUsage(): Promise<ProviderUsage> {
   const metadata = account ? { account } : {}
   if (credential.auth_mode === 'api_key')
     return { provider: 'grok', connected: true, windows: [], ...metadata }
-  if (grokCache && Date.now() - grokCache.at < CACHE_MS) return { ...grokCache.usage, ...metadata }
+  const id = [credential.user_id, credential.team_id, account].map(string).join('/')
+  const cached = grokCache?.account === id ? grokCache : undefined
+  if (cached && Date.now() - cached.at < CACHE_MS) return { ...cached.usage, ...metadata }
   try {
     const response = await fetch('https://cli-chat-proxy.grok.com/v1/billing?format=credits', {
       headers: { Authorization: `Bearer ${key}` },
@@ -279,11 +294,11 @@ export async function readGrokProviderUsage(): Promise<ProviderUsage> {
       ...metadata,
       asOf: Date.now(),
     }
-    grokCache = { at: Date.now(), usage }
+    grokCache = { account: id, at: Date.now(), usage }
     return usage
   } catch {
     return {
-      ...(grokCache?.usage ?? { provider: 'grok', connected: true, windows: [] }),
+      ...(cached?.usage ?? { provider: 'grok', connected: true, windows: [] }),
       ...metadata,
     }
   }
