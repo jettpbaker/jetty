@@ -30,12 +30,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   child threads as rows and a quiet footer, was recommended). Needs a
   back-and-forth session with Jett before porting. The panel doesn't get child
   threads or per-PR checks and review state yet.
-- Automated messages, `/components/auto-messages`: one family for everything
-  Jetty or another thread sends into a chat (restart resume and limit, child
-  reports, relays, compaction, PR watch wakes, a background command exiting).
-  Jett: C's seams are directionally right; riff on it together before porting.
-  Agents should get a real Jetty sender (e.g. `<jetty-notice kind="…">`) instead
-  of the restart note's borrowed `from: { self, 'Jetty' }`.
 - How lists show a PR's checks and review state. The PR list's checks and review
   columns are gone: five unlabelled glyphs (failing, running, conflict, approved,
   changes requested) confused more than they told, and didn't look right yet.
@@ -49,6 +43,36 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   (86b8a34) and reverted for now; come back to it.
 - An icon for the PR overview's Thread row: `/components/icon-picks` (thread
   section). B (Message multiple 01) was recommended.
+
+## chat view review (one pass, with Jett)
+
+Everything below is for one combined review of the chat, not separate ports.
+
+- Streaming and the chat view in general: Jett wants it better overall; this is
+  the umbrella the rest hangs off.
+- Automated messages, `/components/auto-messages`: one family for everything
+  Jetty or another thread sends into a chat (restart resume and limit, child
+  reports, relays, compaction, PR watch wakes, a background command exiting).
+  C's seams are directionally right. Today child reports and the restart
+  continuation render as user-looking relayed bubbles. Agents should get a real
+  Jetty sender (e.g. `<jetty-notice kind="…">`) instead of the restart note's
+  borrowed `from: { self, 'Jetty' }`.
+- Compaction: nothing shows it today. Needs a server event (Claude's SDK emits
+  `compact_boundary`) and the seam design above.
+- Queued messages, `/components/queued-messages`: queued messages as dashed
+  bubbles in the transcript instead of the strip above the composer (B, a dashed
+  seam with the count or "Paused · Resume", was recommended, with in-place
+  editing; ⌘↵ to steer is an option). Needs: show relays and child reports the
+  client filters out today, a stored pause reason, a resume, a short hold so
+  Cancel can Undo, an edit hold longer than 60s, and a "steered" marker worked
+  out from turn order.
+- Child thread card, `/components/child-card`: one card per turn for the
+  threads a parent starts, and how a report arrives later (C, bare rows, was
+  recommended). Not picked yet.
+- Message footers: the whole footer reveals on hover; `revealWholeFooter` in
+  `message_footer.tsx` flips it to time and model always visible.
+- Claude's own commands in the / menu (compact, context, init) are disabled:
+  the server never learns them and drops the SDK's command output.
 
 ## later
 
