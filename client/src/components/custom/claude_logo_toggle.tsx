@@ -3,13 +3,19 @@ import { Button } from '@/components/ui/button'
 import { useStoredState } from '@/lib/stored-state'
 import { useLayoutEffect } from 'react'
 
-type ClaudeLogo = 'code' | 'ai'
+type ClaudeLogo = 'code' | 'ai' | 'anthropic'
 
 function isClaudeLogo(value: unknown): value is ClaudeLogo {
-  return value === 'code' || value === 'ai'
+  return value === 'code' || value === 'ai' || value === 'anthropic'
 }
 
-// Temporary: compares the Claude Code mark with the usual Claude mark everywhere at once.
+const logos: { value: ClaudeLogo; label: string }[] = [
+  { value: 'code', label: 'Claude Code mark' },
+  { value: 'ai', label: 'Claude mark' },
+  { value: 'anthropic', label: 'Anthropic mark' },
+]
+
+// Temporary: cycles Claude's logo between the Claude Code, Claude and Anthropic marks everywhere at once.
 export function ClaudeLogoToggle() {
   const [logo, setLogo] = useStoredState<ClaudeLogo>('jetty.claudeLogo', 'code', isClaudeLogo)
   useLayoutEffect(() => {
@@ -20,10 +26,13 @@ export function ClaudeLogoToggle() {
       variant='outline'
       size='xs'
       className='fixed right-3 bottom-3 z-50 bg-background'
-      onClick={() => setLogo(logo === 'code' ? 'ai' : 'code')}
+      onClick={() => {
+        const index = logos.findIndex((option) => option.value === logo)
+        setLogo(logos[(index + 1) % logos.length]!.value)
+      }}
     >
       <ProviderGlyph provider='claude' className='size-3.5' />
-      {logo === 'code' ? 'Claude Code mark' : 'Claude mark'}
+      {logos.find((option) => option.value === logo)?.label}
     </Button>
   )
 }

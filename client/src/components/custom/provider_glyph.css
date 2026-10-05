@@ -9,8 +9,12 @@
 .provider-icon[data-provider='claude'] {
   transform: scale(1.2) translateY(-2.0833%);
 }
-/* Temporary: ClaudeLogoToggle swaps in the usual Claude mark over the inline mask. */
+/* Temporary: ClaudeLogoToggle swaps in the usual Claude or Anthropic mark over the inline mask. */
 :root[data-claude-logo='ai'] .provider-icon[data-provider='claude'] {
   mask-image: url('/icons/providers/claude-ai.svg') !important;
+  transform: none;
+}
+:root[data-claude-logo='anthropic'] .provider-icon[data-provider='claude'] {
+  mask-image: url('/icons/providers/anthropic.svg') !important;
   transform: none;
 }
