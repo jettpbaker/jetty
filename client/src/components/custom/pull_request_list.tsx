@@ -157,12 +157,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       id: 'identifier',
       priority: 30,
       width: groupBy === 'repo' ? 56 : 122,
+      // A long repo name gives way before the number does.
       render: (pull) => (
         <span
-          className='truncate font-mono text-xs text-muted-foreground'
+          className='flex min-w-0 font-mono text-xs text-muted-foreground'
           title={`${pull.repo}#${pull.number}`}
         >
-          {groupBy === 'repo' ? `#${pull.number}` : pullRequestIdentifier(pull)}
+          {groupBy !== 'repo' && <span className='truncate'>{pull.repo.split('/').at(-1)}</span>}
+          <span className='shrink-0'>#{pull.number}</span>
         </span>
       ),
     },
