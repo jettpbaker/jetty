@@ -55,16 +55,16 @@ const unavailableTitle = {
 const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNode }> = {
   open: {
     color: 'var(--pr-open)',
-    icon: <GitPullRequestIcon className='size-3.5 text-pr-open' />,
+    icon: <GitPullRequestIcon className='size-3 text-pr-open' />,
   },
   draft: {
     color: 'var(--muted-foreground)',
-    icon: <GitPullRequestDraftIcon className='size-3.5 text-muted-foreground' />,
+    icon: <GitPullRequestDraftIcon className='size-3 text-muted-foreground' />,
   },
-  merged: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3.5 text-pr-merged' /> },
+  merged: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3 text-pr-merged' /> },
   closed: {
     color: 'var(--destructive)',
-    icon: <GitPullRequestClosedIcon className='size-3.5 text-destructive' />,
+    icon: <GitPullRequestClosedIcon className='size-3 text-destructive' />,
   },
 }
 
@@ -130,6 +130,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             id: group,
             label: pullRequestGroupLabel[group],
             ...groupPresentation[group],
+            labelColor: groupPresentation[group].color,
             rows: rows.filter((pull) => pull.state === group),
             defaultCollapsed: group === 'closed' || group === 'merged',
           }))

@@ -31,6 +31,7 @@ export type TableGroup<T> = {
   label: string
   icon?: ReactNode
   color: string
+  labelColor?: string
   rows: readonly T[]
   defaultCollapsed?: boolean
 }
@@ -158,8 +159,8 @@ export function GroupedTable<T>({
                   data-open={!closed}
                 />
                 {group.icon}
-                <span>{group.label}</span>
-                <span className='text-muted-foreground font-normal tabular-nums'>
+                <span style={{ color: group.labelColor }}>{group.label}</span>
+                <span className='ml-auto font-normal text-muted-foreground tabular-nums'>
                   {group.rows.length}
                 </span>
               </Button>
