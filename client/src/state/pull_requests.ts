@@ -1,4 +1,5 @@
 import type { Connection } from '@/net/connection'
+import type { SessionStatus } from '@jetty/shared/events'
 import type { PullRequestData } from '@jetty/shared/pull-request'
 import type {
   PullRequestLink,
@@ -77,7 +78,12 @@ const summaryAtom = Atom.family((key: string) =>
   )
 )
 
-type LinkedThread = { id: string; title: string }
+export type LinkedThread = {
+  id: string
+  title: string
+  status: SessionStatus
+  readyForReview?: boolean
+}
 const chromeThreadsAtom = Atom.map(chromeAtom, (chrome) => chrome?.threads)
 
 const linkedThreadsAtom = Atom.family((key: string) =>
@@ -87,12 +93,20 @@ const linkedThreadsAtom = Atom.family((key: string) =>
       .filter((thread) =>
         thread.pullRequests?.some((link) => link.repo === repo && link.number === number)
       )
-      .map(({ id, title }) => ({ id, title }))
+      .map(({ id, title, status, readyForReview }) => ({ id, title, status, readyForReview }))
   }).pipe(
     Atom.withEquality<LinkedThread[]>(
       (a, b) =>
         a.length === b.length &&
-        a.every((thread, index) => thread.id === b[index]!.id && thread.title === b[index]!.title)
+        a.every((thread, index) => {
+          const other = b[index]!
+          return (
+            thread.id === other.id &&
+            thread.title === other.title &&
+            thread.status === other.status &&
+            thread.readyForReview === other.readyForReview
+          )
+        })
     )
   )
 )

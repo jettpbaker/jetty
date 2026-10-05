@@ -4,7 +4,7 @@ import {
   SkippedStatusIcon,
   SuccessStatusIcon,
 } from '@/components/custom/circle_status_icon'
-import { ArrowTurnBackwardIcon, BubbleChatIcon, PlusSignIcon } from '@/components/custom/huge_icons'
+import { ArrowTurnBackwardIcon, PlusSignIcon } from '@/components/custom/huge_icons'
 import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
@@ -30,6 +30,7 @@ import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
+import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -818,7 +819,10 @@ function Properties({ pr }: { pr: PrPull }) {
             nativeButton={false}
             render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
-            <BubbleChatIcon className='size-4' />
+            <StatusGlyph
+              status={threadStatus(thread.status, thread.readyForReview)}
+              className='size-4'
+            />
             <span className='truncate'>{thread.title}</span>
           </Button>
         ))}

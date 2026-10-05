@@ -19,6 +19,7 @@ import {
   useUnlinkPullRequest,
   useLinkPullRequest,
   pullRequestKey,
+  type LinkedThread,
   type PullRequestRef,
 } from '@/state/pull_requests'
 import { useMemo, useLayoutEffect, type ReactNode } from 'react'
@@ -36,9 +37,6 @@ import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { adaptPullRequest } from './pull_request/adapter'
 import { JettyStyle } from './pull_request/jetty_style'
 import { AfterPrPaint, PrRuntimeContext } from './pull_request/runtime'
-
-type LinkedThread = { id: string; title: string }
-const noThreads: readonly LinkedThread[] = []
 
 function externalLink(url: string) {
   return <a aria-label='Open in GitHub' href={url} target='_blank' rel='noreferrer' />
@@ -108,13 +106,13 @@ export function PullRequestView({
   data,
   link,
   standalone = false,
-  threads = noThreads,
+  threads,
   threadId,
 }: {
   data: PullRequestData
   link: PullRequestAddress
   standalone?: boolean
-  threads?: readonly LinkedThread[]
+  threads: readonly LinkedThread[]
   threadId?: string
 }) {
   const actions = usePullRequestActions(link)
@@ -177,12 +175,10 @@ type PullRequestAddress = PullRequestRef & { url: string }
 export function LivePullRequestView({
   link,
   threadId,
-  threads,
   standalone = false,
 }: {
   link: PullRequestAddress
   threadId?: string
-  threads?: readonly LinkedThread[]
   standalone?: boolean
 }) {
   const { snapshot, refreshing } = usePullRequest(link)
@@ -197,7 +193,7 @@ export function LivePullRequestView({
           data={snapshot.data}
           link={link}
           standalone={standalone}
-          threads={threads ?? linkedThreads}
+          threads={linkedThreads}
           threadId={threadId}
         />
       </MediaLightboxProvider>

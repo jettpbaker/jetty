@@ -1,4 +1,4 @@
-import type { usePullRequestActions, PullRequestRef } from '@/state/pull_requests'
+import type { usePullRequestActions, LinkedThread, PullRequestRef } from '@/state/pull_requests'
 
 import { whenIdle } from '@/lib/preload'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
@@ -8,7 +8,7 @@ import type { LoadDiffFile } from '../file_diff_model'
 export type PrRuntime = {
   ref: PullRequestRef
   actions: ReturnType<typeof usePullRequestActions>
-  threads: readonly { id: string; title: string }[]
+  threads: readonly LinkedThread[]
   more: ReactNode
   sidebar: ReactNode
 }
