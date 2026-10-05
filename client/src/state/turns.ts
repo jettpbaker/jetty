@@ -13,6 +13,7 @@ import {
 } from '@/lib/loadout'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
@@ -35,9 +36,10 @@ import { awaitsInput } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
 
+// Its id becomes the message's id on the server, in the queue and in the thread alike.
 type PendingPrompt = {
+  id: string
   text: string
-  priorCount: number
   images: readonly Attachment[]
   sentAt: number
 }
@@ -74,20 +76,9 @@ function releasePrompts(prompts: readonly PendingPrompt[]) {
 }
 
 function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly ThreadItem[]) {
-  const counts = new Map<string, number>()
-  for (const item of items) {
-    if (item.kind !== 'user_message') continue
-    counts.set(item.text, (counts.get(item.text) ?? 0) + 1)
-  }
-  const used = new Map<string, number>()
-  const left: PendingPrompt[] = []
-  for (const prompt of pending) {
-    const taken = used.get(prompt.text) ?? 0
-    const available = (counts.get(prompt.text) ?? 0) - prompt.priorCount
-    if (taken < available) used.set(prompt.text, taken + 1)
-    else left.push(prompt)
-  }
-  return left
+  if (pending.length === 0) return pending
+  const sent = new Set(items.map((item) => item.id))
+  return pending.filter((prompt) => !sent.has(prompt.id))
 }
 
 function overlayItem(
@@ -116,9 +107,9 @@ function resolve(
 }
 
 function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
-  return pending.map((prompt, index) => ({
+  return pending.map((prompt) => ({
     kind: 'user_message',
-    id: `pending:${index}:${prompt.priorCount}:${prompt.text}`,
+    id: prompt.id,
     turnId: 'pending',
     createdAt: prompt.sentAt,
     text: prompt.text,
@@ -130,7 +121,6 @@ function sendTurn(
   registry: Registry,
   threadId: string,
   text: string,
-  priorCount: number,
   loadout: Loadout | undefined,
   images: readonly ReadyImage[] = [],
   fromDraft?: string,
@@ -141,8 +131,8 @@ function sendTurn(
   if (loadout)
     registry.update(loadoutOverridesAtom, (overrides) => new Map(overrides).set(threadId, loadout))
   const prompt: PendingPrompt = {
+    id: newId(),
     text,
-    priorCount,
     sentAt: Date.now(),
     images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
@@ -175,6 +165,7 @@ function sendTurn(
         Effect.andThen(
           connection.request('turn.start', {
             threadId,
+            messageId: prompt.id,
             text,
             ...loadout,
             permissionMode: registry.get(accessModeAtom),
@@ -326,10 +317,10 @@ export function useThreadLoadout(threadId: string | undefined) {
 }
 
 // What the user just sent, shown as sent while the server holds it in the queue for a moment.
-export function useSendingTexts(threadId: string | undefined) {
+export function useSendingIds(threadId: string | undefined) {
   const prompts = useAtomValue(pendingPromptsAtom)
   return useMemo(
-    () => (prompts.get(threadId ?? '') ?? []).map((prompt) => prompt.text),
+    () => (prompts.get(threadId ?? '') ?? []).map((prompt) => prompt.id),
     [prompts, threadId]
   )
 }

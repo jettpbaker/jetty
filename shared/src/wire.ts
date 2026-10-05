@@ -651,6 +651,8 @@ export const methods = {
   'turn.start': {
     params: Schema.Struct({
       threadId: Schema.String,
+      // The id the message keeps while it waits in the queue and once it is in the thread.
+      messageId: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
       text: Schema.String,
       attachments: Schema.optional(
         Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))

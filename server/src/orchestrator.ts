@@ -42,6 +42,7 @@ export const OrchestratorService = Context.Service<Orchestrator>('jetty/Orchestr
 
 export type StartTurnInput = {
   threadId: string
+  messageId?: string
   text: string
   attachments?: readonly UploadAttachment[]
   model?: string
@@ -411,16 +412,16 @@ export function createOrchestrator({
     }
 
     function appendUser(
-      threadId: string,
+      { threadId, messageId, text, queued }: StartTurnInput,
       turnId: string,
-      text: string,
       meta: Attachment[],
-      onCommit: Effect.Effect<void>,
-      queued?: QueuedMessage
+      onCommit: Effect.Effect<void>
     ) {
       return Effect.gen(function* () {
         const item = {
-          id: newId(),
+          // The message keeps its id from the queue (or the client), so the client can tell it
+          // is the same message whichever update reaches it first.
+          id: queued?.id ?? messageId ?? newId(),
           turnId,
           createdAt: Date.now(),
           kind: 'user_message' as const,
@@ -689,7 +690,7 @@ export function createOrchestrator({
                 // setup keeps it for Retry.
                 if (thread.environment === 'worktree' && !input.queued) {
                   const message: QueuedMessage = {
-                    id: newId(),
+                    id: input.messageId ?? newId(),
                     text: input.text,
                     createdAt: Date.now(),
                     hop: 0,
@@ -728,14 +729,9 @@ export function createOrchestrator({
                   input.threadId,
                   agentText(input, fromCreator),
                   saved.images,
-                  appendUser(
-                    input.threadId,
-                    turnId,
-                    input.text,
-                    saved.meta,
-                    onCommit,
-                    input.queued
-                  ).pipe(Effect.mapError(toAgentError))
+                  appendUser(input, turnId, saved.meta, onCommit).pipe(
+                    Effect.mapError(toAgentError)
+                  )
                 )
                 if (!accepted) {
                   return yield* Effect.fail(
@@ -759,14 +755,7 @@ export function createOrchestrator({
                   loadout && event.type === 'turn.started' ? { ...event, loadout } : event,
                   onCommit
                 ).pipe(Effect.mapError(toAgentError))
-              const turn = yield* appendUser(
-                input.threadId,
-                turnId,
-                input.text,
-                saved.meta,
-                onCommit,
-                input.queued
-              ).pipe(
+              const turn = yield* appendUser(input, turnId, saved.meta, onCommit).pipe(
                 Effect.andThen(
                   Effect.gen(function* () {
                     const folder = cwd

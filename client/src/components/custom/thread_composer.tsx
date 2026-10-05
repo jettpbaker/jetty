@@ -33,7 +33,7 @@ import {
   useQueueActions,
   useRespondApproval,
   useRespondQuestion,
-  useSendingTexts,
+  useSendingIds,
   useSendTurn,
   useThreadLoadout,
   useThreadQueue,
@@ -67,7 +67,7 @@ export function ThreadComposer({
   running: boolean
   rows: number
   ambient?: boolean
-  // Sending waits for the thread: it matches the prompt against the thread's earlier messages.
+  // Sending waits for the thread: until it loads, whether a send starts a turn or queues is unknown.
   loading?: boolean
   provider?: string
   projectPath?: string
@@ -110,19 +110,19 @@ export function ThreadComposer({
     update({ target: { ...read().target, ...patch } })
   }
   const meta = chrome?.threads.find((thread) => thread.id === threadId)
-  const sending = useSendingTexts(threadId)
+  const sending = useSendingIds(threadId)
   // A message just sent already shows as sent, though the server queues it for a moment (or
-  // until the worktree is ready); only real follow-ups belong in the tray.
-  const queue = useMemo(() => {
-    const unclaimed = [...sending]
-    return queued.filter((entry) => {
-      if (entry.from) return false
-      const index = unclaimed.indexOf(entry.text)
-      if (index === -1) return true
-      unclaimed.splice(index, 1)
-      return false
-    })
-  }, [queued, sending])
+  // until the worktree is ready); one already in the thread can still be in the queue until
+  // that update arrives. Only real follow-ups belong in the tray; other threads' messages wait
+  // unseen.
+  const { queue, relayed } = useMemo(() => {
+    if (queued.length === 0) return { queue: queued, relayed: 0 }
+    const shown = new Set(sending)
+    for (const item of items) if (item.kind === 'user_message') shown.add(item.id)
+    const unsent = queued.filter((entry) => !shown.has(entry.id))
+    const own = unsent.filter((entry) => !entry.from)
+    return { queue: own, relayed: unsent.length - own.length }
+  }, [items, queued, sending])
   const retrySetup = useRetrySetup()
   const needsModel = !threadId && !loadout
 
@@ -210,16 +210,11 @@ export function ThreadComposer({
       input.current?.focus({ preventScroll: true })
   }
 
-  function priorCount(text: string) {
-    return items.filter((entry) => entry.kind === 'user_message' && entry.text === text).length
-  }
-
   // In the background, the new-thread page stays put with its picks for the next prompt.
   function startTurn(text: string, background: boolean) {
     const id =
       threadId ?? (projectId ? createThread(projectId, environment, startingRef) : undefined)
     if (!id) return
-    const prior = priorCount(text)
     const kept = read().target
     setDraft('')
     const open = () => void navigate({ to: '/threads/$threadId', params: { threadId: id } })
@@ -228,7 +223,7 @@ export function ThreadComposer({
       background && !threadId
         ? toast('Started in background', { action: { label: 'Open', onClick: open } })
         : undefined
-    sendTurn(id, text, prior, loadout, attachments.take(), draftKey, () => {
+    sendTurn(id, text, loadout, attachments.take(), draftKey, () => {
       if (notice !== undefined) toast.dismiss(notice)
     })
     if (threadId) return
@@ -256,7 +251,7 @@ export function ThreadComposer({
   const paused = Boolean(chrome?.threads.find((thread) => thread.id === threadId)?.queuePaused)
   const queueControl = {
     queue,
-    waiting: paused ? queued.length - queue.length : 0,
+    waiting: paused ? relayed : 0,
     running,
     paused,
     editing,
