@@ -131,10 +131,6 @@ export function KeybindProvider({ children }: { children: ReactNode }) {
   return <ModifierContext value={revealed}>{children}</ModifierContext>
 }
 
-export function useModifierHeld(binding?: Keybind) {
-  return matches(binding, useContext(ModifierContext))
-}
-
 export function useHeldModifiers() {
   return useContext(ModifierContext)
 }
@@ -200,6 +196,16 @@ export function HeldKeybind({ binding, children }: { binding?: Keybind; children
   )
 }
 
+// While every modifier is held, `children` (a control's icon) becomes the one key left to press.
+export function KeybindIcon({ binding, children }: { binding: Keybind; children: ReactNode }) {
+  const held = useHeldModifiers()
+  return held.length === binding.modifiers.length && matches(binding, held) ? (
+    <KeybindChip binding={binding} held={held} />
+  ) : (
+    children
+  )
+}
+
 export function KeybindTooltip({
   binding,
   children,
@@ -207,24 +213,13 @@ export function KeybindTooltip({
   binding: Keybind
   children: ReactElement
 }) {
-  const held = useModifierHeld(binding)
-  const heldModifiers = useHeldModifiers()
   return (
-    <span className='relative inline-flex shrink-0'>
-      <Tooltip>
-        <TooltipTrigger render={children} />
-        <TooltipContent>
-          {binding.name}
-          <KeybindChip binding={binding} />
-        </TooltipContent>
-      </Tooltip>
-      {held && (
-        <KeybindChip
-          binding={binding}
-          held={heldModifiers}
-          className='absolute left-1/2 top-full z-40 mt-1 -translate-x-1/2'
-        />
-      )}
-    </span>
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent>
+        {binding.name}
+        <KeybindChip binding={binding} />
+      </TooltipContent>
+    </Tooltip>
   )
 }

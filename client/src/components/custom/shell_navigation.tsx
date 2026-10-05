@@ -1,12 +1,12 @@
 import type { RouterHistory } from '@tanstack/react-router'
 
-import { ArrowLeft01Icon, ArrowRight01Icon } from '@/components/custom/huge_icons'
+import { ArrowLeft01Icon, ArrowRight01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
-import { KeybindTooltip, keybinds } from './keybinds'
+import { KeybindIcon, KeybindTooltip, keybinds } from './keybinds'
 
 const widthTransition =
   'transition-[width] duration-(--motion-sidebar-open-duration) data-[sidebar-open=false]:duration-(--motion-sidebar-close-duration) ease-(--motion-sidebar-ease) motion-reduce:transition-none'
@@ -65,7 +65,11 @@ export function ShellNavigation() {
           size='icon'
           className='hover:bg-sidebar-accent'
           aria-label={(isMobile ? openMobile : open) ? 'Collapse sidebar' : 'Expand sidebar'}
-        />
+        >
+          <KeybindIcon binding={keybinds.sidebar}>
+            <SidebarLeftIcon />
+          </KeybindIcon>
+        </SidebarTrigger>
       </KeybindTooltip>
       <div className={expanded ? 'flex shrink-0 items-center gap-1' : 'hidden'}>
         <Button
