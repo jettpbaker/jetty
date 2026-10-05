@@ -330,18 +330,6 @@ export function ThreadList({
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [virtualizer, rows.length, stamp, width, totalSize])
 
-  // The top edge blurs only content that can scroll under it; a short chat has none.
-  const [scrollable, setScrollable] = useState(false)
-  useLayoutEffect(() => {
-    const element = scroller.current
-    if (!element) return
-    const check = () => setScrollable(element.scrollHeight > element.clientHeight)
-    check()
-    const observer = new ResizeObserver(check)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [totalSize])
-
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
     if (!revealId || agentId) return
@@ -426,13 +414,10 @@ export function ThreadList({
 
   return (
     <MediaLightboxProvider>
-      <div
-        data-perf-region='messages'
-        className='conversation-scroll relative flex min-h-0 flex-1 flex-col'
-      >
+      <div data-perf-region='messages' className='relative flex min-h-0 flex-1 flex-col'>
         <section
           ref={scroller}
-          className='scrollbar-subtle scroll-fade-y [scroll-timeline:--conversation_y] [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
+          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none'
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
@@ -469,18 +454,6 @@ export function ThreadList({
             ))}
           </div>
         </section>
-        {scrollable && (
-          <div aria-hidden='true' className='conversation-top-blur'>
-            <div />
-            <div />
-            <div />
-            <div />
-            <div />
-            <div />
-            <div />
-            <div />
-          </div>
-        )}
         <ThreadMinimap
           turns={turns}
           rows={latestRows}

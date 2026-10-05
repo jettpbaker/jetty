@@ -1984,14 +1984,13 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                     </div>
                   </div>
                   {
-                    // The chat's top edge: a fade over blur layers that ramp in as it scrolls.
                     <div
                       className={cn(
-                        'conversation-scroll relative flex min-h-0 flex-1 flex-col',
+                        'relative flex min-h-0 flex-1 flex-col',
                         tab !== 'overview' && 'hidden'
                       )}
                     >
-                      <div className='scrollbar-subtle scroll-fade-y min-h-0 flex-1 overflow-auto [scroll-timeline:--conversation_y]'>
+                      <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
                         <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
                           <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
                             <div className='space-y-1'>
@@ -2068,11 +2067,6 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             </Section>
                           </div>
                         </main>
-                      </div>
-                      <div aria-hidden='true' className='conversation-top-blur'>
-                        {Array.from({ length: 8 }, (_, layer) => (
-                          <div key={layer} />
-                        ))}
                       </div>
                     </div>
                   }
