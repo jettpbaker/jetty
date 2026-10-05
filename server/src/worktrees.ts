@@ -123,6 +123,8 @@ const supervised =
 // Without a .worktreeinclude, env files are what a fresh worktree most often lacks.
 const defaultIncludes = ['--exclude=.env*', '--exclude=!**/node_modules/**']
 const dirtyArchive = 'Commit or discard uncommitted changes before archiving this worktree'
+const detachedArchive =
+  "Put the commits on this worktree's detached HEAD on a branch before archiving it"
 
 export function createWorktrees(
   store: Store,
@@ -292,6 +294,20 @@ export function createWorktrees(
   async function changes(folder: string) {
     const status = await git(folder, 'status', '--porcelain', '--untracked-files=all')
     return status ? status.split('\n').length : 0
+  }
+
+  // Removing a worktree deletes its HEAD's reflog, the only trace of commits made detached.
+  async function strandsCommits(folder: string) {
+    if (await git(folder, 'branch', '--show-current')) return false
+    const refs = ['refs/heads', 'refs/remotes', 'refs/tags']
+    return !(await git(folder, 'for-each-ref', '--count=1', '--contains', 'HEAD', ...refs))
+  }
+
+  async function detached(threadId: string) {
+    const { thread, project } = await locate(threadId)
+    if (thread.environment !== 'worktree') return false
+    const folder = folderOf(project.id, threadId)
+    return (await exists(folder)) && strandsCommits(folder)
   }
 
   async function refresh(threadId: string) {
@@ -525,16 +541,19 @@ export function createWorktrees(
     if (thread.environment !== 'worktree') return
     if (preparations.has(threadId)) throw new StoreError('conflict', 'Worktree setup is running')
     const folder = folderOf(project.id, threadId)
+    async function checkArchivable() {
+      if (await changes(folder)) throw new StoreError('conflict', dirtyArchive)
+      if (await strandsCommits(folder)) throw new StoreError('conflict', detachedArchive)
+    }
     if (!deleting) {
-      if ((await exists(folder)) && (await changes(folder)))
-        throw new StoreError('conflict', dirtyArchive)
+      if (await exists(folder)) await checkArchivable()
       if (!cleanedUp) await cleanUp(threadId)
     }
     await serialized(project.path, async () => {
       const record = await run(store.getWorktree(threadId))
       if (!record) return
       if (await exists(folder)) {
-        if (!deleting && (await changes(folder))) throw new StoreError('conflict', dirtyArchive)
+        if (!deleting) await checkArchivable()
         // Resume checks out the branch the worktree is on now, wherever its work moved.
         const current = deleting ? '' : await tryGit(folder, 'branch', '--show-current')
         if (current && current !== record.branch) {
@@ -640,6 +659,7 @@ export function createWorktrees(
     prepare,
     stopSetup,
     dirty,
+    detached,
     cleanUp,
     remove,
     rename,

@@ -833,6 +833,7 @@ test('a refused archive fails with the archive script’s own error', async () =
       const worktrees = {
         stopSetup: () => false,
         dirty: async () => 0,
+        detached: async () => false,
         cleanUp: async () => {
           throw new Error('Worktree archive failed: docker is not running')
         },

@@ -325,6 +325,13 @@ export function createOrchestrator({
                 `Cannot archive thread ${thread.title} (${thread.id}): commit or discard uncommitted worktree changes first`
               )
             )
+          if (yield* worktreeTask(() => worktrees.detached(thread.id)))
+            return yield* Effect.fail(
+              new StoreError(
+                'conflict',
+                `Cannot archive thread ${thread.title} (${thread.id}): put the commits on its worktree's detached HEAD on a branch first`
+              )
+            )
         }
       })
     }

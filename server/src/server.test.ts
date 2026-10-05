@@ -1967,6 +1967,44 @@ describe('thread.diff', () => {
   })
 })
 
+describe('worktree archive', () => {
+  test('refuses while commits on a detached HEAD are on no branch', async () => {
+    const repo = dir(join(tmpdir(), `jetty-detached-${newId()}`))
+    const git = (cwd: string, ...args: string[]) =>
+      Bun.spawnSync(['git', ...args], { cwd }).exitCode
+    if (git(repo, 'init', '-q') !== 0) return // git unavailable in this sandbox
+    git(repo, 'config', 'user.email', 'test@example.com')
+    git(repo, 'config', 'user.name', 'Test')
+    git(repo, 'config', 'commit.gpgsign', 'false')
+    git(repo, 'commit', '-q', '--allow-empty', '-m', 'init')
+    const running = await boot()
+    const c = await connect(running.port)
+    const { project } = await c.request('project.create', { path: repo })
+    const { thread } = await c.request('thread.create', {
+      environment: 'worktree',
+      id: newId(),
+      projectId: project.id,
+    })
+    await c.request('thread.retrySetup', { threadId: thread.id })
+    const worktree = join(running.home, 'worktrees', project.id, thread.id)
+    git(worktree, 'checkout', '-q', '--detach')
+    git(worktree, 'commit', '-q', '--allow-empty', '-m', 'detached work')
+
+    const refused = await c
+      .request('thread.archive', { threadId: thread.id, archived: true })
+      .catch((error: unknown) => error)
+    expect(refused).toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('detached'),
+    })
+    expect(existsSync(worktree)).toBe(true)
+
+    git(worktree, 'switch', '-q', '-c', 'kept')
+    await c.request('thread.archive', { threadId: thread.id, archived: true })
+    expect(existsSync(worktree)).toBe(false)
+  })
+})
+
 describe('ws origin gate', () => {
   test('websocket upgrades require an allowed origin', async () => {
     const { port } = await boot()
