@@ -1,5 +1,4 @@
 import type { EffortLevel, ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
 import type {
   PermissionMode,
   ProviderId,
@@ -11,6 +10,12 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
+import {
+  heldByRestarts,
+  type ApprovalDecision,
+  type Attachment,
+  type ThreadItem,
+} from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { newId } from '@jetty/shared/wire'
 import { Context, Effect, Layer, Queue, Semaphore } from 'effect'
@@ -21,7 +26,12 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, type Agent } from './agent'
-import { CHILD_REPORT_INSTRUCTION, deniedApprovalNote, userAnswers } from './jetty-instructions'
+import {
+  CHILD_REPORT_INSTRUCTION,
+  deniedApprovalNote,
+  restartNote,
+  userAnswers,
+} from './jetty-instructions'
 import {
   isAgentProvider,
   singleAgentRegistry,
@@ -939,6 +949,31 @@ export function createOrchestrator({
       },
       startTurnEffect,
       setQueuePaused,
+      // Resumes a thread the crash-loop guard held as a restart would have: Jetty's note goes first
+      // in its queue. A thread that has moved on is left alone, so a second press sends nothing.
+      continueThread(threadId: string) {
+        return state(threadId).admission.withPermit(
+          hub.withChromePublication(
+            Effect.gen(function* () {
+              const { items } = yield* store.getThreadState(threadId)
+              if (state(threadId).turnId || !heldByRestarts(items)) return
+              yield* store.transaction(
+                Effect.gen(function* () {
+                  const thread = yield* store.requireThread(threadId)
+                  if (!thread.pendingMessages?.some((message) => message.kind === 'continuation'))
+                    yield* store.enqueue(threadId, restartNote(threadId), true)
+                  yield* store.setQueuePaused(threadId, false)
+                })
+              )
+              hub.pushChrome({
+                type: 'thread.upserted',
+                thread: yield* store.requireThread(threadId),
+              })
+              yield* Queue.offer(store.queueChanges, undefined)
+            })
+          )
+        )
+      },
       currentTurn(threadId: string) {
         return state(threadId).turnId
       },

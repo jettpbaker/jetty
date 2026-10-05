@@ -521,6 +521,8 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'thread.compact': ({ threadId }) =>
         orch.compact(threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
+      'thread.continue': ({ threadId }) =>
+        orch.continueThread(threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'turn.start': (params) =>
         Effect.gen(function* () {
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)

@@ -45,6 +45,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('thread.worktreeChanges'),
   unary('thread.retrySetup'),
   unary('thread.compact'),
+  unary('thread.continue'),
   unary('settings.setTitleModel'),
   unary('settings.setAgentBehaviour'),
   unary('project.create'),

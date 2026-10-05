@@ -365,6 +365,8 @@ export const methods = {
   },
   'thread.compact': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   'thread.retrySetup': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
+  // Resumes a thread the crash-loop guard paused, as a restart would have.
+  'thread.continue': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   'settings.setTitleModel': {
     params: TitleModel,
     result: Schema.Null,

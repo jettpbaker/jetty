@@ -1,4 +1,9 @@
-import { agentBehaviours, type AgentBehaviours } from '@jetty/shared/wire'
+import {
+  agentBehaviours,
+  newId,
+  type AgentBehaviours,
+  type QueuedMessage,
+} from '@jetty/shared/wire'
 
 const base = [
   '# Jetty',
@@ -15,9 +20,17 @@ export function jettyInstructions(behaviours: AgentBehaviours) {
   ].join('\n\n')
 }
 
-export function restartContinuation(stoppedNames: readonly string[]) {
+// Jetty's note to an agent whose turn a restart cut off, sent first from its queue.
+export function restartNote(threadId: string, stoppedNames: readonly string[] = []): QueuedMessage {
   const names = stoppedNames.length ? `: ${stoppedNames.join(', ')}` : ''
-  return `Jetty restarted while you were working and cut off your last turn. Anything you had running in the background (commands, monitors, subagents) was stopped and won't report back${names}. Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`
+  return {
+    id: newId(),
+    text: `Jetty restarted while you were working and cut off your last turn. Anything you had running in the background (commands, monitors, subagents) was stopped and won't report back${names}. Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`,
+    from: { threadId, title: 'Jetty' },
+    kind: 'continuation',
+    createdAt: Date.now(),
+    hop: 0,
+  }
 }
 
 export const CHILD_REPORT_INSTRUCTION =

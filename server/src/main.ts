@@ -47,7 +47,7 @@ import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
-import { restartContinuation } from './jetty-instructions'
+import { restartNote } from './jetty-instructions'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -159,18 +159,7 @@ function reconcileOnStartup(store: Store) {
               },
             })
           if (autoResume)
-            yield* store.enqueue(
-              thread.id,
-              {
-                id: newId(),
-                text: restartContinuation(stoppedNames),
-                from: { threadId: thread.id, title: 'Jetty' },
-                kind: 'continuation',
-                createdAt: Date.now(),
-                hop: 0,
-              },
-              true
-            )
+            yield* store.enqueue(thread.id, restartNote(thread.id, stoppedNames), true)
         })
       )
     }
