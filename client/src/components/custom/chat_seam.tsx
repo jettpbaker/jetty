@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 
 import { cn } from 'cn'
 
@@ -8,7 +8,7 @@ export function ChatSeam({ children, className }: { children: ReactNode; classNa
   return (
     <div
       className={cn(
-        'flex min-h-6 min-w-0 items-center gap-3 text-xs text-muted-foreground',
+        'flex min-h-6 min-w-0 items-center gap-3 text-sm text-muted-foreground',
         className
       )}
     >
@@ -16,5 +16,19 @@ export function ChatSeam({ children, className }: { children: ReactNode; classNa
       <span className='flex min-w-0 items-center gap-1.5'>{children}</span>
       <span aria-hidden='true' className='min-w-6 flex-1 border-t border-border' />
     </div>
+  )
+}
+
+export function SeamIcon({
+  icon: Icon,
+  tone,
+}: {
+  icon: ComponentType<{ className?: string }>
+  tone?: string
+}) {
+  return (
+    <span className={cn('flex shrink-0', tone)}>
+      <Icon className='size-3.5' />
+    </span>
   )
 }

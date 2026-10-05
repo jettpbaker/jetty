@@ -5,7 +5,7 @@ import {
   HistoryIcon,
 } from '@/components/custom/huge_icons'
 
-import { ChatSeam } from './chat_seam'
+import { ChatSeam, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
 import { SourceLabel } from './source_label'
@@ -117,9 +117,7 @@ export function TranscriptMarker({
 export function CompactionSeam({ running }: { running: boolean }) {
   return (
     <ChatSeam>
-      <span className='flex shrink-0'>
-        <HistoryIcon className='size-3' />
-      </span>
+      <SeamIcon icon={HistoryIcon} />
       {running ? <span className='shimmer'>Compacting</span> : 'Compacted'}
     </ChatSeam>
   )
