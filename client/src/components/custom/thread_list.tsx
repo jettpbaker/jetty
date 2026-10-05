@@ -47,7 +47,16 @@ import {
   type Virtualizer,
   type VirtualItem,
 } from '@tanstack/react-virtual'
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import { flushSync } from 'react-dom'
 
 const pinSlack = 96
@@ -408,6 +417,21 @@ export function ThreadList({
     [rows, width, fontsReady, rough]
   )
 
+  // A row the ResizeObserver sees change size (a block easing shut, sizes saved when the thread was
+  // left) would otherwise be drawn at its old place for a frame, until the virtualizer's own
+  // re-render lands after the paint. Its callbacks run before the paint, so the list redraws there,
+  // once for all the rows that changed.
+  const [, redraw] = useReducer((count: number) => count + 1, 0)
+  const redrawQueued = useRef(false)
+  function redrawBeforePaint() {
+    if (redrawQueued.current) return
+    redrawQueued.current = true
+    queueMicrotask(() => {
+      redrawQueued.current = false
+      flushSync(redraw)
+    })
+  }
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
@@ -424,6 +448,7 @@ export function ThreadList({
       const size = measureElement(element, entry, instance)
       const item = instance.measurementsCache[instance.indexFromElement(element)]
       if (item?.size === size) instance.itemSizeCache.set(item.key, size)
+      else if (entry) redrawBeforePaint()
       return size
     },
     // A pinned thread mounts its bottom rows, not its top; the scroller is never taller than the window.
