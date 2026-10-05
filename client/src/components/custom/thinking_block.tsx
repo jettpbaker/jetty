@@ -8,8 +8,9 @@ import { formatActivityDuration, workEnded, type ThinkingActivity } from './work
 const TICK_MS = 120
 
 // v1's climb: every tick closes a tenth of the gap to the latest total, at least one token. It
-// writes the node directly, so a climbing count never re-renders the work block.
-function TokenCount({ value, from }: { value: number; from: number }) {
+// writes the node directly, so a climbing count never re-renders the work block. A settled count
+// shows its true total at once.
+function TokenCount({ value, from, settled }: { value: number; from: number; settled: boolean }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [initial] = useState(from)
   const shown = useRef(initial)
@@ -20,7 +21,11 @@ function TokenCount({ value, from }: { value: number; from: number }) {
       shown.current = count
       node.textContent = count.toLocaleString('en')
     }
-    if (shown.current >= value || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (
+      settled ||
+      shown.current >= value ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
       show(value)
       return
     }
@@ -32,7 +37,7 @@ function TokenCount({ value, from }: { value: number; from: number }) {
       if (shown.current < value) frame = requestAnimationFrame(tick)
     })
     return () => cancelAnimationFrame(frame)
-  }, [value])
+  }, [value, settled])
   return (
     <span ref={ref} className='font-mono'>
       {initial.toLocaleString('en')}
@@ -69,7 +74,7 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
   const active = activity.status === 'running'
   const tokens = activity.tokens !== undefined && (
     <>
-      <TokenCount value={activity.tokens} from={mountTokens ?? 0} />
+      <TokenCount value={activity.tokens} from={mountTokens ?? 0} settled={ended} />
       {` token${activity.tokens === 1 ? '' : 's'}`}
     </>
   )
