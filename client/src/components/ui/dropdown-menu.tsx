@@ -70,6 +70,8 @@ function DropdownMenuLabel({
   )
 }
 
+// Glyphs sitting directly in a row idle muted and take the row's colour when it lights up or
+// disables. A glyph with its own text-* colour (a state glyph, a tick, a chevron) keeps it.
 function DropdownMenuItem({
   className,
   inset,
@@ -85,7 +87,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 data-[variant=destructive]:*:[svg]:text-destructive",
+        "relative flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:not-data-disabled:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 data-[variant=destructive]:*:[svg]:text-destructive [&:not(:focus,[data-disabled],[data-variant=destructive])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground",
         className
       )}
       {...props}
@@ -136,13 +138,13 @@ function DropdownMenuSubTrigger({
         if (!props.disabled) openSubmenu()
       }}
       className={cn(
-        "flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "flex items-center gap-2 rounded-menu-item px-2 h-menu-item-compact py-0.5 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:not-data-disabled:text-accent-foreground data-inset:pl-8 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 [&:not(:focus,[data-popup-open],[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground",
         className
       )}
       {...props}
     >
       {children}
-      <ArrowRight01Icon className='ml-auto' />
+      <ArrowRight01Icon className='ml-auto text-muted-foreground' />
     </MenuPrimitive.SubmenuTrigger>
   )
 }
@@ -185,7 +187,7 @@ function DropdownMenuCheckboxItem({
       data-slot='dropdown-menu-checkbox-item'
       data-inset={inset}
       className={cn(
-        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:not-data-disabled:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 [&:not(:focus,[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground",
         className
       )}
       checked={checked}
@@ -223,7 +225,7 @@ function DropdownMenuRadioItem({
       data-inset={inset}
       closeOnClick={closeOnClick}
       className={cn(
-        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "relative flex items-center gap-2 rounded-menu-item h-menu-item-compact py-0.5 pr-8 pl-2 text-xs whitespace-nowrap outline-hidden select-none focus:bg-accent focus:not-data-disabled:text-accent-foreground data-inset:pl-8 data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 [&:not(:focus,[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground",
         className
       )}
       {...props}
@@ -255,10 +257,7 @@ function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'spa
   return (
     <span
       data-slot='dropdown-menu-shortcut'
-      className={cn(
-        'ml-auto text-xs tracking-widest text-muted-foreground group-focus/dropdown-menu-item:text-accent-foreground',
-        className
-      )}
+      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
       {...props}
     />
   )

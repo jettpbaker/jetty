@@ -29,12 +29,12 @@ export function ComposerAttach({ onAttach }: { onAttach: (files: File[]) => void
           <DropdownMenuItem
             onClick={() => void pickFiles({ accept: imageAccept, multiple: true }).then(onAttach)}
           >
-            <Attachment01Icon className='text-muted-foreground' />
+            <Attachment01Icon />
             Attach images
           </DropdownMenuItem>
           <DisabledTooltip reason='Coming soon' side='right'>
             <DropdownMenuItem disabled>
-              <CircleDotIcon className='text-muted-foreground' />
+              <CircleDotIcon />
               Link issue
             </DropdownMenuItem>
           </DisabledTooltip>

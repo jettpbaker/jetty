@@ -589,7 +589,7 @@ function LoadoutSlot({
                           closeOnClick={false}
                           onCheckedChange={(fast) => onChange({ ...slot, fast })}
                         >
-                          <FlashIcon filled={slot.fast} className='text-muted-foreground' />
+                          <FlashIcon filled={slot.fast} />
                           Fast
                           <Switch
                             render={<span />}

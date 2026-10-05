@@ -32,20 +32,12 @@
   padding-block: 0;
   font-size: var(--text-xs);
 }
-.search-picker [data-slot='command-item'][data-selected='true'] {
-  background: var(--accent);
-}
 .search-picker svg {
   width: 12px;
   height: 12px;
-  color: var(--muted-foreground) !important;
 }
 .search-picker [data-slot='input-group-addon'] svg {
   opacity: 1;
-}
-
-.picker-glyph svg {
-  color: currentColor !important;
 }
 
 .commit-picker-graph [data-slot='command-item'] {

@@ -49,8 +49,7 @@ import { KeybindChip, KeybindTooltip, keybinds, typingOutsideComposer } from './
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
-export const subTriggerClass =
-  'gap-1 [&>svg:last-child]:ml-0 [&>svg:last-child]:text-muted-foreground'
+export const subTriggerClass = 'gap-1 [&>svg:last-child]:ml-0'
 const sensors = [
   PointerSensor.configure({
     activationConstraints: [new PointerActivationConstraints.Distance({ value: 6 })],
@@ -155,7 +154,7 @@ function SortableLoadoutItem({
         <span className='flex items-center gap-1.5'>
           <ProviderGlyph
             provider={provider}
-            className='size-3 text-muted-foreground group-data-checked/loadout:text-foreground'
+            className='size-3 text-muted-foreground group-focus/loadout:text-current group-data-checked/loadout:text-current group-data-disabled/loadout:text-current'
           />
           {name}
           <span className='text-muted-foreground'>{details}</span>
@@ -440,13 +439,7 @@ export function ComposerLoadout({
               }
               side='right'
             >
-              <DropdownMenuSubTrigger
-                className={cn(
-                  subTriggerClass,
-                  'data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground'
-                )}
-                disabled={efforts.length === 0}
-              >
+              <DropdownMenuSubTrigger className={subTriggerClass} disabled={efforts.length === 0}>
                 Effort
                 <span className='ml-auto pl-4 text-muted-foreground'>
                   {value?.effort && effortLabels[value.effort]}

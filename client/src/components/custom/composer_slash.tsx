@@ -240,7 +240,7 @@ export function useComposerSlash(
           '',
           model === entry,
           () => swapModel(entry),
-          <ProviderGlyph provider={entry.provider} className='size-3 text-muted-foreground' />
+          <ProviderGlyph provider={entry.provider} className='size-3' />
         )
       )
     if (command === 'effort')
@@ -654,14 +654,11 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     onClick: entry.disabled ? undefined : entry.run,
   } as const
   const row =
-    'flex cursor-default items-center gap-2 rounded-menu-item px-2 text-xs select-none data-active:bg-accent data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted-foreground'
+    "flex cursor-default items-center gap-2 rounded-menu-item px-2 text-xs select-none data-active:bg-accent data-active:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:size-3 [&_svg]:shrink-0 [&:not([data-active],[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground"
 
   if (entry.kind === 'back')
     return (
-      <div
-        {...props}
-        className={`${row} h-menu-item-compact text-muted-foreground data-active:text-foreground`}
-      >
+      <div {...props} className={`${row} h-menu-item-compact text-muted-foreground`}>
         <ArrowLeft01Icon />
         Backspace to go back
       </div>
@@ -670,10 +667,10 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
   return (
     <div {...props} className={`${row} h-menu-item-compact`}>
       {entry.icon}
-      <span className='shrink-0 text-foreground'>{entry.name}</span>
+      <span className='shrink-0'>{entry.name}</span>
       <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
-      {entry.kind === 'option' && entry.selected && <Tick02Icon />}
-      {entry.opens && <ArrowRight01Icon />}
+      {entry.kind === 'option' && entry.selected && <Tick02Icon className='text-current' />}
+      {entry.opens && <ArrowRight01Icon className='text-muted-foreground' />}
     </div>
   )
 }

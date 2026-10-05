@@ -42,12 +42,12 @@ export function ComposerEnvironment({
         >
           <DisabledTooltip reason={worktreeDisabled} side='right'>
             <DropdownMenuRadioItem value='worktree' disabled={worktreeDisabled !== undefined}>
-              <FolderGit2Icon className='text-muted-foreground' />
+              <FolderGit2Icon />
               Worktree
             </DropdownMenuRadioItem>
           </DisabledTooltip>
           <DropdownMenuRadioItem value='local'>
-            <LaptopIcon className='text-muted-foreground' />
+            <LaptopIcon />
             Current checkout
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

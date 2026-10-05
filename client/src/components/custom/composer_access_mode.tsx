@@ -92,7 +92,7 @@ export function ComposerAccessMode({
         >
           {Object.entries(modes).map(([id, mode]) => (
             <DropdownMenuRadioItem key={id} value={id}>
-              <mode.Icon className='text-muted-foreground' />
+              <mode.Icon />
               {mode.label}
             </DropdownMenuRadioItem>
           ))}

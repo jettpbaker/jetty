@@ -479,7 +479,7 @@ function ChecksSummary({ pr }: { pr: PrPull }) {
   )
 }
 
-// One check's glyph and colour; the picker colours a wrapper, since its stylesheet mutes icons.
+// One check's glyph and colour.
 function checkTone(check: PrCheck) {
   return running(check)
     ? { tone: 'text-status-working', glyph: <InProgressIcon /> }
@@ -519,7 +519,7 @@ function ChecksPill({ pr }: { pr: PrPull }) {
         value={`check:${check.id}`}
         onSelect={() => window.open(check.url, '_blank', 'noopener')}
       >
-        <span className={cn('picker-glyph shrink-0', tone)}>{glyph}</span>
+        <span className={cn('shrink-0', tone)}>{glyph}</span>
         <span className='min-w-0 truncate'>
           {check.kind === 'run' && (
             <span className='text-muted-foreground'>{check.workflow ?? check.app} / </span>
@@ -607,11 +607,12 @@ function ChecksPill({ pr }: { pr: PrPull }) {
                       onSelect={() => setShowSkipped(true)}
                       className='text-muted-foreground'
                     >
-                      <span className='picker-glyph shrink-0'>
-                        <SkippedStatusIcon />
-                      </span>
+                      <SkippedStatusIcon />
                       {countLabel(skipped.length, 'skipped check')}
-                      <span data-slot='command-shortcut' className='ml-auto flex shrink-0'>
+                      <span
+                        data-slot='command-shortcut'
+                        className='ml-auto flex shrink-0 text-muted-foreground'
+                      >
                         <ArrowDown01Icon className='size-3.5' />
                       </span>
                     </CommandItem>
@@ -1384,7 +1385,7 @@ function CommitPicker({
                         onChange(commit.sha)
                       }}
                     >
-                      <span className='commit-picker-node relative flex shrink-0 items-center text-muted-foreground'>
+                      <span className='commit-picker-node relative flex shrink-0 items-center text-muted-foreground group-data-selected/command-item:text-current'>
                         {commit.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
                       </span>
                       <span className='min-w-0 flex-1 truncate'>{subject(commit)}</span>

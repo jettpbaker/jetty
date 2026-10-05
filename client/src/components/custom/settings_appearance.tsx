@@ -161,7 +161,7 @@ export function SettingsAppearance() {
             <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
               {themes.map(({ value, label, Icon }) => (
                 <DropdownMenuRadioItem key={value} value={value}>
-                  <Icon aria-hidden='true' className='size-3 text-muted-foreground' />
+                  <Icon aria-hidden='true' className='size-3' />
                   {label}
                 </DropdownMenuRadioItem>
               ))}
