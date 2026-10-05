@@ -429,6 +429,23 @@ export function createStore() {
       })
     }
 
+    // Every attachment a thread still shows or has queued; any other file can go.
+    function heldAttachments() {
+      return sql<{ id: string }>`SELECT attachment_id AS id FROM attachment_refs
+        UNION SELECT json_extract(a.value, '$.id') FROM threads t, json_each(t.pending_messages) m,
+          json_each(m.value, '$.attachments') a`.pipe(
+        Effect.map((rows) => new Set(rows.map((row) => row.id)))
+      )
+    }
+
+    function unheld(ids: readonly string[]) {
+      return Effect.gen(function* () {
+        if (!ids.length) return []
+        const held = yield* heldAttachments()
+        return [...new Set(ids)].filter((id) => !held.has(id))
+      })
+    }
+
     function notifiesParent(threadId: string) {
       return sql<{
         notify_parent: number
@@ -1259,32 +1276,42 @@ export function createStore() {
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
           loaded.delete(threadId)
           const queued = (thread.pendingMessages ?? []).flatMap((m) => m.attachments ?? [])
-          const unused = queued.map((attachment) => attachment.id)
-          for (const { attachment_id: id } of refs) {
-            const shared =
-              yield* sql`SELECT 1 FROM attachment_refs WHERE attachment_id = ${id} LIMIT 1`
-            if (!shared.length) unused.push(id)
-          }
-          return unused
+          return yield* unheld([
+            ...queued.map((attachment) => attachment.id),
+            ...refs.map((ref) => ref.attachment_id),
+          ])
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
-      resolveAttachment(projectId: string, id: string, kind: 'image' | 'video') {
+      // Re-posting an attachment holds it for the thread it goes to before that thread's message
+      // commits, so deleting the thread it came from meanwhile can't remove the file under it.
+      reserveAttachment(threadId: string, id: string, kind: 'image' | 'video') {
         return Effect.gen(function* () {
           const [row] = yield* sql<{
             metadata_json: string
           }>`SELECT r.metadata_json FROM attachment_refs r
             JOIN threads t ON t.id = r.thread_id
-            WHERE r.attachment_id = ${id} AND t.project_id = ${projectId} AND t.archived = 0 LIMIT 1`
+            JOIN threads target ON target.id = ${threadId} AND target.project_id = t.project_id
+            WHERE r.attachment_id = ${id} AND t.archived = 0 LIMIT 1`
           if (row) {
             const attachment = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Attachment))(
               row.metadata_json
             )
-            if (attachment.mimeType.startsWith(kind + '/')) return attachment
+            if (attachment.mimeType.startsWith(kind + '/')) {
+              yield* sql`INSERT OR IGNORE INTO attachment_refs (thread_id, attachment_id, metadata_json)
+                VALUES (${threadId}, ${id}, ${row.metadata_json})`
+              return attachment
+            }
           }
           return yield* Effect.fail(
             new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
           )
-        }).pipe(Effect.mapError(storeError))
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      heldAttachments() {
+        return heldAttachments().pipe(Effect.mapError(storeError))
+      },
+      unheldAttachments(ids: readonly string[]) {
+        return unheld(ids).pipe(Effect.mapError(storeError))
       },
       getThread,
       requireThread,

@@ -619,12 +619,16 @@ export function createOrchestrator({
       )
     }
 
+    // Only files no chat shows and no queue holds: a queued message can carry images its chat
+    // shows too, as when a restart re-sends a message the agent never got.
     function removeAttachments(meta: readonly Attachment[]) {
-      return attachments
-        ? Effect.forEach(meta, (attachment) => attachments.remove(attachment.id), {
-            discard: true,
-          })
-        : Effect.void
+      if (!attachments) return Effect.void
+      return store.unheldAttachments(meta.map((attachment) => attachment.id)).pipe(
+        Effect.flatMap((ids) =>
+          Effect.forEach(ids, (id) => attachments.remove(id), { discard: true })
+        ),
+        Effect.ignore
+      )
     }
 
     const removedQueued = new Map<

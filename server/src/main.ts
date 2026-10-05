@@ -332,6 +332,10 @@ function createServer(opts: ServerOptions = {}) {
       )
     )
     const attachments = Context.get(io, Attachments)
+    yield* store.heldAttachments().pipe(
+      Effect.flatMap(attachments.sweep),
+      Effect.catchCause((cause) => Effect.logWarning(cause))
+    )
     const pullRequests = createPullRequests(store, hub)
     const githubMedia = createGithubMedia(home)
     const perfSink = createPerfSink(home)

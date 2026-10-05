@@ -627,7 +627,7 @@ export function createMcpHandler(
             attachments,
             resolveAttachment: (id: string, kind: 'image' | 'video') =>
               Effect.gen(function* () {
-                const found = yield* store.resolveAttachment(caller.projectId, id, kind)
+                const found = yield* store.reserveAttachment(caller.id, id, kind)
                 if (yield* attachments.resolve(id)) return found
                 return yield* Effect.fail(
                   new StoreError('not_found', `No ${kind} attachment ${id} in this project`)

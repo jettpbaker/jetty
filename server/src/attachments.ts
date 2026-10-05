@@ -227,7 +227,23 @@ export function createAttachments(home: string) {
       }).pipe(Effect.ignore)
     }
 
-    return { dir, persist, persistFile, resolve, load, remove }
+    // Clears what a crash or a failed removal left behind: upload staging folders, and files no
+    // thread holds any more. Runs at startup, before any upload can be in flight.
+    function sweep(held: ReadonlySet<string>) {
+      return Effect.gen(function* () {
+        for (const name of yield* fs.readDirectory(dir)) {
+          const id = name.split('.')[0]!
+          if (
+            name.startsWith('.upload-') ||
+            name.startsWith('.media-') ||
+            (ATTACHMENT_ID_RE.test(id) && !held.has(id))
+          )
+            yield* fs.remove(path.join(dir, name), { recursive: true }).pipe(Effect.ignore)
+        }
+      })
+    }
+
+    return { dir, persist, persistFile, resolve, load, remove, sweep }
   })
 }
 
