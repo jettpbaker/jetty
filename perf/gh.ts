@@ -35,6 +35,10 @@ async function emit(fixture: Pick<Fixture, 'code' | 'stdout' | 'stderr'>): Promi
   process.exit(fixture.code)
 }
 
+// The lab never hands out the login: what the server fetched with it would bypass the fixtures.
+if (args[0] === 'auth' && args[1] === 'token')
+  await emit({ code: 1, stdout: '', stderr: 'perf gh: no token in the lab\n' })
+
 if (mode === 'record') {
   const real = process.env.PERF_GH_REAL
   if (!real) await emit({ code: 1, stdout: '', stderr: 'perf gh: no real gh to record from\n' })

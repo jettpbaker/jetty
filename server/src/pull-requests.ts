@@ -237,6 +237,31 @@ async function gh(args: string[], input?: string) {
   }
 }
 
+async function readGhToken(): Promise<string | null> {
+  const bin = Bun.which('gh')
+  if (!bin) return null
+  try {
+    const child = Bun.spawn([bin, 'auth', 'token', '--hostname', 'github.com'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+      signal: AbortSignal.timeout(3000),
+    })
+    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
+    return code === 0 ? out.trim() || null : null
+  } catch {
+    return null
+  }
+}
+
+let tokenRead: { value: Promise<string | null>; at: number } | undefined
+
+// The gh login, for GitHub hosts gh won't call itself.
+export function ghToken() {
+  if (!tokenRead || Date.now() - tokenRead.at > 5 * 60_000)
+    tokenRead = { value: readGhToken(), at: Date.now() }
+  return tokenRead.value
+}
+
 const rateHealth = {
   remaining: null as number | null,
   resetAt: null as string | null,
@@ -875,6 +900,92 @@ function mapReviewComment(
   }
 }
 
+type PullRequestFile = PullRequestData['files'][number]
+
+// Lockfiles GitHub's Linguist leaves unmarked.
+const generatedNames = new Set(['yarn.lock', 'go.sum', 'Gemfile.lock'])
+const generatedBanner = /@generated\b|\bdo not edit\b/i
+// Banners are looked for in a file's first 2 KiB.
+const headBytes = 2048
+// Whether a file's head carries a banner, by blob SHA.
+const headVerdicts = new Map<string, boolean>()
+
+// The file's first lines as its patch shows them, when the first hunk starts at line 1.
+function patchHead(file: PullRequestFile) {
+  const removed = file.status === 'removed'
+  const start = file.patch?.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/)
+  if (!file.patch || Number(start?.[removed ? 1 : 2]) !== 1) return undefined
+  const lines = file.patch.slice(0, 4 * headBytes).split('\n')
+  let head = ''
+  for (const line of lines.slice(1)) {
+    if (line.startsWith('@@') || head.length >= headBytes) break
+    if (line[0] === ' ' || line[0] === (removed ? '-' : '+')) head += `${line.slice(1)}\n`
+  }
+  return head
+}
+
+// Undefined until the file's head has been seen: added and removed files show it whole.
+function headVerdict(file: PullRequestFile) {
+  const known = cacheRead(headVerdicts, file.sha)
+  if (known !== undefined) return known
+  const head = patchHead(file)
+  if (head === undefined) return undefined
+  const verdict = generatedBanner.test(head.slice(0, headBytes))
+  if (!verdict && head.length < headBytes && file.status !== 'added' && file.status !== 'removed')
+    return undefined
+  if (file.sha) cacheWrite(headVerdicts, file.sha, verdict, 10_000)
+  return verdict
+}
+
+// GitHub's flag plus what Linguist misses; never unmarks a file.
+function markGenerated(file: PullRequestFile): PullRequestFile {
+  const name = file.filename.slice(file.filename.lastIndexOf('/') + 1)
+  return file.generated || !(generatedNames.has(name) || headVerdict(file))
+    ? file
+    : { ...file, generated: true }
+}
+
+async function readHead(repo: string, sha: string, file: PullRequestFile, token: string) {
+  const path = file.filename.split('/').map(encodeURIComponent).join('/')
+  try {
+    const response = await fetch(`https://raw.githubusercontent.com/${repo}/${sha}/${path}`, {
+      headers: {
+        Authorization: `token ${token}`,
+        Range: `bytes=0-${headBytes - 1}`,
+        'Accept-Encoding': 'identity',
+      },
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (response.status === 206)
+      cacheWrite(headVerdicts, file.sha, generatedBanner.test(await response.text()), 10_000)
+    else await response.body?.cancel()
+  } catch {
+    // An unread head leaves the file as GitHub classed it.
+  }
+}
+
+// Ranged reads of the heads patches don't show, at most 100 per call.
+async function readHeads(repo: string, sha: string, files: readonly PullRequestFile[]) {
+  const unread = files
+    .filter(
+      (file) =>
+        file.status !== 'removed' &&
+        file.sha &&
+        !file.generated &&
+        !file.binary &&
+        headVerdict(file) === undefined
+    )
+    .slice(0, 100)
+  const token = unread.length && !backingOff() ? await ghToken() : null
+  if (!token) return
+  await Effect.runPromise(
+    Effect.forEach(unread, (file) => Effect.promise(() => readHead(repo, sha, file, token)), {
+      concurrency: 8,
+      discard: true,
+    })
+  )
+}
+
 type FileFlags = { binary: boolean; generated: boolean }
 const treeFlags = new Map<string, Map<string, FileFlags>>()
 
@@ -1011,7 +1122,7 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
       if (cacheRead(restNext, endpoint) === false || values.length < 100) break
     }
     const classified = await classifyFiles(repo, sha, parentSha, files)
-    return { files: classified.files, parentSha }
+    return { files: classified.files.map(markGenerated), parentSha }
   }
   const promise = load()
   cacheWrite(commitFilesCache, key, promise)
@@ -1088,7 +1199,7 @@ async function fetchPullRequest(
     })
   )
   files = files.map((file) => ({
-    ...file,
+    ...markGenerated(file),
     viewed: viewed.get(file.filename) ?? ('UNVIEWED' as const),
   }))
   const repository = record(pull.repository)
@@ -1394,6 +1505,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   const lastChecks = new Map<string, number>()
   const checking = new Set<string>()
   const lastCadences = new Map<string, string>()
+  const headsRead = new Map<string, string>()
   let linksPolledAt = 0
 
   function revision(key: string) {
@@ -1561,6 +1673,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         // The stored snapshot keeps the last good data when this read failed.
         const snapshot = decorate(yield* store.getPullRequest(ref.repo, ref.number))
         hub.pushPullRequest(snapshot)
+        if (snapshot.data && watches.has(prKey(ref))) markGeneratedHeads(ref, snapshot.data)
         for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
           const thread = yield* store.requireThread(threadId)
           hub.pushChrome({ type: 'thread.upserted', thread })
@@ -1746,6 +1859,29 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
+  // Patches rarely show a modified file's first lines, so once per head commit an open PR reads
+  // the heads it's missing in the background, then marks the files that carry a banner.
+  function markGeneratedHeads(ref: PullRequestRef, data: PullRequestData) {
+    const key = prKey(ref)
+    const sha = data.pull.head.sha
+    if (cacheRead(headsRead, key) === sha) return
+    cacheWrite(headsRead, key, sha)
+    const fetchedRevision = revision(key)
+    void Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() => readHeads(ref.repo, sha, data.files))
+        const running = jobs.get(key)
+        if (running) yield* Effect.promise(() => running.promise)
+        const snapshot = yield* get(ref)
+        const current = snapshot.data
+        if (!current) return
+        const files = current.files.map(markGenerated)
+        if (files.every((file, index) => file === current.files[index])) return
+        yield* publish(ref, { ...snapshot, data: { ...current, files } }, fetchedRevision)
+      })
+    ).catch((error: unknown) => console.warn(`[pr-heads] ${key} ${String(error)}`))
+  }
+
   function detectChanges(refs: readonly PullRequestRef[]) {
     return Effect.gen(function* () {
       const graphs = yield* Effect.promise(() => fetchGraphqlBatch(refs, pullRequestStateFields))
@@ -1818,6 +1954,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         )
         snapshot = yield* get(ref)
       }
+      if (snapshot.data) markGeneratedHeads(ref, snapshot.data)
       const checksInterval = snapshot.rateLimit?.checksCadenceMs
       const checkedAt = Math.max(lastChecks.get(key) ?? 0, snapshot.refreshedAt ?? 0)
       if (checksInterval && Date.now() - checkedAt >= checksInterval) yield* refreshChecks(ref)

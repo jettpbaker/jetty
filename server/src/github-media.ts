@@ -5,6 +5,8 @@ import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { open, rename, rm, stat, utimes } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { ghToken } from './pull-requests'
+
 const TYPES = {
   png: { mimeType: 'image/png', maxBytes: MAX_IMAGE_BYTES },
   jpg: { mimeType: 'image/jpeg', maxBytes: MAX_IMAGE_BYTES },
@@ -62,22 +64,6 @@ function sniff(head: Uint8Array, declared: string): Ext | null {
   return declared === TYPES[ext].mimeType || declared === 'application/octet-stream' ? ext : null
 }
 
-async function readGhToken(): Promise<string | null> {
-  const gh = Bun.which('gh')
-  if (!gh) return null
-  try {
-    const child = Bun.spawn([gh, 'auth', 'token', '--hostname', 'github.com'], {
-      stdout: 'pipe',
-      stderr: 'ignore',
-      signal: AbortSignal.timeout(3000),
-    })
-    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
-    return code === 0 ? out.trim() || null : null
-  } catch {
-    return null
-  }
-}
-
 function nextHop(location: string, from: URL): URL | null {
   let next: URL
   try {
@@ -100,13 +86,6 @@ export function createGithubMedia(home: string) {
     else if (key && ext && ext in TYPES) entries.set(key, ext as Ext)
   }
   const inFlight = new Map<string, Promise<GithubMedia>>()
-  let token: { value: Promise<string | null>; at: number } | undefined
-
-  function ghToken() {
-    if (!token || Date.now() - token.at > 5 * 60_000)
-      token = { value: readGhToken(), at: Date.now() }
-    return token.value
-  }
 
   function entryPath(key: string, ext: Ext) {
     return join(dir, `${key}.${ext}`)
