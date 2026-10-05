@@ -3,6 +3,7 @@ import type { Connection } from '@/net/connection'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
+import { revokeBlobUrl } from '@/lib/blob_urls'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
 import { Effect, Exit, Fiber } from 'effect'
@@ -174,7 +175,7 @@ function addQueued(
     {
       onSuccess() {
         staged.sent()
-        for (const image of images) URL.revokeObjectURL(image.url)
+        for (const image of images) revokeBlobUrl(image.url)
       },
       onFailure() {
         staged.failed(threadId)

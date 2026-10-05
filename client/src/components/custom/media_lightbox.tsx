@@ -13,6 +13,7 @@ import { mediaUrl } from '@/components/custom/media_layout'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { showBlobUrls } from '@/lib/blob_urls'
 import { pressProps } from '@/lib/press'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import {
@@ -49,6 +50,8 @@ export function useOpenMedia() {
 
 export function MediaLightboxProvider({ children }: { children: ReactNode }) {
   const [group, setGroup] = useState<MediaGroup | null>(null)
+  const items = group?.items
+  useEffect(() => showBlobUrls(items?.map(mediaUrl) ?? []), [items])
   return (
     <OpenMedia value={setGroup}>
       {children}

@@ -3,6 +3,7 @@ import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/ite
 import type { ThreadState } from '@jetty/shared/reducer'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
+import { revokeBlobUrl } from '@/lib/blob_urls'
 import {
   equipModel,
   findModel,
@@ -76,7 +77,7 @@ function threadMeta(registry: Registry, threadId: string) {
 }
 
 function releasePrompts(prompts: readonly PendingPrompt[]) {
-  for (const prompt of prompts) for (const image of prompt.images) URL.revokeObjectURL(image.id)
+  for (const prompt of prompts) for (const image of prompt.images) revokeBlobUrl(image.id)
 }
 
 function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly ThreadItem[]) {
