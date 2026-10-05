@@ -6,7 +6,7 @@ import { useContext, type ReactNode } from 'react'
 
 import { useDiffWorkerPoolLoading } from '../diff_worker_pool'
 import { hugeIconMasks } from '../huge_icons'
-import { codeSurfaceCSS, syntaxTheme } from '../syntax_theme'
+import { codeSurfaceCSS, nameExpanders, syntaxTheme } from '../syntax_theme'
 import { DiffStyleContext, DiffWrapContext } from './model'
 
 // Jetty's skin for Pierre's diffs, injected into its shadow root: the code surface (syntax_theme.ts),
@@ -115,6 +115,7 @@ export function DiffBody<T = undefined>({
         hunkSeparators: snippet || suggestion ? 'simple' : 'line-info',
         overflow: wrap ? 'wrap' : 'scroll',
         unsafeCSS: diffCSS + foldCSS,
+        onPostRender: nameExpanders,
       }}
     />
   )

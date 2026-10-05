@@ -6,7 +6,7 @@ import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees
 import { useCallback, useMemo, useState } from 'react'
 
 import { ArrowDown01Icon, ArrowRight01Icon } from './huge_icons'
-import { codeSurfaceCSS, syntaxTheme } from './syntax_theme'
+import { codeSurfaceCSS, nameExpanders, syntaxTheme } from './syntax_theme'
 import './file_changes_viewer.css'
 
 const separatorUnsafeCSS = `
@@ -154,6 +154,7 @@ export function diffViewOptions(
     disableLineNumbers: !lineNumbers,
     expansionLineCount: 20,
     loadDiffFiles,
+    onPostRender: nameExpanders,
     unsafeCSS: `
       ${codeSurfaceCSS}
       [data-diffs-header] { height: 36px; min-height: 36px; box-sizing: border-box; background-color: var(--background); border-bottom: 1px solid var(--border); }
