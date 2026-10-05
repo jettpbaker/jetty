@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useNow } from '@/hooks/use-now'
 import { whenIdle } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
+import { useStoredState } from '@/lib/stored-state'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
@@ -17,7 +18,7 @@ import {
   useRefreshPullRequestList,
 } from '@/state'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 import { ListFilterMenu, ListGroupMenu } from './grouped_list_controls'
 import {
@@ -112,8 +113,17 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     [tab, prefetch]
   )
-  const [included, setIncluded] = useState(pullRequestGroupOrder)
-  const [groupBy, setGroupBy] = useState<'state' | 'repo'>('state')
+  const [included, setIncluded] = useStoredState(
+    'jetty.pullRequests.states',
+    pullRequestGroupOrder,
+    (value): value is PullRequestGroup[] =>
+      Array.isArray(value) && value.every((state) => pullRequestGroupOrder.includes(state))
+  )
+  const [groupBy, setGroupBy] = useStoredState<'state' | 'repo'>(
+    'jetty.pullRequests.groupBy',
+    'state',
+    (value): value is 'state' | 'repo' => value === 'state' || value === 'repo'
+  )
   const rows = pulls
     .filter((pull) => included.includes(pull.state))
     .toSorted((a, b) => b.updatedAt - a.updatedAt)

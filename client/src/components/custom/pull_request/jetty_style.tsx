@@ -55,6 +55,7 @@ import { useNow } from '@/hooks/use-now'
 import { contentKey } from '@/lib/hash'
 import { whenIdle } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
+import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
 import {
@@ -97,7 +98,7 @@ import { syntaxTheme } from '../diff/cursor_themes'
 import { DiffFileCard, DiffViewed } from '../diff/file_card'
 import { DiffFileList } from '../diff/file_list'
 import { byTreeOrder } from '../diff/model'
-import { DiffToolbar, DiffToolbarButton, useDiffWrap } from '../diff/toolbar'
+import { DiffToolbar, DiffToolbarButton, useDiffStyle, useDiffWrap } from '../diff/toolbar'
 import { primeDiffHighlights, DiffWorkerPoolProvider } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
 import { githubUser, prFile } from './adapter'
@@ -1811,10 +1812,14 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const [mode, setMode] = useState('all')
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
-  const [hideGenerated, setHideGenerated] = useState(true)
+  const [hideGenerated, setHideGenerated] = useStoredState(
+    'jetty.diff.hideGenerated',
+    true,
+    isBoolean
+  )
   const view = useRef<HTMLDivElement>(null)
   const [wrap, setWrapChoice] = useDiffWrap(view)
-  const [hideViewed, setHideViewed] = useState(false)
+  const [hideViewed, setHideViewed] = useStoredState('jetty.diff.hideViewed', false, isBoolean)
   const viewed = useMemo(
     () => new Set(pr.files.filter((file) => file.viewed).map((file) => file.path)),
     [pr.files]
@@ -1826,7 +1831,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const inViewRef = useRef<string | null>(null)
   const commit = pr.commits.find((c) => c.sha === commitSha)
   if (commitSha && !commit) setCommitSha(null)
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified')
+  const [diffStyle, setDiffStyle] = useDiffStyle()
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (

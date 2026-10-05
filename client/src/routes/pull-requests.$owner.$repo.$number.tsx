@@ -1,4 +1,5 @@
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
+import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
 import { LivePullRequestView, PullRequestUnavailable } from '@/components/custom/pull_request_view'
 import { Button } from '@/components/ui/button'
 import { useChrome, usePullRequest } from '@/state'
@@ -21,7 +22,7 @@ function PullRequestPage() {
             variant='outline'
             size='sm'
             nativeButton={false}
-            render={<Link to='/pull-requests' />}
+            render={<Link to='/pull-requests' search={pullRequestListSearch()} />}
           >
             Pull requests
           </Button>

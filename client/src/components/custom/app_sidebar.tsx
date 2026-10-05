@@ -8,6 +8,7 @@ import {
   PinIcon,
 } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/lucide_icons'
+import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -308,7 +309,7 @@ export function AppSidebar() {
                 onPointerEnter={refreshPullRequestLists}
                 {...pressProps(() => {
                   refreshPullRequestLists()
-                  void navigate({ to: '/pull-requests' })
+                  void navigate({ to: '/pull-requests', search: pullRequestListSearch() })
                 })}
               >
                 <GitPullRequestIcon className='size-3' />

@@ -1,4 +1,5 @@
 import { PullRequestList } from '@/components/custom/pull_request_list'
+import { rememberPullRequestTab } from '@/components/custom/pull_request_list_model'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/pull-requests/')({
@@ -13,9 +14,10 @@ function PullRequests() {
   return (
     <PullRequestList
       tab={tab}
-      onTabChange={(next) =>
-        navigate({ search: next === 'created' ? { tab: next } : {}, replace: true })
-      }
+      onTabChange={(next) => {
+        rememberPullRequestTab(next)
+        void navigate({ search: next === 'created' ? { tab: next } : {}, replace: true })
+      }}
     />
   )
 }

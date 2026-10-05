@@ -12,6 +12,7 @@ import {
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { pressProps } from '@/lib/press'
+import { useStoredState } from '@/lib/stored-state'
 import { cn } from '@/lib/utils'
 import { useState, useLayoutEffect, type RefObject, type ReactNode } from 'react'
 
@@ -37,7 +38,11 @@ type DiffToggle = readonly [label: string, checked: boolean, set: (checked: bool
 
 export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
   const [narrow, setNarrow] = useState(false)
-  const [wrapChoice, setWrapChoice] = useState<boolean | null>(null)
+  const [wrapChoice, setWrapChoice] = useStoredState<boolean | null>(
+    'jetty.diff.wrap',
+    null,
+    (value): value is boolean | null => value === null || typeof value === 'boolean'
+  )
   useLayoutEffect(() => {
     const element = view.current
     if (!element) return
@@ -52,6 +57,15 @@ export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
     return () => observer.disconnect()
   }, [view])
   return [wrapChoice ?? narrow, setWrapChoice] as const
+}
+
+// Unified or split, shared by every diff viewer.
+export function useDiffStyle() {
+  return useStoredState<'unified' | 'split'>(
+    'jetty.diff.style',
+    'unified',
+    (value): value is 'unified' | 'split' => value === 'unified' || value === 'split'
+  )
 }
 
 export function DiffToolbar({

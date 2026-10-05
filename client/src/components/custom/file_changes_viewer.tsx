@@ -10,7 +10,7 @@ import { syntaxTheme } from './diff/cursor_themes'
 import { DiffFileCard } from './diff/file_card'
 import { DiffFileList } from './diff/file_list'
 import { byTreeOrder, DiffStyleContext, DiffWrapContext, type DiffFile } from './diff/model'
-import { DiffToolbar, useDiffWrap } from './diff/toolbar'
+import { DiffToolbar, useDiffStyle, useDiffWrap } from './diff/toolbar'
 import { DiffWorkerPoolProvider, firstPaintLines } from './diff_worker_pool'
 import {
   hydratedDiff,
@@ -44,7 +44,7 @@ export function FileChangesViewer({
   const paneId = useId()
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified')
+  const [diffStyle, setDiffStyle] = useDiffStyle()
   const [wrap, setWrap] = useDiffWrap(root)
   const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set())
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
