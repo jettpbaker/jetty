@@ -58,10 +58,23 @@ function isBot(login: string) {
   return login === 'Copilot' || login.endsWith('[bot]')
 }
 
+// @jetty as its own word (not @jettys, @jetty-bot or an email), outside code and quoted lines,
+// so quoting a mention doesn't wake the thread again.
+function mentionsJetty(body: string) {
+  const text = body
+    .replace(/```[\s\S]*?(```|$)/g, '')
+    .replace(/`[^`\n]*`/g, '')
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('>'))
+    .join('\n')
+  return /(^|[^\w])@jetty(?![\w-])/i.test(text)
+}
+
 const mergeReady = new Set(['CLEAN', 'HAS_HOOKS'])
 
 // What changed between two reads of a PR that its agent would want to hear. The viewer's own
 // reviews and comments are left out: agents post as the user, so they may be the agent's own.
+// One of theirs that mentions @jetty still counts, the same as a comment from anyone else.
 // Bots count when they review; their top-level comments (previews, coverage) don't.
 function pullRequestChanges(
   previous: PullRequestData,
@@ -141,14 +154,20 @@ function pullRequestChanges(
     })
 
   const viewer = next.viewer?.login.toLowerCase()
+  const self = (login: string) => viewer !== undefined && login.toLowerCase() === viewer
   const others = (login: string) => viewer !== undefined && login.toLowerCase() !== viewer
+  // The viewer's own comment counts only when it mentions @jetty. Everyone else's counts as before.
+  const heard = (login: string, body: string) =>
+    others(login) || (self(login) && mentionsJetty(body))
   const fresh = (at: string) => Date.parse(at) > since
   const seenReviews = new Set(previous.reviews.map((review) => review.id))
   const seenComments = new Set(previous.reviewComments.map((comment) => comment.id))
   const seenIssueComments = new Set((previous.issueComments ?? []).map((comment) => comment.id))
   const comments = next.reviewComments.filter(
     (comment) =>
-      !seenComments.has(comment.id) && others(comment.user.login) && fresh(comment.created_at)
+      !seenComments.has(comment.id) &&
+      fresh(comment.created_at) &&
+      heard(comment.user.login, comment.body)
   )
   const consumed = new Set<number>()
   const commented = new Map<string, { count: number; keys: string[]; text: string[] }>()
@@ -162,7 +181,11 @@ function pullRequestChanges(
   const reviewChanges: PullRequestChange[] = []
   for (const review of next.reviews) {
     const login = review.user.login
-    if (seenReviews.has(review.id) || !others(login) || !fresh(review.submitted_at)) continue
+    if (seenReviews.has(review.id) || !fresh(review.submitted_at)) continue
+    // A review of the viewer's own counts only when its body mentions @jetty. An inline comment
+    // of theirs that mentions it is delivered on its own, below, like any other review comment.
+    const named = self(login) && mentionsJetty(review.body)
+    if (!others(login) && !named) continue
     const own = comments.filter((comment) => comment.pull_request_review_id === review.id)
     for (const comment of own) consumed.add(comment.id)
     const details = `${quote(review.body, '  ')}${own.map((comment) => inline(comment, '  ')).join('')}`
@@ -180,7 +203,7 @@ function pullRequestChanges(
         activity: { type: 'approved', actor: login },
         keys: [key],
         group: 'watchReviews',
-        wakes: own.length > 0,
+        wakes: own.length > 0 || named,
         text: `- ${login} approved it (${review.html_url})${details}`,
       })
     else if (review.state === 'COMMENTED' && details)
@@ -202,9 +225,9 @@ function pullRequestChanges(
   for (const issueComment of next.issueComments ?? [])
     if (
       !seenIssueComments.has(issueComment.id) &&
-      others(issueComment.user.login) &&
       !isBot(issueComment.user.login) &&
-      fresh(issueComment.created_at)
+      fresh(issueComment.created_at) &&
+      heard(issueComment.user.login, issueComment.body)
     )
       comment(
         issueComment.user.login,
