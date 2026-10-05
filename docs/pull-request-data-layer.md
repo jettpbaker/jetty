@@ -12,8 +12,8 @@ threads and their comments, conversation comments, commit history and parent
 counts, status events, file viewed state, repository merge settings, the real
 `viewerDefaultMergeMethod`, the authenticated viewer, and `viewerCanUpdate` in
 one GraphQL query. Checks retain a bare name, their run/status discriminator,
-workflow, event, description (`CheckRun.summary` or `StatusContext.description`),
-and `isRequired(pullRequestNumber:)`.
+workflow, event, a status's `description` (run summaries can run to tens of KB and
+are never shown, so they aren't read), and `isRequired(pullRequestNumber:)`.
 
 Unsubmitted (`PENDING`) review comments are excluded from posted comments and
 their count. Reviews, threads, nested thread replies, conversation comments,
@@ -81,8 +81,10 @@ base comparison; it is null on a cold read or when that head no longer matches.
 
 Visible refreshes first read `updatedAt`, head/base SHAs, and the check rollup.
 Metadata or revision changes trigger a full load; rollup-only changes patch checks
-through the checks query. Running checks also keep their faster refresh cadence,
-since individual runs may change without changing the rollup. Visible PRs receive
+through the checks query; changes found together share one checks query. Running
+checks also keep their faster refresh cadence, since individual runs may change
+without changing the rollup. That query also reads `updatedAt` and the head/base
+SHAs, so while checks run it stands in for change detection. Visible PRs receive
 a full safety refresh after five minutes (or their longer normal cadence). This
 catches changes that bump neither `updatedAt` nor the check rollup, including
 someone else resolving a thread, individual check runs changing after the rollup

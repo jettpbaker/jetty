@@ -139,17 +139,20 @@ export function connectionField(field: string, after?: string) {
 
 export const pullRequestStateFields = `updatedAt headRefOid baseRefOid commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
 
-export const checkRollupFields = `commits(last:1) { nodes { commit {
+const checkRollupFields = `commits(last:1) { nodes { commit {
   oid statusCheckRollup { state contexts(first:100) {
     ${pageFields}
     nodes { __typename
-      ... on CheckRun { id name status conclusion detailsUrl startedAt completedAt summary
+      ... on CheckRun { id name status conclusion detailsUrl startedAt completedAt
         isRequired(pullRequestNumber:PR_NUMBER)
         checkSuite { app { name } workflowRun { event workflow { name } } } }
       ... on StatusContext { id context state targetUrl updatedAt description isRequired(pullRequestNumber:PR_NUMBER) }
     }
   } }
 } } }`
+
+export const pullRequestChecksFields = `updatedAt headRefOid baseRefOid mergeable mergeStateStatus
+  ${checkRollupFields}`
 
 export const pullRequestGraphqlFields = `
   id number title body state isDraft merged mergedAt url createdAt updatedAt

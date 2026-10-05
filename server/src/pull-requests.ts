@@ -24,7 +24,7 @@ import {
   pullRequestConnections,
   reviewCommentFields,
   canonicalLogin,
-  checkRollupFields,
+  pullRequestChecksFields,
   copilotWriteLogin,
   githubUser as user,
   findPullRequestReferences,
@@ -877,7 +877,7 @@ export function mapCheckRuns(checks: readonly unknown[]): PullRequestData['check
         typeof record(suite.workflowRun).event === 'string'
           ? string(record(suite.workflowRun).event)
           : null,
-      description: typeof check.summary === 'string' ? check.summary : null,
+      description: null,
       required: check.isRequired === true,
       status:
         status === 'COMPLETED' ? 'completed' : status === 'IN_PROGRESS' ? 'in_progress' : 'queued',
@@ -1878,42 +1878,68 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  function refreshChecks(ref: PullRequestRef) {
-    const key = prKey(ref)
+  // Whether a PR changed beyond its checks, so it needs a full read.
+  function changed(graph: Graph, data: PullRequestData) {
+    return (
+      string(graph.pull.updatedAt) !== data.pull.updated_at ||
+      graph.headSha !== data.pull.head.sha ||
+      string(graph.pull.baseRefOid) !== data.pull.base.sha
+    )
+  }
+
+  // The checks query also carries what change detection compares, so it stands in for it, and
+  // merge readiness, which checks finishing (or GitHub settling an UNKNOWN) changes without
+  // touching updatedAt.
+  function refreshChecks(refs: readonly PullRequestRef[]) {
     return Effect.gen(function* () {
-      if (checking.has(key) || jobs.has(key) || pendingOperations.has(key)) return
-      checking.add(key)
-      lastChecks.set(key, Date.now())
-      const fetchedRevision = revision(key)
-      const [graph] = yield* Effect.tryPromise({
-        // Merge readiness rides along: checks finishing (or GitHub settling an UNKNOWN) changes it
-        // without touching updatedAt, so the change detector alone would leave it stale.
-        try: () => fetchGraphqlBatch([ref], `mergeable mergeStateStatus ${checkRollupFields}`),
+      const due = refs.filter((ref) => {
+        const key = prKey(ref)
+        return !checking.has(key) && !jobs.has(key) && !pendingOperations.has(key)
+      })
+      if (!due.length) return
+      const fetchedRevisions = due.map((ref) => {
+        const key = prKey(ref)
+        checking.add(key)
+        lastChecks.set(key, Date.now())
+        lastDetection.set(key, Date.now())
+        return revision(key)
+      })
+      const graphs = yield* Effect.tryPromise({
+        try: () => fetchGraphqlBatch(due, pullRequestChecksFields),
         catch: (error) => new StoreError('internal', String(error)),
-      }).pipe(Effect.ensuring(Effect.sync(() => checking.delete(key))))
-      const snapshot = yield* get(ref)
-      if (!graph || graph instanceof GhFailure || !snapshot.data) return
-      if (graph.headSha !== snapshot.data.pull.head.sha) {
-        yield* refresh(ref)
-        return
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            for (const ref of due) checking.delete(prKey(ref))
+          })
+        )
+      )
+      for (const [index, ref] of due.entries()) {
+        const graph = graphs[index]
+        const snapshot = yield* get(ref)
+        if (!graph || graph instanceof GhFailure || !snapshot.data) continue
+        if (changed(graph, snapshot.data)) {
+          void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
+          continue
+        }
+        const data = {
+          ...snapshot.data,
+          pull: {
+            ...snapshot.data.pull,
+            mergeable_state: mergeableState(graph.pull.mergeStateStatus),
+          },
+          mergeable: graph.pull.mergeable as PullRequestData['mergeable'],
+          mergeStateStatus: string(graph.pull.mergeStateStatus, 'UNKNOWN'),
+          checkRuns: mapCheckRuns(graph.checks),
+          checkRollupState: graph.checkRollupState,
+          checkRunsTotalCount: graph.checkRunsTotalCount,
+          truncatedConnections: [
+            ...(snapshot.data.truncatedConnections ?? []).filter((field) => field !== 'checkRuns'),
+            ...graph.truncatedConnections.filter((field) => field === 'checkRuns'),
+          ],
+        }
+        yield* publish(ref, { ...snapshot, data }, fetchedRevisions[index]!)
       }
-      const data = {
-        ...snapshot.data,
-        pull: {
-          ...snapshot.data.pull,
-          mergeable_state: mergeableState(graph.pull.mergeStateStatus),
-        },
-        mergeable: graph.pull.mergeable as PullRequestData['mergeable'],
-        mergeStateStatus: string(graph.pull.mergeStateStatus, 'UNKNOWN'),
-        checkRuns: mapCheckRuns(graph.checks),
-        checkRollupState: graph.checkRollupState,
-        checkRunsTotalCount: graph.checkRunsTotalCount,
-        truncatedConnections: [
-          ...(snapshot.data.truncatedConnections ?? []).filter((field) => field !== 'checkRuns'),
-          ...graph.truncatedConnections.filter((field) => field === 'checkRuns'),
-        ],
-      }
-      yield* publish(ref, { ...snapshot, data }, fetchedRevision)
     })
   }
 
@@ -1943,20 +1969,16 @@ export function createPullRequests(store: Store, hub: Hub) {
   function detectChanges(refs: readonly PullRequestRef[]) {
     return Effect.gen(function* () {
       const graphs = yield* Effect.promise(() => fetchGraphqlBatch(refs, pullRequestStateFields))
+      const checks: PullRequestRef[] = []
       for (const [index, ref] of refs.entries()) {
         const graph = graphs[index]!
         const snapshot = yield* get(ref)
         if (graph instanceof GhFailure) continue
-        if (
-          !snapshot.data ||
-          string(graph.pull.updatedAt) !== snapshot.data.pull.updated_at ||
-          graph.headSha !== snapshot.data.pull.head.sha ||
-          string(graph.pull.baseRefOid) !== snapshot.data.pull.base.sha
-        )
+        if (!snapshot.data || changed(graph, snapshot.data))
           void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
-        else if (graph.checkRollupState !== snapshot.data.checkRollupState)
-          yield* refreshChecks(ref)
+        else if (graph.checkRollupState !== snapshot.data.checkRollupState) checks.push(ref)
       }
+      yield* refreshChecks(checks)
     })
   }
 
@@ -1995,6 +2017,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       if (pendingOperations.has(key) || jobs.has(key) || backingOff()) return
       const interval = snapshot.rateLimit?.cadenceMs
       if (!interval) return
+      const checksInterval = snapshot.rateLimit?.checksCadenceMs
       if (
         !snapshot.data ||
         Date.now() - (snapshot.refreshedAt ?? 0) >=
@@ -2002,6 +2025,10 @@ export function createPullRequests(store: Store, hub: Hub) {
       ) {
         snapshot = yield* refresh(ref)
         lastDetection.set(key, Date.now())
+      } else if (checksInterval) {
+        const checkedAt = Math.max(lastChecks.get(key) ?? 0, snapshot.refreshedAt ?? 0)
+        if (Date.now() - checkedAt >= checksInterval) yield* refreshChecks([ref])
+        snapshot = yield* get(ref)
       } else if (
         !detecting.has(key) &&
         Date.now() - (lastDetection.get(key) ?? snapshot.refreshedAt ?? 0) >= interval
@@ -2013,9 +2040,6 @@ export function createPullRequests(store: Store, hub: Hub) {
         snapshot = yield* get(ref)
       }
       if (snapshot.data) markGeneratedHeads(ref, snapshot.data)
-      const checksInterval = snapshot.rateLimit?.checksCadenceMs
-      const checkedAt = Math.max(lastChecks.get(key) ?? 0, snapshot.refreshedAt ?? 0)
-      if (checksInterval && Date.now() - checkedAt >= checksInterval) yield* refreshChecks(ref)
     })
   }
 
