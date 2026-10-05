@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import type { Orchestrator, PullRequestNews } from './orchestrator'
 
 import { createPullRequestWatch } from './pull-request-watch'
-import { StoreError } from './store'
+import { StoreError, type Store } from './store'
 import { openTestStore } from './store-fixture'
 
 const cleanup: Array<() => Promise<void>> = []
@@ -350,3 +350,89 @@ test('separate CI failure episodes on the same SHA survive persistent dedupe', a
     (await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))).checkEpisode
   ).toBe(2)
 })
+
+// Becoming ready posts a line either way. It wakes the agent to merge only while that is on,
+// once per head, and a full hour of wakes holds it like any other news.
+for (const mode of ['off', 'on', 'held'] as const) {
+  test(`a pull request ready to merge ${mode === 'off' ? 'stays a line' : mode === 'held' ? 'is held at the wake cap' : 'wakes its agent to merge'}`, async () => {
+    let store!: Store
+    let news: PullRequestNews | undefined
+    const f = await setup({
+      pullRequestActivity: (_threadId, take) =>
+        store.transaction(take).pipe(
+          Effect.tap((value) =>
+            Effect.sync(() => {
+              news = value
+            })
+          ),
+          Effect.asVoid
+        ),
+    })
+    store = f.store
+    await f.thread('owner/repo')
+    if (mode !== 'off')
+      await f.runtime.runPromise(f.store.setAgentBehaviour('mergeWhenReady', true))
+    const ref = { repo: 'owner/repo', number: 1 }
+    const previous = data()
+    const next = { ...previous, mergeStateStatus: 'CLEAN' }
+    const refreshedAt = Date.now()
+    const nativeSetTimeout = globalThis.setTimeout
+    const queued: Array<{ run: () => void; timer: ReturnType<typeof setTimeout> }> = []
+    const timerSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((
+      callback: () => void,
+      delay?: number
+    ) => {
+      if (delay !== 15_000) return nativeSetTimeout(callback, delay)
+      const timer = nativeSetTimeout(() => {}, 60 * 60_000)
+      timer.unref()
+      queued.push({ run: callback, timer })
+      return timer
+    }) as typeof setTimeout)
+    try {
+      const snapshot = {
+        ...ref,
+        status: 'ready' as const,
+        data: previous,
+        refreshedAt,
+        dataRefreshedAt: refreshedAt,
+      }
+      await f.runtime.runPromise(f.store.savePullRequest(snapshot))
+      await f.runtime.runPromise(f.watch.changed(ref, snapshot, next))
+      expect(queued).toHaveLength(1)
+      if (mode === 'held') {
+        const memory = await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))
+        await f.runtime.runPromise(
+          f.store.savePullRequestWatch(ref.repo, ref.number, {
+            ...memory,
+            wakes: Array.from({ length: 6 }, () => Date.now()),
+          })
+        )
+      }
+      queued[0]!.run()
+      for (let tick = 0; tick < 200 && !news; tick++)
+        await new Promise<void>((resolve) => setImmediate(resolve))
+      const delivered = news!
+      expect(delivered.lines.map((line) => line.activity.map((entry) => entry.type))).toEqual([
+        ['ready'],
+      ])
+      if (mode === 'on') {
+        expect(delivered.lines[0]?.held).toBeUndefined()
+        expect(delivered.text).toContain('gh pr merge')
+        expect(delivered.text).toContain('deleteBranchOnMerge')
+        expect(delivered.text).toContain("don't merge")
+        const blocked = { ...next, mergeStateStatus: 'BLOCKED' }
+        await f.runtime.runPromise(f.watch.changed(ref, { ...snapshot, data: blocked }, next))
+        expect(queued).toHaveLength(1)
+        expect(
+          (await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))).pending
+        ).toBeUndefined()
+      } else {
+        expect(delivered.text).toBeNull()
+        expect(delivered.lines[0]?.held).toBe(mode === 'held' ? true : undefined)
+      }
+    } finally {
+      timerSpy.mockRestore()
+      for (const { timer } of queued) clearTimeout(timer)
+    }
+  })
+}

@@ -72,6 +72,12 @@ function mentionsJetty(body: string) {
 
 const mergeReady = new Set(['CLEAN', 'HAS_HOOKS'])
 
+// What the agent reads when it is asked to merge. The chat line stays "ready to merge".
+const readyToMerge = [
+  "- GitHub reports it ready to merge. Before you merge, check that the pull request still does what this thread was asked to do, that every check is green, that there are no unresolved review threads or change requests, and that nobody else pushed something unexpected. If anything is off, don't merge, and say why in your reply.",
+  "Otherwise merge this pull request with `gh pr merge`, using the repo's default merge method from `gh repo view --json viewerDefaultMergeMethod` (`--merge`, `--squash` or `--rebase`) and `--match-head-commit` set to the head you checked. Pass `--delete-branch` only when `gh repo view --json deleteBranchOnMerge` is true.",
+].join(' ')
+
 // What changed between two reads of a PR that its agent would want to hear. The viewer's own
 // reviews and comments are left out: agents post as the user, so they may be the agent's own.
 // One of theirs that mentions @jetty still counts, the same as a comment from anyone else.
@@ -348,13 +354,29 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
         const linked = (yield* store.threadsForPullRequest(repo, number)).includes(threadId)
         const { data } = yield* store.getPullRequest(repo, number)
         const open = data?.pull.state === 'open' && !data.pull.merged
-        const changes = memory.pending.changes.filter(
-          (change) =>
+        const changes: PullRequestChange[] = []
+        for (const change of memory.pending.changes) {
+          // Ready always leaves a line. It wakes only while merging is on and the PR is still
+          // open, decided here so the toggle applies to news already waiting.
+          const told =
+            change.activity.type === 'ready'
+              ? {
+                  ...change,
+                  wakes: settings.mergeWhenReady && open,
+                  text:
+                    settings.mergeWhenReady && open
+                      ? readyToMerge
+                      : '- GitHub reports it ready to merge.',
+                }
+              : change
+          if (
             linked &&
             settings.watchPullRequests &&
-            (!change.group || settings[change.group]) &&
-            (open || !change.wakes)
-        )
+            (!told.group || settings[told.group]) &&
+            (open || !told.wakes)
+          )
+            changes.push(told)
+        }
         const recent = (memory.wakes ?? []).filter((at) => now - at < HOUR_MS)
         const wakeful = changes.some((change) => change.wakes)
         const held = wakeful && recent.length >= WAKES_PER_HOUR
