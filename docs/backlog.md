@@ -32,6 +32,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   thread rows alike (`/components/thread-row-checks`: red already means a closed
   PR, so a mark can't just turn red; C, a separate failure disc and count, was
   recommended, but its running ring is the working-agent glyph).
+- Custom merged and closed PR glyphs drawn on Lucide's open PR icon:
+  `/components/pr-state-icons` (family D: merged with filled rings eased a quarter
+  unit, closed with the ✕ on the top ring and equal gaps). Tried in the app
+  (86b8a34) and reverted for now; come back to it.
 - An icon for the PR overview's Thread row: `/components/icon-picks` (thread
   section). B (Message multiple 01) was recommended.
 
