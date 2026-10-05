@@ -29,6 +29,7 @@ import {
   awaitCreation,
   clearPatch,
   setPatch,
+  settlePatch,
   unarchiveFirst,
   without,
   withoutId,
@@ -191,6 +192,7 @@ function sendTurn(
         ),
         Effect.tap(({ turnId }) =>
           Effect.sync(() => {
+            if (loadout) settlePatch(registry, threadId, 'provider', loadout.provider)
             staged.sent()
             // No turn started: the server kept the message in the thread's paused queue.
             if (!turnId) {

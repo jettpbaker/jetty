@@ -9,8 +9,8 @@ import { Schema } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 
-import { chromeAtom } from './chrome'
-import { deletedThreadsAtom, without } from './mutations'
+import { chromeAtom, deletedThreadsAtom } from './chrome'
+import { without } from './mutations'
 
 type Registry = AtomRegistry.AtomRegistry
 

@@ -1,21 +1,23 @@
 import type { Connection } from '@/net/connection'
-import type { Project, ProjectIcon, ProviderId, ThreadMeta } from '@jetty/shared/wire'
+import type { Project, ProjectIcon } from '@jetty/shared/wire'
 
 import { Effect, Fiber } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/reactivity'
+import { type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
 
+import {
+  createdThreadsAtom,
+  deletedProjectsAtom,
+  deletedThreadsAtom,
+  liveAtom,
+  projectIconPatchesAtom,
+  serverChrome,
+  threadPatchesAtom,
+  type ThreadPatch,
+} from './chrome'
 import { run, useAction } from './connection'
 
 type Registry = AtomRegistry.AtomRegistry
-
-export type ThreadPatch = {
-  title?: string
-  pinned?: boolean
-  archived?: boolean
-  provider?: ProviderId
-  readyForReview?: boolean
-}
 
 function markThreadSeen(registry: Registry, threadId: string) {
   setPatch(registry, threadId, { readyForReview: false })
@@ -27,22 +29,6 @@ function markThreadSeen(registry: Registry, threadId: string) {
 }
 
 export const useMarkThreadSeen = () => useAction(markThreadSeen)
-
-export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
-  Atom.keepAlive
-)
-export const threadPatchesAtom = Atom.make<ReadonlyMap<string, ThreadPatch>>(new Map()).pipe(
-  Atom.keepAlive
-)
-export const deletedThreadsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
-  Atom.keepAlive
-)
-export const deletedProjectsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
-  Atom.keepAlive
-)
-export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon | null>>(
-  new Map()
-).pipe(Atom.keepAlive)
 
 export function without<V>(map: ReadonlyMap<string, V>, keys: readonly string[]) {
   if (!keys.some((key) => map.has(key))) return map
@@ -89,6 +75,7 @@ function createThread(
       updatedAt: Date.now(),
     })
   )
+  const forget = () => registry.update(createdThreadsAtom, (threads) => without(threads, [id]))
   const creation = run(
     registry,
     (connection) =>
@@ -99,8 +86,20 @@ function createThread(
           environment,
           ref,
         })
-        .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
-    () => registry.update(createdThreadsAtom, (threads) => without(threads, [id]))
+        .pipe(
+          // Once the server lists it, a later delete (from any tab) must not bring this back.
+          Effect.tap(() =>
+            Effect.sync(() =>
+              settleWhen(
+                registry,
+                () => !!serverChrome(registry)?.threads.some((thread) => thread.id === id),
+                forget
+              )
+            )
+          ),
+          Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+        ),
+    forget
   )
   creations.set(id, creation)
   creation.addObserver(() => creations.delete(id))
@@ -113,16 +112,56 @@ export function setPatch(registry: Registry, threadId: string, patch: ThreadPatc
   )
 }
 
-export function clearPatch(registry: Registry, threadId: string, key: keyof ThreadPatch) {
+// With `value`, only a patch still holding it clears, so a newer toggle survives an older reply.
+export function clearPatch<K extends keyof ThreadPatch>(
+  registry: Registry,
+  threadId: string,
+  key: K,
+  value?: ThreadPatch[K]
+) {
   registry.update(threadPatchesAtom, (patches) => {
     const current = patches.get(threadId)
     if (current?.[key] === undefined) return patches
+    if (value !== undefined && current[key] !== value) return patches
     const patch = { ...current }
     delete patch[key]
     return Object.keys(patch).length === 0
       ? without(patches, [threadId])
       : new Map(patches).set(threadId, patch)
   })
+}
+
+// After the server accepts a change, its push (which lands just after the reply) takes over from
+// the patch, so a later change by an agent or another tab shows instead of the stale patch.
+function settleWhen(registry: Registry, agrees: () => boolean, clear: () => void) {
+  function check() {
+    if (!agrees()) return
+    stop()
+    clearTimeout(timeout)
+    clear()
+  }
+  const stop = registry.subscribe(liveAtom, check)
+  const timeout = setTimeout(() => {
+    stop()
+    clear()
+  }, 10_000)
+  check()
+}
+
+export function settlePatch<K extends keyof ThreadPatch>(
+  registry: Registry,
+  threadId: string,
+  key: K,
+  value: ThreadPatch[K]
+) {
+  settleWhen(
+    registry,
+    () => {
+      const thread = serverChrome(registry)?.threads.find((entry) => entry.id === threadId)
+      return !thread || thread[key] === value
+    },
+    () => clearPatch(registry, threadId, key, value)
+  )
 }
 
 function renameThread(registry: Registry, threadId: string, title: string) {
@@ -133,9 +172,10 @@ function renameThread(registry: Registry, threadId: string, title: string) {
     registry,
     (connection) =>
       awaitCreation(threadId).pipe(
-        Effect.andThen(connection.request('thread.rename', { threadId, title: trimmed }))
+        Effect.andThen(connection.request('thread.rename', { threadId, title: trimmed })),
+        Effect.tap(() => Effect.sync(() => settlePatch(registry, threadId, 'title', trimmed)))
       ),
-    () => clearPatch(registry, threadId, 'title')
+    () => clearPatch(registry, threadId, 'title', trimmed)
   )
 }
 
@@ -145,9 +185,10 @@ function pinThread(registry: Registry, threadId: string, pinned: boolean) {
     registry,
     (connection) =>
       awaitCreation(threadId).pipe(
-        Effect.andThen(connection.request('thread.pin', { threadId, pinned }))
+        Effect.andThen(connection.request('thread.pin', { threadId, pinned })),
+        Effect.tap(() => Effect.sync(() => settlePatch(registry, threadId, 'pinned', pinned)))
       ),
-    () => clearPatch(registry, threadId, 'pinned')
+    () => clearPatch(registry, threadId, 'pinned', pinned)
   )
 }
 
@@ -228,9 +269,10 @@ export function unarchiveFirst(
   if (!archived) return () => Effect.void
   setPatch(registry, threadId, { archived: false })
   return (connection) =>
-    connection
-      .request('thread.archive', { threadId, archived: false })
-      .pipe(Effect.onError(() => Effect.sync(() => clearPatch(registry, threadId, 'archived'))))
+    connection.request('thread.archive', { threadId, archived: false }).pipe(
+      Effect.tap(() => Effect.sync(() => settlePatch(registry, threadId, 'archived', false))),
+      Effect.onError(() => Effect.sync(() => clearPatch(registry, threadId, 'archived', false)))
+    )
 }
 
 function archiveThread(registry: Registry, threadId: string, archived: boolean) {
@@ -238,10 +280,11 @@ function archiveThread(registry: Registry, threadId: string, archived: boolean) 
   run(
     registry,
     (connection) =>
-      connection
-        .request('thread.archive', { threadId, archived })
-        .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
-    () => clearPatch(registry, threadId, 'archived')
+      connection.request('thread.archive', { threadId, archived }).pipe(
+        Effect.tap(() => Effect.sync(() => settlePatch(registry, threadId, 'archived', archived))),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
+    () => clearPatch(registry, threadId, 'archived', archived)
   )
 }
 
@@ -255,10 +298,30 @@ function createProject(registry: Registry, path: string, onCreated?: (project: P
 
 function setProjectIcon(registry: Registry, projectId: string, icon: ProjectIcon | null) {
   registry.update(projectIconPatchesAtom, (patches) => new Map(patches).set(projectId, icon))
+  const clear = () =>
+    registry.update(projectIconPatchesAtom, (patches) =>
+      patches.get(projectId) === icon ? without(patches, [projectId]) : patches
+    )
   run(
     registry,
-    (connection) => connection.request('project.setIcon', { projectId, icon }),
-    () => registry.update(projectIconPatchesAtom, (patches) => without(patches, [projectId]))
+    (connection) =>
+      connection.request('project.setIcon', { projectId, icon }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => {
+                const project = serverChrome(registry)?.projects.find(
+                  (entry) => entry.id === projectId
+                )
+                return !project || JSON.stringify(project.icon ?? null) === JSON.stringify(icon)
+              },
+              clear
+            )
+          )
+        )
+      ),
+    clear
   )
 }
 

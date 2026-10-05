@@ -6,6 +6,7 @@ import type {
   TitleModel,
   Project,
   ProjectIcon,
+  ProviderId,
   ProviderModel,
   ThreadMeta,
   RateLimits,
@@ -13,17 +14,33 @@ import type {
 
 import { useAtomValue } from '@effect/atom-react'
 import { Stream } from 'effect'
-import { AsyncResult, Atom } from 'effect/reactivity'
+import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 
 import { subscribe } from './connection'
-import {
-  createdThreadsAtom,
-  deletedProjectsAtom,
-  deletedThreadsAtom,
-  projectIconPatchesAtom,
-  threadPatchesAtom,
-  type ThreadPatch,
-} from './mutations'
+
+export type ThreadPatch = {
+  title?: string
+  pinned?: boolean
+  archived?: boolean
+  provider?: ProviderId
+  readyForReview?: boolean
+}
+
+export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
+  Atom.keepAlive
+)
+export const threadPatchesAtom = Atom.make<ReadonlyMap<string, ThreadPatch>>(new Map()).pipe(
+  Atom.keepAlive
+)
+export const deletedThreadsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
+  Atom.keepAlive
+)
+export const deletedProjectsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(
+  Atom.keepAlive
+)
+export const projectIconPatchesAtom = Atom.make<ReadonlyMap<string, ProjectIcon | null>>(
+  new Map()
+).pipe(Atom.keepAlive)
 
 export type Chrome = {
   projects: readonly Project[]
@@ -89,12 +106,17 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
   }
 }
 
-const liveAtom = Atom.make((get) =>
+// The server's own view, before this tab's pending changes.
+export const liveAtom = Atom.make((get) =>
   subscribe(get, (connection) => connection.subscribeChrome()).pipe(
     Stream.scan(() => emptyChrome, foldChrome),
     Stream.drop(1)
   )
 ).pipe(Atom.keepAlive)
+
+export function serverChrome(registry: AtomRegistry.AtomRegistry) {
+  return AsyncResult.getOrElse(registry.get(liveAtom), () => undefined)
+}
 
 function withPending(
   chrome: Chrome,
