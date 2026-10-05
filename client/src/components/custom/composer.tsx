@@ -170,7 +170,11 @@ export function Composer({
             )}
           >
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
-            <div ref={menu.field} className='relative w-full'>
+            <div
+              ref={menu.field}
+              data-composing={menu.composing || undefined}
+              className='skill-chip-field relative w-full'
+            >
               <SlashMirror slash={menu} />
               <InputGroupTextarea
                 ref={textarea}

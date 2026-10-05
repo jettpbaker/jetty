@@ -101,6 +101,7 @@ export function useComposerSlash(
   const seen = useRef(text)
   const [caret, setCaret] = useState(text.length)
   const [focused, setFocused] = useState(false)
+  const [composing, setComposing] = useState(false)
   // The slash word being typed, which stays plain text until the caret leaves it.
   const [editing, setEditing] = useState<number>()
   const [dismissed, setDismissed] = useState<number>()
@@ -475,6 +476,8 @@ export function useComposerSlash(
       if (activeSlash(text, at)?.start !== editing) setEditing(undefined)
     },
     onFocus: () => setFocused(true),
+    onCompositionStart: () => setComposing(true),
+    onCompositionEnd: () => setComposing(false),
     onBlur: () => {
       setFocused(false)
       setEditing(undefined)
@@ -507,6 +510,7 @@ export function useComposerSlash(
     tokens,
     query,
     open,
+    composing,
     entries,
     index,
     field,
@@ -541,7 +545,7 @@ function chips(text: string, query: SlashQuery | undefined, skills: readonly Ski
   )
 }
 
-/* Mirror: paints chips and the menu's anchor behind the textarea's own text. */
+/* Mirror: paints the textarea's text, chips and all, behind its transparent text. */
 
 export function SlashMirror({ slash }: { slash: Slash }) {
   const { shown, tokens, query } = slash
@@ -572,7 +576,7 @@ export function SlashMirror({ slash }: { slash: Slash }) {
     <div
       ref={slash.mirror}
       aria-hidden='true'
-      className='skill-chip-text pointer-events-none absolute inset-0 scroll-fade-y overflow-hidden px-2.5 py-2 text-base break-words whitespace-pre-wrap text-transparent md:text-sm'
+      className='skill-chip-text skill-chip-mirror pointer-events-none absolute inset-0 scroll-fade-y px-2.5 py-2 text-base break-words whitespace-pre-wrap md:text-sm'
     >
       {parts}
       {/* Gives a trailing newline its line, as the textarea does, so the two scroll alike. */}

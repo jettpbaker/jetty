@@ -1,4 +1,4 @@
-/* A skill chip in the composer, in the PR editor's .issue-chip proportions. The textarea paints
+/* A skill chip in the composer, in the PR editor's .issue-chip proportions. The textarea lays out
    the text, so the chip's room is characters: its slash shows as a no-break space, which this face
    widens from Geist's 0.25em to 1.45em (padding 0.3em, icon 0.9em, gap 0.25em), and the space
    after it as an en space, which holds the right padding. Chrome skips unicode-range faces for
@@ -14,12 +14,38 @@
   font-family: 'Skill Chip', 'Geist Variable', sans-serif;
 }
 
+/* The mirror behind the textarea paints the text, so chip names can take the chip's tint; the
+   textarea keeps the caret, the selection and spellcheck. While an IME composes, the textarea
+   paints its own text again, so the marked text shows the way the platform draws it. */
+.skill-chip-field textarea {
+  color: transparent;
+}
+.skill-chip-field[data-composing] textarea {
+  color: inherit;
+}
+.skill-chip-field[data-composing] :is(.skill-chip-mirror, .skill-chip) {
+  color: transparent;
+}
+
+/* The mirror has to wrap where the textarea does, so it overflows the same way, behind an
+   invisible scrollbar that takes the same width when scrollbars take space. */
+.skill-chip-mirror {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
 .skill-chip {
+  --chip: var(--primary);
   border-radius: 4px;
   padding: 0.0625em 0.3em 0.0625em 0;
   margin-right: -0.3em;
-  background: color-mix(in oklch, var(--primary) 16%, transparent);
+  background: color-mix(in oklch, var(--chip) 16%, transparent);
+  color: oklch(from var(--chip) min(l, 0.5) c h);
   box-decoration-break: clone;
+}
+.dark .skill-chip {
+  color: oklch(from var(--chip) max(l, 0.75) c h);
 }
 
 .skill-chip svg {
@@ -28,5 +54,5 @@
   height: 0.9em;
   margin: 0 -1.2em 0 0.3em;
   vertical-align: -0.12em;
-  color: var(--primary);
+  color: var(--chip);
 }
