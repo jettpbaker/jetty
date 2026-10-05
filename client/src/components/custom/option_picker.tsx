@@ -33,7 +33,6 @@ export function OptionPicker({
   placeholder,
   icon,
   value,
-  triggerLabel,
   options,
   onValueChange,
   align = 'start',
@@ -51,7 +50,6 @@ export function OptionPicker({
   icon: ReactNode
   value: string
   // what the trigger reads, when it's more than the picked option's label
-  triggerLabel?: string
   options: readonly PickerOption[]
   onValueChange: (value: string) => void
   align?: 'start' | 'end'
@@ -90,7 +88,7 @@ export function OptionPicker({
       }}
     >
       <PopoverTrigger
-        aria-label={triggerLabel ?? (selected ? `${name}: ${selected.label}` : label)}
+        aria-label={selected ? `${name}: ${selected.label}` : label}
         aria-describedby={describedBy}
         disabled={disabled}
         render={
@@ -102,7 +100,7 @@ export function OptionPicker({
         }
       >
         {selected?.icon ?? icon}
-        {triggerLabel ?? selected?.label ?? emptyLabel}
+        {selected?.label ?? emptyLabel}
       </PopoverTrigger>
       <PopoverContent
         align={align}
@@ -181,9 +179,11 @@ export function OptionPicker({
                 <Separator />
                 <CommandGroup>
                   {/* A press toggles on pointer-down; Enter arrives as a select. */}
+                  {/* The switch shows the state, so the item's tick column goes. */}
                   <CommandItem
                     value='toggle'
                     aria-checked={toggle.checked}
+                    className='[&>svg:last-child]:hidden'
                     onPointerDown={(event) => {
                       if (event.button !== 0) return
                       pointerSelection.current = true

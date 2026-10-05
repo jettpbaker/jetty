@@ -97,7 +97,6 @@ export function ComposerBranch({
       className='w-64'
       icon={<GitBranchIcon />}
       value={branch ?? ''}
-      triggerLabel={branch && `From ${branch}`}
       options={list ? baseRefs(list, fromOrigin) : []}
       toggle={
         list && onOrigin(list)
