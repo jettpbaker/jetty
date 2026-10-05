@@ -69,6 +69,7 @@ function probeSize(src: string, video: boolean) {
         probe.preload = 'metadata'
         probe.onloadedmetadata = () =>
           resolve({ width: probe.videoWidth, height: probe.videoHeight })
+        probe.onerror = () => resolve('failed')
         probe.src = src
       } else {
         const probe = new Image()
@@ -77,7 +78,11 @@ function probeSize(src: string, video: boolean) {
         probe.src = src
       }
     })
-    void pending.then((found) => probedSizes.set(src, found))
+    // A failure may pass (offline, a proxy hiccup), so only this mount shows it; the next tries again.
+    void pending.then((found) => {
+      if (found === 'failed') probes.delete(src)
+      else probedSizes.set(src, found)
+    })
     probes.set(src, pending)
   }
   return pending
