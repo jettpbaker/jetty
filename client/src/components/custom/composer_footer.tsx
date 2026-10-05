@@ -1,19 +1,12 @@
-import { PlusSignIcon } from '@/components/custom/huge_icons'
-import { Button } from '@/components/ui/button'
-import { useChrome, useCreateProject } from '@/state'
+import { useChrome } from '@/state'
 import { useBranches, useBranchList, type BranchList } from '@/state/worktrees'
-import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef } from 'react'
 
 import { ComposerBranch } from './composer_branch'
 import { ComposerEnvironment } from './composer_environment'
-import { ComposerProject } from './composer_project'
-import { ProjectFolderDialog } from './project_folder_dialog'
-import { ProjectGlyph } from './project_glyph'
 
 export function ComposerFooter({
   projectId,
-  onProjectChange,
   environment,
   onEnvironmentChange,
   startingRef,
@@ -24,13 +17,8 @@ export function ComposerFooter({
   startingRef?: string
   onStartingRefChange: (ref: string) => void
   projectId?: string
-  onProjectChange: (projectId: string) => void
 }) {
   const chrome = useChrome()
-  const createProject = useCreateProject()
-  const navigate = useNavigate()
-  const [adding, setAdding] = useState(false)
-  const projects = chrome?.projects ?? []
   const fetchBranches = useBranches()
   const request = useRef(0)
   const localOnly = environment === 'local'
@@ -53,7 +41,7 @@ export function ComposerFooter({
     })
   }, [projectId, localOnly, fetchBranches])
 
-  const project = projects.find((entry) => entry.id === projectId)
+  const project = chrome?.projects.find((entry) => entry.id === projectId)
   const noGit =
     known?.git === 'missing'
       ? 'Project folder not found'
@@ -76,33 +64,13 @@ export function ComposerFooter({
   return (
     <div
       className='relative z-10 flex flex-wrap items-center justify-between gap-1 px-2.5 opacity-100'
-      aria-label='Project and branch'
+      aria-label='Environment and branch'
     >
-      <div className='flex min-w-0 items-center'>
-        {projects.length === 0 ? (
-          <Button variant='ghost-text' size='sm' onClick={() => setAdding(true)}>
-            <PlusSignIcon />
-            Add project
-          </Button>
-        ) : (
-          <ComposerProject
-            value={projectId ?? ''}
-            options={projects.map((entry) => ({
-              value: entry.id,
-              label: entry.title,
-              icon: <ProjectGlyph icon={entry.icon} data-icon='inline-start' className='size-3' />,
-            }))}
-            onValueChange={onProjectChange}
-            onNewProject={() => setAdding(true)}
-            onManageProjects={() => void navigate({ to: '/settings', hash: 'projects' })}
-          />
-        )}
-        <ComposerEnvironment
-          value={environment}
-          onValueChange={onEnvironmentChange}
-          worktreeDisabled={noGit}
-        />
-      </div>
+      <ComposerEnvironment
+        value={environment}
+        onValueChange={onEnvironmentChange}
+        worktreeDisabled={noGit}
+      />
       <ComposerBranch
         branch={branchLabel}
         refs={branchList?.git === 'ok' ? branchList.branches : undefined}
@@ -111,12 +79,6 @@ export function ComposerFooter({
         onOpen={() => {
           if (projectId) fetchBranches(projectId, localOnly)
         }}
-      />
-      <ProjectFolderDialog
-        open={adding}
-        onOpenChange={setAdding}
-        existingPaths={projects.map((entry) => entry.path)}
-        onAdd={(path) => createProject(path, (created) => onProjectChange(created.id))}
       />
     </div>
   )

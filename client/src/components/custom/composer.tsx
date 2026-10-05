@@ -49,6 +49,7 @@ export function Composer({
   accessMode,
   onAccessModeChange,
   attachments,
+  header,
   context,
   rows = 2,
   ambient = false,
@@ -74,6 +75,7 @@ export function Composer({
   accessMode: PermissionMode
   onAccessModeChange: (accessMode: PermissionMode) => void
   attachments: ImageAttachments
+  header?: ReactNode
   context: ReactNode
   rows?: number
   ambient?: boolean
@@ -150,6 +152,7 @@ export function Composer({
       data-perf-region='composer'
       className='mx-auto flex w-full max-w-[660px] flex-col gap-1'
     >
+      {header}
       <div>
         {strip ? <div className='px-3'>{strip}</div> : null}
         <div

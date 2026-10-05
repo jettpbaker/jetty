@@ -5,6 +5,7 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 import { Composer } from '@/components/custom/composer'
 import { ComposerFooter } from '@/components/custom/composer_footer'
 import { ComposerLoadout } from '@/components/custom/composer_loadout'
+import { ComposerProject } from '@/components/custom/composer_project'
 import {
   ApprovalStrip,
   PendingHeader,
@@ -440,9 +441,22 @@ export function ThreadComposer({
         accessMode={accessMode}
         onAccessModeChange={setAccessMode}
         attachments={attachments}
+        header={
+          threadId ? (
+            // Holds the project row's height so an empty thread's composer sits where the new thread's did.
+            ambient && <div className='h-7' />
+          ) : (
+            <ComposerProject
+              projectId={projectId}
+              onProjectChange={(id) => {
+                if (id !== projectId) retarget({ projectId: id, ref: undefined })
+              }}
+            />
+          )
+        }
         context={
           threadId ? (
-            // Holds the project/branch footer's height so the composer sits where it did on the new thread.
+            // Holds the environment/branch footer's height so the composer sits where it did on the new thread.
             <div className='flex w-full flex-col'>
               {meta?.backgroundTasks?.length ? (
                 <MonitoringLine key={threadId} threadId={threadId} tasks={meta.backgroundTasks} />
@@ -458,9 +472,6 @@ export function ThreadComposer({
           ) : (
             <ComposerFooter
               projectId={projectId}
-              onProjectChange={(id) => {
-                if (id !== projectId) retarget({ projectId: id, ref: undefined })
-              }}
               environment={environment}
               onEnvironmentChange={(next) => retarget({ environment: next })}
               startingRef={startingRef}
