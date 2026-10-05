@@ -25,7 +25,7 @@ import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
-import { AgentError, type Agent } from './agent'
+import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
 import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
@@ -1073,8 +1073,16 @@ export function createOrchestrator({
               const turnId = newId()
               live.turnId = turnId
               live.ready = false
-              const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
-                append(threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
+              let compactNoted = false
+              const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) => {
+                if (
+                  event.type === 'item.started' &&
+                  event.item.kind === 'error' &&
+                  event.item.message.startsWith("Couldn't compact:")
+                )
+                  compactNoted = true
+                return append(threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
+              }
               const lifecycle = agent
                 .startTurn(
                   {
@@ -1092,9 +1100,14 @@ export function createOrchestrator({
                 )
                 .pipe(
                   Effect.flatMap((turn) => turn.await),
-                  Effect.catch((error) =>
-                    emit({ type: 'turn.failed', turnId, error: error.message })
-                  ),
+                  Effect.catch((error) => {
+                    const detail = compactFailureReason(false, error.message)
+                    return (
+                      compactNoted || !detail ? Effect.void : emit(couldntCompact(turnId, detail))
+                    ).pipe(
+                      Effect.andThen(emit({ type: 'turn.failed', turnId, error: error.message }))
+                    )
+                  }),
                   Effect.onInterrupt(() =>
                     emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(
                       Effect.ignore

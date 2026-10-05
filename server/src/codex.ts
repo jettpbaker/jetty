@@ -10,6 +10,8 @@ import type { Store } from './store'
 import {
   AgentError,
   AgentService,
+  compactFailureReason,
+  couldntCompact,
   type Agent,
   type AgentImage,
   type Emit,
@@ -308,20 +310,26 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   session.accepting = false
                   yield* settleOpenItems(session)
                   const completed = object(message.params.turn)
-                  return completed.status === 'completed' && session.reason === null
-                    ? ({
-                        type: 'turn.completed',
-                        turnId: session.input.turnId,
-                      } satisfies ThreadEvent)
-                    : ({
-                        type: 'turn.failed',
-                        turnId: session.input.turnId,
-                        error:
-                          session.reason ??
-                          (string(object(completed.error).message) ||
-                            string(completed.status) ||
-                            'Codex turn failed'),
-                      } satisfies ThreadEvent)
+                  const terminal =
+                    completed.status === 'completed' && session.reason === null
+                      ? ({
+                          type: 'turn.completed',
+                          turnId: session.input.turnId,
+                        } satisfies ThreadEvent)
+                      : ({
+                          type: 'turn.failed',
+                          turnId: session.input.turnId,
+                          error:
+                            session.reason ??
+                            (string(object(completed.error).message) ||
+                              string(completed.status) ||
+                              'Codex turn failed'),
+                        } satisfies ThreadEvent)
+                  if (terminal.type === 'turn.failed' && session.input.compact) {
+                    const detail = compactFailureReason(session.stopped, terminal.error)
+                    if (detail) yield* session.emit(couldntCompact(session.input.turnId, detail))
+                  }
+                  return terminal
                 }
                 const raw = object(message.params.item)
                 if (

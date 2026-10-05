@@ -40,6 +40,28 @@ export class AgentError extends Error {
   readonly _tag = 'AgentError'
 }
 
+export function couldntCompact(turnId: string, reason: string): ThreadEvent {
+  const detail = reason.trim() || 'Compaction failed'
+  return {
+    type: 'item.started',
+    item: {
+      id: newId(),
+      turnId,
+      createdAt: Date.now(),
+      kind: 'error',
+      message: `Couldn't compact: ${detail}`,
+    },
+  }
+}
+
+// A manual /compact the user stopped stays quiet. Anything else it failed at is a row.
+export function compactFailureReason(stopped: boolean, reason: string | null | undefined) {
+  if (stopped) return null
+  const detail = reason?.trim() ?? ''
+  if (!detail || detail === 'interrupted') return null
+  return detail
+}
+
 export type Emit = (
   event: ThreadEvent,
   onCommit?: Effect.Effect<void>

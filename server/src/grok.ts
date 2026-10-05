@@ -10,6 +10,8 @@ import type { Store } from './store'
 import {
   AgentError,
   AgentService,
+  compactFailureReason,
+  couldntCompact,
   type Agent,
   type AgentImage,
   type Emit,
@@ -66,10 +68,20 @@ type Session = {
   reason: string | null
   // the user pressed Stop: tools it cut off read as stopped, not failed
   stopped: boolean
+  compactFailureNoted: boolean
   pending: Map<string, Pending>
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
   mcpErrorShown: boolean
+}
+
+function noteCompactFailure(session: Session, failure: string) {
+  return Effect.gen(function* () {
+    const detail = compactFailureReason(session.stopped, failure)
+    if (!session.input.compact || !detail || session.compactFailureNoted) return
+    session.compactFailureNoted = true
+    yield* session.emit(couldntCompact(session.input.turnId, detail))
+  })
 }
 
 function grokInput(text: string, images?: AgentImage[]) {
@@ -426,6 +438,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 if (notification) {
                   if (
                     session.input.compact &&
+                    !session.stopped &&
                     (update.sessionUpdate === 'auto_compact_failed' ||
                       update.sessionUpdate === 'auto_compact_cancelled')
                   )
@@ -471,14 +484,21 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     yield* settleOpenItems(session)
                     session.awaitingResult = false
                     session.promptId = undefined
-                    yield* session.emit(
+                    const stopError =
                       update.stop_reason === 'end_turn'
-                        ? { type: 'turn.completed', turnId: session.input.turnId }
-                        : {
+                        ? null
+                        : 'Grok stopped: ' + String(update.stop_reason ?? 'unknown')
+                    const compactError = session.reason ?? stopError
+                    if (session.input.compact && compactError)
+                      yield* noteCompactFailure(session, compactError)
+                    yield* session.emit(
+                      stopError
+                        ? {
                             type: 'turn.failed',
                             turnId: session.input.turnId,
-                            error: 'Grok stopped: ' + String(update.stop_reason ?? 'unknown'),
+                            error: stopError,
                           }
+                        : { type: 'turn.completed', turnId: session.input.turnId }
                     )
                     yield* Deferred.succeed(session.done, undefined)
                     yield* contextPoller.poll(true)
@@ -531,6 +551,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                           type: 'turn.completed',
                           turnId: session.input.turnId,
                         } satisfies ThreadEvent)
+                  if (terminal.type === 'turn.failed')
+                    yield* noteCompactFailure(session, terminal.error)
                   session.awaitingResult = false
                   session.requestId = undefined
                   session.promptId = undefined
@@ -601,6 +623,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 existing!.done = yield* Deferred.make<void, AgentError>()
                 existing!.reason = null
                 existing!.stopped = false
+                existing!.compactFailureNoted = false
                 existing!.awaitingResult = true
                 existing!.accepting = !input.compact
                 yield* publish(existing!, { type: 'turn.started', turnId: input.turnId })
@@ -632,6 +655,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             fastIds: new Map(),
             reason: null,
             stopped: false,
+            compactFailureNoted: false,
             pending: new Map(),
             mcpErrorShown: false,
             promptCount: 0,

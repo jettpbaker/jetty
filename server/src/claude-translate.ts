@@ -64,6 +64,7 @@ export type SdkLikeMessage = {
   type: string
   subtype?: string
   compact_result?: 'success' | 'failed'
+  compact_error?: string
   session_id?: string
   event?: StreamEvent
   message?: {

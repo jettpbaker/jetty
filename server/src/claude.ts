@@ -32,6 +32,8 @@ import type { Store } from './store'
 import {
   AgentError,
   AgentService,
+  compactFailureReason,
+  couldntCompact,
   type Agent,
   type AgentHooks,
   type AgentImage,
@@ -129,6 +131,7 @@ type WarmSession = {
   wakePending: boolean
   // the current turn is Jetty's /compact
   compact: boolean
+  compactFailureNoted: boolean
   accepting: boolean
   failReason: string | null
   done: Deferred.Deferred<void, AgentError>
@@ -226,6 +229,16 @@ export function createClaudeAdapter(
       return !session.closed && sessions.get(session.threadId) === session
     }
 
+    function noteManualCompact(session: WarmSession, failure: string) {
+      return Effect.gen(function* () {
+        if (!session.compact || session.compactFailureNoted) return
+        const detail = compactFailureReason(session.failReason === 'interrupted', failure)
+        if (!detail) return
+        session.compactFailureNoted = true
+        yield* session.emit(couldntCompact(session.activeTurnId, detail))
+      })
+    }
+
     function publish(session: WarmSession, event: ThreadEvent) {
       return Effect.gen(function* () {
         const grace = yield* session.publication.withPermit(
@@ -234,13 +247,17 @@ export function createClaudeAdapter(
             const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
             if (terminal && !session.awaitingResult) return null
             if (terminal) session.accepting = false
-            yield* session.emit(
-              !session.failReason
-                ? event
-                : terminal
-                  ? { type: 'turn.failed', turnId: session.activeTurnId, error: session.failReason }
-                  : withoutToolFailure(event, session.runningAgents)
-            )
+            const outgoing = !session.failReason
+              ? event
+              : terminal
+                ? ({
+                    type: 'turn.failed',
+                    turnId: session.activeTurnId,
+                    error: session.failReason,
+                  } satisfies ThreadEvent)
+                : withoutToolFailure(event, session.runningAgents)
+            if (outgoing.type === 'turn.failed') yield* noteManualCompact(session, outgoing.error)
+            yield* session.emit(outgoing)
             trackAgents(session.runningAgents, event)
             if (terminal) {
               session.awaitingResult = false
@@ -322,11 +339,13 @@ export function createClaudeAdapter(
         }
         if (session.awaitingResult) {
           session.awaitingResult = false
+          const error = session.failReason ?? reason
+          yield* noteManualCompact(session, error).pipe(Effect.ignore)
           yield* session
             .emit({
               type: 'turn.failed',
               turnId: session.activeTurnId,
-              error: session.failReason ?? reason,
+              error,
             })
             .pipe(Effect.ignore)
         }
@@ -513,6 +532,13 @@ export function createClaudeAdapter(
               session.ctx.sessionId = null
             }
             for (const event of events) yield* publish(session, event)
+            const sdk = message as SdkLikeMessage
+            if (
+              sdk.type === 'system' &&
+              sdk.subtype === 'status' &&
+              sdk.compact_result === 'failed'
+            )
+              yield* noteManualCompact(session, sdk.compact_error?.trim() || 'Compaction failed')
             // Background subagents outlive their turn; the session stays warm until they settle.
             if (!session.awaitingResult) yield* armIdle(session)
             if (message.type === 'result') {
@@ -809,6 +835,7 @@ export function createClaudeAdapter(
           awaitingResult: false,
           wakePending: false,
           compact: false,
+          compactFailureNoted: false,
           accepting: false,
           failReason: null,
           done,
@@ -870,6 +897,7 @@ export function createClaudeAdapter(
             started.awaitingResult = true
             started.wakePending = false
             started.compact = Boolean(input.compact)
+            started.compactFailureNoted = false
             started.accepting = !input.compact
             started.failReason = null
             started.done = yield* Deferred.make<void, AgentError>()
