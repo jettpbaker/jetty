@@ -12,5 +12,4 @@ export {
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
   Settings2Icon,
-  WorkflowIcon,
 } from 'lucide-react'

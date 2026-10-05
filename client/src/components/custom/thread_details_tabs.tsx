@@ -3,12 +3,13 @@ import type { PullRequestLink } from '@jetty/shared/wire'
 import {
   BubbleChatIcon,
   File01Icon,
+  HierarchySquare01Icon,
   LeftToRightListBulletIcon,
   Link01Icon,
   PlusSignIcon,
   Cancel01Icon,
 } from '@/components/custom/huge_icons'
-import { DiffIcon, WorkflowIcon } from '@/components/custom/lucide_icons'
+import { DiffIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -50,7 +51,7 @@ const tabs = {
   chat: { label: 'Chat', Icon: BubbleChatIcon },
   overview: { label: 'Overview', Icon: LeftToRightListBulletIcon },
   changes: { label: 'Changes', Icon: DiffIcon },
-  threads: { label: 'Threads', Icon: WorkflowIcon },
+  threads: { label: 'Threads', Icon: HierarchySquare01Icon },
 }
 type TabId = keyof typeof tabs
 // Selects a tab, reopening it first if the user had closed it.
