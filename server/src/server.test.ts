@@ -36,7 +36,7 @@ import { createAttachments } from './attachments'
 import { computeThreadDiff, readDiffFile, readProjectFile, writeProjectFile } from './diff'
 import { browse, expandHome } from './fs-browse'
 import { fuzzyMatch, searchFiles } from './fs-search'
-import { startServer } from './main'
+import { markCleanShutdown, startServer } from './main'
 import {
   connect as connectRpc,
   isChromeUpdate,
@@ -1176,6 +1176,49 @@ describe('server skeleton', () => {
     const state = await Effect.runPromise(running.store.getThreadState(thread.id))
     expect(state.items.every((item) => item.turnId === 'cut-turn')).toBe(true)
     expect(heldByRestarts(state.items)).toBe(true)
+  })
+
+  test('a clean shutdown does not count toward the restart limit', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'jetty-clean-restart-'))
+    homes.push(home)
+    const db = await openTestStore(home)
+    const { store } = db
+    const project = await Effect.runPromise(store.createProject(home))
+    const thread = await Effect.runPromise(store.createThread(project.id, newId()))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        for (let start = 1; start < RESTART_LIMIT; start++)
+          yield* store.recordServerStart(Date.now() - start * 1000, RESTART_WINDOW_MS)
+        yield* store.appendEvent(thread.id, { type: 'turn.started', turnId: 'cut-turn' })
+      })
+    )
+    await db.close()
+    markCleanShutdown(home)
+
+    const running = await startServer({ home, port: 0, hostname: '127.0.0.1', agent: 'echo' })
+    servers.push(running)
+    const c = await connect(running.port)
+    await c.subscribeThread({ threadId: thread.id }).ready
+    await c.waitFor(
+      (m) => isThreadEvent(m) && m.threadId === thread.id && m.event.type === 'turn.completed'
+    )
+    const meta = await Effect.runPromise(running.store.requireThread(thread.id))
+    expect(meta.queuePaused).toBe(false)
+    const state = await Effect.runPromise(running.store.getThreadState(thread.id))
+    expect(heldByRestarts(state.items)).toBe(false)
+    const raw = new Database(join(home, 'jetty.db'), { readonly: true })
+    try {
+      const counted = raw.query('SELECT COUNT(*) AS count FROM server_starts').get() as {
+        count: number
+      }
+      expect(counted.count).toBe(RESTART_LIMIT - 1)
+      expect(
+        raw.query("SELECT value_json FROM settings WHERE key = 'cleanShutdown'").get()
+      ).toBeNull()
+    } finally {
+      raw.close()
+    }
+    await c.close()
   })
 
   test('a second server on the same home refuses to start, before touching the first one', async () => {

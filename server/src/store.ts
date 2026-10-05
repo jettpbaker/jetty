@@ -743,10 +743,17 @@ export function createStore() {
 
     return {
       queueChanges,
+      // A clean exit leaves `cleanShutdown` in settings. Missing, this start counts: a crash,
+      // kill -9, or power loss. The row is consumed either way, so the next start is judged alone.
       recordServerStart(startedAt: number, windowMs: number) {
         return Effect.gen(function* () {
+          const [marked] = yield* sql<{
+            value_json: string
+          }>`SELECT value_json FROM settings WHERE key = 'cleanShutdown'`
+          yield* sql`DELETE FROM settings WHERE key = 'cleanShutdown'`
           yield* sql`DELETE FROM server_starts WHERE started_at < ${startedAt - windowMs}`
-          yield* sql`INSERT INTO server_starts (started_at) VALUES (${startedAt})`
+          if (marked?.value_json !== 'true')
+            yield* sql`INSERT INTO server_starts (started_at) VALUES (${startedAt})`
           const [row] = yield* sql<{ count: number }>`SELECT COUNT(*) AS count FROM server_starts
             WHERE started_at >= ${startedAt - windowMs} AND started_at <= ${startedAt}`
           return row!.count

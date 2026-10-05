@@ -108,6 +108,24 @@ function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
   })
 }
 
+// bun --watch delivers SIGTERM and restarts this script in-process once the handler returns
+// (it gives up after about half a second). Timers and Effect finalizers do not run, so the
+// clean-exit row has to be committed before the handler returns. SIGINT and stop() use it too.
+export function markCleanShutdown(home: string) {
+  let db: Database | undefined
+  try {
+    db = new Database(join(home, 'jetty.db'))
+    db.exec('PRAGMA busy_timeout = 400')
+    db.exec(
+      `INSERT INTO settings (key, value_json) VALUES ('cleanShutdown', 'true') ON CONFLICT(key) DO UPDATE SET value_json = 'true'`
+    )
+  } catch {
+    // This exit then counts toward the restart limit.
+  } finally {
+    db?.close()
+  }
+}
+
 // One server per home: a second one would settle the first one's live turns as if it had crashed.
 // SQLite's lock on the file is the OS's, so it goes with the process however that ends; with the
 // journal in memory, a killed server leaves no journal file behind either.
@@ -654,7 +672,10 @@ function createServer(opts: ServerOptions = {}) {
     )
     yield* orch.resumeQueues()
     yield* Effect.addFinalizer(() =>
-      orch.beginShutdown().pipe(Effect.andThen(Effect.promise(() => worktrees.shutdown())))
+      Effect.sync(() => markCleanShutdown(home)).pipe(
+        Effect.andThen(orch.beginShutdown()),
+        Effect.andThen(Effect.promise(() => worktrees.shutdown()))
+      )
     )
 
     return {
@@ -691,6 +712,10 @@ export async function startServer(opts: ServerOptions = {}) {
 }
 
 if (import.meta.main) {
+  const home = process.env.JETTY_HOME ?? join(homedir(), '.jetty')
+  const mark = () => markCleanShutdown(home)
+  process.on('SIGTERM', mark)
+  process.on('SIGINT', mark)
   BunRuntime.runMain(
     Effect.gen(function* () {
       const running = yield* ServerService

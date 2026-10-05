@@ -227,8 +227,8 @@ export const ThreadItem = Schema.Union([
 ])
 export type ThreadItem = Schema.Schema.Type<typeof ThreadItem>
 
-// The crash-loop guard: the RESTART_LIMIT-th start within the window resumes nothing, and each
-// turn it cut off carries this note as an error.
+// The crash-loop guard: the RESTART_LIMIT-th unclean start within the window resumes nothing,
+// and each turn it cut off carries this note as an error. A clean exit does not count.
 export const RESTART_LIMIT = 3
 export const RESTART_WINDOW_MS = 10 * 60_000
 export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
