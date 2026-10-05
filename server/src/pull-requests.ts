@@ -1985,9 +1985,10 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   // One cheap query notices change on every open linked PR; only changed ones pay for a full
-  // read. Check runs don't bump updatedAt, so the rollup state is compared too. Closed and merged
-  // links are left to a PR view's own 30-minute cadence. PR watchers keep it going, a minute
-  // apart, while no window shows Jetty.
+  // read. Check runs don't bump updatedAt, so the rollup state is compared too, and neither does
+  // a base push that makes it conflict, so mergeability is too (GitHub works it out lazily, and
+  // asking is what starts it). Closed and merged links are left to a PR view's own 30-minute
+  // cadence. PR watchers keep it going, a minute apart, while no window shows Jetty.
   function refreshChangedLinks(watching = false) {
     return Effect.gen(function* () {
       const hidden = hub.githubActivity() === 'hidden'
@@ -2117,8 +2118,8 @@ export function createPullRequests(store: Store, hub: Hub) {
           void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
         } else if (
           graph.checkRollupState !== snapshot.data.checkRollupState ||
-          // GitHub settles mergeability lazily; asking again until it does surfaces conflicts.
-          mergeUnknown(snapshot.data) ||
+          graph.pull.mergeable !== snapshot.data.mergeable ||
+          string(graph.pull.mergeStateStatus, 'UNKNOWN') !== snapshot.data.mergeStateStatus ||
           // The checks read republishes it as current, clearing a failed full read's notice.
           snapshot.status !== 'ready'
         )

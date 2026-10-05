@@ -137,7 +137,7 @@ export function connectionField(field: string, after?: string) {
   }`
 }
 
-export const pullRequestStateFields = `updatedAt headRefOid baseRefOid commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
+export const pullRequestStateFields = `updatedAt headRefOid baseRefOid mergeable mergeStateStatus commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
 
 const checkRollupFields = `commits(last:1) { nodes { commit {
   oid statusCheckRollup { state contexts(first:100) {
