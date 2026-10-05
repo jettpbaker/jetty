@@ -105,6 +105,8 @@ export default defineConfig({
   ],
   // The code highlighter worker loads its grammars on demand.
   worker: { format: 'es' },
+  // Found only when the worker first highlights, which reloads the page mid-session.
+  optimizeDeps: { include: ['shiki/core', 'shiki/engine/javascript'] },
   server: {
     port: Number(process.env.JETTY_CLIENT_PORT ?? 5173),
     proxy: {
