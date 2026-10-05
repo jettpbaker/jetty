@@ -262,10 +262,13 @@ test('failed deliveries retry persisted news with bounded backoff', async () => 
   await f.thread('owner/repo')
   const nativeSetTimeout = globalThis.setTimeout
   const scheduled = new Map<ReturnType<typeof setTimeout>, { run: () => void; delay: number }>()
+  // Only the watcher's backoff delays are captured; other timers in the process run as usual.
+  const backoff = new Set([15_000, 30_000, 60_000])
   const timerSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((
     callback: () => void,
     delay?: number
   ) => {
+    if (!backoff.has(Number(delay))) return nativeSetTimeout(callback, delay)
     const timer = nativeSetTimeout(() => {}, 60 * 60_000)
     timer.unref()
     scheduled.set(timer, { run: callback, delay: Number(delay) })
@@ -274,15 +277,24 @@ test('failed deliveries retry persisted news with bounded backoff', async () => 
   const warningSpy = spyOn(console, 'warn').mockImplementation(() => {})
   try {
     await f.change()
-    for (const delay of [15_000, 15_000, 30_000, 60_000, 60_000]) {
+    // Each attempt settles over a few macrotasks; wait for its outcome rather than assume one.
+    async function settled(attempt: number) {
+      for (let tick = 0; tick < 200 && attempts < attempt; tick++)
+        await new Promise<void>((resolve) => setImmediate(resolve))
+      for (let tick = 0; tick < 200 && attempt <= 4 && scheduled.size === 0; tick++)
+        await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    for (const [index, delay] of [15_000, 15_000, 30_000, 60_000, 60_000].entries()) {
       expect(scheduled.size).toBe(1)
       const [timer, next] = [...scheduled][0]!
       expect(next.delay).toBe(delay)
       scheduled.delete(timer)
       clearTimeout(timer)
       next.run()
-      await new Promise<void>((resolve) => setImmediate(resolve))
+      await settled(index + 1)
     }
+    for (let tick = 0; tick < 200 && !delivered; tick++)
+      await new Promise<void>((resolve) => setImmediate(resolve))
     expect(attempts).toBe(5)
     expect(delivered?.text).toContain('Please fix this')
     expect((await f.runtime.runPromise(f.store.pendingPullRequestWatches())).length).toBe(0)
