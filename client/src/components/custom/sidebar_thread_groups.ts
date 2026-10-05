@@ -23,6 +23,8 @@ export type SidebarThread = {
   environment: 'local' | 'worktree'
   branch?: string
   updatedAt: number
+  // Orders the list: the last turn start, so streaming never reshuffles it.
+  lastStartedAt: number
   pinned: boolean
   archived: boolean
   pullRequests: ThreadPullRequest[]
@@ -53,6 +55,7 @@ export function sidebarThreads(
     environment: thread.environment,
     branch: threadBranch(thread),
     updatedAt: thread.updatedAt,
+    lastStartedAt: thread.turnStartedAt ?? thread.updatedAt,
     pinned: thread.pinned,
     archived: thread.archived,
     ...threadPullRequests(thread.pullRequests ?? []),
@@ -140,7 +143,7 @@ export function groupSidebarThreads(
   const search = query.trim().toLowerCase()
   const matching = threads
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .sort((a, b) => b.lastStartedAt - a.lastStartedAt)
   const filtered = matching.filter((thread) => !thread.archived)
   const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
   const grouped = groupsFor(grouping, remaining).map((group) => ({
