@@ -145,7 +145,7 @@ export function FileEditor({
 
   const root = useRef<HTMLElement>(null)
   const saveKey = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key !== 's' || !(event.metaKey || event.ctrlKey) || event.altKey) return
+    if (event.key.toLowerCase() !== 's' || !(event.metaKey || event.ctrlKey) || event.altKey) return
     event.preventDefault()
     saveNow()
   })

@@ -999,7 +999,11 @@ export function MarkdownEditor({
       },
       handleKeyDown(view, event) {
         if (menuKey.current(event)) return true
-        if ((event.metaKey || event.ctrlKey) && event.key === 'k' && !view.state.selection.empty) {
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key.toLowerCase() === 'k' &&
+          !view.state.selection.empty
+        ) {
           event.preventDefault()
           linkKey.current()
           return true
