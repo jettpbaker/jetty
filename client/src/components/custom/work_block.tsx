@@ -115,7 +115,9 @@ function WorkHistory({
               {entry.type === 'thinking' ? (
                 <ThinkingBlock activity={entry} />
               ) : entry.type === 'text' ? (
-                <Markdown className='work-text'>{entry.text}</Markdown>
+                <Markdown className='work-text' reply={entry.id}>
+                  {entry.text}
+                </Markdown>
               ) : entry.type === 'todo' ? (
                 <TodoLink threadId={threadId} update={entry.update} />
               ) : entry.type === 'threads' ? (

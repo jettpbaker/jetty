@@ -77,6 +77,27 @@ export function usePacedText(text: string, from?: number) {
   return pacing ? wholeWords(text.slice(0, shown)) : text
 }
 
+// How much of each reply has shown in this window, and when, so one mounted again (the reply moving
+// into Working, its thread switched back to) doesn't roll in again.
+const shownReplies = new Map<string, { length: number; at: number }>()
+
+// What a reply showed if it was showing a moment ago, so a remount carries on its roll-in; all of
+// it if longer ago; nothing if it never showed.
+export function replyShown(reply: string | undefined) {
+  const shown = reply === undefined ? undefined : shownReplies.get(reply)
+  if (!shown) return undefined
+  return performance.now() - shown.at < 1000 ? shown.length : Infinity
+}
+
+export function useReplyShown(reply: string | undefined, length: number | undefined) {
+  useEffect(() => {
+    if (reply === undefined || length === undefined) return
+    shownReplies.delete(reply)
+    shownReplies.set(reply, { length, at: performance.now() })
+    if (shownReplies.size > 100) shownReplies.delete(shownReplies.keys().next().value!)
+  }, [reply, length])
+}
+
 function textOf(node: HastNode): string {
   if (node.type === 'text') return node.value ?? ''
   let text = ''

@@ -286,6 +286,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
                 streaming={row.streaming}
                 // Claude often sends a reply written after a tool call all at once.
                 arrived={!row.streaming && Date.now() - (row.item.completedAt ?? 0) < 1000}
+                reply={row.item.id}
               >
                 {row.item.text}
               </Markdown>

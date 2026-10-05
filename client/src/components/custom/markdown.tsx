@@ -15,7 +15,13 @@ import {
   MarkdownTableHeader,
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
-import { smoothBlocks, usePacedText, wholeWords } from '@/components/custom/smooth_stream'
+import {
+  replyShown,
+  smoothBlocks,
+  usePacedText,
+  useReplyShown,
+  wholeWords,
+} from '@/components/custom/smooth_stream'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
@@ -168,22 +174,33 @@ export function Markdown({
   children,
   streaming,
   arrived,
+  reply,
   className = 'text-sm leading-relaxed',
 }: {
   children: string
   streaming?: boolean
   // Complete a moment ago, so it rolls in like a stream rather than appearing at once.
   arrived?: boolean
+  // The reply's id, so mounting it again carries on what it showed before.
+  reply?: string
   className?: string
 }) {
+  // What shows at once: all of a stream so far, else what this reply already showed, else nothing
+  // of one that just arrived and all of anything else.
+  const [from] = useState(() =>
+    streaming
+      ? children.length
+      : Math.min(children.length, replyShown(reply) ?? (arrived ? 0 : children.length))
+  )
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
   const [smooth] = useState(() =>
-    streaming || arrived ? smoothBlocks(arrived ? '' : children) : undefined
+    streaming || from < children.length ? smoothBlocks(children.slice(0, from)) : undefined
   )
   const [BlockComponent] = useState(() => smooth?.SmoothBlock ?? MarkdownBlock)
   useEffect(() => smooth?.mounted(), [smooth])
   const text = smooth && streaming ? wholeWords(children) : children
-  const shown = usePacedText(text, smooth && (arrived ? 0 : children.length))
+  const shown = usePacedText(text, smooth && from)
+  useReplyShown(reply, smooth && shown.length)
   return (
     <Streamdown
       className={className}
