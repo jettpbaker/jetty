@@ -80,8 +80,6 @@ const accessDescriptions: Record<PermissionMode, string> = {
   full_access: 'Run anything without asking',
 }
 const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'new']
-// Below this there's little to compact, so Compact stays out of the menu.
-const compactFrom = 20_000
 const commandLabels: Record<ValueCommand, string> = {
   model: 'Model',
   effort: 'Effort',
@@ -334,7 +332,7 @@ export function useComposerSlash(
         picker('access'),
         !choosable
       ),
-      ...(context && context.usedTokens >= compactFrom
+      ...(context && context.usedTokens > 0
         ? [
             command(
               'compact',
