@@ -115,6 +115,11 @@ async function worktreeConfig(root: string) {
   return { setup: script('setup'), archive: script('archive'), environment }
 }
 
+// Runs a worktree script ($1) so its process group dies with the server, however the server exits:
+// a watcher waits on the server's end of stdin, which only closes then.
+const supervised =
+  'exec 3<&0; (read -r _ <&3; kill -KILL 0) & sh -lc "$1" </dev/null 3<&-; code=$?; kill $!; exit $code'
+
 // Without a .worktreeinclude, env files are what a fresh worktree most often lacks.
 const defaultIncludes = ['--exclude=.env*', '--exclude=!**/node_modules/**']
 const dirtyArchive = 'Commit or discard uncommitted changes before archiving this worktree'
@@ -345,11 +350,11 @@ export function createWorktrees(
     const stopped = () => new Error(`Worktree ${name} stopped`)
     if (signal?.aborted) throw stopped()
     await new Promise<void>((resolve, reject) => {
-      const child = spawn('sh', ['-lc', script], {
+      const child = spawn('sh', ['-c', supervised, 'sh', script], {
         cwd,
         env: { ...process.env, ...env },
         detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
       })
       setups.add(child)
       let output = ''
