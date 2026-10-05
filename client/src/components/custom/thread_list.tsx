@@ -533,6 +533,27 @@ export function ThreadList({
     pinned.current = value
     if (!value) glider.current?.stop()
   }, [])
+  // The browser's End and Home aim at the ends of rows still at their estimated sizes, so they
+  // land short once those rows measure (639px in a 200-turn thread).
+  useEffect(() => {
+    const element = scroller.current!
+    const jump = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.shiftKey) return
+      if ((event.target as HTMLElement).closest('input, textarea, [contenteditable]')) return
+      const meta = event.metaKey
+      if ((event.key === 'End' && !meta) || (event.key === 'ArrowDown' && meta)) {
+        event.preventDefault()
+        pin(true)
+        virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
+      } else if ((event.key === 'Home' && !meta) || (event.key === 'ArrowUp' && meta)) {
+        event.preventDefault()
+        pin(false)
+        virtualizer.scrollToOffset(0)
+      }
+    }
+    element.addEventListener('keydown', jump)
+    return () => element.removeEventListener('keydown', jump)
+  }, [pin, virtualizer])
   useLayoutEffect(() => {
     if (!pinned.current || rows.length === 0 || !scroller.current) return
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
@@ -690,9 +711,11 @@ export function ThreadList({
             const hand = byHand.current.held || performance.now() - byHand.current.at < 500
             const behind = element.scrollHeight - element.clientHeight - element.scrollTop
             shownTop.current = element.scrollTop
-            if (up && hand) pin(false)
-            // Coming back down near the bottom holds on, as does being clamped right onto it.
-            else if (behind < (up ? 1 : pinSlack)) pin(true)
+            // A clamp that keeps the list on its bottom (a taller window) isn't letting go.
+            if (up && hand && behind >= 1) pin(false)
+            // Coming back down near the bottom holds on, as does landing right on it; the
+            // virtualizer holding a reader's place as a row above grows doesn't.
+            else if (behind < (hand && !up ? pinSlack : 1)) pin(true)
           }}
         >
           <div className='relative w-full' style={{ height: totalSize }}>
