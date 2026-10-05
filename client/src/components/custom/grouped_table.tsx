@@ -180,7 +180,10 @@ export function GroupedTable<T>({
                 />
                 {group.icon}
                 <span style={{ color: group.labelColor }}>{group.label}</span>
-                <span className='ml-auto font-normal text-muted-foreground tabular-nums'>
+                <span
+                  className='ml-auto font-normal text-muted-foreground tabular-nums'
+                  style={{ width: columns.at(-1)?.width }}
+                >
                   {group.rows.length}
                 </span>
               </Button>
