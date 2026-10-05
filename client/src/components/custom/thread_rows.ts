@@ -2,6 +2,7 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
+import { isQueuedEditing } from '@/state/queue_editing'
 import { awaitsInput } from '@/state/thread_tab'
 import { pendingTurnId } from '@/state/turns'
 import { RESTART_LIMIT_NOTE, type ChildReport, type ThreadItem } from '@jetty/shared/items'
@@ -714,7 +715,7 @@ function queueRows(
   const rows: ThreadRow[] = []
   const head = own[0]
   if (head || (paused && unsent.length > 0)) {
-    const resume = held ? 'continue' : unsent.find((entry) => entry.id !== editing)
+    const resume = held ? 'continue' : unsent.find((entry) => !isQueuedEditing(entry, editing))
     rows.push({
       kind: 'queueSeam',
       id: 'queue:seam',
@@ -722,7 +723,7 @@ function queueRows(
         ? 'paused'
         : running
           ? 'queued'
-          : head && editing === head.id
+          : head && isQueuedEditing(head, editing)
             ? 'editing'
             : 'sending',
       count: own.length,
@@ -735,7 +736,7 @@ function queueRows(
       kind: 'queued',
       id: `${entry.id}:queued`,
       entry,
-      editing: entry.id === editing,
+      editing: isQueuedEditing(entry, editing),
       steer: running,
     })
   if (removed && !queued.some((entry) => entry.id === removed.message.id)) {

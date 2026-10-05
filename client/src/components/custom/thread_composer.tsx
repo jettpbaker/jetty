@@ -41,6 +41,7 @@ import {
   useVisibleQueue,
 } from '@/state'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
+import { isQueuedEditing } from '@/state/queue_editing'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -183,7 +184,7 @@ export function ThreadComposer({
   // reruns reads "Setting up worktree" with Stop; with nothing waiting it only sets up.
   function retry() {
     if (!threadId) return
-    const next = unsent.find((entry) => entry.id !== editing)
+    const next = unsent.find((entry) => !isQueuedEditing(entry, editing))
     if (next) queueActions.sendNow(threadId, next)
     else retrySetup(threadId)
   }
