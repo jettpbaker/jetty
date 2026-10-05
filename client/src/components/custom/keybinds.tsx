@@ -70,11 +70,15 @@ export function typingOutsideComposer(event: KeyboardEvent) {
 }
 
 // Keys pressed in a dialog are the dialog's: an app shortcut would act behind it, or navigate it
-// away (⌥1 from the media lightbox).
+// away (⌥1 from the media lightbox). A popover (a picker) is a dialog to Base UI too, but like a
+// menu the keys it handles are arrows, Enter, Escape and typing, never a ⌘ chord, so app
+// shortcuts still work from inside one.
 export function inDialog(event: KeyboardEvent) {
   const target = keyTarget(event)
   return (
-    target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]') !== null
+    target instanceof Element &&
+    target.closest('[role="dialog"]:not([data-slot="popover-content"]), [role="alertdialog"]') !==
+      null
   )
 }
 
