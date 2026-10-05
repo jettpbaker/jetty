@@ -25,6 +25,8 @@ export type TranslateCtx = {
   toolUseToItemId: Map<string, string>
   blockKinds: Map<number, 'text' | 'thinking' | 'tool_use'>
   toolBlocks: Map<number, { id: string; name: string; json: string }>
+  // a thinking block's estimated_tokens is a running total; deltas carry the increment
+  thinkingTokens: Map<number, number>
   sawPartials: boolean
   sawModel: boolean
   sessionId: string | null
@@ -49,6 +51,7 @@ export function createTranslateCtx(
     toolUseToItemId: new Map(),
     blockKinds: new Map(),
     toolBlocks: new Map(),
+    thinkingTokens: new Map(),
     sawPartials: false,
     sawModel: false,
     sessionId: null,
@@ -432,7 +435,16 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         typeof delta.thinking === 'string' &&
         (delta.type === 'thinking_delta' || kind === 'thinking')
       ) {
-        streamDelta(ctx, out, 'reasoning', delta.thinking, delta.estimated_tokens)
+        const total = delta.estimated_tokens
+        const previous = ctx.thinkingTokens.get(index) ?? 0
+        if (typeof total === 'number') ctx.thinkingTokens.set(index, total)
+        streamDelta(
+          ctx,
+          out,
+          'reasoning',
+          delta.thinking,
+          typeof total === 'number' ? total - previous : undefined
+        )
       }
       return out
     }
@@ -464,6 +476,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       }
 
       ctx.blockKinds.delete(index)
+      ctx.thinkingTokens.delete(index)
       return out
     }
 

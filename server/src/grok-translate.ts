@@ -100,7 +100,8 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
         durationMs: natural(update.elapsed_ms),
         ...(string(update.result_summary) ? { summary: string(update.result_summary) } : {}),
       }
-      if (!workflows.has(runId)) {
+      const fresh = !workflows.has(runId)
+      if (fresh) {
         workflows.add(runId)
         events.push({
           type: 'item.started',
@@ -114,13 +115,13 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
             ...patch,
           },
         })
-      } else {
+      }
+      if (!fresh || status !== 'running')
         events.push({
           type: status === 'running' ? 'item.updated' : 'item.completed',
           itemId: runId,
           patch,
         })
-      }
       return events
     }
     if (update.sessionUpdate === 'plan' && Array.isArray(update.entries)) {

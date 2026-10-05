@@ -11,8 +11,6 @@ const NATIVE_1M_WINDOW = 1_000_000
 const NATIVE_1M =
   /(?:^|[^a-z0-9])(?:claude-)?(?:fable-5(?:-1)?|mythos-5(?:-1)?|sonnet-5|opus-5|opus-4-[789])(?:$|[^0-9])/i
 
-const SKIP_CATEGORIES = new Set(['free space', 'autocompact buffer', 'compact buffer'])
-
 function is1mDisabled(): boolean {
   const raw = process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT
   return raw === '1' || raw?.toLowerCase() === 'true'
@@ -41,7 +39,7 @@ export async function readContextUsage(query: Query): Promise<ContextUsage | nul
     const slices: ContextUsage['slices'][number][] = []
     for (const cat of response.categories) {
       const tokens = Math.round(cat.tokens)
-      if (tokens <= 0 || cat.isDeferred || SKIP_CATEGORIES.has(cat.name.toLowerCase())) continue
+      if (tokens <= 0 || cat.kind !== 'used') continue
       slices.push({ label: cat.name, tokens })
     }
 
