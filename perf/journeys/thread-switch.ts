@@ -1,4 +1,4 @@
-import { click, composer, hasText, open, row, waitFor, type Journey } from '../journey'
+import { click, composer, hasText, open, quiet, row, waitFor, type Journey } from '../journey'
 import { lastText } from './thread-open'
 
 function threadSwitch(target: keyof typeof lastText): Journey {
@@ -10,6 +10,8 @@ function threadSwitch(target: keyof typeof lastText): Journey {
       await open(ctx, `/threads/${ctx.fixtures.threads.small}`, `${composer} && ${small}`)
       await click(ctx.page, row(target), `the ${target} row`)
       await waitFor(ctx.page, hasText(lastText[target]), `${target} to render`)
+      // A visit long enough for the idle prefetches to start, so the switch back finds them.
+      await quiet(ctx.page)
       await click(ctx.page, row('small'), 'the small row')
       await waitFor(ctx.page, `${small} && !${hasText(lastText[target])}`, 'small to render')
     },

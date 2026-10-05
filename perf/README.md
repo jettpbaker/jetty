@@ -37,7 +37,7 @@ into `~/Library/Caches/jetty-perf`, where golden homes are cached too.
 3. Per journey: one discarded warm-up, then n iterations, each in a fresh tab (4× CPU
    throttle, 1440×900, storage cleared, remote URLs blocked). The journey finishes when its
    record comes out of `__jettyPerf.take()` (a DOM condition is the fallback), then the
-   page must be quiet for 500 ms before counters are read.
+   page must settle (below) before counters are read.
 
 ## Numbers
 
@@ -56,7 +56,11 @@ into `~/Library/Caches/jetty-perf`, where golden homes are cached too.
 To keep tier 1 exact the lab: finishes CSS transitions and animations on the next frame,
 parks the mouse after each click so hover cards don't open on their own timers, starts each
 journey just after the app's 5 s RPC pong, polls only `take()` while a journey runs, and
-measures with production React. Known remaining drift is app behaviour, and the report
+measures with production React. It also lets the page settle after setup and again before
+closing the window: 500 ms without a DOM mutation, no idle callback waiting, no page load
+or unary RPC in flight, then a garbage collection (it runs FinalizationRegistry callbacks)
+and another quiet 500 ms. Background work a step starts (prefetches, idle refinement) so
+lands inside its window every time. Known remaining drift is app behaviour, and the report
 shows it.
 
 ## Fixtures

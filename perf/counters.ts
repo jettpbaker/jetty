@@ -2,14 +2,55 @@ import type { Page } from './driver'
 import type { SourceMapper } from './sourcemap'
 
 // Injected by the lab through CDP on every new document, before any app script runs; the app
-// never sees or ships it. Counts DOM mutation records, attributes layout shifts to regions and
-// keeps long animation frames. Only React commits and WebSocket traffic come from the app's
-// own perf module (window.__jettyPerf), since only the app can see those.
+// never sees or ships it. Counts DOM mutation records, attributes layout shifts to regions,
+// keeps long animation frames and tracks the idle callbacks the page is waiting on. Only React
+// commits and WebSocket traffic come from the app's own perf module (window.__jettyPerf), since
+// only the app can see those.
 const labScript = `(() => {
   const lab = { mutations: 0, shifts: {}, loafs: [] }
   Object.defineProperty(window, '__perfLab', { value: lab })
-  new MutationObserver((records) => { lab.mutations += records.length }).observe(document, {
-    subtree: true, childList: true, attributes: true, characterData: true,
+  let activity = () => {}
+  new MutationObserver((records) => {
+    lab.mutations += records.length
+    activity()
+  }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true })
+  const idle = new Set()
+  const requestIdle = window.requestIdleCallback.bind(window)
+  const cancelIdle = window.cancelIdleCallback.bind(window)
+  window.requestIdleCallback = (callback, options) => {
+    const id = requestIdle((deadline) => {
+      idle.delete(id)
+      try {
+        callback(deadline)
+      } finally {
+        activity()
+      }
+    }, options)
+    idle.add(id)
+    return id
+  }
+  window.cancelIdleCallback = (id) => {
+    idle.delete(id)
+    cancelIdle(id)
+    activity()
+  }
+  lab.idleCallbacks = () => idle.size
+  // Resolves true once the page has gone ms without a DOM mutation and has no idle callback
+  // waiting; false at the timeout. Event-driven, so waiting never wakes the page.
+  lab.quiet = (ms, timeout) => new Promise((resolve) => {
+    let timer = 0
+    const limit = setTimeout(() => end(false), timeout)
+    function end(quiet) {
+      clearTimeout(timer)
+      clearTimeout(limit)
+      activity = () => {}
+      resolve(quiet)
+    }
+    activity = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => idle.size === 0 && end(true), ms)
+    }
+    activity()
   })
   try {
     new PerformanceObserver((list) => {

@@ -1,5 +1,7 @@
 import type { Client } from '@jetty/server/src/rpc-test-client'
 
+import { JettyRpcs } from '@jetty/shared/rpc'
+import { RpcSchema } from 'effect/rpc'
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { cpus, loadavg } from 'node:os'
 import { join } from 'node:path'
@@ -235,6 +237,107 @@ async function waitForJourney(page: Page, journey: Journey, ctx: Ctx) {
   }
 }
 
+const streams = new Set<string>(
+  [...JettyRpcs.requests.values()]
+    .filter((rpc) => RpcSchema.isStreamSchema(rpc.successSchema))
+    .map((rpc) => rpc._tag)
+)
+
+function rpcMessages(
+  payload: string
+): { _tag?: string; id?: unknown; requestId?: unknown; tag?: string }[] {
+  try {
+    const parsed = JSON.parse(payload)
+    return Array.isArray(parsed) ? parsed : [parsed]
+  } catch {
+    return []
+  }
+}
+
+// Page loads and unary RPCs still in flight: a prefetch the journey started (route chunks, a
+// diff) lands inside the window every time, not only when the server is quick.
+function watchNetwork(page: Page) {
+  const loads = new Map<string, string>()
+  const calls = new Map<string, string>()
+  let changes = 0
+  let onIdle = () => {}
+  function changed() {
+    changes++
+    if (loads.size + calls.size === 0) onIdle()
+  }
+  page.on<{ requestId: string; request: { url: string }; documentURL: string; type: string }>(
+    'Network.requestWillBeSent',
+    ({ requestId, request, documentURL, type }) => {
+      // A worker's script is its own document, and it finishes loading in the worker's target.
+      if (documentURL === request.url && type !== 'Document') return
+      loads.set(requestId, request.url)
+      changed()
+    }
+  )
+  for (const event of ['Network.loadingFinished', 'Network.loadingFailed'])
+    page.on<{ requestId: string }>(event, ({ requestId }) => {
+      if (loads.delete(requestId)) changed()
+    })
+  page.on<{ response: { payloadData: string } }>('Network.webSocketFrameSent', ({ response }) => {
+    for (const message of rpcMessages(response.payloadData)) {
+      if (message._tag === 'Request' && !streams.has(message.tag ?? '')) {
+        calls.set(String(message.id), message.tag ?? '')
+        changed()
+      }
+      if (message._tag === 'Interrupt' && calls.delete(String(message.requestId))) changed()
+    }
+  })
+  page.on<{ response: { payloadData: string } }>(
+    'Network.webSocketFrameReceived',
+    ({ response }) => {
+      for (const message of rpcMessages(response.payloadData))
+        if (message._tag === 'Exit' && calls.delete(String(message.requestId))) changed()
+    }
+  )
+  page.on('Network.webSocketClosed', () => {
+    calls.clear()
+    changed()
+  })
+  return {
+    changes: () => changes,
+    idle: () =>
+      loads.size + calls.size === 0
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => (onIdle = resolve)),
+    inFlight: () => [...loads.values(), ...calls.values()],
+  }
+}
+
+type Network = ReturnType<typeof watchNetwork>
+
+// The page has settled once it's quiet with nothing in flight, then quiet again after a garbage
+// collection, which runs FinalizationRegistry callbacks (Effect's atom families register theirs).
+// Whatever background work a step started then falls inside its window every time. Returns what
+// was still busy at the timeout.
+async function settle(page: Page, network: Network, timeout = 10_000) {
+  const deadline = Date.now() + timeout
+  let collected = false
+  for (;;) {
+    const mark = network.changes()
+    const quietPage = await quiet(page, 500, deadline - Date.now())
+    await Promise.race([network.idle(), Bun.sleep(deadline - Date.now())])
+    if (quietPage && network.changes() === mark) {
+      if (collected) return undefined
+      await page.cdp('HeapProfiler.collectGarbage')
+      collected = true
+      continue
+    }
+    if (Date.now() > deadline) {
+      const busy = network.inFlight()
+      if (!quietPage) {
+        const idle = await page.evaluate<number>('window.__perfLab.idleCallbacks()')
+        busy.unshift(idle ? `${idle} idle callbacks` : 'DOM mutations')
+      }
+      return busy.join(', ')
+    }
+  }
+}
+
 // The app's RPC socket pings every 5 s and handling the pong is app work. Starting a journey
 // just after a pong, when the journey fits before the next one, keeps it out of the counts.
 const pingMs = 5000
@@ -294,12 +397,13 @@ export async function iterate(
       )
     : undefined
   const socket = watchSocket(page)
+  const network = watchNetwork(page)
   const ctx: Ctx = { page, origin: server.origin, fixtures: variant.golden.fixtures, rpc, vars: {} }
   const id = journeyId(journey)
   try {
     await startCoverage(page)
     await journey.setup(ctx)
-    await quiet(page)
+    await settle(page, network)
     if (!journey.navigates) await socket.clear(variant.spans.get(id) ?? 2000)
     await page.evaluate('window.__jettyPerf?.take(), 0')
     const setupWireBytes = wireBytes
@@ -312,7 +416,7 @@ export async function iterate(
     const finished = await waitForJourney(page, journey, ctx)
     const labWall = performance.now() - started
     if (journey.settled) await waitSettled(page, journey.settled(ctx))
-    const settled = await quiet(page)
+    const busy = await settle(page, network)
     variant.spans.set(id, performance.now() - started)
     const after = await snapshot(page)
     const coverage = await takeCoverage(page, server.origin, variant.mapper)
@@ -349,16 +453,16 @@ export async function iterate(
       // lab's own timing isn't the same measurement.
       wallMs: finished.missing ? NaN : Math.round((record?.d ?? labWall) * 10) / 10,
       wallSource: record?.d !== undefined ? 'record' : finished.missing ? 'none' : 'lab',
-      settled,
+      settled: !busy,
       ...(record ? { phases, record } : {}),
       top: coverage.top,
       calls: coverage.all,
       ...(loafs ? { loafs } : {}),
       ...(finished.missing
         ? { warning: 'the page sent no journey record: counters but no wall-clock' }
-        : settled
+        : !busy
           ? {}
-          : { warning: 'the page never went quiet, so the window closed on the timeout' }),
+          : { warning: `the page never settled (${busy}), so the window closed on the timeout` }),
     }
   } catch (error) {
     return {

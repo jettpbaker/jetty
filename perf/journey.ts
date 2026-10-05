@@ -73,20 +73,10 @@ export async function park(page: Page) {
   await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1439, y: 899 })
 }
 
-// The page is quiet once the lab's mutation count stops moving for `ms`.
-export async function quiet(page: Page, ms = 500, timeout = 10_000) {
-  const deadline = Date.now() + timeout
-  let last = -1
-  let since = Date.now()
-  for (;;) {
-    const now = await page.evaluate<number>('window.__perfLab?.mutations ?? 0')
-    if (now !== last) {
-      last = now
-      since = Date.now()
-    } else if (Date.now() - since >= ms) return true
-    if (Date.now() > deadline) return false
-    await Bun.sleep(50)
-  }
+// The page is quiet once it goes `ms` without a DOM mutation and has no idle callback waiting.
+// The wait runs in the page: polling from here keeps waking it, which holds back idle callbacks.
+export function quiet(page: Page, ms = 500, timeout = 10_000) {
+  return page.evaluate<boolean>(`window.__perfLab.quiet(${ms}, ${Math.max(0, timeout)})`)
 }
 
 export async function open(ctx: Ctx, path: string, ready: string) {
