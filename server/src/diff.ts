@@ -458,7 +458,8 @@ async function replaceFile(
   file: string,
   bytes: Buffer,
   base: string | null,
-  path: string
+  path: string,
+  requested: string
 ): Promise<SavedProjectFile | undefined> {
   const current = await readCurrent(file)
   if (!current || !holds(current, base)) return current && { conflict: current.file }
@@ -476,6 +477,12 @@ async function replaceFile(
     // and a write to the old file after it's read again below.
     now = await openCurrent(file)
     if (!now || !holds(now, base)) return now && { conflict: now.file }
+    const target = await realpath(requested).catch(() => undefined)
+    if (target !== (now.handle ? file : undefined)) return undefined
+    if (now.handle) {
+      const [opened, linked] = await Promise.all([now.handle.stat(), stat(requested)])
+      if (opened.dev !== linked.dev || opened.ino !== linked.ino) return undefined
+    }
     await rename(temp, file)
     renamed = true
     if (!now.handle) return { saved: true }
@@ -507,7 +514,15 @@ export function writeProjectFile(cwd: string, path: string, contents: string, ba
     const saved = yield* Effect.tryPromise({
       try: async () => {
         const target = file ?? (await newFile(root, path))
-        return inTurn(dirname(target), () => replaceFile(target, bytes, base, path))
+        return inTurn(dirname(target), async () => {
+          const requested = join(root, path)
+          const resolved = await realpath(requested).catch((error: NodeJS.ErrnoException) => {
+            if (error.code !== 'ENOENT') throw error
+            return undefined
+          })
+          if (resolved !== file) return undefined
+          return replaceFile(resolved ?? target, bytes, base, path, requested)
+        })
       },
       catch: (error) =>
         error instanceof StoreError

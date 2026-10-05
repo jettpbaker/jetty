@@ -236,6 +236,43 @@ describe('Effect filesystem services', () => {
     )
   })
 
+  test('a symlink retargeted while its save waits never writes the stale destination', async () => {
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem
+          const root = yield* fs.makeTempDirectoryScoped()
+          yield* fs.writeFileString(root + '/a', 'old')
+          yield* fs.writeFileString(root + '/b', 'old')
+          yield* fs.symlink(root + '/a', root + '/current')
+          let retargeted = false
+          const changed = {
+            ...fs,
+            realPath: (path: string) =>
+              fs.realPath(path).pipe(
+                Effect.tap(() =>
+                  Effect.gen(function* () {
+                    if (!path.endsWith('/current') || retargeted) return
+                    retargeted = true
+                    yield* fs.remove(path)
+                    yield* fs.symlink(root + '/b', path)
+                  })
+                )
+              ),
+          }
+          expect(
+            yield* writeProjectFile(root, 'current', 'new', 'old').pipe(
+              Effect.provideService(FileSystem.FileSystem, changed),
+              Effect.catch((error) => Effect.succeed({ error: error.code }))
+            )
+          ).toEqual({ error: 'conflict' })
+          expect(yield* fs.readFileString(root + '/a')).toBe('old')
+          expect(yield* fs.readFileString(root + '/b')).toBe('old')
+        })
+      )
+    )
+  })
+
   test('atomic saving supports filenames at the filesystem component limit', async () => {
     await run(
       Effect.scoped(
