@@ -34,7 +34,7 @@
   --duration-enter: 140ms;
   font-family: 'Geist Variable', sans-serif;
   color: var(--foreground);
-  background: var(--background);
+  background: var(--sidebar);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
@@ -215,7 +215,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-sidebar text-foreground;
   }
   html {
     @apply font-sans;
