@@ -6,7 +6,7 @@ import { object, string } from './stdio-rpc'
 
 export function createGrokTranslator(turnId: string, workflows = new Set<string>()) {
   const tools = new Map<string, { id: string; done: boolean }>()
-  const workflowTools = new Set<string>()
+  const hiddenTools = new Set<string>()
   let text: { id: string; kind: 'assistant_message' | 'reasoning' } | undefined
   let compactionId: string | undefined
 
@@ -168,8 +168,11 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
     ) {
       const key = string(update.toolCallId)
       if (!key) return events
-      if (grokToolName(update).toLowerCase() === 'workflow') workflowTools.add(key)
-      if (workflowTools.has(key) || object(update.rawOutput).type === 'Workflow') return events
+      // Workflows and todo_write have their own updates: workflow_updated and plan.
+      const name = grokToolName(update).toLowerCase()
+      if (name === 'workflow' || name === 'todo_write') hiddenTools.add(key)
+      const outputType = object(update.rawOutput).type
+      if (hiddenTools.has(key) || outputType === 'Workflow' || outputType === 'Todo') return events
       events.push(...closeText())
       let tool = tools.get(key)
       if (tool?.done) return events

@@ -104,10 +104,10 @@ test('streams ACP, preserves partial tool output, filters replay, stays warm, an
     (state, event, index) => applyEvent(state, { seq: index + 1, ts: Date.now(), event }),
     emptyThread
   )
-  expect(state.items.find((item) => item.kind === 'tool_call')).toMatchObject({
-    status: 'succeeded',
-    output: 'marker output',
-  })
+  expect(state.items.filter((item) => item.kind === 'tool_call')).toMatchObject([
+    { status: 'succeeded', output: 'marker output' },
+    { toolName: 'update_plan', input: { todos: [{ content: 'Ship it' }] } },
+  ])
   expect(await Effect.runPromise(f.store.getProviderSessionId(f.threadId, 'grok'))).toBe(
     'grok-session'
   )

@@ -96,6 +96,27 @@ for await (const line of createInterface({ input: process.stdin })) {
       })
       update({ sessionUpdate: 'tool_call_update', toolCallId: 't', rawOutput: 'marker output' })
       update({ sessionUpdate: 'tool_call_update', toolCallId: 't', status: 'completed' })
+      const todos = [{ content: 'Ship it', status: 'in_progress' }]
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'todo',
+        title: 'todo_write',
+        rawInput: { todos },
+      })
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'todo',
+        kind: 'think',
+        title: 'Updating plan',
+        rawInput: { variant: 'TodoWrite', todos },
+      })
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'todo',
+        status: 'completed',
+        rawOutput: { type: 'Todo' },
+      })
+      update({ sessionUpdate: 'plan', entries: todos })
       complete()
     }
   } else if (m.method === 'session/cancel') {
