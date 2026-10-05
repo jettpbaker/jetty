@@ -11,7 +11,7 @@ import type {
   WireError,
 } from '@jetty/shared/wire'
 
-import { backgroundStatus } from '@jetty/shared/wire'
+import { backgroundStatus, deliversQueue } from '@jetty/shared/wire'
 import { Effect, Queue, Semaphore } from 'effect'
 
 export type Hub = ReturnType<typeof createHub>
@@ -46,7 +46,8 @@ export function createHub() {
       status: backgroundStatus(
         thread.status,
         tasks,
-        waitingForChildren || thread.awaitingParent === true
+        waitingForChildren || thread.awaitingParent === true,
+        deliversQueue(thread)
       ),
     }
   }

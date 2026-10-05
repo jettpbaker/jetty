@@ -13,7 +13,7 @@ import {
 } from '@/lib/loadout'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { newId } from '@jetty/shared/wire'
+import { deliversQueue, newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
@@ -411,6 +411,9 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
     (status === 'running' && Boolean(thread?.activeTurnId)) ||
     status === 'starting' ||
     status === 'awaiting_approval'
+  // A queue about to send its next message keeps the composer busy into that message's turn.
+  const meta = useChrome()?.threads.find((entry) => entry.id === threadId)
+  const delivering = meta !== undefined && deliversQueue(meta)
 
   useEffect(() => {
     const current = registry.get(pendingPromptsAtom).get(threadId) ?? []
@@ -452,6 +455,6 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
     // the server's items with local answers applied, without optimistic prompts
     serverItems: overlaid,
     empty: overlaid.length === 0 && pending.length === 0,
-    running: optimistic || live,
+    running: optimistic || live || delivering,
   }
 }

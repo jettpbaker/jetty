@@ -228,14 +228,24 @@ export const RunningSubagent = Schema.Struct({
 })
 export type RunningSubagent = Schema.Schema.Type<typeof RunningSubagent>
 
+// Between turns, a thread about to send itself its next queued message is already starting.
 export function backgroundStatus(
   status: SessionStatus,
   tasks: readonly BackgroundTask[],
-  waiting = false
+  waiting = false,
+  delivering = false
 ) {
-  return (tasks.length || waiting) && (status === 'idle' || status === 'error')
-    ? 'monitoring'
-    : status
+  if (status !== 'idle' && status !== 'error') return status
+  return delivering ? 'starting' : tasks.length || waiting ? 'monitoring' : status
+}
+
+// The next queued message goes out by itself unless the queue is paused, the thread archived, or
+// that message held open for an edit.
+export function deliversQueue(
+  thread: Pick<ThreadMeta, 'pendingMessages' | 'queuePaused' | 'archived'>
+) {
+  const next = thread.pendingMessages?.[0]
+  return Boolean(next && !next.editingUntil && !thread.queuePaused && !thread.archived)
 }
 
 export const ThreadMeta = Schema.Struct({
