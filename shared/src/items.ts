@@ -201,8 +201,14 @@ export const RESTART_LIMIT = 3
 export const RESTART_WINDOW_MS = 10 * 60_000
 export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
 
-// The thread's last turn is one the guard held, and nothing has come after it.
+// The thread's last turn is one the guard held, and nothing has come after it. The guard's note
+// closes that turn; only errors about it, such as an undelivered report, can follow.
 export function heldByRestarts(items: readonly ThreadItem[]) {
-  const last = items.at(-1)
-  return last?.kind === 'error' && last.message === RESTART_LIMIT_NOTE
+  const turnId = items.at(-1)?.turnId
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]!
+    if (item.kind !== 'error' || item.turnId !== turnId) return false
+    if (item.message === RESTART_LIMIT_NOTE) return true
+  }
+  return false
 }

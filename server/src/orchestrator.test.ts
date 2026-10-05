@@ -1,4 +1,5 @@
 import { BunServices } from '@effect/platform-bun'
+import { RESTART_LIMIT_NOTE } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
 import { expect, test } from 'bun:test'
 import { Context, Deferred, Effect, Exit, Fiber, FileSystem, Layer, Queue, Scope } from 'effect'
@@ -618,6 +619,56 @@ test("a queued message that fails to start reports its error under the thread's 
         },
       ])
       expect((yield* f.store.requireThread(f.thread.id)).queuePaused).toBe(true)
+    }).pipe(Effect.provide(TestClock.layer()))
+  )
+})
+
+test('Resume still continues a child the restart guard held after its report failed to deliver', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const parent = f.thread
+      const child = yield* f.store.createThread(parent.projectId, newId())
+      yield* f.store.markAgentThread(child.id, parent.id, true)
+      const message = {
+        id: newId(),
+        text: 'Please do the work',
+        createdAt: Date.now(),
+        hop: 1,
+        from: { threadId: parent.id, title: parent.title },
+      }
+      yield* f.store.enqueue(child.id, message)
+      yield* f.store.beginDelivery(child.id, 'held-turn', 1, message.id)
+      yield* f.store.appendEvent(child.id, {
+        type: 'turn.failed',
+        turnId: 'held-turn',
+        error: 'server_restarted',
+      })
+      yield* f.store.appendEvent(child.id, {
+        type: 'item.started',
+        item: {
+          id: newId(),
+          turnId: 'held-turn',
+          createdAt: Date.now(),
+          kind: 'error',
+          message: RESTART_LIMIT_NOTE,
+        },
+      })
+      yield* f.store.setQueuePaused(child.id, true)
+      yield* f.store.archiveThread(parent.id, true)
+      const orch = yield* createOrchestrator({ store: f.store, agent: f.agent, hub: f.hub })
+      yield* orch.resumeQueues()
+      yield* TestClock.adjust(1000)
+      expect((yield* f.store.getThreadState(child.id)).items.at(-1)).toMatchObject({
+        kind: 'error',
+        message: 'Report to parent was not delivered: parent is archived.',
+      })
+      yield* orch.continueThread(child.id)
+      yield* TestClock.adjust(1000)
+      expect((yield* f.store.getThreadState(child.id)).items.at(-1)).toMatchObject({
+        kind: 'user_message',
+        from: { threadId: child.id, title: 'Jetty' },
+      })
     }).pipe(Effect.provide(TestClock.layer()))
   )
 })
