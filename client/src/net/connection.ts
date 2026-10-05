@@ -4,8 +4,8 @@ import type { PullRequestListTab } from '@jetty/shared/wire'
 import { perf } from '@/perf'
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { Effect, Latch, Layer, Schedule, Stream } from 'effect'
-import { RpcClient, RpcClientError, type RpcGroup, RpcSerialization } from 'effect/unstable/rpc'
-import { Socket } from 'effect/unstable/socket'
+import { RpcClient, RpcClientError, type RpcGroup, RpcSerialization } from 'effect/rpc'
+import { Socket } from 'effect/socket'
 
 type UnaryRpcs = Exclude<
   RpcGroup.Rpcs<typeof JettyRpcs>,
@@ -56,8 +56,13 @@ function protocol(
 ) {
   const socket = Socket.layerWebSocket(url).pipe(
     Layer.provide(
-      Layer.succeed(Socket.WebSocketConstructor)((url, protocols) =>
-        perf.watchSocket(new globalThis.WebSocket(url, protocols))
+      Layer.succeed(Socket.WebSocketConstructor)((url, options) =>
+        perf.watchSocket(
+          new globalThis.WebSocket(
+            url,
+            typeof options === 'object' && !Array.isArray(options) ? undefined : options
+          )
+        )
       )
     )
   )
@@ -106,7 +111,7 @@ export function createConnection(
     const unary: RpcClient.RpcClient.Flat<UnaryRpcs, RpcClientError.RpcClientError> = rpc
     // Work started while disconnected waits for the reconnect rather than failing.
     const request = ((...args: Parameters<typeof unary>) =>
-      connected.whenOpen(unary(...args))) as typeof unary
+      connected.whenOpen<unknown, unknown, never>(unary(...args))) as typeof unary
 
     function online<A, E>(stream: Stream.Stream<A, E>) {
       return Stream.unwrap(Effect.as(connected.await, stream))

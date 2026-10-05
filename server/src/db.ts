@@ -1,7 +1,7 @@
 import { BunFileSystem } from '@effect/platform-bun'
 import { SqliteClient, SqliteMigrator } from '@effect/sql-sqlite-bun'
 import { Effect, FileSystem, Layer } from 'effect'
-import { SqlClient } from 'effect/unstable/sql'
+import { SqlClient } from 'effect/sql'
 import { join } from 'node:path'
 
 function addThreadColumns(columns: Record<string, string>) {

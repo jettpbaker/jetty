@@ -6,7 +6,7 @@
     "@jetty/server": "workspace:*",
     "@jetty/shared": "workspace:*",
     "@paulirish/trace_engine": "0.0.65",
-    "effect": "4.0.0-rc.112",
+    "effect": "4.0.0",
     "source-map-js": "1.2.1"
   }
 }

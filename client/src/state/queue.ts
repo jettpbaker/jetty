@@ -5,7 +5,7 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
 import { Effect, Exit } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 

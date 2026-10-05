@@ -1,5 +1,5 @@
 import { Effect, FileSystem } from 'effect'
-import { HttpServerResponse } from 'effect/unstable/http'
+import { HttpServerResponse } from 'effect/http'
 
 type ByteRange = { start: number; end: number }
 

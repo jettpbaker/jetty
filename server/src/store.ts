@@ -22,7 +22,7 @@ import {
   type PullRequestSnapshot,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
-import { SqlClient } from 'effect/unstable/sql'
+import { SqlClient } from 'effect/sql'
 
 import { normalizePath } from './fs-browse'
 

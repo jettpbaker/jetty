@@ -1,7 +1,7 @@
 import { BunServices } from '@effect/platform-bun'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Effect } from 'effect'
-import { HttpPlatform, HttpServerResponse } from 'effect/unstable/http'
+import { HttpPlatform, HttpServerResponse } from 'effect/http'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

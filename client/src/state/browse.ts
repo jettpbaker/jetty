@@ -2,7 +2,7 @@ import type { ResultOf } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { AsyncResult, Atom } from 'effect/unstable/reactivity'
+import { AsyncResult, Atom } from 'effect/reactivity'
 import { useState } from 'react'
 
 import { connectionAtom } from './connection'

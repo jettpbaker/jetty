@@ -12,7 +12,7 @@ import type {
 
 import { useAtomValue } from '@effect/atom-react'
 import { Stream } from 'effect'
-import { AsyncResult, Atom } from 'effect/unstable/reactivity'
+import { AsyncResult, Atom } from 'effect/reactivity'
 
 import { subscribe } from './connection'
 import {
@@ -88,7 +88,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
 
 const liveAtom = Atom.make((get) =>
   subscribe(get, (connection) => connection.subscribeChrome()).pipe(
-    Stream.scan(emptyChrome, foldChrome),
+    Stream.scan(() => emptyChrome, foldChrome),
     Stream.drop(1)
   )
 ).pipe(Atom.keepAlive)

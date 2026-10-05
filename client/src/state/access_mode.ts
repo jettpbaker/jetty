@@ -2,7 +2,7 @@ import type { PermissionMode } from '@jetty/shared/wire'
 
 import { storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { Atom } from 'effect/unstable/reactivity'
+import { Atom } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
 const key = 'jetty.accessMode'

@@ -3,7 +3,7 @@ import type { DiffScope, ThreadMeta } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
+import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useRef } from 'react'
 
 import { useChrome } from './chrome'

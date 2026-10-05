@@ -2,7 +2,7 @@ import type { ResultOf } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 

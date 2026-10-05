@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { Deferred, Effect, Result, Schema, Stream } from 'effect'
-import { RpcSchema, RpcTest } from 'effect/unstable/rpc'
+import { RpcSchema, RpcTest } from 'effect/rpc'
 
 import { emptyThread } from './reducer'
 import { JettyRpcs, ThreadUpdate } from './rpc'

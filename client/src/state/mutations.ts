@@ -2,7 +2,7 @@ import type { Connection } from '@/net/connection'
 import type { Project, ProjectIcon, ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect, Fiber } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
 
 import { run, useAction } from './connection'

@@ -1,7 +1,7 @@
 import { BunServices } from '@effect/platform-bun'
 import { describe, expect, test } from 'bun:test'
 import { Deferred, Effect, Fiber, FileSystem, Path, Stream } from 'effect'
-import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
+import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
 import { computeThreadDiff, truncateDiff } from './diff'
 import { browse, expandHome, normalizePath } from './fs-browse'

@@ -1,19 +1,19 @@
 diff --git a/dist/BunHttpServer.js b/dist/BunHttpServer.js
-index 6aae1c5ac2d1feeff9d76bf2994d4bf60193c8b9..6a76479401927ed2bf135b2d56c1b4c8feed7e40 100644
+index 51e92da99620d735166969081c2e43080c36b2ae..6f61ed19a3ecddfbb7ff24953d7fb89f6ac4f374 100644
 --- a/dist/BunHttpServer.js
 +++ b/dist/BunHttpServer.js
-@@ -72,7 +72,7 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+@@ -101,7 +101,7 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
      duration: options.gracefulShutdownTimeout ?? Duration.seconds(20),
      orElse: () => Effect.void
    });
 -  yield* Scope.addFinalizer(scope, shutdown);
 +  yield* Scope.addFinalizer(scope, Effect.promise(() => server.stop(true)));
-   return Server.make({
-     address: {
-       _tag: "TcpAddress",
-@@ -105,7 +105,12 @@
-         server.reload({
-           fetch: handlerStack[handlerStack.length - 1]
+   const address = "unix" in options && options.unix !== undefined ? NetAddress.unixPathAddress(options.unix) : yield* Effect.fromResult(NetAddress.inetAddressFromIpString(server.hostname, server.port)).pipe(Effect.mapError(cause => new Error.ServeError({
+     cause
+   })));
+@@ -136,7 +136,12 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+             routes: options.routes
+           })
          });
 -        return handlerStack.length === 1 ? preemptiveShutdown : Effect.void;
 +        if (handlerStack.length !== 1) return Effect.void;
@@ -26,22 +26,22 @@ index 6aae1c5ac2d1feeff9d76bf2994d4bf60193c8b9..6a76479401927ed2bf135b2d56c1b4c8
        handlerStack.push(handler);
        server.reload({
 diff --git a/src/BunHttpServer.ts b/src/BunHttpServer.ts
-index 4ce02e91b12852ff869f92d0911b7e6caf353c9f..81a1901d88577f3c15dbccd79a5c8cdc22316cc7 100644
+index ca1cb83bc9887ffe87bae5fdfc322b057199e2c2..d66baf574c89a952eeaa152d464439e13695311a 100644
 --- a/src/BunHttpServer.ts
 +++ b/src/BunHttpServer.ts
-@@ -156,7 +156,7 @@ export const make = Effect.fnUntraced(
+@@ -171,7 +171,7 @@ export const make = Effect.fnUntraced(
        orElse: () => Effect.void
      })
  
 -    yield* Scope.addFinalizer(scope, shutdown)
 +    yield* Scope.addFinalizer(scope, Effect.promise(() => server.stop(true)))
  
-     return Server.make({
-       address: { _tag: "TcpAddress", port: server.port!, hostname: server.hostname! },
-@@ -189,7 +189,12 @@
-           const index = handlerStack.indexOf(handler)
-           if (index !== -1) handlerStack.splice(index, 1)
-           server.reload({ fetch: handlerStack[handlerStack.length - 1] })
+     const address = "unix" in options && options.unix !== undefined
+       ? NetAddress.unixPathAddress(options.unix)
+@@ -213,7 +213,12 @@ export const make = Effect.fnUntraced(
+             fetch: handlerStack[handlerStack.length - 1],
+             ...(options.routes === undefined ? undefined : { routes: options.routes })
+           })
 -          return handlerStack.length === 1 ? preemptiveShutdown : Effect.void
 +          if (handlerStack.length !== 1) return Effect.void
 +          // Bun never settles server.stop() after a server-side ws.close():
@@ -51,4 +51,4 @@ index 4ce02e91b12852ff869f92d0911b7e6caf353c9f..81a1901d88577f3c15dbccd79a5c8cdc
 +          return preemptiveShutdown
          })
          handlerStack.push(handler)
-         server.reload({ fetch: handler })
+         server.reload({

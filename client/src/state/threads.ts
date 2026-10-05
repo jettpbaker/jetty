@@ -5,7 +5,7 @@ import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
 import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Stream } from 'effect'
-import { AsyncResult, Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useRef } from 'react'
 
 import { chromeAtom } from './chrome'
@@ -32,7 +32,7 @@ const liveAtom = Atom.family((threadId: string) =>
       )
     ).pipe(
       Stream.tap((update) => Effect.sync(() => perf.threadUpdate(threadId, update))),
-      Stream.scan(cached ?? emptyThread, foldUpdate),
+      Stream.scan(() => cached ?? emptyThread, foldUpdate),
       Stream.drop(1),
       Stream.tap((state) => Effect.sync(() => get.set(resumeAtom(threadId), state)))
     )

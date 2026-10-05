@@ -32,6 +32,6 @@
     "bun": ">=1.4.2"
   },
   "patchedDependencies": {
-    "@effect/platform-bun@4.0.0-rc.112": "patches/@effect%2Fplatform-bun@4.0.0-rc.112.patch"
+    "@effect/platform-bun@4.0.0": "patches/@effect%2Fplatform-bun@4.0.0.patch"
   }
 }

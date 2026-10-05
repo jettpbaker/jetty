@@ -1,7 +1,7 @@
 import type { SubagentStatus, ThreadItem } from '@jetty/shared/items'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { Atom } from 'effect/unstable/reactivity'
+import { Atom } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
 import { threadAtom } from './threads'

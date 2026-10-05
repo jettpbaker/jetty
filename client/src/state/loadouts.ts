@@ -1,7 +1,7 @@
 import { restoreLoadouts, type LoadoutSlot } from '@/lib/loadout'
 import { storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { Atom } from 'effect/unstable/reactivity'
+import { Atom } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
 import { modelsAtom } from './chrome'

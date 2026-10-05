@@ -17,9 +17,10 @@ import {
   Schedule,
   Scope,
 } from 'effect'
-import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
-import { ChildProcessSpawner } from 'effect/unstable/process'
-import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
+import { HttpServer, HttpServerRequest, HttpServerResponse } from 'effect/http'
+import { NetAddress } from 'effect/net'
+import { ChildProcessSpawner } from 'effect/process'
+import { RpcSerialization, RpcServer } from 'effect/rpc'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join, normalize, resolve, sep } from 'node:path'
@@ -548,21 +549,22 @@ function createServer(opts: ServerOptions = {}) {
     yield* server
       .serve(app)
       .pipe(Effect.provideContext(http), Effect.provideService(Scope.Scope, transportScope))
-    if (server.address._tag !== 'TcpAddress') {
+    if (!NetAddress.isInetAddress(server.address)) {
       return yield* Effect.fail(new Error('server failed to bind a TCP port'))
     }
-
-    const mcpHostname = server.address.hostname.replace(/^\[|\]$/g, '')
+    const bound = {
+      port: server.address.port,
+      hostname: NetAddress.formatIp(server.address.address),
+    }
     mcp.setUrl(
-      `http://${mcpHostname.includes(':') ? `[${mcpHostname}]` : mcpHostname}:${server.address.port}/mcp`
+      `http://${bound.hostname.includes(':') ? `[${bound.hostname}]` : bound.hostname}:${bound.port}/mcp`
     )
     yield* orch.resumeQueues()
     yield* Effect.addFinalizer(() => Effect.promise(() => worktrees.shutdown()))
 
     return {
       home,
-      port: server.address.port,
-      hostname: server.address.hostname,
+      ...bound,
       store,
       hub,
     }

@@ -2,7 +2,7 @@ import { createConnection, type Connection } from '@/net/connection'
 import { connectionUrl } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect, Exit, Stream } from 'effect'
-import { Atom, AtomRegistry } from 'effect/unstable/reactivity'
+import { Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 import { toast } from 'sonner'
 

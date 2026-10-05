@@ -14,7 +14,7 @@ import {
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 

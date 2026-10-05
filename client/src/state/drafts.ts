@@ -5,7 +5,7 @@ import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel, ProviderId, UploadAttachment } from '@jetty/shared/wire'
 import { Schema } from 'effect'
-import { Atom, type AtomRegistry } from 'effect/unstable/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 
 import { chromeAtom } from './chrome'

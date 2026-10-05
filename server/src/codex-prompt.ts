@@ -1,5 +1,5 @@
 import { Effect, Queue } from 'effect'
-import { ChildProcessSpawner } from 'effect/unstable/process'
+import { ChildProcessSpawner } from 'effect/process'
 import { tmpdir } from 'node:os'
 
 import type { ModelPrompt } from './title-model'

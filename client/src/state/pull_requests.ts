@@ -12,7 +12,7 @@ import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { useNavigate } from '@tanstack/react-router'
 import { Effect, Stream } from 'effect'
-import { AsyncResult, Atom, AtomRegistry } from 'effect/unstable/reactivity'
+import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 

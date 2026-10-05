@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from 'effect'
-import { ChildProcessSpawner } from 'effect/unstable/process'
+import { ChildProcessSpawner } from 'effect/process'
 
 import { git } from './git-process'
 

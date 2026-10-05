@@ -1,5 +1,5 @@
 import { Deferred, Effect, Queue, Schema, Stream } from 'effect'
-import { ChildProcess } from 'effect/unstable/process'
+import { ChildProcess } from 'effect/process'
 
 import { AgentError } from './agent'
 

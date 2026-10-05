@@ -1,5 +1,5 @@
 import { Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
-import { ChildProcessSpawner } from 'effect/unstable/process'
+import { ChildProcessSpawner } from 'effect/process'
 import { constants } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
 

@@ -2,7 +2,7 @@ import type { ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
 import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
-import { ChildProcessSpawner } from 'effect/unstable/process'
+import { ChildProcessSpawner } from 'effect/process'
 
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'

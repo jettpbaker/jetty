@@ -2,8 +2,8 @@ import type { ChromePushData, ParamsOf, ResultOf } from '@jetty/shared/wire'
 
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { Cause, Effect, Exit, Fiber, Layer, Scope, Stream } from 'effect'
-import { RpcClient, type RpcGroup, RpcSerialization } from 'effect/unstable/rpc'
-import { Socket } from 'effect/unstable/socket'
+import { RpcClient, type RpcGroup, RpcSerialization } from 'effect/rpc'
+import { Socket } from 'effect/socket'
 
 type UnaryMethod = Exclude<
   RpcGroup.Rpcs<typeof JettyRpcs>['_tag'],

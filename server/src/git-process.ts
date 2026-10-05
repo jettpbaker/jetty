@@ -1,5 +1,5 @@
 import { Effect, Stream } from 'effect'
-import { ChildProcess } from 'effect/unstable/process'
+import { ChildProcess } from 'effect/process'
 
 export function git(cwd: string, args: string[]) {
   return Effect.scoped(

@@ -1,4 +1,4 @@
-import type { FromServerEncoded } from 'effect/unstable/rpc/RpcMessage'
+import type { FromServerEncoded } from 'effect/rpc/RpcMessage'
 
 import { BunServices } from '@effect/platform-bun'
 import { MAX_IMAGE_BYTES, newId } from '@jetty/shared/wire'
