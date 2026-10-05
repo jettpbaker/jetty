@@ -1,0 +1,12 @@
+diff --git a/dist/worker/WorkerPoolManager.js b/dist/worker/WorkerPoolManager.js
+index caf2839d72599b7e7e8fb4917e6275c7efb3d258..4a7cded3f56b23a8ee958d6351fc550602a181de 100644
+--- a/dist/worker/WorkerPoolManager.js
++++ b/dist/worker/WorkerPoolManager.js
+@@ -208,6 +208,7 @@ var WorkerPoolManager = class {
+ 		};
+ 	}
+ 	queueBroadcastStateChanges() {
++		if (this.statSubscribers.size === 0) return;
+ 		if (this._queuedBroadcast != null) return;
+ 		this._queuedBroadcast = requestAnimationFrame(this._broadcastStateChanges);
+ 	}
