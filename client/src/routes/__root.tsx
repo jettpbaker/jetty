@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/custom/app_shell'
+import { ClaudeLogoToggle } from '@/components/custom/claude_logo_toggle'
 import { DiffWorkerPoolProvider } from '@/components/custom/diff_worker_pool'
 import { KeybindProvider } from '@/components/custom/keybinds'
 import { Toaster } from '@/components/ui/sonner'
@@ -20,6 +21,7 @@ function Root() {
           </DiffWorkerPoolProvider>
         </KeybindProvider>
         <Toaster position='top-center' />
+        <ClaudeLogoToggle />
       </TooltipProvider>
     </StateProvider>
   )
