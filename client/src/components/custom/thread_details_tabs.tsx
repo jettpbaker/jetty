@@ -296,7 +296,7 @@ export function ThreadDetailsTabs({
             }
             aria-label='Open tab'
           >
-            <PlusSignIcon className='size-3' />
+            <PlusSignIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'

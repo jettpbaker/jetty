@@ -44,7 +44,7 @@ export function AccentPicker() {
       >
         <span aria-hidden='true' className='size-3 rounded-full bg-primary' />
         {label}
-        {accent && <ArrowDown01Icon aria-hidden='true' className='size-3' />}
+        {accent && <ArrowDown01Icon aria-hidden='true' />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuRadioGroup

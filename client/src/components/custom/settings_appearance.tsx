@@ -155,7 +155,7 @@ export function SettingsAppearance() {
             }
           >
             {themeLabel}
-            <ArrowDown01Icon className='size-3' />
+            <ArrowDown01Icon />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>

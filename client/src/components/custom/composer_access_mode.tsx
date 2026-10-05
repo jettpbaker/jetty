@@ -56,7 +56,7 @@ export function ComposerAccessMode({
           aria-label='Access mode: Asks first'
           className='pointer-events-none'
         >
-          <ShieldQuestionMarkIcon className='size-3.5' />
+          <ShieldQuestionMarkIcon />
         </Button>
       </DisabledTooltip>
     )
@@ -78,7 +78,7 @@ export function ComposerAccessMode({
             />
           }
         >
-          <Icon className='size-3.5' />
+          <Icon />
         </DropdownMenuTrigger>
       </KeybindTooltip>
       <DropdownMenuContent align='start' className='w-max min-w-32'>

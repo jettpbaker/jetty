@@ -90,7 +90,7 @@ export function SettingsTitleModel() {
         >
           {name}
           {effortLabel && <span>{effortLabel}</span>}
-          <ArrowDown01Icon className='size-3' />
+          <ArrowDown01Icon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-max min-w-48'>
           <DropdownMenuGroup>
