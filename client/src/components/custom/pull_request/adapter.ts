@@ -179,9 +179,17 @@ export function adaptPullRequest(data: PullRequestData): PrPull {
     mergedAt: pull.merged_at,
     mergedBy: pull.merged_by ? prUser(pull.merged_by) : null,
     openedAsDraft: data.openedAsDraft ?? pull.draft,
-    // GitHub records a merge as a close too; the merge already has its own activity row.
+    // GitHub records a merge as a close too; the merge already has its own activity row. Jetty's
+    // own merge stamps merged_at from the local clock, so the two times can differ by a moment.
     statusEvents: (data.statusEvents ?? [])
-      .filter((event) => !(event.kind === 'closed' && event.at === pull.merged_at))
+      .filter(
+        (event) =>
+          !(
+            event.kind === 'closed' &&
+            pull.merged_at &&
+            Math.abs(Date.parse(event.at) - Date.parse(pull.merged_at)) < 60_000
+          )
+      )
       .map((event) => ({
         ...event,
         actor: event.actor ? prUser(event.actor) : { login: 'ghost', name: null, avatarUrl: '' },
