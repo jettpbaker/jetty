@@ -41,7 +41,6 @@ function WorkHistory({
   const reducedMotion = useReducedMotion()
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
-  const scrollIdle = useRef<ReturnType<typeof setTimeout>>(undefined)
   const shown = useRef(view)
 
   // A live preview is as tall as its latest entries and scrolls back through the rest, pinned to
@@ -93,17 +92,13 @@ function WorkHistory({
   }
 
   function onWheel(event: WheelEvent<HTMLDivElement>) {
-    const element = event.currentTarget
-    if (event.deltaY < 0 && element.scrollTop > 0) pinned.current = false
-    element.dataset.scrolling = ''
-    clearTimeout(scrollIdle.current)
-    scrollIdle.current = setTimeout(() => delete element.dataset.scrolling, 800)
+    if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) pinned.current = false
   }
 
   return (
     <div
       ref={scroller}
-      className='work-scroll scrollbar-auto-hide overflow-y-auto'
+      className='work-scroll no-scrollbar overflow-y-auto'
       onScroll={onScroll}
       onWheel={onWheel}
     >
