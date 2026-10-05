@@ -197,82 +197,85 @@ export function FileEditor({
           onOverwrite={(over) => void write(text.current, over)}
         />
       )}
-      <EditProvider createEditor={createEditor}>
-        <CodeView
-          ref={viewer}
-          containerRef={viewport}
-          items={items}
-          options={options}
-          selectedLines={selectedLines}
-          renderHeaderPrefix={() => (
-            <span className='inline-flex size-7 items-center justify-center [--file-icon-opacity:1]'>
-              <FileLanguageIcon path={path} />
-            </span>
-          )}
-          renderHeaderMetadata={() => (
-            <span className='flex items-center gap-2'>
-              {place && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className='flex cursor-default items-center gap-1.5 text-xs text-muted-foreground select-none' />
-                    }
-                  >
-                    <place.Icon className='size-3 shrink-0' />
-                    {place.label}
-                  </TooltipTrigger>
-                  <TooltipContent align='end' className='max-w-lg'>
-                    <span className='flex flex-col'>
-                      <span>
-                        Saves to the{' '}
-                        {checkout.environment === 'worktree'
-                          ? "thread's worktree"
-                          : 'project checkout'}
-                        {checkout.branch && (
-                          <>
-                            {' on '}
-                            <span className='font-mono'>{checkout.branch}</span>
-                          </>
+      {/* The scrollbar overlays the code only, never the conflict bar above it. */}
+      <div className='relative flex min-h-0 flex-1 flex-col'>
+        <EditProvider createEditor={createEditor}>
+          <CodeView
+            ref={viewer}
+            containerRef={viewport}
+            items={items}
+            options={options}
+            selectedLines={selectedLines}
+            renderHeaderPrefix={() => (
+              <span className='inline-flex size-7 items-center justify-center [--file-icon-opacity:1]'>
+                <FileLanguageIcon path={path} />
+              </span>
+            )}
+            renderHeaderMetadata={() => (
+              <span className='flex items-center gap-2'>
+                {place && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span className='flex cursor-default items-center gap-1.5 text-xs text-muted-foreground select-none' />
+                      }
+                    >
+                      <place.Icon className='size-3 shrink-0' />
+                      {place.label}
+                    </TooltipTrigger>
+                    <TooltipContent align='end' className='max-w-lg'>
+                      <span className='flex flex-col'>
+                        <span>
+                          Saves to the{' '}
+                          {checkout.environment === 'worktree'
+                            ? "thread's worktree"
+                            : 'project checkout'}
+                          {checkout.branch && (
+                            <>
+                              {' on '}
+                              <span className='font-mono'>{checkout.branch}</span>
+                            </>
+                          )}
+                        </span>
+                        {checkout.path && (
+                          <span className='font-mono text-muted-foreground'>{checkout.path}</span>
                         )}
                       </span>
-                      {checkout.path && (
-                        <span className='font-mono text-muted-foreground'>{checkout.path}</span>
-                      )}
-                    </span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {dirty && (
-                <Button
-                  variant='ghost-text'
-                  size='xs'
-                  disabled={saving}
-                  title='Go back to the file on disk (⌘Z undoes this)'
-                  onClick={() => discard(disk)}
-                >
-                  Discard
-                </Button>
-              )}
-              {dirty && (
-                <KeybindTooltip binding={keybinds.save}>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {dirty && (
                   <Button
-                    variant='ghost'
+                    variant='ghost-text'
                     size='xs'
                     disabled={saving}
-                    aria-keyshortcuts='Meta+S'
-                    {...pressProps(saveNow)}
+                    title='Go back to the file on disk (⌘Z undoes this)'
+                    onClick={() => discard(disk)}
                   >
-                    Save
+                    Discard
                   </Button>
-                </KeybindTooltip>
-              )}
-            </span>
-          )}
-          onItemEditChange={(event) => edited(event.file.contents)}
-          className='diff-scroll-viewport min-h-0 flex-1 overflow-auto'
-        />
-      </EditProvider>
-      <ScrollOverlay viewport={viewport} controls={id} />
+                )}
+                {dirty && (
+                  <KeybindTooltip binding={keybinds.save}>
+                    <Button
+                      variant='ghost'
+                      size='xs'
+                      disabled={saving}
+                      aria-keyshortcuts='Meta+S'
+                      {...pressProps(saveNow)}
+                    >
+                      Save
+                    </Button>
+                  </KeybindTooltip>
+                )}
+              </span>
+            )}
+            onItemEditChange={(event) => edited(event.file.contents)}
+            className='diff-scroll-viewport min-h-0 flex-1 overflow-auto'
+          />
+        </EditProvider>
+        <ScrollOverlay viewport={viewport} controls={id} />
+      </div>
     </section>
   )
 }
@@ -296,7 +299,7 @@ function ConflictBar({
   return (
     <div
       role='alert'
-      className='flex shrink-0 items-center gap-2 border-b border-border bg-muted/40 py-1.5 pr-2 pl-3 text-xs'
+      className='flex shrink-0 items-center gap-2 border-b border-border bg-muted/40 px-4 py-1.5 text-xs'
     >
       <span className='min-w-0 flex-1 truncate'>
         {text === null
