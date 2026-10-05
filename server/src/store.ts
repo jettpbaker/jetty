@@ -507,6 +507,19 @@ export function createStore() {
         const turn = yield* latestFinishedTurn(threadId)
         if (!turn || (!question && turn.initiator_thread_id !== thread.parentThreadId))
           return { delivered: false }
+        // A turn that ended asking the user (Codex's async questions) carries on with their answer.
+        if (
+          !question &&
+          state.items.some(
+            (item) =>
+              item.kind === 'question' &&
+              item.turnId === turn.turn_id &&
+              item.delivery === 'async' &&
+              !item.answers &&
+              !item.dismissed
+          )
+        )
+          return { delivered: false }
         const reportId = `report:${threadId}:${turn.turn_id}`
         const [existing] = yield* sql`SELECT 1 FROM orchestration_requests
           WHERE caller_id = ${threadId} AND request_id = ${reportId} AND operation = 'report'`
@@ -969,7 +982,13 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      beginDelivery(threadId: string, turnId: string, hop: number, messageId?: string) {
+      beginDelivery(
+        threadId: string,
+        turnId: string,
+        hop: number,
+        messageId?: string,
+        carriesOn = false
+      ) {
         return Effect.gen(function* () {
           const entry = yield* loadThread(threadId)
           if (!entry.state.activeTurnId) {
@@ -982,12 +1001,16 @@ export function createStore() {
           }
           const thread = yield* requireThread(threadId)
           const message = thread.pendingMessages?.find((m) => m.id === messageId)
-          // A continuation or a child's report carries on the turn before it, so whoever started
-          // that turn still hears how it ends; only a continuation also keeps its hop.
-          const carriesOn = message?.kind === 'continuation' || message?.kind === 'report'
-          const previous = carriesOn ? yield* latestFinishedTurn(threadId) : undefined
+          // A continuation, a child's report or the user's answer to the turn's question carries on
+          // the turn before it, so whoever started that turn still hears how it ends; all but a
+          // report also keep its hop.
+          const continues = carriesOn || message?.kind === 'continuation'
+          const previous =
+            continues || message?.kind === 'report'
+              ? yield* latestFinishedTurn(threadId)
+              : undefined
           const initiator = previous?.initiator_thread_id ?? message?.from?.threadId ?? null
-          if (previous && message?.kind === 'continuation') hop = previous.hop
+          if (previous && continues) hop = previous.hop
           yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${hop}, ${initiator}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
           if (messageId) yield* removeQueued(threadId, messageId)
         }).pipe(atomically, Effect.mapError(storeError))

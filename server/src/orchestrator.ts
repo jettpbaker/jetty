@@ -65,6 +65,8 @@ export type StartTurnInput = {
   queued?: QueuedMessage
   sendNow?: boolean
   resumeQueue?: boolean
+  // The turn carries on the one before it, as the user's answer to its question does.
+  carriesOn?: boolean
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -431,7 +433,7 @@ export function createOrchestrator({
     }
 
     function appendUser(
-      { threadId, messageId, text, queued }: StartTurnInput,
+      { threadId, messageId, text, queued, carriesOn }: StartTurnInput,
       turnId: string,
       meta: Attachment[],
       onCommit: Effect.Effect<void>
@@ -455,7 +457,13 @@ export function createOrchestrator({
             yield* flushDelta(threadId)
             const appended = yield* store.transaction(
               Effect.gen(function* () {
-                yield* store.beginDelivery(threadId, turnId, queued?.hop ?? 0, queued?.id)
+                yield* store.beginDelivery(
+                  threadId,
+                  turnId,
+                  queued?.hop ?? 0,
+                  queued?.id,
+                  carriesOn
+                )
                 return yield* store.appendEvents(threadId, [
                   { type: 'item.started', item },
                   { type: 'item.completed', itemId: item.id },
@@ -1319,6 +1327,7 @@ export function createOrchestrator({
               effort: thread.effort,
               fast: thread.fast,
               permissionMode: yield* store.getPermissionMode(threadId),
+              carriesOn: true,
             })
           }
           yield* append(threadId, {

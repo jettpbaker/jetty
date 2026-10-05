@@ -676,12 +676,13 @@ test('Resume still continues a child the restart guard held after its report fai
 type ScriptedTurn = { turnId: string; emit: Emit; done: Deferred.Deferred<void> }
 
 // A parent with a notifying child whose agent turns the test drives through each turn's emit.
-function makeChildFixture() {
+function makeChildFixture(provider?: 'codex') {
   return Effect.gen(function* () {
     const f = yield* makeUploadFixture()
     const parent = f.thread
     const child = yield* f.store.createThread(parent.projectId, newId())
     yield* f.store.markAgentThread(child.id, parent.id, true)
+    if (provider) yield* f.store.setThreadProviderIfAbsent(child.id, provider)
     const turns = new Map<string, ScriptedTurn>()
     f.agent.startTurn = (input, emit) =>
       Effect.gen(function* () {
@@ -785,6 +786,40 @@ test("a child's question reaches its parent when its turn ends, while its backgr
         },
       ])
       expect((yield* f.store.requireThread(f.child.id)).awaitingParent).toBe(true)
+    }).pipe(Effect.provide(TestClock.layer()))
+  )
+})
+
+test('a Codex child that ends its turn asking the user reports once the answer’s turn ends', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeChildFixture('codex')
+      const questionId = newId()
+      yield* f.turn.emit({
+        type: 'item.started',
+        item: {
+          id: questionId,
+          turnId: f.turn.turnId,
+          createdAt: Date.now(),
+          kind: 'question',
+          delivery: 'async',
+          questions: [{ question: 'Which database?', header: '', multiSelect: false, options: [] }],
+        },
+      })
+      yield* say(f.turn, 'I asked which database to use.')
+      yield* endTurn(f.turn)
+      yield* f.orch.resumeQueues()
+      yield* TestClock.adjust(1000)
+      expect(yield* f.reports).toEqual([])
+      yield* f.orch.respondQuestion(f.child.id, questionId, { 'Which database?': 'Postgres' })
+      const answered = f.turns.get(f.child.id)!
+      expect(answered.turnId).not.toBe(f.turn.turnId)
+      yield* say(answered, 'Set it up on Postgres.')
+      yield* endTurn(answered)
+      yield* TestClock.adjust(1000)
+      const reports = yield* f.reports
+      expect(reports).toMatchObject([{ kind: 'report', reports: [{ outcome: 'finished' }] }])
+      expect(reports[0]!.text).toContain('Set it up on Postgres.')
     }).pipe(Effect.provide(TestClock.layer()))
   )
 })
