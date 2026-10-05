@@ -474,6 +474,11 @@ export function useComposerSlash(
           return
         }
         if (event.key === 'Tab') return
+        // Every match is disabled and says why; the half-typed command isn't a message.
+        if (entries.length) {
+          event.preventDefault()
+          return
+        }
       }
     }
     if (event.key === 'Backspace' && collapsed) {
