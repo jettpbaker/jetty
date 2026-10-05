@@ -23,11 +23,17 @@ type QueueOp =
 
 const noMessages: readonly QueuedMessage[] = []
 
-// Each op overlays the server queue until its request settles; the server publishes the
-// new queue before replying, so the handover has no gap.
+// Each op overlays the server queue until the queue shows it. The server publishes the new
+// queue before replying, but the reply can still reach the client first.
 const queueOpsAtom = Atom.make<ReadonlyMap<string, readonly QueueOp[]>>(new Map()).pipe(
   Atom.keepAlive
 )
+
+function shows(queue: readonly QueuedMessage[], op: QueueOp) {
+  if (op.kind === 'add') return queue.some((message) => message.id === op.message.id)
+  const entry = queue.find((message) => message.id === op.id)
+  return op.kind === 'remove' ? !entry : !entry || entry.text === op.text
+}
 
 function applyOps(queue: readonly QueuedMessage[], ops: readonly QueueOp[]) {
   let list = queue
@@ -51,16 +57,41 @@ function track(
   registry.update(queueOpsAtom, (ops) =>
     new Map(ops).set(threadId, [...(ops.get(threadId) ?? []), op])
   )
+  function drop() {
+    registry.update(queueOpsAtom, (ops) => {
+      const left = (ops.get(threadId) ?? []).filter((entry) => entry !== op)
+      return left.length ? new Map(ops).set(threadId, left) : without(ops, [threadId])
+    })
+  }
+  function dropWhenShown() {
+    const shown = () =>
+      shows(
+        registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
+          ?.pendingMessages ?? noMessages,
+        op
+      )
+    if (shown()) return drop()
+    const timer = setTimeout(done, 5000)
+    const stop = registry.subscribe(chromeAtom, () => {
+      if (shown()) done()
+    })
+    function done() {
+      clearTimeout(timer)
+      stop()
+      drop()
+    }
+  }
   run(registry, (connection) =>
     request(connection).pipe(
       Effect.onExit((exit) =>
         Effect.sync(() => {
-          registry.update(queueOpsAtom, (ops) => {
-            const left = (ops.get(threadId) ?? []).filter((entry) => entry !== op)
-            return left.length ? new Map(ops).set(threadId, left) : without(ops, [threadId])
-          })
-          if (Exit.isSuccess(exit)) settled?.onSuccess?.()
-          else settled?.onFailure?.()
+          if (Exit.isSuccess(exit)) {
+            dropWhenShown()
+            settled?.onSuccess?.()
+          } else {
+            drop()
+            settled?.onFailure?.()
+          }
         })
       )
     )
