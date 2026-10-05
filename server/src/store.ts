@@ -1255,6 +1255,14 @@ export function createStore() {
               )
             return existing
           }
+          const aliases = yield* sql`SELECT id FROM threads WHERE lower(id) = lower(${id}) LIMIT 1`
+          if (aliases.length)
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                'A thread with this id in a different case already exists'
+              )
+            )
           const thread: ThreadMeta = {
             id,
             projectId,
