@@ -474,8 +474,8 @@ export function ThreadComposer({
   return (
     <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
       {meta?.worktree?.state === 'failed' && (
-        <div role='alert' className='flex items-center gap-2 pb-2 text-xs text-destructive'>
-          <span>{meta.worktree.error}</span>
+        <div role='alert' className='flex items-center gap-2 pb-2 text-xs'>
+          <span className='text-destructive'>{meta.worktree.error}</span>
           <Button variant='outline' size='sm' {...pressProps(retry)}>
             Retry
           </Button>
