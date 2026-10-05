@@ -93,6 +93,32 @@ export const agentBehaviours = [
     instruction:
       'Call archive_thread on threads you created once their work is merged or no longer needed.',
   },
+  {
+    key: 'watchPullRequests',
+    label: 'Agents wake on activity in their pull requests',
+    defaultEnabled: false,
+    instruction:
+      "Jetty watches the pull requests you open. When one gets a review or comments, its checks fail or it hits a merge conflict, Jetty sends you what happened in a <relayed-message> from Jetty, so you don't need to poll CI or wait for reviews.",
+  },
+  // What wakes an agent once watchPullRequests is on.
+  {
+    key: 'watchReviews',
+    parent: 'watchPullRequests',
+    label: 'Reviews and comments',
+    defaultEnabled: true,
+  },
+  {
+    key: 'watchChecks',
+    parent: 'watchPullRequests',
+    label: 'Failing checks',
+    defaultEnabled: true,
+  },
+  {
+    key: 'watchConflicts',
+    parent: 'watchPullRequests',
+    label: 'Merge conflicts',
+    defaultEnabled: true,
+  },
 ] as const
 
 export const AgentBehaviourKey = Schema.Literals(agentBehaviours.map((behaviour) => behaviour.key))
@@ -205,8 +231,8 @@ export const QueuedMessage = Schema.Struct({
   createdAt: Schema.Int,
   editingUntil: Schema.optional(Schema.Int),
   from: Schema.optional(MessageSource),
-  // Jetty's own messages: a restart continuation, or a child's report.
-  kind: Schema.optional(Schema.Literals(['continuation', 'report'])),
+  // Jetty's own messages: a restart continuation, a child's report, or the PR watcher's news.
+  kind: Schema.optional(Schema.Literals(['continuation', 'report', 'pull_request'])),
   reports: Schema.optional(Schema.Array(ChildReport)),
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),

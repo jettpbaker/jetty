@@ -909,6 +909,33 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      // The PR watcher's message comes from Jetty; one still waiting in the queue takes the news too.
+      queuePullRequestNews(threadId: string, text: string) {
+        return Effect.gen(function* () {
+          const thread = yield* requireThread(threadId)
+          const waiting = thread.pendingMessages?.find((m) => m.kind === 'pull_request')
+          if (waiting)
+            yield* updateQueue(
+              threadId,
+              (thread.pendingMessages ?? []).map((m) =>
+                m.id === waiting.id ? { ...m, text: `${m.text}\n\n${text}` } : m
+              )
+            )
+          else
+            yield* enqueue(threadId, {
+              id: newId(),
+              text,
+              createdAt: Date.now(),
+              hop: 0,
+              from: { threadId, title: 'Jetty' },
+              kind: 'pull_request',
+            })
+        }).pipe(
+          sql.withTransaction,
+          Effect.tap(() => signalQueueChange),
+          Effect.mapError(storeError)
+        )
+      },
       editQueued(threadId: string, messageId: string, text?: string) {
         return Effect.gen(function* () {
           const thread = yield* requireThread(threadId)
@@ -1367,7 +1394,8 @@ export function createStore() {
       threadsForPullRequest(repo: string, number: number) {
         return sql<{
           thread_id: string
-        }>`SELECT thread_id FROM thread_pull_requests WHERE repo = ${repo} AND number = ${number}`.pipe(
+        }>`SELECT thread_id FROM thread_pull_requests WHERE repo = ${repo} AND number = ${number}
+          ORDER BY linked_at`.pipe(
           Effect.map((rows) => rows.map((row) => row.thread_id)),
           Effect.mapError(storeError)
         )

@@ -65,6 +65,7 @@ import {
   readCodexProviderUsage,
   readGrokProviderUsage,
 } from './provider-usage'
+import { createPullRequestWatch } from './pull-request-watch'
 import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
@@ -470,13 +471,6 @@ function createServer(opts: ServerOptions = {}) {
       )
     }
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
-    yield* Effect.gen(function* () {
-      if ((yield* hub.subscriberCount) > 0) yield* pullRequests.refreshChangedLinks()
-    }).pipe(
-      Effect.catchCause((cause) => Effect.logWarning(cause)),
-      Effect.repeat(Schedule.spaced('5 seconds')),
-      Effect.forkIn(discoveryScope)
-    )
     function modelCatalog() {
       return Effect.gen(function* () {
         if (models === null) yield* refreshModels()
@@ -506,6 +500,17 @@ function createServer(opts: ServerOptions = {}) {
       })
     )
     const orch = Context.get(services, OrchestratorService)
+    // The watcher sees every read, the sweep's first included.
+    pullRequests.observe(createPullRequestWatch(store, orch))
+    yield* Effect.gen(function* () {
+      const watching = (yield* store.getAgentBehaviours()).watchPullRequests
+      if (watching || (yield* hub.subscriberCount) > 0)
+        yield* pullRequests.refreshChangedLinks(watching)
+    }).pipe(
+      Effect.catchCause((cause) => Effect.logWarning(cause)),
+      Effect.repeat(Schedule.spaced('5 seconds')),
+      Effect.forkIn(discoveryScope)
+    )
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
     const handlers = yield* createRpcHandlers(
       store,

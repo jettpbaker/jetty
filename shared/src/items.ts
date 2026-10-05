@@ -24,6 +24,26 @@ export const ChildReport = Schema.Struct({
 })
 export type ChildReport = Schema.Schema.Type<typeof ChildReport>
 
+// One thing Jetty's PR watcher saw on a thread's pull request: who did it, how many, or which
+// checks failed.
+export const PullRequestActivity = Schema.Struct({
+  type: Schema.Literals([
+    'checks_failed',
+    'checks_passed',
+    'changes_requested',
+    'approved',
+    'commented',
+    'conflict',
+    'ready',
+    'merged',
+    'closed',
+  ]),
+  actor: Schema.optional(Schema.String),
+  count: Schema.optional(Schema.Int),
+  detail: Schema.optional(Schema.String),
+})
+export type PullRequestActivity = Schema.Schema.Type<typeof PullRequestActivity>
+
 export const ApprovalDecision = Schema.Literals(['allow', 'always', 'deny'])
 export type ApprovalDecision = Schema.Schema.Type<typeof ApprovalDecision>
 
@@ -192,6 +212,16 @@ export const ThreadItem = Schema.Union([
     stopReason: Schema.optional(Schema.Literals(['you', 'crash'])),
   }),
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
+  // A line in the chat for the PR watcher; what woke the agent reaches it as a message from Jetty.
+  Schema.Struct({
+    ...itemBase,
+    kind: Schema.Literal('pull_request'),
+    repo: Schema.String,
+    number: Schema.Int,
+    activity: Schema.Array(PullRequestActivity),
+    // The hourly wake cap kept this from waking the agent.
+    held: Schema.optional(Schema.Boolean),
+  }),
 ])
 export type ThreadItem = Schema.Schema.Type<typeof ThreadItem>
 
@@ -202,11 +232,13 @@ export const RESTART_WINDOW_MS = 10 * 60_000
 export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
 
 // The thread's last turn is one the guard held, and nothing has come after it. The guard's note
-// closes that turn; only errors about it, such as an undelivered report, can follow.
+// closes that turn; only errors about it, such as an undelivered report, and PR watcher lines
+// can follow.
 export function heldByRestarts(items: readonly ThreadItem[]) {
-  const turnId = items.at(-1)?.turnId
+  const turnId = items.findLast((item) => item.kind !== 'pull_request')?.turnId
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!
+    if (item.kind === 'pull_request') continue
     if (item.kind !== 'error' || item.turnId !== turnId) return false
     if (item.message === RESTART_LIMIT_NOTE) return true
   }

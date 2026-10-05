@@ -43,6 +43,7 @@ const DELTA_BATCH = '50 millis'
 const REMOVED_KEPT = '30 seconds'
 
 type ItemDelta = Extract<ThreadEvent, { type: 'item.delta' }>
+type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
 
 export type Orchestrator = Effect.Success<ReturnType<typeof createOrchestrator>>
 export const OrchestratorService = Context.Service<Orchestrator>('jetty/Orchestrator')
@@ -1049,6 +1050,52 @@ export function createOrchestrator({
               yield* Queue.offer(store.queueChanges, undefined)
             })
           )
+        )
+      },
+      // The PR watcher's lines join the running turn, or the last one, so they never open a turn
+      // of their own; what needs the agent waits in its queue like a report.
+      pullRequestActivity(
+        threadId: string,
+        lines: readonly Pick<PullRequestItem, 'repo' | 'number' | 'activity' | 'held'>[],
+        text: string | null
+      ) {
+        return locked(
+          threadId,
+          Effect.gen(function* () {
+            yield* flushDelta(threadId)
+            const thread = yield* store.getThread(threadId)
+            if (!thread || thread.archived || !lines.length) return
+            const { items } = yield* store.getThreadState(threadId)
+            const turnId = state(threadId).turnId ?? items.at(-1)?.turnId ?? newId()
+            const events = lines.flatMap((line): ThreadEvent[] => {
+              const item: PullRequestItem = {
+                ...line,
+                id: newId(),
+                turnId,
+                createdAt: Date.now(),
+                kind: 'pull_request',
+              }
+              return [
+                { type: 'item.started', item },
+                { type: 'item.completed', itemId: item.id },
+              ]
+            })
+            const appended = yield* store.transaction(
+              Effect.gen(function* () {
+                const appended = yield* store.appendEvents(
+                  threadId,
+                  events as [ThreadEvent, ...ThreadEvent[]]
+                )
+                if (text) yield* store.queuePullRequestNews(threadId, text)
+                return appended
+              })
+            )
+            for (const event of appended) yield* publish(threadId, event)
+            hub.pushChrome({
+              type: 'thread.upserted',
+              thread: yield* store.requireThread(threadId),
+            })
+          })
         )
       },
       currentTurn(threadId: string) {

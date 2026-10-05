@@ -18,7 +18,9 @@ const base = [
 export function jettyInstructions(behaviours: AgentBehaviours) {
   return [
     ...base,
-    ...agentBehaviours.filter(({ key }) => behaviours[key]).map(({ instruction }) => instruction),
+    ...agentBehaviours.flatMap((behaviour) =>
+      'instruction' in behaviour && behaviours[behaviour.key] ? [behaviour.instruction] : []
+    ),
   ].join('\n\n')
 }
 

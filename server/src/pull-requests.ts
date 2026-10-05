@@ -1632,6 +1632,15 @@ function prKey(ref: PullRequestRef) {
   return `${ref.repo}#${ref.number}`
 }
 
+type PullRequestObserver = {
+  watching: Effect.Effect<boolean, StoreError>
+  changed: (
+    ref: PullRequestRef,
+    previous: PullRequestSnapshot,
+    next: PullRequestData
+  ) => Effect.Effect<void, StoreError>
+}
+
 export function createPullRequests(store: Store, hub: Hub) {
   const visibleLimit = 3
   const prefetchLimit = 2
@@ -1667,6 +1676,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   const lastCadences = new Map<string, string>()
   const headsRead = new Map<string, string>()
   let linksPolledAt = 0
+  let observer: PullRequestObserver | undefined
 
   function revision(key: string) {
     return revisions.get(key) ?? 0
@@ -1825,11 +1835,20 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   // Saves a fetch and pushes it to the PR view and to every thread linking it (sidebar marks).
+  // The PR watcher compares it with the read before it.
   function publish(ref: PullRequestRef, fetched: PullRequestSnapshot, fetchedRevision: number) {
     return publication.withPermit(
       Effect.gen(function* () {
         if (fetchedRevision !== revision(prKey(ref))) return undefined
+        const previous =
+          observer && fetched.data && (yield* observer.watching)
+            ? yield* store.getPullRequest(ref.repo, ref.number)
+            : undefined
         yield* store.savePullRequest(fetched)
+        if (observer && previous && fetched.data)
+          yield* observer
+            .changed(ref, previous, fetched.data)
+            .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         // The stored snapshot keeps the last good data when this read failed.
         const snapshot = decorate(yield* store.getPullRequest(ref.repo, ref.number))
         hub.pushPullRequest(snapshot)
@@ -1967,13 +1986,15 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   // One cheap query notices change on every open linked PR; only changed ones pay for a full
   // read. Check runs don't bump updatedAt, so the rollup state is compared too. Closed and merged
-  // links are left to a PR view's own 30-minute cadence.
-  function refreshChangedLinks() {
+  // links are left to a PR view's own 30-minute cadence. PR watchers keep it going, a minute
+  // apart, while no window shows Jetty.
+  function refreshChangedLinks(watching = false) {
     return Effect.gen(function* () {
+      const hidden = hub.githubActivity() === 'hidden'
       if (
-        hub.githubActivity() === 'hidden' ||
+        (hidden && !watching) ||
         backingOff() ||
-        Date.now() - linksPolledAt < 30_000 * cadenceMultiplier()
+        Date.now() - linksPolledAt < (hidden ? 60_000 : 30_000) * cadenceMultiplier()
       )
         return
       const links = (yield* store.activePullRequestLinks()).filter((link) =>
@@ -2092,7 +2113,12 @@ export function createPullRequests(store: Store, hub: Hub) {
         if (!snapshot.data || changed(graph, snapshot.data)) {
           reads.add(prKey(ref))
           void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
-        } else if (graph.checkRollupState !== snapshot.data.checkRollupState) checks.push(ref)
+        } else if (
+          graph.checkRollupState !== snapshot.data.checkRollupState ||
+          // GitHub settles mergeability lazily; asking again until it does surfaces conflicts.
+          mergeUnknown(snapshot.data)
+        )
+          checks.push(ref)
       }
       yield* refreshChecks(checks)
       return reads
@@ -2622,6 +2648,9 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   return {
+    observe(next: PullRequestObserver) {
+      observer = next
+    },
     get,
     refresh,
     prefetch,
