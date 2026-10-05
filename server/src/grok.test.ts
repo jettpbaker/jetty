@@ -293,6 +293,21 @@ test('model alias uses advertised model, effort and images use ACP fields', asyn
   })
 })
 
+test('idle expiry cannot retire a warm session while a send changes its model', async () => {
+  const f = await setup({ ttlMs: 50 })
+  await Effect.runPromise((await f.start('hello')).await)
+  const pid = readFileSync(join(f.home, 'peer.pid'), 'utf8')
+  const turn = await Effect.runPromise(
+    f.agent.startTurn(
+      { threadId: f.threadId, turnId: newId(), text: 'again', model: 'slow-model' },
+      f.emit
+    )
+  )
+  await Effect.runPromise(turn.await)
+  expect(f.events.filter((e) => e.type === 'turn.completed')).toHaveLength(2)
+  expect(readFileSync(join(f.home, 'peer.pid'), 'utf8')).toBe(pid)
+})
+
 test('steering timeout reaps an unresponsive provider', async () => {
   const f = await setup()
   const turn = await f.start('hang')

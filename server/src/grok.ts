@@ -55,6 +55,8 @@ type Session = {
   awaitingResult: boolean
   done: Deferred.Deferred<void, AgentError>
   idle: Fiber.Fiber<void> | null
+  // the idle TTL fired: the process is shutting down and can't take another turn
+  expired: boolean
   runningWorkflows: Set<string>
   runningSubagents: Set<string>
   settings: string
@@ -118,14 +120,19 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         if (session.idle) yield* Fiber.interrupt(session.idle)
         session.idle = yield* Effect.sleep(ttlMs).pipe(
           Effect.andThen(
-            Effect.suspend(() =>
-              !session.awaitingResult &&
-              !session.runningWorkflows.size &&
-              !session.runningSubagents.size &&
-              sessions.get(session.input.threadId) === session &&
-              session.fiber
-                ? Fiber.interrupt(session.fiber).pipe(Effect.forkIn(owner), Effect.asVoid)
-                : Effect.void
+            session.publication.withPermit(
+              Effect.suspend(() => {
+                if (
+                  session.awaitingResult ||
+                  session.runningWorkflows.size ||
+                  session.runningSubagents.size ||
+                  sessions.get(session.input.threadId) !== session ||
+                  !session.fiber
+                )
+                  return Effect.void
+                session.expired = true
+                return Fiber.interrupt(session.fiber).pipe(Effect.forkIn(owner), Effect.asVoid)
+              })
             )
           ),
           Effect.forkIn(owner)
@@ -550,6 +557,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               Effect.gen(function* () {
                 if (existing!.awaitingResult)
                   return yield* Effect.fail(new AgentError('Turn already active'))
+                // Before any await below: the idle TTL must not retire the session mid-setup.
+                if (existing!.idle) yield* Fiber.interrupt(existing!.idle)
+                existing!.idle = null
+                if (existing!.expired) {
+                  retire = true
+                  return
+                }
                 if (existing!.settings !== settings) {
                   if (existing!.runningWorkflows.size || existing!.runningSubagents.size)
                     return yield* Effect.fail(
@@ -561,16 +575,16 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 const currentId = existing!.modelId ?? ''
                 const modelId = grokModel(input, currentId, existing!.fastIds)
                 if (modelId !== currentId || input.effort !== existing!.effort) {
-                  yield* existing!.connection!.request('session/set_model', {
-                    sessionId: existing!.providerThreadId,
-                    modelId,
-                    ...(input.effort ? { _meta: { reasoningEffort: input.effort } } : {}),
-                  })
+                  yield* existing!
+                    .connection!.request('session/set_model', {
+                      sessionId: existing!.providerThreadId,
+                      modelId,
+                      ...(input.effort ? { _meta: { reasoningEffort: input.effort } } : {}),
+                    })
+                    .pipe(Effect.onError(() => armIdle(existing!)))
                   existing!.modelId = modelId
                   existing!.effort = input.effort
                 }
-                if (existing!.idle) yield* Fiber.interrupt(existing!.idle)
-                existing!.idle = null
                 existing!.input = input
                 existing!.emit = emit
                 existing!.translator = createGrokTranslator(
@@ -603,6 +617,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             awaitingResult: true,
             done,
             idle: null,
+            expired: false,
             runningWorkflows: new Set(),
             runningSubagents: new Set(),
             settings,

@@ -25,6 +25,8 @@ for await (const line of createInterface({ input: process.stdin })) {
       authMethods: [{ id: 'cached_token' }, { id: 'xai.api_key' }],
       agentCapabilities: { loadSession: true },
     })
+  else if (m.method === 'session/set_model' && m.params.modelId === 'slow-model')
+    setTimeout(() => result(m.id), 150)
   else if (m.method === 'authenticate' || m.method === 'session/set_model') result(m.id)
   else if (m.method === '_x.ai/session/info')
     result(m.id, {
