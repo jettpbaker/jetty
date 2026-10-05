@@ -21,7 +21,8 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
     or `/components/app?settings=a|b`.
   - Issues view (`/components/issues`, `/components/issue-page`), keybind chips
     (`/components/keybinds`), and PR view E's review flows (comment from the
-    gutter, start a review, suggest, submit with a verdict).
+    gutter, start a review, suggest, submit with a verdict). In its comment box,
+    selecting text opens the formatting toolbar below the selection, not above it.
   - PR description edits are last-writer-wins across devices; an "edited
     elsewhere" guard is possible.
   - ⌥1–9 opens pinned threads; the alternative is driving tabs.
