@@ -16,9 +16,19 @@
 .smooth-blur {
   animation: smooth-blur ease-out both;
 }
+@keyframes smooth-blur-soft {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+}
+.smooth-blur-soft {
+  animation: smooth-blur-soft ease-out both;
+}
 @media (prefers-reduced-motion: reduce) {
   .smooth-fade,
-  .smooth-blur {
+  .smooth-blur,
+  .smooth-blur-soft {
     animation: none;
   }
 }

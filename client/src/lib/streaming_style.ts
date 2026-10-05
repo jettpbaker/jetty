@@ -5,7 +5,8 @@ import { useSyncExternalStore } from 'react'
 export const streamingStyles = [
   { value: 'fade', label: 'Fade' },
   { value: 'quick', label: 'Quick fade' },
-  { value: 'blur', label: 'Blur in' },
+  { value: 'blur', label: 'Blur 4px' },
+  { value: 'softBlur', label: 'Blur 2px' },
   { value: 'off', label: 'Off' },
 ] as const
 
