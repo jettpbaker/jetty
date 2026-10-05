@@ -35,20 +35,15 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 Everything below is for one combined review of the chat, not separate ports.
 
-- Streaming and the chat view in general: Jett wants it better overall; this is
-  the umbrella the rest hangs off.
-- Automated messages, `/components/auto-messages`: one family for everything
-  Jetty or another thread sends into a chat (restart resume and limit, child
-  reports, relays, compaction, PR watch wakes, a background command exiting).
-  C's seams are directionally right; compaction's "Compacting" and "Compacted"
-  are ported (`ChatSeam`). Today child reports and the restart continuation
-  render as user-looking relayed bubbles. Agents should get a real Jetty sender
-  (e.g. `<jetty-notice kind="…">`) instead of the restart note's borrowed
-  `from: { self, 'Jetty' }`.
-- Queued messages, `/components/queued-messages`: B is ported. Left out: a
-  stored pause reason (the seam says only "Paused"), and an edit hold past 60s on
-  the server (the client renews it every 30s while a draft edits). Relays and
-  child reports stay hidden until they land, as Jett asked.
+- Automated messages, `/components/auto-messages`: restart, restart limit, compaction
+  and PR watch wakes are ported (`ChatSeam`), and a child's report reads as one line.
+  Left: relays from other threads and a background command exiting. Agents should
+  get a real Jetty sender (e.g. `<jetty-notice kind="…">`) instead of the borrowed
+  `from: { threadId, title: 'Jetty' }` (`jetty-instructions.ts`, `store.ts`).
+- Queued messages, `/components/queued-messages`: B is ported, with a 6s Undo on
+  Remove. Left out: a stored pause reason (the seam says only "Paused"), and an edit
+  hold past 60s on the server (the client renews it every 30s while a draft edits).
+  Relays and child reports stay hidden until they land, as Jett asked.
 - Child thread card, `/components/child-card`: one card per turn for the
   threads a parent starts, and how a report arrives later (C, bare rows, was
   recommended). Not picked yet.
@@ -63,8 +58,9 @@ Everything below is for one combined review of the chat, not separate ports.
 - PR view: say why a PR is red or yellow. The tab and sidebar glyphs colour by readiness
   (a merge conflict, failing checks, changes requested), but the Status row only says
   "Open". Show the readiness reason there, e.g. "Open · Merge conflict" in red.
-- Orca-style source-control actions: rebase from base, create PR, merge PR in-app.
-  Merge through GitHub's async merge API (GA 2026-10-01): a PUT to
+- Orca-style source-control actions: rebase from base, create PR. In-app merge
+  landed on the plain `/merge` endpoint; move it to GitHub's async merge API
+  (GA 2026-10-01): a PUT to
   `/repos/{o}/{r}/pulls/{n}/merge-async` returns an id to poll (`pending` →
   `merged` | `enqueued` | `failed`; results kept 24h). One endpoint covers direct
   merge, merge queue and stacks. Pin `sha` to the head the user saw (a push
@@ -140,7 +136,6 @@ Everything below is for one combined review of the chat, not separate ports.
   no transcript.
 - Grok runs commands in its own sandbox: `gh` can't reach the keychain token (401 on
   PR creation) and writes outside the project are blocked even after approval.
-- Queued-message remove has no undo (needs a server-side hold).
 - Workflows, after the v1 cut (status lines under the composer, sidebar working,
   a2a in-chat row, per-workflow stop): the detail view (c1 / c1b / c1c in the
   sketchpad) and resume. Resume plan: after a restart jetty resumes interrupted
@@ -156,6 +151,56 @@ Everything below is for one combined review of the chat, not separate ports.
   (mergeability flips, thread resolution). If that bites, a 10-minute full
   refresh floor for linked PRs is a two-line addition (an open PR view already
   refreshes fully every 30s).
+- Decide (overnight proposals, `proposals.md` of 2026-10-06): worktree setup stopped
+  showing two recovery buttons; a refused archive leaving its threads stopped; the
+  restart-pause chrome wording; telling the user when a restart cut background work;
+  PR watcher calls; old-database migrations; images in a queued-message edit.
+- Chat: approvals and questions have no Stop (the send button becomes "Deny with
+  note"); a denied tool shows both a Failed row and a Denied row
+  (`codex-translate.ts` ~63); a failed or cancelled `/compact` vanishes silently
+  (`thread_rows.ts` ~527); the `/usage` tray opens over the chat without re-pinning
+  it; a tool cut off by Stop spins in its old work block while a later turn runs
+  (`toActivity` keys on thread-wide `sessionActive`); sending in a long-code thread
+  leaves the new bubble below the fold for a second.
+- Scroll (`thread_list.tsx`): End can leave following off (~589), a small upward
+  scroll within 96px of the bottom gets pulled back (~590), and a message moving into
+  the Working block mid roll-in snaps the rest in.
+- Queued follow-ups ignore a model/effort/access change made while the turn runs
+  (`queue.add` carries text only). Snapshot the loadout at queue time?
+- Drafts and multi-tab: a reload between `turn.start` reaching the server and image
+  admission can duplicate a send; settings and pin/archive patches can mask a later
+  change until unmount or a 10s timeout when another tab's push lands first
+  (`settings_agent_behaviour.tsx`, `settings_title_model.tsx`, `mutations.ts`).
+- Settings: a loadout slot whose model left the catalog renders empty but is still
+  submitted (`loadout.ts` ~114); disabling a provider keeps its models in the composer
+  picker and defaults.
+- Usage: the page can say "Couldn't refresh" while a turn reported fresher limits
+  (`provider-usage.ts` ~121). Grok's context ring is unverified mid-turn: it may
+  only move at turn end.
+- Search pickers: `.search-picker [data-slot='command'] { border-radius: 0 !important }`
+  (`option_picker.css`) never applies; Tailwind's layered `rounded-xl!` wins.
+- PR view: a PR with over 100 check contexts or generated-banner heads drops the rest
+  silently (`pull-request-graphql.ts` ~143, `pull-requests.ts` ~978); a failed
+  detection or checks poll publishes no "Couldn't refresh" (`detect`, `refreshChecks`);
+  100+ old closed PRs can crowd out recent closes ("Showing latest 0"); a base retarget
+  with identical totals keeps old files (`reuseFiles` ignores the base SHA); a thread
+  linked to a PR with no messages can't open its PR tab.
+- File save (`diff.ts`): a parent-folder symlink swapped after the realpath check
+  redirects a new file; `new.txt` and `NEW.txt` saved together on a case-insensitive
+  disk both succeed and one wins; a basename over ~206 bytes can't be saved (temp
+  sibling adds ~49); "Save anyway" after the folder was deleted says "Folder not
+  found"; Changes drops an oversized file whose path is quoted with no notice (~57);
+  a save still splits hard links and drops xattrs/ACLs.
+- Worktrees (`worktrees.ts`, `orchestrator.ts`): the setup watchdog exits with the
+  setup shell, so a backgrounded command goes unsupervised and Retry can start a
+  second; a restart mid group Resume strands members not yet prepared; Archive/Delete
+  during a group Resume waits for it instead of cancelling; thread ids that differ only
+  by case share a worktree on a case-insensitive disk, and long ids can't make one.
+- Children (`store.ts`, `orchestrator.ts`): a paused queued follow-up stops a child's
+  ask_parent or pause note reaching the parent; a Codex async answer whose setup fails
+  loses the continuation; a child reports finished while its own child still runs; a
+  woken background subagent can still produce a second report; a turn whose end fails
+  to save never reports after storage recovers.
 - Perf lab: exact frame counts need Chrome's 120 Hz begin-frame control, which
   is Linux-only (headless Chrome in Docker). A separate spike.
 - Design pass on toasts (sonner), with Jett; not a priority. A first study is
