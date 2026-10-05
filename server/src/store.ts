@@ -388,6 +388,114 @@ export function createStore() {
       )
     }
 
+    function latestFinishedTurn(threadId: string) {
+      return sql<{
+        turn_id: string
+        hop: number
+        initiator_thread_id: string | null
+        payload_json: string
+      }>`SELECT t.turn_id, t.hop, t.initiator_thread_id, e.payload_json
+        FROM thread_events e JOIN orchestration_turns t
+          ON t.turn_id = json_extract(e.payload_json, '$.turnId')
+        WHERE e.thread_id = ${threadId}
+          AND json_extract(e.payload_json, '$.type') IN ('turn.completed', 'turn.failed')
+        ORDER BY e.seq DESC LIMIT 1`.pipe(Effect.map(([turn]) => turn))
+    }
+
+    function reportSettledChild(threadId: string) {
+      return Effect.gen(function* () {
+        const thread = yield* requireThread(threadId)
+        if (thread.createdBy !== 'agent' || !thread.parentThreadId) return false
+        if (!(yield* notifiesParent(threadId))) return false
+        const { state } = yield* loadThread(threadId)
+        if (
+          state.activeTurnId ||
+          thread.pendingMessages?.length ||
+          state.items.some(
+            (item) =>
+              (item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running'
+          )
+        )
+          return false
+        const turn = yield* latestFinishedTurn(threadId)
+        if (!turn || turn.initiator_thread_id !== thread.parentThreadId) return false
+        const reportId = `report:${threadId}:${turn.turn_id}`
+        const [existing] = yield* sql`SELECT 1 FROM orchestration_requests
+          WHERE caller_id = ${threadId} AND request_id = ${reportId} AND operation = 'report'`
+        if (existing) return false
+        const parent = yield* getThread(thread.parentThreadId)
+        const hop = turn.hop + 1
+        if (!parent || parent.archived || hop > 20) {
+          yield* Effect.logWarning(
+            `Report from ${threadId} dropped: ${hop > 20 ? 'message hop limit exceeded' : 'parent is archived or missing'}`
+          )
+          yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: thread.parentThreadId })})`
+          return false
+        }
+        const event = JSON.parse(turn.payload_json) as Extract<
+          ThreadEvent,
+          { type: 'turn.completed' | 'turn.failed' }
+        >
+        const outcome =
+          event.type === 'turn.completed'
+            ? 'done'
+            : event.error === 'interrupted'
+              ? 'interrupted'
+              : `failed: ${event.error}`
+        const final = state.items.findLast(
+          (item) =>
+            item.turnId === turn.turn_id &&
+            item.kind === 'assistant_message' &&
+            !item.agentId &&
+            item.text.trim()
+        )
+        const summary = final?.kind === 'assistant_message' ? final.text.trim() : ''
+        const text = [
+          `Thread ${thread.title} (${threadId}) ${outcome}.`,
+          thread.environment === 'worktree'
+            ? `Branch: ${thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable'}`
+            : 'Works in the current checkout.',
+          summary.length > 4000
+            ? `${summary.slice(0, 4000)}\n[Truncated; use read_thread to read the full message.]`
+            : summary,
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+        const reports = yield* sql<{
+          result_json: string
+        }>`SELECT result_json FROM orchestration_requests
+          WHERE operation = 'report' AND json_extract(result_json, '$.threadId') = ${parent.id}`
+        const messageIds = new Set(
+          reports.map((row) => (JSON.parse(row.result_json) as { messageId?: string }).messageId)
+        )
+        const batch = parent.pendingMessages?.find((message) => messageIds.has(message.id))
+        const messageId = batch?.id ?? reportId
+        if (batch)
+          yield* updateQueue(
+            parent.id,
+            (parent.pendingMessages ?? []).map((message) =>
+              message.id === batch.id
+                ? {
+                    ...message,
+                    text: `${message.text}\n\n---\n\n${text}`,
+                    hop: Math.max(message.hop, hop),
+                  }
+                : message
+            )
+          )
+        else
+          yield* enqueue(parent.id, {
+            id: messageId,
+            text,
+            createdAt: Date.now(),
+            hop,
+            from: { threadId, title: thread.title },
+          })
+        yield* sql`INSERT INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id, messageId })})`
+        return true
+      }).pipe(atomically, Effect.mapError(storeError))
+    }
+
     function append(
       threadId: string,
       event: ThreadEvent,
@@ -424,7 +532,11 @@ export function createStore() {
             yield* sql`INSERT OR IGNORE INTO attachment_refs (thread_id, attachment_id, metadata_json)
               VALUES (${threadId}, ${attachment.id}, ${JSON.stringify(attachment)})`
         }
-        if (notifyParent && event.type === 'turn.failed' && !prev.turnOutcomes[event.turnId]) {
+        if (
+          notifyParent === 'restart' &&
+          event.type === 'turn.failed' &&
+          !prev.turnOutcomes[event.turnId]
+        ) {
           yield* Effect.gen(function* () {
             const parent = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
             const [turn] = yield* sql<{
@@ -432,14 +544,7 @@ export function createStore() {
               initiator_thread_id: string | null
             }>`SELECT hop, initiator_thread_id FROM orchestration_turns WHERE turn_id = ${event.turnId}`
             const hop = (turn?.hop ?? 0) + 1
-            const restartNotice = notifyParent === 'restart' && thread.createdBy === 'agent'
-            if (
-              !parent ||
-              parent.archived ||
-              (!restartNotice &&
-                (!(yield* notifiesParent(threadId)) || turn?.initiator_thread_id !== parent.id))
-            )
-              return
+            if (!parent || parent.archived || thread.createdBy !== 'agent') return
             if (hop > 20)
               return yield* Effect.logWarning(
                 `Failure notification from ${threadId} dropped: message hop limit exceeded`
@@ -449,7 +554,7 @@ export function createStore() {
               createdAt: ts,
               hop,
               from: { threadId, title: thread.title },
-              text: `Thread ${thread.title} failed: ${restartNotice ? RESTART_LIMIT_NOTE : event.error}`,
+              text: `Thread ${thread.title} failed: ${RESTART_LIMIT_NOTE}`,
             })
           }).pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
         }
@@ -735,6 +840,7 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      reportSettledChild,
       beginDelivery(threadId: string, turnId: string, hop: number, messageId?: string) {
         return Effect.gen(function* () {
           const entry = yield* loadThread(threadId)
@@ -747,8 +853,12 @@ export function createStore() {
             yield* sql`UPDATE threads SET status = 'starting', ready_for_review = 0 WHERE id = ${threadId}`
           }
           const thread = yield* requireThread(threadId)
-          const initiator =
-            thread.pendingMessages?.find((m) => m.id === messageId)?.from?.threadId ?? null
+          const message = thread.pendingMessages?.find((m) => m.id === messageId)
+          const continuation =
+            message?.from?.threadId === threadId && message.from.title === 'Jetty'
+          const previous = continuation ? yield* latestFinishedTurn(threadId) : undefined
+          const initiator = previous?.initiator_thread_id ?? message?.from?.threadId ?? null
+          if (previous) hop = previous.hop
           yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${hop}, ${initiator}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
           if (messageId) yield* removeQueued(threadId, messageId)
         }).pipe(atomically, Effect.mapError(storeError))

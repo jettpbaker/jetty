@@ -403,7 +403,7 @@ export function createMcpHandler(
         'create_thread',
         {
           description:
-            'Create an independent agent thread in this project. Environment defaults to yours: local shares the project checkout; worktree creates a new branch and folder. For worktree, ref resolves locally or on origin; default is your current HEAD for worktree callers, otherwise origin’s default branch. Local ignores ref. Children report with send_message; notify=false disables reporting and failure notifications. Choose provider/model/effort via list_models (model accepts an ID, display name, or unique short name). Reuse requestId for safe retries.',
+            'Create an independent agent thread in this project. Environment defaults to yours: local shares the project checkout; worktree creates a new branch and folder. For worktree, ref resolves locally or on origin; default is your current HEAD for worktree callers, otherwise origin’s default branch. Local ignores ref. Jetty reports a child’s final message automatically when it settles; notify=false disables automatic reports. Choose provider/model/effort via list_models (model accepts an ID, display name, or unique short name). Reuse requestId for safe retries.',
           inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
@@ -421,7 +421,7 @@ export function createMcpHandler(
         'mark_ready_for_review',
         {
           description:
-            "Mark this thread ready for the user to review. Call when you hand completed work back to the user or need their decision, not for trivial replies. Optionally include a short summary. In a thread another agent created, the user isn't flagged: report to that thread (reportsTo) with send_message instead.",
+            "Mark this thread ready for the user to review. Call when you hand completed work back to the user or need their decision, not for trivial replies. Optionally include a short summary. In a thread another agent created, the user isn't flagged: Jetty reports your final message to that thread (reportsTo) automatically when you settle. Use send_message to ask it something mid-task.",
           inputSchema: { summary: z.string().trim().min(1).max(240).optional() },
         },
         (input) =>

@@ -18,6 +18,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, type Agent } from './agent'
+import { CHILD_REPORT_INSTRUCTION } from './jetty-instructions'
 import {
   isAgentProvider,
   singleAgentRegistry,
@@ -62,9 +63,7 @@ function providerConflict(bound: string, requested: string) {
 function agentText({ text, queued }: StartTurnInput, fromCreator: boolean) {
   if (!queued?.from) return text
   const relayed = `<relayed-message from-thread-id="${escapeAttribute(queued.from.threadId)}" from-title="${escapeAttribute(queued.from.title)}">\n${text.replaceAll(/<\/relayed-message/gi, '&lt;/relayed-message')}\n</relayed-message>`
-  return fromCreator
-    ? `${relayed}\nThis thread created yours. When you finish or need a decision, report back to it with send_message, including the attachment ids of any images or videos you sent that it may want to re-post. Jetty tells it automatically only if your turn fails.`
-    : relayed
+  return fromCreator ? `${relayed}\n${CHILD_REPORT_INSTRUCTION}` : relayed
 }
 
 function escapeAttribute(value: string) {
@@ -700,7 +699,7 @@ export function createOrchestrator({
       markReadyForReview(threadId: string) {
         return Effect.gen(function* () {
           const thread = yield* store.requireThread(threadId)
-          // An agent-created thread reports to its parent with send_message instead.
+          // An agent-created thread reports to its parent automatically when settled.
           if (thread.parentThreadId) return thread
           return yield* hub.withChromePublication(
             store
@@ -824,7 +823,26 @@ export function createOrchestrator({
       },
       resumeQueues() {
         const published = new Map<string, string>()
+        // Each append bumps updatedAt, so a child whose row hasn't changed since its last check
+        // can't have newly settled; the drain runs every second and this keeps it cheap.
+        const checked = new Map<string, string>()
         const drain = Effect.gen(function* () {
+          const threads = yield* store.listThreads()
+          for (const thread of threads) {
+            if (closing) return
+            if (
+              thread.createdBy !== 'agent' ||
+              !thread.parentThreadId ||
+              !state(thread.id).ready ||
+              state(thread.id).turnId ||
+              hub.decorateThread(thread).backgroundTasks?.length
+            )
+              continue
+            const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}`
+            if (checked.get(thread.id) === key) continue
+            checked.set(thread.id, key)
+            yield* store.reportSettledChild(thread.id)
+          }
           for (const thread of yield* store.listThreads()) {
             if (closing) return
             const queue = thread.pendingMessages ?? []

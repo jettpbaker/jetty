@@ -19,6 +19,7 @@ import {
   Layer,
   ManagedRuntime,
   Option,
+  Queue,
   Schedule,
   Scope,
 } from 'effect'
@@ -295,6 +296,7 @@ function createServer(opts: ServerOptions = {}) {
               hub.setBackgroundTasks(threadId, tasks)
               const thread = yield* store.requireThread(threadId)
               hub.pushChrome({ type: 'thread.upserted', thread })
+              yield* Queue.offer(store.queueChanges, undefined)
             })
           )
           .pipe(Effect.ignore)

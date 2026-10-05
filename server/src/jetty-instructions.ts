@@ -17,3 +17,6 @@ export function restartContinuation(stoppedNames: readonly string[]) {
   const names = stoppedNames.length ? `: ${stoppedNames.join(', ')}` : ''
   return `Jetty restarted while you were working, so your last turn was cut off. Background tasks, monitors and subagents you had running were stopped and won't report back${names}. Approvals or questions that were waiting were cancelled. Your last command may or may not have finished: check the current state before redoing anything, then carry on.`
 }
+
+export const CHILD_REPORT_INSTRUCTION =
+  'This thread created yours. When you finish, Jetty sends your final message to it automatically, so end with a clear summary, including the attachment ids of any images or videos it may want to re-post. Use send_message only to ask it something mid-task.'
