@@ -37,12 +37,13 @@ export function awaitsInput(item: ThreadItem) {
   return false
 }
 
-function subagentTabs(items: readonly ThreadItem[]): SubagentTab[] {
+// Only running subagents get a tab, plus the one being viewed so finishing doesn't yank it away.
+function subagentTabs(items: readonly ThreadItem[], viewing: string): SubagentTab[] {
   const waiting = new Set<string>()
   for (const item of items) if (item.agentId && awaitsInput(item)) waiting.add(item.agentId)
   const tabs: SubagentTab[] = []
   for (const item of items)
-    if (item.kind === 'subagent')
+    if (item.kind === 'subagent' && (item.status === 'running' || item.id === viewing))
       tabs.push({
         id: item.id,
         title: item.title,
@@ -60,7 +61,9 @@ function sameTab(a: SubagentTab, b: SubagentTab) {
 
 // Tab-relevant fields only, so streaming deltas don't re-render the tab strip.
 const subagentTabsAtom = Atom.family((threadId: string) =>
-  Atom.readable((get) => subagentTabs(get(threadAtom(threadId))?.items ?? [])).pipe(
+  Atom.readable((get) =>
+    subagentTabs(get(threadAtom(threadId))?.items ?? [], get(threadTabAtom(threadId)))
+  ).pipe(
     Atom.withEquality<SubagentTab[]>(
       (a, b) => a.length === b.length && a.every((tab, index) => sameTab(tab, b[index]!))
     )
