@@ -4,12 +4,10 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 0 10px 10px;
-}
-/* The top gap sits inside the first group, not the scroller, so a stuck heading meets the
-   scroller's edge with nothing showing above it. */
-.grouped-table-group:first-child {
+  /* The top gap sits outside the scroller, as the diff view's does: a stuck heading keeps
+     its gap below the toolbar and rows are clipped at the scroller's edge, not shown in it. */
   margin-top: 10px;
+  padding: 0 10px 10px;
 }
 .grouped-table-grid {
   display: grid;
