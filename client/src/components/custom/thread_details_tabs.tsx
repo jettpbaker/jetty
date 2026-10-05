@@ -313,7 +313,7 @@ export function ThreadDetailsTabs({
                 >
                   <Icon />
                   {label}
-                  {id === 'files' && (
+                  {id === 'files' && !gitDisabled && (
                     <KeybindChip binding={keybinds.findFile} className='ml-auto' />
                   )}
                 </DropdownMenuCheckboxItem>
