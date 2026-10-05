@@ -1,7 +1,7 @@
 import type { Query, SDKControlGetUsageResponse } from '@anthropic-ai/claude-agent-sdk'
 
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -95,60 +95,69 @@ test('opaque Claude identities distinguish accounts and organizations and reject
   expect(claudeUsageIdentity({})).toBeUndefined()
 })
 
-// The account check reads ~/.claude.json, which only a fresh process with HOME set can redirect.
-async function readUsageSignedIn(script: string) {
-  const home = mkdtempSync(join(tmpdir(), 'jetty-usage-'))
-  try {
-    const child = Bun.spawn([process.execPath, '-e', signedIn + script], {
-      cwd: import.meta.dir,
-      env: { ...process.env, HOME: home },
-      stdout: 'pipe',
-    })
-    return JSON.parse(await new Response(child.stdout).text())
-  } finally {
-    rmSync(home, { recursive: true, force: true })
+function signIn(dir: string, accountUuid: string) {
+  const oauthAccount = {
+    accountUuid,
+    organizationUuid: 'org',
+    emailAddress: 'account@example.com',
+    organizationName: 'org',
   }
+  writeFileSync(join(dir, '.claude.json'), JSON.stringify({ oauthAccount }))
 }
 
-const signedIn = `
-import { writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { claudeUsageIdentity } from './provider-usage'
-import { readUsage } from './usage'
-
-function signIn(accountUuid) {
-  const oauthAccount = { accountUuid, organizationUuid: 'org', emailAddress: 'account@example.com', organizationName: 'org' }
-  writeFileSync(join(homedir(), '.claude.json'), JSON.stringify({ oauthAccount }))
-}
-function query(onRead) {
+function signedInQuery(onRead: () => void): Query {
   return {
     accountInfo: async () => ({ email: 'account@example.com', organization: 'org' }),
     usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => {
       onRead()
       return { rate_limits_available: true, rate_limits: { five_hour: { utilization: 42 } } }
     },
+  } as unknown as Query
+}
+
+// The account file follows CLAUDE_CONFIG_DIR, so a temp dir redirects it in this process.
+async function withClaudeConfig(run: (dir: string) => Promise<void>) {
+  const dir = mkdtempSync(join(tmpdir(), 'jetty-usage-'))
+  const previous = process.env.CLAUDE_CONFIG_DIR
+  process.env.CLAUDE_CONFIG_DIR = dir
+  try {
+    await run(dir)
+  } finally {
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = previous
+    rmSync(dir, { recursive: true, force: true })
   }
 }
+
 const accountA = claudeUsageIdentity({ accountUuid: 'a', organizationUuid: 'org' })
-`
 
 test('turn usage keeps its session identity and is discarded if credentials change during the read', async () => {
-  const result = await readUsageSignedIn(`
-    signIn('a')
-    const unchanged = await readUsage(query(() => {}), accountA)
-    const changed = await readUsage(query(() => signIn('b')), accountA)
-    console.log(JSON.stringify([unchanged?.identity === accountA, changed]))
-  `)
-  expect(result).toEqual([true, null])
+  await withClaudeConfig(async (dir) => {
+    signIn(dir, 'a')
+    const unchanged = await readUsage(
+      signedInQuery(() => {}),
+      accountA
+    )
+    const changed = await readUsage(
+      signedInQuery(() => signIn(dir, 'b')),
+      accountA
+    )
+    expect(unchanged?.identity).toBe(accountA)
+    expect(changed).toBeNull()
+  })
 })
 
 test('a warm session belonging to a prior account cannot attribute usage to the current account', async () => {
-  const result = await readUsageSignedIn(`
-    signIn('b')
+  await withClaudeConfig(async (dir) => {
+    signIn(dir, 'b')
     let requested = false
-    const usage = await readUsage(query(() => { requested = true }), accountA)
-    console.log(JSON.stringify([requested, usage]))
-  `)
-  expect(result).toEqual([false, null])
+    const usage = await readUsage(
+      signedInQuery(() => {
+        requested = true
+      }),
+      accountA
+    )
+    expect(requested).toBe(false)
+    expect(usage).toBeNull()
+  })
 })

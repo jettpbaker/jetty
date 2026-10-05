@@ -83,10 +83,16 @@ export function claudeUsageIdentity(account: Record<string, unknown>) {
     .digest('hex')
 }
 
+// Claude Code's global config is ~/.claude.json, or $CLAUDE_CONFIG_DIR/.claude.json when that
+// variable is set. An empty value counts as unset, the same as Claude's own path.
+function claudeAccountFile() {
+  return join(process.env.CLAUDE_CONFIG_DIR || homedir(), '.claude.json')
+}
+
 // The signed-in account and organization (whose plan the limits are), and its email.
 async function claudeAccount() {
   try {
-    const config = object(JSON.parse(await readFile(join(homedir(), '.claude.json'), 'utf8')))
+    const config = object(JSON.parse(await readFile(claudeAccountFile(), 'utf8')))
     const account = object(config.oauthAccount)
     const email = string(account.emailAddress)
     return {
