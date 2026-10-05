@@ -312,7 +312,8 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
   }
 
   // Runs inside the transaction that tells the thread, so the news leaves the PR rows exactly
-  // when it reaches the chat. Switches turned off while it waited drop their part.
+  // when it reaches the chat. Switches turned off while it waited drop their part, a PR unlinked
+  // from the thread meanwhile drops all of it, and one closed or merged meanwhile wakes no one.
   function take(threadId: string) {
     return Effect.gen(function* () {
       const now = Date.now()
@@ -321,13 +322,19 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
       const sections: string[] = []
       for (const { repo, number, memory } of yield* store.pendingPullRequestWatches()) {
         if (memory.pending?.threadId !== threadId) continue
+        const linked = (yield* store.threadsForPullRequest(repo, number)).includes(threadId)
+        const { data } = yield* store.getPullRequest(repo, number)
+        const open = data?.pull.state === 'open' && !data.pull.merged
         const changes = memory.pending.changes.filter(
-          (change) => settings.watchPullRequests && (!change.group || settings[change.group])
+          (change) =>
+            linked &&
+            settings.watchPullRequests &&
+            (!change.group || settings[change.group]) &&
+            (open || !change.wakes)
         )
         const recent = (memory.wakes ?? []).filter((at) => now - at < HOUR_MS)
         const wakeful = changes.some((change) => change.wakes)
         const held = wakeful && recent.length >= WAKES_PER_HOUR
-        const { data } = yield* store.getPullRequest(repo, number)
         if (wakeful && !held && data) {
           recent.push(now)
           const title = data.pull.title.replace(/[[\]]/g, '\\$&')
