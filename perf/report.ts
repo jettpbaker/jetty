@@ -126,6 +126,38 @@ function driftingFunctions(group: Group) {
   return [...app.slice(0, 5), ...out.filter((entry) => !app.includes(entry)).slice(0, 3)]
 }
 
+// Calls per source file: minified names and line numbers shift between builds, files don't.
+function callsByFile(run: Iteration) {
+  const files = new Map<string, number>()
+  for (const [key, count] of run.calls ?? []) {
+    const file = key
+      .slice(key.lastIndexOf(' ') + 1)
+      .replace(/:\d+$/, '')
+      .replace(/-[\w-]{8}\.js$/, '.js')
+    files.set(file, (files.get(file) ?? 0) + count)
+  }
+  return files
+}
+
+// The files whose median call count moved most between two builds: where a jsCalls change lives.
+function movedFiles(a: Group, b: Group) {
+  const perRun = (group: Group) =>
+    ok(group.runs)
+      .filter((run) => run.calls)
+      .map(callsByFile)
+  const runsA = perRun(a)
+  const runsB = perRun(b)
+  if (!runsA.length || !runsB.length) return []
+  const files = new Set([...runsA, ...runsB].flatMap((runs) => [...runs.keys()]))
+  const out: { file: string; delta: number }[] = []
+  for (const file of files) {
+    const count = (runs: Map<string, number>[]) => median(runs.map((run) => run.get(file) ?? 0))
+    const delta = count(runsB) - count(runsA)
+    if (delta) out.push({ file, delta })
+  }
+  return out.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, 10)
+}
+
 function fmt(value: number | undefined) {
   if (value === undefined || Number.isNaN(value)) return '–'
   return Number.isInteger(value)
@@ -282,6 +314,17 @@ export function renderReport(opts: {
         'The noise floor is the larger end of the A/A 95% CI of the median difference. A wall-clock change counts only when its CI excludes zero and it exceeds the floor. Tier-1 counters should read "identical".',
         ''
       )
+    const moves: string[] = []
+    for (const id of ids) {
+      const ga = all.find((group) => group.id === id && group.variant === a)
+      const gb = all.find((group) => group.id === id && group.variant === b)
+      const moved = ga && gb ? movedFiles(ga, gb) : []
+      if (!moved.length) continue
+      moves.push(`- **${id}**`)
+      for (const { file, delta } of moved) moves.push(`  - \`${file}\` ${signed(delta)}`)
+    }
+    if (opts.mode === 'compare' && moves.length)
+      lines.push(`### Where ${b}'s calls moved, by file (medians)`, '', ...moves, '')
   }
 
   lines.push('## Nondeterminism', '')
