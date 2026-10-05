@@ -258,7 +258,7 @@ export function ThreadComposer({
     sendNow(entry: QueuedMessage) {
       if (!threadId) return
       keepKeyboardFocus()
-      queueActions.sendNow(threadId, entry.id)
+      queueActions.sendNow(threadId, entry)
     },
     edit(entry: QueuedMessage) {
       if (!threadId) return

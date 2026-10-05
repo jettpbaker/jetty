@@ -37,7 +37,7 @@ import { awaitsInput } from './thread_tab'
 type Registry = AtomRegistry.AtomRegistry
 
 // Its id becomes the message's id on the server, in the queue and in the thread alike.
-type PendingPrompt = {
+export type PendingPrompt = {
   id: string
   text: string
   images: readonly Attachment[]
@@ -117,6 +117,22 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
   }))
 }
 
+// Shows the message as sent, and the thread as working, until the server's copy of it arrives;
+// the returned settle takes both back.
+export function showSent(registry: Registry, threadId: string, prompt: PendingPrompt) {
+  registry.update(pendingPromptsAtom, (prompts) =>
+    withPrompts(prompts, threadId, [...(prompts.get(threadId) ?? []), prompt])
+  )
+  registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
+  return function settle() {
+    registry.update(pendingPromptsAtom, (prompts) => {
+      const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)
+      return withPrompts(prompts, threadId, list)
+    })
+    registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
+  }
+}
+
 function sendTurn(
   registry: Registry,
   threadId: string,
@@ -143,19 +159,9 @@ function sendTurn(
       height,
     })),
   }
-  registry.update(pendingPromptsAtom, (prompts) =>
-    withPrompts(prompts, threadId, [...(prompts.get(threadId) ?? []), prompt])
-  )
-  registry.update(pendingTurnsAtom, (ids) => new Set(ids).add(threadId))
+  const settle = showSent(registry, threadId, prompt)
   if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
   perf.mark(journey, 'local')
-  function settle() {
-    registry.update(pendingPromptsAtom, (prompts) => {
-      const list = (prompts.get(threadId) ?? []).filter((pending) => pending !== prompt)
-      return withPrompts(prompts, threadId, list)
-    })
-    registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
-  }
   const unarchive = unarchiveFirst(registry, threadId, threadMeta(registry, threadId)?.archived)
   run(
     registry,

@@ -13,6 +13,7 @@ import { chromeAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
 import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
+import { showSent } from './turns'
 
 type Registry = AtomRegistry.AtomRegistry
 
@@ -187,17 +188,24 @@ function editQueued(registry: Registry, threadId: string, messageId: string, tex
   )
 }
 
-function sendQueuedNow(registry: Registry, threadId: string, messageId: string) {
+function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMessage) {
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
-  track(
+  const settle = showSent(registry, threadId, {
+    id: message.id,
+    text: message.text,
+    images: message.attachments ?? [],
+    sentAt: Date.now(),
+  })
+  run(
     registry,
-    threadId,
-    { kind: 'remove', id: messageId },
     (connection) =>
       unarchive(connection).pipe(
-        Effect.andThen(connection.request('queue.sendNow', { threadId, messageId }))
+        Effect.andThen(connection.request('queue.sendNow', { threadId, messageId: message.id }))
       ),
-    { onFailure: () => toast.error("Couldn't send message") }
+    () => {
+      settle()
+      toast.error("Couldn't send message")
+    }
   )
 }
 
