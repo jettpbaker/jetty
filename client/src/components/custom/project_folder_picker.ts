@@ -1,9 +1,19 @@
 import { useBrowse } from '@/state'
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react'
 
 export const UP = '..'
 
 const START = '~/'
+
+type Action = 'add' | 'open'
 
 function baseName(path: string) {
   return path.replace(/\/+$/, '').split('/').pop() || path
@@ -29,8 +39,11 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
   const [highlight, setHighlight] = useState('')
   const listId = useId()
   const opened = useRef<{ path: string; at: number }>(undefined)
-  const home = useBrowse(START)?.parentPath
-  const result = useBrowse(query)
+  const home = useBrowse(START).listing?.parentPath
+  const { listing: result, current } = useBrowse(query)
+  // Enter or ⌘↵ pressed before the typed path's listing lands waits for it, rather than acting
+  // on the listing still shown from the path before.
+  const [waiting, setWaiting] = useState<Action>()
 
   const slash = query.lastIndexOf('/')
   const dirQuery = query.slice(0, slash + 1)
@@ -80,6 +93,19 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
     if (target && !target.added) onAdd(target.path)
   }
 
+  function perform(action: Action) {
+    if (!current) setWaiting(action)
+    else if (action === 'add') add()
+    else if (active) select(active)
+  }
+
+  const performWaiting = useEffectEvent(perform)
+  useEffect(() => {
+    if (!waiting || !current) return
+    setWaiting(undefined)
+    performWaiting(waiting)
+  }, [waiting, current])
+
   function onRowClick(event: MouseEvent, value: string) {
     if (event.detail > 1) return
     opened.current = value === UP ? undefined : { path: value, at: event.timeStamp }
@@ -121,8 +147,8 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
     if (event.nativeEvent.isComposing) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
       move(event.key === 'ArrowDown' ? 1 : -1)
-    else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) add()
-    else if (event.key === 'Enter' && active) select(active)
+    else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) perform('add')
+    else if (event.key === 'Enter') perform('open')
     else return
     event.preventDefault()
   }
@@ -144,6 +170,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
     setQuery: (next: string) => {
       setQuery(startOver(next))
       setHighlight('')
+      setWaiting(undefined)
     },
     filter,
     canGoUp,
@@ -162,7 +189,7 @@ export function useFolderPicker(existingPaths: readonly string[], onAdd: (path: 
     } as const,
     activeIsUp: active === UP,
     target,
-    add,
+    add: () => perform('add'),
     back,
   }
 }

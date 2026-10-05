@@ -17,11 +17,12 @@ const browseAtom = Atom.family((partialPath: string) =>
   ).pipe(Atom.setIdleTTL('30 seconds'))
 )
 
-// Holds the last listing while the next path loads, so typing never blanks the list.
+// Holds the last listing while the next path loads, so typing never blanks the list; `current`
+// says it's this path's.
 export function useBrowse(partialPath: string) {
   const browsed = useAtomValue(browseAtom(partialPath))
   const [shown, setShown] = useState<BrowseResult>()
   const fresh = AsyncResult.isSuccess(browsed) ? browsed.value : undefined
   if (fresh && fresh !== shown) setShown(fresh)
-  return fresh ?? shown
+  return { listing: fresh ?? shown, current: fresh !== undefined }
 }
