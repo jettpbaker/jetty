@@ -70,6 +70,12 @@ function storeDrafts() {
   unstored.clear()
 }
 
+// A reload or a closing tab doesn't wait for the timer.
+addEventListener('pagehide', storeDrafts)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') storeDrafts()
+})
+
 // No draft once the edits are saved or gone.
 function writeFileDraft(
   registry: AtomRegistry.AtomRegistry,
