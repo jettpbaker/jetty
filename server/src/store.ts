@@ -1255,6 +1255,10 @@ export function createStore() {
               )
             return existing
           }
+          // A first send retried after its reply was lost mustn't bring back a thread deleted since.
+          const deleted = yield* sql`SELECT id FROM deleted_threads WHERE id = ${id}`
+          if (deleted.length)
+            return yield* Effect.fail(new StoreError('not_found', 'This thread was deleted'))
           const aliases = yield* sql`SELECT id FROM threads WHERE lower(id) = lower(${id}) LIMIT 1`
           if (aliases.length)
             return yield* Effect.fail(
@@ -1315,6 +1319,7 @@ export function createStore() {
           )`
           yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
           yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
+          yield* sql`INSERT OR IGNORE INTO deleted_threads (id) VALUES (${threadId})`
           yield* sql`DELETE FROM threads WHERE id = ${threadId}`
           loaded.delete(threadId)
           const queued = (thread.pendingMessages ?? []).flatMap((m) => m.attachments ?? [])

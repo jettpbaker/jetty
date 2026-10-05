@@ -199,6 +199,10 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`UPDATE pull_requests SET data_refreshed_at = refreshed_at
       WHERE status = 'ready' AND data_json IS NOT NULL`
   }),
+  '028_deleted_threads': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE deleted_threads (id TEXT PRIMARY KEY COLLATE NOCASE)`
+  }),
 })
 
 export function databaseLayer(home: string) {
