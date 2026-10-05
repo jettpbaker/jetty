@@ -470,6 +470,7 @@ export function ThreadComposer({
                 environment={meta?.environment}
                 branch={meta?.worktree?.branch ?? meta?.git?.branch}
                 path={projectPath}
+                provider={provider}
                 ring={!ambient}
               />
             </div>

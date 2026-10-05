@@ -10,12 +10,14 @@ export function ThreadFooter({
   environment,
   branch,
   path,
+  provider,
   ring,
 }: {
   threadId: string
   environment?: 'local' | 'worktree'
   branch?: string
   path?: string
+  provider: string
   ring: boolean
 }) {
   const place = environment && environments[environment]
@@ -43,7 +45,7 @@ export function ThreadFooter({
           </span>
         </TooltipContent>
       </Tooltip>
-      {ring && <ThreadContextRing threadId={threadId} />}
+      {ring && <ThreadContextRing threadId={threadId} provider={provider} />}
     </div>
   )
 }

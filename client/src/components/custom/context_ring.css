@@ -1,0 +1,19 @@
+/* The breakdown's category hues, in Claude's reporting order. Run through the dataviz validator against
+   the popover (white / #232323): every adjacent pair clears CVD ΔE 8. Red, amber, PR green and merged
+   purple stay out. */
+.context-popover {
+  --slice-system-prompt: oklch(0.55 0.17 295);
+  --slice-system-tools: oklch(0.64 0.12 215);
+  --slice-mcp-tools: oklch(0.72 0.15 85);
+  --slice-memory-files: oklch(0.6 0.2 350);
+  --slice-skills: oklch(0.66 0.16 135);
+  --slice-messages: oklch(0.56 0.17 255);
+}
+.dark .context-popover {
+  --slice-system-prompt: oklch(0.62 0.16 295);
+  --slice-system-tools: oklch(0.64 0.11 215);
+  --slice-mcp-tools: oklch(0.66 0.14 85);
+  --slice-memory-files: oklch(0.62 0.18 350);
+  --slice-skills: oklch(0.65 0.15 135);
+  --slice-messages: oklch(0.6 0.16 255);
+}
