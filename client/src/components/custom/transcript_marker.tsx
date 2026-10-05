@@ -166,11 +166,12 @@ function describeActivity({ type, actor, count, detail }: PullRequestActivity) {
     case 'checks_passed':
       return 'checks passing'
     case 'changes_requested':
-      return `changes requested by ${actor}`
+      return actor ? `changes requested by ${actor}` : 'changes requested'
     case 'approved':
-      return `approved by ${actor}`
+      return actor ? `approved by ${actor}` : 'approved'
     case 'commented':
-      return count && count > 1 ? `${count} comments from ${actor}` : `comment from ${actor}`
+      if (count && count > 1) return actor ? `${count} comments from ${actor}` : `${count} comments`
+      return actor ? `comment from ${actor}` : 'new comment'
     case 'conflict':
       return detail ? `merge conflict with ${detail}` : 'merge conflict'
     case 'ready':
