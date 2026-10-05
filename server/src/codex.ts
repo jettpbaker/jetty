@@ -65,7 +65,7 @@ function threadOptions(input: TurnInput, cwd: string, instructions: string) {
   const full = input.permissionMode === 'full_access'
   return {
     cwd,
-    model: input.model ?? process.env.JETTY_CODEX_MODEL,
+    model: input.model,
     serviceTier: input.fast ? 'fast' : 'default',
     approvalPolicy: full ? 'never' : 'on-request',
     approvalsReviewer: 'user',

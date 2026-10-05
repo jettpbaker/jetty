@@ -66,9 +66,9 @@ then start Jetty with `JETTY_AGENT=codex bun run dev:server`. Claude remains the
 implicit default; `JETTY_AGENT=echo` still needs no credentials. This is a backend
 integration only; the replacement frontend is not wired yet.
 
-`JETTY_CODEX_BIN` selects a CLI executable (default `codex`).
-`JETTY_CODEX_MODEL` selects the default model; a turn's explicit model wins,
-otherwise Codex uses its own configured model. Codex runs at standard speed.
+`JETTY_CODEX_BIN` selects a CLI executable (default `codex`). A turn runs the
+thread's model, or the first model Codex lists when the thread has none. Codex runs
+at standard speed.
 Jetty does not read credentials, purchase credits, or fall back to an API key.
 
 Codex owns its tools and conversation history. Jetty stores a separate Codex
@@ -82,9 +82,9 @@ Install Grok Build and run `grok login`, then start the backend with
 `JETTY_AGENT=grok bun run dev:server`. It uses the CLI's existing login, or an
 explicitly configured `XAI_API_KEY`. No provider controls are added to the old UI.
 
-`JETTY_GROK_BIN` overrides the CLI executable; `JETTY_GROK_MODEL` supplies an
-optional model ID. Omitting the model, or passing `grok-build`, keeps the CLI's
-advertised model. RPC callers can set model and reasoning effort per turn.
+`JETTY_GROK_BIN` overrides the CLI executable. A turn runs the thread's model;
+without one, or with `grok-build`, it keeps the CLI's advertised model. RPC callers
+can set model and reasoning effort per turn.
 
 Grok owns its tools and stores its conversation history. Jetty persists a separate
 Grok session pointer and loads it after a backend restart. Auto uses Grok's auto
@@ -97,5 +97,5 @@ integrated.
 The adapter follows [Grok's ACP documentation](https://docs.x.ai/build/cli/headless-scripting)
 and the session, model-selection and xAI extension handling in
 [T3 Code](https://github.com/pingdotgg/t3code). The opt-in real-provider smoke test is
-`JETTY_GROK_LIVE_TEST=1 bun test server/src/grok-live.test.ts`; ordinary tests
-use a local protocol fixture.
+`JETTY_GROK_LIVE_TEST=1 bun test server/src/grok-live.test.ts` (`JETTY_GROK_MODEL`
+picks its model); ordinary tests use a local protocol fixture.
