@@ -150,6 +150,14 @@ export function HoverKeybind({ binding, className }: { binding: Keybind; classNa
   )
 }
 
+// Only while its modifier is held, for a spot whose hover reveal sits elsewhere.
+export function HeldKeybind({ binding }: { binding: Keybind }) {
+  const held = useHeldModifier()
+  return held !== null && binding.modifiers.includes(held) ? (
+    <KeybindChip binding={binding} held={held} />
+  ) : null
+}
+
 export function KeybindTooltip({
   binding,
   children,

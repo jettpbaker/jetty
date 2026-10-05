@@ -2,7 +2,7 @@ import type { ProjectIcon, ProviderId } from '@jetty/shared/wire'
 
 import { ArrowMoveDownRightIcon } from '@/components/custom/huge_icons'
 
-import { HoverKeybind, type Keybind } from './keybinds'
+import { HeldKeybind, type Keybind } from './keybinds'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
@@ -47,7 +47,7 @@ export function ThreadRow({
   effort?: string
   shortcut?: Keybind
   selected: boolean
-  actions: Omit<ThreadRowActionsProps, 'title'>
+  actions: Omit<ThreadRowActionsProps, 'title' | 'shortcut'>
   onSelect: () => void
   onOpenPullRequest: () => void
 }) {
@@ -87,7 +87,7 @@ export function ThreadRow({
             }
             glyph={
               <span className='ml-auto flex shrink-0 items-center gap-1.5'>
-                {shortcut && <HoverKeybind binding={shortcut} />}
+                {shortcut && <HeldKeybind binding={shortcut} />}
                 <StatusGlyph status={status} />
               </span>
             }
@@ -122,7 +122,7 @@ export function ThreadRow({
           </TwoLineRow>
         )}
       </ThreadHoverCard>
-      <ThreadRowActions title={title} {...actions} />
+      <ThreadRowActions title={title} shortcut={shortcut} {...actions} />
     </div>
   )
 }
