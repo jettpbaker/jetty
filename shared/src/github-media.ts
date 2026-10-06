@@ -24,7 +24,16 @@ export function githubMediaSource(value: string): URL | null {
   const keys = [...url.searchParams.keys()]
   if (keys.length > 0 && !(keys.length === 1 && keys[0] === source.query)) return null
   url.hash = ''
-  return url
+  return canonicalAttachment(url)
+}
+
+// A rendered private attachment carries a jwt that dies in minutes. The uuid in the filename is
+// the same asset as github.com/user-attachments/assets/<uuid>, which the proxy can sign again.
+function canonicalAttachment(url: URL): URL {
+  if (url.hostname !== 'private-user-images.githubusercontent.com') return url
+  const id = new RegExp(uuid, 'i').exec(url.pathname.split('/').pop() ?? '')?.[0]
+  if (!id) return url
+  return new URL(`https://github.com/user-attachments/assets/${id}`)
 }
 
 export function githubMediaPath(source: URL) {

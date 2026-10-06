@@ -43,7 +43,7 @@ import Code from '@tiptap/extension-code'
 import CodeBlock from '@tiptap/extension-code-block'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
-import { TableKit } from '@tiptap/extension-table'
+import { Table, TableKit } from '@tiptap/extension-table'
 import TaskItem from '@tiptap/extension-task-item'
 import TaskList from '@tiptap/extension-task-list'
 import { Markdown, MarkdownManager } from '@tiptap/markdown'
@@ -169,12 +169,52 @@ function MediaNode({ node, selected, editor, deleteNode }: NodeViewProps) {
   )
 }
 /* oxlint-enable jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-to-interactive-role */
+function htmlAttr(attrs: string, name: string) {
+  const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(attrs)
+  return match?.[1] ?? match?.[2]
+}
+
 const EditorImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       uploading: { default: false, rendered: false },
     }
+  },
+  // A markdown table cell only keeps inline tokens. GitHub's sized <img> is one, and without this
+  // the cell parses empty. A block <img> still goes through the HTML parser, which keeps its size.
+  markdownTokenizer: {
+    name: 'htmlImage',
+    level: 'inline',
+    start: (source: string) => source.search(/<img\b/i),
+    tokenize(source: string) {
+      const match = /^<img\b([^>]*?)\/?>/i.exec(source)
+      const attrs = match?.[1]
+      const href = attrs && htmlAttr(attrs, 'src')
+      if (!match || !href) return undefined
+      const width = Number(htmlAttr(attrs, 'width'))
+      const height = Number(htmlAttr(attrs, 'height'))
+      return {
+        type: 'image',
+        raw: match[0],
+        href,
+        text: htmlAttr(attrs, 'alt') ?? '',
+        title: htmlAttr(attrs, 'title') ?? null,
+        ...(Number.isInteger(width) && width > 0 ? { width } : {}),
+        ...(Number.isInteger(height) && height > 0 ? { height } : {}),
+      }
+    },
+  },
+  parseMarkdown(token, helpers) {
+    const width = Number(token.width)
+    const height = Number(token.height)
+    return helpers.createNode('image', {
+      src: token.href,
+      title: token.title,
+      alt: token.text,
+      ...(Number.isInteger(width) && width > 0 ? { width } : {}),
+      ...(Number.isInteger(height) && height > 0 ? { height } : {}),
+    })
   },
   // With a known size, GitHub's own uploader form: the size travels with the image, so it holds its
   // space before it loads. Markdown's ![]() has nowhere to put one.
@@ -476,6 +516,43 @@ const keys = Extension.create({
     }
   },
 })
+type CellNode = { type?: string; content?: CellNode[] }
+
+// An image is a block, so one that a table cell parsed into its paragraph is invalid and gets
+// dropped. The cell keeps the image itself.
+function liftCellImages<T extends CellNode>(node: T): T {
+  if (node.type === 'tableCell' || node.type === 'tableHeader') {
+    const content: CellNode[] = []
+    for (const child of node.content ?? []) {
+      if (child.type !== 'paragraph') {
+        content.push(child)
+        continue
+      }
+      const inline: CellNode[] = []
+      const images: CellNode[] = []
+      for (const inner of child.content ?? []) {
+        if (inner.type === 'image' || inner.type === 'video') images.push(inner)
+        else inline.push(inner)
+      }
+      if (inline.length) content.push({ ...child, content: inline })
+      content.push(...images)
+    }
+    return { ...node, content: content.length ? content : [{ type: 'paragraph' }] }
+  }
+  if (!node.content) return node
+  return { ...node, content: node.content.map((child) => liftCellImages(child)) }
+}
+
+const EditorTable = Table.extend({
+  parseMarkdown(token, helpers) {
+    const parse = this.parent
+    if (!parse) return { type: 'table' }
+    const parsed = parse(token, helpers)
+    if (!parsed || Array.isArray(parsed) || !('type' in parsed) || !parsed.type) return parsed
+    return liftCellImages(parsed)
+  },
+})
+
 function extensions(placeholder: string, references?: IssueReferences) {
   return [
     IssueReferenceChips.configure(references && { references }),
@@ -492,7 +569,8 @@ function extensions(placeholder: string, references?: IssueReferences) {
     TaskList,
     TaskItem.configure({ nested: true }),
     // Without it the markdown parser drops a table outright, and the next save deletes it from GitHub.
-    TableKit.configure({ table: { resizable: false } }),
+    TableKit.configure({ table: false }),
+    EditorTable.configure({ resizable: false }),
     EditorImage,
     Video,
     Placeholder.configure({ placeholder }),

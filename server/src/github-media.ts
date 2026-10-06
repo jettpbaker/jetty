@@ -149,8 +149,10 @@ export function createGithubMedia(home: string) {
     let url = source
     for (let hop = 0; hop <= MAX_HOPS; hop++) {
       const headers: Record<string, string> = { 'User-Agent': 'jetty' }
+      // github.com takes the gh login as `token`, like raw.githubusercontent.com. The signed CDN
+      // hosts never get it: the redirect carries its own signature.
       const auth = url.hostname === 'github.com' ? await ghToken() : null
-      if (auth) headers.Authorization = `Bearer ${auth}`
+      if (auth) headers.Authorization = `token ${auth}`
       const response = await fetch(url, {
         headers,
         redirect: 'manual',
@@ -165,6 +167,10 @@ export function createGithubMedia(home: string) {
       }
       if (!response.ok) {
         await response.body?.cancel()
+        // A private attachment GitHub hides is a 404, same as a missing one. Say which, or the
+        // next failure looks like a broken image with nothing in the log.
+        if (response.status === 401 || response.status === 403 || response.status === 404)
+          console.warn(`[github-media] ${response.status} ${url.hostname}${url.pathname}`)
         throw new GithubMediaError(
           [401, 403, 404].includes(response.status) ? 404 : 502,
           'GitHub attachment is unavailable'
