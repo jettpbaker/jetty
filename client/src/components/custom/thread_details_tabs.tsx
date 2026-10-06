@@ -59,8 +59,6 @@ export type DetailsTabsHandle = { show: (id: TabId) => void }
 const sortableIds: TabId[] = ['overview', 'changes', 'files', 'threads']
 // Files opens from the + menu or ⌘P, so it starts closed.
 const closedAtFirst: TabId[] = ['files']
-// Changes and Files read the project's git checkout.
-const needsGit = new Set<TabId>(['changes', 'files'])
 const storageKey = 'jetty.details-tabs'
 const sensors = [
   PointerSensor.configure({
@@ -115,7 +113,8 @@ export function ThreadDetailsTabs({
   file,
   value,
   onValueChange,
-  gitDisabled,
+  changesDisabled,
+  filesDisabled,
 }: {
   ref?: Ref<DetailsTabsHandle>
   chat?: boolean
@@ -125,8 +124,9 @@ export function ThreadDetailsTabs({
   file?: { path: string; dirty: boolean; onClose: () => void }
   value: string
   onValueChange: (value: string) => void
-  // Why Changes and Files can't open.
-  gitDisabled?: string
+  // Changes needs a git checkout. Files needs the project folder.
+  changesDisabled?: string
+  filesDisabled?: string
 }) {
   const [{ order, closed }, setState] = useState(loadState)
   const [announcement, setAnnouncement] = useState('')
@@ -241,7 +241,9 @@ export function ThreadDetailsTabs({
             id={id}
             index={index}
             count={id === 'threads' ? threadCount : undefined}
-            disabledReason={needsGit.has(id) ? gitDisabled : undefined}
+            disabledReason={
+              id === 'changes' ? changesDisabled : id === 'files' ? filesDisabled : undefined
+            }
             canClose={canClose}
             onMove={reorder}
             onClose={closeTab}
@@ -303,17 +305,19 @@ export function ThreadDetailsTabs({
             {catalog.map((id) => {
               const { label, Icon } = tabs[id]
               const open = visible.includes(id)
+              const reason =
+                id === 'changes' ? changesDisabled : id === 'files' ? filesDisabled : undefined
               return (
                 <DropdownMenuCheckboxItem
                   key={id}
                   checked={open}
-                  disabled={open && !canClose}
+                  disabled={(open && !canClose) || (!open && reason !== undefined)}
                   closeOnClick={false}
                   onCheckedChange={(checked) => (checked ? openTab(id) : closeTab(id))}
                 >
                   <Icon />
                   {label}
-                  {id === 'files' && !gitDisabled && (
+                  {id === 'files' && !filesDisabled && (
                     <KeybindChip binding={keybinds.findFile} className='ml-auto' />
                   )}
                 </DropdownMenuCheckboxItem>

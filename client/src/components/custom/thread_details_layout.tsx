@@ -98,19 +98,22 @@ export function ThreadDetailsLayout({
   const [pickedTab, setTab] = useState('changes')
   const meta = useThreadMeta(threadId)
   const git = useProjectGit(meta?.projectId)?.git
-  const gitDisabled =
+  // Only Changes needs a repository. Files still opens; a missing folder has nothing to list.
+  const changesDisabled =
     git === 'not-git'
       ? 'Not a git repository'
       : git === 'missing'
         ? 'Project folder not found'
         : undefined
-  // Changes and Files need git, so those projects open on Overview.
+  const filesDisabled = git === 'missing' ? 'Project folder not found' : undefined
   const tab =
-    gitDisabled && (pickedTab === 'changes' || pickedTab === 'files') ? 'overview' : pickedTab
+    (changesDisabled && pickedTab === 'changes') || (filesDisabled && pickedTab === 'files')
+      ? 'overview'
+      : pickedTab
   // An open pane has Changes mounted already.
   useThreadChangesPrefetch(
     threadId,
-    meta && !open && !gitDisabled ? defaultDiffScope(meta) : undefined,
+    meta && !open && !changesDisabled ? defaultDiffScope(meta) : undefined,
     meta?.turnEndedAt
   )
   const tabs = useRef<DetailsTabsHandle>(null)
@@ -182,7 +185,7 @@ export function ThreadDetailsLayout({
     (target: FileTarget) => {
       const path = projectPath && projectRelativePath(target.path, projectPath)
       if (!path) return false
-      if (gitDisabled) {
+      if (changesDisabled) {
         showFile({ threadId, target: { ...target, path } })
         setTab('file')
       } else {
@@ -190,13 +193,13 @@ export function ThreadDetailsLayout({
         tabs.current?.show('changes')
       }
       if (!open) {
-        openingTab.current = gitDisabled ? 'file' : 'changes'
+        openingTab.current = changesDisabled ? 'file' : 'changes'
         if (root.current) setAvailable(root.current.clientWidth)
         setOpen(true)
       }
       return true
     },
-    [projectPath, threadId, open, gitDisabled, showFile]
+    [projectPath, threadId, open, changesDisabled, showFile]
   )
 
   const settleFile = useCallback(
@@ -264,7 +267,7 @@ export function ThreadDetailsLayout({
       if (root.current) setAvailable(root.current.clientWidth)
       setOpen(true)
     },
-    { enabled: !gitDisabled, requireReset: true, ignoreInputs: false }
+    { enabled: !filesDisabled, requireReset: true, ignoreInputs: false }
   )
 
   useLayoutEffect(() => {
@@ -363,7 +366,8 @@ export function ThreadDetailsLayout({
               }
               value={tab}
               onValueChange={setTab}
-              gitDisabled={gitDisabled}
+              changesDisabled={changesDisabled}
+              filesDisabled={filesDisabled}
             />
           </div>
           {!narrow && (
@@ -521,7 +525,8 @@ export function ThreadDetailsLayout({
       showFile,
       settleFile,
       editFile,
-      gitDisabled,
+      changesDisabled,
+      filesDisabled,
       projectId,
       findFile,
       focusFile,

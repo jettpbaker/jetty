@@ -61,7 +61,7 @@ function treePaths(listing: Listing) {
 let answeredFind = 0
 
 // The whole project, as in an editor's sidebar: a tree read a folder at a time as folders open,
-// and a search over every file git doesn't ignore. Picking a file opens it in the file tab.
+// and a search over its files. Picking a file opens it in the file tab.
 export function ThreadFiles({
   threadId,
   projectId,
