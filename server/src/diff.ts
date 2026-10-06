@@ -288,14 +288,23 @@ export function readProjectDirectory(cwd: string, path: string) {
     })
     if (entries.length === 0) return entries
     const relative = (name: string) => (path === '' ? name : `${path}/${name}`)
-    const { out, code } = yield* git(
-      root,
-      ['check-ignore', '-z', '--stdin'],
-      entries.map((entry) => relative(entry.name)).join('\0')
-    )
-    // 1: nothing is ignored; 128: not a git repository, so nothing is.
-    if (code !== 0) return entries
-    const ignored = new Set(out.split('\0'))
+    // Names go as arguments, not stdin: outside a repo git exits before reading its input, and
+    // writing to it then is an EPIPE Bun throws where nothing can catch it.
+    const names = entries.map((entry) => relative(entry.name))
+    const ignored = new Set<string>()
+    for (let start = 0; start < names.length; start += 500) {
+      // -z needs --stdin, so names come back one per line, unquoted.
+      const { out, code } = yield* git(root, [
+        '-c',
+        'core.quotePath=off',
+        'check-ignore',
+        '--',
+        ...names.slice(start, start + 500),
+      ])
+      // 1: none of these is ignored; 128: not a git repository, so nothing is.
+      if (code === 0) for (const name of out.split('\n')) ignored.add(name)
+      else if (code !== 1) return entries
+    }
     return entries.filter((entry) => !ignored.has(relative(entry.name)))
   })
 }
