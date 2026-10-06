@@ -52,6 +52,9 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
+- A built-in terminal in a thread, so the user can run what the agent can't do for them
+  (an interactive `az login`, `gh auth login`, an SSO prompt) in the thread's own checkout
+  and environment, and hand the session back to the agent.
 - Chat review in the app: a dev-only route that replays recorded and fixture threads
   through the app's real chat components, replacing the sketchpad's copy of the chat
   (`/chat-review`), which drifts and needs re-syncing.
