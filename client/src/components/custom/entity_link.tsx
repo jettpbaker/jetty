@@ -223,7 +223,7 @@ function PullPreview({
 export const OpenPullLink = createContext<string | undefined>(undefined)
 
 // ⌘-click, ctrl-click, middle-click and the rest keep the browser's handling of the real link.
-function plainClick(event: MouseEvent<HTMLAnchorElement>) {
+export function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
 }
 

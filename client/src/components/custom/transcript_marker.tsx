@@ -8,15 +8,17 @@ import {
 } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useContinueThread, useContinuing } from '@/state'
+import { useContinueThread, useContinuing, useOpenPullRequestTab } from '@/state'
 import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
 import { Link } from '@tanstack/react-router'
+import { use } from 'react'
 
 import type { PullRequestItem } from './thread_rows'
 
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
+import { inlineLinkClass, OpenPullLink, plainClick } from './entity_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
 
@@ -251,13 +253,20 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
   const { icon, tone } = pullRequestSeamLook(item.activity)
   const lead = worstActivity(item.activity)
   const summary = item.activity.map(describeActivity).join(' · ')
+  const paneThreadId = use(OpenPullLink)
+  const openInPane = useOpenPullRequestTab()
   const line = (
     <>
       <Link
         to='/pull-requests/$owner/$repo/$number'
         params={{ owner, repo, number: String(item.number) }}
         title={`${item.repo}#${item.number}`}
-        className='text-foreground/90 hover:text-foreground hover:underline'
+        className={inlineLinkClass}
+        onClick={(event) => {
+          if (!paneThreadId || !plainClick(event)) return
+          event.preventDefault()
+          openInPane(paneThreadId, { repo: item.repo, number: item.number })
+        }}
       >
         #{item.number}
       </Link>
