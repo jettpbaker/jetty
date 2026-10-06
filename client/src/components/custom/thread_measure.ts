@@ -97,6 +97,70 @@ function captionHeight(id: string, caption: string | undefined, width: number, r
   return caption ? textHeight(`${id}:caption`, caption, width, false, rough) + 8 : 0
 }
 
+const estimateSignatures = new WeakMap<ThreadRow, string>()
+
+// What a row's estimate reads, less text still streaming in: on screen that row is measured, and
+// off it the estimate catches up when the text finishes.
+function estimateSignature(row: ThreadRow) {
+  const cached = estimateSignatures.get(row)
+  if (cached !== undefined) return cached
+  let inputs: unknown
+  switch (row.kind) {
+    case 'assistant':
+    case 'plan':
+      inputs = [row.streaming, row.streaming ? undefined : row.item.text, row.footer !== undefined]
+      break
+    case 'work':
+      inputs = workEnded(row.status)
+        ? true
+        : groupWorkActivities(row.activities, false)
+            .slice(-previewCount)
+            .map((entry) => [
+              entry.type,
+              entry.id,
+              entry.type === 'thinking' && entry.status === 'running',
+            ])
+      break
+    case 'user':
+      inputs = [row.item.text, row.item.attachments, !!row.item.from]
+      break
+    case 'queued':
+      inputs = [row.entry.text, row.entry.attachments]
+      break
+    case 'reports':
+      inputs = row.reports.map((report) => report.question)
+      break
+    case 'error':
+      inputs = row.message
+      break
+    case 'gallery':
+      inputs = [row.item.images, row.item.caption]
+      break
+    case 'video':
+      inputs = [row.item.video, row.item.caption]
+      break
+    case 'subagents':
+      inputs = row.agents.length
+      break
+    case 'workflow':
+      inputs = [row.item.status, row.item.phases.length, row.item.agents.length]
+      break
+  }
+  const signature = JSON.stringify([row.kind, row.id, inputs])
+  estimateSignatures.set(row, signature)
+  return signature
+}
+
+// Whether any row's estimate can differ between two builds of the rows. Rows that kept their
+// identity can't.
+export function estimatesChanged(previous: readonly ThreadRow[], rows: readonly ThreadRow[]) {
+  if (previous.length !== rows.length) return true
+  for (const [index, row] of rows.entries())
+    if (row !== previous[index] && estimateSignature(row) !== estimateSignature(previous[index]!))
+      return true
+  return false
+}
+
 // Rough estimates count lines from text length instead of laying the text out.
 export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {

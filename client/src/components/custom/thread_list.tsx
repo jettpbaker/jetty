@@ -16,7 +16,7 @@ import {
 } from '@/components/custom/queued_messages'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
-import { clearTextMeasure, estimateRow } from '@/components/custom/thread_measure'
+import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import {
   threadRows,
@@ -444,12 +444,20 @@ export function ThreadList({
     })
   }, [])
 
-  // A new key function makes the virtualizer re-estimate every unmeasured row, so it changes
-  // only when an estimate can.
-  const getItemKey = useCallback(
-    (index: number) => rows[index]!.id,
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- width, fontsReady and rough feed the estimates
-    [rows, width, fontsReady, rough]
+  // A new key function makes the virtualizer re-estimate every unmeasured row, so it changes only
+  // when an estimate can: a streamed delta leaves the rows' estimates as they were.
+  const estimated = useRef(rows)
+  if (rows !== estimated.current && estimatesChanged(estimated.current, rows))
+    estimated.current = rows
+  const estimatedRows = estimated.current
+  const { getItemKey, estimateSize } = useMemo(
+    () => ({
+      getItemKey: (index: number) => estimatedRows[index]!.id,
+      estimateSize: (index: number) =>
+        estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)),
+    }),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- fontsReady changes text layout
+    [estimatedRows, width, fontsReady, rough]
   )
 
   // A row the ResizeObserver sees change size (a block easing shut, sizes saved when the thread was
@@ -470,7 +478,7 @@ export function ThreadList({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: (index) => estimateRow(rows[index]!, width, rough.has(rows[index]!.id)),
+    estimateSize,
     overscan: 10,
     gap: rowGap,
     paddingStart: 24,
