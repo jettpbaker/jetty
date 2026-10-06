@@ -29,6 +29,10 @@
   max-height: 216px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.search-picker .picker-results::-webkit-scrollbar {
+  display: none;
 }
 .search-picker [data-slot='command-item'] {
   border-radius: var(--radius-menu-item);
