@@ -310,16 +310,20 @@ export type PullRequestWatchMemory = {
 export function createPullRequestWatch(store: Store, orchestrator: Orchestrator) {
   const timers = new Map<string, { first: number; timer: ReturnType<typeof setTimeout> }>()
 
-  // The thread on the PR's branch; else, for a PR the user opened, the thread that linked it first.
+  // The thread on the PR's branch; else, for a PR the user opened, the thread that linked it
+  // first, preferring one in the PR's repo. A thread outside any repo (one run from the home
+  // folder that opened the PR from a worktree) still owns a PR it linked.
   function owner(ref: PullRequestRef, data: PullRequestData) {
     return Effect.gen(function* () {
-      const threads: ThreadMeta[] = []
+      const linked: ThreadMeta[] = []
+      const inRepo: ThreadMeta[] = []
       const repositories = new Map<string, string | null>()
       const headRepo = data.pull.head.repo?.toLowerCase()
       if (!headRepo) return undefined
       for (const id of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
         const thread = yield* store.getThread(id)
         if (!thread || thread.archived) continue
+        linked.push(thread)
         if (!repositories.has(thread.projectId)) {
           const project = yield* store.getProject(thread.projectId)
           repositories.set(
@@ -327,16 +331,16 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
             project ? yield* Effect.promise(() => projectRemote(project.path)) : null
           )
         }
-        if (repositories.get(thread.projectId) === headRepo) threads.push(thread)
+        if (repositories.get(thread.projectId) === headRepo) inRepo.push(thread)
       }
       const branch = data.pull.head.ref
       const authored =
         data.viewer !== undefined &&
         data.viewer.login.toLowerCase() === data.pull.user.login.toLowerCase()
-      const thread =
-        threads.find((each) => each.worktree?.branch === branch || each.git?.branch === branch) ??
-        (authored ? threads[0] : undefined)
-      return thread
+      return (
+        inRepo.find((each) => each.worktree?.branch === branch || each.git?.branch === branch) ??
+        (authored ? (inRepo[0] ?? linked[0]) : undefined)
+      )
     })
   }
 
