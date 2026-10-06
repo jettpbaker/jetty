@@ -1,10 +1,10 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
 import { BunServices } from '@effect/platform-bun'
-import { newId } from '@jetty/shared/wire'
+import { newId, type WireError } from '@jetty/shared/wire'
 import { afterEach, expect, test } from 'bun:test'
 import { Effect } from 'effect'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -45,7 +45,8 @@ function callTool(
   orch: Partial<Orchestrator>,
   callerId: string,
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError> = () => Effect.void
 ) {
   return Effect.gen(function* () {
     const sessions = createMcpSessions()
@@ -60,7 +61,7 @@ function callTool(
       yield* createAttachments(home),
       () => catalog,
       createPullRequestLinks(store, hub, createPullRequests(store, hub), scope),
-      () => Effect.void
+      archiveThread
     )
     const response = yield* Effect.promise(() =>
       handle(
@@ -138,4 +139,93 @@ test('send_message restarts a stopped child with the message, even if Jetty dies
   expect(retried.isError).toBeUndefined()
   expect(await Effect.runPromise(store.isQueuePaused(child.id))).toBe(true)
   expect(await queued()).toHaveLength(1)
+})
+
+test('archive_thread reaches any idle thread in the project, and stop_thread stays on direct children', async () => {
+  const { home, store } = await openStore()
+  mkdirSync(join(home, 'other'))
+  const project = await Effect.runPromise(store.createProject(home))
+  const elsewhere = await Effect.runPromise(store.createProject(join(home, 'other')))
+  const make = async (projectId: string, title: string, parentId?: string) => {
+    const thread = await Effect.runPromise(store.createThread(projectId, newId()))
+    await Effect.runPromise(store.setThreadTitle(thread.id, title))
+    if (parentId) await Effect.runPromise(store.markAgentThread(thread.id, parentId, false))
+    return thread
+  }
+  const root = await make(project.id, 'Root')
+  const parent = await make(project.id, 'Parent', root.id)
+  const caller = await make(project.id, 'Caller', parent.id)
+  const child = await make(project.id, 'Child', caller.id)
+  const grandchild = await make(project.id, 'Grandchild', child.id)
+  const idle = await make(project.id, 'Old notes')
+  const busy = await make(project.id, 'Live')
+  const busyParent = await make(project.id, 'Notes')
+  const busyChild = await make(project.id, 'Notes worker', busyParent.id)
+  const foreign = await make(elsewhere.id, 'Foreign')
+  const start = (id: string) =>
+    Effect.runPromise(store.appendEvent(id, { type: 'turn.started', turnId: newId() }))
+  await start(child.id)
+  await start(grandchild.id)
+  await start(busy.id)
+  await start(busyChild.id)
+
+  const archived: string[] = []
+  const stopped: string[] = []
+  const tool = (name: string, threadId: string) =>
+    Effect.runPromise(
+      callTool(
+        home,
+        store,
+        { stopThread: (id) => Effect.sync(() => void stopped.push(id)) },
+        caller.id,
+        name,
+        { threadId },
+        (id) => Effect.sync(() => void archived.push(id))
+      )
+    )
+
+  const oldNotes = await tool('archive_thread', idle.id)
+  expect(oldNotes.isError).toBeUndefined()
+  expect(JSON.parse(oldNotes.content[0]!.text)).toMatchObject({
+    threadId: idle.id,
+    title: 'Old notes',
+    archived: true,
+  })
+  expect(archived).toEqual([idle.id])
+
+  const ownChild = await tool('archive_thread', child.id)
+  const ownGrandchild = await tool('archive_thread', grandchild.id)
+  expect(ownChild.isError).toBeUndefined()
+  expect(ownGrandchild.isError).toBeUndefined()
+  expect(archived).toEqual([idle.id, child.id, grandchild.id])
+
+  const self = await tool('archive_thread', caller.id)
+  const above = await tool('archive_thread', parent.id)
+  const higher = await tool('archive_thread', root.id)
+  expect(self.content[0]!.text).toContain("can't archive this thread")
+  expect(above.content[0]!.text).toContain('above yours')
+  expect(higher.content[0]!.text).toContain('above yours')
+
+  const live = await tool('archive_thread', busy.id)
+  const notes = await tool('archive_thread', busyParent.id)
+  expect(live.content[0]!.text).toBe(
+    "Live is still working. Ask the user, or wait until it's done."
+  )
+  expect(notes.content[0]!.text).toBe(
+    "Notes is still working. Ask the user, or wait until it's done."
+  )
+  expect(archived).toEqual([idle.id, child.id, grandchild.id])
+
+  await Effect.runPromise(store.archiveThread(idle.id, true))
+  const again = await tool('archive_thread', idle.id)
+  expect(again.content[0]!.text).toBe('Thread is already archived')
+
+  const outside = await tool('archive_thread', foreign.id)
+  expect(outside.content[0]!.text).toContain("isn't in this project")
+
+  const stopOther = await tool('stop_thread', idle.id)
+  expect(stopOther.content[0]!.text).toBe('Only your own direct child threads can be stopped')
+  const stopChild = await tool('stop_thread', child.id)
+  expect(stopChild.isError).toBeUndefined()
+  expect(stopped).toEqual([child.id])
 })

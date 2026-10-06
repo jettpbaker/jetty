@@ -91,7 +91,7 @@ export const agentBehaviours = [
     label: 'Agents proactively archive completed threads',
     defaultEnabled: true,
     instruction:
-      'Call archive_thread on threads you created once their work is merged or no longer needed.',
+      'Call archive_thread on threads you created once their work is merged or no longer needed. Archive other threads only when the user asks.',
   },
   {
     key: 'watchPullRequests',

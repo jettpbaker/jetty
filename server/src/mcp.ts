@@ -153,9 +153,50 @@ export function createMcpHandler(
         const target = yield* store.requireThread(threadId)
         if (target.projectId !== caller.projectId || target.parentThreadId !== caller.id)
           return yield* Effect.fail(
+            new StoreError('invalid_params', 'Only your own direct child threads can be stopped')
+          )
+        return target
+      })
+    }
+
+    // A turn in progress, including one waiting on the user, or background work the archive would stop.
+    function stillWorking(status: string) {
+      return (
+        status === 'starting' ||
+        status === 'running' ||
+        status === 'awaiting_approval' ||
+        status === 'monitoring'
+      )
+    }
+
+    function archiveTarget(identity: McpIdentity, threadId: string) {
+      return Effect.gen(function* () {
+        const caller = yield* accessible(identity, identity.threadId)
+        const target = yield* store.requireThread(threadId)
+        if (target.projectId !== caller.projectId)
+          return yield* Effect.fail(
+            new StoreError('not_found', `Thread ${threadId} isn't in this project, or is archived`)
+          )
+        if (target.archived)
+          return yield* Effect.fail(new StoreError('invalid_params', 'Thread is already archived'))
+        // Archiving a thread archives everything under it, so the caller and anything above it are out.
+        const underTarget = yield* store.threadTree(target.id)
+        if (underTarget.some((thread) => thread.id === caller.id))
+          return yield* Effect.fail(
             new StoreError(
               'invalid_params',
-              'Only your own direct child threads can be stopped or archived'
+              target.id === caller.id
+                ? "You can't archive this thread. It would stop you mid-turn."
+                : "You can't archive a thread above yours. It would archive you too."
+            )
+          )
+        const underCaller = yield* store.threadTree(caller.id)
+        const ownDescendant = underCaller.some((thread) => thread.id === target.id)
+        if (!ownDescendant && underTarget.some((thread) => stillWorking(thread.status)))
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              `${target.title} is still working. Ask the user, or wait until it's done.`
             )
           )
         return target
@@ -598,17 +639,13 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            'Archive one of your children and everything under it. Their work stops without reporting back, their worktree folders are removed and their branches kept, so every worktree in the tree must be clean. The user can restore them.',
+            "Archive a thread in this project and everything under it. Not this thread, and not one above it. A thread that isn't under yours has to be idle, and so does everything under it. Work stops with no report back, worktree folders are removed and branches kept, so every worktree in the tree must be clean. The user can restore them.",
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
           invoke(
             Effect.gen(function* () {
-              const target = yield* ownChild(identity, threadId)
-              if (target.archived)
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', 'Thread is already archived')
-                )
+              const target = yield* archiveTarget(identity, threadId)
               yield* archiveThread(threadId).pipe(
                 Effect.mapError((error) => new StoreError(error.code, error.message))
               )
