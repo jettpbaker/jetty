@@ -2,7 +2,7 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
-import { itemDeltasSince } from '@/state/item_selection'
+import { createItemSelection, itemDeltasSince } from '@/state/item_selection'
 import { isQueuedEditing } from '@/state/queue_editing'
 import { awaitsInput } from '@/state/thread_tab'
 import { pendingTurnId } from '@/state/turns'
@@ -362,8 +362,10 @@ export function toSubagent(item: SubagentItem, now: number): Subagent {
   }
 }
 
+const selectSubagents = createItemSelection((item) => item.kind === 'subagent')
+
 export function threadSubagents(items: readonly ThreadItem[]) {
-  return items.filter((item): item is SubagentItem => item.kind === 'subagent')
+  return selectSubagents(items) as readonly SubagentItem[]
 }
 
 type ThreadRowsOptions = {

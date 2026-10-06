@@ -23,7 +23,7 @@ import {
   useThreadTab,
 } from '@/state'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
 
@@ -52,7 +52,7 @@ function Thread() {
   const projectPath = meta?.workingPath ?? project?.path
   const [tab, setTab] = useThreadTab(threadId)
   const archiveThread = useArchiveThread()
-  const agents = useMemo(() => threadSubagents(overlay.items), [overlay.items])
+  const agents = threadSubagents(overlay.items)
   const agent = agents.find((entry) => entry.id === tab)
   // Until the thread loads, a thread that has never started a turn is taken to be empty. Threads
   // from before turn times were recorded only have their provider to show for it. A first message
