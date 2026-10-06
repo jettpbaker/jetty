@@ -497,7 +497,7 @@ export function createMcpHandler(
         'list_threads',
         {
           description:
-            "List this project's threads (archived ones aren't included) with their status, model and parent.",
+            "List threads across projects (archived ones aren't included) with their status, model, parent and project. Your project first. Pass project to filter by name.",
           inputSchema: {
             project: z
               .string()
@@ -618,7 +618,7 @@ export function createMcpHandler(
         'create_thread',
         {
           description:
-            "Create a child thread in this project and start it on your prompt. It uses your environment, provider and model unless you set them; list_models has the options. Up to 5 per turn, and nesting stops two levels below the user's thread.",
+            "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your environment, provider and model unless you set them; in another project, that project's environment default and worktree base. list_models has the options. Up to 5 per turn, and nesting stops two levels below the user's thread.",
           inputSchema: createInput,
         },
         (input) => invoke(createThread(identity, input))
@@ -627,7 +627,7 @@ export function createMcpHandler(
         'send_message',
         {
           description:
-            'Send a message to another thread in this project. An idle thread starts on it right away; a busy one reads it after its current turn, unless you steer.',
+            'Send a message to another thread. An idle thread starts on it right away; a busy one reads it after its current turn, unless you steer.',
           inputSchema: sendInput,
         },
         (input) => invoke(sendMessage(identity, input))
@@ -693,7 +693,7 @@ export function createMcpHandler(
         'archive_thread',
         {
           description:
-            "Archive a thread in this project and everything under it. Not this thread, and not one above it. A thread that isn't under yours has to be idle, and so does everything under it. Work stops with no report back, worktree folders are removed and branches kept, so every worktree in the tree must be clean. The user can restore them.",
+            "Archive a thread and everything under it. Not this thread, and not one above it. A thread that isn't under yours has to be idle, and so does everything under it. Work stops with no report back, worktree folders are removed and branches kept, so every worktree in the tree must be clean. The user can restore them.",
           inputSchema: { threadId: z.string() },
         },
         ({ threadId }) =>
