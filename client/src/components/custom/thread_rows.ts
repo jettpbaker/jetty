@@ -22,7 +22,6 @@ type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
-type StepItem = WorkItem | AssistantItem
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
@@ -249,7 +248,7 @@ function textRunning(
 }
 
 function elapsedSeconds(
-  span: readonly StepItem[],
+  span: readonly WorkItem[],
   next: ThreadItem | undefined,
   start = span[0]!.createdAt
 ) {
@@ -260,13 +259,12 @@ function elapsedSeconds(
 }
 
 function toActivity(
-  item: StepItem,
+  item: WorkItem,
   next: ThreadItem | undefined,
   sessionRunning: boolean,
   sessionActive: boolean,
   projectPath: string | undefined
 ): WorkActivity {
-  if (item.kind === 'assistant_message') return { type: 'text', id: item.id, text: item.text }
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
     return {
@@ -544,7 +542,7 @@ export function threadRows(
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
       ? segments.at(-1)
       : undefined
-  const blocks = new Map<string, { row: WorkRow; steps: StepItem[]; next?: ThreadItem }>()
+  const blocks = new Map<string, { row: WorkRow; steps: WorkItem[]; next?: ThreadItem }>()
   function openBlock(segment: string, turnId: string) {
     let block = blocks.get(segment)
     if (!block) {

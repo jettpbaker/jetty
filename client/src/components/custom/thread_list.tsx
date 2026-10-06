@@ -33,7 +33,7 @@ import {
 } from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
-import { handOffReply, replyHandedOff, WorkBlock } from '@/components/custom/work_block'
+import { WorkBlock } from '@/components/custom/work_block'
 import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
@@ -105,29 +105,6 @@ function roughRows(rows: readonly ThreadRow[], width: number) {
     else ids.add(rows[index]!.id)
   }
   return ids
-}
-
-// A reply leaves the chat as the next step starts and the Working block above takes it in. The block
-// takes over its measured space in the same render, so the list's height holds and nothing above
-// drops for a frame while Working settles to its new size.
-function handOffMovedReplies(
-  previous: readonly ThreadRow[],
-  rows: readonly ThreadRow[],
-  virtualizer: Virtualizer<HTMLDivElement, Element>
-) {
-  const work = rows.findLast((row) => row.kind === 'work')
-  if (!work || !virtualizer.elementsCache.get(work.id)?.isConnected) return
-  for (let index = previous.length - 1; index >= 0; index--) {
-    const row = previous[index]!
-    if (row.kind === 'work') break
-    if (row.kind !== 'assistant' || replyHandedOff(row.id)) continue
-    if (!work.activities.some((activity) => activity.id === row.id)) continue
-    const reply = virtualizer.itemSizeCache.get(row.id)
-    const block = virtualizer.itemSizeCache.get(work.id)
-    if (reply === undefined || block === undefined) continue
-    virtualizer.itemSizeCache.set(work.id, block + rowGap + reply)
-    handOffReply(row.id, reply + rowGap)
-  }
 }
 
 // Follows a pinned list down as it grows on a critically damped spring, so a line added mid-glide
@@ -229,13 +206,11 @@ function rowStamp(row: ThreadRow) {
     case 'work':
       return `${row.status}:${row.settingUp}:${row.activities
         .map((activity) =>
-          activity.type === 'text'
-            ? `${activity.id}:${activity.text.length}`
-            : activity.type === 'thinking'
-              ? `${activity.id}:${activity.summary.length}:${activity.status}`
-              : activity.type === 'todo' || activity.type === 'created'
-                ? activity.id
-                : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
+          activity.type === 'thinking'
+            ? `${activity.id}:${activity.summary.length}:${activity.status}`
+            : activity.type === 'todo' || activity.type === 'created'
+              ? activity.id
+              : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
         .join(',')}`
   }
@@ -526,7 +501,6 @@ export function ThreadList({
   )
 
   const latestRows = useRef(rows)
-  if (rows !== latestRows.current) handOffMovedReplies(latestRows.current, rows, virtualizer)
 
   const stamp = useMemo(() => rows.map(rowStamp).join('|'), [rows])
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.

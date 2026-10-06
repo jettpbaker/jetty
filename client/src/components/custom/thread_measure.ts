@@ -216,9 +216,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       if (workEnded(row.status)) return 30
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
-        if (entry.type === 'text')
-          height += markdownHeight(entry.id, entry.text, width - 16, rough) + 4
-        else height += 28
+        height += 28
         if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
           height += Math.min(72, textHeight(entry.id, entry.summary, width, true, rough))
       }
