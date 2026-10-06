@@ -1594,7 +1594,7 @@ export function createStore() {
           FROM thread_pull_requests l
           JOIN pull_requests p ON p.repo = l.repo AND p.number = l.number
           JOIN threads t ON t.id = l.thread_id
-          WHERE t.archived = 0 AND json_extract(p.data_json, '$.pull.state') IS NOT 'closed'
+          WHERE t.archived = 0 AND json_extract(p.data_json, '$.pull.merged') IS NOT 1
             AND (${after?.repo ?? null} IS NULL OR l.repo > ${after?.repo ?? null}
               OR (l.repo = ${after?.repo ?? null} AND l.number > ${after?.number ?? null}))
           ORDER BY l.repo, l.number LIMIT 100`.pipe(Effect.mapError(storeError))

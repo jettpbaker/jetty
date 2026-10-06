@@ -396,7 +396,7 @@ test('active PR link pages reach every linked PR beyond the first hundred', asyn
   await runtime.runPromise(store.archiveThread(archived.id, true))
   await runtime.runPromise(store.linkPullRequest(thread.id, 'owner/b', 57))
   await runtime.runPromise(
-    sql`UPDATE pull_requests SET data_json = ${JSON.stringify({ pull: { state: 'closed' } })} WHERE repo = 'owner/b' AND number = 57`
+    sql`UPDATE pull_requests SET data_json = ${JSON.stringify({ pull: { state: 'closed', merged: true } })} WHERE repo = 'owner/b' AND number = 57`
   )
   const first = await runtime.runPromise(store.activePullRequestLinks())
   const second = await runtime.runPromise(store.activePullRequestLinks(first.at(-1)))

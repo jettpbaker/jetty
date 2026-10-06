@@ -1927,9 +1927,10 @@ export function createPullRequests(store: Store, hub: Hub) {
     return watches.watch(prKey(ref), client)
   }
 
-  function cadence(closed: boolean, state: GitHubActivity, list: boolean) {
+  // A merged PR can't change; a closed one can be reopened, so it keeps an open PR's pace.
+  function cadence(merged: boolean, state: GitHubActivity, list: boolean) {
     if (state === 'hidden' || backingOff()) return null
-    const interval = closed ? 30 * 60_000 : list || state === 'blurred' ? 120_000 : 30_000
+    const interval = merged ? 30 * 60_000 : list || state === 'blurred' ? 120_000 : 30_000
     return interval * cadenceMultiplier()
   }
 
@@ -1937,7 +1938,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     const key = prKey(snapshot)
     const watched = watches.has(key)
     const state = watched ? watches.activity(key) : hub.githubActivity()
-    const interval = cadence(snapshot.data?.pull.state === 'closed', state, !watched)
+    const interval = cadence(snapshot.data?.pull.merged === true, state, !watched)
     const checksInterval =
       interval !== null && (checksRunning(snapshot.data) || mergeUnknown(snapshot.data))
         ? (watched && state === 'focused' ? 10_000 : 30_000) * cadenceMultiplier()
@@ -1983,7 +1984,7 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   // The cadence a cached snapshot has outlived since it was last read or checked, or null.
   function prefetchDue(cached: PullRequestSnapshot) {
-    const interval = cadence(cached.data?.pull.state === 'closed', 'blurred', true)
+    const interval = cadence(cached.data?.pull.merged === true, 'blurred', true)
     const checked = Math.max(cached.refreshedAt ?? 0, lastDetection.get(prKey(cached)) ?? 0)
     return interval !== null && Date.now() - checked >= interval ? interval : null
   }
@@ -2039,11 +2040,12 @@ export function createPullRequests(store: Store, hub: Hub) {
     })
   }
 
-  // One cheap query notices change on every open linked PR; only changed ones pay for a full
-  // read. Check runs don't bump updatedAt, so the rollup state is compared too, and neither does
-  // a base push that makes it conflict, so mergeability is too (GitHub works it out lazily, and
-  // asking is what starts it). Closed and merged links are left to a PR view's own 30-minute
-  // cadence. PR watchers keep it going, a minute apart, while no window shows Jetty.
+  // One cheap query notices change on every unmerged linked PR (a closed one can be reopened);
+  // only changed ones pay for a full read. Check runs don't bump updatedAt, so the rollup state
+  // is compared too, and neither does a base push that makes it conflict, so mergeability is too
+  // (GitHub works it out lazily, and asking is what starts it). Merged links are left to a PR
+  // view's own 30-minute cadence. PR watchers keep it going, a minute apart, while no window
+  // shows Jetty.
   function refreshChangedLinks(watching = false) {
     return Effect.gen(function* () {
       const hidden = hub.githubActivity() === 'hidden'
