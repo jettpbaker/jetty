@@ -459,23 +459,38 @@ export function createMcpHandler(
         {
           description:
             "List this project's threads (archived ones aren't included) with their status, model and parent.",
-          inputSchema: {},
+          inputSchema: {
+            project: z
+              .string()
+              .trim()
+              .min(1)
+              .optional()
+              .describe('Filter by project name (case-insensitive).'),
+          },
         },
-        () =>
+        ({ project }) =>
           invoke(
             Effect.gen(function* () {
               const caller = yield* accessible(identity, identity.threadId)
-              return (yield* store.listThreads())
-                .filter((t) => t.projectId === caller.projectId && !t.archived)
-                .map((t) => ({
-                  id: t.id,
-                  title: t.title,
-                  status: t.status,
-                  provider: t.provider,
-                  model: t.model,
-                  parentThreadId: t.parentThreadId,
-                  createdBy: t.createdBy ?? 'user',
-                }))
+              const titles = new Map(
+                (yield* store.listProjects()).map((item) => [item.id, item.title])
+              )
+              const key = project?.toLowerCase()
+              const listed = (yield* store.listThreads()).filter(
+                (t) => !t.archived && (!key || titles.get(t.projectId)?.toLowerCase() === key)
+              )
+              const own = listed.filter((t) => t.projectId === caller.projectId)
+              const rest = listed.filter((t) => t.projectId !== caller.projectId)
+              return [...own, ...rest].map((t) => ({
+                id: t.id,
+                title: t.title,
+                project: titles.get(t.projectId) ?? t.projectId,
+                status: t.status,
+                provider: t.provider,
+                model: t.model,
+                parentThreadId: t.parentThreadId,
+                createdBy: t.createdBy ?? 'user',
+              }))
             })
           )
       )
