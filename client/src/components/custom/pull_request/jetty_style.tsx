@@ -1736,28 +1736,27 @@ function MergeButton({
     options.find((option) => option.method === method) ?? options[0] ?? mergeMethodOptions[0]!
   const split = options.length > 1
   const edge = split && 'rounded-r-none'
-  const primary = reason ? (
-    <Hint text={reason}>
-      <Button disabled size='sm' className={cn('rounded-sm', edge, mergeTone)}>
-        <GitMergeIcon className='size-3.5' />
-        {current.label}
-      </Button>
-    </Hint>
-  ) : (
+  const runningCount = checkCounts(pr).running
+  // Quiet while GitHub still allows the merge and some checks are in progress.
+  const pending = !reason && runningCount > 0
+  const variant = pending ? 'outline' : 'default'
+  const tone = pending ? '' : mergeTone
+  function runMerge(chosen: PrMergeMethod) {
+    if (merging) return
+    setMerging(true)
+    void onMerge(chosen)
+      .then((merged) => {
+        if (merged) setRemembered((methods) => ({ ...methods, [repo]: chosen }))
+      })
+      .finally(() => setMerging(false))
+  }
+  const face = (
     <Button
+      variant={variant}
       size='sm'
-      className={cn('rounded-sm', edge, mergeTone, merging && 'pointer-events-none')}
+      className={cn('rounded-sm', edge, tone, merging && 'pointer-events-none')}
       aria-busy={merging}
-      onClick={() => {
-        if (merging) return
-        const chosen = current.method
-        setMerging(true)
-        void onMerge(chosen)
-          .then((merged) => {
-            if (merged) setRemembered((methods) => ({ ...methods, [repo]: chosen }))
-          })
-          .finally(() => setMerging(false))
-      }}
+      onClick={() => runMerge(current.method)}
     >
       {/* Busy stays at full colour, and both labels share one grid cell, so the button keeps the
           wider one's width rather than shrinking. */}
@@ -1765,7 +1764,11 @@ function MergeButton({
         <span
           className={cn('col-start-1 row-start-1 flex items-center gap-1', merging && 'invisible')}
         >
-          <GitMergeIcon className='size-3.5' />
+          {pending ? (
+            <InProgressIcon className='size-3.5 text-status-working' />
+          ) : (
+            <GitMergeIcon className='size-3.5' />
+          )}
           {current.label}
         </span>
         <span
@@ -1777,6 +1780,18 @@ function MergeButton({
       </span>
     </Button>
   )
+  const primary = reason ? (
+    <Hint text={reason}>
+      <Button disabled size='sm' className={cn('rounded-sm', edge, mergeTone)}>
+        <GitMergeIcon className='size-3.5' />
+        {current.label}
+      </Button>
+    </Hint>
+  ) : pending ? (
+    <Hint text={`${countLabel(runningCount, 'check')} still running`}>{face}</Hint>
+  ) : (
+    face
+  )
   if (!split) return primary
   return (
     <div className='flex'>
@@ -1785,10 +1800,11 @@ function MergeButton({
         <DropdownMenuTrigger
           render={
             <Button
+              variant={variant}
               size='icon-sm'
               className={cn(
                 'rounded-sm rounded-l-none border-l-0',
-                mergeTone,
+                tone,
                 reason && 'opacity-50',
                 merging && 'pointer-events-none'
               )}
