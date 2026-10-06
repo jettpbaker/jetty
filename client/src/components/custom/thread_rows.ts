@@ -443,20 +443,22 @@ export function threadRows(
   function isStep(item: ThreadItem): item is WorkItem {
     return (item.kind === 'reasoning' || item.kind === 'tool_call') && !hidden(item)
   }
-  // A turn's steps, and the text between them, share one work block; a steering message or a
-  // compaction starts another. Text after the last step stays outside the block as the answer.
+  // A turn's steps share one work block until the agent says something: every message it writes
+  // shows in the chat, and the steps after it start the next block. A steering message or a
+  // compaction starts another too.
   const segments: string[] = []
-  const lastStep = new Map<string, number>()
   for (const [index, item] of items.entries()) {
     const previous = segments.at(-1)
+    const before = items[index - 1]
     const segment =
       item.kind === 'user_message' || (item.kind === 'compaction' && item.status !== 'failed')
         ? item.id
-        : previous !== undefined && items[index - 1]!.turnId === item.turnId
-          ? previous
-          : item.turnId
+        : previous === undefined || before!.turnId !== item.turnId
+          ? item.turnId
+          : before!.kind === 'assistant_message' && item.kind !== 'assistant_message'
+            ? before!.id
+            : previous
     segments.push(segment)
-    if (isStep(item)) lastStep.set(segment, index)
   }
   const liveSegment =
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
@@ -521,10 +523,7 @@ export function threadRows(
     flushFinished(item.createdAt)
     if (item.kind === 'subagent') launched.push(item)
     const segment = segments[index]!
-    if (
-      isStep(item) ||
-      (item.kind === 'assistant_message' && index < (lastStep.get(segment) ?? -1))
-    ) {
+    if (isStep(item)) {
       const block = openBlock(segment, item.turnId)
       block.steps.push(item)
       block.next = items[index + 1]
