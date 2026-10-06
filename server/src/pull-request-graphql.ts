@@ -143,10 +143,10 @@ const checkRollupFields = `commits(last:1) { nodes { commit {
   oid statusCheckRollup { state contexts(first:100) {
     ${pageFields}
     nodes { __typename
-      ... on CheckRun { id name status conclusion detailsUrl startedAt completedAt
+      ... on CheckRun { id databaseId name status conclusion detailsUrl startedAt completedAt
         isRequired(pullRequestNumber:PR_NUMBER)
         checkSuite { app { name } workflowRun { event workflow { name } } } }
-      ... on StatusContext { id context state targetUrl updatedAt description isRequired(pullRequestNumber:PR_NUMBER) }
+      ... on StatusContext { id context state targetUrl createdAt updatedAt description isRequired(pullRequestNumber:PR_NUMBER) }
     }
   } }
 } } }`

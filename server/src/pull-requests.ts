@@ -10,7 +10,12 @@ import type {
   PullRequestSnapshot,
 } from '@jetty/shared/wire'
 
-import { PullRequestData, rollupChecks } from '@jetty/shared/pull-request'
+import {
+  PullRequestData,
+  checkSummary,
+  displayedRollupState,
+  rollupChecks,
+} from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { PullRequestReference } from './pull-request-graphql'
@@ -918,8 +923,43 @@ function enumValue<T extends string>(value: unknown, values: readonly T[], fallb
   return values.find((candidate) => candidate === value) ?? fallback
 }
 
+// The rollup is the head commit (`commits(last: 1)`) and lists every attempt. It has no
+// latest filter. `checkRuns(filterBy: { checkType: LATEST })` is per check suite, so a re-run
+// that opens a new suite still returns the cancelled run beside the new one. GitHub's checks
+// page shows the newest run per check, and the newest status per context name.
+function latestChecks(checks: readonly unknown[]) {
+  const kept = new Map<string, { index: number; rank: string }>()
+  for (const [index, value] of checks.entries()) {
+    const check = record(value)
+    const status = check.__typename === 'StatusContext'
+    const suite = record(check.checkSuite)
+    const workflowRun = record(suite.workflowRun)
+    const key = status
+      ? `status\0${string(check.context)}`
+      : [
+          'run',
+          string(check.name),
+          string(record(workflowRun.workflow).name),
+          string(workflowRun.event),
+          string(record(suite.app).name),
+        ].join('\0')
+    const id = Number(check.databaseId)
+    const stamp =
+      string(check.startedAt) ||
+      string(check.completedAt) ||
+      string(check.updatedAt) ||
+      string(check.createdAt)
+    const rank = `${Number.isSafeInteger(id) && id > 0 ? String(id).padStart(16, '0') : ''}\0${stamp}`
+    const current = kept.get(key)
+    if (!current || rank >= current.rank) kept.set(key, { index, rank })
+  }
+  return [...kept.values()]
+    .sort((left, right) => left.index - right.index)
+    .map((winner) => checks[winner.index])
+}
+
 export function mapCheckRuns(checks: readonly unknown[]): PullRequestData['checkRuns'] {
-  return checks.map((value): PullRequestData['checkRuns'][number] => {
+  return latestChecks(checks).map((value): PullRequestData['checkRuns'][number] => {
     const check = record(value)
     if (check.__typename === 'StatusContext') {
       const state = string(check.state)
@@ -1619,12 +1659,13 @@ function requestedReviewers(reviewRequests: readonly PullRequestReviewer[]) {
 
 // One failed check makes the rollup FAILURE while the rest still run.
 function checksRunning(data: PullRequestData | undefined) {
-  return (
-    data?.pull.state === 'open' &&
-    (data.checkRollupState === 'PENDING' ||
-      data.checkRollupState === 'EXPECTED' ||
-      data.checkRuns.some((run) => run.status !== 'completed'))
+  if (data?.pull.state !== 'open') return false
+  const state = displayedRollupState(
+    checkSummary(data.checkRuns),
+    data.checkRollupState ?? '',
+    data.truncatedConnections?.includes('checkRuns') === true
   )
+  return state === 'PENDING' || state === 'EXPECTED'
 }
 
 // GitHub works mergeability out lazily, so an open PR can read UNKNOWN for a while.

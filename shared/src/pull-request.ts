@@ -154,6 +154,38 @@ export const rollupChecks: Record<string, 'pending' | 'success' | 'failure'> = {
   EXPECTED: 'pending',
 }
 
+export function checkSummary(runs: readonly { status: string; conclusion: string | null }[]) {
+  let failed = 0
+  let running = 0
+  for (const run of runs) {
+    if (run.conclusion && failedCheckConclusions.includes(run.conclusion)) failed++
+    else if (run.status !== 'completed') running++
+  }
+  return { failed, running, total: runs.length }
+}
+
+function rollupSeverity(state: string) {
+  return state === 'FAILURE' || state === 'ERROR'
+    ? 2
+    : state === 'PENDING' || state === 'EXPECTED'
+      ? 1
+      : 0
+}
+
+// Pass, fail, or still running from the latest run of each check. One failure outranks checks
+// that are still running. With no runs, GitHub's rollup stands. A short page can't hide a
+// failure GitHub still reports.
+export function displayedRollupState(
+  summary: { failed: number; running: number; total: number },
+  githubState = '',
+  truncated = false
+) {
+  if (!summary.total) return githubState
+  const derived = summary.failed ? 'FAILURE' : summary.running ? 'PENDING' : 'SUCCESS'
+  if (!truncated || rollupSeverity(derived) >= rollupSeverity(githubState)) return derived
+  return githubState
+}
+
 export const GitHubCommit = Schema.Struct({
   parents: Schema.optional(Schema.Int),
   sha: Schema.String,

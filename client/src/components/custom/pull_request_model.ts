@@ -1,6 +1,6 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 
-import { failedCheckConclusions, rollupChecks } from '@jetty/shared/pull-request'
+import { checkSummary, displayedRollupState, rollupChecks } from '@jetty/shared/pull-request'
 
 export type GitHubPullRequest = PullRequestData['pull']
 export type GitHubUser = GitHubPullRequest['user']
@@ -15,12 +15,18 @@ export function pullRequestState(
 
 // A fetched PR's state and readiness, as a thread's link to it carries them.
 export function pullRequestFacts(data: PullRequestData) {
+  const summary = checkSummary(data.checkRuns)
   return {
     state: pullRequestState(data.pull),
-    checks: rollupChecks[data.checkRollupState ?? ''],
-    failingChecks: data.checkRuns.filter((run) =>
-      failedCheckConclusions.includes(run.conclusion ?? '')
-    ).length,
+    checks:
+      rollupChecks[
+        displayedRollupState(
+          summary,
+          data.checkRollupState ?? '',
+          data.truncatedConnections?.includes('checkRuns') === true
+        )
+      ],
+    failingChecks: summary.failed,
     reviewDecision: data.reviewDecision,
     mergeable: data.mergeable,
     mergeStateStatus: data.mergeStateStatus,

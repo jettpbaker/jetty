@@ -1,6 +1,10 @@
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment, heldByRestarts } from '@jetty/shared/items'
-import { failedCheckConclusions, rollupChecks } from '@jetty/shared/pull-request'
+import {
+  displayedRollupState,
+  failedCheckConclusions,
+  rollupChecks,
+} from '@jetty/shared/pull-request'
 import { applyEvent, emptyThread, ThreadState } from '@jetty/shared/reducer'
 import {
   agentBehaviours,
@@ -195,6 +199,9 @@ export function createStore() {
       updated_at: string | null
       check_rollup: string | null
       failing_checks: number
+      running_checks: number
+      check_count: number | null
+      checks_truncated: number
       review_decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null
       mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN' | null
       merge_state_status: string | null
@@ -228,7 +235,18 @@ export function createStore() {
 
     // What an open PR's readiness reads: its checks, reviews and GitHub's merge verdict.
     function readiness(row: LinkRow) {
-      const checks = rollupChecks[row.check_rollup ?? '']
+      const checks =
+        rollupChecks[
+          displayedRollupState(
+            {
+              failed: row.failing_checks,
+              running: row.running_checks,
+              total: row.check_count ?? 0,
+            },
+            row.check_rollup ?? '',
+            row.checks_truncated === 1
+          )
+        ]
       return {
         ...(checks ? { checks } : {}),
         ...(checks === 'failure' && row.failing_checks
@@ -250,6 +268,11 @@ export function createStore() {
       json_extract(p.data_json, '$.checkRollupState') AS check_rollup,
       (SELECT count(*) FROM json_each(p.data_json, '$.checkRuns')
         WHERE json_extract(value, '$.conclusion') IN ${sql.in(failedCheckConclusions)}) AS failing_checks,
+      (SELECT count(*) FROM json_each(p.data_json, '$.checkRuns')
+        WHERE ifnull(json_extract(value, '$.status'), '') != 'completed'
+          AND ifnull(json_extract(value, '$.conclusion'), '') NOT IN ${sql.in(failedCheckConclusions)}) AS running_checks,
+      json_array_length(p.data_json, '$.checkRuns') AS check_count,
+      EXISTS (SELECT 1 FROM json_each(p.data_json, '$.truncatedConnections') WHERE value = 'checkRuns') AS checks_truncated,
       json_extract(p.data_json, '$.reviewDecision') AS review_decision,
       json_extract(p.data_json, '$.mergeable') AS mergeable,
       json_extract(p.data_json, '$.mergeStateStatus') AS merge_state_status,

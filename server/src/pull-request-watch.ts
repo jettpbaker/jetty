@@ -2,6 +2,8 @@ import type { PullRequestActivity } from '@jetty/shared/items'
 import type { AgentBehaviours, PullRequestSnapshot, ThreadMeta } from '@jetty/shared/wire'
 
 import {
+  checkSummary,
+  displayedRollupState,
   failedCheckConclusions,
   rollupChecks,
   type PullRequestData,
@@ -72,6 +74,16 @@ function mentionsJetty(body: string) {
 
 const mergeReady = new Set(['CLEAN', 'HAS_HOOKS'])
 
+function rollupOf(data: PullRequestData) {
+  return rollupChecks[
+    displayedRollupState(
+      checkSummary(data.checkRuns),
+      data.checkRollupState ?? '',
+      data.truncatedConnections?.includes('checkRuns') === true
+    )
+  ]
+}
+
 // What the agent reads when it is asked to merge. The chat line stays "ready to merge".
 const readyToMerge = [
   "- GitHub reports it ready to merge. Before you merge, check that the pull request still does what this thread was asked to do, that every check is green, that there are no unresolved review threads or change requests, and that nobody else pushed something unexpected. If anything is off, don't merge, and say why in your reply.",
@@ -118,8 +130,8 @@ function pullRequestChanges(
   const changes: PullRequestChange[] = []
   const head = pull.head.sha
   const short = head.slice(0, 7)
-  const rollup = rollupChecks[next.checkRollupState ?? '']
-  const before = rollupChecks[previous.checkRollupState ?? '']
+  const rollup = rollupOf(next)
+  const before = rollupOf(previous)
   if (rollup === 'failure' && (before !== 'failure' || previous.pull.head.sha !== head)) {
     const failing = next.checkRuns.filter(
       (run) => run.conclusion !== null && failedCheckConclusions.includes(run.conclusion)
@@ -480,7 +492,7 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
             (!change.group || settings[change.group]) && change.keys.some((each) => !seen.has(each))
         )
         const failing =
-          rollupChecks[next.checkRollupState ?? ''] !== 'success' &&
+          rollupOf(next) !== 'success' &&
           (memory.failing || changes.some((change) => change.activity.type === 'checks_failed'))
         const thread = changes.length ? yield* owner(ref, next) : undefined
         if (!thread) {

@@ -306,6 +306,41 @@ test('failed deliveries retry persisted news with bounded backoff', async () => 
   }
 })
 
+test('a passing re-run is not reported as checks failed', async () => {
+  const f = await setup()
+  await f.thread('owner/repo')
+  const ref = { repo: 'owner/repo', number: 1 }
+  const previous = { ...data(), checkRollupState: 'SUCCESS' }
+  const next = {
+    ...previous,
+    // GitHub's rollup can stay FAILURE while the latest attempt of the check has passed.
+    checkRollupState: 'FAILURE',
+    checkRuns: [
+      {
+        id: '2',
+        name: 'build',
+        status: 'completed' as const,
+        conclusion: 'success' as const,
+        started_at: '2026-01-01T01:00:00Z',
+        completed_at: '2026-01-01T01:05:00Z',
+        html_url: 'https://github.com/owner/repo/runs/2',
+        app: { name: 'GitHub Actions' },
+      },
+    ],
+  }
+  await f.runtime.runPromise(
+    f.watch.changed(
+      ref,
+      { ...ref, status: 'ready', data: previous, dataRefreshedAt: Date.now() },
+      next
+    )
+  )
+  const memory = await f.runtime.runPromise(f.store.pullRequestWatch(ref.repo, ref.number))
+  expect(memory.checkEpisode ?? 0).toBe(0)
+  expect(memory.fired.filter((key) => key.startsWith('failed:'))).toEqual([])
+  expect(memory.pending).toBeUndefined()
+})
+
 test('separate CI failure episodes on the same SHA survive persistent dedupe', async () => {
   const f = await setup()
   await f.thread('owner/repo')
