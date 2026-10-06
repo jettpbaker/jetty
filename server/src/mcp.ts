@@ -139,10 +139,8 @@ export function createMcpHandler(
       return Effect.gen(function* () {
         const caller = yield* store.requireThread(identity.threadId)
         const target = yield* store.requireThread(targetId)
-        if (caller.archived || target.archived || caller.projectId !== target.projectId)
-          return yield* Effect.fail(
-            new StoreError('not_found', `Thread ${targetId} isn't in this project, or is archived`)
-          )
+        if (caller.archived || target.archived)
+          return yield* Effect.fail(new StoreError('not_found', `Thread ${targetId} is archived`))
         return target
       })
     }
