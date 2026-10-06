@@ -585,6 +585,8 @@ export function threadRows(
   const startedTurns = new Set<string>()
   const lastSent = items.findLast((item) => item.turnId !== pendingTurnId)
   const steering = sessionActive && lastSent !== undefined && !outcomes[lastSent.turnId]
+  // Anything after a held turn that isn't a leftover background-stopped line has resumed it.
+  const lastFollowUp = items.findLastIndex((item) => item.kind !== 'background_stopped')
   // The guard also holds a turn that finished before the restart stopped its background work.
   function finishTurn(resumed: boolean) {
     if (!currentTurnId) return
@@ -593,8 +595,7 @@ export function threadRows(
     else if (outcomes[currentTurnId] === 'server_restarted') rows.push({ kind: 'restart', id })
   }
   for (const [index, item] of items.entries()) {
-    if (currentTurnId && currentTurnId !== item.turnId)
-      finishTurn(items.slice(index).some((next) => next.kind !== 'background_stopped'))
+    if (currentTurnId && currentTurnId !== item.turnId) finishTurn(lastFollowUp >= index)
     currentTurnId = item.turnId
     const steered = item.turnId !== pendingTurnId && startedTurns.has(item.turnId)
     startedTurns.add(item.turnId)
