@@ -30,6 +30,31 @@ function modelOptions(catalog: readonly ProviderModel[]) {
     .join('; ')
 }
 
+function matchProject(
+  projects: readonly { id: string; title: string; path: string }[],
+  name: string | undefined,
+  callerProjectId: string
+) {
+  if (!name) {
+    const project = projects.find((item) => item.id === callerProjectId)
+    return project
+      ? Effect.succeed(project)
+      : Effect.fail(new StoreError('not_found', 'Project not found'))
+  }
+  const key = name.toLowerCase()
+  const matches = projects.filter((item) => item.title.toLowerCase() === key)
+  if (matches.length === 1) return Effect.succeed(matches[0]!)
+  const available = projects.map((item) => item.title).join(', ') || 'none'
+  return Effect.fail(
+    new StoreError(
+      'invalid_params',
+      matches.length === 0
+        ? `Unknown project ${name}. Available: ${available}`
+        : `Ambiguous project ${name}. Available: ${available}`
+    )
+  )
+}
+
 function matchingModels(catalog: readonly ProviderModel[], name: string) {
   const key = modelKey(name)
   const exact = catalog.filter(
@@ -69,7 +94,7 @@ const createInput = z.object({
     .enum(['local', 'worktree'])
     .optional()
     .describe(
-      'worktree: a new branch and folder of its own. local: the project checkout itself, shared with the user and other threads there. Defaults to yours.'
+      "worktree: a new branch and folder of its own. local: the project checkout itself, shared with the user and other threads there. Defaults to yours, or the target project's default when you pass project."
     ),
   ref: z
     .string()
@@ -89,6 +114,14 @@ const createInput = z.object({
     .optional()
     .describe(
       'Sidebar title: a few words naming what the thread is for. You know its purpose better than a title generated from the prompt, which is the fallback.'
+    ),
+  project: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Create the thread in this project (name, case-insensitive). Defaults to yours. If it doesn't match or is ambiguous, the error lists the available names."
     ),
   provider: z.enum(['claude', 'codex', 'grok']).optional(),
   model: z
@@ -149,7 +182,7 @@ export function createMcpHandler(
       return Effect.gen(function* () {
         const caller = yield* accessible(identity, identity.threadId)
         const target = yield* store.requireThread(threadId)
-        if (target.projectId !== caller.projectId || target.parentThreadId !== caller.id)
+        if (target.parentThreadId !== caller.id)
           return yield* Effect.fail(
             new StoreError('invalid_params', 'Only your own direct child threads can be stopped')
           )
@@ -205,6 +238,7 @@ export function createMcpHandler(
 
     function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
       let baseCommit: string | undefined
+      let projectId = ''
       const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
@@ -276,7 +310,7 @@ export function createMcpHandler(
               )
             )
           const id = newId()
-          yield* store.createThread(caller.projectId, id)
+          yield* store.createThread(projectId, id)
           yield* store.setThreadEnvironment(id, baseCommit)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
@@ -303,15 +337,26 @@ export function createMcpHandler(
           const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
           if (previous) return previous
         }
-        if ((input.environment ?? caller.environment) === 'local')
-          return yield* orch.withAdmission(caller.id, create)
-        const project = yield* store.getProject(caller.projectId)
-        if (!project || !worktrees)
-          return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-        const fromWorktree = caller.environment === 'worktree'
+        const target = yield* matchProject(
+          yield* store.listProjects(),
+          input.project,
+          caller.projectId
+        )
+        projectId = target.id
+        const sameProject = target.id === caller.projectId
+        const environment =
+          input.environment ??
+          (sameProject
+            ? caller.environment
+            : worktrees
+              ? yield* Effect.promise(() => worktrees.defaultEnvironment(target.path))
+              : 'worktree')
+        if (environment === 'local') return yield* orch.withAdmission(caller.id, create)
+        if (!worktrees) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+        const fromWorktree = sameProject && caller.environment === 'worktree'
         const cwd = fromWorktree
           ? yield* Effect.promise(() => worktrees.root(caller.id))
-          : project.path
+          : target.path
         baseCommit = yield* Effect.tryPromise({
           try: () => worktrees.resolveRef(cwd, input.ref ?? (fromWorktree ? 'HEAD' : undefined)),
           catch: (error) =>

@@ -10,6 +10,7 @@ import { join } from 'node:path'
 
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
+import type { Worktrees } from './worktrees'
 
 import { createAttachments } from './attachments'
 import { createHub } from './hub'
@@ -46,7 +47,8 @@ function callTool(
   callerId: string,
   name: string,
   args: Record<string, unknown>,
-  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError> = () => Effect.void
+  archiveThread: (threadId: string) => Effect.Effect<unknown, WireError> = () => Effect.void,
+  worktrees?: Worktrees
 ) {
   return Effect.gen(function* () {
     const sessions = createMcpSessions()
@@ -61,7 +63,8 @@ function callTool(
       yield* createAttachments(home),
       () => catalog,
       createPullRequestLinks(store, hub, createPullRequests(store, hub), scope),
-      archiveThread
+      archiveThread,
+      worktrees
     )
     const response = yield* Effect.promise(() =>
       handle(
@@ -106,6 +109,67 @@ test('create_thread refuses a child that would act without asking for a caller t
   expect(escalated.content[0]!.text).toContain('asks before acting')
   const same = await Effect.runPromise(createThread())
   expect(same.isError).toBeUndefined()
+})
+
+test('create_thread can start a child in another project', async () => {
+  const { home, store } = await openStore()
+  mkdirSync(join(home, 'alpha'))
+  mkdirSync(join(home, 'beta'))
+  const alpha = await Effect.runPromise(store.createProject(join(home, 'alpha')))
+  const beta = await Effect.runPromise(store.createProject(join(home, 'beta')))
+  await Effect.runPromise(store.renameProject(alpha.id, 'Docs'))
+  await Effect.runPromise(store.renameProject(beta.id, 'API'))
+  const caller = await Effect.runPromise(store.createThread(alpha.id, newId()))
+  await Effect.runPromise(store.beginDelivery(caller.id, newId(), 0))
+  const resolved: { cwd: string; ref?: string }[] = []
+  const defaults: string[] = []
+  const worktrees = {
+    defaultEnvironment: async (path: string) => {
+      defaults.push(path)
+      return path === beta.path ? 'worktree' : 'local'
+    },
+    resolveRef: async (cwd: string, ref?: string) => {
+      resolved.push({ cwd, ref })
+      return 'target-base'
+    },
+    root: async () => alpha.path,
+  } as unknown as Worktrees
+  const tool = (args: Record<string, unknown>) =>
+    Effect.runPromise(
+      callTool(home, store, {}, caller.id, 'create_thread', args, () => Effect.void, worktrees)
+    )
+
+  const created = await tool({ prompt: 'Go', project: 'api' })
+  expect(created.isError).toBeUndefined()
+  const { threadId } = JSON.parse(created.content[0]!.text) as { threadId: string }
+  const child = await Effect.runPromise(store.requireThread(threadId))
+  expect(child.projectId).toBe(beta.id)
+  expect(child.parentThreadId).toBe(caller.id)
+  expect(child.environment).toBe('worktree')
+  expect(await Effect.runPromise(store.getWorktree(threadId))).toMatchObject({
+    baseCommit: 'target-base',
+  })
+  expect(defaults).toEqual([beta.path])
+  expect(resolved).toEqual([{ cwd: beta.path, ref: undefined }])
+
+  const same = await tool({ prompt: 'Stay' })
+  expect(same.isError).toBeUndefined()
+  const sameId = (JSON.parse(same.content[0]!.text) as { threadId: string }).threadId
+  expect((await Effect.runPromise(store.requireThread(sameId))).projectId).toBe(alpha.id)
+
+  const missing = await tool({ prompt: 'Nope', project: 'missing' })
+  expect(missing.isError).toBe(true)
+  expect(missing.content[0]!.text).toContain('Unknown project missing')
+  expect(missing.content[0]!.text).toContain('Available:')
+  expect(missing.content[0]!.text).toContain('Docs')
+  expect(missing.content[0]!.text).toContain('API')
+
+  await Effect.runPromise(store.renameProject(alpha.id, 'App'))
+  await Effect.runPromise(store.renameProject(beta.id, 'App'))
+  const ambiguous = await tool({ prompt: 'Nope', project: 'app' })
+  expect(ambiguous.isError).toBe(true)
+  expect(ambiguous.content[0]!.text).toContain('Ambiguous project app')
+  expect(ambiguous.content[0]!.text).toContain('Available: App, App')
 })
 
 test('send_message restarts a stopped child with the message, even if Jetty dies right after', async () => {
