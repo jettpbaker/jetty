@@ -214,7 +214,7 @@ export function Composer({
                 }}
                 rows={rows}
                 style={{ minHeight: `calc(${rows}lh + 1rem)` }}
-                className='skill-chip-text relative scroll-fade-y scrollbar-subtle max-h-60 min-h-0'
+                className='skill-chip-text relative scroll-fade-y max-h-60 min-h-0'
               />
               {menu.open && <SlashMenu slash={menu} />}
             </div>
