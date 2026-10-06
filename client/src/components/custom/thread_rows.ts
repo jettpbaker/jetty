@@ -517,6 +517,8 @@ export function threadRows(
     const steered = item.turnId !== pendingTurnId && startedTurns.has(item.turnId)
     startedTurns.add(item.turnId)
     if (hidden(item)) continue
+    // A finish line sits where the subagent finished, ahead of the turn it woke.
+    flushFinished(item.createdAt)
     if (item.kind === 'subagent') launched.push(item)
     const segment = segments[index]!
     if (
@@ -553,7 +555,6 @@ export function threadRows(
         )
         break
       case 'assistant_message':
-        flushFinished(item.createdAt)
         rows.push({
           kind: 'assistant',
           id: item.id,
@@ -659,17 +660,24 @@ export function threadRows(
 }
 
 // The agent's messages between two of the user's read as one answer, whatever lands between
-// them (a report, a finish line, more work): one footer at the end, copying the whole run.
+// them (a report, a finish line, more work): one footer at the end, copying the whole run. A run
+// the agent is still working on has no end yet, so no footer.
 function stitchRuns(rows: ThreadRow[]) {
   let run: Extract<ThreadRow, { kind: 'assistant' | 'plan' }>[] = []
+  let working = false
   function close() {
     const last = run.at(-1)
-    if (last) last.footer = run.map((row) => row.item.text).join('\n\n')
+    if (last && !working) last.footer = run.map((row) => row.item.text).join('\n\n')
     run = []
+    working = false
   }
   for (const row of rows) {
     if (row.kind === 'user') close()
-    else if (row.kind === 'assistant' || row.kind === 'plan') run.push(row)
+    else if (row.kind === 'assistant' || row.kind === 'plan') {
+      run.push(row)
+      working = false
+    } else if (row.kind === 'work' && (row.status === 'running' || row.status === 'waiting'))
+      working = true
   }
   close()
 }
