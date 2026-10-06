@@ -248,12 +248,15 @@ function textRunning(
   return item.streaming ?? (isThreadTail && sessionRunning)
 }
 
-function elapsedSeconds(span: readonly StepItem[], next: ThreadItem | undefined) {
-  const start = span[0]!
+function elapsedSeconds(
+  span: readonly StepItem[],
+  next: ThreadItem | undefined,
+  start = span[0]!.createdAt
+) {
   const ends = span.map((item) => item.completedAt)
   if (ends.every((end): end is number => end !== undefined))
-    return (Math.max(...ends) - start.createdAt) / 1000
-  return next?.turnId === start.turnId ? (next.createdAt - start.createdAt) / 1000 : undefined
+    return (Math.max(...ends) - start) / 1000
+  return next?.turnId === span[0]!.turnId ? (next.createdAt - start) / 1000 : undefined
 }
 
 function toActivity(
@@ -521,6 +524,8 @@ export function threadRows(
   // shows in the chat, and the steps after it start the next block. A steering message or a
   // compaction starts another too.
   const segments: string[] = []
+  // A block's time runs from where its segment began, so a live one counts before its first step.
+  const segmentStarts = new Map<string, number>()
   for (const [index, item] of items.entries()) {
     const previous = segments.at(-1)
     const before = items[index - 1]
@@ -533,6 +538,7 @@ export function threadRows(
             ? before!.id
             : previous
     segments.push(segment)
+    if (!segmentStarts.has(segment)) segmentStarts.set(segment, item.createdAt)
   }
   const liveSegment =
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
@@ -712,12 +718,11 @@ export function threadRows(
     if (outcomes[row.turnId] === 'server_restarted') row.restarted = true
     const answerEnd =
       next?.turnId === row.turnId && next.kind !== 'compaction' ? next.completedAt : undefined
-    if (row.status === 'running') row.startedAt = steps[0]?.createdAt
+    const start = segmentStarts.get(segment)!
+    if (row.status === 'running') row.startedAt = start
     else if (row.status !== 'waiting' && steps.length > 0)
       row.elapsedSeconds =
-        answerEnd === undefined
-          ? elapsedSeconds(steps, next)
-          : (answerEnd - steps[0]!.createdAt) / 1000
+        answerEnd === undefined ? elapsedSeconds(steps, next, start) : (answerEnd - start) / 1000
   }
   const lastWork = rows.findLast((row) => row.kind === 'work')
   if (status === 'awaiting_approval' && lastWork && lastWork.turnId === tail?.turnId) {
