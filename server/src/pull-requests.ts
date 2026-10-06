@@ -2761,7 +2761,9 @@ function recentSince() {
 
 function listSearches(tab: PullRequestListTab): string[] {
   const open = 'is:pr is:open archived:false sort:updated-desc'
-  if (tab === 'for-you') return [`${open} review-requested:@me`, `${open} assignee:@me`]
+  // Your own PRs are under Created, even when they're assigned to you.
+  if (tab === 'for-you')
+    return [`${open} -author:@me review-requested:@me`, `${open} -author:@me assignee:@me`]
   // GitHub's search index can miss `closed:` dates (it drops some freshly closed PRs), so
   // search by update time and filter on the PR's own closedAt.
   return [
