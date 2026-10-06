@@ -2,6 +2,7 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
+import { itemDeltasSince } from '@/state/item_selection'
 import { isQueuedEditing } from '@/state/queue_editing'
 import { awaitsInput } from '@/state/thread_tab'
 import { pendingTurnId } from '@/state/turns'
@@ -11,7 +12,7 @@ import { claudeModelLabel } from '@jetty/shared/model-name'
 import type { Subagent } from './subagent_row'
 import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
 
-import { foldTodos } from './todo_model'
+import { foldTodos, todoTools } from './todo_model'
 
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
 type AssistantItem = Extract<ThreadItem, { kind: 'assistant_message' }>
@@ -364,6 +365,90 @@ export function threadSubagents(items: readonly ThreadItem[]) {
   return items.filter((item): item is SubagentItem => item.kind === 'subagent')
 }
 
+type ThreadRowsOptions = {
+  status: SessionStatus
+  running: boolean
+  outcomes?: Readonly<Record<string, TurnOutcome>>
+  loadouts?: Readonly<Record<string, TurnLoadout>>
+  projectPath?: string
+  threadId?: string
+  agentId?: string
+  settingUp?: boolean
+  // what waits to be sent, shown under the chat
+  queue?: TranscriptQueue
+}
+
+type LastTurn = { start: number; row: number }
+
+// Where the last turn starts in the items and the rows, when its rows can be built on their own:
+// it opens with a message of the user's, which closes the answer before it, and nothing reaches
+// into it from earlier turns (subagents and their finish lines, the task list).
+function lastTurn(
+  items: readonly ThreadItem[],
+  rows: readonly ThreadRow[],
+  agentId: string | undefined
+): LastTurn | undefined {
+  const turnId = items.at(-1)?.turnId
+  if (agentId || turnId === undefined) return undefined
+  let start = -1
+  for (const [index, item] of items.entries()) {
+    if (item.agentId || item.kind === 'subagent') return undefined
+    if (start === -1 && item.turnId === turnId) start = index
+    else if (
+      start !== -1 &&
+      (item.turnId !== turnId || (item.kind === 'tool_call' && todoTools.has(item.toolName)))
+    )
+      return undefined
+  }
+  const first = items[start]!
+  if (first.kind !== 'user_message') return undefined
+  const row = rows.findLastIndex((row) => row.kind === 'user' && row.id === first.id)
+  return row === -1 ? undefined : { start, row }
+}
+
+function sameOptions(a: ThreadRowsOptions, b: ThreadRowsOptions) {
+  const keys = Object.keys(a) as (keyof ThreadRowsOptions)[]
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key])
+}
+
+// A thread's rows as it changes. A delta into the last turn builds only that turn's rows again,
+// after the earlier ones as they were; anything else builds them all.
+export function createThreadRows() {
+  let last:
+    | {
+        items: readonly ThreadItem[]
+        options: ThreadRowsOptions
+        rows: ThreadRow[]
+        turn?: LastTurn
+      }
+    | undefined
+  return function build(items: readonly ThreadItem[], options: ThreadRowsOptions) {
+    const turn = last?.turn
+    let incremental: ThreadRow[] | undefined
+    if (last && turn && sameOptions(last.options, options)) {
+      const changed = itemDeltasSince(last.items, items)
+      const tail = items.slice(turn.start)
+      if (changed?.size && [...changed].every((id) => tail.some((item) => item.id === id)))
+        incremental = [...last.rows.slice(0, turn.row), ...threadRows(tail, options)]
+    }
+    let rows = incremental ?? threadRows(items, options)
+    if (incremental && import.meta.env.DEV) {
+      const full = threadRows(items, options)
+      if (!same(incremental, full)) {
+        console.warn('The last turn built alone differs from a full build', { incremental, full })
+        rows = full
+      }
+    }
+    last = {
+      items,
+      options,
+      rows,
+      turn: rows === incremental ? turn : lastTurn(items, rows, options.agentId),
+    }
+    return rows
+  }
+}
+
 export function threadRows(
   allItems: readonly ThreadItem[],
   {
@@ -376,18 +461,7 @@ export function threadRows(
     agentId,
     settingUp = false,
     queue,
-  }: {
-    status: SessionStatus
-    running: boolean
-    outcomes?: Readonly<Record<string, TurnOutcome>>
-    loadouts?: Readonly<Record<string, TurnLoadout>>
-    projectPath?: string
-    threadId?: string
-    agentId?: string
-    settingUp?: boolean
-    // what waits to be sent, shown under the chat
-    queue?: TranscriptQueue
-  }
+  }: ThreadRowsOptions
 ): ThreadRow[] {
   // A subagent's requests for input also surface on the main timeline, attributed to it.
   const items = allItems.filter(

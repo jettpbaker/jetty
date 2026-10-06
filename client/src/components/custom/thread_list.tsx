@@ -19,7 +19,7 @@ import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import {
-  threadRows,
+  createThreadRows,
   toSubagent,
   type SubagentItem,
   type ThreadRow,
@@ -408,9 +408,10 @@ export function ThreadList({
   onSelectAgent: (id: string) => void
 }) {
   const queue = useTranscriptQueue(agentId ? undefined : threadId, items)
+  const [buildRows] = useState(createThreadRows)
   const rows = useMemo(
     () =>
-      threadRows(items, {
+      buildRows(items, {
         status,
         running,
         outcomes,
@@ -421,7 +422,19 @@ export function ThreadList({
         settingUp,
         queue,
       }),
-    [items, status, running, outcomes, loadouts, projectPath, threadId, agentId, settingUp, queue]
+    [
+      buildRows,
+      items,
+      status,
+      running,
+      outcomes,
+      loadouts,
+      projectPath,
+      threadId,
+      agentId,
+      settingUp,
+      queue,
+    ]
   )
   const view = `${threadId}:${agentId ?? ''}`
   const [saved] = useState(() => {

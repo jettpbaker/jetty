@@ -18,6 +18,8 @@ export type TodoUpdate = {
 type Tracked = Todo & { turnId: string }
 
 const listTools = new Set(['TodoWrite', 'update_plan'])
+// The calls folded into the task list.
+export const todoTools = new Set([...listTools, 'TaskCreate', 'TaskUpdate'])
 const statusMoves = { done: 'finished', active: 'started', pending: 'reopened' } as const
 
 function record(value: unknown): Record<string, unknown> {

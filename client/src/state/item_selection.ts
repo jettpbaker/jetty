@@ -13,6 +13,21 @@ export function noteItemDelta(
   if (previous !== items) deltas.set(items, { previous: new WeakRef(previous), itemId })
 }
 
+// The items deltas changed on the way from an earlier array to this one; undefined when anything
+// else changed it too.
+export function itemDeltasSince(previous: readonly ThreadItem[], items: readonly ThreadItem[]) {
+  const ids = new Set<string>()
+  let current = items
+  while (current !== previous) {
+    const delta = deltas.get(current)
+    const before = delta?.previous.deref()
+    if (!delta || !before) return undefined
+    ids.add(delta.itemId)
+    current = before
+  }
+  return ids
+}
+
 // Some of a thread's items. A delta changes only its own item, so while deltas stream into items
 // the selection doesn't hold, it stays the same array without another pass over the thread.
 export function createItemSelection(includes: (item: ThreadItem) => boolean) {
