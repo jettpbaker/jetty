@@ -1,5 +1,7 @@
 import { Context, Effect, Layer } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
+import { readdirSync, statSync, type Dirent } from 'node:fs'
+import { join } from 'node:path'
 import { setImmediate } from 'node:timers/promises'
 
 import { git } from './git-process'
@@ -91,6 +93,58 @@ const indexes = new Map<
 >()
 const indexFreshMs = 2000
 const maxIndexCharacters = 32 * 1024 * 1024
+// `git ls-files` exits 128 when the folder isn't a repository (and when it isn't there).
+const notARepository = 128
+const maxWalkedFiles = 20_000
+// Top-level folders that fill ~/.claude with session logs, history, snapshots and caches,
+// not files anyone edits. `.git` and `node_modules` are skipped at any depth.
+const skippedAtRoot = new Set([
+  'projects',
+  'todos',
+  'shell-snapshots',
+  'statsig',
+  'file-history',
+  'cache',
+])
+
+// The same NUL-separated relative paths `git ls-files -z` prints, for a folder that isn't a repo.
+function walkFiles(root: string) {
+  const paths: string[] = []
+  const pending = ['']
+  let cursor = 0
+  while (cursor < pending.length && paths.length < maxWalkedFiles) {
+    const folder = pending[cursor++]!
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(join(root, folder), { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      if (paths.length >= maxWalkedFiles) break
+      const path = folder ? `${folder}/${entry.name}` : entry.name
+      if (entry.isSymbolicLink()) {
+        // A link to a folder is not a file to open, and the walk doesn't follow it.
+        let directory = false
+        try {
+          directory = statSync(join(root, path)).isDirectory()
+        } catch {
+          directory = false
+        }
+        if (!directory) paths.push(path)
+        continue
+      }
+      if (entry.isDirectory()) {
+        if (entry.name === '.git' || entry.name === 'node_modules') continue
+        if (folder === '' && skippedAtRoot.has(entry.name)) continue
+        pending.push(path)
+        continue
+      }
+      if (entry.isFile()) paths.push(path)
+    }
+  }
+  return paths.join('\0')
+}
 
 export function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT) {
   return Effect.gen(function* () {
@@ -108,11 +162,11 @@ export function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT) {
         '--others',
         '--exclude-standard',
       ])
-      if (result.code !== 0) {
+      if (result.code !== 0 && result.code !== notARepository) {
         indexes.delete(cwd)
         return []
       }
-      out = result.out
+      out = result.code === 0 ? result.out : walkFiles(cwd)
       indexes.delete(cwd)
       let characters = out.length
       for (const index of indexes.values()) characters += index.out.length

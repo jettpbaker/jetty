@@ -151,13 +151,45 @@ describe('Effect filesystem services', () => {
     )
   })
 
-  test('search and diff return empty outside a repository or when spawning fails', async () => {
+  test('search walks a folder that is not a repository, and diff stays empty', async () => {
     await run(
       Effect.scoped(
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem
+          const path = yield* Path.Path
           const root = yield* fs.makeTempDirectoryScoped()
-          expect(yield* searchFiles(root, 'a')).toEqual([])
+          yield* fs.writeFileString(path.join(root, 'CLAUDE.md'), '# hi')
+          yield* fs.makeDirectory(path.join(root, 'nested', 'cache'), { recursive: true })
+          yield* fs.writeFileString(path.join(root, 'nested', 'note.txt'), 'n')
+          yield* fs.writeFileString(path.join(root, 'nested', 'cache', 'kept.txt'), 'yes')
+          yield* fs.makeDirectory(path.join(root, 'cache'))
+          yield* fs.writeFileString(path.join(root, 'cache', 'blob.txt'), 'no')
+          yield* fs.makeDirectory(path.join(root, 'projects', 'deep'), { recursive: true })
+          yield* fs.writeFileString(path.join(root, 'projects', 'deep', 'hidden.txt'), 'no')
+          yield* fs.makeDirectory(path.join(root, 'node_modules'))
+          yield* fs.writeFileString(path.join(root, 'node_modules', 'pkg.js'), 'no')
+          yield* fs.makeDirectory(path.join(root, 'file-history'))
+          yield* fs.writeFileString(path.join(root, 'file-history', 'old.txt'), 'no')
+          yield* fs.makeDirectory(path.join(root, 'shell-snapshots'))
+          yield* fs.writeFileString(path.join(root, 'shell-snapshots', 'snap.txt'), 'no')
+          yield* fs.makeDirectory(path.join(root, 'vendor', '.git'), { recursive: true })
+          yield* fs.writeFileString(path.join(root, 'vendor', '.git', 'config'), 'no')
+          yield* fs.writeFileString(path.join(root, 'vendor', 'keep.txt'), 'yes')
+          yield* fs.makeDirectory(path.join(root, 'elsewhere'))
+          yield* fs.writeFileString(path.join(root, 'elsewhere', 'secret.txt'), 'no')
+          yield* fs.symlink(path.join(root, 'elsewhere'), path.join(root, 'linked'))
+          yield* fs.symlink(path.join(root, 'CLAUDE.md'), path.join(root, 'claude-link.md'))
+          expect(yield* searchFiles(root, 'note')).toEqual(['nested/note.txt'])
+          expect(yield* searchFiles(root, 'keep')).toEqual(['vendor/keep.txt'])
+          expect(yield* searchFiles(root, 'kept')).toContain('nested/cache/kept.txt')
+          expect(yield* searchFiles(root, 'blob')).toEqual([])
+          expect(yield* searchFiles(root, 'claude')).toEqual(['CLAUDE.md', 'claude-link.md'])
+          expect(yield* searchFiles(root, 'hidden')).toEqual([])
+          expect(yield* searchFiles(root, 'secret')).toEqual(['elsewhere/secret.txt'])
+          expect(yield* searchFiles(root, 'linked')).toEqual([])
+          expect(yield* searchFiles(root, 'pkg')).toEqual([])
+          expect(yield* searchFiles(root, 'snap')).toEqual([])
+          expect(yield* searchFiles(root, 'config')).toEqual([])
           expect(yield* computeThreadDiff(root)).toEqual({ diff: '' })
           expect(yield* searchFiles(root + '/missing', 'a')).toEqual([])
         })
