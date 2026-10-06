@@ -23,7 +23,7 @@ import {
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { storage } from '@/platform'
-import { pullRequestTabId, type PullRequestRef } from '@/state'
+import { pullRequestTabId, usePullRequestSummary, type PullRequestRef } from '@/state'
 import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -44,6 +44,7 @@ import {
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, keybinds } from './keybinds'
 import { LinkPullRequestDialog } from './pull_request_link'
+import { pullRequestFacts } from './pull_request_model'
 import { linkPresentation } from './thread_pull_request'
 
 const tabs = {
@@ -249,27 +250,25 @@ export function ThreadDetailsTabs({
             onClose={closeTab}
           />
         ))}
-        {pullRequests.visible.map((link) => {
-          const pr = linkPresentation(link)
-          return (
-            <TabsTrigger
+        {pullRequests.visible.map((link) =>
+          pullRequests.links.includes(link) ? (
+            <PullTab
               key={pullRequestTabId(link)}
-              value={pullRequestTabId(link)}
-              className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
-              title={
-                link.title ? `${link.title} · ${link.repo}#${link.number} · ${pr.label}` : link.url
-              }
-            >
-              <TabLabel
-                label={`#${link.number}`}
-                mono
-                icon={<pr.icon className={cn('details-tab-kind size-3', pr.color)} />}
-                canClose={canClose}
-                onClose={() => closePullRequest(link)}
-              />
-            </TabsTrigger>
+              link={link}
+              look={linkPresentation(link)}
+              title={link.title}
+              canClose={canClose}
+              onClose={() => closePullRequest(link)}
+            />
+          ) : (
+            <OpenedPullTab
+              key={pullRequestTabId(link)}
+              link={link}
+              canClose={canClose}
+              onClose={() => closePullRequest(link)}
+            />
           )
-        })}
+        )}
         {file && (
           <TabsTrigger
             value='file'
@@ -353,6 +352,59 @@ export function ThreadDetailsTabs({
       <output className='sr-only'>{announcement}</output>
       <LinkPullRequestDialog threadId={threadId} open={linking} onOpenChange={setLinking} />
     </DragDropProvider>
+  )
+}
+
+function PullTab({
+  link,
+  look,
+  title,
+  canClose,
+  onClose,
+}: {
+  link: PullRequestLink
+  look: ReturnType<typeof linkPresentation>
+  title?: string
+  canClose: boolean
+  onClose: () => void
+}) {
+  return (
+    <TabsTrigger
+      value={pullRequestTabId(link)}
+      className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+      title={title ? `${title} · ${link.repo}#${link.number} · ${look.label}` : link.url}
+    >
+      <TabLabel
+        label={`#${link.number}`}
+        mono
+        icon={<look.icon className={cn('details-tab-kind size-3', look.color)} />}
+        canClose={canClose}
+        onClose={onClose}
+      />
+    </TabsTrigger>
+  )
+}
+
+// A PR the thread never linked has no watched state. The chip's one-shot read colours the tab.
+function OpenedPullTab({
+  link,
+  canClose,
+  onClose,
+}: {
+  link: PullRequestLink
+  canClose: boolean
+  onClose: () => void
+}) {
+  const summary = usePullRequestSummary(link)
+  const facts = summary ? pullRequestFacts(summary) : undefined
+  return (
+    <PullTab
+      link={link}
+      look={linkPresentation(facts)}
+      title={summary?.pull.title}
+      canClose={canClose}
+      onClose={onClose}
+    />
   )
 }
 

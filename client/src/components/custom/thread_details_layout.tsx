@@ -36,6 +36,7 @@ import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
+import { OpenPullLink } from './entity_link'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
 import { inDialog, KeybindTooltip, keybinds } from './keybinds'
 import { Loading } from './loading'
@@ -555,7 +556,7 @@ export function ThreadDetailsLayout({
         <div ref={attachLeftSlot} className='flex h-full min-w-[320px] flex-col' />
       </div>
       <OpenFileLink value={openFile}>
-        {createPortal(children, chatHost.current)}
+        <OpenPullLink value={threadId}>{createPortal(children, chatHost.current)}</OpenPullLink>
         <aside
           aria-label='Thread details'
           inert={!open}

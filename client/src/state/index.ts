@@ -77,6 +77,7 @@ export {
   useLinkPullRequest,
   useOpenOverview,
   useOpenPullRequest,
+  useOpenPullRequestTab,
   usePrefetchPullRequest,
   usePrefetchPullRequestList,
   usePrefetchReviewerCandidates,

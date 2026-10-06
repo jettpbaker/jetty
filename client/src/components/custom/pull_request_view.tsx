@@ -19,6 +19,7 @@ import {
   useRefreshPullRequest,
   usePullRequestActions,
   useReviewRequestPatches,
+  useThreadPullRequests,
   useUnlinkPullRequest,
   useLinkPullRequest,
   pullRequestKey,
@@ -74,6 +75,11 @@ function UnlinkItem({ threadId, link }: { threadId: string; link: PullRequestAdd
 function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: string }) {
   const refresh = useRefreshPullRequest()
   const { refreshing } = usePullRequest(link)
+  const links = useThreadPullRequests(threadId ?? '')
+  const linkedThreadId =
+    threadId && links.some((entry) => entry.repo === link.repo && entry.number === link.number)
+      ? threadId
+      : undefined
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant='ghost' size='icon' aria-label='More' />}>
@@ -100,7 +106,7 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
             <Copy01Icon />
             Copy link
           </DropdownMenuItem>
-          {threadId && <UnlinkItem threadId={threadId} link={link} />}
+          {linkedThreadId && <UnlinkItem threadId={linkedThreadId} link={link} />}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

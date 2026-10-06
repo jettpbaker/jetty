@@ -392,7 +392,10 @@ export function useRefreshPullRequestListsOnArrival() {
 }
 
 // Which PR tabs a thread's details pane shows. The newest link shows until it's closed;
-// anything opened from the menu or a PR indicator stays.
+// anything opened from the menu, a PR indicator, or a chat chip stays.
+// `opened` may name a PR this thread never linked. That tab is not a server link:
+// closing it drops the key, and it is not recorded in `closed` (a later link still
+// follows the newest-link rule).
 type PullRequestTabs = { opened: readonly string[]; closed: readonly string[] }
 
 const pullRequestTabsAtom = Atom.family((_threadId: string) =>
@@ -417,6 +420,19 @@ function hideTab(registry: Registry, threadId: string, key: string) {
   }))
 }
 
+// A chat chip's tab for a PR the thread does not link. Gone when the tab closes.
+function forgetTab(registry: Registry, threadId: string, key: string) {
+  registry.update(pullRequestTabsAtom(threadId), ({ opened, closed }) => ({
+    opened: opened.filter((entry) => entry !== key),
+    closed,
+  }))
+}
+
+function panePull(key: string): PullRequestLink {
+  const ref = parseKey(key)
+  return { ...ref, url: `https://github.com/${ref.repo}/pull/${ref.number}`, linkedAt: 0 }
+}
+
 const noLinks: readonly PullRequestLink[] = []
 
 function sortedLinks(links: readonly PullRequestLink[] = noLinks) {
@@ -433,18 +449,25 @@ export function usePullRequestTabs(threadId: string, links: readonly PullRequest
   const { opened, closed } = useAtomValue(pullRequestTabsAtom(threadId))
   const visible = useMemo(() => {
     const newest = links.at(-1)
-    return links.filter((link) => {
+    const linked = links.filter((link) => {
       const key = pullRequestKey(link)
       return opened.includes(key) || (link === newest && !closed.includes(key))
     })
+    const linkedKeys = new Set(links.map((link) => pullRequestKey(link)))
+    const openedOnly = opened.filter((key) => !linkedKeys.has(key)).map(panePull)
+    return openedOnly.length > 0 ? [...linked, ...openedOnly] : linked
   }, [links, opened, closed])
   const show = useCallback(
     (ref: PullRequestRef) => showTab(registry, threadId, pullRequestKey(ref)),
     [registry, threadId]
   )
   const hide = useCallback(
-    (ref: PullRequestRef) => hideTab(registry, threadId, pullRequestKey(ref)),
-    [registry, threadId]
+    (ref: PullRequestRef) => {
+      const key = pullRequestKey(ref)
+      if (links.some((link) => pullRequestKey(link) === key)) hideTab(registry, threadId, key)
+      else forgetTab(registry, threadId, key)
+    },
+    [registry, threadId, links]
   )
   return { visible, show, hide }
 }
@@ -455,15 +478,20 @@ function openPullRequest(registry: Registry, threadId: string, ref: PullRequestR
   registry.set(detailsRequestAtom, { threadId, tab: pullRequestTabId(ref) })
 }
 
+// The details pane only. A chat chip is already on the thread, so it must not navigate.
+export function useOpenPullRequestTab() {
+  return useAction(openPullRequest)
+}
+
 export function useOpenPullRequest() {
-  const registry = useContext(RegistryContext)
+  const open = useOpenPullRequestTab()
   const navigate = useNavigate()
   return useCallback(
     (threadId: string, ref: PullRequestRef) => {
-      openPullRequest(registry, threadId, ref)
+      open(threadId, ref)
       void navigate({ to: '/threads/$threadId', params: { threadId } })
     },
-    [registry, navigate]
+    [open, navigate]
   )
 }
 

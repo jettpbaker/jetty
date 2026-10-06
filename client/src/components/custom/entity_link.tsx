@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import {
   useIssueSummary,
   useLinkedPull,
+  useOpenPullRequestTab,
   useProjectRepos,
   usePullRequestSummary,
   useThreadMeta,
@@ -21,9 +22,12 @@ import {
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { Link, useParams } from '@tanstack/react-router'
 import {
+  createContext,
+  use,
   type ComponentProps,
   type ComponentType,
   type CSSProperties,
+  type MouseEvent,
   type ReactNode,
   type SVGProps,
 } from 'react'
@@ -215,9 +219,19 @@ function PullPreview({
   )
 }
 
+// Set around a thread's chat. Absent on a PR page, and in the details pane's own markdown.
+export const OpenPullLink = createContext<string | undefined>(undefined)
+
+// ⌘-click, ctrl-click, middle-click and the rest keep the browser's handling of the real link.
+function plainClick(event: MouseEvent<HTMLAnchorElement>) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+}
+
 // A permalink (a review comment, the Files tab) opens there on GitHub; Jetty's view has no anchors.
 function PullLink({ entity, permalink }: { entity: string; permalink?: string }) {
   const home = useHomeRepos()
+  const paneThreadId = use(OpenPullLink)
+  const openInPane = useOpenPullRequestTab()
   const [repo = '', number = ''] = entity.split('#')
   const [owner = '', name = ''] = repo.split('/')
   const target = {
@@ -233,13 +247,19 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
       {home.has(repo) ? `#${number}` : entity}
     </Lead>
   )
+  // Click, not pointer-down: the chip sits in a scrollable chat. Enter fires click too.
+  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!paneThreadId || !plainClick(event)) return
+    event.preventDefault()
+    openInPane(paneThreadId, { repo, number: Number(number) })
+  }
   if (!data)
     return permalink ? (
       <GitHubAnchor href={permalink} title={look.label}>
         {content}
       </GitHubAnchor>
     ) : (
-      <Link {...target} className={inlineLinkClass} title={look.label}>
+      <Link {...target} className={inlineLinkClass} title={look.label} onClick={onClick}>
         {content}
       </Link>
     )
@@ -252,7 +272,7 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
           permalink ? (
             <GitHubAnchor href={permalink} />
           ) : (
-            <Link {...target} className={inlineLinkClass} />
+            <Link {...target} className={inlineLinkClass} onClick={onClick} />
           )
         }
       >
