@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useLayoutEffect, useRef, useState, type WheelEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
@@ -11,7 +11,7 @@ import { TodoLink } from './todo_link'
 import { ThreadGroup, ToolGroup } from './tool_group'
 import {
   formatActivityDuration,
-  groupWorkActivities,
+  createWorkEntries,
   previewCount,
   type ActivityStatus,
   type WorkActivity,
@@ -209,7 +209,8 @@ export function WorkBlock({
     status === 'running' && !settingUp ? startedAt : undefined
   )
   const ended = workEnded(status)
-  const entries = groupWorkActivities(activities, ended)
+  const [groupEntries] = useState(createWorkEntries)
+  const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
   const duration = formatActivityDuration(elapsedSeconds)
   const heading = settingUp
     ? 'Setting up worktree'

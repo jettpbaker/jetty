@@ -132,6 +132,42 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
   return entries
 }
 
+function sameActivity(a: WorkActivity, b: WorkActivity) {
+  return (
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.entries(a).every(([key, value]) => value === b[key as keyof WorkActivity])
+  )
+}
+
+// The rows hand over new activity objects on every change, so groups equal to the last call's keep
+// their identity: a delta re-renders only the group it changed.
+export function createWorkEntries() {
+  let previous = new Map<string, WorkEntry>()
+  return function group(activities: readonly WorkActivity[], ended: boolean) {
+    const entries = groupWorkActivities(activities, ended).map((entry) => {
+      const old = previous.get(entry.id)
+      if (
+        entry.type === 'tools' &&
+        old?.type === 'tools' &&
+        entry.sealed === old.sealed &&
+        entry.calls.length === old.calls.length &&
+        entry.calls.every((call, index) => sameActivity(call, old.calls[index]!))
+      )
+        return old
+      if (
+        entry.type === 'threads' &&
+        old?.type === 'threads' &&
+        entry.threads.length === old.threads.length &&
+        entry.threads.every((thread, index) => sameActivity(thread, old.threads[index]!))
+      )
+        return old
+      return entry
+    })
+    previous = new Map(entries.map((entry) => [entry.id, entry]))
+    return entries
+  }
+}
+
 export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const first = calls[0]!
   const latest = calls.at(-1)!
