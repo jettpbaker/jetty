@@ -1,5 +1,9 @@
+import type { GitHubIssue } from '@jetty/shared/wire'
+
 import {
+  CircleCheckIcon,
   CircleDotIcon,
+  CircleSlashIcon,
   GitBranchIcon,
   GitCommitHorizontalIcon,
 } from '@/components/custom/lucide_icons'
@@ -7,6 +11,7 @@ import { useNow } from '@/hooks/use-now'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
+  useIssueSummary,
   useLinkedPull,
   useProjectRepos,
   usePullRequestSummary,
@@ -15,10 +20,17 @@ import {
 } from '@/state'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { Link, useParams } from '@tanstack/react-router'
-import { type ComponentProps, type ComponentType, type ReactNode, type SVGProps } from 'react'
+import {
+  type ComponentProps,
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+  type SVGProps,
+} from 'react'
 
 import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
+import { PersonAvatar } from './person_avatar'
 import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
 import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
 import { linkPresentation } from './thread_pull_request'
@@ -263,15 +275,159 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
   )
 }
 
+// GitHub's issue colours: open is the open-PR green, completed is the merged purple, not planned is muted.
+// `label` is the chip's accessible name. `name` is the short state the hover card shows, like a PR's.
+const issuePresentation = {
+  open: { icon: CircleDotIcon, color: 'text-pr-open', label: 'Open issue', name: 'Open' },
+  completed: {
+    icon: CircleCheckIcon,
+    color: 'text-pr-merged',
+    label: 'Closed issue',
+    name: 'Closed',
+  },
+  not_planned: {
+    icon: CircleSlashIcon,
+    color: 'text-muted-foreground',
+    label: 'Issue closed as not planned',
+    name: 'Not planned',
+  },
+} as const
+
+const unknownIssue = {
+  icon: CircleDotIcon,
+  color: 'text-muted-foreground',
+  label: 'Issue',
+  name: 'Issue',
+}
+
+function issueLook(issue?: GitHubIssue) {
+  if (!issue) return unknownIssue
+  if (issue.state === 'open' || issue.stateReason === 'reopened') return issuePresentation.open
+  if (issue.stateReason === 'not_planned') return issuePresentation.not_planned
+  return issuePresentation.completed
+}
+
+// A label keeps GitHub's own colour, with text picked so it stays readable on that fill in either theme.
+function labelChipStyle(color: string): CSSProperties | undefined {
+  const hex = color.replace(/^#/, '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return
+  const red = Number.parseInt(hex.slice(0, 2), 16)
+  const green = Number.parseInt(hex.slice(2, 4), 16)
+  const blue = Number.parseInt(hex.slice(4, 6), 16)
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
+  return { backgroundColor: `#${hex}`, color: luminance > 0.6 ? '#1f2328' : '#ffffff' }
+}
+
+function IssuePreview({
+  entity,
+  issue,
+  look,
+}: {
+  entity: string
+  issue: GitHubIssue
+  look: ReturnType<typeof issueLook>
+}) {
+  const now = useNow(60_000)
+  const updated = Date.parse(issue.updatedAt)
+  return (
+    <>
+      <OverflowTitle>{issue.title}</OverflowTitle>
+      <div className='flex min-w-0 items-center justify-between gap-3 text-muted-foreground'>
+        <span className='flex shrink-0 items-center gap-1.5'>
+          <span className={cn('flex items-center gap-1', look.color)}>
+            <look.icon aria-hidden='true' className='size-3' />
+            {look.name}
+          </span>
+          {!Number.isNaN(updated) && (
+            <>
+              <span aria-hidden='true'>·</span>
+              <span className='font-mono'>{formatAge(updated, now)}</span>
+            </>
+          )}
+        </span>
+        <span className='truncate'>{entity}</span>
+      </div>
+      {issue.labels.length > 0 && (
+        <div className='flex flex-wrap gap-1'>
+          {issue.labels.map((label, index) => {
+            const style = labelChipStyle(label.color)
+            return (
+              <span
+                key={`${label.name}-${index}`}
+                className={cn(
+                  'inline-flex max-w-full truncate rounded-full px-1.5 leading-4 font-medium',
+                  !style && 'bg-muted text-foreground'
+                )}
+                style={style}
+              >
+                {label.name}
+              </span>
+            )
+          })}
+        </div>
+      )}
+      {(issue.author || issue.assignees.length > 0) && (
+        <div className='flex min-w-0 items-center gap-1 text-muted-foreground'>
+          {issue.author && <span className='truncate font-mono'>{issue.author.login}</span>}
+          {issue.assignees.length > 0 && (
+            <span className='ml-auto flex shrink-0 items-center gap-1 pl-2'>
+              {issue.assignees.map((person) => (
+                <PersonAvatar
+                  key={person.login}
+                  login={person.login}
+                  src={person.avatarUrl || undefined}
+                  className='size-4'
+                />
+              ))}
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+// A permalink (an issue comment) opens there on GitHub; the chip and the card share one read.
 function IssueLink({ entity, permalink }: { entity: string; permalink?: string }) {
   const home = useHomeRepos()
   const [repo = '', number = ''] = entity.split('#')
+  const issue = useIssueSummary({ repo, number: Number(number) })
+  const look = issueLook(issue)
+  const href = permalink ?? entityUrl('issue', entity)
+  const content = (
+    <Lead icon={look.icon} color={look.color} label={look.label} size={pullGlyph}>
+      {home.has(repo) ? `#${number}` : entity}
+    </Lead>
+  )
+  if (!issue)
+    return (
+      <GitHubAnchor href={href} title={look.label}>
+        {content}
+      </GitHubAnchor>
+    )
   return (
-    <GitHubAnchor href={permalink ?? entityUrl('issue', entity)} title={entity}>
-      <Lead icon={CircleDotIcon} color='text-muted-foreground' label='Open issue' size={pullGlyph}>
-        {home.has(repo) ? `#${number}` : entity}
-      </Lead>
-    </GitHubAnchor>
+    <PreviewCard.Root>
+      <PreviewCard.Trigger
+        delay={500}
+        closeDelay={100}
+        render={<GitHubAnchor href={href} title={look.label} />}
+      >
+        {content}
+      </PreviewCard.Trigger>
+      <PreviewCard.Portal>
+        <PreviewCard.Positioner side='bottom' align='start' sideOffset={6} className='z-50'>
+          <PreviewCard.Popup
+            data-overflow-hover
+            className={cn(
+              previewShell,
+              'transition-opacity duration-100 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0 data-ending-style:duration-0 motion-reduce:transition-none'
+            )}
+          >
+            <IssuePreview entity={entity} issue={issue} look={look} />
+          </PreviewCard.Popup>
+        </PreviewCard.Positioner>
+      </PreviewCard.Portal>
+    </PreviewCard.Root>
   )
 }
 

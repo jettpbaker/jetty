@@ -1,0 +1,14 @@
+{
+  "args": [
+    "api",
+    "--hostname",
+    "github.com",
+    "--include",
+    "graphql",
+    "-f",
+    "query=query { rateLimit { cost remaining resetAt } i0: repository(owner:\"jettpbaker\",name:\"pr-lab\") { issue(number:12) { number title state stateReason updatedAt author { login avatarUrl } labels(first:20) { nodes { name color } } assignees(first:10) { nodes { login avatarUrl } } } } }"
+  ],
+  "code": 0,
+  "stdout": "HTTP/2.0 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4999\r\nX-Ratelimit-Resource: graphql\r\nX-Ratelimit-Reset: 1791251726\r\n\r\n{\"data\":{\"rateLimit\":{\"cost\":1,\"remaining\":4999,\"resetAt\":\"2026-10-06T01:55:26.334Z\"},\"i0\":{\"issue\":{\"number\":12,\"title\":\"Ship regional tax tables\",\"state\":\"CLOSED\",\"stateReason\":\"COMPLETED\",\"updatedAt\":\"2026-10-05T22:55:26.334Z\",\"author\":{\"login\":\"jettpbaker\",\"avatarUrl\":\"https://avatars.githubusercontent.com/u/142007881?u=fbd46ec4f781c4fa7a801b5042509d59949e3032&v=4\"},\"labels\":{\"nodes\":[{\"name\":\"enhancement\",\"color\":\"a2eeef\"}]},\"assignees\":{\"nodes\":[]}}}}}",
+  "stderr": ""
+}

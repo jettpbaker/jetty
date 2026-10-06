@@ -111,6 +111,8 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.prefetch': ({ repo, number }) =>
             Effect.succeed({ repo, number, status: 'loading' as const }),
+          'issue.prefetch': ({ repo, number }) =>
+            Effect.succeed({ repo, number, status: 'not_found' as const }),
           'pullRequest.refresh': ({ repo, number }) =>
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.diffFile': () => Effect.succeed({ before: '', after: '' }),

@@ -75,6 +75,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('pullRequest.unlink'),
   unary('pullRequest.get'),
   unary('pullRequest.prefetch'),
+  unary('issue.prefetch'),
   unary('pullRequest.refresh'),
   unary('pullRequest.diffFile'),
   unary('pullRequest.reviewerCandidates'),

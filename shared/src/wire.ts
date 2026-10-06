@@ -177,6 +177,27 @@ export const PullRequestLink = Schema.Struct({
 })
 export type PullRequestLink = Schema.Schema.Type<typeof PullRequestLink>
 
+export const GitHubIssue = Schema.Struct({
+  number: Schema.Int,
+  title: Schema.String,
+  state: Schema.Literals(['open', 'closed']),
+  stateReason: Schema.NullOr(Schema.Literals(['completed', 'not_planned', 'reopened'])),
+  updatedAt: Schema.String,
+  author: Schema.NullOr(Schema.Struct({ login: Schema.String, avatarUrl: Schema.String })),
+  labels: Schema.Array(Schema.Struct({ name: Schema.String, color: Schema.String })),
+  assignees: Schema.Array(Schema.Struct({ login: Schema.String, avatarUrl: Schema.String })),
+})
+export type GitHubIssue = Schema.Schema.Type<typeof GitHubIssue>
+
+export const IssueSnapshot = Schema.Struct({
+  repo: Schema.String,
+  number: Schema.Int,
+  status: Schema.Literals(['ready', 'unavailable', 'not_found', 'rate_limited']),
+  refreshedAt: Schema.optional(Schema.Int),
+  issue: Schema.optional(GitHubIssue),
+})
+export type IssueSnapshot = Schema.Schema.Type<typeof IssueSnapshot>
+
 export const PullRequestSnapshot = Schema.Struct({
   repo: Schema.String,
   number: Schema.Int,
@@ -582,6 +603,12 @@ export const methods = {
   'pullRequest.prefetch': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
+  },
+  // One read covers the chip and its hover card. A miss stays a snapshot, so the chip can keep
+  // its idle glyph instead of surfacing an error.
+  'issue.prefetch': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: IssueSnapshot,
   },
   'pullRequest.refresh': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),

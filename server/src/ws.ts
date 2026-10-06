@@ -19,6 +19,7 @@ import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
 import { uploadGithubAttachment } from './github-upload'
+import { prefetchIssue } from './issues'
 import {
   createPullRequestLinks,
   createPullRequestLists,
@@ -422,6 +423,11 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.prefetch': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
+      'issue.prefetch': (ref) =>
+        (validPullRequestRef(ref)
+          ? prefetchIssue({ repo: ref.repo.toLowerCase(), number: ref.number })
+          : Effect.fail(new StoreError('invalid_params', 'Invalid GitHub issue reference'))
+        ).pipe(Effect.mapError(wireError)),
       'pullRequest.refresh': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.refresh), Effect.mapError(wireError)),
       'pullRequest.diffFile': (params) =>

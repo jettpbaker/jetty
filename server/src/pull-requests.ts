@@ -196,7 +196,7 @@ export function resolvePullRequestReference(
   )
 }
 
-class GhFailure extends Error {
+export class GhFailure extends Error {
   constructor(
     readonly kind: 'unavailable' | 'not_found' | 'rate_limited',
     message: string,
@@ -282,6 +282,13 @@ function cadenceMultiplier() {
     lowBalance(rateHealth.restRemaining, rateHealth.restResetAt)
     ? 4
     : 1
+}
+
+// What a pull request chip waits before it asks GitHub again: two minutes while open, thirty
+// once closed, and nothing while GitHub is backing off. Issue chips use the same window.
+export function chipRefreshInterval(closed: boolean) {
+  if (backingOff()) return null
+  return (closed ? 30 * 60_000 : 120_000) * cadenceMultiplier()
 }
 
 function backingOff() {
@@ -534,6 +541,10 @@ export function restGet(path: string, { revalidate = false } = {}) {
 function graphql(query: string, variables: Record<string, string> = {}) {
   const body = JSON.stringify({ query, variables })
   return shared(body, () => requestApi({ method: 'POST', path: 'graphql', body }))
+}
+
+export function githubGraphql(query: string, variables: Record<string, string> = {}) {
+  return graphql(query, variables)
 }
 
 function githubWrite(method: string, path: string, body: string) {

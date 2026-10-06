@@ -69,6 +69,7 @@ export {
   useRenameThread,
   useSetProjectIcon,
 } from './mutations'
+export { useIssueSummary, type IssueRef } from './issues'
 export {
   pullRequestKey,
   pullRequestTabId,
