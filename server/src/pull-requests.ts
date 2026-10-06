@@ -345,7 +345,13 @@ export function checkBackoff() {
   if (backingOff()) throw backoffFailure()
 }
 
-type ApiRequest = { method: string; path: string; body?: string; write?: boolean }
+type ApiRequest = {
+  method: string
+  path: string
+  body?: string
+  write?: boolean
+  accept?: string
+}
 type ApiResponse = { status: number; headers: Headers; text: string; detail: string }
 
 // Points the API at a stand-in (the perf lab's fake GitHub), which is never sent the login.
@@ -356,7 +362,7 @@ async function fetchApi(request: ApiRequest, etag?: string, token?: string): Pro
     method: request.method,
     body: request.body,
     headers: {
-      Accept: 'application/vnd.github+json',
+      Accept: request.accept ?? 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'User-Agent': 'Jetty',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -387,6 +393,7 @@ async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiRespons
       '--method',
       request.method,
       request.path,
+      ...(request.accept ? ['-H', `Accept: ${request.accept}`] : []),
       ...(etag ? ['-H', `If-None-Match: ${etag}`] : []),
       ...(request.body === undefined ? [] : ['--input', '-']),
     ],
@@ -536,6 +543,15 @@ function shared(key: string, request: () => Promise<unknown>) {
 // pages are only re-read once its head has moved.
 export function restGet(path: string, { revalidate = false } = {}) {
   return shared(path, () => requestApi({ method: 'GET', path }, revalidate))
+}
+
+// body_html (and the signed image URLs inside it) is only present on this media type.
+const renderedAccept = 'application/vnd.github.full+json'
+
+export function githubRenderedGet(path: string) {
+  return shared(`rendered\0${path}`, () =>
+    requestApi({ method: 'GET', path, accept: renderedAccept })
+  )
 }
 
 function graphql(query: string, variables: Record<string, string> = {}) {

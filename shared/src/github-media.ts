@@ -36,6 +36,25 @@ function canonicalAttachment(url: URL): URL {
   return new URL(`https://github.com/user-attachments/assets/${id}`)
 }
 
-export function githubMediaPath(source: URL) {
-  return `/github-media?url=${encodeURIComponent(source.href)}`
+function githubName(value: string) {
+  return /^[A-Za-z0-9_.-]+$/.test(value) && value !== '.' && value !== '..'
+}
+
+// `owner/repo/123`. The proxy URL is built in the browser, so anything else is dropped.
+export function githubMediaPull(value: string | null | undefined): string | null {
+  if (!value) return null
+  const parts = value.split('/')
+  if (parts.length !== 3) return null
+  const [owner, repo, number] = parts
+  if (!owner || !repo || !number || !githubName(owner) || !githubName(repo)) return null
+  if (!/^[1-9]\d*$/.test(number)) return null
+  const parsed = Number(number)
+  if (!Number.isSafeInteger(parsed)) return null
+  return `${owner}/${repo}/${parsed}`
+}
+
+export function githubMediaPath(source: URL, pull?: string | null) {
+  const base = `/github-media?url=${encodeURIComponent(source.href)}`
+  const pr = githubMediaPull(pull)
+  return pr ? `${base}&pr=${encodeURIComponent(pr)}` : base
 }

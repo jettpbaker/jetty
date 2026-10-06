@@ -644,7 +644,7 @@ function createServer(opts: ServerOptions = {}) {
         if (!localPeer || !ownPageRequest(request.headers))
           return HttpServerResponse.text('Forbidden', { status: 403 })
         const media = yield* Effect.promise(() =>
-          githubMedia.resolve(url.searchParams.get('url') ?? '')
+          githubMedia.resolve(url.searchParams.get('url') ?? '', url.searchParams.get('pr'))
         )
         if (media instanceof GithubMediaError)
           return HttpServerResponse.text(media.message, { status: media.status })

@@ -8,10 +8,11 @@ import {
   useImageSize,
 } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
+import { PrRuntimeContext } from '@/components/custom/pull_request/runtime'
 import { VideoPlayer } from '@/components/custom/video_message'
 import { cn } from '@/lib/utils'
 import { githubMediaPath, githubMediaSource } from '@jetty/shared/github-media'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 
 type HastNode = {
   type: string
@@ -35,6 +36,14 @@ function textContent(node: HastNode): string {
 function dimension(value: unknown) {
   const number = Number(value)
   return Number.isInteger(number) && number > 0 ? String(number) : undefined
+}
+
+function proxied(href: string, pull: string, fallback: string) {
+  try {
+    return githubMediaPath(new URL(href), pull)
+  } catch {
+    return fallback
+  }
 }
 
 function githubSource(value: unknown): Source | null {
@@ -192,28 +201,32 @@ export function MarkdownMedia({
 }) {
   const openMedia = useOpenMedia()
   const thumbnail = useRef<HTMLButtonElement>(null)
+  const runtime = useContext(PrRuntimeContext)
+  // Chat markdown has no pull request, so its images stay on the direct attachment fetch.
+  const pull = runtime ? `${runtime.ref.repo}/${runtime.ref.number}` : undefined
+  const shown = github && pull && href ? proxied(href, pull, path) : path
   const [resolved, setResolved] = useState<MediaKind | 'failed' | undefined>(
     kind === 'image' || kind === 'video' ? kind : undefined
   )
   const sized = width && height ? { width: Number(width), height: Number(height) } : undefined
   // An image with no recorded size holds a frame until its file says, so it lands at its own size.
-  const measured = useImageSize(path, resolved === 'image' && !sized && !linked)
+  const measured = useImageSize(shown, resolved === 'image' && !sized && !linked)
 
   useEffect(() => {
     if (resolved) return
     let live = true
-    probe(path).then(
+    probe(shown).then(
       (found) => live && setResolved(found),
       () => live && setResolved('failed')
     )
     return () => {
       live = false
     }
-  }, [path, resolved])
+  }, [shown, resolved])
 
   const size = sized ?? (resolved === 'image' && measured !== 'failed' ? measured : undefined)
   const attachment: Attachment = {
-    id: path,
+    id: shown,
     name: alt ?? (resolved === 'video' ? 'Video' : 'Image'),
     mimeType: resolved === 'video' ? 'video/*' : 'image/*',
     sizeBytes: 0,
@@ -239,7 +252,7 @@ export function MarkdownMedia({
   if (linked)
     return (
       <img
-        src={path}
+        src={shown}
         alt={attachment.name}
         loading='lazy'
         decoding='async'

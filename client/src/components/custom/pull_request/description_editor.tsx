@@ -78,7 +78,7 @@ import { toast } from 'sonner'
 
 import './description_editor.css'
 import './issue_chip.css'
-import { PrPaintedContext } from './runtime'
+import { PrPaintedContext, PrRuntimeContext } from './runtime'
 
 const uploads = new Map<string, { name: string; video: boolean }>()
 const videoURL = /^(?:https?:\/\/|\/|blob:)[^\s]+\.(?:mp4|mov|webm)(?:[?#][^\s]*)?$/i
@@ -94,10 +94,13 @@ function MediaNode({ node, selected, editor, deleteNode }: NodeViewProps) {
   // Clicks never select media, so this only shows when the caret arrows onto it.
   const caret = useEditorState({ editor, selector: ({ editor }) => editor.isFocused }) && selected
   const open = useOpenMedia()
+  const runtime = useContext(PrRuntimeContext)
   const src = String(node.attrs.src)
   // GitHub attachments load through the server, which holds the credentials a private repo needs.
   const github = githubMediaSource(src)
-  const shown = github ? githubMediaPath(github) : src
+  const shown = github
+    ? githubMediaPath(github, runtime ? `${runtime.ref.repo}/${runtime.ref.number}` : undefined)
+    : src
   const video = node.type.name === 'video'
   // A markdown video carries no dimensions, so read them from the file to size the player to it.
   const size = useVideoSize(shown, video)
