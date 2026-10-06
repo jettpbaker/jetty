@@ -162,6 +162,10 @@ Everything below is for one combined review of the chat, not separate ports.
     in one run render separately in another. Change the scheduling, or accept ±1 commit
     and compare ranges? Then whether to commit the two local journeys ("stream into a
     long thread", "another thread streams").
+  - PR watcher lines stack badly when several land back to back (two full-width seams with
+    a big gap). Mocked: collapse same-PR lines into one with the most important news and a
+    hover listing all; for different PRs, sit them tight with their own rules (2a) or under
+    one divider (2b). Shots in the 2026-10-06 session (seams-idea1/2a/2b).
   - Agent-facing wording: `read_thread` wraps each message in `<relayed-message>`
     (`jetty-instructions.ts` `relayedMessage`), and the new `lagged` wire error drops a
     subscription 5,000 updates behind.
