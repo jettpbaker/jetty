@@ -162,6 +162,11 @@ Everything below is for one combined review of the chat, not separate ports.
     in one run render separately in another. Change the scheduling, or accept ±1 commit
     and compare ranges? Then whether to commit the two local journeys ("stream into a
     long thread", "another thread streams").
+  - A "Checks passing" PR watcher switch (design tonight): wake once per head when checks go
+    green after pending/failing, off by default, beside Failing checks. Overlaps Merge when
+    ready, which already covers "merge once approved and green"; this is for "tell me when CI
+    is green" / "request review once CI passes". Note "ready to merge" fires once per head, so
+    re-running a check never re-fires it; testing needs a new commit.
   - PR watcher lines stack badly when several land back to back (two full-width seams with
     a big gap). Mocked: collapse same-PR lines into one with the most important news and a
     hover listing all; for different PRs, sit them tight with their own rules (2a) or under
