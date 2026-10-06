@@ -171,10 +171,6 @@ export function createMcpHandler(
       return Effect.gen(function* () {
         const caller = yield* accessible(identity, identity.threadId)
         const target = yield* store.requireThread(threadId)
-        if (target.projectId !== caller.projectId)
-          return yield* Effect.fail(
-            new StoreError('not_found', `Thread ${threadId} isn't in this project, or is archived`)
-          )
         if (target.archived)
           return yield* Effect.fail(new StoreError('invalid_params', 'Thread is already archived'))
         // Archiving a thread archives everything under it, so the caller and anything above it are out.

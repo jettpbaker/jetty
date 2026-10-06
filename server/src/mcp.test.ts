@@ -141,7 +141,7 @@ test('send_message restarts a stopped child with the message, even if Jetty dies
   expect(await queued()).toHaveLength(1)
 })
 
-test('archive_thread reaches any idle thread in the project, and stop_thread stays on direct children', async () => {
+test('archive_thread reaches any idle thread, and stop_thread stays on direct children', async () => {
   const { home, store } = await openStore()
   mkdirSync(join(home, 'other'))
   const project = await Effect.runPromise(store.createProject(home))
@@ -221,7 +221,13 @@ test('archive_thread reaches any idle thread in the project, and stop_thread sta
   expect(again.content[0]!.text).toBe('Thread is already archived')
 
   const outside = await tool('archive_thread', foreign.id)
-  expect(outside.content[0]!.text).toContain("isn't in this project")
+  expect(outside.isError).toBeUndefined()
+  expect(JSON.parse(outside.content[0]!.text)).toMatchObject({
+    threadId: foreign.id,
+    title: 'Foreign',
+    archived: true,
+  })
+  expect(archived).toEqual([idle.id, child.id, grandchild.id, foreign.id])
 
   const stopOther = await tool('stop_thread', idle.id)
   expect(stopOther.content[0]!.text).toBe('Only your own direct child threads can be stopped')
