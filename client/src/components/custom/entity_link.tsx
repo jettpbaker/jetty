@@ -116,8 +116,22 @@ function Lead({
   )
 }
 
-// Long titles stop at a word, so a link stays a phrase; the hover card has the rest.
-function shorten(title: string, limit = 40) {
+function LeadTitle({
+  text,
+  ...lead
+}: Omit<ComponentProps<typeof Lead>, 'children'> & { text: string }) {
+  const [first, ...rest] = text.split(' ')
+  return (
+    <>
+      <Lead {...lead}>{first}</Lead>
+      {rest.length > 0 && ` ${rest.join(' ')}`}
+    </>
+  )
+}
+
+// Long titles stop at a word near 240px of chat text, so a link stays a phrase; the hover card
+// has the rest.
+function shorten(title: string, limit = 34) {
   if (title.length <= limit) return title
   const cut = title.slice(0, limit + 1)
   return `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.]+$/, '')}…`
@@ -152,7 +166,6 @@ export function ThreadLink({
   const meta = useThreadMeta(id)
   if (!meta) return fallback
   const look = statusPresentation[outcome ?? threadStatus(meta.status, meta.readyForReview)]
-  const [first, ...rest] = shorten(meta.title).split(' ')
   return (
     <PreviewCard.Root>
       <PreviewCard.Trigger
@@ -168,10 +181,13 @@ export function ThreadLink({
           />
         }
       >
-        <Lead icon={look.icon!} color={look.color} label={look.label} size={discGlyph}>
-          {first}
-        </Lead>
-        {rest.length > 0 && ` ${rest.join(' ')}`}
+        <LeadTitle
+          icon={look.icon!}
+          color={look.color}
+          label={look.label}
+          size={discGlyph}
+          text={shorten(meta.title)}
+        />
       </PreviewCard.Trigger>
       <ThreadHoverPopup side='bottom'>
         <ThreadHoverDetails threadId={id} />
@@ -243,9 +259,13 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
   const linked = useLinkedPull(repo, Number(number))
   const look = linkPresentation(linked?.state ? linked : data && pullRequestFacts(data))
   const content = (
-    <Lead icon={look.icon} color={look.color} label={look.label} size={pullGlyph}>
-      {home.has(repo) ? `#${number}` : entity}
-    </Lead>
+    <LeadTitle
+      icon={look.icon}
+      color={look.color}
+      label={look.label}
+      size={pullGlyph}
+      text={data ? shorten(data.pull.title) : home.has(repo) ? `#${number}` : entity}
+    />
   )
   // Click, not pointer-down: the chip sits in a scrollable chat. Enter fires click too.
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -415,9 +435,13 @@ function IssueLink({ entity, permalink }: { entity: string; permalink?: string }
   const look = issueLook(issue)
   const href = permalink ?? entityUrl('issue', entity)
   const content = (
-    <Lead icon={look.icon} color={look.color} label={look.label} size={pullGlyph}>
-      {home.has(repo) ? `#${number}` : entity}
-    </Lead>
+    <LeadTitle
+      icon={look.icon}
+      color={look.color}
+      label={look.label}
+      size={pullGlyph}
+      text={issue ? shorten(issue.title) : home.has(repo) ? `#${number}` : entity}
+    />
   )
   if (!issue)
     return (
