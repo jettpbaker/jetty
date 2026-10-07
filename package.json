@@ -20,7 +20,8 @@
     "build": "bun run --filter @jetty/client build",
     "start": "bun run server/src/main.ts",
     "perf": "bun perf/cli.ts",
-    "sandbox": "bun perf/sandbox.ts"
+    "sandbox": "bun perf/sandbox.ts",
+    "paper:capture": "bun perf/paper/capture.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
