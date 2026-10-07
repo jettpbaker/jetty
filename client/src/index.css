@@ -128,6 +128,22 @@
   --sidebar-ring: oklch(0.556 var(--tint) var(--tint-h));
 }
 
+/* OLED is dark taken one step deeper: the chrome is true black and every surface above it drops by
+   the same perceived step (CIE L*), so each layer keeps dark's contrast with the one below. */
+.oled {
+  --sidebar: oklch(0 0 0);
+  --background: oklch(0.163 var(--tint) var(--tint-h));
+  --diff-surface: oklch(0.201 0 0);
+  --card: oklch(0.23 var(--tint) var(--tint-h));
+  --popover: oklch(0.232 var(--tint) var(--tint-h));
+  --secondary: oklch(0.245 var(--tint) var(--tint-h));
+  --muted: oklch(0.245 var(--tint) var(--tint-h));
+  --sidebar-accent: oklch(0.245 var(--tint) var(--tint-h));
+  --border: oklch(0.276 var(--tint) var(--tint-h));
+  --scrollbar-thumb: oklch(0.276 var(--tint) var(--tint-h));
+  --accent: oklch(0.296 var(--tint) var(--tint-h));
+}
+
 @theme inline {
   --color-faint-foreground: var(--faint-foreground);
   --color-status-attention: var(--status-attention);

@@ -2,12 +2,12 @@ import { storage } from '@/platform'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 
-type ThemeChoice = 'light' | 'dark' | 'system'
+type ThemeChoice = 'light' | 'dark' | 'oled' | 'system'
 
 const key = 'jetty.theme'
 
 function isThemeChoice(value: unknown): value is ThemeChoice {
-  return value === 'light' || value === 'dark' || value === 'system'
+  return value === 'light' || value === 'dark' || value === 'oled' || value === 'system'
 }
 
 function loadTheme(): ThemeChoice {
@@ -21,7 +21,9 @@ function resolvedTheme(choice: ThemeChoice) {
 }
 
 export function applyTheme(choice = loadTheme()) {
-  document.documentElement.classList.toggle('dark', resolvedTheme(choice) === 'dark')
+  const theme = resolvedTheme(choice)
+  document.documentElement.classList.toggle('dark', theme !== 'light')
+  document.documentElement.classList.toggle('oled', theme === 'oled')
 }
 
 // System follows the OS as it changes, not just at load, and a choice made in another window
@@ -96,4 +98,12 @@ function themeClass() {
 
 export function useResolvedTheme() {
   return useSyncExternalStore(subscribeToThemeClass, themeClass)
+}
+
+function oledClass() {
+  return document.documentElement.classList.contains('oled')
+}
+
+export function useOled() {
+  return useSyncExternalStore(subscribeToThemeClass, oledClass)
 }

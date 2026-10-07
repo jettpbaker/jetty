@@ -1,5 +1,5 @@
 import { accentChangeEvent } from '@/lib/accent'
-import { useResolvedTheme } from '@/lib/theme'
+import { useOled, useResolvedTheme } from '@/lib/theme'
 import { Dithering } from '@paper-design/shaders-react'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
@@ -22,6 +22,7 @@ function mix(front: string, back: string, amount: number) {
 
 function useDriftColors() {
   const theme = useResolvedTheme()
+  const oled = useOled()
   const [colors, setColors] = useState<{ back: string; front: string }>()
   useEffect(() => {
     let frame = 0
@@ -40,7 +41,7 @@ function useDriftColors() {
       cancelAnimationFrame(frame)
       window.removeEventListener(accentChangeEvent, update)
     }
-  }, [theme])
+  }, [theme, oled])
   return colors
 }
 

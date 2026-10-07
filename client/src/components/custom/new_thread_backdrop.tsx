@@ -16,6 +16,7 @@ const curve = {
   curveStart: initialFadeSettings.curveStart,
   curveStrength: initialFadeSettings.curveStrength,
 }
+const fadeBackground = 'var(--backdrop-fade)'
 
 function WallpaperVideo({ src, playing }: { src: string; playing: boolean }) {
   const ref = useRef<HTMLVideoElement>(null)
@@ -45,7 +46,6 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const resolvedTheme = useResolvedTheme()
   const reducedMotion = useReducedMotion()
   const light = resolvedTheme === 'light'
-  const fadeBackground = light ? '#ffffff' : '#000000'
   const fade = { ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }
   if (!image && !video)
     return hasWebGL() ? (

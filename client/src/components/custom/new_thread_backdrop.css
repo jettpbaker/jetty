@@ -1,3 +1,15 @@
+/* What the backdrop fades down to. OLED's chrome is already black, so there it fades to the pane,
+   which keeps the pane's edge. */
+:root {
+  --backdrop-fade: #fff;
+}
+.dark {
+  --backdrop-fade: #000;
+}
+.oled {
+  --backdrop-fade: var(--background);
+}
+
 .wallpaper {
   position: absolute;
   inset: 0;

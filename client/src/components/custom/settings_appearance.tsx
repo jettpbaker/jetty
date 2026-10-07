@@ -1,5 +1,6 @@
 import {
   Moon02Icon,
+  MoonEclipseIcon,
   Sun03Icon,
   Upload04Icon,
   ArrowDown01Icon,
@@ -38,6 +39,7 @@ import { WallpaperEditor } from './wallpaper_editor'
 const themes = [
   { value: 'light', label: 'Light', Icon: Sun03Icon },
   { value: 'dark', label: 'Dark', Icon: Moon02Icon },
+  { value: 'oled', label: 'OLED', Icon: MoonEclipseIcon },
   { value: 'system', label: 'System', Icon: ComputerIcon },
 ] as const
 
