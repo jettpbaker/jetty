@@ -28,6 +28,7 @@ the rest of their contents remain layers. Dialog content remains editable above 
 raster backdrop. Animated gradient text is a small raster region. Existing image
 assets remain images. PR lists run first while their seeded cache is fresh; the lab's
 default search replay intentionally returns empty lists.
+Raster asset filenames include their content hash because Paper caches local asset paths.
 
 Only `App — <Area>` pages are created or refreshed. Existing generated artboards keep
 identity; their generated children are replaced. No file or page is deleted or renamed.

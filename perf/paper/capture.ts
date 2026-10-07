@@ -129,13 +129,15 @@ async function dropBoard(area: string, state: string, theme: Theme) {
   if (index >= 0) entries.splice(index, 1)
 }
 
-async function screenshot(page: Page, path: string, clip?: Record<string, unknown>) {
+async function screenshot(page: Page, path?: string, clip?: Record<string, unknown>) {
   const result = await page.cdp<{ data: string }>('Page.captureScreenshot', {
     format: 'png',
     ...(clip && { clip: { ...clip, scale: 1 } }),
     captureBeyondViewport: false,
   })
-  await Bun.write(path, Buffer.from(result.data, 'base64'))
+  const bytes = Buffer.from(result.data, 'base64')
+  if (path) await Bun.write(path, bytes)
+  return bytes
 }
 
 async function writeCapture(
@@ -158,9 +160,11 @@ async function writeCapture(
   )
   await screenshot(page, source, { ...origin, width: capture.width, height: capture.height })
   for (const [index, image] of capture.images.entries()) {
-    const path = join(out, `${slug}.image-${index}.png`)
     const { x, y, width, height } = image
-    await screenshot(page, path, { x, y, width, height })
+    const bytes = await screenshot(page, undefined, { x, y, width, height })
+    const hash = new Bun.CryptoHasher('sha256').update(bytes).digest('hex').slice(0, 16)
+    const path = join(out, `${slug}.image-${index}-${hash}.png`)
+    await Bun.write(path, bytes)
     capture.html = capture.html.replace(image.key, `paper-asset://${path}`)
   }
   await Bun.write(join(out, `${slug}.html`), capture.html)
