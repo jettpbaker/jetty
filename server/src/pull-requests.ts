@@ -11,12 +11,7 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
-import {
-  PullRequestData,
-  checkSummary,
-  displayedRollupState,
-  rollupChecks,
-} from '@jetty/shared/pull-request'
+import { PullRequestData, rollupChecks } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { PullRequestReference } from './pull-request-graphql'
@@ -1096,6 +1091,7 @@ function mapReviewComment(
     side: thread.diffSide === 'LEFT' ? 'LEFT' : 'RIGHT',
     start_line: typeof thread.startLine === 'number' ? thread.startLine : null,
     created_at: string(comment.createdAt),
+    last_edited_at: string(comment.lastEditedAt),
     html_url: string(comment.url),
     ...(reply ? { in_reply_to_id: reply } : {}),
     pull_request_review_id: Number(record(comment.pullRequestReview).databaseId) || 0,
@@ -1541,6 +1537,7 @@ async function fetchPullRequest(
         ),
         body: string(review.body),
         submitted_at: string(review.submittedAt),
+        last_edited_at: string(review.lastEditedAt),
         html_url: string(review.url),
       }
     }),
@@ -1695,12 +1692,9 @@ function requestedReviewers(reviewRequests: readonly PullRequestReviewer[]) {
 // One failed check makes the rollup FAILURE while the rest still run.
 function checksRunning(data: PullRequestData | undefined) {
   if (data?.pull.state !== 'open') return false
-  const state = displayedRollupState(
-    checkSummary(data.checkRuns),
-    data.checkRollupState ?? '',
-    data.truncatedConnections?.includes('checkRuns') === true
-  )
-  return state === 'PENDING' || state === 'EXPECTED'
+  if (data.checkRuns.some((check) => check.status !== 'completed')) return true
+  if (data.checkRuns.length && !data.truncatedConnections?.includes('checkRuns')) return false
+  return data.checkRollupState === 'PENDING' || data.checkRollupState === 'EXPECTED'
 }
 
 // GitHub works mergeability out lazily, so an open PR can read UNKNOWN for a while.

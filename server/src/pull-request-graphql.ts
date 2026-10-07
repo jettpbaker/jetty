@@ -107,14 +107,14 @@ export function mapPullRequestReferences(
 
 export const actorFields = `__typename login avatarUrl url ... on User { name }`
 export const pageFields = `totalCount pageInfo { hasNextPage endCursor }`
-export const reviewCommentFields = `databaseId state body path line diffHunk createdAt url
+export const reviewCommentFields = `databaseId state body path line diffHunk createdAt lastEditedAt url
   author { ${actorFields} } replyTo { databaseId } pullRequestReview { databaseId }`
 
 export const pullRequestConnections = {
-  comments: `nodes { databaseId body createdAt url author { ${actorFields} } }`,
-  reviews: `nodes { databaseId state body submittedAt url author { ${actorFields} } }`,
+  comments: `nodes { databaseId body createdAt lastEditedAt url author { ${actorFields} } }`,
+  reviews: `nodes { databaseId state body submittedAt lastEditedAt url author { ${actorFields} } }`,
   reviewThreads: `nodes { id isResolved isOutdated path line diffSide startLine
-    comments(first:50) { ${pageFields} nodes { ${reviewCommentFields} } } }`,
+    comments(first:10) { ${pageFields} nodes { ${reviewCommentFields} } } }`,
   commitHistory: `nodes { commit { oid message authoredDate url author { name user { ${actorFields} } }
     parents(first:1) { totalCount } } }`,
   files: `nodes { path viewerViewedState }`,
@@ -362,6 +362,7 @@ export function mapPullRequestGraphql(value: unknown) {
         user: githubUser(comment.author),
         body: string(comment.body),
         created_at: string(comment.createdAt),
+        last_edited_at: string(comment.lastEditedAt),
         html_url: string(comment.url),
       }
     }),

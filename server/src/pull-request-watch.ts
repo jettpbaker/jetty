@@ -75,18 +75,35 @@ function mentionsJetty(body: string) {
 const mergeReady = new Set(['CLEAN', 'HAS_HOOKS'])
 
 function rollupOf(data: PullRequestData) {
+  const required = data.checkRuns.filter((run) => run.required)
   return rollupChecks[
     displayedRollupState(
-      checkSummary(data.checkRuns),
-      data.checkRollupState ?? '',
-      data.truncatedConnections?.includes('checkRuns') === true
+      checkSummary(required.length ? required : data.checkRuns),
+      required.length ? '' : (data.checkRollupState ?? ''),
+      !required.length && data.truncatedConnections?.includes('checkRuns') === true
     )
   ]
 }
 
+function failedChecks(data: PullRequestData) {
+  return data.checkRuns
+    .filter((run) => run.conclusion !== null && failedCheckConclusions.includes(run.conclusion))
+    .map((run) =>
+      JSON.stringify([
+        run.kind ?? 'run',
+        run.workflow ?? '',
+        run.event ?? '',
+        run.app.name,
+        run.name,
+        run.id,
+        run.completed_at,
+      ])
+    )
+}
+
 // What the agent reads when it is asked to merge. The chat line stays "ready to merge".
 const readyToMerge = [
-  "- GitHub reports it ready to merge. Before you merge, check that the pull request still does what this thread was asked to do, that every check is green, that there are no unresolved review threads or change requests, and that nobody else pushed something unexpected. If anything is off, don't merge, and say why in your reply.",
+  "- GitHub reports it ready to merge. Before you merge, check that the pull request still does what this thread was asked to do, that every required check is green (or every check if none are required), that there are no unresolved review threads or change requests, and that nobody else pushed something unexpected. If anything is off, don't merge, and say why in your reply.",
   "Otherwise merge this pull request with `gh pr merge`, using the repo's default merge method from `gh repo view --json viewerDefaultMergeMethod` (`--merge`, `--squash` or `--rebase`) and `--match-head-commit` set to the head you checked. Pass `--delete-branch` only when `gh repo view --json deleteBranchOnMerge` is true.",
 ].join(' ')
 
@@ -99,7 +116,8 @@ function pullRequestChanges(
   next: PullRequestData,
   since: number,
   failedBefore: boolean,
-  checkEpisode = 0
+  checkEpisode = 0,
+  failedPreviously: readonly string[] = failedChecks(previous)
 ): PullRequestChange[] {
   const { pull } = next
   if (pull.merged) {
@@ -132,7 +150,11 @@ function pullRequestChanges(
   const short = head.slice(0, 7)
   const rollup = rollupOf(next)
   const before = rollupOf(previous)
-  if (rollup === 'failure' && (before !== 'failure' || previous.pull.head.sha !== head)) {
+  const newFailure = failedChecks(next).some((key) => !failedPreviously.includes(key))
+  if (
+    newFailure ||
+    (rollup === 'failure' && (before !== 'failure' || previous.pull.head.sha !== head))
+  ) {
     const failing = next.checkRuns.filter(
       (run) => run.conclusion !== null && failedCheckConclusions.includes(run.conclusion)
     )
@@ -178,13 +200,31 @@ function pullRequestChanges(
   const heard = (login: string, body: string) =>
     others(login) || (self(login) && mentionsJetty(body))
   const fresh = (at: string) => Date.parse(at) > since
-  const seenReviews = new Set(previous.reviews.map((review) => review.id))
-  const seenComments = new Set(previous.reviewComments.map((comment) => comment.id))
-  const seenIssueComments = new Set((previous.issueComments ?? []).map((comment) => comment.id))
+  const seenReviews = new Map(previous.reviews.map((review) => [review.id, review.last_edited_at]))
+  const seenComments = new Map(
+    previous.reviewComments.map((comment) => [comment.id, comment.last_edited_at])
+  )
+  const seenIssueComments = new Map(
+    (previous.issueComments ?? []).map((comment) => [comment.id, comment.last_edited_at])
+  )
+  const news = (
+    seen: Map<number, string | undefined>,
+    id: number,
+    created: string,
+    edited?: string
+  ) =>
+    seen.has(id)
+      ? !!edited && fresh(edited) && Date.parse(edited) > (Date.parse(seen.get(id) || '') || 0)
+      : fresh(created)
+  const version = (
+    prefix: string,
+    id: number,
+    seen: Map<number, string | undefined>,
+    edited?: string
+  ) => `${prefix}:${id}${seen.has(id) ? `:${edited}` : ''}`
   const comments = next.reviewComments.filter(
     (comment) =>
-      !seenComments.has(comment.id) &&
-      fresh(comment.created_at) &&
+      news(seenComments, comment.id, comment.created_at, comment.last_edited_at) &&
       heard(comment.user.login, comment.body)
   )
   const consumed = new Set<number>()
@@ -199,7 +239,7 @@ function pullRequestChanges(
   const reviewChanges: PullRequestChange[] = []
   for (const review of next.reviews) {
     const login = review.user.login
-    if (seenReviews.has(review.id) || !fresh(review.submitted_at)) continue
+    if (!news(seenReviews, review.id, review.submitted_at, review.last_edited_at)) continue
     // A review of the viewer's own counts only when its body mentions @jetty. An inline comment
     // of theirs that mentions it is delivered on its own, below, like any other review comment.
     const named = self(login) && mentionsJetty(review.body)
@@ -207,7 +247,7 @@ function pullRequestChanges(
     const own = comments.filter((comment) => comment.pull_request_review_id === review.id)
     for (const comment of own) consumed.add(comment.id)
     const details = `${quote(review.body, '  ')}${own.map((comment) => inline(comment, '  ')).join('')}`
-    const key = `review:${review.id}`
+    const key = version('review', review.id, seenReviews, review.last_edited_at)
     if (review.state === 'CHANGES_REQUESTED')
       reviewChanges.push({
         activity: { type: 'changes_requested', actor: login },
@@ -237,20 +277,24 @@ function pullRequestChanges(
       comment(
         reviewComment.user.login,
         1,
-        `comment:${reviewComment.id}`,
+        version('comment', reviewComment.id, seenComments, reviewComment.last_edited_at),
         `- ${reviewComment.user.login} commented on ${place(reviewComment)}${quote(reviewComment.body, '  ')}`
       )
   for (const issueComment of next.issueComments ?? [])
     if (
-      !seenIssueComments.has(issueComment.id) &&
+      news(
+        seenIssueComments,
+        issueComment.id,
+        issueComment.created_at,
+        issueComment.last_edited_at
+      ) &&
       !isBot(issueComment.user.login) &&
-      fresh(issueComment.created_at) &&
       heard(issueComment.user.login, issueComment.body)
     )
       comment(
         issueComment.user.login,
         1,
-        `issue-comment:${issueComment.id}`,
+        version('issue-comment', issueComment.id, seenIssueComments, issueComment.last_edited_at),
         `- ${issueComment.user.login} commented (${issueComment.html_url})${quote(issueComment.body, '  ')}`
       )
   changes.push(...reviewChanges.filter((change) => change.wakes))
@@ -267,7 +311,11 @@ function pullRequestChanges(
   const ready =
     !pull.draft &&
     mergeReady.has(next.mergeStateStatus ?? '') &&
-    !mergeReady.has(previous.mergeStateStatus ?? '')
+    rollup !== 'failure' &&
+    rollup !== 'pending' &&
+    (!mergeReady.has(previous.mergeStateStatus ?? '') ||
+      before === 'failure' ||
+      before === 'pending')
   if (rollup === 'success' && (before === 'failure' || failedBefore) && !ready)
     changes.push({
       activity: { type: 'checks_passed' },
@@ -310,6 +358,7 @@ export type PullRequestWatchMemory = {
   fired: string[]
   observedAt?: number
   checkEpisode?: number
+  failedChecks?: string[]
   // Checks failed since they last passed.
   failing?: boolean
   // When it woke its thread in the last hour.
@@ -476,7 +525,10 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
         const now = Date.now()
         const memory = { ...saved, observedAt: now }
         if (now - Math.max(saved.observedAt ?? 0, previous.dataRefreshedAt ?? 0) > STALE_MS) {
-          yield* store.savePullRequestWatch(ref.repo, ref.number, memory)
+          yield* store.savePullRequestWatch(ref.repo, ref.number, {
+            ...memory,
+            failedChecks: failedChecks(next),
+          })
           return
         }
         const seen = new Set(memory.fired)
@@ -485,8 +537,12 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
           next,
           Math.max((previous.dataRefreshedAt ?? 0) - LATE_MS, now - STALE_MS),
           memory.failing ?? false,
-          memory.checkEpisode ?? 0
+          memory.checkEpisode ?? 0,
+          previous.data.pull.head.sha === next.pull.head.sha
+            ? (memory.failedChecks ?? failedChecks(previous.data))
+            : []
         )
+        memory.failedChecks = failedChecks(next)
         if (detected.some((change) => change.activity.type === 'checks_failed'))
           memory.checkEpisode = (memory.checkEpisode ?? 0) + 1
         const changes = detected.filter(

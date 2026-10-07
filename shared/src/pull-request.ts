@@ -79,6 +79,7 @@ export const GitHubReview = Schema.Struct({
   state: Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED', 'PENDING', 'DISMISSED']),
   body: Schema.String,
   submitted_at: Schema.String,
+  last_edited_at: Schema.optional(Schema.String),
   html_url: Schema.String,
 })
 
@@ -94,6 +95,7 @@ export const GitHubReviewComment = Schema.Struct({
   path: Schema.String,
   line: Schema.NullOr(Schema.Int),
   created_at: Schema.String,
+  last_edited_at: Schema.optional(Schema.String),
   html_url: Schema.String,
   in_reply_to_id: Schema.optional(Schema.Int),
   pull_request_review_id: Schema.Int,
@@ -105,6 +107,7 @@ export const GitHubIssueComment = Schema.Struct({
   user: GitHubUser,
   body: Schema.String,
   created_at: Schema.String,
+  last_edited_at: Schema.optional(Schema.String),
   html_url: Schema.String,
 })
 
