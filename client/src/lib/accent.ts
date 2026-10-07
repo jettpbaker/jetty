@@ -30,6 +30,7 @@ export function setAccent(value: Accent) {
   const root = document.documentElement
   root.style.removeProperty('--accent-primary-light')
   root.style.removeProperty('--accent-primary-dark')
+  root.style.removeProperty('--accent-primary-oled')
   root.style.removeProperty('--tint-h')
   root.style.removeProperty('--tint-c')
   delete root.dataset.accentFrom

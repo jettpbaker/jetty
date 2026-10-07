@@ -96,6 +96,7 @@
   --status-success: oklch(0.698 0.125 158.358);
   --pr-closed: oklch(0.655 0.201 23.018);
   --pr-running: oklch(0.88 0.17 97);
+  --pr-merged: oklch(0.7 0.15 277);
   color-scheme: dark;
   --tint: var(--tint-c);
   --background: oklch(0.195 var(--tint) var(--tint-h));
@@ -131,6 +132,14 @@
 /* OLED is dark taken one step deeper: the chrome is true black and every surface above it drops by
    the same perceived step (CIE L*), so each layer keeps dark's contrast with the one below. */
 .oled {
+  /* Precomputed with oledToken in wallpaper-accent.ts. */
+  --status-attention: oklch(0.725 0.189 63);
+  --status-success: oklch(0.698 0.184 158.358);
+  --pr-closed: oklch(0.655 0.248 23.018);
+  --pr-running: oklch(0.84 0.2 97);
+  --pr-merged: oklch(0.66 0.197 277);
+  --destructive: oklch(0.704 0.236 22.216);
+  --primary: oklch(0.732 0.155 282.178);
   --sidebar: oklch(0 0 0);
   --background: oklch(0.163 var(--tint) var(--tint-h));
   --diff-surface: oklch(0.201 0 0);

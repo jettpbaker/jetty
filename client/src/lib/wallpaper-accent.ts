@@ -105,6 +105,27 @@ function token(lightness: number, chroma: number, hue: number) {
   return formatCss(clampChroma({ mode: 'oklch', l: lightness, c: chroma, h: hue }, 'oklch', 'rgb'))
 }
 
+// True black leaves contrast to spare, so OLED trades a little lightness for chroma, up to P3. Reds
+// take half the boost, since a louder red reads as alarm.
+function oledToken(dark: string) {
+  const color = toOklch(dark)!
+  const hue = color.h ?? 0
+  const grey = color.c < 0.03
+  const red = hue >= 10 && hue <= 40
+  return formatCss(
+    clampChroma(
+      {
+        mode: 'oklch',
+        l: grey || red || color.l < 0.7 ? color.l : color.l - 0.04,
+        c: grey ? color.c : color.c * (red ? 1.235 : 1.47),
+        h: hue,
+      },
+      'oklch',
+      'p3'
+    )
+  )
+}
+
 function hueToTokens(hue: number, samples: OklchSample[]): Omit<AccentTokens, 'tint'> {
   const nearby = samples.filter((sample) => hueDistance(sample.h, hue) <= hueStatsWindow)
   const weight = nearby.reduce((sum, sample) => sum + sample.c, 0)
@@ -168,6 +189,7 @@ export function applyWallpaperAccent(
     on ? root.style.setProperty(name, value) : root.style.removeProperty(name)
   set('--accent-primary-light', tokens.light, autoAccent)
   set('--accent-primary-dark', tokens.dark, autoAccent)
+  set('--accent-primary-oled', oledToken(tokens.dark), autoAccent)
   set('--tint-h', String(tokens.tint.h), autoTint)
   set('--tint-c', String(tokens.tint.c), autoTint)
   if (autoAccent) root.dataset.accentFrom = 'wallpaper'
