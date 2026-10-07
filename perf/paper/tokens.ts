@@ -82,3 +82,22 @@ export function foundationExpression(theme: Theme, colors: Record<string, string
     document.body.append(foundation)
   })()`
 }
+
+export function iconCatalogExpression() {
+  return `(async () => {
+    const react=await import('/node_modules/.vite/deps/react.js');const {createElement}=react.default ?? react
+    const client=await import('/node_modules/.vite/deps/react-dom_client.js');const {createRoot}=client.default ?? client
+    const huge=await import('/src/components/custom/huge_icons.tsx')
+    const lucide=await import('/src/components/custom/lucide_icons.tsx')
+    const icons=[...Object.entries(huge).filter(([name])=>name.endsWith('Icon')),...Object.entries(lucide)]
+    const height=Math.ceil(icons.length/4)*52+120
+    const host=document.createElement('div');host.id='paper-icon-catalog';host.style.cssText='position:fixed;inset:0;z-index:99999;width:1100px;height:'+height+'px;background:var(--background);color:var(--foreground);padding:32px;display:flex;flex-direction:column;gap:24px;font-family:Geist Variable'
+    document.body.append(host)
+    createRoot(host).render(createElement('div',{style:{display:'flex',flexDirection:'column',gap:24}},[
+      createElement('div',{key:'title',style:{fontSize:24,fontWeight:600}},'Jetty icon catalog'),
+      createElement('div',{key:'grid',style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16}},icons.map(([name,Icon],index)=>createElement('div',{key:name+index,style:{display:'flex',alignItems:'center',gap:12,height:36}},[createElement(Icon,{key:'icon',size:18}),createElement('div',{key:'label',style:{fontSize:12,fontFamily:'Geist Mono Variable'}},name)])))
+    ]))
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+    return height
+  })()`
+}

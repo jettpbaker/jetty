@@ -6,7 +6,13 @@ import { join, resolve } from 'node:path'
 
 import { type Fixtures } from '../seed'
 
-type FixtureState = { name: string; items: ThreadItem[]; outcome?: TurnOutcome; queue?: string[] }
+type FixtureState = {
+  name: string
+  items: ThreadItem[]
+  outcome?: TurnOutcome
+  queue?: string[]
+  worktree?: 'pending' | 'setting_up' | 'ready' | 'failed' | 'stopped'
+}
 
 export function writeFixtures(home: string, out: string, fixtures: Fixtures) {
   if (!resolve(home).startsWith(`${resolve(out)}/stack-`))
@@ -30,6 +36,16 @@ export function writeFixtures(home: string, out: string, fixtures: Fixtures) {
   })
   const states: FixtureState[] = [
     { name: 'empty', items: [] },
+    { name: 'streaming', items: [] },
+    { name: 'toast', items: [] },
+    ...(['pending', 'setting_up', 'ready', 'failed', 'stopped'] as const).map(
+      (state): FixtureState => ({
+        name: `worktree ${state}`,
+        items: state === 'setting_up' ? [] : [user],
+        worktree: state === 'setting_up' ? 'pending' : state,
+        queue: state === 'setting_up' ? [] : ['Run the checks once setup finishes.'],
+      })
+    ),
     {
       name: 'approval',
       items: [
@@ -120,6 +136,21 @@ export function writeFixtures(home: string, out: string, fixtures: Fixtures) {
           text: '## Plan\n\n- Read the existing cache.\n- Render cached state synchronously.\n- Apply catch-up patches after switching.\n- Run the checks.',
           completedAt: now + 2000,
         }),
+        item({
+          kind: 'tool_call',
+          toolName: 'TodoWrite',
+          input: {
+            todos: [
+              { content: 'Read the existing cache', status: 'completed' },
+              { content: 'Render cached state synchronously', status: 'in_progress' },
+              { content: 'Apply catch-up patches', status: 'pending' },
+              { content: 'Run the checks', status: 'pending' },
+            ],
+          },
+          output: 'Tasks updated.',
+          status: 'succeeded',
+          completedAt: now + 2500,
+        }),
         assistant,
       ],
       outcome: 'completed',
@@ -152,7 +183,7 @@ export function writeFixtures(home: string, out: string, fixtures: Fixtures) {
     )
     db.transaction(() => {
       for (const fixture of states) {
-        const id = `paper-${fixture.name}`
+        const id = `paper-${fixture.name.replaceAll(' ', '-')}`
         const status = ['approval', 'question'].includes(fixture.name)
           ? 'awaiting_approval'
           : fixture.outcome === 'failed' || fixture.outcome === 'server_restarted'
@@ -171,13 +202,30 @@ export function writeFixtures(home: string, out: string, fixtures: Fixtures) {
           id,
           title: `Capture · ${fixture.name}`,
           status,
+          environment: fixture.worktree ? 'worktree' : 'local',
+          worktree_json: fixture.worktree
+            ? JSON.stringify({
+                checkoutPath: null,
+                baseCommit: 'main',
+                branch: 'jetty/capture',
+                temporaryBranch: null,
+                slot: 1,
+                state: fixture.worktree,
+                error:
+                  fixture.worktree === 'failed'
+                    ? 'Setup failed: bun install exited with code 1.'
+                    : fixture.worktree === 'stopped'
+                      ? 'Worktree setup was interrupted.'
+                      : null,
+              })
+            : null,
           pinned: 0,
           ready_for_review: 0,
           updated_at: now,
           turn_started_at: now,
           turn_ended_at: now + 3500,
           agent_session_id: null,
-          queue_paused: 1,
+          queue_paused: fixture.name === 'worktree setting_up' ? 0 : 1,
           pending_messages: JSON.stringify(
             (fixture.queue ?? []).map((text, index) => ({
               id: `paper-queue-${index}`,

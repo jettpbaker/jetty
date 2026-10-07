@@ -7,11 +7,12 @@ import { waitFor } from '../journey'
 import { writeFixtures } from './fixtures'
 import { connectPaper, fileId, payload } from './mcp'
 import { prepareHome, startStack } from './stack'
-import { foundationExpression, readTokens, type Theme } from './tokens'
+import { foundationExpression, iconCatalogExpression, readTokens, type Theme } from './tokens'
 import { views, type Context, type View } from './views'
 
 type Info = { pages: { id: string; name: string }[]; artboards: { id: string; name: string }[] }
 type Capture = {
+  background: string
   html: string
   images: {
     key: string
@@ -45,27 +46,58 @@ function option(name: string) {
 }
 const out = resolve(option('--out') ?? join(repoRoot, 'perf/out/paper'))
 const only = option('--only')
-const selected = only ? views.filter((view) => `${view.area}/${view.state}`.includes(only)) : views
+const selected = (
+  only ? views.filter((view) => `${view.area}/${view.state}`.includes(only)) : views
+).toSorted((a, b) => Number(b.area === 'PR list') - Number(a.area === 'PR list'))
+if (only && only !== 'Foundations' && !selected.length) throw new Error('No matching capture state')
 mkdirSync(out, { recursive: true })
 const paper = await connectPaper()
 const info = payload<Info>(await paper.call('get_basic_info', { fileId }))
 await paper.call('get_selection', { fileId })
 const pages = new Map(info.pages.map((page) => [page.name, page.id]))
 const existing = new Map<string, Map<string, string>>()
-const entries: Entry[] = []
-const dropped: { area: string; state: string; theme: Theme; reason: string }[] = []
+const prior =
+  only && (await Bun.file(join(out, 'manifest.json')).exists())
+    ? ((await Bun.file(join(out, 'manifest.json')).json()) as {
+        fileId: string
+        entries: Entry[]
+        dropped: { area: string; state: string; theme: Theme; reason: string }[]
+      })
+    : undefined
+if (prior && prior.fileId !== fileId)
+  throw new Error('Output manifest belongs to a different Paper file')
+const entries: Entry[] = prior?.entries ?? []
+const dropped: { area: string; state: string; theme: Theme; reason: string }[] =
+  prior?.dropped ?? []
 const prepared = await prepareHome(out)
 const ids = writeFixtures(prepared.home, out, prepared.fixtures)
 const stack = await startStack(prepared)
-const page = await openPage()
-await page.cdp('Emulation.setDeviceMetricsOverride', {
-  ...viewport,
-  deviceScaleFactor: 1,
-  mobile: false,
-})
-const ctx: Context = { page, fixtures: prepared.fixtures, ids }
+const { page, rpc } = await openSession()
+const ctx: Context = { page, fixtures: prepared.fixtures, ids, rpc, repo: prepared.repo }
 const browserSource = await Bun.file(join(import.meta.dir, 'serialize.js')).text()
 const allTokens: { name: string; value: string }[] = []
+
+async function openSession() {
+  const page = await openPage().catch(async (error: unknown) => {
+    await stack.stop()
+    throw error
+  })
+  try {
+    await page.cdp('Emulation.setDeviceMetricsOverride', {
+      ...viewport,
+      deviceScaleFactor: 1,
+      mobile: false,
+    })
+    return { page, rpc: await stack.server.connect() }
+  } catch (error) {
+    try {
+      await page.close()
+    } finally {
+      await stack.stop()
+    }
+    throw error
+  }
+}
 
 async function pageFor(area: string) {
   const name = `App — ${area}`
@@ -82,6 +114,19 @@ async function pageFor(area: string) {
     existing.set(id, new Map(result.artboards.map((board) => [board.name, board.id])))
   }
   return id
+}
+
+async function dropBoard(area: string, state: string, theme: Theme) {
+  const pageId = pages.get(`App — ${area}`)
+  if (!pageId) return
+  const info = payload<Info>(await paper.call('get_basic_info', { fileId, pageId }))
+  const name = `${area} / ${state}${theme === 'dark' ? '' : ` (${theme})`}`
+  const board = info.artboards.find((board) => board.name === name)
+  if (board) await paper.call('delete_nodes', { fileId, nodeIds: [board.id] })
+  const index = entries.findIndex(
+    (entry) => entry.area === area && entry.state === state && entry.theme === theme
+  )
+  if (index >= 0) entries.splice(index, 1)
 }
 
 async function screenshot(page: Page, path: string, clip?: Record<string, unknown>) {
@@ -127,10 +172,10 @@ async function writeCapture(
   const styles = {
     width: `${capture.width}px`,
     height: `${capture.height}px`,
-    left: `${column * (capture.width + 80)}px`,
+    left: `${column * ({ Sidebar: 330, Composer: 788, 'Details pane': 800, 'Files & editor': 800, Foundations: 1180 }[area] ?? 1520)}px`,
     top: `${row * 1500}px`,
     overflow: 'hidden',
-    backgroundColor: 'transparent',
+    backgroundColor: capture.background,
   }
   if (artboardId) {
     await paper.call('update_styles', { fileId, updates: [{ nodeIds: [artboardId], styles }] })
@@ -158,6 +203,14 @@ async function writeCapture(
   if (!png?.data) throw new Error('Paper screenshot missing')
   const paperShot = join(out, `${slug}.paper.png`)
   await Bun.write(paperShot, Buffer.from(png.data, 'base64'))
+  const priorIndex = entries.findIndex(
+    (entry) => entry.area === area && entry.state === state && entry.theme === theme
+  )
+  if (priorIndex >= 0) entries.splice(priorIndex, 1)
+  const droppedIndex = dropped.findIndex(
+    (entry) => entry.area === area && entry.state === state && entry.theme === theme
+  )
+  if (droppedIndex >= 0) dropped.splice(droppedIndex, 1)
   entries.push({
     area,
     state,
@@ -184,18 +237,59 @@ async function saveManifest() {
 
 async function navigate(view: View, theme: Theme) {
   const script = await page.cdp<{ identifier: string }>('Page.addScriptToEvaluateOnNewDocument', {
-    source: `localStorage.clear();localStorage.setItem('jetty.theme',${JSON.stringify(theme)});localStorage.setItem('jetty.details-tabs',JSON.stringify({order:['overview','changes','files','threads'],closed:[]}));`,
+    source: `localStorage.clear();localStorage.setItem('jetty.theme',${JSON.stringify(theme)});localStorage.setItem('jetty.details-tabs',JSON.stringify({order:['overview','changes','files','threads'],closed:['files']}));`,
   })
   await page.navigate(`${stack.origin}${view.route(ctx)}`)
   await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: script.identifier })
   await waitFor(page, view.ready ?? `document.querySelector('main')`, 'view ready', 30_000)
   await page.evaluate('document.fonts.ready')
-  await Bun.sleep(350)
+  await Bun.sleep(view.settleMs ?? 350)
   await view.setup?.(ctx)
-  await Bun.sleep(250)
+  await page.evaluate(
+    `document.querySelector('[data-perf-region="composer"]')?.parentElement.setAttribute('data-paper-composer-shell','')`
+  )
+  await Bun.sleep(view.settleMs ?? 250)
+  if (view.verify) await waitFor(page, view.verify, 'state verification')
 }
 
 try {
+  for (const view of selected) {
+    const column = views.filter((candidate) => candidate.area === view.area).indexOf(view)
+    for (const theme of view.themes ?? ['dark']) {
+      try {
+        await navigate(view, theme)
+        const tokens = await readTokens(page, theme)
+        await paper.syncTokens(tokens.tokens)
+        await writeCapture(
+          view.area,
+          view.state,
+          theme,
+          view.selector ?? 'body',
+          tokens.references,
+          column
+        )
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        await dropBoard(view.area, view.state, theme)
+        await screenshot(
+          page,
+          join(
+            out,
+            `dropped-${view.area}-${view.state}-${theme}.png`.replace(/[^a-zA-Z0-9/.-]/g, '-')
+          )
+        ).catch(() => undefined)
+        await Bun.write(
+          join(out, `dropped-${view.area}-${view.state}-${theme}.txt`),
+          await page.evaluate<string>('document.body.innerText')
+        ).catch(() => undefined)
+        dropped.push({ area: view.area, state: view.state, theme, reason })
+        await saveManifest()
+        console.error(`DROPPED ${view.area}/${view.state}/${theme}: ${reason}`)
+      } finally {
+        await view.cleanup?.(ctx)
+      }
+    }
+  }
   if (!only || only === 'Foundations') {
     for (const theme of ['dark', 'light', 'oled'] as const) {
       await navigate(views[0]!, theme)
@@ -224,28 +318,29 @@ try {
       })
     }
   }
-  for (const view of selected) {
-    const column = views.filter((candidate) => candidate.area === view.area).indexOf(view)
-    for (const theme of view.themes ?? ['dark']) {
-      try {
-        await navigate(view, theme)
-        const tokens = await readTokens(page, theme)
-        await paper.syncTokens(tokens.tokens)
-        await writeCapture(
-          view.area,
-          view.state,
-          theme,
-          view.selector ?? 'body',
-          tokens.references,
-          column
-        )
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error)
-        dropped.push({ area: view.area, state: view.state, theme, reason })
-        await saveManifest()
-        console.error(`DROPPED ${view.area}/${view.state}/${theme}: ${reason}`)
-      }
-    }
+  if (!only || only === 'Foundations') {
+    await navigate(views[0]!, 'dark')
+    const tokens = await readTokens(page, 'dark')
+    const height = await page.evaluate<number>(iconCatalogExpression())
+    await page.cdp('Emulation.setDeviceMetricsOverride', {
+      width: 1100,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    })
+    await writeCapture(
+      'Foundations',
+      'icon catalog',
+      'dark',
+      '#paper-icon-catalog',
+      tokens.references,
+      1
+    )
+    await page.cdp('Emulation.setDeviceMetricsOverride', {
+      ...viewport,
+      deviceScaleFactor: 1,
+      mobile: false,
+    })
   }
   if (allTokens.length)
     await Bun.write(
@@ -254,9 +349,12 @@ try {
     )
 } finally {
   await paper.call('finish_working_on_nodes', { fileId }).catch(() => undefined)
-  await page.close()
-  await stack.stop()
-  await saveManifest()
+  try {
+    await Promise.allSettled([rpc.close(), page.close()])
+  } finally {
+    await stack.stop()
+    await saveManifest()
+  }
 }
 console.log(
   `Capture complete: ${entries.length} artboards; ${dropped.length} dropped. ${out}/manifest.json`

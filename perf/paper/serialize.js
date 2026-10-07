@@ -6,6 +6,14 @@ window.__paperCapture = async function captureDOM(selector, colors) {
     root === document.body
       ? { x: 0, y: 0, width: innerWidth, height: innerHeight }
       : root.getBoundingClientRect()
+  let background = 'rgba(0, 0, 0, 0)'
+  for (let ancestor = root; ancestor; ancestor = ancestor.parentElement) {
+    const color = getComputedStyle(ancestor).backgroundColor
+    if (color !== 'rgba(0, 0, 0, 0)') {
+      background = color
+      break
+    }
+  }
   const images = []
   let serial = 0
   const escape = (value) =>
@@ -88,9 +96,12 @@ window.__paperCapture = async function captureDOM(selector, colors) {
       for (const child of element.children) html += await visit(child, parent, clip)
       return html
     }
+    if (rect.width <= 1 || rect.height <= 1) {
+      let html = ''
+      for (const child of element.children) html += await visit(child, parent, clip)
+      return html
+    }
     if (
-      rect.width <= 1 ||
-      rect.height <= 1 ||
       rect.right <= clip.left ||
       rect.left >= clip.right ||
       rect.bottom <= clip.top ||
@@ -178,6 +189,8 @@ window.__paperCapture = async function captureDOM(selector, colors) {
       return clone.outerHTML
     }
     if (
+      style.backdropFilter !== 'none' ||
+      style.backgroundClip === 'text' ||
       (style.maskImage !== 'none' && !style.maskImage.includes('linear-gradient')) ||
       element.shadowRoot ||
       ['CANVAS', 'VIDEO', 'IFRAME'].includes(element.tagName) ||
@@ -189,11 +202,15 @@ window.__paperCapture = async function captureDOM(selector, colors) {
         key,
         name,
         reason:
-          style.maskImage !== 'none'
-            ? 'CSS image mask'
-            : element.shadowRoot
-              ? 'shadow DOM (Pierre renderer)'
-              : element.tagName.toLowerCase(),
+          style.backdropFilter !== 'none'
+            ? 'CSS backdrop filter'
+            : style.backgroundClip === 'text'
+              ? 'CSS text gradient'
+              : style.maskImage !== 'none'
+                ? 'CSS image mask'
+                : element.shadowRoot
+                  ? 'shadow DOM (Pierre renderer)'
+                  : element.tagName.toLowerCase(),
         x: cropped.left,
         y: cropped.top,
         width: cropped.right - cropped.left,
@@ -262,5 +279,11 @@ window.__paperCapture = async function captureDOM(selector, colors) {
     return `<div layer-name="${escape(name)}" style="${css}">${contents}</div>`
   }
   const html = await visit(root, origin, initialClip, true)
-  return { html, images, width: Math.ceil(origin.width), height: Math.ceil(origin.height) }
+  return {
+    html,
+    background,
+    images,
+    width: Math.ceil(origin.width),
+    height: Math.ceil(origin.height),
+  }
 }
