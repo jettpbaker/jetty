@@ -246,7 +246,8 @@ function headline(entry: PullRequestActivity, activity: readonly PullRequestActi
   }
 }
 
-// The glyph takes the PR's state once it's settled, else the colour of its worst news.
+// The glyph and the seam's title take the PR's state once it's settled, else the colour of its
+// worst news.
 function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
   const types = new Set(activity.map((entry) => entry.type))
   if (types.has('merged'))
@@ -312,12 +313,14 @@ function PullRequestLink({ item }: { item: PullRequestItem }) {
   const [owner = '', repo = ''] = item.repo.split('/')
   const paneThreadId = use(OpenPullLink)
   const openInPane = useOpenPullRequestTab()
+  // No news colour keeps the accent: a muted title would vanish into its muted line.
+  const { tone } = pullRequestSeamLook(item.activity)
   return (
     <Link
       to='/pull-requests/$owner/$repo/$number'
       params={{ owner, repo, number: String(item.number) }}
       title={`${item.repo}#${item.number}`}
-      className={cn(inlineLinkClass, 'min-w-0 truncate')}
+      className={cn(inlineLinkClass, tone, 'min-w-0 truncate')}
       onClick={(event) => {
         if (!paneThreadId || !plainClick(event)) return
         event.preventDefault()

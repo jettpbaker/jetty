@@ -88,7 +88,7 @@ export const entityLinkTag = { 'entity-link': ['kind', 'entity', 'permalink'] }
 
 // The link stays inline, so it wraps like the words around it and never leaves a hole.
 export const inlineLinkClass =
-  'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 text-primary decoration-primary/40 underline-offset-[3px] hover:underline'
+  'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 text-primary decoration-current/40 underline-offset-[3px] hover:underline'
 
 const pullGlyph = 'size-3.5 align-[-2px]'
 const discGlyph = 'size-3 align-[-1px]'
@@ -146,9 +146,9 @@ function useHomeRepos() {
   return owner && repo ? new Set([`${owner}/${repo}`.toLowerCase()]) : projectRepos
 }
 
-function GitHubAnchor({ children, ...props }: ComponentProps<'a'>) {
+function GitHubAnchor({ className, children, ...props }: ComponentProps<'a'>) {
   return (
-    <a {...props} target='_blank' rel='noreferrer' className={inlineLinkClass}>
+    <a {...props} target='_blank' rel='noreferrer' className={cn(inlineLinkClass, className)}>
       {children}
     </a>
   )
@@ -260,6 +260,7 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
   // A thread's link to it follows GitHub live; a PR no thread links shows its last read.
   const linked = useLinkedPull(repo, Number(number))
   const look = linkPresentation(linked?.state ? linked : data && pullRequestFacts(data))
+  const linkClass = cn(inlineLinkClass, look.color)
   const content = (
     <LeadTitle
       icon={look.icon}
@@ -277,11 +278,11 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
   }
   if (!data)
     return permalink ? (
-      <GitHubAnchor href={permalink} title={look.label}>
+      <GitHubAnchor href={permalink} title={look.label} className={linkClass}>
         {content}
       </GitHubAnchor>
     ) : (
-      <Link {...target} className={inlineLinkClass} title={look.label} onClick={onClick}>
+      <Link {...target} className={linkClass} title={look.label} onClick={onClick}>
         {content}
       </Link>
     )
@@ -292,9 +293,9 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
         closeDelay={100}
         render={
           permalink ? (
-            <GitHubAnchor href={permalink} />
+            <GitHubAnchor href={permalink} className={linkClass} />
           ) : (
-            <Link {...target} className={inlineLinkClass} onClick={onClick} />
+            <Link {...target} className={linkClass} onClick={onClick} />
           )
         }
       >
