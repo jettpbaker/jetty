@@ -11,10 +11,18 @@ import { join } from 'node:path'
 
 import type { Worktrees } from './worktrees'
 
-import { AgentError, type Agent, type Emit, createEchoAdapter } from './agent'
+import {
+  AgentError,
+  type Agent,
+  type AgentImage,
+  type Emit,
+  type TurnInput,
+  createEchoAdapter,
+} from './agent'
 import { createAttachments } from './attachments'
 import { databaseLayer } from './db'
 import { createHub } from './hub'
+import { relayedMessage } from './jetty-instructions'
 import { createOrchestrator } from './orchestrator'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
@@ -41,18 +49,21 @@ function makeUploadFixture() {
     const thread = yield* store.createThread(project.id, newId())
     const attachments = yield* createAttachments(home)
     const hub = createHub()
+    const started: TurnInput[] = []
     const agent: Agent = {
       startTurn: (input, emit) =>
-        emit({ type: 'turn.started', turnId: input.turnId }).pipe(
-          Effect.as({ await: Effect.never })
-        ),
+        Effect.gen(function* () {
+          started.push(input)
+          yield* emit({ type: 'turn.started', turnId: input.turnId })
+          return { await: Effect.never }
+        }),
       steer: (_threadId, _text, _images, beforeAccept = Effect.void) =>
         beforeAccept.pipe(Effect.as(true)),
       interrupt: () => Effect.void,
       respondToApproval: () => Effect.succeed(false),
       respondToQuestion: () => Effect.succeed(false),
     }
-    return { fs, home, store, sql, thread, attachments, hub, agent }
+    return { fs, home, store, sql, thread, attachments, hub, agent, started }
   })
 }
 
@@ -136,9 +147,53 @@ test('Stop pauses a queued upload still persisting while no turn is active', asy
       expect((yield* f.store.requireThread(f.thread.id)).pendingMessages).toMatchObject([
         { id: messageId },
       ])
+      const queued = (yield* f.store.requireThread(f.thread.id)).pendingMessages![0]!
+      expect(queued.text).toBe('later')
+      const attachment = queued.attachments![0]!
+      const resolved = yield* f.attachments.resolve(attachment.id)
       yield* orch.sendQueuedNow(f.thread.id, messageId)
+      expect(f.started[0]!.text).toBe(
+        `later\nAttached image saved at ${resolved!.path} (attachment id ${attachment.id}).`
+      )
+      expect(f.started[0]!.images).toEqual([{ mimeType: 'image/png', base64data: 'aW1hZ2U=' }])
+      const snapshot = yield* f.store.getThreadState(f.thread.id)
+      expect(snapshot.items.find((item) => item.kind === 'user_message')).toMatchObject({
+        text: 'later',
+      })
       expect(orch.currentTurn(f.thread.id)).not.toBeNull()
       expect((yield* f.store.requireThread(f.thread.id)).queuePaused).toBe(false)
+      yield* f.fs.writeFileString(f.home + '/clip.webm', 'video')
+      const video = yield* f.attachments.persistFile(f.home + '/clip.webm', 'video')
+      const videoFile = yield* f.attachments.resolve(video.id)
+      const from = { threadId: newId(), title: 'Other thread' }
+      const relayed = {
+        id: newId(),
+        text: '',
+        from,
+        createdAt: Date.now(),
+        hop: 0,
+        attachments: [attachment, video],
+      }
+      let steered = ''
+      f.agent.steer = (_threadId, text, _images, beforeAccept = Effect.void) =>
+        beforeAccept.pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              steered = text
+              return true
+            })
+          )
+        )
+      yield* f.store.enqueue(f.thread.id, relayed)
+      yield* orch.sendQueuedNow(f.thread.id, relayed.id)
+      expect(steered).toBe(
+        relayedMessage(
+          from,
+          `Attached image saved at ${resolved!.path} (attachment id ${attachment.id}).\nAttached video saved at ${videoFile!.path} (attachment id ${video.id}).`
+        )
+      )
+      const delivered = yield* f.store.getThreadState(f.thread.id)
+      expect(delivered.items.find((item) => item.id === relayed.id)).toMatchObject({ text: '' })
     }).pipe(Effect.provide(TestClock.layer()))
   )
 })
@@ -299,7 +354,17 @@ test('late steering rejection removes the new upload but retains the active turn
   await runUploadTest(
     Effect.gen(function* () {
       const f = yield* makeUploadFixture()
-      f.agent.steer = () => Effect.succeed(false)
+      let steeredText = ''
+      let steeredImages: AgentImage[] | undefined
+      let added = ''
+      f.agent.steer = (_threadId, text, images) =>
+        Effect.gen(function* () {
+          const files = yield* f.fs.readDirectory(f.attachments.dir).pipe(Effect.orDie)
+          added = files.find((file) => !existing.includes(file))!
+          steeredText = text
+          steeredImages = images
+          return false
+        })
       const orch = yield* createOrchestrator({
         store: f.store,
         agent: f.agent,
@@ -308,11 +373,19 @@ test('late steering rejection removes the new upload but retains the active turn
       })
       yield* orch.startTurnEffect({ threadId: f.thread.id, text: 'first', attachments: [upload] })
       const existing = yield* f.fs.readDirectory(f.attachments.dir)
+      const id = existing[0]!.split('.')[0]!
+      expect(f.started[0]!.text).toBe(
+        `first\nAttached image saved at ${f.attachments.dir}/${existing[0]} (attachment id ${id}).`
+      )
       const before = yield* f.store.getEventsAfter(f.thread.id, 0)
       const result = yield* Effect.exit(
         orch.startTurnEffect({ threadId: f.thread.id, text: 'late', attachments: [upload] })
       )
       expect(Exit.isFailure(result)).toBe(true)
+      expect(steeredText).toBe(
+        `late\nAttached image saved at ${f.attachments.dir}/${added} (attachment id ${added.split('.')[0]}).`
+      )
+      expect(steeredImages).toEqual([{ mimeType: 'image/png', base64data: 'aW1hZ2U=' }])
       expect(yield* f.fs.readDirectory(f.attachments.dir)).toEqual(existing)
       expect(yield* f.store.getEventsAfter(f.thread.id, 0)).toEqual(before)
     })
@@ -434,7 +507,11 @@ test('agent startup failure after a durable user batch retains its referenced at
   await runUploadTest(
     Effect.gen(function* () {
       const f = yield* makeUploadFixture()
-      f.agent.startTurn = () => Effect.fail(new AgentError('start failed'))
+      const startTurn = f.agent.startTurn
+      f.agent.startTurn = (input) => {
+        f.started.push(input)
+        return Effect.fail(new AgentError('start failed'))
+      }
       const orch = yield* createOrchestrator({
         store: f.store,
         agent: f.agent,
@@ -455,9 +532,20 @@ test('agent startup failure after a durable user batch retains its referenced at
       if (item.type !== 'item.started' || item.item.kind !== 'user_message')
         throw new Error('Missing durable user message')
       const attachment = item.item.attachments[0]!
+      expect(item.item.text).toBe('durable')
       expect(yield* f.fs.readDirectory(f.attachments.dir)).toEqual([`${attachment.id}.png`])
       const resolved = yield* f.attachments.resolve(attachment.id)
       expect(yield* f.fs.readFileString(resolved!.path)).toBe('image')
+      const line = `Attached image saved at ${resolved!.path} (attachment id ${attachment.id}).`
+      expect(f.started[0]!.text).toBe(`durable\n${line}`)
+      const note = yield* f.store.continuation(f.thread.id, item.item.turnId)
+      expect(note.text).not.toContain(line)
+      expect(note.attachments).toEqual([attachment])
+      f.agent.startTurn = startTurn
+      yield* f.store.enqueue(f.thread.id, note)
+      yield* orch.sendQueuedNow(f.thread.id, note.id)
+      expect(f.started[1]!.text).toBe(relayedMessage(note.from!, `${note.text}\n${line}`))
+      expect(f.started[1]!.images).toEqual(f.started[0]!.images)
     })
   )
 })

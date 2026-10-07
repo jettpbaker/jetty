@@ -1653,7 +1653,9 @@ describe('image attachments', () => {
     const images = received[0]!.images as AgentImage[] | undefined
     expect(images).toHaveLength(1)
     expect(images![0]).toEqual({ mimeType: 'image/png', base64data: TINY_PNG_B64 })
-    expect(received[0]!.text).toBe('look')
+    expect(received[0]!.text).toMatch(
+      /^look\nAttached image saved at \/.+\/attachments\/([0-9a-f-]+)\.png \(attachment id \1\)\.$/
+    )
 
     await c.close()
   })

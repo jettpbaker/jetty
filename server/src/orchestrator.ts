@@ -100,10 +100,31 @@ function providerConflict(bound: string, requested: string) {
 }
 
 // Agents otherwise read a relayed message as the user's own words.
-function agentText({ text, queued }: StartTurnInput, fromCreator: boolean) {
-  if (!queued?.from) return text
-  const relayed = relayedMessage(queued.from, text)
-  return fromCreator ? `${relayed}\n${CHILD_REPORT_INSTRUCTION}` : relayed
+function agentText(
+  { text, queued }: StartTurnInput,
+  fromCreator: boolean,
+  meta: readonly Attachment[],
+  attachments: Attachments | null
+) {
+  return Effect.gen(function* () {
+    const lines = text ? [text] : []
+    if (attachments) {
+      for (const attachment of meta) {
+        const found = yield* attachments.resolve(attachment.id)
+        if (!found) return yield* Effect.fail(new StoreError('not_found', 'Attachment is missing'))
+        const kind = found.mimeType.startsWith('video/') ? 'video' : 'image'
+        lines.push(`Attached ${kind} saved at ${found.path} (attachment id ${attachment.id}).`)
+      }
+    }
+    const message = lines.join('\n')
+    if (!queued?.from) return message
+    const relayed = relayedMessage(queued.from, message)
+    return fromCreator ? `${relayed}\n${CHILD_REPORT_INSTRUCTION}` : relayed
+  }).pipe(
+    Effect.mapError((error) =>
+      error instanceof StoreError ? error : new StoreError('internal', String(error))
+    )
+  )
 }
 
 function toAgentError(error: Error) {
@@ -953,12 +974,13 @@ export function createOrchestrator({
               }
               if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
+              const text = yield* agentText(input, fromCreator, saved.meta, attachments)
               const live = state(input.threadId)
               if (live.turnId) {
                 const turnId = live.turnId
                 const accepted = yield* agent.steer(
                   input.threadId,
-                  agentText(input, fromCreator),
+                  text,
                   saved.images,
                   appendUser(input, turnId, saved.meta, onCommit).pipe(
                     Effect.asVoid,
@@ -1012,7 +1034,7 @@ export function createOrchestrator({
                             cwd,
                             threadId: input.threadId,
                             turnId,
-                            text: agentText(input, fromCreator),
+                            text,
                             images: saved.images,
                             model: input.model,
                             effort: input.effort,
