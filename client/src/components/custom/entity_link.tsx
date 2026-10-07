@@ -99,24 +99,26 @@ function Lead({
   color,
   label,
   size,
+  gap = 'mr-1',
   children,
 }: {
   icon: Glyph
   color: string
   label: string
   size: string
+  gap?: string
   children: ReactNode
 }) {
   return (
     <span className='whitespace-nowrap'>
-      <Icon aria-hidden='true' className={cn('mr-1 inline-block', color, size)} />
+      <Icon aria-hidden='true' className={cn('inline-block', gap, color, size)} />
       <span className='sr-only'>{label} </span>
       {children}
     </span>
   )
 }
 
-function LeadTitle({
+export function LeadTitle({
   text,
   ...lead
 }: Omit<ComponentProps<typeof Lead>, 'children'> & { text: string }) {
@@ -131,7 +133,7 @@ function LeadTitle({
 
 // Long titles stop at a word near 240px of chat text, so a link stays a phrase; the hover card
 // has the rest.
-function shorten(title: string, limit = 34) {
+export function shorten(title: string, limit = 34) {
   if (title.length <= limit) return title
   const cut = title.slice(0, limit + 1)
   return `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.]+$/, '')}…`

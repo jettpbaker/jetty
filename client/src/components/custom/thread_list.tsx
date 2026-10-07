@@ -27,6 +27,7 @@ import {
 import {
   CompactionSeam,
   PullRequestSeam,
+  PullRequestGroupSeam,
   RestartLimitSeam,
   RestartSeam,
   TranscriptMarker,
@@ -196,6 +197,10 @@ function rowStamp(row: ThreadRow) {
       return row.running
     case 'pullRequest':
       return row.item.activity.length
+    case 'pullRequestGroup':
+      return row.items
+        .map((item) => `${item.repo}#${item.number}:${item.activity.length}`)
+        .join(',')
     case 'restart':
     case 'backgroundStopped':
       return ''
@@ -337,6 +342,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
   if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
   if (row.kind === 'pullRequest') return <PullRequestSeam item={row.item} />
+  if (row.kind === 'pullRequestGroup') return <PullRequestGroupSeam items={row.items} />
   if (row.kind === 'restart') return <RestartSeam />
   if (row.kind === 'backgroundStopped')
     return <RestartSeam label='Background work stopped when Jetty restarted' />

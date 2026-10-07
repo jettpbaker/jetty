@@ -65,6 +65,7 @@ export type ThreadRow =
     }
   | { kind: 'compaction'; id: string; running: boolean }
   | { kind: 'pullRequest'; id: string; item: PullRequestItem }
+  | { kind: 'pullRequestGroup'; id: string; items: PullRequestItem[] }
   | { kind: 'restart'; id: string }
   | { kind: 'backgroundStopped'; id: string }
   // the crash-loop guard held the turn; resumed once anything follows it
@@ -735,7 +736,44 @@ export function threadRows(
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   stitchRuns(rows)
   if (queue) rows.push(...queueRows(queue, running))
-  return reuseRows(allItems[0], rows)
+  return reuseRows(allItems[0], groupPullRequestRows(rows))
+}
+
+function groupPullRequestRows(rows: ThreadRow[]): ThreadRow[] {
+  const grouped: ThreadRow[] = []
+  for (let index = 0; index < rows.length;) {
+    const row = rows[index]!
+    if (row.kind !== 'pullRequest') {
+      grouped.push(row)
+      index++
+      continue
+    }
+    const items = new Map<string, PullRequestItem>()
+    const id = row.id
+    while (rows[index]?.kind === 'pullRequest') {
+      const item = (rows[index] as Extract<ThreadRow, { kind: 'pullRequest' }>).item
+      const key = `${item.repo}#${item.number}`
+      const previous = items.get(key)
+      items.set(
+        key,
+        previous
+          ? {
+              ...previous,
+              activity: [...previous.activity, ...item.activity],
+              held: previous.held || item.held,
+            }
+          : item
+      )
+      index++
+    }
+    const pulls = [...items.values()]
+    grouped.push(
+      pulls.length === 1
+        ? { kind: 'pullRequest', id, item: pulls[0]! }
+        : { kind: 'pullRequestGroup', id, items: pulls }
+    )
+  }
+  return grouped
 }
 
 // The agent's messages between two of the user's read as one answer, whatever lands between

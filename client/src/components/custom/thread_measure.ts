@@ -247,6 +247,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'backgroundStopped':
     case 'restartLimit':
     case 'pullRequest':
+    case 'pullRequestGroup':
       return 24
     case 'marker':
       return 16

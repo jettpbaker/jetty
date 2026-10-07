@@ -7,10 +7,23 @@ import {
   Refresh01Icon,
 } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useContinueThread, useContinuing, useOpenPullRequestTab } from '@/state'
+import { cn } from '@/lib/utils'
+import {
+  useContinueThread,
+  useContinuing,
+  useOpenPullRequestTab,
+  usePullRequestSummary,
+} from '@/state'
 import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { use } from 'react'
 
 import type { PullRequestItem } from './thread_rows'
@@ -18,7 +31,7 @@ import type { PullRequestItem } from './thread_rows'
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
-import { inlineLinkClass, OpenPullLink, plainClick } from './entity_link'
+import { inlineLinkClass, LeadTitle, OpenPullLink, plainClick, shorten } from './entity_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
 
@@ -247,46 +260,178 @@ function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
   return { icon: GitPullRequestIcon }
 }
 
-// What Jetty's PR watcher saw on one of the thread's PRs. The agent gets the details, if it woke.
-export function PullRequestSeam({ item }: { item: PullRequestItem }) {
+function news(entry: PullRequestActivity, activity: readonly PullRequestActivity[]) {
+  const { actor } = entry
+  switch (entry.type) {
+    case 'merged':
+      return actor ? `${actor} merged` : 'Merged'
+    case 'closed':
+      return 'Closed'
+    case 'checks_failed':
+      return 'Checks failed on'
+    case 'checks_passed':
+      return 'Checks passing on'
+    case 'changes_requested':
+      return actor ? `${actor} requested changes on` : 'Changes requested on'
+    case 'approved':
+      return actor ? `${actor} approved` : 'Approved'
+    case 'commented': {
+      let count = 0
+      for (const each of activity) if (each.type === 'commented') count += each.count ?? 1
+      return count > 1 ? `${count} comments on` : actor ? `${actor} commented on` : 'New comment on'
+    }
+    case 'conflict':
+      return 'Merge conflict on'
+    case 'ready':
+      return ''
+  }
+}
+
+function PullRequestTitle({ item, menu = false }: { item: PullRequestItem; menu?: boolean }) {
+  const summary = usePullRequestSummary({ repo: item.repo, number: item.number })
+  const { icon: Icon, tone } = pullRequestSeamLook(item.activity)
+  const title = summary ? shorten(summary.pull.title) : `#${item.number}`
+  return menu ? (
+    <span className='flex min-w-0 items-center gap-[3px] text-foreground'>
+      <Icon aria-hidden='true' className={cn('size-3.5 shrink-0', tone)} />
+      <span className='truncate'>{title}</span>
+    </span>
+  ) : (
+    <LeadTitle
+      icon={Icon}
+      color={tone ?? 'text-muted-foreground'}
+      label='Pull request'
+      size='size-3'
+      gap='mr-[3px]'
+      text={title}
+    />
+  )
+}
+
+function PullRequestLink({ item }: { item: PullRequestItem }) {
   const [owner = '', repo = ''] = item.repo.split('/')
-  const { icon, tone } = pullRequestSeamLook(item.activity)
-  const lead = worstActivity(item.activity)
-  const summary = item.activity.map(describeActivity).join(' · ')
   const paneThreadId = use(OpenPullLink)
   const openInPane = useOpenPullRequestTab()
+  return (
+    <Link
+      to='/pull-requests/$owner/$repo/$number'
+      params={{ owner, repo, number: String(item.number) }}
+      title={`${item.repo}#${item.number}`}
+      className={cn(inlineLinkClass, 'min-w-0 truncate')}
+      onClick={(event) => {
+        if (!paneThreadId || !plainClick(event)) return
+        event.preventDefault()
+        openInPane(paneThreadId, { repo: item.repo, number: item.number })
+      }}
+    >
+      <PullRequestTitle item={item} />
+    </Link>
+  )
+}
+
+// What Jetty's PR watcher saw on one of the thread's PRs. The agent gets the details, if it woke.
+export function PullRequestSeam({ item }: { item: PullRequestItem }) {
+  const lead = worstActivity(item.activity)
+  const summary = item.activity.map(describeActivity).join(' · ')
+  const count = item.activity.length
   const line = (
-    <>
-      <Link
-        to='/pull-requests/$owner/$repo/$number'
-        params={{ owner, repo, number: String(item.number) }}
-        title={`${item.repo}#${item.number}`}
-        className={inlineLinkClass}
-        onClick={(event) => {
-          if (!paneThreadId || !plainClick(event)) return
-          event.preventDefault()
-          openInPane(paneThreadId, { repo: item.repo, number: item.number })
-        }}
-      >
-        #{item.number}
-      </Link>
-      {lead && ` ${headline(lead, item.activity)}`}
-      {item.held && ' · not woken, too many wakes this hour'}
-    </>
+    <span className='flex min-w-0 items-center gap-[5px] whitespace-nowrap'>
+      {lead && (
+        <>
+          {count > 1 ? (
+            <>
+              <span className='truncate'>
+                {headline(lead, item.activity).replace(/^./, (letter) => letter.toUpperCase())}
+              </span>
+              <span className='text-foreground'>and {count - 1} more</span>
+              <span>on</span>
+            </>
+          ) : (
+            lead.type !== 'ready' && <span className='truncate'>{news(lead, item.activity)}</span>
+          )}
+        </>
+      )}
+      <PullRequestLink item={item} />
+      {lead?.type === 'ready' && count === 1 && <span>is ready to merge</span>}
+      {item.held && <span>· not woken, too many wakes this hour</span>}
+    </span>
   )
   return (
-    <ChatSeam>
-      <SeamIcon icon={icon} tone={tone} />
+    <div className='flex min-w-0 justify-center py-0.5 text-xs leading-4 text-muted-foreground'>
       {summary ? (
         <Tooltip>
-          <TooltipTrigger render={<span className='truncate' />}>{line}</TooltipTrigger>
+          <TooltipTrigger render={<span className='min-w-0' />}>{line}</TooltipTrigger>
           <TooltipContent className='max-w-sm'>
             <span className='text-left'>{summary}</span>
           </TooltipContent>
         </Tooltip>
       ) : (
-        <span className='truncate'>{line}</span>
+        line
       )}
-    </ChatSeam>
+    </div>
+  )
+}
+
+export function PullRequestGroupSeam({ items }: { items: PullRequestItem[] }) {
+  const navigate = useNavigate()
+  const paneThreadId = use(OpenPullLink)
+  const openInPane = useOpenPullRequestTab()
+  const looks = new Map<string, { look: ReturnType<typeof pullRequestSeamLook>; count: number }>()
+  let total = 0
+  for (const item of items) {
+    total += item.activity.length
+    const look = pullRequestSeamLook(item.activity)
+    const key = `${look.tone}:${look.icon.displayName ?? look.icon.name}`
+    looks.set(key, { look, count: (looks.get(key)?.count ?? 0) + 1 })
+  }
+  function open(item: PullRequestItem) {
+    if (paneThreadId) openInPane(paneThreadId, { repo: item.repo, number: item.number })
+    else {
+      const [owner = '', repo = ''] = item.repo.split('/')
+      void navigate({
+        to: '/pull-requests/$owner/$repo/$number',
+        params: { owner, repo, number: String(item.number) },
+      })
+    }
+  }
+  return (
+    <div className='flex min-w-0 justify-center py-0.5 text-xs leading-4 text-muted-foreground'>
+      <DropdownMenu>
+        <DropdownMenuTrigger className='flex min-w-0 items-center gap-[5px] rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50'>
+          <span className='text-foreground'>{total}</span> updates on{' '}
+          <span className='text-foreground'>{items.length} PRs</span>
+          {Array.from(looks.values(), ({ look, count }) => (
+            <span
+              key={`${look.tone}:${look.icon.displayName ?? look.icon.name}`}
+              className='inline-flex items-center gap-[3px] font-mono text-muted-foreground'
+            >
+              <look.icon aria-hidden='true' className={cn('size-3', look.tone)} />
+              {count}
+            </span>
+          ))}
+          {items.some((item) => item.held) && <span>· not woken, too many wakes this hour</span>}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='center' className='w-90 max-w-[calc(100vw-24px)]'>
+          <DropdownMenuGroup>
+            {items.map((item) => {
+              const lead = worstActivity(item.activity)
+              return (
+                <DropdownMenuItem
+                  key={`${item.repo}#${item.number}`}
+                  onClick={() => open(item)}
+                  className='justify-between gap-4'
+                >
+                  <PullRequestTitle item={item} menu />
+                  <span className='shrink-0 text-muted-foreground'>
+                    {lead && headline(lead, item.activity)}
+                    {item.activity.length > 1 && ` +${item.activity.length - 1}`}
+                  </span>
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
