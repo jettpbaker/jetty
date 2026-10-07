@@ -73,6 +73,17 @@ Everything below is for one combined review of the chat, not separate ports.
   parent's, so their PRs could open as a GitHub stack, and one async merge of
   the top PR lands every downstack layer together or none of them. Needs a
   stack model in the GitHub client.
+- Bot group chats with other people's bots (a colleague's Jetty). Neither Jetty
+  needs a public URL; both connect out to something shared. Slack via Socket
+  Mode fits best (the chat is a real channel the people can read and join, and
+  bot↔bot messages are already written for that), but installing the app needs
+  workspace admin approval. Fallbacks: a small hosted relay both connect out to,
+  or a GitHub issue thread as a polled bus. The hard part is trust, not plumbing:
+  an outside-bot mode that talks only about the shared work and never repeats
+  memory verbatim, outside messages as information that can't authorise anything,
+  signed identity, and a rate limit so their bot can't burn our usage. Capy has
+  no equivalent (its multiplayer is people sharing one thread); Grok Bot's Team
+  Bots are one bot many people use, not bots of different people talking.
 - Accept `#<PR number>` as a worktree ref by fetching the PR head.
 - Continue work on an existing branch.
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
