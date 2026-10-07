@@ -8,6 +8,7 @@ import type {
   PullRequestListItem,
   PullRequestListTab,
   PullRequestSnapshot,
+  ThreadMeta,
 } from '@jetty/shared/wire'
 
 import {
@@ -116,28 +117,35 @@ export function pullRequestUrls(text: string): PullRequestRef[] {
 
 export type PullRequestLinks = ReturnType<typeof createPullRequestLinks>
 
+// A worktree pushes its own branch. Current checkout pushes the project checkout's branch.
+function branchOf(thread: ThreadMeta) {
+  return thread.environment === 'worktree'
+    ? (thread.worktree?.branch ?? null)
+    : (thread.git?.branch ?? null)
+}
+
 export function createPullRequestLinks(
   store: Store,
   hub: Hub,
   pulls: ReturnType<typeof createPullRequests>,
   scope: Scope.Scope
 ) {
-  function linkRef(threadId: string, ref: PullRequestRef) {
+  function linkRef(threadId: string, ref: PullRequestRef, mode: 'transfer' | 'claim' = 'transfer') {
     return Effect.gen(function* () {
-      const thread = yield* hub.withChromePublication(
+      const outcome = yield* hub.withChromePublication(
         Effect.gen(function* () {
-          if (yield* store.hasPullRequestLink(threadId, ref.repo, ref.number))
-            return yield* store.requireThread(threadId)
-          const thread = yield* store.linkPullRequest(threadId, ref.repo, ref.number)
-          hub.pushChrome({ type: 'thread.upserted', thread })
-          return thread
+          const linked = yield* store.linkPullRequest(threadId, ref.repo, ref.number, mode)
+          for (const thread of linked.changed) hub.pushChrome({ type: 'thread.upserted', thread })
+          return linked
         })
       )
-      yield* pulls.refreshIfStale(ref, 120_000).pipe(
-        Effect.catchCause((cause) => Effect.logWarning(cause)),
-        Effect.forkIn(scope)
-      )
-      return thread
+      // Looking at a pull request someone else has does nothing, including no refresh.
+      if (outcome.linked)
+        yield* pulls.refreshIfStale(ref, 120_000).pipe(
+          Effect.catchCause((cause) => Effect.logWarning(cause)),
+          Effect.forkIn(scope)
+        )
+      return outcome.thread
     })
   }
 
@@ -159,8 +167,35 @@ export function createPullRequestLinks(
         const ref = yield* resolve(threadId, reference)
         return { ref, thread: yield* linkRef(threadId, ref) }
       }),
-    linkFound: (threadId: string, text: string) =>
-      Effect.forEach(pullRequestUrls(text), (ref) => linkRef(threadId, ref), { discard: true }),
+    // `transfer` is an own `gh pr create` (or an explicit link): it always takes the pull
+    // request. `claim` is a look (`gh pr view`): it links only when no thread has it.
+    linkFound: (threadId: string, text: string, mode: 'transfer' | 'claim' = 'transfer') =>
+      Effect.forEach(pullRequestUrls(text), (ref) => linkRef(threadId, ref, mode), {
+        discard: true,
+      }),
+    // The last thread to push a pull request's branch owns it. A push with no cached open
+    // pull request on that branch is not a pull request, so it changes nothing.
+    linkPushed(threadId: string) {
+      return Effect.gen(function* () {
+        const thread = yield* store.getThread(threadId)
+        const branch = thread && branchOf(thread)
+        if (!thread || thread.archived || !branch) return
+        const project = yield* store.getProject(thread.projectId)
+        if (!project) return
+        const repo = yield* Effect.promise(() => projectRemote(project.path))
+        if (!repo) return
+        const refs = yield* store.openPullRequestsOnBranch(repo, branch)
+        yield* Effect.forEach(
+          refs,
+          (ref) =>
+            Effect.gen(function* () {
+              const owners = yield* store.threadsForPullRequest(ref.repo, ref.number)
+              if (owners.some((id) => id !== threadId)) yield* linkRef(threadId, ref, 'transfer')
+            }),
+          { concurrency: 1, discard: true }
+        )
+      })
+    },
   }
 }
 

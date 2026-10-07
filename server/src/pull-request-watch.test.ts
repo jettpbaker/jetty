@@ -2,6 +2,7 @@ import type { PullRequestData } from '@jetty/shared/pull-request'
 
 import { afterEach, expect, spyOn, test } from 'bun:test'
 import { Effect } from 'effect'
+import { SqlClient } from 'effect/sql'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -80,13 +81,16 @@ async function setup(orchestrator?: Pick<Orchestrator, 'pullRequestActivity'>) {
   cleanup.push(fixture.close)
   const { store, runtime } = fixture
   await runtime.runPromise(store.setAgentBehaviour('watchPullRequests', true))
+  const sql = await runtime.runPromise(SqlClient.SqlClient)
   const watch = createPullRequestWatch(
     store,
     (orchestrator ?? {
       pullRequestActivity: () => Effect.void,
     }) as Orchestrator
   )
-  async function thread(repo: string) {
+  // Linking transfers, so a second live link has to be inserted. Later stamps keep ORDER BY linked_at stable.
+  let linkedAt = Date.now()
+  async function thread(repo: string, link: 'transfer' | 'keep' = 'transfer') {
     const path = mkdtempSync(join(home, 'project-'))
     for (const args of [['init'], ['remote', 'add', 'origin', `https://github.com/${repo}.git`]]) {
       const result = Bun.spawnSync(['git', ...args], { cwd: path })
@@ -95,7 +99,18 @@ async function setup(orchestrator?: Pick<Orchestrator, 'pullRequestActivity'>) {
     const project = await runtime.runPromise(store.createProject(path))
     const thread = await runtime.runPromise(store.createThread(project.id, crypto.randomUUID()))
     await runtime.runPromise(store.setThreadGit(thread.id, { branch: 'feature', dirty: false }))
-    await runtime.runPromise(store.linkPullRequest(thread.id, 'owner/repo', 1))
+    if (link === 'keep') {
+      linkedAt += 60_000
+      await runtime.runPromise(
+        sql`INSERT OR IGNORE INTO pull_requests (repo, number) VALUES ('owner/repo', 1)`
+      )
+      await runtime.runPromise(
+        sql`INSERT OR IGNORE INTO thread_pull_requests (thread_id, repo, number, linked_at)
+          VALUES (${thread.id}, 'owner/repo', 1, ${linkedAt})`
+      )
+    } else {
+      await runtime.runPromise(store.linkPullRequest(thread.id, 'owner/repo', 1))
+    }
     return thread
   }
   async function change(previous = data(), refreshedAt = Date.now()) {
@@ -122,10 +137,14 @@ async function setup(orchestrator?: Pick<Orchestrator, 'pullRequestActivity'>) {
 }
 
 for (const authored of [false, true]) {
-  test(`PR ownership verifies the head repository${authored ? ' for authored fallback' : ''}`, async () => {
+  test(`a pull request linked to several threads still wakes the in-repo thread ${authored ? 'when the viewer opened it' : 'on its branch'}`, async () => {
     const f = await setup()
-    await f.thread('other/repo')
-    const owner = await f.thread('owner/repo')
+    const other = await f.thread('other/repo')
+    const owner = await f.thread('owner/repo', 'keep')
+    expect(await f.runtime.runPromise(f.store.threadsForPullRequest('owner/repo', 1))).toEqual([
+      other.id,
+      owner.id,
+    ])
     const baseline = data()
     const previous = authored
       ? baseline
@@ -139,15 +158,63 @@ for (const authored of [false, true]) {
   })
 }
 
-test('a missing head repository cannot claim a linked thread', async () => {
+test('the one linked thread owns the pull request when its head repository is missing', async () => {
   const f = await setup()
-  await f.thread('owner/repo')
+  const owner = await f.thread('owner/repo')
+  const baseline = data()
+  const previous = {
+    ...baseline,
+    pull: { ...baseline.pull, head: { ...baseline.pull.head, repo: null } },
+  }
+  expect((await f.change(previous)).pending?.threadId).toBe(owner.id)
+})
+
+test('a pull request linked to several threads wakes nobody when its head repository is missing', async () => {
+  const f = await setup()
+  const first = await f.thread('owner/repo')
+  const second = await f.thread('other/repo', 'keep')
+  expect(await f.runtime.runPromise(f.store.threadsForPullRequest('owner/repo', 1))).toEqual([
+    first.id,
+    second.id,
+  ])
   const baseline = data()
   const previous = {
     ...baseline,
     pull: { ...baseline.pull, head: { ...baseline.pull.head, repo: null } },
   }
   expect((await f.change(previous)).pending).toBeUndefined()
+})
+
+test('the one linked thread owns the pull request even when its branch and repo do not match', async () => {
+  const f = await setup()
+  const owner = await f.thread('other/repo')
+  await f.runtime.runPromise(f.store.setThreadGit(owner.id, { branch: 'main', dirty: false }))
+  const baseline = data()
+  const previous = {
+    ...baseline,
+    pull: { ...baseline.pull, user: { login: 'someone', avatar_url: '', html_url: '' } },
+  }
+  expect((await f.change(previous)).pending?.threadId).toBe(owner.id)
+})
+
+test('a pull request linked to several threads still goes to the thread on its branch', async () => {
+  const f = await setup()
+  const earlier = await f.thread('owner/repo')
+  await f.runtime.runPromise(f.store.setThreadGit(earlier.id, { branch: 'main', dirty: false }))
+  const feature = await f.thread('owner/repo', 'keep')
+  const later = await f.thread('owner/repo', 'keep')
+  await f.runtime.runPromise(f.store.setThreadGit(later.id, { branch: 'main', dirty: false }))
+  expect(await f.runtime.runPromise(f.store.threadsForPullRequest('owner/repo', 1))).toEqual([
+    earlier.id,
+    feature.id,
+    later.id,
+  ])
+  const baseline = data()
+  const previous = {
+    ...baseline,
+    pull: { ...baseline.pull, user: { login: 'someone', avatar_url: '', html_url: '' } },
+  }
+  expect((await f.change(previous)).pending?.threadId).toBe(feature.id)
 })
 
 for (const continuous of [false, true]) {
@@ -229,7 +296,11 @@ for (const fallback of [false, true]) {
   test(`an archived PR owner does not suppress its active replacement${fallback ? ' in authored fallback' : ''}`, async () => {
     const f = await setup()
     const archived = await f.thread('owner/repo')
-    const active = await f.thread('owner/repo')
+    const active = await f.thread('owner/repo', 'keep')
+    expect(await f.runtime.runPromise(f.store.threadsForPullRequest('owner/repo', 1))).toEqual([
+      archived.id,
+      active.id,
+    ])
     await f.runtime.runPromise(f.store.archiveThread(archived.id, true))
     if (fallback) {
       for (const thread of [archived, active])

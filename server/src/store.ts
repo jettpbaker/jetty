@@ -1478,20 +1478,39 @@ export function createStore() {
           }))
         }).pipe(Effect.mapError(storeError))
       },
-      linkPullRequest(threadId: string, repo: string, number: number) {
+      // `claim` links only while no thread has this pull request. `transfer` makes this the
+      // only thread that does. A pull request already linked to several threads stays that way
+      // until something transfers it.
+      linkPullRequest(
+        threadId: string,
+        repo: string,
+        number: number,
+        mode: 'transfer' | 'claim' = 'transfer'
+      ) {
         return Effect.gen(function* () {
-          yield* requireThread(threadId)
+          const current = yield* requireThread(threadId)
+          const existing = yield* sql<{
+            thread_id: string
+          }>`SELECT thread_id FROM thread_pull_requests WHERE repo = ${repo} AND number = ${number}`
+          const had = existing.some((row) => row.thread_id === threadId)
+          if (mode === 'claim' && existing.length > 0)
+            return { thread: current, changed: [], linked: had }
           yield* sql`INSERT OR IGNORE INTO pull_requests (repo, number) VALUES (${repo}, ${number})`
-          yield* sql`INSERT OR IGNORE INTO thread_pull_requests (thread_id, repo, number, linked_at)
-            VALUES (${threadId}, ${repo}, ${number}, ${Date.now()})`
-          return yield* requireThread(threadId)
+          const others = existing.filter((row) => row.thread_id !== threadId)
+          if (others.length)
+            yield* sql`DELETE FROM thread_pull_requests
+              WHERE repo = ${repo} AND number = ${number} AND thread_id != ${threadId}`
+          if (!had)
+            yield* sql`INSERT OR IGNORE INTO thread_pull_requests (thread_id, repo, number, linked_at)
+              VALUES (${threadId}, ${repo}, ${number}, ${Date.now()})`
+          const changed: ThreadMeta[] = []
+          if (!had) changed.push(yield* requireThread(threadId))
+          for (const row of others) {
+            const thread = yield* getThread(row.thread_id)
+            if (thread) changed.push(thread)
+          }
+          return { thread: yield* requireThread(threadId), changed, linked: true as const }
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
-      },
-      hasPullRequestLink(threadId: string, repo: string, number: number) {
-        return sql`SELECT 1 FROM thread_pull_requests WHERE thread_id = ${threadId} AND repo = ${repo} AND number = ${number} LIMIT 1`.pipe(
-          Effect.map((rows) => rows.length > 0),
-          Effect.mapError(storeError)
-        )
       },
       unlinkPullRequest(threadId: string, repo: string, number: number) {
         return Effect.gen(function* () {
@@ -1573,6 +1592,22 @@ export function createStore() {
           Effect.map((rows) => rows.map((row) => row.thread_id)),
           Effect.mapError(storeError)
         )
+      },
+      // Open pull requests Jetty already has cached in `repo` whose head branch is `branch`.
+      // A fork's head only counts when it is this repo. No GitHub call.
+      openPullRequestsOnBranch(repo: string, branch: string) {
+        return sql<{
+          repo: string
+          number: number
+        }>`SELECT repo, number FROM pull_requests
+          WHERE repo = ${repo}
+            AND json_extract(data_json, '$.pull.head.ref') = ${branch}
+            AND json_extract(data_json, '$.pull.state') = 'open'
+            AND json_extract(data_json, '$.pull.merged') IS NOT 1
+            AND (
+              json_extract(data_json, '$.pull.head.repo') IS NULL
+              OR lower(json_extract(data_json, '$.pull.head.repo')) = ${repo}
+            )`.pipe(Effect.mapError(storeError))
       },
       pullRequestWatch(repo: string, number: number) {
         return sql<{

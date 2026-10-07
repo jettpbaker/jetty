@@ -322,20 +322,22 @@ export type PullRequestWatchMemory = {
 export function createPullRequestWatch(store: Store, orchestrator: Orchestrator) {
   const timers = new Map<string, { first: number; timer: ReturnType<typeof setTimeout> }>()
 
-  // The thread on the PR's branch; else, for a PR the user opened, the thread that linked it
-  // first, preferring one in the PR's repo. A thread outside any repo (one run from the home
-  // folder that opened the PR from a worktree) still owns a PR it linked.
+  // The thread that has the link. One still linked to several threads keeps the old tie-break:
+  // the thread on its branch in its repo, else the first that linked it when the viewer opened it.
   function owner(ref: PullRequestRef, data: PullRequestData) {
     return Effect.gen(function* () {
       const linked: ThreadMeta[] = []
-      const inRepo: ThreadMeta[] = []
-      const repositories = new Map<string, string | null>()
-      const headRepo = data.pull.head.repo?.toLowerCase()
-      if (!headRepo) return undefined
       for (const id of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
         const thread = yield* store.getThread(id)
         if (!thread || thread.archived) continue
         linked.push(thread)
+      }
+      if (linked.length <= 1) return linked[0]
+      const headRepo = data.pull.head.repo?.toLowerCase()
+      if (!headRepo) return undefined
+      const inRepo: ThreadMeta[] = []
+      const repositories = new Map<string, string | null>()
+      for (const thread of linked) {
         if (!repositories.has(thread.projectId)) {
           const project = yield* store.getProject(thread.projectId)
           repositories.set(

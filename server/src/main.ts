@@ -529,6 +529,7 @@ function createServer(opts: ServerOptions = {}) {
         attachments,
         agent: registry,
         onPullRequestOutput: pullRequestLinks.linkFound,
+        onBranchPushed: pullRequestLinks.linkPushed,
         modelCatalog,
         knownModels: () => models ?? [],
         worktrees,

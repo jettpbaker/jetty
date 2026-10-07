@@ -78,6 +78,23 @@ function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
   return 'defaultProvider' in agent ? agent : singleAgentRegistry(agent)
 }
 
+// An own shell command, not one a subagent ran. `command` and `cmd` are the shapes the
+// providers report for Bash.
+function ownShellCommand(item: ThreadItem | undefined) {
+  if (!item || item.kind !== 'tool_call' || item.agentId) return null
+  if (!/(?:bash|shell|exec|command)/i.test(item.toolName)) return null
+  if (!item.input || typeof item.input !== 'object') return null
+  const input = item.input as Record<string, unknown>
+  if (typeof input.command === 'string') return input.command
+  if (typeof input.cmd === 'string') return input.cmd
+  return null
+}
+
+// A command at the start of the line or after a shell separator, not an argument of another one.
+const GH_PR_CREATE = /(?:^|[;&|\n])\s*gh\s+pr\s+create(?:\s|$)/
+const GH_PR_VIEW = /(?:^|[;&|\n])\s*gh\s+pr\s+view(?:\s|$)/
+const GIT_PUSH = /(?:^|[;&|\n])\s*git\s+push(?:\s|$)/
+
 function providerConflict(bound: string, requested: string) {
   return new StoreError('conflict', `Thread is bound to ${bound} and cannot switch to ${requested}`)
 }
@@ -119,7 +136,12 @@ type OrchestratorOptions = {
   worktrees?: Worktrees
   titler?: ProviderTitler | null
   attachments?: Attachments | null
-  onPullRequestOutput?: (threadId: string, text: string) => Effect.Effect<void, StoreError>
+  onPullRequestOutput?: (
+    threadId: string,
+    text: string,
+    mode: 'transfer' | 'claim'
+  ) => Effect.Effect<void, StoreError>
+  onBranchPushed?: (threadId: string) => Effect.Effect<void, StoreError>
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
   // The last discovered models, read without re-running discovery.
   knownModels?: () => readonly ProviderModel[]
@@ -133,6 +155,7 @@ export function createOrchestrator({
   titler = null,
   attachments = null,
   onPullRequestOutput,
+  onBranchPushed,
   modelCatalog,
   knownModels,
 }: OrchestratorOptions) {
@@ -405,30 +428,30 @@ export function createOrchestrator({
         if (event.type === 'turn.started') state(threadId).turnId = event.turnId
         yield* onCommit
         yield* publish(threadId, appended)
-        if (event.type === 'item.completed' && onPullRequestOutput) {
+        if (event.type === 'item.completed' && (onPullRequestOutput || onBranchPushed)) {
           const item = appended.state.items.find((candidate) => candidate.id === event.itemId)
-          const input =
-            item?.kind === 'tool_call' && item.input && typeof item.input === 'object'
-              ? (item.input as Record<string, unknown>)
-              : null
-          const command =
-            input &&
-            (typeof input.command === 'string'
-              ? input.command
-              : typeof input.cmd === 'string'
-                ? input.cmd
-                : null)
-          const ownGhPr =
-            item?.kind === 'tool_call' &&
-            !item.agentId &&
-            /(?:bash|shell|exec|command)/i.test(item.toolName) &&
-            command &&
-            /(?:^|[;&|\n])\s*gh\s+pr\s+(?:create|view)(?:\s|$)/.test(command)
-          if (ownGhPr && item.output.includes('github.com/'))
-            yield* onPullRequestOutput(threadId, item.output).pipe(
-              Effect.catchCause((cause) => Effect.logWarning(cause)),
-              Effect.forkIn(scope)
-            )
+          const command = ownShellCommand(item)
+          if (command && item?.kind === 'tool_call') {
+            // Creating a pull request takes it. Looking (`gh pr view`) links it only when no
+            // thread has it. Pushing takes an open one already on this thread's branch.
+            if (onPullRequestOutput && item.output.includes('github.com/')) {
+              const mode = GH_PR_CREATE.test(command)
+                ? 'transfer'
+                : GH_PR_VIEW.test(command)
+                  ? 'claim'
+                  : null
+              if (mode)
+                yield* onPullRequestOutput(threadId, item.output, mode).pipe(
+                  Effect.catchCause((cause) => Effect.logWarning(cause)),
+                  Effect.forkIn(scope)
+                )
+            }
+            if (onBranchPushed && item.status !== 'failed' && GIT_PUSH.test(command))
+              yield* onBranchPushed(threadId).pipe(
+                Effect.catchCause((cause) => Effect.logWarning(cause)),
+                Effect.forkIn(scope)
+              )
+          }
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           state(threadId).turnId = null

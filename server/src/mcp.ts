@@ -676,7 +676,7 @@ export function createMcpHandler(
         'link_pull_request',
         {
           description:
-            "Link a GitHub pull request to this thread so the user can follow it in Jetty. PRs you create or view with `gh pr create` or `gh pr view` link themselves; call this for one opened another way, or one you take over. Accepts a PR URL, or a number in this project's GitHub repo.",
+            "Each pull request belongs to one Jetty thread: the one that opened it or last pushed to its branch, and its CI, review and merge news go to that thread. Linking moves it here, so only do that to take a pull request over, with a URL or a number in this project's GitHub repo. To look at one, such as a child's, use `gh pr view`, which never takes it.",
           inputSchema: { pullRequest: z.string().trim().min(1).max(500) },
         },
         ({ pullRequest }) =>
