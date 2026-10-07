@@ -9,7 +9,11 @@ export type AgentRegistry = {
   agent(provider: AgentProvider): Agent | undefined
 }
 
-export type ProviderTitler = (provider: AgentProvider, text: string) => Effect.Effect<string | null>
+export type ProviderTitler = (
+  provider: AgentProvider,
+  text: string,
+  threadId: string
+) => Effect.Effect<string | null>
 
 export function isAgentProvider(value: string): value is AgentProvider {
   return value === 'claude' || value === 'codex' || value === 'grok' || value === 'echo'

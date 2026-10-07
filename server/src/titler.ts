@@ -30,12 +30,12 @@ Editorial rules:
 - Do not claim the work is complete.
 - Do not copy and truncate the user’s message.
 - Avoid project names already visible in the UI, quotes, labels, filler, and trailing punctuation.
-- If a linked PR or issue is the only subject, use the user’s stated action plus its number, such as “Take over PR 8588”.
+- Never put PR or issue numbers in a title. Name what the work is about from the opening message, or, when it only points at a PR or issue, from that item’s title in the linked-items block.
 
 Example: “can you look into why the login test keeps failing on CI?” → “Fix flaky login test”.`
 
-export const titlePrompt = (text: string) =>
-  `Title this conversation opener:\n\n<opening-message>\n${text}\n</opening-message>`
+export const titlePrompt = (text: string, linkedItems: readonly string[] = []) =>
+  `Title this conversation opener:\n\n<opening-message>\n${text}\n</opening-message>${linkedItems.length ? `\n\n<linked-items>\n${linkedItems.join('\n')}\n</linked-items>` : ''}`
 
 export function normalizeTitle(raw: string | null | undefined): string | null {
   if (!raw) return null
@@ -50,9 +50,9 @@ export function normalizeTitle(raw: string | null | undefined): string | null {
   return clampTitle(title)
 }
 
-export function titleModelTitler(prompt: TitlePrompt): Titler {
+export function titleModelTitler(prompt: TitlePrompt, linkedItems: readonly string[] = []): Titler {
   return (text) =>
-    prompt(TITLE_INSTRUCTIONS, titlePrompt(text)).pipe(
+    prompt(TITLE_INSTRUCTIONS, titlePrompt(text, linkedItems)).pipe(
       Effect.flatMap((reply) => {
         const title = normalizeTitle(reply)
         if (title) return Effect.succeed(title)

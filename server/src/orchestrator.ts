@@ -627,7 +627,7 @@ export function createOrchestrator({
     function maybeTitle(threadId: string, provider: AgentProvider, text: string) {
       if (!titler || titled.has(threadId)) return Effect.void
       titled.add(threadId)
-      return titler(provider, text).pipe(
+      return titler(provider, text, threadId).pipe(
         Effect.flatMap((title) =>
           hub.withChromePublication(
             Effect.gen(function* () {

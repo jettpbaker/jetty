@@ -55,6 +55,7 @@ import { createGithubMedia, GithubMediaError } from './github-media'
 import { grokLayer, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
+import { linkedTitles } from './linked-titles'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -89,7 +90,8 @@ export type ServerOptions = {
 function selectTitler(
   kind: NonNullable<ServerOptions['agent']>,
   opts: ServerOptions,
-  prompt: TitlePrompt
+  prompt: TitlePrompt,
+  store: Store
 ) {
   if (opts.titler !== undefined) {
     if (!opts.titler) return null
@@ -97,9 +99,14 @@ function selectTitler(
     return (_provider: AgentProvider, text: string) => fixed(text)
   }
   if (typeof kind !== 'string') return null
-  const titler = chainTitlers(titleModelTitler(prompt), firstLineTitler)
-  return (provider: AgentProvider, text: string) =>
-    provider === 'echo' ? firstLineTitler(text) : titler(text)
+  return (provider: AgentProvider, text: string, threadId: string) =>
+    provider === 'echo'
+      ? firstLineTitler(text)
+      : linkedTitles(text, threadId, store).pipe(
+          Effect.flatMap((items) =>
+            chainTitlers(titleModelTitler(prompt, items), firstLineTitler)(text)
+          )
+        )
 }
 
 function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
@@ -519,7 +526,7 @@ function createServer(opts: ServerOptions = {}) {
       catalog: modelCatalog,
       choice: () => store.getTitleModel().pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
-    const titler = selectTitler(agentKind, opts, titlePrompt)
+    const titler = selectTitler(agentKind, opts, titlePrompt, store)
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, discoveryScope)
     const services = yield* Layer.build(
       orchestratorLayer({
