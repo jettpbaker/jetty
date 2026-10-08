@@ -2,6 +2,7 @@ import type { EffortLevel } from '@jetty/shared/events'
 import type { PullRequestGuide } from '@jetty/shared/wire'
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { claudeModelLabel } from '@jetty/shared/model-name'
 import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 
@@ -175,7 +176,7 @@ export async function generateGuide(
             malformed = error
           }
         }
-        if (!malformed) throw new Error('Claude ended without a guide result')
+        if (!malformed) throw new Error(`${claudeModelLabel(model)} ended without a guide result`)
         if (attempt === 1) throw new Error(`Malformed guide response: ${String(malformed)}`)
       } finally {
         signal?.removeEventListener('abort', abort)
@@ -183,7 +184,7 @@ export async function generateGuide(
         q.close()
       }
     }
-    throw new Error('Claude ended without a guide')
+    throw new Error(`${claudeModelLabel(model)} ended without a guide`)
   } catch (error) {
     metrics.durationMs = Math.round(performance.now() - startedAt)
     throw Object.assign(
