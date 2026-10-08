@@ -494,6 +494,7 @@ export function createMcpHandler(
     async function register(server: McpServer, identity: McpIdentity) {
       const parentId = (await run(accessible(identity, identity.threadId))).parentThreadId
       const bot = await run(store.getBot(identity.threadId))
+      const toolMeta = bot ? { _meta: { 'anthropic/alwaysLoad': true } } : {}
       function invoke<A>(effect: Effect.Effect<A, Error>) {
         return run(
           effect.pipe(
@@ -526,6 +527,7 @@ export function createMcpHandler(
       server.registerTool(
         'list_threads',
         {
+          ...toolMeta,
           description:
             "List threads across projects (archived ones aren't included) with their status, model, parent and project. Your project first. Pass project to filter by name.",
           inputSchema: {
@@ -566,6 +568,7 @@ export function createMcpHandler(
       server.registerTool(
         'read_thread',
         {
+          ...toolMeta,
           description:
             "Read a thread's latest 20 user and assistant messages, each cut at 4,000 characters (marked truncated). Pass after to read on from an earlier message, or messageId to get one message in full.",
           inputSchema: {
@@ -619,6 +622,7 @@ export function createMcpHandler(
       server.registerTool(
         'list_models',
         {
+          ...toolMeta,
           description:
             'List live Jetty providers, model IDs and names, and supported effort levels for create_thread.',
           inputSchema: {},
@@ -647,6 +651,7 @@ export function createMcpHandler(
       server.registerTool(
         'create_thread',
         {
+          ...toolMeta,
           description:
             "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your environment, provider and model unless you set them; in another project, that project's environment default and worktree base. list_models has the options. Up to 5 per turn, and nesting stops three levels below the user's thread.",
           inputSchema: createInput,
@@ -671,6 +676,7 @@ export function createMcpHandler(
       server.registerTool(
         'send_message',
         {
+          ...toolMeta,
           description:
             'Send a message to another thread. An idle thread starts on it right away; a busy one reads it after its current turn, unless you steer.',
           inputSchema: sendInput,
@@ -681,6 +687,7 @@ export function createMcpHandler(
         server.registerTool(
           'tell_user',
           {
+            ...toolMeta,
             description: 'Send a visible message to the user from a background turn.',
             inputSchema: { text },
           },
@@ -690,6 +697,7 @@ export function createMcpHandler(
         server.registerTool(
           'react',
           {
+            ...toolMeta,
             description: 'React to the latest user message with one emoji.',
             inputSchema: { emoji: z.string().min(1).max(20) },
           },
@@ -714,6 +722,7 @@ export function createMcpHandler(
         server.registerTool(
           'ask_parent',
           {
+            ...toolMeta,
             description:
               'Ask the thread that created yours a question, such as a decision you need from it. Jetty sends it when your turn ends, and its answer arrives as your next message.',
             inputSchema: { question: text },
@@ -736,6 +745,7 @@ export function createMcpHandler(
         server.registerTool(
           'mark_ready_for_review',
           {
+            ...toolMeta,
             description:
               "Show this thread as Ready for review in the user's sidebar until they open it. In a child thread this does nothing: your final message goes to your creator instead.",
             inputSchema: {},
@@ -755,6 +765,7 @@ export function createMcpHandler(
         server.registerTool(
           'link_pull_request',
           {
+            ...toolMeta,
             description:
               "Each pull request belongs to one Jetty thread: the one that opened it or last pushed to its branch, and its CI, review and merge news go to that thread. Linking moves it here, so only do that to take a pull request over, with a URL or a number in this project's GitHub repo. To look at one, such as a child's, use `gh pr view`, which never takes it.",
             inputSchema: { pullRequest: z.string().trim().min(1).max(500) },
@@ -772,6 +783,7 @@ export function createMcpHandler(
       server.registerTool(
         'archive_thread',
         {
+          ...toolMeta,
           description:
             "Archive a thread and everything under it. Not this thread, and not one above it. A thread that isn't under yours has to be idle, and so does everything under it. Work stops with no report back, worktree folders are removed and branches kept, so every worktree in the tree must be clean. The user can restore them.",
           inputSchema: { threadId: z.string() },
@@ -790,6 +802,7 @@ export function createMcpHandler(
       server.registerTool(
         'stop_thread',
         {
+          ...toolMeta,
           description:
             'Stop one of your children: its turn and background tasks end, with no report back. Your next message to it starts it again. Safe to repeat.',
           inputSchema: { threadId: z.string() },

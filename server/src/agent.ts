@@ -349,10 +349,15 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
               ...itemBase(),
               kind: 'reasoning',
               text: '',
+              streaming: true,
             }
             yield* emit({ type: 'item.started', item: reasoning })
             yield* emitChunks(emit, reasoning.id, 'Thinking about your message…')
-            yield* emit({ type: 'item.completed', itemId: reasoning.id })
+            yield* emit({
+              type: 'item.completed',
+              itemId: reasoning.id,
+              patch: { streaming: false },
+            })
             yield* emit({ type: 'context.updated', usage: echoContextUsage(ramp[0]!) })
 
             const tool: ThreadItem = {
@@ -372,6 +377,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
               ...itemBase(),
               kind: 'assistant_message',
               text: '',
+              streaming: true,
             }
             yield* emit({ type: 'item.started', item: assistant })
             yield* emitChunks(emit, assistant.id, input.text)
@@ -387,7 +393,11 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
               if (steered === null) break
               yield* emitChunks(emit, assistant.id, steered)
             }
-            yield* emit({ type: 'item.completed', itemId: assistant.id })
+            yield* emit({
+              type: 'item.completed',
+              itemId: assistant.id,
+              patch: { streaming: false },
+            })
 
             yield* emit({ type: 'context.updated', usage: echoContextUsage(ramp[3]!) })
             yield* emit({

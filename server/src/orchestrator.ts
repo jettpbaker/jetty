@@ -1152,9 +1152,7 @@ export function createOrchestrator({
               if (resumeQueue) yield* setQueuePaused(input.threadId, false)
               yield* turn.await.pipe(
                 Effect.catch((error) =>
-                  Effect.gen(function* () {
-                    yield* emit({ type: 'turn.failed', turnId, error: error.message })
-                  })
+                  emit({ type: 'turn.failed', turnId, error: error.message })
                 ),
                 Effect.onInterrupt(() =>
                   emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(

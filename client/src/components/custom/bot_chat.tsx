@@ -873,7 +873,8 @@ function ErrorRow({
 // "The model provider is overloaded." reads on after the colon as "the model provider…"; an
 // acronym ("API …") keeps its capitals.
 function sentenceCase(message: string) {
-  return /^[A-Z][a-z]/.test(message) ? message[0]!.toLowerCase() + message.slice(1) : message
+  const detail = message.replace(/^Error: /i, '')
+  return /^[A-Z][a-z]/.test(detail) ? detail[0]!.toLowerCase() + detail.slice(1) : detail
 }
 
 function plainQuote(markdown: string) {
