@@ -56,3 +56,15 @@
   vertical-align: -0.12em;
   color: var(--chip);
 }
+
+/* A bot's @mention takes that bot's colour, its deep ink in light as its face is drawn. */
+.skill-chip.bot-chip {
+  --chip: var(--bot-deep);
+}
+.dark .skill-chip.bot-chip {
+  --chip: var(--bot);
+}
+.skill-chip[data-flush] {
+  padding-right: 0;
+  margin-right: 0;
+}

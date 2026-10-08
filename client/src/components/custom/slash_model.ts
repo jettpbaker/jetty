@@ -1,20 +1,60 @@
+import type { Bot } from '@jetty/shared/wire'
+
+// / opens skills; @ opens bots, where the composer offers them.
+export type Trigger = '/' | '@'
+
 export type SlashQuery = {
   start: number
   end: number
   query: string
+  trigger: Trigger
 }
 
-export type SlashToken = { start: number; end: number; name: string }
+export type MentionBot = Pick<Bot, 'id' | 'name' | 'shape' | 'color'>
+
+export type SlashToken = { start: number; end: number; name: string; bot?: MentionBot }
 
 export function activeSlash(text: string, caret: number): SlashQuery | undefined {
   const before = text.slice(0, caret)
   let end = caret
   while (end < text.length && !/\s/.test(text.charAt(end))) end++
-  const match = /(^|\s)\/([\w-]*)$/.exec(before)
+  const match = /(^|\s)([/@])([\p{L}\p{N}_-]*)$/u.exec(before)
   if (!match) return undefined
-  const [, lead = '', query = ''] = match
+  const [, lead = '', trigger = '/', query = ''] = match
   const start = match.index + lead.length
-  return { start, end, query }
+  return { start, end, query, trigger: trigger as Trigger }
+}
+
+const wordCharacter = /[\p{L}\p{N}_-]/u
+
+// A bot's name after @, the longest that fits, ending where a word would. Names can have spaces,
+// so this reads names, not words.
+export function mentionTokens(
+  text: string,
+  bots: readonly MentionBot[]
+): (SlashToken & { bot: MentionBot })[] {
+  const longest = [...bots].sort((a, b) => b.name.length - a.name.length)
+  return [...text.matchAll(/(^|\s)@/g)].flatMap((match) => {
+    const start = match.index + (match[1]?.length ?? 0)
+    const bot = longest.find(
+      ({ name }) =>
+        text.startsWith(name, start + 1) &&
+        !wordCharacter.test(text.charAt(start + 1 + name.length))
+    )
+    return bot ? [{ start, end: start + 1 + bot.name.length, name: bot.name, bot }] : []
+  })
+}
+
+// What a mention sends: a link the bot can act on, by id, since names repeat and change.
+export function linkMentions(text: string, bots: readonly MentionBot[]) {
+  let linked = ''
+  let at = 0
+  for (const { start, end, name, bot } of mentionTokens(text, bots)) {
+    const label = name.replace(/[[\]\\]/g, '\\$&')
+    linked += `${text.slice(at, start)}[@${label}](jetty://bots/${bot.id})`
+    at = end
+  }
+  return linked + text.slice(at)
 }
 
 export function slashTokens(text: string): SlashToken[] {
@@ -47,13 +87,13 @@ export function chipped(text: string, chips: readonly SlashToken[]) {
 
 // The textarea's edit, made to the message. The edit ends at the caret, which settles where a
 // character typed beside an identical one went. Chips the edit brings back (an undo, a drop of
-// the textarea's own text) get their slashes back.
+// the textarea's own text) get their / or @ back; `leads` maps each chip name to its trigger.
 export function applyEdit(
   text: string,
   shown: string,
   next: string,
   caret: number,
-  isSkill: (name: string) => boolean
+  leads: ReadonlyMap<string, Trigger>
 ) {
   let tail = 0
   while (
@@ -65,12 +105,21 @@ export function applyEdit(
   let head = 0
   while (head < next.length - tail && head < shown.length - tail && next[head] === shown[head])
     head++
-  const edit = next
-    .slice(head, next.length - tail)
-    .replace(/(^|\s)\u00a0([\w-]+)(\u2002|(?=\s|$))/g, (match, lead, name, space) =>
-      isSkill(name) ? `${lead}/${name}${space ? ' ' : ''}` : match
-    )
+  const edit = restoreLeads(next.slice(head, next.length - tail), leads)
   return text.slice(0, head) + edit + text.slice(shown.length - tail)
+}
+
+function restoreLeads(edit: string, leads: ReadonlyMap<string, Trigger>) {
+  if (!leads.size || !edit.includes(chipLead)) return edit
+  const names = [...leads.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const chip = new RegExp(`(^|\\s)\u00a0(${names.join('|')})(\u2002|(?![\\p{L}\\p{N}_-]))`, 'gu')
+  return edit.replace(
+    chip,
+    (_, space: string, name: string, tail: string) =>
+      `${space}${leads.get(name)}${name}${tail ? ' ' : ''}`
+  )
 }
 
 function isSubsequence(query: string, text: string) {

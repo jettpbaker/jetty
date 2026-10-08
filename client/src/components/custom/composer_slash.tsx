@@ -1,4 +1,4 @@
-import type { PermissionMode, ProviderModel, Skill } from '@jetty/shared/wire'
+import type { Bot, PermissionMode, ProviderModel, Skill } from '@jetty/shared/wire'
 
 import {
   AiFileIcon,
@@ -44,7 +44,9 @@ import {
   type UIEvent,
 } from 'react'
 
+import { BotAvatar, botColorStyle } from './bot_avatar'
 import { ContextRing } from './context_ring'
+import { JettyBot } from './jetty_bot'
 import { ProviderGlyph } from './provider_glyph'
 import './composer_slash.css'
 import {
@@ -53,8 +55,11 @@ import {
   chipLead,
   chipped,
   matchScore,
+  mentionTokens,
   slashTokens,
+  type MentionBot,
   type SlashQuery,
+  type Trigger,
 } from './slash_model'
 
 export type SlashScope = {
@@ -63,11 +68,13 @@ export type SlashScope = {
   onUsage?: () => void
   // A bot's chat lists only skills: the commands act on a thread.
   bot?: boolean
+  // The bots @ can mention. Without any, @ is just a character.
+  mentions?: readonly Bot[]
 }
 
 type Section = 'Skills'
 type ValueCommand = 'model' | 'effort' | 'access'
-type Kind = 'section' | 'back' | 'command' | 'skill' | 'option'
+type Kind = 'section' | 'back' | 'command' | 'skill' | 'option' | 'bot'
 
 type Entry = {
   id: string
@@ -102,7 +109,7 @@ export function useComposerSlash(
   text: string,
   onTextChange: (text: string) => void,
   textarea: RefObject<HTMLTextAreaElement | null>,
-  { threadId, projectId, onUsage, bot = false }: SlashScope = {}
+  { threadId, projectId, onUsage, bot = false, mentions = [] }: SlashScope = {}
 ) {
   const field = useRef<HTMLDivElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
@@ -140,19 +147,21 @@ export function useComposerSlash(
   // Claude and Grok run Claude skills as /name; Codex has its own. Bots run on Claude.
   const runsSkills = bot || provider !== 'codex'
   const skills = runsSkills ? listed : []
-  const isSkill = (name: string) => skills.some((skill) => skill.name === name)
 
   // A finished chip is one piece: the caret resting in it neither un-chips it nor opens the menu.
+  const all = chips(text, skills, mentions)
   const typed = activeSlash(text, caret)
   const query =
-    typed && (typed.start === editing || !isSkill(text.slice(typed.start + 1, typed.end)))
+    typed &&
+    (typed.trigger === '/' || mentions.length > 0) &&
+    (typed.start === editing || !all.some((token) => token.start === typed.start))
       ? typed
       : undefined
   const open = focused && query !== undefined && dismissed !== query.start
   const own = level && level.start === query?.start ? level : undefined
   const section = own?.section
   const picking = own?.picking
-  const tokens = chips(text, query, skills)
+  const tokens = all.filter((token) => token.start !== query?.start)
   const shown = chipped(text, tokens)
 
   useEffect(() => {
@@ -196,10 +205,10 @@ export function useComposerSlash(
     settle(next, nextCaret)
   }
 
-  // Skills go into the message, followed by a space for arguments.
+  // Skills and bots go into the message, followed by a space for what comes next.
   function insert(range: SlashQuery, name: string) {
     const after = text.slice(range.end).replace(/^ /, '')
-    const head = `${text.slice(0, range.start)}/${name} `
+    const head = `${text.slice(0, range.start)}${range.trigger}${name} `
     update(head + after, head.length)
   }
 
@@ -405,6 +414,19 @@ export function useComposerSlash(
     ]
   }
 
+  function mentionEntries(range: SlashQuery): Entry[] {
+    return mentions.map((mention) => ({
+      id: `bot:${mention.id}`,
+      kind: 'bot',
+      name: mention.name,
+      description: '',
+      group: 'Bots',
+      icon: <BotAvatar bot={mention} size={12} unread={false} />,
+      score: 0,
+      run: () => insert(range, mention.name),
+    }))
+  }
+
   function back(run: () => void): Entry {
     return { id: 'back', kind: 'back', name: 'Back', description: '', group: '', score: 0, run }
   }
@@ -416,6 +438,7 @@ export function useComposerSlash(
   }
 
   function entriesFor(range: SlashQuery): Entry[] {
+    if (range.trigger === '@') return rank(mentionEntries(range), range.query)
     if (picking) return [back(() => up(range)), ...rank(optionEntries(range, picking), range.query)]
     const items = itemEntries(range)
     if (section)
@@ -513,7 +536,7 @@ export function useComposerSlash(
     value: shown,
     onChange: ({ target }: ChangeEvent<HTMLTextAreaElement>) =>
       update(
-        applyEdit(text, shown, target.value, target.selectionEnd, isSkill),
+        applyEdit(text, shown, target.value, target.selectionEnd, leads()),
         target.selectionStart
       ),
     onSelect: (event: SyntheticEvent<HTMLTextAreaElement>) => {
@@ -543,6 +566,13 @@ export function useComposerSlash(
     // Capture, so an open menu takes its keys before the strip's handlers and Enter-to-send.
     onKeyDownCapture: onKeyDown,
   } satisfies ComponentProps<'textarea'>
+
+  function leads() {
+    return new Map<string, Trigger>([
+      ...skills.map((skill) => [skill.name, '/'] as const),
+      ...mentions.map((mention) => [mention.name, '@'] as const),
+    ])
+  }
 
   function copy(event: ClipboardEvent<HTMLTextAreaElement>) {
     const { selectionStart, selectionEnd } = event.currentTarget
@@ -585,10 +615,11 @@ function wordAt(text: string, at: number) {
   return /^\S*/.exec(text.slice(at))?.[0]
 }
 
-function chips(text: string, query: SlashQuery | undefined, skills: readonly Skill[]) {
-  return slashTokens(text).filter(
-    (token) => token.start !== query?.start && skills.some((skill) => skill.name === token.name)
-  )
+function chips(text: string, skills: readonly Skill[], bots: readonly MentionBot[]) {
+  return [
+    ...slashTokens(text).filter((token) => skills.some((skill) => skill.name === token.name)),
+    ...mentionTokens(text, bots),
+  ].sort((a, b) => a.start - b.start)
 }
 
 /* Mirror: paints the textarea's text, chips and all, behind its transparent text. */
@@ -606,9 +637,19 @@ export function SlashMirror({ slash, className }: { slash: Slash; className?: st
     if (mark.anchor) parts.push(<span key='anchor' ref={anchor} />)
     else
       parts.push(
-        <span key={mark.start} className='skill-chip'>
+        <span
+          key={mark.start}
+          className={cn('skill-chip', mark.bot && 'bot-chip')}
+          style={mark.bot && botColorStyle(mark.bot.color)}
+          // A mention can end on punctuation, with no en space after it to hold the padding.
+          data-flush={/\S/.test(shown.charAt(mark.end)) || undefined}
+        >
           <span className='whitespace-nowrap'>
-            <AiFileIcon />
+            {mark.bot ? (
+              <JettyBot shape={mark.bot.shape} color={mark.bot.color} size={14} />
+            ) : (
+              <AiFileIcon />
+            )}
             {chipLead}
           </span>
           {mark.name}
@@ -639,6 +680,7 @@ export function SlashMirror({ slash, className }: { slash: Slash; className?: st
 export function SlashMenu({ slash }: { slash: Slash }) {
   const popup = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
+  const mentioning = slash.query?.trigger === '@'
   useLayoutEffect(() => {
     const anchor = slash.anchor.current
     const field = slash.field.current
@@ -660,13 +702,14 @@ export function SlashMenu({ slash }: { slash: Slash }) {
         id='slash-menu'
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup
         role='listbox'
-        aria-label='Slash commands'
+        aria-label={mentioning ? 'Bots' : 'Slash commands'}
         ref={list}
         className='scroll-fade-y scrollbar-subtle max-h-72 scroll-py-1 overflow-y-auto overscroll-contain p-1'
       >
         {slash.entries.length === 0 && (
           <p className='flex h-menu-item-compact items-center px-2 text-xs text-muted-foreground'>
-            No skills match “/{slash.query?.query}”
+            No {mentioning ? 'bots' : 'skills'} match “{slash.query?.trigger}
+            {slash.query?.query}”
           </p>
         )}
         {slash.entries.map((entry, index) => (

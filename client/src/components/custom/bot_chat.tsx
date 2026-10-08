@@ -26,6 +26,7 @@ import {
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
+import { linkMentions } from '@/components/custom/slash_model'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { TranscriptMarker } from '@/components/custom/transcript_marker'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -36,6 +37,7 @@ import { emojiUrl } from '@/lib/fluent_emoji'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import {
+  useBots,
   useChildThreadMetas,
   useDismissQuestion,
   useDraft,
@@ -958,9 +960,11 @@ function BotComposer({
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
   const draft = storedDraft.text
+  const others = useBots().filter((other) => other.id !== bot.id)
   const slash = useComposerSlash(draft, (text) => update({ text }), fieldRef, {
     projectId: bot.projectId ?? undefined,
     bot: true,
+    mentions: others,
   })
   const { field, shown } = slash
   const [stacked, setStacked] = useState(false)
@@ -990,7 +994,7 @@ function BotComposer({
   }, [fieldRef, shown])
   function send() {
     if (empty) return
-    onSend(draft.trim())
+    onSend(linkMentions(draft.trim(), others))
     update({ text: '' })
     setStacked(false)
     setSent((count) => count + 1)
