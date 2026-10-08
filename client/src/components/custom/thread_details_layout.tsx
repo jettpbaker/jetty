@@ -1,11 +1,3 @@
-import {
-  ArrowShrink02Icon,
-  ArrowExpand01Icon,
-  SidebarLeftIcon,
-} from '@/components/custom/huge_icons'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
-import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
 import {
   defaultDiffScope,
@@ -22,35 +14,32 @@ import { useHotkey } from '@tanstack/react-hotkeys'
 import {
   Activity,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type KeyboardEvent,
-  type PointerEvent,
   type ReactNode,
 } from 'react'
-import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import { ChildThreadList, useChildThreads } from './child_threads'
+import {
+  DetailsChatPanel,
+  DetailsLayout,
+  DetailsPane,
+  DetailsTabPanel,
+  useDetailsLayout,
+} from './details_layout'
 import { OpenPullLink } from './entity_link'
 import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
-import { inDialog, KeybindTooltip, keybinds } from './keybinds'
+import { inDialog, keybinds } from './keybinds'
 import { Loading } from './loading'
-import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { LivePullRequestView } from './pull_request_view'
 import { ThreadChanges, useThreadChangesPrefetch } from './thread_changes'
 import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
 import { ThreadFile } from './thread_file'
 import { ThreadFiles } from './thread_files'
 import { ThreadOverview, useHasOverview } from './thread_overview'
-import './thread_details_layout.css'
-
-const minWidth = 320
-const narrowWidth = 760
 
 type ThreadFileTarget = { threadId: string; target: FileTarget }
 
@@ -63,39 +52,8 @@ export function ThreadDetailsLayout({
   projectPath?: string
   children: ReactNode
 }) {
-  const root = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ x: number; width: number; next: number } | null>(null)
-  const chatHost = useRef<HTMLDivElement>(null)
-  if (!chatHost.current) {
-    chatHost.current = document.createElement('div')
-    chatHost.current.className = 'flex h-full min-h-0 min-w-0 flex-col'
-  }
-  const [leftSlot, setLeftSlot] = useState<HTMLDivElement | null>(null)
-  // The chat starts here, attached before its own layout effects run (they run before this
-  // component's), so on its first commit it measures a connected scroller, not a detached one.
-  const attachLeftSlot = useCallback((slot: HTMLDivElement | null) => {
-    if (slot && !chatHost.current!.parentNode) slot.appendChild(chatHost.current!)
-    setLeftSlot(slot)
-  }, [])
-  const [chatSlot, setChatSlot] = useState<HTMLDivElement | null>(null)
-  const [open, setOpen] = useState(false)
-  // The pane paints at the click and its heavy tabs mount a frame later, so a slow diff never holds it back.
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    if (!open) return
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const frame = requestAnimationFrame(() => {
-      timer = setTimeout(() => setReady(true))
-    })
-    return () => {
-      cancelAnimationFrame(frame)
-      clearTimeout(timer)
-      setReady(false)
-    }
-  }, [open])
-  const [available, setAvailable] = useState(0)
-  const [preferredWidth, setPreferredWidth] = useState<number>()
-  const [expanded, setExpanded] = useState(false)
+  const layout = useDetailsLayout()
+  const { open, ready, narrow, full, expanded, setExpanded, setChatSlot, show: showPane } = layout
   const [pickedTab, setTab] = useState('changes')
   const meta = useThreadMeta(threadId)
   const git = useProjectGit(meta?.projectId)?.git
@@ -171,16 +129,6 @@ export function ThreadDetailsLayout({
     [links, pullRequestLinks, show, hide]
   )
   const { tab: requestedTab, consume } = useDetailsRequest(threadId)
-  const narrow = available < narrowWidth
-  const full = narrow || expanded
-  const max = Math.max(minWidth, available - 360)
-  const clamp = (width: number) => Math.max(minWidth, Math.min(max, width))
-  const width = full ? available : clamp(preferredWidth ?? available * 0.5)
-
-  function toggle() {
-    if (root.current) setAvailable(root.current.clientWidth)
-    setOpen((value) => !value)
-  }
 
   const openFile = useCallback(
     (target: FileTarget) => {
@@ -195,12 +143,11 @@ export function ThreadDetailsLayout({
       }
       if (!open) {
         openingTab.current = changesDisabled ? 'file' : 'changes'
-        if (root.current) setAvailable(root.current.clientWidth)
-        setOpen(true)
+        showPane()
       }
       return true
     },
-    [projectPath, threadId, open, changesDisabled, showFile]
+    [projectPath, threadId, open, changesDisabled, showFile, showPane]
   )
 
   const settleFile = useCallback(
@@ -246,17 +193,9 @@ export function ThreadDetailsLayout({
       return
     }
     openingTab.current = requestedTab
-    if (root.current) setAvailable(root.current.clientWidth)
-    setOpen(true)
-  }, [requestedTab, requestShown, consume, open])
+    showPane()
+  }, [requestedTab, requestShown, consume, open, showPane])
 
-  useHotkey(
-    keybinds.details.hotkey,
-    (event) => {
-      if (!inDialog(event)) toggle()
-    },
-    { requireReset: true, ignoreInputs: false }
-  )
   useHotkey(
     keybinds.findFile.hotkey,
     (event) => {
@@ -265,8 +204,7 @@ export function ThreadDetailsLayout({
       setFindFile((count) => count + 1)
       if (open) return
       openingTab.current = 'files'
-      if (root.current) setAvailable(root.current.clientWidth)
-      setOpen(true)
+      showPane()
     },
     { enabled: !filesDisabled, requireReset: true, ignoreInputs: false }
   )
@@ -277,242 +215,119 @@ export function ThreadDetailsLayout({
     openingTab.current = undefined
   }, [open])
 
-  useLayoutEffect(() => {
-    const element = root.current
-    if (!element) return
-    let previous = 0
-    const observer = new ResizeObserver(([entry]) => {
-      const next = entry!.contentRect.width
-      if (next <= 0) return
-      // A closed panel only cares about crossing the narrow breakpoint.
-      if (open || previous === 0 || previous < narrowWidth !== next < narrowWidth)
-        setAvailable(next)
-      previous = next
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [open])
-
-  const portalTarget = open && full ? chatSlot : leftSlot
-  // Keep the portal container stable: changing it remounts the entire chat,
-  // including markdown, tool disclosures, and the composer.
-  useLayoutEffect(() => {
-    const host = chatHost.current
-    if (portalTarget && host && host.parentNode !== portalTarget) portalTarget.appendChild(host)
-  }, [portalTarget])
-
-  function start(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.focus()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { x: event.clientX, width, next: width }
-    if (root.current) root.current.dataset.resizing = 'true'
-  }
-
-  function move(event: PointerEvent<HTMLDivElement>) {
-    if (!drag.current || !root.current) return
-    const next = clamp(drag.current.width + drag.current.x - event.clientX)
-    drag.current.next = next
-    root.current.style.setProperty('--details-width', `${next}px`)
-    root.current.style.setProperty('--details-pane-width', `${next}px`)
-    event.currentTarget.setAttribute('aria-valuenow', String(Math.round(next)))
-  }
-
-  function finish() {
-    if (!drag.current) return
-    setPreferredWidth(drag.current.next)
-    drag.current = null
-    if (root.current) delete root.current.dataset.resizing
-  }
-
-  function keyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const next = { ArrowLeft: width + 16, ArrowRight: width - 16, Home: minWidth, End: max }[
-      event.key
-    ]
-    if (next === undefined) return
-    event.preventDefault()
-    setPreferredWidth(clamp(next))
-  }
-
   // Width changes should only update the layout, not rerender tab contents.
   const detailsPane = useMemo(
     () => (
-      <Tabs
-        value={tab}
-        onValueChange={(value) => {
-          if (typeof value === 'string') setTab(value)
-        }}
-        className='details-pane h-full min-w-0 gap-0'
-      >
-        <header className='flex h-(--app-tab-bar-height) shrink-0 justify-end border-b border-border pr-[42px]'>
-          {full && (
-            <div className='flex shrink-0 items-center pl-(--page-header-inset)'>
-              <PageSidebarTrigger />
-            </div>
-          )}
-          <div className='no-scrollbar scroll-fade-x min-w-0 flex-1 overflow-x-auto overflow-y-hidden'>
-            <ThreadDetailsTabs
-              ref={tabs}
-              chat={full}
-              threadId={threadId}
-              threadCount={childThreads.length}
-              pullRequests={pullRequests}
-              file={
-                viewedFile && {
-                  path: viewedFile.path,
-                  dirty: fileDirty,
-                  onClose: () => showFile(undefined),
-                }
+      <DetailsPane
+        label='Thread details'
+        tab={tab}
+        onTabChange={setTab}
+        full={full}
+        narrow={narrow}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+        tabs={
+          <ThreadDetailsTabs
+            ref={tabs}
+            chat={full}
+            threadId={threadId}
+            threadCount={childThreads.length}
+            pullRequests={pullRequests}
+            file={
+              viewedFile && {
+                path: viewedFile.path,
+                dirty: fileDirty,
+                onClose: () => showFile(undefined),
               }
-              value={tab}
-              onValueChange={setTab}
-              changesDisabled={changesDisabled}
-              filesDisabled={filesDisabled}
+            }
+            value={tab}
+            onValueChange={setTab}
+            changesDisabled={changesDisabled}
+            filesDisabled={filesDisabled}
+          />
+        }
+      >
+        <DetailsChatPanel tab={tab} slotRef={setChatSlot} />
+        <DetailsTabPanel value='overview' tab={tab}>
+          {open && (
+            <ThreadOverview
+              threadId={threadId}
+              childThreads={childThreads}
+              onShowChat={() => {
+                if (full) setTab('chat')
+              }}
+              onShowChanges={() => setTab('changes')}
             />
-          </div>
-          {!narrow && (
-            <div className='ml-1 flex shrink-0 items-center'>
-              <Button
-                variant='ghost-text'
-                size='icon'
-                aria-label={expanded ? 'Restore split view' : 'Expand thread details'}
-                title={expanded ? 'Restore split view' : 'Expand thread details'}
-                {...pressProps(() => setExpanded((value) => !value))}
-              >
-                {expanded ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
-              </Button>
-            </div>
           )}
-        </header>
-        <div className='min-h-0 flex-1 overflow-hidden'>
-          <div className='details-tab-track min-w-(--details-pane-width)'>
-            <TabsContent
-              keepMounted
-              value='chat'
-              inert={tab !== 'chat'}
-              aria-hidden={tab !== 'chat'}
-              className='details-tab-panel'
-            >
-              <div ref={setChatSlot} className='flex h-full min-h-0 min-w-0 flex-col' />
-            </TabsContent>
-            <TabsContent
-              keepMounted
-              value='overview'
-              inert={tab !== 'overview'}
-              aria-hidden={tab !== 'overview'}
-              className='details-tab-panel'
-            >
-              {open && (
-                <ThreadOverview
-                  threadId={threadId}
-                  childThreads={childThreads}
-                  onShowChat={() => {
-                    if (full) setTab('chat')
-                  }}
-                  onShowChanges={() => setTab('changes')}
-                />
-              )}
-            </TabsContent>
-            <TabsContent
-              keepMounted
-              value='changes'
-              inert={tab !== 'changes'}
-              aria-hidden={tab !== 'changes'}
-              className='details-tab-panel'
-            >
-              {open &&
-                (ready ? (
-                  <ThreadChanges
-                    key={threadId}
-                    threadId={threadId}
-                    target={requestedFile}
-                    onTarget={settleFile}
-                    onEditFile={editFile}
-                  />
-                ) : (
-                  <Loading />
-                ))}
-            </TabsContent>
-            <TabsContent
-              keepMounted
-              value='files'
-              inert={tab !== 'files'}
-              aria-hidden={tab !== 'files'}
-              className='details-tab-panel'
-            >
-              {open && ready && filesShown && projectId && (
-                <ThreadFiles
-                  key={threadId}
-                  threadId={threadId}
-                  projectId={projectId}
-                  openPath={viewedFile?.path}
-                  find={findFile}
-                  onOpen={editFile}
-                />
-              )}
-            </TabsContent>
-            <TabsContent
-              keepMounted
-              value='threads'
-              inert={tab !== 'threads'}
-              aria-hidden={tab !== 'threads'}
-              className='details-tab-panel'
-            >
-              <div className='scrollbar-subtle h-full overflow-auto'>
-                <ChildThreadList threads={childThreads} />
-              </div>
-            </TabsContent>
-            {pullRequestLinks.map((link) => {
-              const id = pullRequestTabId(link)
-              return (
-                <TabsContent
-                  key={id}
-                  keepMounted
-                  value={id}
-                  inert={tab !== id}
-                  aria-hidden={tab !== id}
-                  className='details-tab-panel'
-                >
-                  {open && ready && (
-                    <Activity mode={tab === id ? 'visible' : 'hidden'}>
-                      <LivePullRequestView threadId={threadId} link={link} />
-                    </Activity>
-                  )}
-                </TabsContent>
-              )
-            })}
-            {viewedFile && (
-              <TabsContent
-                keepMounted
-                value='file'
-                inert={tab !== 'file'}
-                aria-hidden={tab !== 'file'}
-                className='details-tab-panel'
-              >
-                {open &&
-                  (ready ? (
-                    <ThreadFile
-                      key={viewedFile.path}
-                      threadId={threadId}
-                      target={viewedFile}
-                      checkout={checkout}
-                      focus={focusFile}
-                    />
-                  ) : (
-                    <Loading label='Loading file' />
-                  ))}
-              </TabsContent>
-            )}
+        </DetailsTabPanel>
+        <DetailsTabPanel value='changes' tab={tab}>
+          {open &&
+            (ready ? (
+              <ThreadChanges
+                key={threadId}
+                threadId={threadId}
+                target={requestedFile}
+                onTarget={settleFile}
+                onEditFile={editFile}
+              />
+            ) : (
+              <Loading />
+            ))}
+        </DetailsTabPanel>
+        <DetailsTabPanel value='files' tab={tab}>
+          {open && ready && filesShown && projectId && (
+            <ThreadFiles
+              key={threadId}
+              threadId={threadId}
+              projectId={projectId}
+              openPath={viewedFile?.path}
+              find={findFile}
+              onOpen={editFile}
+            />
+          )}
+        </DetailsTabPanel>
+        <DetailsTabPanel value='threads' tab={tab}>
+          <div className='scrollbar-subtle h-full overflow-auto'>
+            <ChildThreadList threads={childThreads} />
           </div>
-        </div>
-      </Tabs>
+        </DetailsTabPanel>
+        {pullRequestLinks.map((link) => {
+          const id = pullRequestTabId(link)
+          return (
+            <DetailsTabPanel key={id} value={id} tab={tab}>
+              {open && ready && (
+                <Activity mode={tab === id ? 'visible' : 'hidden'}>
+                  <LivePullRequestView threadId={threadId} link={link} />
+                </Activity>
+              )}
+            </DetailsTabPanel>
+          )
+        })}
+        {viewedFile && (
+          <DetailsTabPanel value='file' tab={tab}>
+            {open &&
+              (ready ? (
+                <ThreadFile
+                  key={viewedFile.path}
+                  threadId={threadId}
+                  target={viewedFile}
+                  checkout={checkout}
+                  focus={focusFile}
+                />
+              ) : (
+                <Loading label='Loading file' />
+              ))}
+          </DetailsTabPanel>
+        )}
+      </DetailsPane>
     ),
     [
       tab,
       full,
       narrow,
       expanded,
+      setExpanded,
+      setChatSlot,
       open,
       ready,
       threadId,
@@ -536,70 +351,10 @@ export function ThreadDetailsLayout({
   )
 
   return (
-    <div
-      ref={root}
-      data-details-open={open}
-      data-details-full={full || undefined}
-      className='thread-details-layout'
-      style={
-        {
-          '--details-width': `${open ? width : 0}px`,
-          '--details-pane-width': `${width}px`,
-        } as CSSProperties
-      }
-    >
-      <div
-        className='min-h-0 min-w-0 overflow-hidden'
-        inert={open && full}
-        aria-hidden={(open && full) || undefined}
-      >
-        <div ref={attachLeftSlot} className='flex h-full min-w-[320px] flex-col' />
-      </div>
-      <OpenFileLink value={openFile}>
-        <OpenPullLink value={threadId}>{createPortal(children, chatHost.current)}</OpenPullLink>
-        <aside
-          aria-label='Thread details'
-          inert={!open}
-          aria-hidden={!open || undefined}
-          className='relative min-h-0 min-w-0 overflow-hidden bg-background'
-        >
-          {detailsPane}
-        </aside>
-      </OpenFileLink>
-      <div className='absolute top-0 right-2.5 z-20 flex h-[calc(var(--app-tab-bar-height)-1px)] items-center gap-1'>
-        <KeybindTooltip binding={keybinds.details}>
-          <Button
-            variant='ghost-text'
-            size='icon'
-            className='aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
-            aria-label={open ? 'Close thread details' : 'Open thread details'}
-            aria-expanded={open}
-            aria-keyshortcuts='Meta+Alt+B'
-            {...pressProps(toggle)}
-          >
-            <SidebarLeftIcon className='rotate-180' />
-          </Button>
-        </KeybindTooltip>
-      </div>
-      {open && !full && (
-        <div
-          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a focusable splitter; <hr> can't take focus or pointer handlers
-          role='separator'
-          aria-label='Resize thread details'
-          aria-orientation='vertical'
-          aria-valuemin={minWidth}
-          aria-valuemax={Math.round(max)}
-          aria-valuenow={Math.round(width)}
-          tabIndex={0}
-          className='thread-details-resize'
-          onPointerDown={start}
-          onPointerMove={move}
-          onPointerUp={finish}
-          onPointerCancel={finish}
-          onLostPointerCapture={finish}
-          onKeyDown={keyDown}
-        />
-      )}
-    </div>
+    <OpenFileLink value={openFile}>
+      <DetailsLayout layout={layout} label='Thread details' pane={detailsPane}>
+        <OpenPullLink value={threadId}>{children}</OpenPullLink>
+      </DetailsLayout>
+    </OpenFileLink>
   )
 }

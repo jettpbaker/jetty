@@ -22,7 +22,7 @@ export function ThreadHeader({
   return (
     <header
       data-perf-region='thread-header'
-      className='thread-conversation-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
+      className='details-chat-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
     >
       <PageSidebarTrigger />
       {bot && (

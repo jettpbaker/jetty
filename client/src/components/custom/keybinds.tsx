@@ -34,7 +34,7 @@ export const keybinds = {
   details: {
     hotkey: 'Mod+Alt+B',
     label: '⌥⌘B',
-    name: 'Toggle thread details',
+    name: 'Toggle details',
     modifiers: ['Alt', 'Meta'],
   },
   pin: { hotkey: 'Mod+Alt+P', label: '⌥⌘P', name: 'Pin thread', modifiers: ['Alt', 'Meta'] },
