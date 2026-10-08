@@ -96,6 +96,11 @@
 - Status colors are semantic: amber = awaiting approval, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
+- Link colour in text: accent means a click takes you to one specific thing (a
+  thread, issue, commit, file or URL). Counts that open a menu ("3 threads"),
+  names, answers and actions are foreground, and the words joining them are
+  muted. Things with a colour of their own use it instead of the accent: PR
+  links take their state colour, bots their face colour.
 
 - Act on pointer-down, not click, wherever it's safe (Carmack's "act on press"):
   fixed-position controls like sidebar items, tabs, buttons, toggles. It reads as
