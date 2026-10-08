@@ -39,13 +39,38 @@ export function shownInBotChat(item: ThreadItem) {
   }
 }
 
+// A turn Jetty started on its own: a check-in, a tidy-pass review, or a compaction while Jett is
+// away. It shows nothing (no working face, no Stop) unless the bot speaks, until Jett's own message
+// joins it.
+export function quietTurn(items: readonly ThreadItem[], turnId: string) {
+  let opening: ThreadItem | undefined
+  for (const item of items) {
+    if (item.turnId !== turnId || item.agentId) continue
+    if (item.kind === 'user_message' && !item.from) return false
+    opening ??= item
+  }
+  return opening?.kind === 'user_message'
+    ? opening.wake !== undefined
+    : opening?.kind === 'compaction'
+}
+
 // What a bot is visibly doing in a turn. Once a bubble or a reaction lands it goes quiet, until it
 // starts a tool (working) or writes another say (typing), which can start before the bubble before it
-// lands; its thinking and private notes don't count.
+// lands; its thinking and private notes don't count. A quiet turn only ever shows typing.
 export function botTurnActivity(
   items: readonly ThreadItem[],
   turnId: string
 ): 'typing' | 'working' | 'quiet' {
+  if (quietTurn(items, turnId))
+    return items.some(
+      (item) =>
+        item.turnId === turnId &&
+        item.kind === 'tool_call' &&
+        item.toolName === 'mcp__jetty__say' &&
+        item.status === 'running'
+    )
+      ? 'typing'
+      : 'quiet'
   const latest = items.findLast(
     (item) =>
       item.turnId === turnId &&

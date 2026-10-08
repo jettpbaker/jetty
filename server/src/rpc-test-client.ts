@@ -9,6 +9,7 @@ type UnaryMethod = Exclude<
   RpcGroup.Rpcs<typeof JettyRpcs>['_tag'],
   | 'chrome.subscribe'
   | 'github.activity'
+  | 'bot.presence'
   | 'thread.subscribe'
   | 'pullRequest.subscribe'
   | 'pullRequestList.subscribe'

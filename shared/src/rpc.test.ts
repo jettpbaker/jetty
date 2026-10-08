@@ -12,6 +12,7 @@ test('RPC operations preserve unary schemas and replace subscription messages wi
     if (
       name === 'chrome.subscribe' ||
       name === 'github.activity' ||
+      name === 'bot.presence' ||
       name === 'thread.subscribe' ||
       name === 'pullRequest.subscribe' ||
       name === 'pullRequestList.subscribe'
@@ -183,6 +184,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'chrome.subscribe': () =>
             Stream.succeed({ type: 'snapshot' as const, serverTime: 0, projects: [], threads: [] }),
           'github.activity': () => Stream.never,
+          'bot.presence': () => Stream.never,
           'thread.subscribe': ({ threadId }) =>
             threadId === 'missing'
               ? Stream.fail({ code: 'not_found' as const, message: 'Thread not found' })

@@ -138,6 +138,29 @@ export function createHub() {
   function githubActivity() {
     return closestActivity([...githubWatchers.values()].map(clientActivity))
   }
+
+  // Each window showing a bot's chat, and whether its composer holds a draft.
+  const botPresences = new Map<symbol, { client: number; botId: string; draft: boolean }>()
+
+  function watchBotPresence(client: number, botId: string, draft: boolean) {
+    const token = Symbol()
+    return Effect.acquireRelease(
+      Effect.sync(() => botPresences.set(token, { client, botId, draft })),
+      () => Effect.sync(() => botPresences.delete(token))
+    )
+  }
+
+  // Jett is with the bot while a focused window shows its chat. A draft counts in any window.
+  function botPresence(botId: string) {
+    let open = false
+    let draft = false
+    for (const presence of botPresences.values()) {
+      if (presence.botId !== botId) continue
+      if (clientActivity(presence.client) === 'focused') open = true
+      if (presence.draft) draft = true
+    }
+    return { open, draft }
+  }
   const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
   const pullRequestSubs = new Map<string, Set<Queue.Queue<PullRequestSnapshot, WireError>>>()
   const pullRequestListSubs = new Map<
@@ -268,6 +291,8 @@ export function createHub() {
     clientActivity,
     watchGithubActivity,
     githubActivity,
+    watchBotPresence,
+    botPresence,
     setBackgroundTasks(threadId: string, tasks: readonly BackgroundTask[]) {
       if (tasks.length) backgroundTasks.set(threadId, tasks)
       else backgroundTasks.delete(threadId)

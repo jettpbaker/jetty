@@ -110,6 +110,9 @@ export const ThreadItem = Schema.Union([
     replyTo: Schema.optional(Reply),
     // Bot chats: the bot's emoji reaction to this message.
     reaction: Schema.optional(Schema.String),
+    // Bot chats: Jetty's own wake, a check-in or its tidy pass's changes to review. Its turn shows
+    // nothing in the chat unless the bot speaks.
+    wake: Schema.optional(Schema.Literals(['check_in', 'tidy'])),
   }),
   Schema.Struct({
     ...itemBase,

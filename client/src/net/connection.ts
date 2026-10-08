@@ -13,6 +13,7 @@ type UnaryRpcs = Exclude<
     readonly _tag:
       | 'chrome.subscribe'
       | 'github.activity'
+      | 'bot.presence'
       | 'thread.subscribe'
       | 'pullRequest.subscribe'
       | 'pullRequestList.subscribe'
@@ -162,6 +163,11 @@ export function createConnection(
       )
     }
 
+    // Says this window shows the bot's chat, for as long as the stream stays open.
+    function watchBotPresence(botId: string, draft: boolean) {
+      return online(rpc('bot.presence', { botId, draft })).pipe(Stream.retry(reconnect))
+    }
+
     function subscribePullRequest(repo: string, number: number) {
       return online(rpc('pullRequest.subscribe', { repo, number })).pipe(Stream.retry(reconnect))
     }
@@ -174,6 +180,7 @@ export function createConnection(
       request,
       subscribeChrome,
       subscribeThread,
+      watchBotPresence,
       subscribePullRequest,
       subscribePullRequestList,
     }

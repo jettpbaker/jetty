@@ -298,8 +298,11 @@ export const QueuedMessage = Schema.Struct({
   editingUntil: Schema.optional(Schema.Int),
   from: Schema.optional(MessageSource),
   skill: Schema.optional(Schema.String),
-  // Jetty's own messages: a restart continuation, a child's report, or the PR watcher's news.
-  kind: Schema.optional(Schema.Literals(['continuation', 'report', 'pull_request'])),
+  // Jetty's own messages: a restart continuation, a child's report, the PR watcher's news, or a
+  // bot's check-in or tidy-pass review, which its user_message carries on as `wake`.
+  kind: Schema.optional(
+    Schema.Literals(['continuation', 'report', 'pull_request', 'check_in', 'tidy'])
+  ),
   // an answer to the turn's async question, kept while its setup ran: it carries that turn on
   carriesOn: Schema.optional(Schema.Literal(true)),
   reports: Schema.optional(Schema.Array(ChildReport)),
@@ -622,6 +625,12 @@ export const methods = {
   },
   'github.activity': {
     params: Schema.Struct({ activity: GitHubActivity }),
+    result: Schema.Never,
+  },
+  // Open while a window shows the bot's chat, with whether its composer holds a draft. With the
+  // window's attention (github.activity), it tells Jetty when Jett is away from the bot.
+  'bot.presence': {
+    params: Schema.Struct({ botId: Schema.String, draft: Schema.Boolean }),
     result: Schema.Never,
   },
   'project.create': {

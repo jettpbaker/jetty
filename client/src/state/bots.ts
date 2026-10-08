@@ -8,7 +8,7 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
 
 import { chromeAtom, serverChrome } from './chrome'
-import { connectionAtom, run, useAction } from './connection'
+import { connectionAtom, run, subscribe, useAction } from './connection'
 import { settleWhen, trackCreation, without } from './mutations'
 import { threadAtom } from './threads'
 
@@ -196,6 +196,19 @@ const pendingAtom = Atom.family((botId: string) =>
 // Jett's messages the bot's thread doesn't have yet, oldest first.
 export function usePendingBotMessages(botId: string) {
   return useAtomValue(pendingAtom(botId))
+}
+
+// Mounted while the bot's chat is on screen: Jetty compacts the bot only while Jett is away from
+// it, and never under a draft.
+const presenceAtom = Atom.family((key: string) =>
+  Atom.make((get) => {
+    const [botId = '', draft] = key.split('|')
+    return subscribe(get, (connection) => connection.watchBotPresence(botId, draft === 'draft'))
+  })
+)
+
+export function useBotPresence(botId: string, draft: boolean) {
+  useAtomValue(presenceAtom(`${botId}|${draft ? 'draft' : 'empty'}`))
 }
 
 // Two bots' conversation, one entry per pair whichever chat it's read from.

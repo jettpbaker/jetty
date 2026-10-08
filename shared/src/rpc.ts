@@ -24,6 +24,7 @@ function unary<
     MethodName,
     | 'chrome.subscribe'
     | 'github.activity'
+    | 'bot.presence'
     | 'thread.subscribe'
     | 'pullRequest.subscribe'
     | 'pullRequestList.subscribe'
@@ -122,6 +123,13 @@ export const JettyRpcs = RpcGroup.make(
   // Emits nothing: it reports the window's attention for as long as it stays open.
   Rpc.make('github.activity', {
     payload: methods['github.activity'].params,
+    success: Schema.Never,
+    error: WireError,
+    stream: true,
+  }),
+  // Emits nothing: it says the window shows the bot's chat for as long as it stays open.
+  Rpc.make('bot.presence', {
+    payload: methods['bot.presence'].params,
     success: Schema.Never,
     error: WireError,
     stream: true,

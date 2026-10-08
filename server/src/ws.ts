@@ -258,6 +258,8 @@ export function createRpcHandlers(
             Effect.as(null)
           )
         ),
+      'bot.presence': ({ botId, draft }, { client }) =>
+        Stream.unwrap(hub.watchBotPresence(client.id, botId, draft).pipe(Effect.as(Stream.never))),
       'github.activity': ({ activity }, { client }) =>
         Stream.unwrap(
           Effect.gen(function* () {

@@ -31,6 +31,7 @@ import { pressProps } from '@/lib/press'
 import { chatStamp, SESSION_GAP } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
+  useBotPresence,
   useBots,
   useChildThreadMetas,
   useDraft,
@@ -46,6 +47,7 @@ import {
 import {
   botTurnActivity,
   exchangeEntry,
+  quietTurn,
   shownInBotChat,
   type ExchangeEntry,
 } from '@jetty/shared/bots'
@@ -316,9 +318,11 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.
   const asking = items.some(awaitsInput)
   const turn = turnId && !asking ? botTurnActivity(items, turnId) : 'quiet'
-  const presence = turn === 'quiet' ? null : bot.activity === 'tidying' ? 'tidying' : turn
-  // Stop lasts the whole turn, including the quiet stretch after a bubble.
-  const running = Boolean(turnId) && !asking
+  // Tidying shows only while Jett's message waits on a compaction that can't stop for it.
+  const presence = bot.activity === 'tidying' ? 'tidying' : turn === 'quiet' ? null : turn
+  // Stop lasts the whole turn, including the quiet stretch after a bubble, but not a turn Jetty
+  // started on its own while it shows nothing.
+  const running = turnId ? !asking && (presence !== null || !quietTurn(items, turnId)) : false
   function send(text: string) {
     sendToBot(bot.id, text, replyTo)
     setReplyTo(undefined)
@@ -1026,6 +1030,7 @@ function BotComposer({
   const sentRef = useRef(0)
   const calm = useReducedMotion() ?? false
   const empty = !draft.trim()
+  useBotPresence(bot.id, !empty)
   const stop = empty && busy
   // Measured as shown, chips and all.
   useLayoutEffect(() => {
