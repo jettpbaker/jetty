@@ -100,14 +100,13 @@ export const REPORT_CAP = 20_000
 
 export type ReportOutcome =
   | { type: 'finished' }
-  | { type: 'interrupted' }
+  | { type: 'interrupted'; user: string; approval?: string }
   | { type: 'failed'; error: string }
   | { type: 'paused' }
   | { type: 'asked'; question: string }
 
 const outcomeText = {
   finished: () => 'finished.',
-  interrupted: () => 'was interrupted by the user.',
   failed: (error: string) => `failed: ${error.trim().replace(/\.+$/, '')}.`,
   paused: () =>
     "is paused: Jetty kept restarting, so it didn't resume this thread. It continues when the user resumes it.",
@@ -125,19 +124,31 @@ export function childReport(report: {
 }) {
   const { outcome, message } = report
   const status =
-    outcome.type === 'failed' ? outcomeText.failed(outcome.error) : outcomeText[outcome.type]()
+    outcome.type === 'failed'
+      ? outcomeText.failed(outcome.error)
+      : outcome.type === 'interrupted'
+        ? outcome.approval
+          ? `stopped after ${outcome.user} denied its request to ${outcome.approval}.`
+          : `was stopped by ${outcome.user} before it finished.`
+        : outcomeText[outcome.type]()
   const title = report.title.replace(/[[\]]/g, '\\$&')
   const where =
     report.branch === null ? 'Worked in the project checkout.' : `Branch: ${report.branch}`
   const body =
-    outcome.type === 'asked'
-      ? outcome.question
-      : message.length > REPORT_CAP
-        ? `${message.slice(0, REPORT_CAP)}\n[Cut at ${REPORT_CAP.toLocaleString('en-US')} characters; read_thread with messageId ${report.messageId} has the rest.]`
-        : message
-  return [`[${title}](jetty://threads/${report.threadId}) ${status}\n${where}`, body]
+    outcome.type === 'asked' ? outcome.question : reportMessage(message, report.messageId)
+  const labelled =
+    body && outcome.type !== 'finished' && outcome.type !== 'asked'
+      ? `Its last message before that: ${body}`
+      : body
+  return [`[${title}](jetty://threads/${report.threadId}) ${status}\n${where}`, labelled]
     .filter(Boolean)
     .join('\n\n')
+}
+
+export function reportMessage(message: string, messageId?: string) {
+  return message.length > REPORT_CAP
+    ? `${message.slice(0, REPORT_CAP)}\n[Cut at ${REPORT_CAP.toLocaleString('en-US')} characters; read_thread with messageId ${messageId} has the rest.]`
+    : message
 }
 
 export function deniedApprovalNote(note: string) {

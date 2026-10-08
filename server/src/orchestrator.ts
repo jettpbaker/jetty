@@ -1891,11 +1891,10 @@ export function createOrchestrator({
             yield* locked(
               thread.id,
               Effect.gen(function* () {
-                const result = yield* store.reportSettledChild(
-                  thread.id,
-                  working || agentBusy(thread),
-                  childWaits.has(thread.id)
-                )
+                const result = yield* store.reportSettledChild(thread.id, {
+                  working: working || agentBusy(thread),
+                  wait: childWaits.has(thread.id),
+                })
                 if ('waited' in result && result.waited) childWaits.finish(thread.id, result.waited)
                 if ('note' in result && result.note) yield* publish(thread.id, result.note)
                 if ('asked' in result)

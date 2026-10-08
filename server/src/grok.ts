@@ -66,6 +66,7 @@ type Session = {
   effort?: TurnInput['effort']
   fastIds: Map<string, string>
   reason: string | null
+  deniedApproval?: boolean
   // the user pressed Stop: tools it cut off read as stopped, not failed
   stopped: boolean
   compactFailureNoted: boolean
@@ -374,6 +375,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           )
           return
         }
+        session.deniedApproval = false
         session.promptCount++
         session.promptId = newId()
         session.requestId = yield* session.connection!.startRequest('session/prompt', {
@@ -589,6 +591,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   }
                   session.accepting = false
                   yield* settleOpenItems(session)
+                  const cancelled =
+                    result.stopReason === 'cancelled' || result.stopReason === 'canceled'
                   const error =
                     string(object(message.params.error).message) ||
                     (!session.input.compact && result.stopReason !== 'end_turn'
@@ -601,7 +605,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                       ? ({
                           type: 'turn.failed',
                           turnId: session.input.turnId,
-                          error: session.reason ?? error,
+                          error:
+                            session.reason ??
+                            (cancelled && session.deniedApproval ? 'approval_denied' : error),
                         } satisfies ThreadEvent)
                       : ({
                           type: 'turn.completed',
@@ -921,6 +927,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   session.pending.delete(itemId)
                 })
               )
+              if (patch.decision) session.deniedApproval = patch.decision === 'deny'
               yield* session.connection.respond(pending.id, response)
               yield* session.emit({
                 type: 'session.status',

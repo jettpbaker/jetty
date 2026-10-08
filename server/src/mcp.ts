@@ -41,6 +41,9 @@ import { createSendVideoTool } from './send-video'
 import { listSkills } from './skills'
 import { StoreError } from './store'
 
+const GROK_WORKTREE_NOTE =
+  "Can't commit in a worktree yet (its sandbox can't write the repo's git folder). Fine for reading, and for threads in the project checkout."
+
 const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' }
 const modelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -165,6 +168,10 @@ const createInput = z.object({
     .optional()
     .describe('An id, name or unique short name from list_models.'),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+  full_access: z
+    .boolean()
+    .optional()
+    .describe('Start the worker in Full access; only callers in Full access may request this.'),
   skill: z
     .string()
     .regex(/^[^\s/]+$/, 'Use a skill name without the slash')
@@ -246,6 +253,8 @@ export function createMcpHandler(
   return Effect.gen(function* () {
     const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | Scope.Scope>()
     const run = Effect.runPromiseWith(context)
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
 
     function accessible(identity: McpIdentity, targetId: string) {
       return Effect.gen(function* () {
@@ -394,12 +403,21 @@ export function createMcpHandler(
                 `Unsupported effort for ${selected[0].name}. Choose: ${selected[0].efforts.join(', ') || 'none'}`
               )
             )
-          const callerMode = bot ? 'auto' : ((yield* store.getPermissionMode(caller.id)) ?? 'auto')
+          const callerMode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
+          if (input.full_access && callerMode !== 'full_access')
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                'Only callers in Full access can set full_access to true'
+              )
+            )
           const mode =
             selected[0]?.autoMode === false ||
             findProviderModel(catalog, caller.provider, caller.model)?.autoMode === false
               ? 'auto'
-              : callerMode
+              : input.full_access
+                ? 'full_access'
+                : 'auto'
           if (accessLevel({ provider, model }, mode) > accessLevel(caller, callerMode))
             return yield* Effect.fail(
               new StoreError(
@@ -480,6 +498,13 @@ export function createMcpHandler(
             new StoreError(
               'invalid_params',
               "A quiet change works in a worktree from origin's default branch, so leave out environment and ref."
+            )
+          )
+        if (input.full_access && (yield* store.getPermissionMode(caller.id)) !== 'full_access')
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              'Only callers in Full access can set full_access to true'
             )
           )
         const projects = yield* store.listProjects()
@@ -815,6 +840,7 @@ export function createMcpHandler(
                 name,
                 efforts: bot ? efforts.filter((effort) => effort !== 'max') : efforts,
                 defaultEffort,
+                ...(provider === 'grok' ? { notes: GROK_WORKTREE_NOTE } : {}),
               }))
             })
           )
@@ -973,6 +999,45 @@ export function createMcpHandler(
           },
           ({ id, ...input }) =>
             invoke(orch.updateBotTask(bot.id, id, input).pipe(Effect.map(taskResult)))
+        )
+        server.registerTool(
+          'list_bots',
+          {
+            ...toolMeta,
+            description: "List the other bots, with each one's project and job.",
+            inputSchema: {},
+          },
+          () =>
+            invoke(
+              Effect.gen(function* () {
+                const titles = new Map(
+                  (yield* store.listProjects()).map((project) => [project.id, project.title])
+                )
+                const listed = []
+                for (const other of yield* store.listBots()) {
+                  if (other.id === bot.id) continue
+                  const home = yield* store.getProject(other.id)
+                  const brief = home
+                    ? yield* fs
+                        .readFileString(paths.join(home.path, 'brief.md'))
+                        .pipe(
+                          Effect.catchTag('PlatformError', (error) =>
+                            error.reason._tag === 'NotFound'
+                              ? Effect.succeed('')
+                              : Effect.fail(error)
+                          )
+                        )
+                    : ''
+                  listed.push({
+                    id: other.id,
+                    name: other.name,
+                    project: other.projectId ? (titles.get(other.projectId) ?? null) : null,
+                    job: brief.split(/\r?\n/, 1)[0]?.trim().slice(0, 120) || null,
+                  })
+                }
+                return listed
+              })
+            )
         )
         server.registerTool(
           'list_tasks',

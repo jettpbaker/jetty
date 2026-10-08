@@ -45,8 +45,9 @@ import { SqlClient } from 'effect/sql'
 import type { GuideMetrics } from './pr-guide'
 import type { PullRequestWatchMemory } from './pull-request-watch'
 
+import { botUserName } from './bot-home'
 import { normalizePath } from './fs-browse'
-import { childReport, REPORT_CAP, restartNote, type ReportOutcome } from './jetty-instructions'
+import { childReport, REPORT_CAP, reportMessage, restartNote, type ReportOutcome } from './jetty-instructions'
 import { needsUser, type ChildWaitResult } from './quiet-threads'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
@@ -657,31 +658,60 @@ export function createStore() {
       )
     }
 
+    function getOwningBot(threadId: string) {
+      return Effect.gen(function* () {
+        let thread = yield* getThread(threadId)
+        const visited = new Set<string>()
+        while (thread && !visited.has(thread.id)) {
+          visited.add(thread.id)
+          const bot = yield* readBot(thread.botId ?? thread.id)
+          if (bot) return bot
+          thread = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
+        }
+        return null
+      }).pipe(Effect.mapError(storeError))
+    }
+
     // A question from ask_parent is reported in place of the turn's final message. It reaches the
     // parent however the turn started and even when the parent isn't notified, since it was asked,
     // and as soon as the turn ends: a report also waits for background work and busy children.
-    function reportSettledChild(threadId: string, working = false, wait = false) {
+    function reportSettledChild(
+      threadId: string,
+      { working = false, wait = false, userTurnOnly = false } = {}
+    ) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.createdBy !== 'agent' || !thread.parentThreadId) return { delivered: false }
-        const question = yield* parentQuestion(threadId)
-        if (!question && (working || (!wait && !(yield* notifiesParent(threadId)))))
-          return { delivered: false }
+        const question = userTurnOnly ? null : yield* parentQuestion(threadId)
+        if (!userTurnOnly && !question && working) return { delivered: false }
         const { state } = yield* loadThread(threadId)
         if (state.activeTurnId) return { delivered: false }
         const turn = yield* latestFinishedTurn(threadId)
-        if (!turn || (!question && !wait && turn.initiator_thread_id !== thread.parentThreadId))
+        if (!turn) return { delivered: false }
+        const owner =
+          !wait && turn.initiator_thread_id === null ? yield* getOwningBot(threadId) : null
+        const userWorked = !question && owner !== null
+        if (userTurnOnly && !userWorked) return { delivered: false }
+        if (
+          !question &&
+          !userWorked &&
+          !wait &&
+          (turn.initiator_thread_id !== thread.parentThreadId || !(yield* notifiesParent(threadId)))
+        )
           return { delivered: false }
         const event = JSON.parse(turn.payload_json) as Extract<
           ThreadEvent,
           { type: 'turn.completed' | 'turn.failed' }
         >
-        const paused = heldByRestarts(state.items)
+        if (userWorked && event.type !== 'turn.completed') return { delivered: false }
+        const paused = !userWorked && heldByRestarts(state.items)
         if (event.type === 'turn.failed' && event.error === 'server_restarted' && !paused)
           return { delivered: false }
-        if (!question && !paused && thread.pendingMessages?.length) return { delivered: false }
+        if (!question && !userWorked && !paused && thread.pendingMessages?.length)
+          return { delivered: false }
         if (
           !question &&
+          !userWorked &&
           state.items.some(
             (item) =>
               (item.kind === 'subagent' || item.kind === 'workflow') && item.status === 'running'
@@ -691,6 +721,7 @@ export function createStore() {
         // A turn that ended asking the user (Codex's async questions) carries on with their answer.
         if (
           !question &&
+          !userWorked &&
           state.items.some(
             (item) =>
               item.kind === 'question' &&
@@ -705,7 +736,7 @@ export function createStore() {
         const [existing] = yield* sql`SELECT 1 FROM orchestration_requests
           WHERE caller_id = ${threadId} AND request_id = ${reportId} AND operation = 'report'`
         if (existing && !question) return { delivered: false }
-        const parent = yield* getThread(thread.parentThreadId)
+        const parent = yield* getThread(userWorked ? owner.id : thread.parentThreadId)
         const hop = turn.hop + 1
         if (!parent || parent.archived || hop > 20) {
           const reason =
@@ -730,15 +761,25 @@ export function createStore() {
           return { delivered: false, note }
         }
         // The restart guard can hold a turn that completed while its background work ran.
+        const user = yield* Effect.promise(botUserName)
+        const denied = state.items.findLast(
+          (item) =>
+            item.turnId === turn.turn_id && item.kind === 'approval' && item.decision === 'deny'
+        )
+        const deniedTitle = denied?.kind === 'approval' ? denied.title : undefined
         const outcome: ReportOutcome = question
           ? { type: 'asked', question }
-          : heldByRestarts(state.items)
+          : paused
             ? { type: 'paused' }
             : event.type === 'turn.completed'
               ? { type: 'finished' }
               : event.error === 'interrupted'
-                ? { type: 'interrupted' }
-                : { type: 'failed', error: event.error }
+                ? { type: 'interrupted', user }
+                : thread.provider === 'grok' &&
+                    deniedTitle &&
+                    (event.error === 'approval_denied' || /cancelled|canceled/.test(event.error))
+                  ? { type: 'interrupted', user, approval: deniedTitle }
+                  : { type: 'failed', error: event.error }
         const lastWork = state.items.findLastIndex(
           (item) =>
             item.turnId === turn.turn_id &&
@@ -746,7 +787,7 @@ export function createStore() {
             (item.kind === 'tool_call' || item.kind === 'subagent' || item.kind === 'workflow')
         )
         const final = state.items
-          .slice(lastWork + 1)
+          .slice(outcome.type === 'finished' ? lastWork + 1 : 0)
           .filter(
             (item) =>
               item.turnId === turn.turn_id &&
@@ -782,18 +823,26 @@ export function createStore() {
           yield* sql`UPDATE threads SET parent_question = NULL, awaiting_parent = ${question ? 1 : 0} WHERE id = ${threadId}`
           return { delivered: true, waited }
         }
-        const text = childReport({
-          threadId,
-          title: thread.title,
-          outcome,
-          branch:
-            (yield* getLandsOn(threadId)) ??
-            (thread.environment === 'worktree'
-              ? (thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable')
-              : null),
-          message: closing,
-          messageId: final.at(-1)?.id,
-        })
+        const lastMessage = final.at(-1)
+        const text = userWorked
+          ? `${user} worked with [${thread.title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId}) directly. Its reply: ${reportMessage(closing, final.at(-1)?.id)}`
+          : childReport({
+              threadId,
+              title: thread.title,
+              outcome,
+              branch:
+                (yield* getLandsOn(threadId)) ??
+                (thread.environment === 'worktree'
+                  ? (thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable')
+                  : null),
+              message:
+                outcome.type === 'finished'
+                  ? closing
+                  : lastMessage?.kind === 'assistant_message'
+                    ? lastMessage.text.trim()
+                    : '',
+              messageId: final.at(-1)?.id,
+            })
         const summary = {
           threadId,
           title: thread.title,
@@ -827,7 +876,9 @@ export function createStore() {
             text,
             createdAt: Date.now(),
             hop,
-            from: { threadId, title: thread.title },
+            from: userWorked
+              ? { threadId: parent.id, title: 'Jetty' }
+              : { threadId, title: thread.title },
             kind: 'report',
             reports: [summary],
           })
@@ -1130,19 +1181,7 @@ export function createStore() {
       getBot(threadId: string) {
         return readBot(threadId)
       },
-      getOwningBot(threadId: string) {
-        return Effect.gen(function* () {
-          let thread = yield* getThread(threadId)
-          const visited = new Set<string>()
-          while (thread && !visited.has(thread.id)) {
-            visited.add(thread.id)
-            const bot = yield* readBot(thread.botId ?? thread.id)
-            if (bot) return bot
-            thread = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
-          }
-          return null
-        }).pipe(Effect.mapError(storeError))
-      },
+      getOwningBot,
       setBotProjectIfUnset(threadId: string, projectId: string) {
         return sql`UPDATE bots SET project_id = ${projectId}
           WHERE id = ${threadId} AND project_id IS NULL`.pipe(
@@ -1628,7 +1667,8 @@ export function createStore() {
       getPermissionMode(threadId: string) {
         return sql<{
           permission_mode: PermissionMode | null
-        }>`SELECT permission_mode FROM threads WHERE id = ${threadId}`.pipe(
+        }>`SELECT COALESCE(b.permission_mode, t.permission_mode) AS permission_mode
+          FROM threads t LEFT JOIN bots b ON b.id = t.id WHERE t.id = ${threadId}`.pipe(
           Effect.map((rows) => rows[0]?.permission_mode ?? undefined),
           Effect.mapError(storeError)
         )
@@ -2235,6 +2275,11 @@ export function createStore() {
       },
       appendEvent(threadId: string, event: ThreadEvent) {
         return append(threadId, event).pipe(
+          Effect.tap(() =>
+            event.type === 'turn.completed'
+              ? reportSettledChild(threadId, { userTurnOnly: true })
+              : Effect.void
+          ),
           atomically,
           Effect.tap(() =>
             event.type === 'turn.completed' || event.type === 'turn.failed'
@@ -2245,7 +2290,15 @@ export function createStore() {
         )
       },
       appendEvents(threadId: string, events: readonly [ThreadEvent, ...ThreadEvent[]]) {
-        return Effect.forEach(events, (event) => append(threadId, event)).pipe(
+        return Effect.forEach(events, (event) =>
+          append(threadId, event).pipe(
+            Effect.tap(() =>
+              event.type === 'turn.completed'
+                ? reportSettledChild(threadId, { userTurnOnly: true })
+                : Effect.void
+            )
+          )
+        ).pipe(
           atomically,
           Effect.tap(() => signalQueueChange),
           Effect.mapError(storeError)
