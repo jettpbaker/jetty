@@ -64,10 +64,10 @@ export const TitleModel = Schema.Struct({
 })
 export type TitleModel = Schema.Schema.Type<typeof TitleModel>
 
-// Cheapest first.
+// Haiku (5.5) first, at its lowest effort; then the cheapest of the others.
 const AUTOMATIC_TITLE_MODELS: readonly ModelRef[] = [
-  { provider: 'codex', id: 'gpt-6-luna' },
   { provider: 'claude', id: 'haiku' },
+  { provider: 'codex', id: 'gpt-6-luna' },
   { provider: 'grok', id: 'grok-4.7' },
 ]
 
