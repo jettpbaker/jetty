@@ -52,6 +52,13 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
+- Warm Claude sessions ahead of need, so Claude Code's startup and its MCP wait
+  (`CLAUDE_CODE_MCP_STARTUP_WAIT_MS`, about 1.7s in practice) overlap the user's
+  typing instead of the turn. Simplest: start a thread's session when its composer
+  gets a draft, and let the idle timeout retire it if nothing's sent. A pool of
+  spare processes is the bigger version, but Claude Code fixes cwd and the resumed
+  session at launch, so spares can't be handed to any thread as-is. Bots woken by a
+  report or check-in pay the wait either way. Parked until the cold start bothers Jett.
 - A built-in terminal in a thread, so the user can run what the agent can't do for them
   (an interactive `az login`, `gh auth login`, an SSO prompt) in the thread's own checkout
   and environment, and hand the session back to the agent.
