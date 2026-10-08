@@ -15,6 +15,7 @@ import type {
 
 import { WAIT_NOTES } from '@jetty/shared/bots'
 import {
+  awaitsInput,
   heldByRestarts,
   type ApprovalDecision,
   type Attachment,
@@ -106,6 +107,15 @@ function ownShellCommand(item: ThreadItem | undefined) {
 const GH_PR_CREATE = /(?:^|[;&|\n])\s*gh\s+pr\s+create(?:\s|$)/
 const GH_PR_VIEW = /(?:^|[;&|\n])\s*gh\s+pr\s+view(?:\s|$)/
 const GIT_PUSH = /(?:^|[;&|\n])\s*git\s+push(?:\s|$)/
+
+// What a worker's approval would do, the way its card reads, plus the command it runs.
+function approvalNotice(item: Extract<ThreadItem, { kind: 'approval' }>) {
+  const command = approvalCommand(item.toolName, item.input)
+  const input =
+    item.input && typeof item.input === 'object' ? (item.input as Record<string, unknown>) : {}
+  const action = lowerFirst(botApproval(item.toolName, input, [], []).title)
+  return `${action}.${command ? ` Command: \`${command}\`` : ''}`
+}
 
 function providerConflict(bound: string, requested: string) {
   return new StoreError('conflict', `Thread is bound to ${bound} and cannot switch to ${requested}`)
@@ -562,23 +572,24 @@ export function createOrchestrator({
         }
         if (appended.event.type === 'item.started') {
           const item = appended.event.item
-          if (item.kind === 'approval' && !item.decision && !item.withdrawn && !item.completedAt) {
+          // A bot waiting on this thread hears about the approval in its wait's result instead.
+          if (
+            item.kind === 'approval' &&
+            !item.decision &&
+            !item.withdrawn &&
+            !item.completedAt &&
+            !childWaits.has(threadId)
+          ) {
             const bot = yield* store.getOwningBot(threadId)
             if (bot && bot.id !== threadId) {
               const chat = yield* store.getThread(bot.id)
               const messageId = `approval:${threadId}:${item.id}`
               if (chat && !chat.archived && !(yield* store.wasQueued(bot.id, messageId))) {
                 const user = yield* Effect.promise(() => botUserName())
-                const command = approvalCommand(item.toolName, item.input)
-                const input =
-                  item.input && typeof item.input === 'object'
-                    ? (item.input as Record<string, unknown>)
-                    : {}
-                const action = lowerFirst(botApproval(item.toolName, input, [], []).title)
                 const thread = appended.thread
                 yield* store.enqueueOnce(bot.id, {
                   id: messageId,
-                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for ${user}'s approval to ${action}.${command ? ` Command: \`${command}\`` : ''}`,
+                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for ${user}'s approval to ${approvalNotice(item)}`,
                   createdAt: appended.ts,
                   hop: 0,
                   from: { threadId, title: thread.title },
@@ -1848,7 +1859,7 @@ export function createOrchestrator({
               const snapshot = yield* store.getThreadState(thread.id)
               if (needsUser(thread, snapshot)) {
                 const approval = snapshot.items.findLast(
-                  (item) => item.kind === 'approval' && !item.decision
+                  (item) => item.kind === 'approval' && awaitsInput(item)
                 )
                 const detail = WAIT_NOTES.needs_user.replace(
                   '{user}',
@@ -1858,7 +1869,7 @@ export function createOrchestrator({
                   status: 'needs_user',
                   detail:
                     approval?.kind === 'approval'
-                      ? `${detail}\nPending approval: ${approval.title}\n${JSON.stringify(approval.input)}`
+                      ? `${detail} It wants approval to ${approvalNotice(approval)}`
                       : detail,
                 })
               }
