@@ -119,7 +119,7 @@ export function createRpcHandlers(
         }
         yield* store.enqueue(id, queued)
         yield* Effect.forkIn(
-          orch.startTurnEffect({ threadId: id, text: queued.text, queued, visibleBotTurn: true }),
+          orch.startTurnEffect({ threadId: id, text: queued.text, queued }),
           admissionScope
         )
       })
