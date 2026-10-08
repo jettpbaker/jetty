@@ -116,8 +116,10 @@ type WarmSession = {
   query: Query
   usageIdentity: string | undefined
   input: Queue.Queue<SDKUserMessage, Cause.Done>
-  // Jett steered in a message the model hasn't seen yet: it's folded into the next request.
+  // Jett steered in a message the model hasn't read. Claude Code folds it into the request it
+  // builds after the next tool results, so the response after those is the first to have read it.
   steerUnread: boolean
+  steerFolding: boolean
   scope: Scope.Closeable
   options: SessionOptions
   activeTurnId: string
@@ -255,6 +257,7 @@ export function createClaudeAdapter(
             if (terminal) {
               session.accepting = false
               session.steerUnread = false
+              session.steerFolding = false
             }
             const outgoing = !session.failReason
               ? event
@@ -454,11 +457,22 @@ export function createClaudeAdapter(
           Effect.gen(function* () {
             if (!current(session)) return
             if (
+              session.steerUnread &&
+              message.type === 'user' &&
+              !message.parent_tool_use_id &&
+              Array.isArray(message.message.content) &&
+              message.message.content.some((block) => block.type === 'tool_result')
+            )
+              session.steerFolding = true
+            if (
+              session.steerFolding &&
               message.type === 'stream_event' &&
               !message.parent_tool_use_id &&
               message.event.type === 'message_start'
-            )
+            ) {
               session.steerUnread = false
+              session.steerFolding = false
+            }
             if (
               message.type === 'system' &&
               message.subtype === 'init' &&
@@ -912,6 +926,7 @@ export function createClaudeAdapter(
           usageIdentity: typeof q.accountInfo === 'function' ? usageIdentity : undefined,
           input: queue,
           steerUnread: false,
+          steerFolding: false,
           scope,
           options,
           activeTurnId: input.turnId,
@@ -1046,7 +1061,10 @@ export function createClaudeAdapter(
               if (!current(session) || !session.accepting) return false
               yield* beforeAccept
               const accepted = yield* Queue.offer(session.input, userMessage(text, images))
-              if (accepted && fromUser) session.steerUnread = true
+              if (accepted && fromUser) {
+                session.steerUnread = true
+                session.steerFolding = false
+              }
               return accepted
             }).pipe(Effect.uninterruptible)
           )
