@@ -1,4 +1,3 @@
-import type { ThreadItem } from '@jetty/shared/items'
 import type { Bot, BotConversationMessage } from '@jetty/shared/wire'
 
 import { BotAvatar, botColorStyle, botTextClass } from '@/components/custom/bot_avatar'
@@ -13,44 +12,17 @@ import { chatStamp, SESSION_GAP } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useBot, useBotConversation, useBots, useThread } from '@/state'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
+import { exchangeEntry, type ExchangeEntry } from '@jetty/shared/bots'
 import { Fragment, useLayoutEffect, useRef, useState, type UIEvent } from 'react'
-
-// One message between the chat's bot and another bot: one it sent, or one it got.
-export type ExchangeEntry = {
-  id: string
-  botId: string
-  sent: boolean
-  at: number
-  // The message's id in the conversation.
-  messageId?: string
-}
 
 // A conversation to open over the chat, at the message to bring into view.
 export type Room = { botId: string; messageId?: string; at: number }
 
-export function exchangeEntry(
-  item: ThreadItem,
-  others: ReadonlySet<string>
-): ExchangeEntry | undefined {
-  if (item.agentId) return undefined
-  if (item.kind === 'thread_marker' && item.action === 'messaged' && others.has(item.threadId))
-    return {
-      id: item.id,
-      botId: item.threadId,
-      sent: true,
-      at: item.createdAt,
-      messageId: item.messageId,
-    }
-  if (item.kind === 'user_message' && item.from && others.has(item.from.threadId))
-    return {
-      id: item.id,
-      botId: item.from.threadId,
-      sent: false,
-      at: item.createdAt,
-      messageId: item.id,
-    }
-  return undefined
-}
+// px from the bottom that still counts as at it; in a column-reverse scroller, 0 is the bottom.
+const PIN_SLACK = 8
+// The conversation's padding, which its edges fade across as it scrolls under them.
+const EDGE = 24
+const EDGE_MASK = `linear-gradient(to bottom, transparent, #000 ${EDGE}px, #000 calc(100% - ${EDGE}px), transparent)`
 
 const nameLinkClass =
   'inline-flex items-center gap-1 rounded-sm outline-none decoration-current/40 underline-offset-[3px] hover:underline focus-visible:ring-2 focus-visible:ring-ring/50'
@@ -230,13 +202,23 @@ export function BotConversation({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const pressedRef = useRef(false)
   const focusedRef = useRef(false)
+  const pinnedRef = useRef(true)
+  // Opens on the line's first message; after that, a reader at the bottom sees new ones land.
   useLayoutEffect(() => {
-    if (focusedRef.current || !messages?.length) return
+    const scroller = scrollerRef.current
+    if (!scroller || !messages?.length) return
+    if (focusedRef.current) {
+      if (pinnedRef.current) scroller.scrollTop = 0
+      return
+    }
     focusedRef.current = true
     const target = room.messageId
-      ? scrollerRef.current?.querySelector(`[data-message="${room.messageId}"]`)
+      ? scroller.querySelector(`[data-message="${room.messageId}"]`)?.closest('[data-group]')
       : null
-    target?.scrollIntoView({ block: 'start' })
+    if (target)
+      scroller.scrollTop +=
+        target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - EDGE
+    pinnedRef.current = scroller.scrollTop > -PIN_SLACK
   }, [messages, room.messageId])
   if (!other) return null
   // Only a press that starts and ends on the backdrop closes, so selecting text never does.
@@ -253,7 +235,7 @@ export function BotConversation({
           onClick={(event) => {
             if (pressedRef.current && backdrop(event)) onClose()
           }}
-          className='absolute inset-0 z-50 flex flex-col items-center bg-background/75 pt-7 pb-6 outline-none backdrop-blur-[8px] duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none dark:bg-black/62'
+          className='absolute inset-0 z-50 flex flex-col items-center bg-background/85 pt-7 pb-6 outline-none backdrop-blur-[8px] duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none dark:bg-black/62'
         >
           <DialogTitle className='sr-only'>
             {bot.name} and {other.name}
@@ -262,7 +244,7 @@ export function BotConversation({
             <div className='flex h-7 items-center gap-1.5 rounded-[14px] bg-muted pr-[11px] pl-[7px] text-xs font-medium'>
               <BotAvatar bot={bot} size={16} unread={false} />
               {bot.name}
-              <ArrowDataTransferHorizontalIcon className='size-3 text-muted-foreground' />
+              <ArrowDataTransferHorizontalIcon className='size-3 -scale-x-100 text-muted-foreground' />
               <BotAvatar bot={other} size={16} unread={false} />
               {other.name}
             </div>
@@ -273,9 +255,13 @@ export function BotConversation({
           <div
             ref={scrollerRef}
             tabIndex={-1}
+            onScroll={({ currentTarget }) => {
+              pinnedRef.current = currentTarget.scrollTop > -PIN_SLACK
+            }}
             className='scrollbar-subtle flex min-h-0 w-full flex-1 flex-col-reverse overflow-y-auto px-6 outline-none'
+            style={{ maskImage: EDGE_MASK }}
           >
-            <div className='mx-auto flex min-h-full w-full max-w-[620px] flex-col justify-center gap-4 py-6'>
+            <div className='mx-auto flex min-h-full w-full max-w-[620px] shrink-0 flex-col justify-center gap-4 py-6'>
               {toGroups(messages ?? []).map((group) =>
                 'stamp' in group ? (
                   <div key={group.key} className='text-center text-xs text-muted-foreground'>
@@ -321,6 +307,7 @@ function SenderGroup({
 }) {
   return (
     <div
+      data-group
       className={cn('flex flex-col gap-1', own ? 'items-end' : 'items-start')}
       style={botColorStyle(bot.color)}
     >

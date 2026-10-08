@@ -4,13 +4,7 @@ import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
-import {
-  BotConversation,
-  ExchangeLine,
-  exchangeEntry,
-  type ExchangeEntry,
-  type Room,
-} from '@/components/custom/bot_conversation'
+import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
 import {
   ApprovalStrip,
@@ -58,7 +52,12 @@ import {
   useThread,
   useThreadMeta,
 } from '@/state'
-import { botTurnActivity, shownInBotChat } from '@jetty/shared/bots'
+import {
+  botTurnActivity,
+  exchangeEntry,
+  shownInBotChat,
+  type ExchangeEntry,
+} from '@jetty/shared/bots'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'

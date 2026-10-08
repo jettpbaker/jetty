@@ -70,3 +70,38 @@ export function botTurnActivity(
     return latest.status === 'running' ? 'typing' : latest.status === 'failed' ? 'working' : 'quiet'
   return 'working'
 }
+
+// One message between a bot and another bot, as the first one's chat has it: the marker of one it
+// sent, or one it got.
+export type ExchangeEntry = {
+  id: string
+  botId: string
+  sent: boolean
+  at: number
+  // The message's id in their conversation.
+  messageId?: string
+}
+
+export function exchangeEntry(
+  item: ThreadItem,
+  otherBots: ReadonlySet<string>
+): ExchangeEntry | undefined {
+  if (item.agentId) return undefined
+  if (item.kind === 'thread_marker' && item.action === 'messaged' && otherBots.has(item.threadId))
+    return {
+      id: item.id,
+      botId: item.threadId,
+      sent: true,
+      at: item.createdAt,
+      messageId: item.messageId,
+    }
+  if (item.kind === 'user_message' && item.from && otherBots.has(item.from.threadId))
+    return {
+      id: item.id,
+      botId: item.from.threadId,
+      sent: false,
+      at: item.createdAt,
+      messageId: item.id,
+    }
+  return undefined
+}
