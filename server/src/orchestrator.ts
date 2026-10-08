@@ -213,7 +213,6 @@ export function createOrchestrator({
         turnId: string | null
         ready: boolean
         visibleBotTurn: boolean
-        terminalBotTool: boolean
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -233,7 +232,6 @@ export function createOrchestrator({
           turnId: null,
           ready: true,
           visibleBotTurn: false,
-          terminalBotTool: false,
           pendingDelta: null,
         }
         threads.set(threadId, value)
@@ -249,7 +247,6 @@ export function createOrchestrator({
         if (live.turnId === turnId) {
           live.turnId = null
           live.visibleBotTurn = false
-          live.terminalBotTool = false
         }
         live.ready = true
         if (yield* store.isBot(threadId)) {
@@ -488,20 +485,11 @@ export function createOrchestrator({
         const live = state(threadId)
         if (event.type === 'turn.started' && !live.turnId) {
           live.visibleBotTurn = false
-          live.terminalBotTool = false
         }
         if (
           event.type === 'item.started' &&
-          event.item.kind === 'tool_call' &&
-          !event.item.agentId &&
-          (event.item.toolName === 'mcp__jetty__react' ||
-            event.item.toolName === 'mcp__jetty__tell_user')
-        )
-          live.terminalBotTool = true
-        if (
-          event.type === 'item.started' &&
           event.item.kind === 'assistant_message' &&
-          (!live.visibleBotTurn || live.terminalBotTool) &&
+          !live.visibleBotTurn &&
           (yield* store.isBot(threadId))
         )
           event = { ...event, item: { ...event.item, private: true } }
@@ -538,7 +526,6 @@ export function createOrchestrator({
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           live.turnId = null
           live.visibleBotTurn = false
-          live.terminalBotTool = false
           if (worktrees)
             yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
         }
@@ -550,6 +537,27 @@ export function createOrchestrator({
         state(threadId).publication.withPermit(
           hub.withChromePublication(effect).pipe(Effect.uninterruptible)
         )
+      )
+    }
+
+    function visibleBotMessage(threadId: string, turnId: string, text: string) {
+      const item = {
+        id: newId(),
+        turnId,
+        createdAt: Date.now(),
+        kind: 'assistant_message' as const,
+        text,
+      }
+      return locked(
+        threadId,
+        Effect.gen(function* () {
+          yield* flushDelta(threadId)
+          for (const event of yield* store.appendEvents(threadId, [
+            { type: 'item.started', item },
+            { type: 'item.completed', itemId: item.id },
+          ]))
+            yield* publish(threadId, event)
+        })
       )
     }
 
@@ -1048,18 +1056,19 @@ export function createOrchestrator({
                 if (input.replyTo)
                   text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
                 text = `${botStamp()}\n${text}`
+                if (!input.visibleBotTurn && !creationWake && (input.queued || !input.messageId))
+                  text +=
+                    '\nThis is a private turn: the user cannot see text you write here. Anything they need to know must go through tell_user.'
               }
               const live = state(input.threadId)
               if (live.turnId) {
                 const turnId = live.turnId
                 const wasVisible = live.visibleBotTurn
-                const wasTerminal = live.terminalBotTool
                 if (
                   botChat &&
                   (input.visibleBotTurn || creationWake || (!input.queued && !!input.messageId))
                 ) {
                   live.visibleBotTurn = true
-                  live.terminalBotTool = false
                 }
                 const accepted = yield* agent.steer(
                   input.threadId,
@@ -1072,7 +1081,6 @@ export function createOrchestrator({
                 )
                 if (!accepted) {
                   live.visibleBotTurn = wasVisible
-                  live.terminalBotTool = wasTerminal
                   return yield* Effect.fail(
                     new StoreError('internal', 'Active turn is not accepting input')
                   )
@@ -1095,6 +1103,36 @@ export function createOrchestrator({
               }
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
                 Effect.gen(function* () {
+                  if (
+                    botChat &&
+                    event.type === 'turn.completed' &&
+                    input.queued?.from &&
+                    (input.queued.from.title !== 'Jetty' ||
+                      input.queued.text.includes('jetty://threads/')) &&
+                    !state(input.threadId).visibleBotTurn
+                  ) {
+                    yield* locked(input.threadId, flushDelta(input.threadId))
+                    const current = yield* store.getThreadState(input.threadId)
+                    const turnItems = current.items.filter((item) => item.turnId === turnId)
+                    const toldUser = turnItems.some(
+                      (item) =>
+                        item.kind === 'tool_call' &&
+                        !item.agentId &&
+                        item.toolName === 'mcp__jetty__tell_user'
+                    )
+                    if (!toldUser) {
+                      const reply = [...turnItems]
+                        .reverse()
+                        .find(
+                          (item) =>
+                            item.kind === 'assistant_message' &&
+                            item.private &&
+                            /[^\s.]/.test(item.text)
+                        )
+                      if (reply?.kind === 'assistant_message')
+                        yield* visibleBotMessage(input.threadId, turnId, reply.text)
+                    }
+                  }
                   if (
                     botChat &&
                     event.type === 'turn.failed' &&
@@ -1204,24 +1242,7 @@ export function createOrchestrator({
           if (!(yield* store.isBot(threadId)))
             return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
           const turn = yield* store.turnContext(threadId)
-          const item = {
-            id: newId(),
-            turnId: turn.turnId,
-            createdAt: Date.now(),
-            kind: 'assistant_message' as const,
-            text,
-          }
-          yield* locked(
-            threadId,
-            Effect.gen(function* () {
-              yield* flushDelta(threadId)
-              for (const event of yield* store.appendEvents(threadId, [
-                { type: 'item.started', item },
-                { type: 'item.completed', itemId: item.id },
-              ]))
-                yield* publish(threadId, event)
-            })
-          )
+          yield* visibleBotMessage(threadId, turn.turnId, text)
         })
       },
       botReaction(threadId: string, emoji: string) {

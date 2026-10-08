@@ -47,6 +47,7 @@ export function createHub() {
   const children = new Map<string, Set<string>>()
   const backgroundTasks = new Map<string, readonly BackgroundTask[]>()
   const runningSubagents = new Map<string, readonly RunningSubagent[]>()
+  const lastBotPush = new Map<string, string>()
 
   function decorateThread(thread: ThreadMeta): ThreadMeta {
     const tasks = backgroundTasks.get(thread.id) ?? []
@@ -150,7 +151,11 @@ export function createHub() {
 
   function pushChrome(data: ChromePushData) {
     let parentId: string | undefined
-    if (data.type === 'thread.upserted') {
+    if (data.type === 'bot.upserted') {
+      const serialized = JSON.stringify(data.bot)
+      if (lastBotPush.get(data.bot.id) === serialized) return
+      lastBotPush.set(data.bot.id, serialized)
+    } else if (data.type === 'thread.upserted') {
       rememberThread(data.thread)
       if (data.thread.id === data.thread.botId) return
       parentId = data.thread.parentThreadId
