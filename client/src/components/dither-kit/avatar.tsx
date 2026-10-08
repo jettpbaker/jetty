@@ -238,10 +238,11 @@ export function DitherAvatar({
       style={{ color }}
     >
       <canvas ref={canvasRef} className='block size-full' style={{ imageRendering: 'pixelated' }} />
+      {/* Additive glow only reads on a dark surface; on a light one it bleaches the face. */}
       {bloom === 'subtle' && (
         <canvas
           ref={bloomRef}
-          className='pointer-events-none absolute inset-0 size-full'
+          className='pointer-events-none absolute inset-0 hidden size-full dark:block'
           style={bloomStyle}
         />
       )}
