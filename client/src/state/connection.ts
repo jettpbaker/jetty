@@ -12,17 +12,10 @@ const statusAtom = Atom.make<ConnectionStatus>('connecting').pipe(Atom.keepAlive
 
 export const connectionAtom = Atom.make((get) => {
   let seen = false
-  const connection = createConnection(connectionUrl, (connected) => {
+  return createConnection(connectionUrl, (connected) => {
     seen ||= connected
     get.set(statusAtom, connected ? 'online' : seen ? 'reconnecting' : 'connecting')
   })
-  // The quiet threads mock's one switch (docs/bots/m2.md). Builds without it drop the mock.
-  if (import.meta.env.VITE_BOTS_MOCK !== 'quiet') return connection
-  return Effect.zipWith(
-    connection,
-    Effect.promise(() => import('./quiet_mock')),
-    (live, mock) => mock.withQuietMock(live)
-  )
 }).pipe(Atom.keepAlive)
 
 // A server restart that settles within a beat passes unannounced.
