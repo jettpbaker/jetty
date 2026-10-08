@@ -2,6 +2,7 @@ import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
+import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
@@ -41,7 +42,7 @@ import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
-import { completedAgo, useRevealRow } from '@/state'
+import { chatComposer, completedAgo, useRevealRow } from '@/state'
 import {
   measureElement,
   useVirtualizer,
@@ -302,7 +303,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
       <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
         <MessageContent>
           <Bubble variant='ghost' align='start'>
-            <BubbleContent>
+            <BubbleContent data-quote={row.item.id}>
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
               <Markdown
                 streaming={row.streaming}
@@ -760,6 +761,9 @@ export function ThreadList({
             ))}
           </div>
         </section>
+        {!agentId && (
+          <AddToPrompt chatRef={scroller} onAdd={(reply) => chatComposer(threadId)?.quote(reply)} />
+        )}
         <ThreadMinimap
           turns={turns}
           rows={latestRows}

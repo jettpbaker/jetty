@@ -2,6 +2,7 @@ import type { PendingBotMessage } from '@/state/bots'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
+import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import {
   ApprovalStrip,
@@ -354,6 +355,7 @@ export function BotChat({ bot }: { bot: Bot }) {
           </div>
         </div>
       </div>
+      <AddToPrompt chatRef={scrollerRef} onAdd={reply} />
     </div>
   )
 }
@@ -581,6 +583,7 @@ function MessageRow({
             className={cn('max-w-[515px]', !jett && 'has-[pre,table]:max-w-full')}
           >
             <BubbleContent
+              data-quote={jett ? undefined : message.id}
               className={cn(
                 'rounded-[18.5px] border-0 leading-normal',
                 jett
