@@ -27,6 +27,7 @@ import {
   useAccessMode,
   useChatComposer,
   useChromeReady,
+  useDefaultEnvironment,
   useContinueThread,
   useCreateThread,
   useDismissQuestion,
@@ -141,6 +142,7 @@ export function ThreadComposer({
   const queueActions = useQueueActions()
   const navigate = useNavigate()
   const chromeReady = useChromeReady()
+  const defaultEnvironment = useDefaultEnvironment()
   const selectedId = useParams({ strict: false }).threadId
   const target = saved.target
   const picked = useProject(target?.projectId) !== undefined
@@ -151,7 +153,9 @@ export function ThreadComposer({
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
   const setupGuide = projectGit?.git === 'ok' ? projectGit.setupGuide : undefined
-  const environment = noGit ? 'local' : (target?.environment ?? projectDefault ?? 'worktree')
+  const environment = noGit
+    ? 'local'
+    : (target?.environment ?? projectDefault ?? defaultEnvironment)
   const startingRef = target?.ref
   function retarget(patch: DraftTarget) {
     update({ target: { ...read().target, ...patch } })
@@ -598,7 +602,9 @@ export function ThreadComposer({
             lockedProvider={lockedProvider}
             onChange={setLoadout}
             onReorder={setLoadouts}
-            onOpenSettings={() => void navigate({ to: '/settings' })}
+            onOpenSettings={() =>
+              void navigate({ to: '/settings/$page', params: { page: 'models' } })
+            }
             loading={!chromeReady}
             modelMenuRef={modelMenuRef}
           />

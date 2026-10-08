@@ -19,13 +19,14 @@ import { useState } from 'react'
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindTooltip, keybinds, appShortcut } from './keybinds'
 
-const modes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> = {
-  auto: { label: 'Auto', Icon: ShieldCheckIcon },
-  full_access: { label: 'Full access', Icon: ShieldOffIcon },
-}
+export const accessModes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> =
+  {
+    auto: { label: 'Auto', Icon: ShieldCheckIcon },
+    full_access: { label: 'Full access', Icon: ShieldOffIcon },
+  }
 
 function isMode(value: unknown): value is PermissionMode {
-  return typeof value === 'string' && Object.hasOwn(modes, value)
+  return typeof value === 'string' && Object.hasOwn(accessModes, value)
 }
 
 export function ComposerAccessMode({
@@ -60,7 +61,7 @@ export function ComposerAccessMode({
         </Button>
       </DisabledTooltip>
     )
-  const { label, Icon } = modes[value]
+  const { label, Icon } = accessModes[value]
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <KeybindTooltip binding={{ ...keybinds.access, name: label }}>
@@ -88,7 +89,7 @@ export function ComposerAccessMode({
             if (isMode(next)) onChange(next)
           }}
         >
-          {Object.entries(modes).map(([id, mode]) => (
+          {Object.entries(accessModes).map(([id, mode]) => (
             <DropdownMenuRadioItem key={id} value={id}>
               <mode.Icon />
               {mode.label}

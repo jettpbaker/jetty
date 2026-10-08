@@ -94,7 +94,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
                 }}
                 onOpenSettings={() => {
                   setOpen(false)
-                  void navigate({ to: '/settings' })
+                  void navigate({ to: '/settings/$page', params: { page: 'models' } })
                 }}
               />
             </Row>

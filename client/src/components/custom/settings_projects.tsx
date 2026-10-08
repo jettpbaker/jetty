@@ -1,145 +1,92 @@
-import { PlusSignIcon, Delete02Icon } from '@/components/custom/huge_icons'
+import type { Project } from '@jetty/shared/wire'
+
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { inComposition } from '@/lib/composition'
-import { useChrome, useCreateProject, useRenameProject } from '@/state'
+import { cn } from '@/lib/utils'
+import {
+  useChrome,
+  useCreateProject,
+  useDefaultEnvironment,
+  useDraft,
+  useRenameProject,
+} from '@/state'
+import { homePath, useSettingsInfo, type SettingsInfo } from '@/state/models'
 import { useDeleteProject } from '@/state/mutations'
+import { useProjectGit } from '@/state/worktrees'
+import { worktreeSetupPrompt } from '@jetty/shared/wire'
+import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { environments } from './composer_environment'
+import {
+  Delete02Icon,
+  FolderGit2Icon,
+  MoreVerticalIcon,
+  PencilEdit02Icon,
+  PlusSignIcon,
+  ShapesIcon,
+  Tick02Icon,
+} from './huge_icons'
 import { ProjectFolderDialog } from './project_folder_dialog'
 import { ProjectIconPicker } from './project_icon_picker'
+import {
+  PathText,
+  SettingsButton,
+  SettingsLinkRow,
+  SettingsPage,
+  SettingsSection,
+  cardClass,
+} from './settings_layout'
 
-export function SettingsProjects() {
-  const chrome = useChrome()
-  const projects = chrome?.projects ?? []
-  const createProject = useCreateProject()
-  const deleteProject = useDeleteProject()
-  const renameProject = useRenameProject()
-  const [adding, setAdding] = useState(false)
-  const addButton = useRef<HTMLButtonElement>(null)
-  function remove(projectId: string, title: string) {
-    const threads = chrome?.threads.filter((thread) => thread.projectId === projectId).length ?? 0
-    const deletion = deleteProject(projectId)
-    toast(
-      `Deleted ${title}${threads ? ` and its ${threads === 1 ? 'thread' : `${threads} threads`}` : ''}`,
-      {
-        action: { label: 'Undo', onClick: deletion.undo },
-        onAutoClose: deletion.commit,
-        onDismiss: deletion.commit,
-      }
-    )
-  }
-  function setDialogOpen(open: boolean) {
-    setAdding(open)
-    if (!open) requestAnimationFrame(() => addButton.current?.focus())
-  }
-  return (
-    <div className='overflow-hidden'>
-      <table className='w-full table-fixed text-left text-13' aria-label='Projects'>
-        <thead>
-          <tr className='text-xs text-muted-foreground'>
-            <th scope='col' className='w-[30%] px-2 pb-2 font-normal'>
-              Project
-            </th>
-            <th scope='col' className='px-2 pb-2 font-normal'>
-              Path
-            </th>
-            <th scope='col' className='w-9 pb-2'>
-              <span className='sr-only'>Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {projects.map((project) => (
-            <tr key={project.id} className='border-b border-border hover:bg-accent'>
-              <td className='px-2 py-3'>
-                <div className='flex min-w-0 items-center gap-3'>
-                  <ProjectIconPicker project={project} />
-                  <ProjectName
-                    title={project.title}
-                    onRename={(title) => renameProject(project.id, title)}
-                  />
-                </div>
-              </td>
-              <td className='px-2 py-3 font-mono text-xs text-muted-foreground'>
-                <ProjectPath path={project.path} />
-              </td>
-              <td className='py-3 text-right'>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  aria-label={`Delete ${project.title}`}
-                  onClick={() => remove(project.id, project.title)}
-                >
-                  <Delete02Icon aria-hidden='true' className='size-3.5 text-status-error' />
-                </Button>
-              </td>
-            </tr>
-          ))}
-          <tr>
-            <td colSpan={3} className='p-0'>
-              <button
-                ref={addButton}
-                type='button'
-                className='flex min-h-12 w-full items-center gap-3 rounded-sm px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
-                onClick={() => setAdding(true)}
-              >
-                <span className='flex size-7 items-center justify-center'>
-                  <PlusSignIcon aria-hidden='true' className='size-4' />
-                </span>
-                New project
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <ProjectFolderDialog
-        open={adding}
-        onOpenChange={setDialogOpen}
-        existingPaths={projects.map((project) => project.path)}
-        onAdd={(path) => createProject(path)}
-      />
-    </div>
-  )
-}
-
-function ProjectName({ title, onRename }: { title: string; onRename: (title: string) => void }) {
-  const [editing, setEditing] = useState(false)
+function ProjectName({
+  title,
+  editing,
+  onEditingChange,
+  onRename,
+}: {
+  title: string
+  editing: boolean
+  onEditingChange: (editing: boolean) => void
+  onRename: (title: string) => void
+}) {
   const [draft, setDraft] = useState(title)
   const inputRef = useRef<HTMLInputElement>(null)
   const skipBlurRef = useRef(false)
   useEffect(() => {
     if (!editing) return
+    skipBlurRef.current = false
+    setDraft(title)
     const input = inputRef.current
     input?.focus()
     input?.select()
-  }, [editing])
-  function begin() {
-    skipBlurRef.current = false
-    setDraft(title)
-    setEditing(true)
-  }
+  }, [editing, title])
   function cancel() {
     skipBlurRef.current = true
-    setDraft(title)
-    setEditing(false)
+    onEditingChange(false)
   }
   function save() {
     if (skipBlurRef.current) return
     skipBlurRef.current = true
     const next = draft.trim()
-    setEditing(false)
+    onEditingChange(false)
     if (next && next !== title) onRename(next)
-    else setDraft(title)
   }
   if (!editing)
     return (
       <button
         type='button'
-        className='min-w-0 truncate rounded-sm text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+        className='min-w-0 truncate rounded-sm text-left text-13 outline-none focus-visible:ring-2 focus-visible:ring-ring'
         title={title}
-        onClick={begin}
+        onClick={() => onEditingChange(true)}
       >
         {title}
       </button>
@@ -149,7 +96,7 @@ function ProjectName({ title, onRename }: { title: string; onRename: (title: str
       ref={inputRef}
       aria-label='Project name'
       value={draft}
-      className='h-7 px-1.5 text-13 md:text-13'
+      className='-my-1 h-6 px-1.5 text-13 md:text-13'
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => {
         if (inComposition(event.nativeEvent)) return
@@ -166,13 +113,207 @@ function ProjectName({ title, onRename }: { title: string; onRename: (title: str
   )
 }
 
-// The folder name is what tells projects apart, so a long path gives way before it does.
-function ProjectPath({ path }: { path: string }) {
-  const slash = path.lastIndexOf('/', path.length - 2)
+function ProjectRow({
+  project,
+  info,
+  onRemove,
+}: {
+  project: Project
+  info?: SettingsInfo
+  onRemove: () => void
+}) {
+  const git = useProjectGit(project.id)
+  const defaultEnvironment = useDefaultEnvironment()
+  const renameProject = useRenameProject()
+  const navigate = useNavigate()
+  const { read, update } = useDraft('')
+  const [renaming, setRenaming] = useState(false)
+  const [choosingIcon, setChoosingIcon] = useState(false)
+  const ok = git?.git === 'ok' ? git : undefined
+  const environment = environments[ok?.defaultEnvironment ?? defaultEnvironment]
+  // Puts the setup prompt in a new thread's composer, pointed at this project's checkout, where
+  // Jetty reads the config from. The same as the new-thread page's Set up worktrees.
+  function setUp(guide: string) {
+    const prompt = worktreeSetupPrompt(guide)
+    const { text, target } = read()
+    update({
+      text: text.includes(prompt) ? text : text.trim() ? `${text.trimEnd()}\n\n${prompt}` : prompt,
+      target: { ...target, projectId: project.id, environment: 'local' },
+    })
+    void navigate({ to: '/' })
+  }
   return (
-    <span className='flex min-w-0' title={path}>
-      <span className='truncate'>{path.slice(0, slash)}</span>
-      <span className='max-w-full shrink-0 truncate'>{path.slice(slash)}</span>
-    </span>
+    <div className='flex min-h-15 items-center gap-4 py-2.5'>
+      <div className='flex min-w-0 grow basis-0 items-center gap-3'>
+        <ProjectIconPicker
+          project={project}
+          open={choosingIcon}
+          onOpenChange={setChoosingIcon}
+          className='size-7 shrink-0 rounded-[7px] bg-foreground/6 not-disabled:hover:bg-foreground/10'
+        />
+        <div className='flex min-w-0 flex-col gap-0.5'>
+          <ProjectName
+            title={project.title}
+            editing={renaming}
+            onEditingChange={setRenaming}
+            onRename={(title) => renameProject(project.id, title)}
+          />
+          <PathText path={info ? homePath(project.path, info) : project.path} />
+        </div>
+      </div>
+      <span className='flex w-34 shrink-0 items-center gap-1.5 text-13 text-muted-foreground [&_svg]:size-3.5'>
+        {ok && (
+          <>
+            <environment.Icon />
+            {environment.label}
+          </>
+        )}
+      </span>
+      <span className='flex w-30 shrink-0 items-center gap-1.5'>
+        {!git ? null : !ok ? (
+          <span className='text-xs text-muted-foreground'>Not a git repo</span>
+        ) : ok.setupGuide ? (
+          <Button
+            variant='ghost'
+            className='-ml-2 h-7 rounded-sm px-2 text-13'
+            onClick={() => ok.setupGuide && setUp(ok.setupGuide)}
+          >
+            Set up
+          </Button>
+        ) : (
+          <>
+            <Tick02Icon className='size-3.5 shrink-0 text-status-success' />
+            {ok.setupCommand ? (
+              <code
+                className='truncate font-mono text-xs text-muted-foreground'
+                title={ok.setupCommand}
+              >
+                {ok.setupCommand}
+              </code>
+            ) : (
+              <span className='text-13 text-muted-foreground'>Set up</span>
+            )}
+          </>
+        )}
+      </span>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={<Button variant='ghost' size='icon' aria-label={`More for ${project.title}`} />}
+        >
+          <MoreVerticalIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuItem onClick={() => setRenaming(true)}>
+            <PencilEdit02Icon />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setChoosingIcon(true)}>
+            <ShapesIcon />
+            Change icon
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant='destructive' onClick={onRemove}>
+            <Delete02Icon />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
+export function SettingsProjects() {
+  const chrome = useChrome()
+  const projects = chrome?.projects ?? []
+  const createProject = useCreateProject()
+  const deleteProject = useDeleteProject()
+  const info = useSettingsInfo()
+  const [adding, setAdding] = useState(false)
+  const addButton = useRef<HTMLButtonElement>(null)
+  function remove(project: Project) {
+    const threads = chrome?.threads.filter((thread) => thread.projectId === project.id).length ?? 0
+    const deletion = deleteProject(project.id)
+    toast(
+      `Removed ${project.title}${threads ? ` and its ${threads === 1 ? 'thread' : `${threads} threads`}` : ''}`,
+      {
+        action: { label: 'Undo', onClick: deletion.undo },
+        onAutoClose: deletion.commit,
+        onDismiss: deletion.commit,
+      }
+    )
+  }
+  return (
+    <SettingsPage
+      title='Projects'
+      description='The folders Jetty works in, and how each one sets up a worktree.'
+    >
+      <SettingsSection
+        id='projects'
+        title={projects.length === 1 ? '1 project' : `${projects.length} projects`}
+        action={
+          <SettingsButton ref={addButton} onClick={() => setAdding(true)}>
+            <PlusSignIcon />
+            Add project
+          </SettingsButton>
+        }
+      >
+        <div
+          id='settings-worktree-setup'
+          role='table'
+          aria-label='Projects'
+          className={cn(cardClass, 'flex flex-col pr-2 pl-4')}
+        >
+          <div
+            role='row'
+            className='flex h-9 shrink-0 items-center gap-4 border-b border-border text-xs text-muted-foreground'
+          >
+            <span role='columnheader' className='grow'>
+              Project
+            </span>
+            <span role='columnheader' className='w-34 shrink-0'>
+              New threads in
+            </span>
+            <span role='columnheader' className='w-30 shrink-0'>
+              Worktree setup
+            </span>
+            <span className='w-7 shrink-0' />
+          </div>
+          <div className='flex flex-col divide-y divide-border'>
+            {projects.map((project) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                info={info}
+                onRemove={() => remove(project)}
+              />
+            ))}
+            {!projects.length && (
+              <p className='flex min-h-15 items-center text-13 text-muted-foreground'>
+                No projects yet.
+              </p>
+            )}
+          </div>
+        </div>
+      </SettingsSection>
+      <div className={cn(cardClass, 'px-4')}>
+        <SettingsLinkRow
+          id='worktrees-link'
+          page='worktrees'
+          icon={FolderGit2Icon}
+          title='Worktrees'
+          description='Where they live, the branch prefix, and which ignored files come along'
+          value={null}
+        />
+      </div>
+      <ProjectFolderDialog
+        open={adding}
+        onOpenChange={(open) => {
+          setAdding(open)
+          if (!open) requestAnimationFrame(() => addButton.current?.focus())
+        }}
+        existingPaths={projects.map((project) => project.path)}
+        onAdd={(path) => createProject(path)}
+      />
+    </SettingsPage>
   )
 }

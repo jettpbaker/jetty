@@ -55,26 +55,42 @@ function IconGrid({ selected, onSelect }: { selected?: string; onSelect: (name: 
   )
 }
 
-export function ProjectIconPicker({ project }: { project: Project }) {
+// Open from its own button, or from elsewhere (a menu's "Change icon") through `open`.
+export function ProjectIconPicker({
+  project,
+  open,
+  onOpenChange,
+  className,
+}: {
+  project: Project
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  className?: string
+}) {
   const setProjectIcon = useSetProjectIcon()
-  const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<ProjectIcon['type']>('emoji')
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setTab(project.icon?.type ?? 'emoji')
+  }
 
   function choose(icon: ProjectIcon | null) {
     setProjectIcon(project.id, icon)
-    setOpen(false)
+    onOpenChange(false)
   }
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) setTab(project.icon?.type ?? 'emoji')
-      }}
-    >
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
-        render={<Button variant='ghost' size='icon' aria-label={`Icon for ${project.title}`} />}
+        render={
+          <Button
+            variant='ghost'
+            size='icon'
+            aria-label={`Icon for ${project.title}`}
+            className={className}
+          />
+        }
       >
         <ProjectGlyph icon={project.icon} className='size-4' />
       </PopoverTrigger>

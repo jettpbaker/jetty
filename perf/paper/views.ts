@@ -325,24 +325,27 @@ export const views: View[] = [
       )
     },
   },
-  {
-    area: 'Settings',
-    state: 'providers and loadout',
-    route: () => '/settings',
-    selector: main,
-    themes: allThemes,
-    ready: `document.querySelector('#providers')`,
-  },
-  ...['agent-behaviour', 'integrations', 'worktrees', 'projects', 'appearance'].map(
-    (section): View => ({
+  ...[
+    'preferences',
+    'appearance',
+    'keyboard',
+    'notifications',
+    'connected-accounts',
+    'models',
+    'intelligence',
+    'guided-reviews',
+    'bots',
+    'projects',
+    'worktrees',
+    'about',
+  ].map(
+    (page, index): View => ({
       area: 'Settings',
-      state: section,
-      route: () => '/settings',
-      selector: `#${section}`,
-      ready: `document.querySelector('#${section}')`,
-      async setup({ page }) {
-        await page.evaluate(`document.querySelector('#${section}').scrollIntoView({block:'start'})`)
-      },
+      state: page,
+      route: () => `/settings/${page}`,
+      selector: main,
+      themes: index === 0 ? allThemes : undefined,
+      ready: `document.querySelector('[aria-label="Settings"] h1')`,
     })
   ),
   {

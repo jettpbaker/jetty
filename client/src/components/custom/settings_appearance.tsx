@@ -1,21 +1,5 @@
-import {
-  Moon02Icon,
-  MoonEclipseIcon,
-  Sun03Icon,
-  Upload04Icon,
-  ArrowDown01Icon,
-  ComputerIcon,
-  CropIcon,
-  Delete02Icon,
-} from '@/components/custom/huge_icons'
+import { CropIcon, Delete02Icon, Upload04Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -28,27 +12,91 @@ import {
   type Appearance,
 } from '@/lib/appearance'
 import { useAnimatedTheme } from '@/lib/theme'
+import { cn } from '@/lib/utils'
 import { pickFiles } from '@/platform'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import './settings_sections.css'
 import { AccentPicker } from './accent_picker'
 import { DisabledTooltip } from './disabled_tooltip'
+import { Mono, SettingsCard, SettingsPage, SettingsRow, SettingsSection } from './settings_layout'
 import { WallpaperEditor } from './wallpaper_editor'
+import './settings_appearance.css'
 
 const themes = [
-  { value: 'light', label: 'Light', Icon: Sun03Icon },
-  { value: 'dark', label: 'Dark', Icon: Moon02Icon },
-  { value: 'oled', label: 'OLED', Icon: MoonEclipseIcon },
-  { value: 'system', label: 'System', Icon: ComputerIcon },
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'oled', label: 'OLED' },
 ] as const
+
+function TilePanel({ tile }: { tile?: 'light' | 'dark' }) {
+  return (
+    <div className='theme-tile-panel' data-tile={tile}>
+      <span className='theme-tile-title' />
+      <span className='theme-tile-card'>
+        <span />
+        <span />
+      </span>
+    </div>
+  )
+}
+
+function ThemeTile({ theme }: { theme: (typeof themes)[number]['value'] }) {
+  if (theme === 'system')
+    return (
+      <span className='theme-tile' data-tile='system'>
+        <TilePanel tile='light' />
+        <TilePanel tile='dark' />
+      </span>
+    )
+  return (
+    <span className='theme-tile' data-tile={theme}>
+      <span className='theme-tile-rail'>
+        <span />
+        <span />
+        <span />
+      </span>
+      <TilePanel />
+    </span>
+  )
+}
+
+function IconAction({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant='ghost'
+            size='icon'
+            disabled={disabled}
+            aria-label={label}
+            onClick={onClick}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+const textButtonClass = 'h-7 rounded-sm px-2.5 text-13'
 
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
-  const themeLabel = themes.find((option) => option.value === theme)?.label
   const appearance = useAppearance()
-  const wallpaperAccentId = useId()
-  const wallpaperTintId = useId()
   const [editing, setEditing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -141,223 +189,194 @@ export function SettingsAppearance() {
       setError('Could not remove the wallpaper.')
     }
   }
+  const noWallpaper = appearance.wallpaper ? undefined : 'Add a wallpaper first.'
   return (
-    <div>
-      <div className='appearance-option-row'>
-        <span>Theme</span>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger
-            aria-label={`Theme: ${themeLabel}`}
-            render={
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
-              />
+    <SettingsPage title='Appearance' description='How Jetty looks on this device.'>
+      <SettingsSection id='theme' title='Theme'>
+        <div role='radiogroup' aria-label='Theme' className='flex gap-3'>
+          {themes.map(({ value, label }) => (
+            <button
+              key={value}
+              type='button'
+              role='radio'
+              aria-checked={theme === value}
+              onClick={() => setTheme(value)}
+              className='group/tile flex min-w-0 flex-1 basis-0 flex-col gap-2 rounded-lg text-left outline-none'
+            >
+              <span
+                className={cn(
+                  'rounded-lg group-focus-visible/tile:ring-2 group-focus-visible/tile:ring-ring',
+                  theme === value &&
+                    '[&>.theme-tile]:outline-2 [&>.theme-tile]:-outline-offset-2 [&>.theme-tile]:outline-primary'
+                )}
+              >
+                <ThemeTile theme={value} />
+              </span>
+              <span
+                className={cn(
+                  'pl-0.5 text-13',
+                  theme === value
+                    ? 'text-foreground'
+                    : 'text-muted-foreground group-hover/tile:text-foreground'
+                )}
+              >
+                {label}
+              </span>
+            </button>
+          ))}
+        </div>
+        <SettingsCard className='mt-2'>
+          <SettingsRow id='accent' title='Accent' description='Selection, focus and links'>
+            <AccentPicker />
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+      <SettingsSection title='Wallpaper' description='Sits behind the new-thread page.'>
+        <SettingsCard>
+          <SettingsRow
+            id='wallpaper-image'
+            title='Image'
+            description={
+              appearance.wallpaper ? (
+                <Mono>{appearance.filename ?? 'wallpaper'}</Mono>
+              ) : (
+                'JPEG, PNG or WebP'
+              )
             }
           >
-            {themeLabel}
-            <ArrowDown01Icon />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-              {themes.map(({ value, label, Icon }) => (
-                <DropdownMenuRadioItem key={value} value={value}>
-                  <Icon aria-hidden='true' className='size-3' />
-                  {label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className='appearance-option-row'>
-        <span>Accent</span>
-        <AccentPicker />
-      </div>
-      <div className='appearance-option-row'>
-        <span>Wallpaper</span>
-        {appearance.wallpaper ? (
-          <div className='mr-2 flex items-center gap-2'>
-            <div className='flex items-center gap-1'>
-              {[
-                { label: 'Crop image', Icon: CropIcon, action: () => setEditing(true) },
-                { label: 'Change image', Icon: Upload04Icon, action: () => void chooseImage() },
-              ].map(({ label, Icon, action }) => (
-                <Tooltip key={label}>
+            {appearance.wallpaper ? (
+              <div className='flex shrink-0 items-center gap-1'>
+                <IconAction
+                  label='Crop image'
+                  disabled={uploading}
+                  onClick={() => setEditing(true)}
+                >
+                  <CropIcon />
+                </IconAction>
+                <IconAction
+                  label='Change image'
+                  disabled={uploading}
+                  onClick={() => void chooseImage()}
+                >
+                  <Upload04Icon />
+                </IconAction>
+                <IconAction
+                  label='Remove image'
+                  disabled={uploading}
+                  onClick={() => void removeWallpaper()}
+                >
+                  <Delete02Icon />
+                </IconAction>
+                <Tooltip>
                   <TooltipTrigger
                     render={
-                      <Button
-                        variant='ghost'
-                        size='icon'
+                      <button
+                        type='button'
+                        aria-label='Edit wallpaper crop'
                         disabled={uploading}
-                        aria-label={label}
-                        onClick={action}
+                        onClick={() => setEditing(true)}
+                        className='ml-1 h-8 w-14 overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
                       />
                     }
                   >
-                    <Icon className='size-3.5' />
+                    <img
+                      src={appearance.wallpaper}
+                      alt='Current wallpaper'
+                      className='size-full object-cover'
+                    />
                   </TooltipTrigger>
-                  <TooltipContent>{label}</TooltipContent>
+                  <TooltipContent>Crop image</TooltipContent>
                 </Tooltip>
-              ))}
-            </div>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    aria-label='Edit wallpaper crop'
-                    disabled={uploading}
-                    onClick={() => setEditing(true)}
-                    className='h-7 w-12 overflow-hidden rounded-sm p-0'
-                  />
-                }
+              </div>
+            ) : (
+              <Button
+                variant='ghost'
+                className={textButtonClass}
+                disabled={uploading}
+                onClick={() => void chooseImage()}
               >
-                <img
-                  src={appearance.wallpaper}
-                  alt='Current wallpaper'
-                  className='h-full w-full object-cover'
+                {uploading ? 'Preparing…' : 'Add image'}
+              </Button>
+            )}
+          </SettingsRow>
+          <SettingsRow
+            id='wallpaper-video'
+            title='Video'
+            description='Plays instead of the image. WebM or MP4.'
+          >
+            {appearance.video ? (
+              <div className='flex shrink-0 items-center gap-1'>
+                <IconAction
+                  label='Change video'
+                  disabled={uploading}
+                  onClick={() => void chooseVideo()}
+                >
+                  <Upload04Icon />
+                </IconAction>
+                <IconAction
+                  label='Remove video'
+                  disabled={uploading}
+                  onClick={() => void removeVideo()}
+                >
+                  <Delete02Icon />
+                </IconAction>
+                <video
+                  src={`${appearance.video}#t=1`}
+                  muted
+                  preload='auto'
+                  aria-label={appearance.videoFilename ?? 'Current video wallpaper'}
+                  className='ml-1 h-8 w-14 rounded-sm object-cover'
                 />
-              </TooltipTrigger>
-              <TooltipContent>Crop image</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    disabled={uploading}
-                    aria-label='Remove image'
-                    onClick={() => void removeWallpaper()}
-                  />
-                }
+              </div>
+            ) : (
+              <Button
+                variant='ghost'
+                className={textButtonClass}
+                disabled={uploading}
+                onClick={() => void chooseVideo()}
               >
-                <Delete02Icon className='size-3.5' />
-              </TooltipTrigger>
-              <TooltipContent>Remove image</TooltipContent>
-            </Tooltip>
-          </div>
-        ) : (
-          <Button
-            variant='ghost-text'
-            size='sm'
-            className='h-7 rounded-sm'
-            disabled={uploading}
-            onClick={() => void chooseImage()}
+                Add video
+              </Button>
+            )}
+          </SettingsRow>
+          <SettingsRow
+            id='match-accent'
+            title='Match accent to wallpaper'
+            description="Picks the accent from the image's colours"
           >
-            {uploading ? 'Preparing…' : 'Add image'}
-          </Button>
+            <DisabledTooltip reason={noWallpaper} wrap='flex'>
+              <Switch
+                aria-label='Match accent to wallpaper'
+                disabled={!appearance.wallpaper}
+                checked={appearance.autoAccent}
+                onCheckedChange={(autoAccent) => void setAuto({ autoAccent })}
+                className={appearance.wallpaper ? undefined : 'pointer-events-none'}
+              />
+            </DisabledTooltip>
+          </SettingsRow>
+          <SettingsRow
+            id='tint'
+            title='Tint app to wallpaper'
+            description='Warms or cools the greys to sit with the image'
+          >
+            <DisabledTooltip reason={noWallpaper} wrap='flex'>
+              <Switch
+                aria-label='Tint app to wallpaper'
+                disabled={!appearance.wallpaper}
+                checked={appearance.autoTint}
+                onCheckedChange={(autoTint) => void setAuto({ autoTint })}
+                className={appearance.wallpaper ? undefined : 'pointer-events-none'}
+              />
+            </DisabledTooltip>
+          </SettingsRow>
+        </SettingsCard>
+        {error && (
+          <p role='alert' className='px-4 text-xs text-destructive'>
+            {error}
+          </p>
         )}
-      </div>
-      <div className='appearance-option-row'>
-        <span>Video wallpaper</span>
-        {appearance.video ? (
-          <div className='mr-2 flex items-center gap-2'>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    disabled={uploading}
-                    aria-label='Change video'
-                    onClick={() => void chooseVideo()}
-                  />
-                }
-              >
-                <Upload04Icon className='size-3.5' />
-              </TooltipTrigger>
-              <TooltipContent>Change video</TooltipContent>
-            </Tooltip>
-            <video
-              src={`${appearance.video}#t=1`}
-              muted
-              preload='auto'
-              aria-label={appearance.videoFilename ?? 'Current video wallpaper'}
-              className='h-7 w-12 rounded-sm object-cover'
-            />
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    disabled={uploading}
-                    aria-label='Remove video'
-                    onClick={() => void removeVideo()}
-                  />
-                }
-              >
-                <Delete02Icon className='size-3.5' />
-              </TooltipTrigger>
-              <TooltipContent>Remove video</TooltipContent>
-            </Tooltip>
-          </div>
-        ) : (
-          <Button
-            variant='ghost-text'
-            size='sm'
-            className='h-7 rounded-sm'
-            disabled={uploading}
-            onClick={() => void chooseVideo()}
-          >
-            Add video
-          </Button>
-        )}
-      </div>
-      <DisabledTooltip reason={appearance.wallpaper ? undefined : 'Add a wallpaper first.'}>
-        <div
-          className='appearance-option-row'
-          tabIndex={appearance.wallpaper ? -1 : 0}
-          role='group'
-          aria-label='Wallpaper accent'
-        >
-          <label
-            htmlFor={wallpaperAccentId}
-            className={appearance.wallpaper ? undefined : 'text-disabled-foreground'}
-          >
-            Match accent to wallpaper
-          </label>
-          <Switch
-            id={wallpaperAccentId}
-            disabled={!appearance.wallpaper}
-            checked={appearance.autoAccent}
-            onCheckedChange={(autoAccent) => void setAuto({ autoAccent })}
-            className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
-          />
-        </div>
-      </DisabledTooltip>
-      <DisabledTooltip reason={appearance.wallpaper ? undefined : 'Add a wallpaper first.'}>
-        <div
-          className='appearance-option-row'
-          tabIndex={appearance.wallpaper ? -1 : 0}
-          role='group'
-          aria-label='Wallpaper tint'
-        >
-          <label
-            htmlFor={wallpaperTintId}
-            className={appearance.wallpaper ? undefined : 'text-disabled-foreground'}
-          >
-            Tint app to wallpaper
-          </label>
-          <Switch
-            id={wallpaperTintId}
-            disabled={!appearance.wallpaper}
-            checked={appearance.autoTint}
-            onCheckedChange={(autoTint) => void setAuto({ autoTint })}
-            className={`mr-2 ${appearance.wallpaper ? '' : 'pointer-events-none'}`}
-          />
-        </div>
-      </DisabledTooltip>
+      </SettingsSection>
       {editing && <WallpaperEditor appearance={appearance} onClose={() => setEditing(false)} />}
-      {error && (
-        <p role='alert' className='text-xs text-destructive'>
-          {error}
-        </p>
-      )}
-    </div>
+    </SettingsPage>
   )
 }

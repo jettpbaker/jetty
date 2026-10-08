@@ -121,7 +121,6 @@ export const AppSidebar = memo(function AppSidebar() {
   const bots = useBots()
   const [newBotOpen, setNewBotOpen] = useState(false)
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
-  const onSettings = pathname === '/settings'
   const onUsage = pathname === '/usage'
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
@@ -544,9 +543,8 @@ export const AppSidebar = memo(function AppSidebar() {
           <Button
             variant='ghost'
             size='icon'
-            className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+            className='hover:bg-sidebar-accent'
             aria-label='Settings'
-            aria-current={onSettings ? 'page' : undefined}
             {...pressProps(() => void navigate({ to: '/settings' }))}
           >
             <KeybindIcon binding={keybinds.settings}>

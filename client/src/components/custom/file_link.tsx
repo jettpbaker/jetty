@@ -59,6 +59,14 @@ export function projectRelativePath(path: string, root: string) {
     : undefined
 }
 
+// A file Jetty can't open in place is handed over as its path.
+export function copyFilePath(path: string) {
+  void navigator.clipboard.writeText(path).then(
+    () => toast('Path copied', { description: path }),
+    () => toast.error("Couldn't copy path")
+  )
+}
+
 export function FileLink({
   path,
   line,
@@ -77,11 +85,7 @@ export function FileLink({
       title={line ? `${path}:${line}` : path}
       className='cursor-pointer text-left font-mono text-primary underline wrap-anywhere'
       onClick={() => {
-        if (openFile(target)) return
-        void navigator.clipboard.writeText(path).then(
-          () => toast('Path copied', { description: path }),
-          () => toast.error("Couldn't copy path")
-        )
+        if (!openFile(target)) copyFilePath(path)
       }}
     >
       {children}

@@ -1,8 +1,9 @@
-import type { AgentBehaviourKey, TitleModel } from '@jetty/shared/wire'
+import type { AgentBehaviourKey, ResultOf, TitleModel } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
+import { useEffect, useState } from 'react'
 
 import { liveAtom } from './chrome'
 import { run, useAction } from './connection'
@@ -82,3 +83,28 @@ function setAgentBehaviour(
 }
 
 export const useSetAgentBehaviour = () => useAction(setAgentBehaviour)
+
+export type SettingsInfo = ResultOf<'settings.info'>
+
+function readSettingsInfo(registry: AtomRegistry.AtomRegistry, done: (info: SettingsInfo) => void) {
+  run(registry, (connection) =>
+    connection
+      .request('settings.info', {})
+      .pipe(Effect.tap((info) => Effect.sync(() => done(info))))
+  )
+}
+
+// Read fresh each time a page that shows it opens.
+export function useSettingsInfo() {
+  const read = useAction(readSettingsInfo)
+  const [info, setInfo] = useState<SettingsInfo>()
+  useEffect(() => {
+    read(setInfo)
+  }, [read])
+  return info
+}
+
+// A path under the user's home, as they'd type it.
+export function homePath(path: string, info: SettingsInfo) {
+  return path.startsWith(`${info.userHome}/`) ? `~${path.slice(info.userHome.length)}` : path
+}

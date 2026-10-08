@@ -193,7 +193,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
                 onChange={setLoadout}
                 onOpenSettings={() => {
                   onOpenChange(false)
-                  void navigate({ to: '/settings' })
+                  void navigate({ to: '/settings/$page', params: { page: 'models' } })
                 }}
               />
             </Row>

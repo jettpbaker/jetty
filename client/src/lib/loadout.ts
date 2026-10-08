@@ -24,8 +24,6 @@ export const effortLabels: Record<EffortLevel, string> = {
   max: 'Max',
 }
 
-export const copilotModels = ['GPT-6 Astra', 'Claude Sonnet 5', 'Gemini 3.8 Flash', 'Grok 4.6']
-
 export function modelKey(model: { provider: ProviderId; id: string }) {
   return `${model.provider}:${model.id}`
 }

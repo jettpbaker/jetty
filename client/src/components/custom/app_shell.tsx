@@ -16,7 +16,7 @@ import {
   type SubagentTab,
 } from '@/state'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { useMatches, useNavigate, useParams } from '@tanstack/react-router'
+import { useLocation, useMatches, useNavigate, useParams } from '@tanstack/react-router'
 import { useReducedMotion } from 'motion/react'
 import {
   useEffect,
@@ -33,6 +33,7 @@ import { FileDropOverlay } from './file_drop_overlay'
 import { inDialog, keybinds } from './keybinds'
 import { NewThreadBackdrop } from './new_thread_backdrop'
 import { PageSidebarTriggerContext } from './page_sidebar_trigger'
+import { rememberAppLocation, SettingsSidebar } from './settings_sidebar'
 import { ShellNavigation, ShellNavigationSpace } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
 import { beatMs, exitMs, reducedExitMs } from './subagent_finish'
@@ -244,8 +245,11 @@ function Workspace({
   children: ReactNode
 }) {
   const navigate = useNavigate()
-  const { setOpenMobile } = useSidebar()
+  const { setOpenMobile, open, isMobile } = useSidebar()
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
+  const href = useLocation({ select: (location) => location.href })
+  // Settings is its own mode: its nav takes the sidebar, and "Back to app" replaces the toggles.
+  const onSettings = pathname.startsWith('/settings')
   const threadId = useParams({ strict: false }).threadId
   const thread = useThreadMeta(threadId)
   const agents = useSubagentTabs(threadId)
@@ -261,6 +265,10 @@ function Workspace({
   const onNewThreadPage = pathname === '/'
 
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile])
+  // By the location, not the match: it changes first, while the next page's code loads.
+  useEffect(() => {
+    if (!href.startsWith('/settings')) rememberAppLocation(href)
+  }, [href])
   useRenewQueueHolds()
   useForgetDeletedDrafts()
   useSettleUnsureSends()
@@ -284,7 +292,7 @@ function Workspace({
         className='app-workspace relative h-full min-w-0 flex-1 gap-0'
         data-thread-tabs={showThreadTabs}
       >
-        <ShellNavigation />
+        {!(onSettings && open && !isMobile) && <ShellNavigation />}
         <header className='app-thread-bar shrink-0 overflow-hidden bg-sidebar'>
           <div className='flex h-(--app-tab-bar-height) items-center px-1.5 py-1.5'>
             <ShellNavigationSpace />
@@ -329,7 +337,7 @@ function Workspace({
           </div>
         </header>
         <div className='flex min-h-0 flex-1'>
-          <AppSidebar />
+          {onSettings ? <SettingsSidebar /> : <AppSidebar />}
           <SidebarResizeHandle width={sidebarWidth} onWidthChange={onSidebarWidthChange} />
           <SidebarInset
             aria-label='Thread workspace'

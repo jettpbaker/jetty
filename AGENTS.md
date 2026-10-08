@@ -125,9 +125,10 @@
 
 ## thread environments
 
-- New threads default to Worktree unless the project sets its own default (below);
-  Current checkout works in the project checkout itself. Environment and worktree
-  base are fixed at first send. The Current checkout branch is read-only.
+- New threads default to Worktree, or what Settings › Preferences › Environment says,
+  unless the project sets its own default (below); Current checkout works in the
+  project checkout itself. Environment and worktree base are fixed at first send. The
+  Current checkout branch is read-only.
 - Worktrees live under JETTY_HOME/worktrees/<project-id>/<thread-id>; folders stay
   stable when generated titles rename branches. Branch prefix defaults to jetty.
 - `.worktreeinclude` copies matching gitignored source files (without one,

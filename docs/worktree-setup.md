@@ -14,7 +14,8 @@ This guide explains how Jetty's worktrees behave, then what a good setup looks l
 
 A thread runs in one of two environments, chosen before its first message:
 
-- **Worktree** (the default): the thread gets its own `git worktree`, a separate folder on
+- **Worktree** (the default, unless the user picks Current checkout in Settings ›
+  Preferences): the thread gets its own `git worktree`, a separate folder on
   its own branch (`jetty/<title>` by default). Several agents can work on the same repo at
   once without touching each other or the user's checkout.
 - **Current checkout**: the thread works directly in the project folder.

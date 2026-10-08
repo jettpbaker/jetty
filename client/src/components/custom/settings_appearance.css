@@ -1,0 +1,133 @@
+/* Theme previews: little pictures of each theme, so their colours are the themes' own, whatever
+   theme is showing. The accent bar follows the chosen accent in that theme. */
+.theme-tile {
+  display: flex;
+  height: 92px;
+  overflow: clip;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--tile-bg);
+}
+[data-tile='light'] {
+  --tile-bg: #ebebeb;
+  --tile-rail: #bebebe;
+  --tile-panel: #f5f5f5;
+  --tile-title: #222;
+  --tile-card: #fafafa;
+  --tile-card-border: #d7d7d7;
+  --tile-line: #bebebe;
+  --tile-accent: var(--accent-primary-light);
+}
+[data-tile='dark'] {
+  --tile-bg: #0a0a0a;
+  --tile-rail: #333;
+  --tile-panel: #151515;
+  --tile-title: #e9e9e9;
+  --tile-card: #222;
+  --tile-card-border: transparent;
+  --tile-line: #424242;
+  --tile-accent: var(--accent-primary-dark);
+}
+[data-tile='oled'] {
+  --tile-bg: #000;
+  --tile-rail: #292929;
+  --tile-panel: #0e0e0e;
+  --tile-title: #e9e9e9;
+  --tile-card: #1d1d1d;
+  --tile-card-border: transparent;
+  --tile-line: #383838;
+  --tile-accent: var(--accent-primary-oled);
+}
+.theme-tile-rail {
+  display: flex;
+  flex: 0 0 30px;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 0 0 8px;
+}
+.theme-tile-rail > span,
+.theme-tile-card > span {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--tile-line);
+}
+.theme-tile-rail > span {
+  background: var(--tile-rail);
+}
+.theme-tile-rail > span:nth-child(odd) {
+  width: 14px;
+}
+.theme-tile-rail > span:nth-child(2) {
+  width: 12px;
+}
+.theme-tile-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 0;
+  border-top-left-radius: 6px;
+  background: var(--tile-panel);
+}
+.theme-tile-title {
+  width: 44px;
+  height: 5px;
+  flex: none;
+  border-radius: 3px;
+  background: var(--tile-title);
+}
+.theme-tile-card {
+  display: flex;
+  height: 38px;
+  flex: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 8px 0;
+  border: 1px solid var(--tile-card-border);
+  border-radius: 5px;
+  background: var(--tile-card);
+}
+.theme-tile-card > span:first-child {
+  width: 52px;
+}
+.theme-tile-card > span:last-child {
+  width: 34px;
+  background: var(--tile-accent);
+}
+/* System: light on the left, dark on the right, one card across both. */
+.theme-tile[data-tile='system'] > .theme-tile-panel {
+  padding: 14px 0 0;
+  border-radius: 0;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:first-child {
+  padding-left: 14px;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:last-child {
+  padding-right: 14px;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:first-child .theme-tile-card {
+  border-right: 0;
+  border-radius: 5px 0 0 5px;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:last-child .theme-tile-card {
+  border-left: 0;
+  border-radius: 0 5px 5px 0;
+  padding-left: 0;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:last-child .theme-tile-title {
+  visibility: hidden;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:first-child .theme-tile-card > span {
+  width: 40px;
+  background: var(--tile-line);
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:first-child .theme-tile-card > span + span {
+  width: 26px;
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:last-child .theme-tile-card > span {
+  width: 20px;
+  background: var(--tile-line);
+}
+.theme-tile[data-tile='system'] > .theme-tile-panel:last-child .theme-tile-card > span + span {
+  width: 12px;
+}

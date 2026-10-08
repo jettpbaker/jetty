@@ -20,6 +20,7 @@ export {
   useQuietThreadIds,
   useChrome,
   useChromeReady,
+  useDefaultEnvironment,
   useLinkedPull,
   useModels,
   useNewThreadProject,

@@ -1,20 +1,15 @@
-import { ArrowDown01Icon } from '@/components/custom/huge_icons'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { accentChangeEvent, accentPresets, isAccent, loadAccent, setAccent } from '@/lib/accent'
+import { accentChangeEvent, accentPresets, loadAccent, setAccent } from '@/lib/accent'
 import { useAppearance } from '@/lib/appearance'
+import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
+
+import { DisabledTooltip } from './disabled_tooltip'
 
 function presetAccent() {
   return document.documentElement.dataset.accentFrom === 'wallpaper' ? null : loadAccent()
 }
 
+// While the accent comes from the wallpaper, no preset is chosen and the swatches wait.
 export function AccentPicker() {
   const { autoAccent } = useAppearance()
   const [accent, setAccentState] = useState(presetAccent)
@@ -25,46 +20,30 @@ export function AccentPicker() {
     return () => window.removeEventListener(accentChangeEvent, sync)
   }, [])
 
-  const label = accent
-    ? accentPresets.find((preset) => preset.value === accent)?.label
-    : 'From wallpaper'
-
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        disabled={autoAccent}
-        aria-label={`Accent color: ${label}`}
-        render={
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
-          />
-        }
-      >
-        <span aria-hidden='true' className='size-3 rounded-full bg-primary' />
-        {label}
-        {accent && <ArrowDown01Icon aria-hidden='true' />}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        <DropdownMenuRadioGroup
-          value={accent ?? ''}
-          onValueChange={(value) => {
-            if (isAccent(value)) setAccent(value)
-          }}
-        >
-          {accentPresets.map((preset) => (
-            <DropdownMenuRadioItem key={preset.value} value={preset.value}>
-              <span
-                aria-hidden='true'
-                data-accent={preset.value}
-                className='accent-swatch size-3 rounded-full'
-              />
-              {preset.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DisabledTooltip
+      reason={autoAccent ? 'Matching the wallpaper' : undefined}
+      wrap='flex shrink-0'
+    >
+      <div role='radiogroup' aria-label='Accent' className='flex shrink-0 items-center gap-1.5'>
+        {accentPresets.map((preset) => (
+          <button
+            key={preset.value}
+            type='button'
+            role='radio'
+            aria-checked={accent === preset.value}
+            aria-label={preset.label}
+            disabled={autoAccent}
+            onClick={() => setAccent(preset.value)}
+            className={cn(
+              'flex size-6 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+              accent === preset.value && 'border-2 border-primary'
+            )}
+          >
+            <span data-accent={preset.value} className='accent-swatch size-3.5 rounded-full' />
+          </button>
+        ))}
+      </div>
+    </DisabledTooltip>
   )
 }

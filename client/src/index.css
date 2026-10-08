@@ -219,6 +219,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@layer utilities {
+  /* Settings › Use pointer cursors, off: controls keep the arrow, as in a native app. */
+  :root[data-no-pointer-cursors] .cursor-pointer {
+    cursor: default;
+  }
+}
+
 @layer base {
   html,
   body,
@@ -241,8 +248,7 @@
     color: var(--primary);
     background-color: var(--primary-foreground);
   }
-  button:not(:disabled),
-  [role='button']:not(:disabled) {
+  :root:not([data-no-pointer-cursors]) :is(button, [role='button']):not(:disabled) {
     cursor: pointer;
   }
   * {

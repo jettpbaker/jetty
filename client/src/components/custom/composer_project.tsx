@@ -46,7 +46,8 @@ export function ComposerProject({
             {
               label: 'Manage projects',
               icon: <Settings01Icon />,
-              onSelect: () => void navigate({ to: '/settings', hash: 'projects' }),
+              onSelect: () =>
+                void navigate({ to: '/settings/$page', params: { page: 'projects' } }),
             },
             { label: 'New project', icon: <PlusSignIcon />, onSelect: () => setAdding(true) },
           ]}

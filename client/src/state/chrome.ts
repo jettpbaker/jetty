@@ -255,6 +255,15 @@ export function useProviderCapabilities() {
   return useAtomValue(providerCapabilitiesAtom)
 }
 
+const defaultEnvironmentAtom = Atom.readable(
+  (get) => AsyncResult.getOrElse(get(liveAtom), () => undefined)?.defaultEnvironment ?? 'worktree'
+)
+
+// Settings › Preferences: what a new thread works in when its project doesn't say.
+export function useDefaultEnvironment() {
+  return useAtomValue(defaultEnvironmentAtom)
+}
+
 const chromeReadyAtom = Atom.readable((get) => get(chromeAtom) !== undefined)
 
 export function useChromeReady() {
