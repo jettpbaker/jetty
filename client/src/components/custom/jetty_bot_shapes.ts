@@ -2,6 +2,8 @@
 
 import type { BotColor, BotShape } from '@jetty/shared/wire'
 
+import './bot_colors.css'
+
 export type { BotColor, BotShape }
 
 // Tidying is the one wait you can see while it compacts its memory: you wrote mid-compaction and it
@@ -152,20 +154,21 @@ export const botShapes = {
 
 export const shapeIds = Object.keys(botShapes) as BotShape[]
 
-// One palette with the accents: the five accent colours use the accent's exact dark-theme value,
-// so a bot and an accent of the same name match. Coral, butter, mint and the greys are bot-only.
+// One palette with the accents: the five accent colours use the accent's exact dark and OLED values,
+// so a bot and an accent of the same name match. Coral, butter, mint and the greys are bot-only. The
+// values live in bot_colors.css so each theme picks its own.
 export const botColors = {
   accent: 'var(--bot-accent-body)',
-  coral: 'oklch(0.74 0.16 32)',
-  orange: 'oklch(0.772 0.13 60)',
-  butter: 'oklch(0.86 0.13 95)',
-  mint: 'oklch(0.80 0.13 158)',
-  teal: 'oklch(0.772 0.105 185)',
-  blue: 'oklch(0.772 0.11 255)',
-  lilac: 'oklch(0.772 0.119 282.178)',
-  rose: 'oklch(0.772 0.12 355)',
-  cloud: 'oklch(0.933 0 0)',
-  slate: 'oklch(0.772 0.015 260)',
+  coral: 'var(--bot-coral)',
+  orange: 'var(--bot-orange)',
+  butter: 'var(--bot-butter)',
+  mint: 'var(--bot-mint)',
+  teal: 'var(--bot-teal)',
+  blue: 'var(--bot-blue)',
+  lilac: 'var(--bot-lilac)',
+  rose: 'var(--bot-rose)',
+  cloud: 'var(--bot-cloud)',
+  slate: 'var(--bot-slate)',
 } as const satisfies Record<BotColor, string>
 
 export const colorIds = Object.keys(botColors) as BotColor[]

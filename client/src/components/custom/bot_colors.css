@@ -1,0 +1,26 @@
+/* The bots' face colours. Dark is the base; OLED pushes them further the way oledToken in
+   wallpaper-accent.ts does for the accents, so the five shared colours match the accents' exact
+   OLED values. The greys stay put. Light uses deepBotColors. */
+:root {
+  --bot-coral: oklch(0.74 0.16 32);
+  --bot-orange: oklch(0.772 0.13 60);
+  --bot-butter: oklch(0.86 0.13 95);
+  --bot-mint: oklch(0.8 0.13 158);
+  --bot-teal: oklch(0.772 0.105 185);
+  --bot-blue: oklch(0.772 0.11 255);
+  --bot-lilac: oklch(0.772 0.119 282.178);
+  --bot-rose: oklch(0.772 0.12 355);
+  --bot-cloud: oklch(0.933 0 0);
+  --bot-slate: oklch(0.772 0.015 260);
+}
+
+.oled {
+  --bot-coral: oklch(0.74 0.198 32);
+  --bot-orange: oklch(0.732 0.191 60);
+  --bot-butter: oklch(0.82 0.191 95);
+  --bot-mint: oklch(0.76 0.191 158);
+  --bot-teal: oklch(0.732 0.154 185);
+  --bot-blue: oklch(0.732 0.153 255);
+  --bot-lilac: oklch(0.732 0.155 282.178);
+  --bot-rose: oklch(0.732 0.176 355);
+}
