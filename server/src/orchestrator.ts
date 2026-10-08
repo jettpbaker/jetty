@@ -134,7 +134,7 @@ function agentText(
   )
 }
 
-function botStamp() {
+export function botStamp(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-AU', {
     weekday: 'short',
     day: 'numeric',
@@ -143,7 +143,7 @@ function botStamp() {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(new Date())
+  }).formatToParts(date)
   const part = (name: Intl.DateTimeFormatPartTypes) =>
     parts.find((entry) => entry.type === name)!.value
   return `[${part('weekday')}, ${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')}]`

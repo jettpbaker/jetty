@@ -1,3 +1,10 @@
+import {
+  SEARCH_WIKI_DESCRIPTION,
+  SEARCH_THREADS_DESCRIPTION,
+  SEARCH_DEFAULT_K,
+  SEARCH_MAX_K,
+  SEARCH_QUERY_MAX,
+} from '@jetty/shared/bot-search'
 import { heldByRestarts } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
 import { newId, type BotTask, type ProviderModel, type WireError } from '@jetty/shared/wire'
@@ -10,6 +17,7 @@ import type { Attachments } from './attachments'
 import type { McpIdentity, McpSessions } from './mcp-sessions'
 import type { Orchestrator } from './orchestrator'
 import type { PullRequestLinks } from './pull-requests'
+import type { SearchService } from './search/service'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
@@ -184,7 +192,8 @@ export function createMcpHandler(
   models: () => readonly ProviderModel[] | null,
   pullRequestLinks: PullRequestLinks,
   archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>,
-  worktrees?: Worktrees
+  worktrees?: Worktrees,
+  search?: SearchService
 ) {
   return Effect.gen(function* () {
     const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | Scope.Scope>()
@@ -719,6 +728,45 @@ export function createMcpHandler(
         (input) => invoke(sendMessage(identity, input))
       )
       if (bot) {
+        const searchInput = {
+          query: z.string().trim().min(1).max(SEARCH_QUERY_MAX),
+          k: z.number().int().min(1).max(SEARCH_MAX_K).default(SEARCH_DEFAULT_K),
+        }
+        for (const kind of ['wiki', 'threads'] as const) {
+          server.registerTool(
+            `search_${kind}`,
+            {
+              ...toolMeta,
+              description: kind === 'wiki' ? SEARCH_WIKI_DESCRIPTION : SEARCH_THREADS_DESCRIPTION,
+              inputSchema: searchInput,
+            },
+            async (input) => {
+              try {
+                if (!search) throw new Error('search service unavailable')
+                const value =
+                  kind === 'wiki'
+                    ? await search.wiki(
+                        bot.id,
+                        (await run(
+                          store.getProject((await run(store.requireThread(bot.id))).projectId)
+                        ))!.path,
+                        input
+                      )
+                    : await search.threads(bot.id, bot.name, input)
+                return result(value)
+              } catch (error) {
+                const reason = (error instanceof Error ? error.message : String(error)).split(
+                  '\n'
+                )[0]
+                const fallback =
+                  kind === 'wiki'
+                    ? 'Read your index.md or grep your pages meanwhile.'
+                    : 'Use list_threads and read_thread meanwhile.'
+                return { ...result(`Search isn't ready: ${reason}. ${fallback}`), isError: true }
+              }
+            }
+          )
+        }
         server.registerTool(
           'add_project',
           {

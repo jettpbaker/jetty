@@ -1,6 +1,7 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
 import { BunServices } from '@effect/platform-bun'
+import { SEARCH_WIKI_DESCRIPTION, SEARCH_THREADS_DESCRIPTION } from '@jetty/shared/bot-search'
 import { newId, type WireError } from '@jetty/shared/wire'
 import { afterEach, expect, test } from 'bun:test'
 import { Effect } from 'effect'
@@ -142,9 +143,30 @@ function toolNames(home: string, store: Store, callerId: string) {
         })
       ).then((res) => res.json())
     )
-    return (response as { result: { tools: { name: string }[] } }).result.tools.map(
-      (tool) => tool.name
-    )
+    const tools = (
+      response as {
+        result: {
+          tools: {
+            name: string
+            description?: string
+            _meta?: Record<string, unknown>
+            inputSchema: { properties: { k?: { default?: number } } }
+          }[]
+        }
+      }
+    ).result.tools
+    for (const [name, description] of [
+      ['search_wiki', SEARCH_WIKI_DESCRIPTION],
+      ['search_threads', SEARCH_THREADS_DESCRIPTION],
+    ]) {
+      const tool = tools.find((tool) => tool.name === name)
+      if (tool) {
+        expect(tool.description).toBe(description)
+        expect(tool._meta?.['anthropic/alwaysLoad']).toBe(true)
+        expect(tool.inputSchema.properties.k?.default).toBe(5)
+      }
+    }
+    return tools.map((tool) => tool.name)
   }).pipe(Effect.scoped, Effect.provide(BunServices.layer))
 }
 
@@ -154,6 +176,22 @@ test('bots only receive their own safe tools', async () => {
   expect(names).toContain('say')
   expect(names).not.toContain('tell_user')
   expect(names).toContain('react')
+  expect(SEARCH_WIKI_DESCRIPTION).toBe(
+    'Hybrid search over your wiki home (pages, logs, brief): BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k chunks (default 5), each with its path and line range.'
+  )
+  expect(SEARCH_THREADS_DESCRIPTION).toBe(
+    "Hybrid search over your chat and your workers' threads: BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k message chunks (default 5), each with its thread, author and date. Older results may since have changed."
+  )
+  expect(names).toContain('search_wiki')
+  expect(names).toContain('search_threads')
+  const project = await Effect.runPromise(
+    store.getProject((await Effect.runPromise(store.requireThread(id))).projectId)
+  )
+  const worker = await Effect.runPromise(store.createThread(project!.id, 'Worker'))
+  await Effect.runPromise(store.markAgentThread(worker.id, id, true))
+  const workerTools = await Effect.runPromise(toolNames(home, store, worker.id))
+  expect(workerTools).not.toContain('search_wiki')
+  expect(workerTools).not.toContain('search_threads')
   for (const forbidden of [
     'link_pull_request',
     'mark_ready_for_review',

@@ -13,6 +13,8 @@ export const SELF_TOOLS = [
   'add_task',
   'update_task',
   'list_tasks',
+  'search_wiki',
+  'search_threads',
 ] as const
 
 // Tools that act on other threads. Claude's and Grok's auto reviewers judge these like any other

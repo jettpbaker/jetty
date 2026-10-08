@@ -6,6 +6,7 @@
     "@anthropic-ai/claude-agent-sdk": "latest",
     "@effect/platform-bun": "4.0.0",
     "@effect/sql-sqlite-bun": "4.0.1",
+    "@huggingface/transformers": "^4.3.1",
     "@jetty/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@pierre/diffs": "1.4.3",

@@ -1791,6 +1791,19 @@ export function createStore() {
       notifiesParent(threadId: string) {
         return notifiesParent(threadId).pipe(Effect.mapError(storeError))
       },
+      listBotSearchThreads(botId: string) {
+        return sql<
+          ThreadRow & { last_seq: number }
+        >`SELECT t.*, MAX(COALESCE((SELECT MAX(seq) FROM thread_events WHERE thread_id = t.id), 0), COALESCE((SELECT last_seq FROM thread_states WHERE thread_id = t.id), 0)) AS last_seq FROM threads t WHERE t.bot_id = ${botId}`.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => ({
+              ...rowToThread(row),
+              lastSeq: loaded.get(row.id)?.state.lastSeq ?? row.last_seq,
+            }))
+          ),
+          Effect.mapError(storeError)
+        )
+      },
       listThreads(includeBots = false) {
         return Effect.gen(function* () {
           const rows = includeBots
