@@ -43,6 +43,7 @@ export const keybinds = {
   access: { hotkey: 'Mod+Alt+A', label: '⌥⌘A', name: 'Access mode', modifiers: ['Alt', 'Meta'] },
   save: { hotkey: 'Mod+S', label: '⌘S', name: 'Save file', modifiers: ['Meta'] },
   findFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Find a file', modifiers: ['Meta'] },
+  addToPrompt: { hotkey: 'Mod+L', label: '⌘L', name: 'Add to prompt', modifiers: ['Meta'] },
   threads: Array.from(
     { length: 9 },
     (_, index): Keybind => ({

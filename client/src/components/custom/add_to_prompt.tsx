@@ -1,13 +1,12 @@
 import type { Reply } from '@jetty/shared/items'
 
+import { KeybindChip, keybinds } from '@/components/custom/keybinds'
 import { Button } from '@/components/ui/button'
-import { Kbd } from '@/components/ui/kbd'
 import { pressProps } from '@/lib/press'
-import { detectPlatform, useHotkey } from '@tanstack/react-hotkeys'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
-const shortcut = detectPlatform() === 'mac' ? '⌘L' : 'Ctrl L'
 // The pill's gap from the selected line, and the room it keeps from the window's edges.
 const lift = 6
 const edge = 8
@@ -108,7 +107,7 @@ export function AddToPrompt({
   }
 
   useHotkey(
-    'Mod+L',
+    keybinds.addToPrompt.hotkey,
     (event) => {
       const selected = chatRef.current && selectedReply(chatRef.current)
       if (!selected) return
@@ -128,7 +127,7 @@ export function AddToPrompt({
       <Button
         variant='ghost'
         size='xs'
-        className='gap-1.5 rounded-sm pr-0.5'
+        className='gap-1.5 rounded-sm pr-1'
         {...press}
         // Acts on press. The pill unmounts under the pointer, and the mouse events that would
         // follow would land on the chat, take focus from the composer and drop the selection.
@@ -138,7 +137,7 @@ export function AddToPrompt({
         }}
       >
         Add to prompt
-        <Kbd>{shortcut}</Kbd>
+        <KeybindChip binding={keybinds.addToPrompt} />
       </Button>
     </div>,
     document.body
