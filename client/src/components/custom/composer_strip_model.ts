@@ -2,7 +2,7 @@ import type { QuestionSpec, ThreadItem } from '@jetty/shared/items'
 
 import { awaitsInput } from '@/state/thread_tab'
 
-import { projectRelative, toolAction, toolTarget } from './thread_rows'
+import { projectRelative, toolAction, toolDetail, toolTarget } from './thread_rows'
 
 export type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
 export type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
@@ -257,6 +257,7 @@ function viewOf(
     action: toolAction(item.toolName),
     run: false,
     target: target === item.toolName ? item.title : target,
+    detail: toolDetail(item.toolName, item.input),
   }
 }
 

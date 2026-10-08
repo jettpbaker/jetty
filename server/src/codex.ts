@@ -30,7 +30,12 @@ import {
 } from './codex-rpc'
 import { createCodexTranslator } from './codex-translate'
 import { gitWritableRoots } from './git-process'
-import { deniedApprovalNote, jettyInstructions, userAnswers } from './jetty-instructions'
+import {
+  deniedApprovalNote,
+  jettyInstructions,
+  userAnswers,
+  type ThreadWorkspace,
+} from './jetty-instructions'
 import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 
 export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
@@ -221,7 +226,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       })
     }
 
-    function run(session: Session, cwd: string) {
+    function run(session: Session, cwd: string, workspace: ThreadWorkspace) {
       return Effect.scoped(
         Effect.gen(function* () {
           const writableRoots =
@@ -265,7 +270,11 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
           const instructions = binding
-            ? jettyInstructions(yield* store.getAgentBehaviours(), session.input.parentThreadId)
+            ? jettyInstructions(
+                yield* store.getAgentBehaviours(),
+                session.input.parentThreadId,
+                workspace
+              )
             : ''
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
             ...threadOptions(session.input, cwd, instructions, writableRoots),
@@ -459,7 +468,11 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)
-          const lifecycle = run(session, input.cwd ?? project.path).pipe(
+          const lifecycle = run(session, input.cwd ?? project.path, {
+            environment: thread!.environment,
+            workingPath: input.cwd ?? project.path,
+            projectPath: project.path,
+          }).pipe(
             Effect.onInterrupt(() =>
               session.publication
                 .withPermit(

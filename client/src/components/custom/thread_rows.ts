@@ -138,6 +138,7 @@ type JettyTool = {
   action: string
   words: ToolWords
   target: (input: Record<string, unknown>, output: string) => string | undefined
+  detail?: (input: Record<string, unknown>) => string | undefined
 }
 
 function words(active: string, done: string, singular: string, noun = `${singular}s`) {
@@ -145,6 +146,41 @@ function words(active: string, done: string, singular: string, noun = `${singula
 }
 
 const jettyTools: Record<string, JettyTool> = {
+  add_project: {
+    action: 'Add project',
+    words: words('Adding', 'Added', 'project'),
+    target: (input) =>
+      typeof input.path === 'string'
+        ? input.path.replace(/\/+$/, '').split('/').at(-1) || input.path
+        : undefined,
+    detail: (input) => (typeof input.path === 'string' ? input.path : undefined),
+  },
+  add_task: {
+    action: 'Add task',
+    words: words('Adding', 'Added', 'task'),
+    target: (input) => (typeof input.title === 'string' ? input.title : undefined),
+  },
+  update_task: {
+    action: 'Update task',
+    words: words('Updating', 'Updated', 'task'),
+    target: (input, output) =>
+      typeof input.title === 'string' ? input.title : resultField(output, 'title'),
+  },
+  list_tasks: {
+    action: 'List tasks',
+    words: words('Listing', 'Listed', 'task list'),
+    target: () => 'tasks',
+  },
+  say: {
+    action: 'Send message',
+    words: words('Sending', 'Sent', 'message'),
+    target: (input) => (typeof input.text === 'string' ? input.text : undefined),
+  },
+  react: {
+    action: 'React',
+    words: words('Reacting', 'Reacted', 'reaction'),
+    target: (input) => (typeof input.emoji === 'string' ? input.emoji : undefined),
+  },
   list_threads: {
     action: 'List threads',
     words: words('Listing', 'Listed', 'thread list'),
@@ -220,12 +256,19 @@ export function toolAction(name: string) {
 export function toolTarget(name: string, input: unknown, projectPath: string | undefined) {
   if (!input || typeof input !== 'object') return name
   const record = input as Record<string, unknown>
+  const jetty = jettyTool(name)
+  if (jetty) return jetty.target(record, '') ?? jetty.words.singular
   for (const key of ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'text']) {
     const value = record[key]
     if (typeof value !== 'string' || !value) continue
     return pathKeys.has(key) ? projectRelative(value, projectPath) : value
   }
   return name
+}
+
+export function toolDetail(name: string, input: unknown) {
+  if (!input || typeof input !== 'object') return undefined
+  return jettyTool(name)?.detail?.(input as Record<string, unknown>)
 }
 
 export function projectRelative(path: string, projectPath: string | undefined) {

@@ -22,7 +22,7 @@ import { createContextPoller } from './context-usage'
 import { foldGrokModels } from './grok-models'
 import { openGrokConnection } from './grok-rpc'
 import { createGrokTranslator, grokContextUsage } from './grok-translate'
-import { jettyInstructions } from './jetty-instructions'
+import { jettyInstructions, type ThreadWorkspace } from './jetty-instructions'
 import { SELF_TOOLS } from './jetty-tools'
 import {
   object,
@@ -348,7 +348,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       })
     }
 
-    function run(session: Session, cwd: string) {
+    function run(session: Session, cwd: string, workspace: ThreadWorkspace) {
       return Effect.scoped(
         Effect.gen(function* () {
           const binding = options.mcp
@@ -358,7 +358,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           // `grok agent stdio` ignores --rules; ACP takes them on the session instead.
           const rules =
             binding &&
-            jettyInstructions(yield* store.getAgentBehaviours(), session.input.parentThreadId)
+            jettyInstructions(
+              yield* store.getAgentBehaviours(),
+              session.input.parentThreadId,
+              workspace
+            )
           // Folder trust gates project AGENTS.md, skills, hooks and MCP; the user chose this project.
           // The env var lifts it for this process only, where --trust would save a grant per worktree.
           const env = { ...process.env, ...options.env, GROK_FOLDER_TRUST: '0' }
@@ -692,7 +696,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               )
               .pipe(Effect.ignore)
           }
-          const lifecycle = run(session, input.cwd ?? project.path).pipe(
+          const lifecycle = run(session, input.cwd ?? project.path, {
+            environment: thread!.environment,
+            workingPath: input.cwd ?? project.path,
+            projectPath: project.path,
+          }).pipe(
             Effect.onInterrupt(() => cleanup(session.reason ?? 'server shutdown')),
             Effect.onError((cause) => cleanup(`Grok session failed: ${String(cause)}`, true)),
             Effect.ensuring(

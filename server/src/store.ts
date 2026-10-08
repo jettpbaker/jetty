@@ -937,6 +937,33 @@ export function createStore() {
       }).pipe(Effect.mapError(storeError))
     }
 
+    function createProjectResult(path: string) {
+      return Effect.gen(function* () {
+        const resolved = normalizePath(path)
+        const isDir = yield* fs.stat(resolved).pipe(
+          Effect.map((stat) => stat.type === 'Directory'),
+          Effect.catch(() => Effect.succeed(false))
+        )
+        if (!isDir)
+          return yield* Effect.fail(
+            new StoreError('invalid_params', `Not an existing directory: ${path}`)
+          )
+        const normalized = yield* fs.realPath(resolved)
+        return yield* Effect.gen(function* () {
+          const rows = yield* sql<ProjectRow>`SELECT * FROM projects WHERE path = ${normalized}`
+          if (rows[0]) return { project: rowToProject(rows[0]), created: false }
+          const project: Project = {
+            id: newId(),
+            path: normalized,
+            title: paths.basename(normalized) || normalized,
+            createdAt: Date.now(),
+          }
+          yield* sql`INSERT INTO projects (id, path, title, created_at) VALUES (${project.id}, ${project.path}, ${project.title}, ${project.createdAt})`
+          return { project, created: true }
+        }).pipe(sql.withTransaction)
+      }).pipe(Effect.mapError(storeError))
+    }
+
     return {
       queueChanges,
       listBotTasks,
@@ -1538,30 +1565,9 @@ export function createStore() {
         )
       },
       createProject(path: string) {
-        return Effect.gen(function* () {
-          const normalized = normalizePath(path)
-          const isDir = yield* fs.stat(normalized).pipe(
-            Effect.map((stat) => stat.type === 'Directory'),
-            Effect.catch(() => Effect.succeed(false))
-          )
-          if (!isDir)
-            return yield* Effect.fail(
-              new StoreError('invalid_params', `Not an existing directory: ${path}`)
-            )
-          return yield* Effect.gen(function* () {
-            const rows = yield* sql<ProjectRow>`SELECT * FROM projects WHERE path = ${normalized}`
-            if (rows[0]) return rowToProject(rows[0])
-            const project: Project = {
-              id: newId(),
-              path: normalized,
-              title: paths.basename(normalized) || normalized,
-              createdAt: Date.now(),
-            }
-            yield* sql`INSERT INTO projects (id, path, title, created_at) VALUES (${project.id}, ${project.path}, ${project.title}, ${project.createdAt})`
-            return project
-          }).pipe(sql.withTransaction)
-        }).pipe(Effect.mapError(storeError))
+        return createProjectResult(path).pipe(Effect.map(({ project }) => project))
       },
+      createProjectResult,
       listProjects() {
         return sql<ProjectRow>`SELECT * FROM projects WHERE bot_id IS NULL ORDER BY created_at`.pipe(
           Effect.map((rows) => rows.map(rowToProject)),

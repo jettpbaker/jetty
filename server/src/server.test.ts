@@ -18,6 +18,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -534,7 +535,7 @@ describe('server skeleton', () => {
     const c = await connect(port)
 
     const { project } = await c.request('project.create', { path: dir('/tmp/demo') })
-    expect(project.path).toBe('/tmp/demo')
+    expect(project.path).toBe(realpathSync.native('/tmp/demo'))
 
     const { thread } = await c.request('thread.create', {
       environment: 'local',
@@ -2672,7 +2673,9 @@ describe('project.create validation', () => {
 
     expect(second.project.id).toBe(first.project.id)
     expect(
-      (await Effect.runPromise(store.listProjects())).filter((p) => p.path === path)
+      (await Effect.runPromise(store.listProjects())).filter(
+        (p) => p.path === realpathSync.native(path)
+      )
     ).toHaveLength(1)
 
     await c.close()

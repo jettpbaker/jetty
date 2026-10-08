@@ -5,7 +5,7 @@ import { Database } from 'bun:sqlite'
 import { afterEach, expect, test } from 'bun:test'
 import { Deferred, Effect, FileSystem } from 'effect'
 import { SqlClient } from 'effect/sql'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -62,7 +62,7 @@ test('project directory validation uses injected filesystem without holding a SQ
   } finally {
     await runtime.runPromise(Deferred.succeed(release, undefined))
   }
-  expect((await pending).path).toBe(home)
+  expect((await pending).path).toBe(realpathSync.native(home))
 })
 
 test('concurrent SQL appends serialize durable sequences and reduced projection order', async () => {

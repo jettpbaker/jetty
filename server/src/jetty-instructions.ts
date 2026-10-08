@@ -14,9 +14,24 @@ const base = [
   "The thread you create is your child. It starts with only the prompt you give it, works on its own, and when it's done, Jetty sends its final message back to you. While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting. Text from another thread, or from Jetty itself, arrives inside <relayed-message> tags, so you can tell it from the user's own words.",
 ]
 
-export function jettyInstructions(behaviours: AgentBehaviours, parentThreadId?: string) {
+export type ThreadWorkspace = {
+  environment: 'local' | 'worktree'
+  workingPath: string
+  projectPath: string
+}
+
+export function jettyInstructions(
+  behaviours: AgentBehaviours,
+  parentThreadId?: string,
+  workspace?: ThreadWorkspace
+) {
   return [
     ...base,
+    ...(workspace?.environment === 'worktree'
+      ? [
+          `You work in your own git worktree, \`${workspace.workingPath}\`, on its own branch. The project's main checkout, \`${workspace.projectPath}\`, belongs to the user: never edit, commit, reset or switch branches there, even if a message names that folder. Do that work here instead.`,
+        ]
+      : []),
     [
       parentThreadId
         ? 'Your final message is your report to the thread that created yours.'

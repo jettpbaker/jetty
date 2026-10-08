@@ -54,7 +54,7 @@ import {
   type TranslateCtx,
 } from './claude-translate'
 import { createContextPoller, readContextUsage, type ContextPoller } from './context-usage'
-import { deniedApprovalNote, jettyInstructions } from './jetty-instructions'
+import { deniedApprovalNote, jettyInstructions, type ThreadWorkspace } from './jetty-instructions'
 import { SELF_TOOLS } from './jetty-tools'
 import { readClaudeUsageIdentity } from './provider-usage'
 import { readUsage } from './usage'
@@ -763,7 +763,8 @@ export function createClaudeAdapter(
       projectPath: string,
       bot: Bot | null,
       projects: readonly Project[],
-      instructionsHash: string | undefined
+      instructionsHash: string | undefined,
+      workspace: ThreadWorkspace
     ) {
       return Effect.gen(function* () {
         const scope = yield* Scope.fork(owner)
@@ -798,7 +799,8 @@ export function createClaudeAdapter(
         const behaviours = yield* store
           .getAgentBehaviours()
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
-        const instructions = !bot && sdkMcp && jettyInstructions(behaviours, input.parentThreadId)
+        const instructions =
+          !bot && sdkMcp && jettyInstructions(behaviours, input.parentThreadId, workspace)
         const usageIdentity = yield* Effect.promise(() => readClaudeUsageIdentity())
         const q = yield* Effect.acquireRelease(
           Effect.try({
@@ -974,19 +976,24 @@ export function createClaudeAdapter(
       supportsCompaction: true,
       startTurn(input, emit) {
         return Effect.gen(function* () {
-          const projectPath = yield* Effect.gen(function* () {
+          const workspace = yield* Effect.gen(function* () {
             const thread = yield* store.getThread(input.threadId)
             const project = thread && (yield* store.getProject(thread.projectId))
             if (!project)
               return yield* Effect.fail(
                 new AgentError(`Thread ${input.threadId} project not found`)
               )
-            return input.cwd ?? project.path
+            return {
+              environment: thread!.environment,
+              workingPath: input.cwd ?? project.path,
+              projectPath: project.path,
+            }
           }).pipe(
             Effect.mapError((error) =>
               error instanceof AgentError ? error : new AgentError(error.message)
             )
           )
+          const projectPath = workspace.workingPath
           const bot = yield* store
             .getBot(input.threadId)
             .pipe(Effect.mapError((error) => new AgentError(error.message)))
@@ -1033,7 +1040,15 @@ export function createClaudeAdapter(
             }
           }
           const fresh = !session
-          session ??= yield* spawnSession(input, emit, projectPath, bot, projects, instructionsHash)
+          session ??= yield* spawnSession(
+            input,
+            emit,
+            projectPath,
+            bot,
+            projects,
+            instructionsHash,
+            workspace
+          )
           const started = session
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId

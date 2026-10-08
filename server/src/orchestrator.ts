@@ -1266,12 +1266,12 @@ export function createOrchestrator({
     return {
       addBotProject(botId: string, path: string) {
         return Effect.gen(function* () {
-          const project = yield* store.createProject(path)
+          const { project, created } = yield* store.createProjectResult(path)
           hub.pushChrome({ type: 'project.upserted', project })
           yield* store.setBotProjectIfUnset(botId, project.id)
           const bot = yield* store.getBot(botId)
           if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
-          return project
+          return { ...project, created }
         })
       },
       addBotTask(
