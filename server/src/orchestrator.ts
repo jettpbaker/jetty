@@ -1056,9 +1056,6 @@ export function createOrchestrator({
                 if (input.replyTo)
                   text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
                 text = `${botStamp()}\n${text}`
-                if (!input.visibleBotTurn && !creationWake && (input.queued || !input.messageId))
-                  text +=
-                    '\nThis is a private turn: the user cannot see text you write here. Anything they need to know must go through tell_user.'
               }
               const live = state(input.threadId)
               if (live.turnId) {
@@ -1103,36 +1100,6 @@ export function createOrchestrator({
               }
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
                 Effect.gen(function* () {
-                  if (
-                    botChat &&
-                    event.type === 'turn.completed' &&
-                    input.queued?.from &&
-                    (input.queued.from.title !== 'Jetty' ||
-                      input.queued.text.includes('jetty://threads/')) &&
-                    !state(input.threadId).visibleBotTurn
-                  ) {
-                    yield* locked(input.threadId, flushDelta(input.threadId))
-                    const current = yield* store.getThreadState(input.threadId)
-                    const turnItems = current.items.filter((item) => item.turnId === turnId)
-                    const toldUser = turnItems.some(
-                      (item) =>
-                        item.kind === 'tool_call' &&
-                        !item.agentId &&
-                        item.toolName === 'mcp__jetty__tell_user'
-                    )
-                    if (!toldUser) {
-                      const reply = [...turnItems]
-                        .reverse()
-                        .find(
-                          (item) =>
-                            item.kind === 'assistant_message' &&
-                            item.private &&
-                            /[^\s.]/.test(item.text)
-                        )
-                      if (reply?.kind === 'assistant_message')
-                        yield* visibleBotMessage(input.threadId, turnId, reply.text)
-                    }
-                  }
                   if (
                     botChat &&
                     event.type === 'turn.failed' &&
