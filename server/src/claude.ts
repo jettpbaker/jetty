@@ -11,7 +11,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { type ThreadEvent } from '@jetty/shared/events'
 import { type ApprovalDecision, QuestionSpec } from '@jetty/shared/items'
-import { newId } from '@jetty/shared/wire'
+import { newId, type Bot, type Project } from '@jetty/shared/wire'
 import {
   Cause,
   Deferred,
@@ -112,6 +112,7 @@ type SessionOptions = {
 type WarmSession = {
   threadId: string
   bot: boolean
+  instructionsHash: string | undefined
   query: Query
   usageIdentity: string | undefined
   input: Queue.Queue<SDKUserMessage, Cause.Done>
@@ -728,16 +729,15 @@ export function createClaudeAdapter(
       })
     }
 
-    function spawnSession(input: TurnInput, emit: Emit, projectPath: string) {
+    function spawnSession(
+      input: TurnInput,
+      emit: Emit,
+      projectPath: string,
+      bot: Bot | null,
+      projects: readonly Project[],
+      instructionsHash: string | undefined
+    ) {
       return Effect.gen(function* () {
-        const bot = yield* store
-          .getBot(input.threadId)
-          .pipe(Effect.mapError((error) => new AgentError(error.message)))
-        const projects = bot
-          ? yield* store
-              .listProjects()
-              .pipe(Effect.mapError((error) => new AgentError(error.message)))
-          : []
         const scope = yield* Scope.fork(owner)
         const queue = yield* Queue.make<SDKUserMessage, Cause.Done>()
         const done = yield* Deferred.make<void, AgentError>()
@@ -770,9 +770,7 @@ export function createClaudeAdapter(
         const behaviours = yield* store
           .getAgentBehaviours()
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
-        const instructions = bot
-          ? yield* Effect.promise(() => botInstructions(bot, projects, behaviours, projectPath))
-          : sdkMcp && jettyInstructions(behaviours)
+        const instructions = !bot && sdkMcp && jettyInstructions(behaviours)
         const usageIdentity = yield* Effect.promise(() => readClaudeUsageIdentity())
         const q = yield* Effect.acquireRelease(
           Effect.try({
@@ -897,6 +895,7 @@ export function createClaudeAdapter(
         session = {
           threadId: input.threadId,
           bot: bot !== null,
+          instructionsHash,
           query: q,
           usageIdentity: typeof q.accountInfo === 'function' ? usageIdentity : undefined,
           input: queue,
@@ -948,6 +947,25 @@ export function createClaudeAdapter(
               error instanceof AgentError ? error : new AgentError(error.message)
             )
           )
+          const bot = yield* store
+            .getBot(input.threadId)
+            .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          const projects = bot
+            ? yield* store
+                .listProjects()
+                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+            : []
+          const instructionsHash = bot
+            ? yield* Effect.gen(function* () {
+                const behaviours = yield* store
+                  .getAgentBehaviours()
+                  .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                return yield* Effect.tryPromise({
+                  try: () => botInstructions(bot, projects, behaviours, projectPath),
+                  catch: (error) => new AgentError(String(error)),
+                })
+              })
+            : undefined
           let session = sessions.get(input.threadId)
           if (session) {
             const idle = session.idle
@@ -958,6 +976,10 @@ export function createClaudeAdapter(
           if (session && !current(session)) session = undefined
           if (session?.awaitingResult)
             return yield* Effect.fail(new AgentError('Turn already active'))
+          if (session && bot && session.instructionsHash !== instructionsHash) {
+            yield* closeSession(session, 'instructions changed')
+            session = undefined
+          }
           if (session) {
             const next = sessionOptions(input)
             if (input.compact) next.permissionMode = session.options.permissionMode
@@ -971,7 +993,7 @@ export function createClaudeAdapter(
             }
           }
           const fresh = !session
-          session ??= yield* spawnSession(input, emit, projectPath)
+          session ??= yield* spawnSession(input, emit, projectPath, bot, projects, instructionsHash)
           const started = session
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId

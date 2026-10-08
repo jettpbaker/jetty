@@ -12,15 +12,27 @@ import { newId } from '@jetty/shared/wire'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Context, Deferred, Effect, Layer, ManagedRuntime, Queue } from 'effect'
 import { TestClock } from 'effect/testing'
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { AgentError, type AgentHooks, type Emit } from './agent'
 import { createAttachments } from './attachments'
+import { botInstructions, commitBotHome, createBotHome } from './bot-home'
+import { BOT_PROMPT_FILES } from './bot-prompt'
 import { createClaudeAdapter, type ClaudeOptions, type QueryFactory } from './claude'
 import { databaseLayer } from './db'
 import { createHub } from './hub'
+import { jettyInstructions } from './jetty-instructions'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
 import { createOrchestrator } from './orchestrator'
@@ -132,7 +144,7 @@ afterEach(async () => {
 })
 
 async function setup(
-  options: ClaudeOptions = {},
+  options: ClaudeOptions & { bot?: boolean } = {},
   hooks: AgentHooks = {},
   beforeEmit: Emit = () => Effect.void
 ) {
@@ -145,7 +157,28 @@ async function setup(
       const context = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
       const store = Context.get(context, Store)
       const project = yield* store.createProject(home)
-      const thread = yield* store.createThread(project.id, newId())
+      const id = newId()
+      const botHome = join(home, 'bots', id)
+      if (options.bot) {
+        yield* Effect.promise(() => createBotHome(botHome))
+        yield* store.createBotRecord(
+          {
+            id,
+            name: 'Verify',
+            shape: 'circle',
+            color: 'coral',
+            provider: 'claude',
+            model: 'sonnet',
+            fast: false,
+            projectId: project.id,
+            permissionMode: 'auto',
+          },
+          botHome
+        )
+      }
+      const thread = options.bot
+        ? yield* store.requireThread(id)
+        : yield* store.createThread(project.id, id)
       const notifications = yield* Queue.make<ThreadEvent>()
       const attachments = yield* createAttachments(home)
       const agent = yield* createClaudeAdapter(store, hooks, {
@@ -217,7 +250,7 @@ async function setup(
         const body = (await response.json()) as { result: { isError?: boolean } }
         return body.result
       }
-      return { agent, attachments, store, thread, emit, next, orch, callMedia }
+      return { agent, attachments, store, thread, botHome, emit, next, orch, callMedia }
     })
   }
   const runtime = ManagedRuntime.make(
@@ -302,6 +335,127 @@ async function pendingDecision(f: Fixture, kind: DecisionKind) {
 }
 
 describe('scoped Claude sessions', () => {
+  test('bot instructions own CLAUDE.md, import files in order and only rewrite changed content', async () => {
+    const f = await setup({ bot: true })
+    const bot = await f.runtime.runPromise(f.store.getBot(f.thread.id))
+    if (!bot) throw new Error('Missing bot')
+    const projects = await f.runtime.runPromise(f.store.listProjects())
+    const behaviours = await f.runtime.runPromise(f.store.getAgentBehaviours())
+    const folder = join(f.botHome, '.jetty', 'instructions')
+    mkdirSync(folder, { recursive: true })
+    writeFileSync(join(folder, 'stale.md'), 'old')
+    writeFileSync(join(f.botHome, 'CLAUDE.md'), '@../preferences.md\nold instructions\n')
+    writeFileSync(join(f.botHome, '.gitignore'), 'files/cache')
+    const render = () => botInstructions(bot, projects, behaviours, f.botHome)
+    const hash = await render()
+    const names = ['jetty.md', ...BOT_PROMPT_FILES, 'preferences.md']
+    expect(readFileSync(join(f.botHome, 'CLAUDE.md'), 'utf8')).toBe(
+      [...names.map((name) => `@.jetty/instructions/${name}`), '@brief.md', '@index.md', ''].join(
+        '\n'
+      )
+    )
+    expect(readdirSync(folder).sort()).toEqual([...names].sort())
+    expect(readFileSync(join(f.botHome, '.gitignore'), 'utf8')).toBe('files/cache\n.jetty/\n')
+    expect(readFileSync(join(folder, 'jetty.md'), 'utf8')).not.toContain('mark_ready_for_review')
+    expect(readFileSync(join(folder, 'you.md'), 'utf8')).toContain("You're Verify, a bot in Jetty.")
+    expect(readFileSync(join(folder, 'you.md'), 'utf8')).toContain(`Yours is ${projects[0]!.title}`)
+    expect(readFileSync(join(folder, 'talking.md'), 'utf8')).toContain(
+      'Some of your own actions need'
+    )
+    expect(readFileSync(join(folder, 'workers.md'), 'utf8')).not.toContain('Workers start in Auto.')
+    expect(readFileSync(join(folder, 'preferences.md'), 'utf8')).toContain('(none yet)')
+    expect(names.map((name) => readFileSync(join(folder, name), 'utf8')).join('')).not.toMatch(
+      /\{(?:name|user|home|bots|project|questionTool|if auto|if full access)\}/
+    )
+    for (const name of [...names, '../../CLAUDE.md'])
+      utimesSync(join(folder, name), new Date(1000), new Date(1000))
+    writeFileSync(join(f.botHome, 'brief.md'), 'A new job')
+    writeFileSync(join(f.botHome, 'index.md'), 'A new page')
+    expect(await render()).toBe(hash)
+    for (const name of [...names, '../../CLAUDE.md'])
+      expect(statSync(join(folder, name)).mtimeMs).toBe(1000)
+    const preferences = join(f.botHome, '..', 'shared', 'preferences.md')
+    writeFileSync(preferences, 'Keep replies short.\n')
+    expect(await render()).not.toBe(hash)
+    expect(readFileSync(join(folder, 'preferences.md'), 'utf8')).toContain('Keep replies short.\n')
+    expect(statSync(join(folder, 'you.md')).mtimeMs).toBe(1000)
+    await botInstructions(
+      { ...bot, permissionMode: 'full_access' },
+      projects,
+      behaviours,
+      f.botHome
+    )
+    expect(readFileSync(join(folder, 'talking.md'), 'utf8')).not.toContain(
+      'Some of your own actions need'
+    )
+    expect(readFileSync(join(folder, 'workers.md'), 'utf8')).toContain('Workers start in Auto.')
+    await commitBotHome(f.botHome)
+    const git = Bun.spawn(['git', '-C', f.botHome, 'ls-files'], { stdout: 'pipe' })
+    const tracked = (await new Response(git.stdout).text()).trim().split('\n')
+    expect(await git.exited).toBe(0)
+    expect(tracked).toContain('CLAUDE.md')
+    expect(tracked).toContain('.gitignore')
+    expect(tracked.some((name) => name.startsWith('.jetty/'))).toBe(false)
+  })
+
+  test('changed bot instructions recycle a warm session with resume, while steering keeps its files', async () => {
+    const f = await setup({ bot: true })
+    const first = await f.start('first')
+    const q = f.queries[0]!
+    expect(q.options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' })
+    expect(q.options.cwd).toBe(f.botHome)
+    q.push({
+      type: 'system',
+      subtype: 'init',
+      session_id: 'bot-resume',
+      tools: ['AskUserQuestion'],
+    })
+    const preferences = join(f.botHome, '..', 'shared', 'preferences.md')
+    const rendered = join(f.botHome, '.jetty', 'instructions', 'preferences.md')
+    writeFileSync(preferences, 'New preferences.\n')
+    expect(await f.runtime.runPromise(f.agent.steer(f.thread.id, 'steering'))).toBe(true)
+    expect(readFileSync(rendered, 'utf8')).toContain('(none yet)')
+    expect(q.closed).toBe(false)
+    q.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(first.await)
+    const second = await f.start('second')
+    expect(q.closed).toBe(true)
+    expect(f.queries).toHaveLength(2)
+    expect(f.queries[1]!.options.resume).toBe('bot-resume')
+    expect(f.queries[1]!.options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' })
+    expect(readFileSync(rendered, 'utf8')).toContain('New preferences.\n')
+    f.queries[1]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(second.await)
+    writeFileSync(join(f.botHome, 'brief.md'), 'Updated job')
+    writeFileSync(join(f.botHome, 'index.md'), 'Updated wiki')
+    const third = await f.start('third')
+    expect(f.queries).toHaveLength(2)
+    f.queries[1]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(third.await)
+    await f.runtime.runPromise(f.store.setAgentBehaviour('watchPullRequests', true))
+    const fourth = await f.start('fourth')
+    expect(f.queries).toHaveLength(3)
+    expect(f.queries[1]!.closed).toBe(true)
+    expect(f.queries[2]!.options.resume).toBe('bot-resume')
+    f.queries[2]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(fourth.await)
+  })
+
+  test('threads keep their Jetty system prompt append', async () => {
+    const f = await setup({
+      mcp: async () => ({ type: 'sdk', name: 'jetty', instance: {} as never }),
+    })
+    const turn = await f.start()
+    const behaviours = await f.runtime.runPromise(f.store.getAgentBehaviours())
+    expect(f.queries[0]!.options.systemPrompt).toEqual({
+      type: 'preset',
+      preset: 'claude_code',
+      append: jettyInstructions(behaviours),
+    })
+    f.queries[0]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(turn.await)
+  })
+
   for (const kind of ['approval', 'question'] as const) {
     for (const stage of ['item completion', 'running status'] as const) {
       test(`${kind} response survives failure during ${stage} without losing or contradicting its decision`, async () => {

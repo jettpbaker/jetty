@@ -1,10 +1,11 @@
 import type { Bot, Project } from '@jetty/shared/wire'
 
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { BOT_PROMPT } from './bot-prompt'
+import { BOT_PROMPT_FILES } from './bot-prompt'
 import { jettyInstructions } from './jetty-instructions'
 
 async function git(cwd: string, args: string[]) {
@@ -18,6 +19,19 @@ const sharedCommits = new Map<string, Promise<void>>()
 
 function missing(error: unknown) {
   return (error as NodeJS.ErrnoException).code === 'ENOENT'
+}
+
+async function writeChanged(path: string, content: string) {
+  if ((await readExisting(path)) !== content) await writeFile(path, content)
+}
+
+async function readExisting(path: string) {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (error) {
+    if (!missing(error)) throw error
+    return undefined
+  }
 }
 
 export async function createBotHome(home: string) {
@@ -132,10 +146,6 @@ export async function botInstructions(
 ) {
   await commitSharedPreferences(home)
   const preferences = await readFile(join(home, '..', 'shared', 'preferences.md'), 'utf8')
-  const claudeMd = join(home, 'CLAUDE.md')
-  const currentClaudeMd = await readFile(claudeMd, 'utf8')
-  if (currentClaudeMd.includes('@../preferences.md'))
-    await writeFile(claudeMd, currentClaudeMd.replaceAll('@../preferences.md\n', ''))
   const user = await botUserName()
   const named = projects.map((project) => `${project.title} (${displayPath(project.path)})`)
   const selected = projects.find((project) => project.id === bot.projectId)
@@ -157,16 +167,47 @@ export async function botInstructions(
     others: others.join(', ') || 'none',
     questionTool: 'AskUserQuestion',
   }
-  let prompt = BOT_PROMPT.split('\n')
-    .filter((line) => !line.includes('{if auto}') || bot.permissionMode === 'auto')
-    .filter((line) => !line.includes('{if full access}') || bot.permissionMode === 'full_access')
-    .join('\n')
-    .replaceAll('{if auto} ', '')
-    .replaceAll('{if full access} ', '')
-  for (const [key, value] of Object.entries(fill)) prompt = prompt.replaceAll(`{${key}}`, value)
   const base = jettyInstructions(behaviours).replace(
     'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar. ',
     ''
   )
-  return `${base}\n\n${prompt}\n\n## Shared preferences\n\n${preferences || '(none yet)'}`
+  const files = [{ name: 'jetty.md', content: `${base}\n` }]
+  for (const name of BOT_PROMPT_FILES) {
+    const source = await readFile(new URL(`./bot-prompt/${name}`, import.meta.url), 'utf8')
+    let content = source
+      .split('\n')
+      .filter((line) => !line.includes('{if auto}') || bot.permissionMode === 'auto')
+      .filter((line) => !line.includes('{if full access}') || bot.permissionMode === 'full_access')
+      .join('\n')
+      .replaceAll('{if auto} ', '')
+      .replaceAll('{if full access} ', '')
+    for (const [key, value] of Object.entries(fill)) content = content.replaceAll(`{${key}}`, value)
+    files.push({ name, content })
+  }
+  files.push({
+    name: 'preferences.md',
+    content: `## Shared preferences\n\n${preferences || '(none yet)'}\n`,
+  })
+  const folder = join(home, '.jetty', 'instructions')
+  await mkdir(folder, { recursive: true })
+  for (const file of files) await writeChanged(join(folder, file.name), file.content)
+  const names = new Set(files.map((file) => file.name))
+  for (const name of await readdir(folder))
+    if (!names.has(name)) await rm(join(folder, name), { recursive: true })
+  await writeChanged(
+    join(home, 'CLAUDE.md'),
+    [
+      ...files.map((file) => `@.jetty/instructions/${file.name}`),
+      '@brief.md',
+      '@index.md',
+      '',
+    ].join('\n')
+  )
+  const ignorePath = join(home, '.gitignore')
+  const ignore = (await readExisting(ignorePath)) ?? ''
+  if (!ignore.split('\n').includes('.jetty/'))
+    await writeFile(ignorePath, `${ignore}${ignore && !ignore.endsWith('\n') ? '\n' : ''}.jetty/\n`)
+  return createHash('sha256')
+    .update(JSON.stringify(files.map((file) => file.content)))
+    .digest('hex')
 }
