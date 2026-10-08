@@ -51,6 +51,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { toast } from 'sonner'
 
+import './bot_chat.css'
+
 const curve = [0.23, 1, 0.32, 1] as const
 const EASE = `cubic-bezier(${curve.join(', ')})`
 const glideMs = (distance: number) => Math.min(340, 220 + Math.abs(distance) * 0.6)
@@ -495,15 +497,14 @@ function MessageRow({
           <Bubble
             variant={jett ? 'default' : 'muted'}
             align={jett ? 'end' : 'start'}
-            className={cn('max-w-[515px]', !jett && 'has-[pre]:max-w-full')}
+            className={cn('max-w-[515px]', !jett && 'has-[pre,table]:max-w-full')}
           >
             <BubbleContent
               className={cn(
                 'rounded-[18.5px] border-0 leading-normal',
-                jett &&
-                  'whitespace-pre-wrap selection:bg-primary-foreground/25 selection:text-primary-foreground',
-                !jett &&
-                  '[&_p+p]:mt-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:rounded-none [&_table]:border-0 [&_table]:bg-transparent [&_table]:text-xs'
+                jett
+                  ? 'whitespace-pre-wrap selection:bg-primary-foreground/25 selection:text-primary-foreground'
+                  : 'bot-reply'
               )}
             >
               {jett ? message.text : <Markdown>{message.text}</Markdown>}
