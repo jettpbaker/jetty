@@ -457,15 +457,19 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         typeof delta.thinking === 'string' &&
         (delta.type === 'thinking_delta' || kind === 'thinking')
       ) {
-        const total = delta.estimated_tokens
+        // The estimate can be revised down mid-block; the count only ever climbs.
         const previous = ctx.thinkingTokens.get(index) ?? 0
-        if (typeof total === 'number') ctx.thinkingTokens.set(index, total)
+        const total =
+          typeof delta.estimated_tokens === 'number'
+            ? Math.max(previous, delta.estimated_tokens)
+            : undefined
+        if (total !== undefined) ctx.thinkingTokens.set(index, total)
         streamDelta(
           ctx,
           out,
           'reasoning',
           delta.thinking,
-          typeof total === 'number' ? total - previous : undefined
+          total === undefined ? undefined : total - previous
         )
       }
       return out
