@@ -34,7 +34,7 @@ export function approvalCommand(toolName: string, input: unknown) {
 }
 
 // "Re-run" becomes "re-run"; "GitHub" and "PR" keep their capitals.
-function lowerFirst(phrase: string) {
+export function lowerFirst(phrase: string) {
   const word = phrase.split(/\s/, 1)[0]!
   return /[A-Z0-9]/.test(word.slice(1)) ? phrase : phrase[0]!.toLowerCase() + phrase.slice(1)
 }

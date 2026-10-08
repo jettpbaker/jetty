@@ -30,7 +30,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
-import { approvalCommand } from './bot-approval'
+import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
 import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
 import {
   CHILD_REPORT_INSTRUCTION,
@@ -546,10 +546,15 @@ export function createOrchestrator({
               if (chat && !chat.archived && !(yield* store.wasQueued(bot.id, messageId))) {
                 const user = yield* Effect.promise(() => botUserName())
                 const command = approvalCommand(item.toolName, item.input)
+                const input =
+                  item.input && typeof item.input === 'object'
+                    ? (item.input as Record<string, unknown>)
+                    : {}
+                const action = lowerFirst(botApproval(item.toolName, input, [], []).title)
                 const thread = appended.thread
                 yield* store.enqueueOnce(bot.id, {
                   id: messageId,
-                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for ${user}'s approval to ${item.title}.${command ? ` Command: \`${command}\`` : ''}`,
+                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for ${user}'s approval to ${action}.${command ? ` Command: \`${command}\`` : ''}`,
                   createdAt: appended.ts,
                   hop: 0,
                   from: { threadId, title: thread.title },
