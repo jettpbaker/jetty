@@ -973,6 +973,10 @@ function BotComposer({
   const draft = storedDraft.text
   const [stacked, setStacked] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
+  const [sent, setSent] = useState(0)
+  const heightRef = useRef(0)
+  const sentRef = useRef(0)
+  const calm = useReducedMotion() ?? false
   const empty = !draft.trim()
   const stop = empty && busy
   const pending = pendingItems(items, { provider: bot.provider })
@@ -997,7 +1001,30 @@ function BotComposer({
     onSend(draft.trim())
     update({ text: '' })
     setStacked(false)
+    setSent((count) => count + 1)
   }
+  // A send eases the pill back to one row on the glide's clock, so the transcript resting on it
+  // moves as one with the new bubble instead of dropping a frame ahead of it. Growing stays instant.
+  useLayoutEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    if (stacked || replyTo) for (const animation of box.getAnimations()) animation.cancel()
+    const from = heightRef.current
+    const to = box.offsetHeight
+    heightRef.current = to
+    if (sent === sentRef.current) return
+    sentRef.current = sent
+    if (!calm && to < from)
+      play(
+        box,
+        [
+          { height: `${from}px`, alignContent: 'end' },
+          { height: `${to}px`, alignContent: 'end' },
+        ],
+        glideMs(from - to),
+        Number(document.timeline.currentTime ?? performance.now())
+      )
+  })
   if (request) return answer
   // Replying stacks the pill like a wrapped draft, with the quote on a row above the text.
   const rows = stacked || replyTo
