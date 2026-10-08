@@ -229,6 +229,15 @@ const migrations = SqliteMigrator.fromRecord({
     )`
     yield* sql`CREATE INDEX threads_by_bot ON threads(bot_id)`
   }),
+  '032_pull_request_guides': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE pull_request_guides (
+      repo TEXT NOT NULL, number INTEGER NOT NULL, head_sha TEXT NOT NULL,
+      status TEXT NOT NULL, guide_json TEXT, model TEXT, metrics_json TEXT, error TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      PRIMARY KEY (repo, number, head_sha)
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {

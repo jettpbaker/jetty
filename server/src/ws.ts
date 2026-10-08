@@ -23,6 +23,7 @@ import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
 import { uploadGithubAttachment } from './github-upload'
 import { prefetchIssue } from './issues'
+import { createPullRequestGuides } from './pull-request-guides'
 import {
   createPullRequestLinks,
   createPullRequestLists,
@@ -177,6 +178,7 @@ export function createRpcHandlers(
 
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
     const pullRequestLists = createPullRequestLists(store, hub, pullRequests, admissionScope)
+    const pullRequestGuides = createPullRequestGuides(store, pullRequests, admissionScope)
     yield* Stream.tick('5 seconds').pipe(
       Stream.mapEffect(() => pullRequestLists.poll().pipe(Effect.catch(() => Effect.void))),
       Stream.runDrain,
@@ -446,6 +448,8 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.prefetch': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
+      'pullRequest.guide': (ref) =>
+        checkedRef(ref).pipe(Effect.flatMap(pullRequestGuides.get), Effect.mapError(wireError)),
       'issue.prefetch': (ref) =>
         (validPullRequestRef(ref)
           ? prefetchIssue({ repo: ref.repo.toLowerCase(), number: ref.number })

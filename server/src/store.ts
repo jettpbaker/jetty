@@ -25,12 +25,14 @@ import {
   type PullRequestList,
   type PullRequestListTab,
   type PullRequestSnapshot,
+  type PullRequestGuideState,
   type Bot,
   type ParamsOf,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
+import type { GuideMetrics } from './pr-guide'
 import type { PullRequestWatchMemory } from './pull-request-watch'
 
 import { normalizePath } from './fs-browse'
@@ -47,6 +49,13 @@ export type AppendedEvent = {
   state: ThreadState
   prevStatus: SessionStatus
   thread: ThreadMeta
+}
+
+export type StoredPullRequestGuide = Omit<PullRequestGuideState, 'outdated'> & {
+  model?: string
+  metrics?: GuideMetrics
+  createdAt: number
+  updatedAt: number
 }
 
 type ProjectRow = {
@@ -1692,6 +1701,44 @@ export function createStore() {
               data_refreshed_at = COALESCE(excluded.data_refreshed_at, pull_requests.data_refreshed_at)`
           return snapshot
         }).pipe(Effect.mapError(storeError))
+      },
+      getPullRequestGuides(repo: string, number: number) {
+        return sql<{
+          head_sha: string
+          status: PullRequestGuideState['status']
+          guide_json: string | null
+          model: string | null
+          metrics_json: string | null
+          error: string | null
+          created_at: number
+          updated_at: number
+        }>`SELECT * FROM pull_request_guides WHERE repo = ${repo} AND number = ${number}
+          ORDER BY updated_at DESC`.pipe(
+          Effect.map((rows): StoredPullRequestGuide[] =>
+            rows.map((row) => ({
+              headSha: row.head_sha,
+              status: row.status,
+              ...(row.guide_json ? { guide: JSON.parse(row.guide_json) } : {}),
+              ...(row.model ? { model: row.model } : {}),
+              ...(row.metrics_json ? { metrics: JSON.parse(row.metrics_json) } : {}),
+              ...(row.error ? { error: row.error } : {}),
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+            }))
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      savePullRequestGuide(repo: string, number: number, guide: StoredPullRequestGuide) {
+        return sql`INSERT INTO pull_request_guides
+          (repo, number, head_sha, status, guide_json, model, metrics_json, error, created_at, updated_at)
+          VALUES (${repo}, ${number}, ${guide.headSha}, ${guide.status}, ${guide.guide ? JSON.stringify(guide.guide) : null},
+            ${guide.model ?? null}, ${guide.metrics ? JSON.stringify(guide.metrics) : null}, ${guide.error ?? null}, ${guide.createdAt}, ${guide.updatedAt})
+          ON CONFLICT(repo, number, head_sha) DO UPDATE SET status = excluded.status,
+            guide_json = excluded.guide_json, model = excluded.model, metrics_json = excluded.metrics_json,
+            error = excluded.error, updated_at = excluded.updated_at`.pipe(
+          Effect.mapError(storeError)
+        )
       },
       getPullRequestList(tab: PullRequestListTab) {
         return sql<{

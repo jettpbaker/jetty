@@ -116,6 +116,8 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'pullRequest.refresh': ({ repo, number }) =>
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.diffFile': () => Effect.succeed({ before: '', after: '' }),
+          'pullRequest.guide': () =>
+            Effect.succeed({ status: 'skipped', headSha: 'head', outdated: false }),
           'pullRequest.reviewerCandidates': () =>
             Effect.succeed({ candidates: [], truncated: false }),
           'pullRequest.setReviewRequest': ({ repo, number }) =>
