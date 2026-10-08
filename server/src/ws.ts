@@ -565,7 +565,13 @@ export function createRpcHandlers(
         ),
       'queue.add': (params) =>
         orch
-          .enqueue(params.threadId, params.messageId, params.text, params.attachments)
+          .enqueue(
+            params.threadId,
+            params.messageId,
+            params.text,
+            params.attachments,
+            params.replyTo
+          )
           .pipe(Effect.as(null), Effect.mapError(wireError)),
       'queue.remove': (params) =>
         orch
@@ -676,10 +682,10 @@ export function createRpcHandlers(
           Effect.gen(function* () {
             const bot = yield* store.getBot(params.botId)
             if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-            let replyTo: { itemId: string; text: string } | undefined
-            if (params.replyTo) {
+            const { replyTo } = params
+            if (replyTo) {
               const state = yield* store.getThreadState(params.botId)
-              const quoted = state.items.find((item) => item.id === params.replyTo)
+              const quoted = state.items.find((item) => item.id === replyTo.itemId)
               if (
                 !quoted ||
                 (quoted.kind !== 'assistant_message' && quoted.kind !== 'user_message')
@@ -687,7 +693,6 @@ export function createRpcHandlers(
                 return yield* Effect.fail(
                   new StoreError('invalid_params', 'Quoted message not found')
                 )
-              replyTo = { itemId: quoted.id, text: quoted.text }
             }
             yield* store.markBotSeen(params.botId)
             yield* Effect.forkIn(

@@ -1,3 +1,4 @@
+import type { Reply } from '@jetty/shared/items'
 import type { Bot, ParamsOf } from '@jetty/shared/wire'
 
 import { resendOnDrop } from '@/net/connection'
@@ -19,7 +20,7 @@ export type NewBot = Omit<ParamsOf<'bot.create'>, 'id'>
 export type PendingBotMessage = {
   id: string
   text: string
-  replyTo?: { itemId: string; text: string }
+  replyTo?: Reply
   sentAt: number
 }
 
@@ -130,12 +131,7 @@ function listed(registry: Registry, botId: string, messageId: string) {
   return !!registry.get(threadAtom(botId))?.items.some((item) => item.id === messageId)
 }
 
-function sendToBot(
-  registry: Registry,
-  botId: string,
-  text: string,
-  replyTo?: PendingBotMessage['replyTo']
-) {
+function sendToBot(registry: Registry, botId: string, text: string, replyTo?: Reply) {
   const message: PendingBotMessage = {
     id: crypto.randomUUID(),
     text,
@@ -154,7 +150,7 @@ function sendToBot(
           botId,
           messageId: message.id,
           text,
-          ...(replyTo && { replyTo: replyTo.itemId }),
+          ...(replyTo && { replyTo }),
         })
       ).pipe(
         Effect.tap(() =>

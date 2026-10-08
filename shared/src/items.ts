@@ -24,6 +24,10 @@ export const ChildReport = Schema.Struct({
 })
 export type ChildReport = Schema.Schema.Type<typeof ChildReport>
 
+// What a message of Jett's quotes: a bot bubble he replied to, or text he selected in a reply.
+export const Reply = Schema.Struct({ itemId: Schema.String, text: Schema.String })
+export type Reply = Schema.Schema.Type<typeof Reply>
+
 // One thing Jetty's PR watcher saw on a thread's pull request: who did it, how many, or which
 // checks failed.
 export const PullRequestActivity = Schema.Struct({
@@ -101,8 +105,8 @@ export const ThreadItem = Schema.Union([
     reports: Schema.optional(Schema.Array(ChildReport)),
     text: Schema.String,
     attachments: Schema.Array(Attachment),
-    // Bot chats: the bubble this one replies to, as it read when Jett sent it.
-    replyTo: Schema.optional(Schema.Struct({ itemId: Schema.String, text: Schema.String })),
+    // What this one quotes, as it read when Jett sent it.
+    replyTo: Schema.optional(Reply),
     // Bot chats: the bot's emoji reaction to this message.
     reaction: Schema.optional(Schema.String),
   }),

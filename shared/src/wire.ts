@@ -2,7 +2,7 @@ import { Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { EffortLevel, SessionStatus } from './events'
-import { ApprovalDecision, Attachment, ChildReport } from './items'
+import { ApprovalDecision, Attachment, ChildReport, Reply } from './items'
 import {
   GitHubActivity,
   GitHubFile,
@@ -266,6 +266,7 @@ export const QueuedMessage = Schema.Struct({
   reports: Schema.optional(Schema.Array(ChildReport)),
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),
+  replyTo: Schema.optional(Reply),
 })
 export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 
@@ -819,6 +820,7 @@ export const methods = {
       attachments: Schema.optional(
         Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
       ),
+      replyTo: Schema.optional(Reply),
     }),
     result: Schema.Null,
   },
@@ -866,6 +868,7 @@ export const methods = {
       permissionMode: Schema.optional(PermissionMode),
       // Locks the thread on the first turn; omitted turns use the server default.
       provider: Schema.optional(ProviderId),
+      replyTo: Schema.optional(Reply),
     }),
     result: Schema.Struct({ turnId: Schema.String }),
   },
@@ -926,8 +929,8 @@ export const methods = {
       // The user_message item's id, as with turn.start.
       messageId: Schema.String.check(Schema.isMinLength(1)),
       text: Schema.String.check(Schema.isMinLength(1)),
-      // The chat item Jett is replying to; the server copies its text into the message.
-      replyTo: Schema.optional(Schema.String),
+      // The chat item Jett is replying to, and the part of it he quotes.
+      replyTo: Schema.optional(Reply),
     }),
     result: Schema.Null,
   },

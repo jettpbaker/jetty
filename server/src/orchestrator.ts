@@ -14,6 +14,7 @@ import {
   heldByRestarts,
   type ApprovalDecision,
   type Attachment,
+  type Reply,
   type ThreadItem,
 } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
@@ -73,7 +74,7 @@ export type StartTurnInput = {
   resumeQueue?: boolean
   // The turn carries on the one before it, as the user's answer to its question does.
   carriesOn?: boolean
-  replyTo?: { itemId: string; text: string }
+  replyTo?: Reply
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -950,6 +951,7 @@ export function createOrchestrator({
                   ...input,
                   text: queued.text,
                   queued,
+                  replyTo: queued.replyTo,
                   model: thread.model,
                   effort: thread.effort,
                   fast: thread.fast,
@@ -1029,6 +1031,7 @@ export function createOrchestrator({
                   hop: 0,
                   attachments: saved.meta,
                   ...(input.carriesOn && { carriesOn: true as const }),
+                  ...(input.replyTo && { replyTo: input.replyTo }),
                 }
                 // The message waits in the queue while the worktree is prepared, so a stopped
                 // or failed setup keeps it for Resume.
@@ -1075,12 +1078,10 @@ export function createOrchestrator({
               if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
               let text = yield* agentText(input, fromCreator, saved.meta, attachments)
+              if (input.replyTo)
+                text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
               const botChat = yield* store.isBot(input.threadId)
-              if (botChat) {
-                if (input.replyTo)
-                  text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
-                text = `${botStamp()}\n${text}`
-              }
+              if (botChat) text = `${botStamp()}\n${text}`
               const live = state(input.threadId)
               if (live.turnId) {
                 const turnId = live.turnId
@@ -1489,7 +1490,8 @@ export function createOrchestrator({
         threadId: string,
         messageId: string,
         text: string,
-        uploads?: readonly UploadAttachment[]
+        uploads?: readonly UploadAttachment[],
+        replyTo?: Reply
       ) {
         return Effect.gen(function* () {
           if (!text && !uploads?.length)
@@ -1505,6 +1507,7 @@ export function createOrchestrator({
                   createdAt: Date.now(),
                   hop: 0,
                   ...(saved.meta.length ? { attachments: saved.meta } : {}),
+                  ...(replyTo && { replyTo }),
                 })
                 .pipe(
                   Effect.tap((thread) =>
