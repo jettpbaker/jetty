@@ -11,7 +11,8 @@
     "./rpc": "./src/rpc.ts",
     "./pull-request": "./src/pull-request.ts",
     "./github-media": "./src/github-media.ts",
-    "./bots": "./src/bots.ts"
+    "./bots": "./src/bots.ts",
+    "./bot-search": "./src/bot-search.ts"
   },
   "dependencies": {
     "effect": "4.0.0",
