@@ -11,7 +11,7 @@
 }
 
 .skill-chip-text {
-  font-family: 'Skill Chip', var(--sans);
+  font-family: 'Skill Chip', 'Geist Variable', sans-serif;
 }
 
 /* The mirror behind the textarea paints the text, so chip names can take the chip's tint; the

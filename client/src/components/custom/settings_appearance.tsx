@@ -27,7 +27,6 @@ import {
   useAppearance,
   type Appearance,
 } from '@/lib/appearance'
-import { monoFont, sansFont, type FontSetting } from '@/lib/fonts'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -176,8 +175,6 @@ export function SettingsAppearance() {
         <span>Accent</span>
         <AccentPicker />
       </div>
-      <FontRow label='Sans font' setting={sansFont} />
-      <FontRow label='Mono font' setting={monoFont} />
       <div className='appearance-option-row'>
         <span>Wallpaper</span>
         {appearance.wallpaper ? (
@@ -361,45 +358,6 @@ export function SettingsAppearance() {
           {error}
         </p>
       )}
-    </div>
-  )
-}
-
-function FontRow<T extends string>({ label, setting }: { label: string; setting: FontSetting<T> }) {
-  const value = setting.use()
-  const current = setting.options.find((option) => option.value === value)?.label
-  return (
-    <div className='appearance-option-row'>
-      <span>{label}</span>
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger
-          aria-label={`${label}: ${current}`}
-          render={
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
-            />
-          }
-        >
-          {current}
-          <ArrowDown01Icon />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          <DropdownMenuRadioGroup
-            value={value}
-            onValueChange={(next) => {
-              if (setting.is(next)) setting.set(next)
-            }}
-          >
-            {setting.options.map((option) => (
-              <DropdownMenuRadioItem key={option.value} value={option.value}>
-                {option.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   )
 }

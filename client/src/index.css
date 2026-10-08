@@ -2,8 +2,6 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
-@import '@fontsource-variable/instrument-sans';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -40,9 +38,7 @@
   --motion-popup-enter: menu-enter var(--motion-popup-duration) var(--motion-popup-ease) both;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --duration-enter: 140ms;
-  --sans: 'Geist Variable', sans-serif;
-  --mono: 'Geist Mono Variable', ui-monospace, monospace;
-  font-family: var(--sans);
+  font-family: 'Geist Variable', sans-serif;
   color: var(--foreground);
   background: var(--sidebar);
   font-synthesis: none;
@@ -177,11 +173,11 @@
   --color-pr-merged: var(--pr-merged);
   --color-pr-closed: var(--pr-closed);
   --radius-menu-item: 4px;
-  --font-mono: var(--mono);
+  --font-mono: 'Paper Mono', ui-monospace, monospace;
   --spacing-menu-item-compact: 26px;
   --spacing-glyph: 1.125rem;
   --font-heading: var(--font-sans);
-  --font-sans: var(--sans);
+  --font-sans: 'Geist Variable', sans-serif;
   --text-13: 0.8125rem;
   --text-13--line-height: calc(1.125 / 0.8125);
   --color-sidebar-ring: var(--sidebar-ring);

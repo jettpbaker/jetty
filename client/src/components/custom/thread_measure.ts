@@ -1,4 +1,3 @@
-import { sansFont } from '@/lib/fonts'
 import { layout, prepare, type PreparedText } from '@chenglou/pretext'
 
 import type { ThreadRow } from './thread_rows'
@@ -20,12 +19,11 @@ import {
 } from './user_message'
 import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
-const font = () => `14px ${sansFont.family()}`
+const font = '14px "Geist Variable"'
 const lineHeight = 23
 // The footer under a message, and the bubble's gap above it.
 const footerRow = 28
-// Geist's mean advance at 14px, for rough line counts that skip text layout; near enough for the
-// other sans choices.
+// Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
 type Measured = { text: string; prepared?: PreparedText; width?: number; height: number }
 const cache = new Map<string, Measured>()
@@ -73,11 +71,7 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean, r
     cache.set(id, entry)
   }
   if (entry.width !== width) {
-    entry.prepared ??= prepare(
-      text || ' ',
-      font(),
-      preWrap ? { whiteSpace: 'pre-wrap' } : undefined
-    )
+    entry.prepared ??= prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined)
     entry.width = width
     entry.height = layout(entry.prepared, Math.max(1, width), lineHeight).height
   }

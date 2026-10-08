@@ -39,7 +39,6 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
-import { sansFont } from '@/lib/fonts'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { completedAgo, useRevealRow } from '@/state'
@@ -429,27 +428,15 @@ export function ThreadList({
   const [width, setWidth] = useState(saved?.width ?? 660)
   const [rough, setRough] = useState(() => (saved ? new Set<string>() : roughRows(rows, width)))
   const [gutter, setGutter] = useState(0)
-  const [fontsReady, setFontsReady] = useState(0)
-  const sans = sansFont.use()
+  const [fontsReady, setFontsReady] = useState(false)
 
   useEffect(() => {
     if (document.fonts.status === 'loaded') return
     void document.fonts.ready.then(() => {
       clearTextMeasure()
-      setFontsReady((count) => count + 1)
+      setFontsReady(true)
     })
   }, [])
-
-  // Text is measured in the sans font, so a new choice re-measures once its file has loaded.
-  const measuredSans = useRef(sans)
-  useEffect(() => {
-    if (measuredSans.current === sans) return
-    measuredSans.current = sans
-    void document.fonts.load(`14px ${sansFont.family()}`).then(() => {
-      clearTextMeasure()
-      setFontsReady((count) => count + 1)
-    })
-  }, [sans])
 
   // A new key function makes the virtualizer re-estimate every unmeasured row, so it changes only
   // when an estimate can: a streamed delta leaves the rows' estimates as they were.
