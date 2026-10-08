@@ -191,6 +191,28 @@ function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
   }
 }
 
+// A bot keeps one task list (Jetty's own tools), wakes through Jetty's check-ins, and reaches
+// people and agents only through Jetty: Claude Code's own versions would bypass all three, and
+// its session tools can see and message the user's other Claude sessions on this machine.
+const BOT_DISALLOWED_TOOLS = [
+  'TaskCreate',
+  'TaskUpdate',
+  'TaskList',
+  'TaskGet',
+  'TodoWrite',
+  'ListAgents',
+  'SendMessage',
+  'ScheduleWakeup',
+  'CronCreate',
+  'CronDelete',
+  'CronList',
+  'RemoteTrigger',
+  'PushNotification',
+  'Workflow',
+  'EnterWorktree',
+  'ExitWorktree',
+]
+
 // A tool the SDK reports as failed after Stop was cut off, not broken: leaving its status
 // unsettled lets the client show it as stopped. Subagents settle with their own status.
 function withoutToolFailure(event: ThreadEvent, agents: ReadonlySet<string>): ThreadEvent {
@@ -946,9 +968,7 @@ export function createClaudeAdapter(
                     'ExitPlanMode',
                     ...(input.readOnly ? ['Edit', 'Write', 'NotebookEdit'] : []),
                     ...(input.parentThreadId ? ['AskUserQuestion'] : []),
-                    ...(bot
-                      ? ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TodoWrite']
-                      : []),
+                    ...(bot ? BOT_DISALLOWED_TOOLS : []),
                   ],
                   // Only permits a later live switch into bypassPermissions.
                   allowDangerouslySkipPermissions: true,
