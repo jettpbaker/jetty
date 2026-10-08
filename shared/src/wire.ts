@@ -469,6 +469,17 @@ export const Bot = Schema.Struct({
 })
 export type Bot = Schema.Schema.Type<typeof Bot>
 
+// One message a bot sent another, as the one it went to holds it: in its thread, or still queued.
+export const BotConversationMessage = Schema.Struct({
+  id: Schema.String,
+  // The bot that sent it.
+  from: Schema.String,
+  text: Schema.String,
+  createdAt: Schema.Int,
+  attachments: Schema.Array(Attachment),
+})
+export type BotConversationMessage = Schema.Schema.Type<typeof BotConversationMessage>
+
 export const UploadAttachment = Schema.Struct({
   name: Schema.String,
   mimeType: Schema.Literals(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
@@ -998,6 +1009,11 @@ export const methods = {
   'bot.markSeen': {
     params: Schema.Struct({ botId: Schema.String }),
     result: Schema.Null,
+  },
+  // Everything the two bots sent each other, oldest first. Jett can read any of them.
+  'bot.conversation': {
+    params: Schema.Struct({ botId: Schema.String, otherBotId: Schema.String }),
+    result: Schema.Struct({ messages: Schema.Array(BotConversationMessage) }),
   },
 } as const
 

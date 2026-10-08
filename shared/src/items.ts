@@ -233,6 +233,8 @@ export const ThreadItem = Schema.Union([
     action: Schema.Literals(['started', 'messaged']),
     threadId: Schema.String,
     title: Schema.String,
+    // 'messaged': the message it sent, by the id it keeps in the other thread.
+    messageId: Schema.optional(Schema.String),
   }),
   // A line in the chat for the PR watcher; what woke the agent reaches it as a message from Jetty.
   Schema.Struct({
