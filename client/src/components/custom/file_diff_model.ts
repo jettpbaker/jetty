@@ -98,6 +98,36 @@ export function patchMatchesContents(
   return true
 }
 
+// Some of a parsed diff's hunks as patch text, so a file diffed from its contents can show only them.
+export function hunksPatch(diff: FileDiffMetadata, indexes: readonly number[]) {
+  const line = (text: string | undefined) => (text ?? '').replace(/\n$/, '')
+  const noNewline = '\\ No newline at end of file'
+  const rows: string[] = []
+  for (const index of indexes) {
+    const hunk = diff.hunks[index]
+    if (!hunk) continue
+    rows.push(
+      `@@ -${hunk.deletionStart},${hunk.deletionCount} +${hunk.additionStart},${hunk.additionCount} @@${hunk.hunkContext ? ` ${hunk.hunkContext}` : ''}`
+    )
+    for (const [position, content] of hunk.hunkContent.entries()) {
+      const end = position === hunk.hunkContent.length - 1
+      if (content.type === 'context') {
+        for (let i = 0; i < content.lines; i++)
+          rows.push(` ${line(diff.additionLines[content.additionLineIndex + i])}`)
+        if (end && hunk.noEOFCRAdditions) rows.push(noNewline)
+        continue
+      }
+      for (let i = 0; i < content.deletions; i++)
+        rows.push(`-${line(diff.deletionLines[content.deletionLineIndex + i])}`)
+      if (end && content.deletions && hunk.noEOFCRDeletions) rows.push(noNewline)
+      for (let i = 0; i < content.additions; i++)
+        rows.push(`+${line(diff.additionLines[content.additionLineIndex + i])}`)
+      if (end && content.additions && hunk.noEOFCRAdditions) rows.push(noNewline)
+    }
+  }
+  return rows.join('\n')
+}
+
 // @pierre/diffs only offers context expansion on `change`/`rename-changed` diffs, so posing as a
 // pure rename drops the expand buttons. Diffs that share a cache key are the same diff to it, so
 // the copy takes its own.

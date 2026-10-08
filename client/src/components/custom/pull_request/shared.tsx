@@ -11,6 +11,7 @@ import type { PrComment, PrFile, PrThread } from './adapter'
 
 import { DiffBody } from '../diff/body'
 import {
+  hunksPatch,
   hydratedDiff,
   loadedFiles,
   parseFileChanges,
@@ -58,9 +59,12 @@ export function Diff({
   renderThreads,
   suggestion = false,
   snippet = false,
+  hunks,
 }: {
   file: PrFile
   patch?: string
+  // A guide card's hunks of a file whose patch loads with its contents; threads outside them drop.
+  hunks?: readonly number[]
   threads?: PrThread[]
   renderThreads?: (threads: PrThread[]) => ReactNode
   suggestion?: boolean
@@ -116,9 +120,14 @@ export function Diff({
     }
   }, [file.patchDeferred, file.path, file.previousPath, loadFile, patch, revision])
   const loaded = deferred?.revision === revision ? deferred : undefined
-  const diff = parsed ?? loaded?.diff
+  const some = useMemo(() => {
+    if (!hunks || !loaded?.diff) return loaded?.diff
+    const text = filePatch(file, hunksPatch(loaded.diff, hunks))
+    return parseFileChanges(text, `${revision}:${contentKey(text)}`)[0]?.diff
+  }, [hunks, loaded, file, revision])
+  const diff = parsed ?? some
   const loadDiffFiles = useMemo(() => {
-    if (!loadFile || suggestion || patch !== undefined) return undefined
+    if (!loadFile || suggestion || patch !== undefined || hunks) return undefined
     return async (diff: import('@pierre/diffs').FileDiffMetadata) => {
       try {
         const contents = await loadFile(file.path, file.previousPath)
@@ -132,12 +141,12 @@ export function Diff({
         throw error
       }
     }
-  }, [loadFile, file.path, file.previousPath, suggestion, patch])
+  }, [loadFile, file.path, file.previousPath, suggestion, patch, hunks])
   // A mounted body fetches its file's contents, as the Changes view does, so folds and the trailing
   // context are exact rather than "may be available"; without them the hunks render bare.
   const [context, setContext] = useState<{ diff: FileDiffMetadata; shown: FileDiffMetadata }>()
   useEffect(() => {
-    if (!loadFile || suggestion || patch !== undefined || !diff?.isPartial) return
+    if (!loadFile || suggestion || patch !== undefined || hunks || !diff?.isPartial) return
     if (diff.type !== 'change' && diff.type !== 'rename-changed') return
     let active = true
     loadFile(file.path, file.previousPath).then(
@@ -154,7 +163,7 @@ export function Diff({
     return () => {
       active = false
     }
-  }, [loadFile, suggestion, patch, diff, file.path, file.previousPath])
+  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath])
   const shown = context && context.diff === diff ? context.shown : diff
   const threadPatch = patch ?? file.patch
   const lines = useMemo(() => {
@@ -193,7 +202,7 @@ export function Diff({
       metadata: anchored.filter((t) => t.side === side && t.line === Number(line)),
     }
   })
-  const remaining = threads.filter((t) => !anchored.includes(t))
+  const remaining = hunks ? [] : threads.filter((t) => !anchored.includes(t))
   const unavailable = file.binary
     ? 'Binary file · preview unavailable'
     : file.patchDeferred && !diff
