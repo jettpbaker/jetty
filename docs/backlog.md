@@ -84,6 +84,43 @@ Everything below is for one combined review of the chat, not separate ports.
   signed identity, and a rate limit so their bot can't burn our usage. Capy has
   no equivalent (its multiplayer is people sharing one thread); Grok Bot's Team
   Bots are one bot many people use, not bots of different people talking.
+- Guided PR review. The sketchpad has it at `/components/pr-guide`: A, the single
+  column, is the pick; B (a chapter rail) is a wide-screen option; C (whys woven
+  into the Diff tab) is a later Diff option. A Guide tab splits a PR into ordered
+  chapters: each has a title, a 1–3 sentence why and the hunks it covers. Core
+  chapters come first, supporting ones last, and anything uncovered goes in "Not
+  in the guide". Each chapter has a Reviewed tick and links to Open in Diff.
+  Generation uses Haiku 5.5 with structure: the model only assigns hunk ids to
+  chapters and writes the whys, and code checks every hunk lands exactly once.
+  Whys describe only the code shown. Inputs are the diff, the PR title and body,
+  the commits, the linked issue, and files at the head SHA read from the project
+  checkout (no worktree needed). When to generate:
+  - PRs a Jetty thread opens: the authoring thread writes the guide as it opens
+    the PR, since it already knows why each change exists.
+  - Other PRs: generate ahead of time when Jett is a requested reviewer.
+  - Anything else: on demand, starting when the PR view opens, streamed
+    (summary and chapter titles first).
+
+  Skip PRs under a size threshold. Cache per head SHA, marked outdated on new
+  commits. A medium PR is a fraction of a cent on Haiku. Before building,
+  compare Haiku (low and medium) with Sonnet 5.5 on about 10 real PRs for
+  accuracy: a wrong guide is worse than none. Open question: keys 1/2/3 mean
+  different tabs on PRs with and without a guide.
+
+- Intelligence inside the app, not just a window to it. Haiku 5.5 ($0.10 in,
+  $0.50 out per million tokens under 100k context) makes small background
+  judgements cheap enough to run everywhere. Candidates:
+  - tagging or grouping threads that are about the same thing;
+  - a daily lint pass that archives threads agents forgot to (merged PR, done,
+    idle);
+  - bot memory tidy passes;
+  - embedding search over threads with a local model (EmbeddingGemma ran on
+    CPU at about 35ms a query in the bot sandbox).
+
+  Ground rules: these run in the background and are cached, never on the
+  critical path of a click. They're reversible (undo, not confirm) and start
+  out as suggestions until they've earned trust.
+
 - Accept `#<PR number>` as a worktree ref by fetching the PR head.
 - Continue work on an existing branch.
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
