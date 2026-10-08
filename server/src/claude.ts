@@ -805,9 +805,10 @@ export function createClaudeAdapter(
                     ? {
                         env: {
                           ...process.env,
-                          // Claude Code's "the user hasn't heard from you" nudge pushes a bot to narrate;
-                          // it reaches Jett through tell_user, so the nudge only gets in the way.
+                          // Claude Code nudges a turn that ends without text into writing some; a bot
+                          // reaches Jett through tell_user and react, so both nudges only make it narrate.
                           CLAUDE_CODE_SILENT_TURN_REMINDER: '0',
+                          CLAUDE_CODE_TERMINAL_MCP_TOOLS: 'mcp__jetty__react,mcp__jetty__tell_user',
                         },
                       }
                     : {}),

@@ -806,14 +806,7 @@ export function createStore() {
             !['mcp__jetty__tell_user', 'mcp__jetty__react'].includes(newest.toolName)) ||
           (newest?.kind === 'subagent' && newest.status === 'running') ||
           (newest?.kind === 'workflow' && newest.status === 'running')
-        const visible = current.some(
-          (item) =>
-            item.kind === 'user_message' &&
-            (!item.from ||
-              (item.from.threadId === row.id &&
-                item.from.title === 'Jetty' &&
-                item.text.endsWith(' just created you.')))
-        )
+        const visible = current.some((item) => item.kind === 'user_message' && !item.from)
         const activity: Bot['activity'] =
           !active || needsYou
             ? 'idle'

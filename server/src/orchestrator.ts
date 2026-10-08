@@ -1048,10 +1048,6 @@ export function createOrchestrator({
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
               let text = yield* agentText(input, fromCreator, saved.meta, attachments)
               const botChat = yield* store.isBot(input.threadId)
-              const creationWake =
-                input.queued?.from?.threadId === input.threadId &&
-                input.queued.from.title === 'Jetty' &&
-                input.queued.text.endsWith(' just created you.')
               if (botChat) {
                 if (input.replyTo)
                   text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
@@ -1061,10 +1057,7 @@ export function createOrchestrator({
               if (live.turnId) {
                 const turnId = live.turnId
                 const wasVisible = live.visibleBotTurn
-                if (
-                  botChat &&
-                  (input.visibleBotTurn || creationWake || (!input.queued && !!input.messageId))
-                ) {
+                if (botChat && (input.visibleBotTurn || (!input.queued && !!input.messageId))) {
                   live.visibleBotTurn = true
                 }
                 const accepted = yield* agent.steer(
@@ -1088,10 +1081,7 @@ export function createOrchestrator({
               const turnId = newId()
               live.turnId = turnId
               live.visibleBotTurn =
-                botChat &&
-                (input.visibleBotTurn === true ||
-                  creationWake ||
-                  (!input.queued && !!input.messageId))
+                botChat && (input.visibleBotTurn === true || (!input.queued && !!input.messageId))
               live.ready = false
               const loadout = input.model && {
                 model: input.model,
