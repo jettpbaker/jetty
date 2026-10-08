@@ -133,7 +133,7 @@ export async function generateGuide(
           model,
           ...(effort ? { effort } : {}),
           pathToClaudeCodeExecutable: claudeBin,
-          maxTurns: 1,
+          maxTurns: 3,
           tools: [],
           mcpServers: {},
           strictMcpConfig: true,
