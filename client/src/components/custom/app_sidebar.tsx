@@ -2,6 +2,7 @@ import {
   ArrowRight01Icon,
   ChartHistogramIcon,
   Settings01Icon,
+  TextFontIcon,
   Archive02Icon,
   PencilEdit02Icon,
   PinIcon,
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
+import { monoFonts, setMonoFont, useMonoFont } from '@/lib/mono-font'
 import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { storage } from '@/platform'
@@ -105,6 +107,8 @@ export const AppSidebar = memo(function AppSidebar() {
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onSettings = pathname === '/settings'
   const onUsage = pathname === '/usage'
+  const monoFont = useMonoFont()
+  const monoFontLabel = monoFonts.find((font) => font.value === monoFont)?.label
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
   const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
@@ -488,6 +492,22 @@ export const AppSidebar = memo(function AppSidebar() {
             <ChartHistogramIcon />
           </TooltipTrigger>
           <TooltipContent>Usage</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon'
+                className='hover:bg-sidebar-accent'
+                aria-label={`Mono font: ${monoFontLabel}`}
+                {...pressProps(() => setMonoFont(monoFont === 'paper' ? 'geist' : 'paper'))}
+              />
+            }
+          >
+            <TextFontIcon />
+          </TooltipTrigger>
+          <TooltipContent>Mono font: {monoFontLabel}</TooltipContent>
         </Tooltip>
       </SidebarFooter>
       <Dialog

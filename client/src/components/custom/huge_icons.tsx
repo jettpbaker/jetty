@@ -196,6 +196,7 @@ export const ListFilterIcon = hugeIcon(shapes.ListFilterIcon)
 
 export const TextBoldIcon = hugeIcon(shapes.TextBoldIcon)
 
+export const TextFontIcon = hugeIcon(shapes.TextFontIcon)
 export const TextItalicIcon = hugeIcon(shapes.TextItalicIcon)
 
 export const TextStrikethroughIcon = hugeIcon(shapes.TextStrikethroughIcon)
