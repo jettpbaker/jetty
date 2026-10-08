@@ -907,7 +907,7 @@ export function createStore() {
           state.items.some(
             (item) =>
               (item.kind === 'question' && !item.answers && !item.dismissed) ||
-              (item.kind === 'approval' && !item.decision)
+              (item.kind === 'approval' && !item.decision && !item.withdrawn)
           ) || (waiting?.count ?? 0) > 0
         const active = state.activeTurnId !== null
         const current = state.items.filter((item) => item.turnId === state.activeTurnId)

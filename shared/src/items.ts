@@ -160,6 +160,7 @@ export const ThreadItem = Schema.Union([
       })
     ),
     decision: Schema.optional(ApprovalDecision),
+    withdrawn: Schema.optional(Schema.Boolean),
     deniedReason: Schema.optional(Schema.String),
     // the tool_call item it gates, when the provider says which
     toolCallId: Schema.optional(Schema.String),

@@ -120,7 +120,7 @@ function deriveStatus(state: ThreadState): ThreadState {
     ...state,
     status: state.items.some(
       (item) =>
-        (item.kind === 'approval' && !item.decision && !item.completedAt) ||
+        (item.kind === 'approval' && !item.decision && !item.withdrawn && !item.completedAt) ||
         (item.kind === 'question' && item.delivery === 'async' && !item.answers && !item.dismissed)
     )
       ? 'awaiting_approval'

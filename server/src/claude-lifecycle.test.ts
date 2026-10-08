@@ -646,7 +646,7 @@ describe('scoped Claude sessions', () => {
         {
           type: 'item.completed',
           itemId,
-          patch: kind === 'approval' ? { decision: 'deny' } : { skipped: true },
+          patch: kind === 'approval' ? { withdrawn: true } : { skipped: true },
         },
       ])
     })
@@ -682,7 +682,9 @@ describe('scoped Claude sessions', () => {
             itemId: decision.itemId,
             patch:
               kind === 'approval'
-                ? { decision: winner === 'response' ? 'allow' : 'deny' }
+                ? winner === 'response'
+                  ? { decision: 'allow' }
+                  : { withdrawn: true }
                 : winner === 'response'
                   ? { answers: { 'Which?': 'A' } }
                   : { skipped: true },
@@ -1189,7 +1191,7 @@ describe('scoped Claude sessions', () => {
       status: 'running',
     })
     expect(f.events.filter((e) => e.type === 'item.completed')).toEqual([
-      { type: 'item.completed', itemId: item.item.id, patch: { decision: 'deny' } },
+      { type: 'item.completed', itemId: item.item.id, patch: { withdrawn: true } },
     ])
     expect(q.closed).toBe(false)
     q.push({ type: 'result', subtype: 'success' })

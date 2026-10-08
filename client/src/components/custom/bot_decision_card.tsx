@@ -38,7 +38,7 @@ function BotApprovalCard({
   const respond = useRespondApproval()
   const view = approvalView(item, undefined)
   const command = view.target || item.toolName
-  if (item.decision || item.completedAt)
+  if (item.decision || item.withdrawn || item.completedAt)
     return (
       <div className={cn(cardClass, 'py-2 text-muted-foreground')}>
         <div className='flex min-w-0 items-center gap-2 text-sm'>

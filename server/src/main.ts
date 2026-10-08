@@ -207,11 +207,11 @@ function reconcileOnStartup(store: Store) {
           }
           for (const item of state.items) {
             if (item.turnId !== state.activeTurnId) continue
-            if (item.kind === 'approval' && !item.decision)
+            if (item.kind === 'approval' && !item.decision && !item.withdrawn)
               yield* store.appendEvent(thread.id, {
                 type: 'item.completed',
                 itemId: item.id,
-                patch: { decision: 'deny', deniedReason: 'Jetty restarted' },
+                patch: { withdrawn: true },
               })
             if (
               item.kind === 'question' &&

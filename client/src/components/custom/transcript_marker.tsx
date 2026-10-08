@@ -67,10 +67,10 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
       ),
     }
   return {
-    tone: 'deny' as const,
+    tone: item.withdrawn ? ('dismiss' as const) : ('deny' as const),
     text: (
       <>
-        <span className='shrink-0'>Denied</span>
+        <span className='shrink-0'>{item.withdrawn ? 'Withdrawn' : 'Denied'}</span>
         <Code className='max-w-60 shrink-0'>{target}</Code>
         {item.deniedReason && <span className='truncate'>— “{item.deniedReason}”</span>}
       </>

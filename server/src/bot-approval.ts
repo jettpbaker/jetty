@@ -36,8 +36,7 @@ function placeOf(folder: string, places: readonly BotPlace[]) {
   return folder.startsWith(`${home}/`) ? `~${folder.slice(home.length)}` : folder
 }
 
-// The part of a command Allow always covers: Claude's own suggested prefixes, else its leading
-// plain words (`gh issue close 212` covers `gh issue close`).
+// Claude's suggested prefixes win; otherwise use the last non-cd command before its pipe.
 function commandPrefixes(command: string, suggestions: readonly PermissionUpdate[]) {
   const suggested = suggestions.flatMap((suggestion) =>
     suggestion.type === 'addRules'
@@ -49,7 +48,11 @@ function commandPrefixes(command: string, suggestions: readonly PermissionUpdate
       : []
   )
   if (suggested.length) return [...new Set(suggested)]
-  const tokens = command.trim().split(/\s+/)
+  const segments = command
+    .split(/&&|\|\||;/)
+    .map((segment) => segment.split('|', 1)[0]!.trim())
+    .filter((segment) => segment && !/^cd(?:\s|$)/.test(segment))
+  const tokens = (segments.at(-1) ?? command.trim()).split(/\s+/)
   const words: string[] = []
   for (const token of tokens) {
     if (words.length === 3 || !/^[a-z][\w-]*$/i.test(token)) break

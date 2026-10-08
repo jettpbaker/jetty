@@ -10,7 +10,7 @@ import {
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk'
 import { type ThreadEvent } from '@jetty/shared/events'
-import { type ApprovalDecision, QuestionSpec } from '@jetty/shared/items'
+import { QuestionSpec } from '@jetty/shared/items'
 import { newId, type Bot, type Project } from '@jetty/shared/wire'
 import {
   Cause,
@@ -292,7 +292,7 @@ export function createClaudeAdapter(
     function denyPending(session: WarmSession) {
       function deny(
         pending: Map<string, PendingApproval>,
-        patch: { decision: ApprovalDecision } | { skipped: true },
+        patch: { withdrawn: true } | { skipped: true },
         message: string
       ) {
         return Effect.gen(function* () {
@@ -307,7 +307,7 @@ export function createClaudeAdapter(
       }
       return deny(
         session.pendingApprovals,
-        { decision: 'deny' },
+        { withdrawn: true },
         'Cancelled: the turn ended before the user answered.'
       ).pipe(
         Effect.andThen(
@@ -720,7 +720,7 @@ export function createClaudeAdapter(
             yield* session.emit({
               type: 'item.completed',
               itemId,
-              patch: question ? { skipped: true } : { decision: 'deny' },
+              patch: question ? { skipped: true } : { withdrawn: true },
             })
             pending.delete(itemId)
             if (!session.awaitingResult) return

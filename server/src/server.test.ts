@@ -1079,8 +1079,7 @@ describe('server skeleton', () => {
     expect(resumed.items).toContainEqual(
       expect.objectContaining({
         id: 'orphan-approval',
-        decision: 'deny',
-        deniedReason: 'Jetty restarted',
+        withdrawn: true,
       })
     )
     expect(resumed.items).toContainEqual(
