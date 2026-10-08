@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { useThreadMeta } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 
+import { inlineLinkClass } from './entity_link'
 import { ProviderGlyph } from './provider_glyph'
 
 // Where a message or request came from: the other agent's provider glyph and its name.
@@ -43,7 +44,7 @@ export function ThreadSourceLabel({
       <button
         type='button'
         onClick={() => navigate({ to: '/threads/$threadId', params: { threadId: from.threadId } })}
-        className='truncate text-foreground/90 hover:text-foreground hover:underline'
+        className={cn(inlineLinkClass, 'truncate')}
       >
         {from.title}
       </button>

@@ -259,12 +259,15 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
   const data = usePullRequestSummary({ repo, number: Number(number) })
   // A thread's link to it follows GitHub live; a PR no thread links shows its last read.
   const linked = useLinkedPull(repo, Number(number))
-  const look = linkPresentation(linked?.state ? linked : data && pullRequestFacts(data))
-  const linkClass = cn(inlineLinkClass, look.color)
+  const facts = linked?.state ? linked : data && pullRequestFacts(data)
+  const look = linkPresentation(facts)
+  // Accent until the state arrives: a muted link would read as plain text.
+  const color = facts?.state ? look.color : 'text-primary'
+  const linkClass = cn(inlineLinkClass, color)
   const content = (
     <LeadTitle
       icon={look.icon}
-      color={look.color}
+      color={color}
       label={look.label}
       size={pullGlyph}
       text={data ? shorten(data.pull.title) : home.has(repo) ? `#${number}` : entity}
