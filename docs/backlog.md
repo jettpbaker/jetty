@@ -121,6 +121,9 @@ Everything below is for one combined review of the chat, not separate ports.
   critical path of a click. They're reversible (undo, not confirm) and start
   out as suggestions until they've earned trust.
 
+- Hide Haiku 4.5 from bots: the New bot model menu, and the model list a bot
+  picks workers from. Left open on purpose for now (Jett, 2026-10-08).
+
 - Accept `#<PR number>` as a worktree ref by fetching the PR head.
 - Continue work on an existing branch.
 - Later, if restarts keep killing waits: a Jetty-owned `wake_me` tool (a time
