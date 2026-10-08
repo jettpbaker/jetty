@@ -11,6 +11,7 @@ import { useNow } from '@/hooks/use-now'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
+  useBot,
   useIssueSummary,
   useLinkedPull,
   useOpenPullRequestTab,
@@ -32,6 +33,9 @@ import {
   type SVGProps,
 } from 'react'
 
+import { botColorStyle } from './bot_avatar'
+import './bot_link.css'
+import { JettyBot } from './jetty_bot'
 import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
 import { PersonAvatar } from './person_avatar'
@@ -40,7 +44,7 @@ import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
 import { linkPresentation } from './thread_pull_request'
 import { statusPresentation, threadStatus, type Status } from './thread_status'
 
-type Kind = 'thread' | 'pr' | 'issue' | 'commit'
+type Kind = 'thread' | 'bot' | 'pr' | 'issue' | 'commit'
 type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 
 // The agent writes ordinary markdown links; Jetty swaps the ones it recognises for <entity-link>.
@@ -48,6 +52,7 @@ type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 // The last group is a place within the entity (a comment, a file, a tab): a permalink.
 const entityPatterns: [Kind, RegExp][] = [
   ['thread', /^jetty:\/\/threads\/([\da-f-]+)()$/],
+  ['bot', /^jetty:\/\/bots\/([\w-]+)()$/],
   ['pr', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)\/?([/?#].*)?$/],
   ['issue', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)\/?([/?#].*)?$/],
   ['commit', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/commit\/([\da-f]{7,40})\/?([/?#].*)?$/],
@@ -62,7 +67,11 @@ function entityOf(url: string) {
     return {
       kind,
       entity:
-        kind === 'thread' ? first : kind === 'commit' ? `${repo}@${second}` : `${repo}#${second}`,
+        kind === 'thread' || kind === 'bot'
+          ? first
+          : kind === 'commit'
+            ? `${repo}@${second}`
+            : `${repo}#${second}`,
       ...(within && { permalink: url }),
     }
   }
@@ -72,6 +81,7 @@ const githubPaths: Record<string, string> = { pr: 'pull', issue: 'issues', commi
 
 function entityUrl(kind: string, entity: string) {
   if (kind === 'thread') return `jetty://threads/${entity}`
+  if (kind === 'bot') return `jetty://bots/${entity}`
   const [repo, id] = entity.split(/[#@]/)
   return `https://github.com/${repo}/${githubPaths[kind]}/${id}`
 }
@@ -196,6 +206,42 @@ export function ThreadLink({
       </ThreadHoverPopup>
     </PreviewCard.Root>
   )
+}
+
+// A bot's mention: its face and current name in its colour, opening its chat. Click, not
+// pointer-down: the chip sits in a scrollable chat.
+export function BotLink({ id, fallback }: { id: string; fallback: ReactNode }) {
+  const bot = useBot(id)
+  if (!bot) return fallback
+  return (
+    <Link
+      to='/bots/$botId'
+      params={{ botId: id }}
+      style={botColorStyle(bot.color)}
+      className='bot-link outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+    >
+      <JettyBot shape={bot.shape} color={bot.color} size={14} />
+      {bot.name}
+    </Link>
+  )
+}
+
+const mentionLink = /\[@((?:\\.|[^\]\\])*)\]\(jetty:\/\/bots\/([\w-]+)\)/g
+
+// Jett's messages show as typed, but for the bots they mention.
+export function BotMentions({ text }: { text: string }) {
+  const parts: ReactNode[] = []
+  let at = 0
+  for (const match of text.matchAll(mentionLink)) {
+    const [link, label = '', id = ''] = match
+    parts.push(
+      text.slice(at, match.index),
+      <BotLink key={match.index} id={id} fallback={`@${label.replace(/\\(.)/g, '$1')}`} />
+    )
+    at = match.index + link.length
+  }
+  parts.push(text.slice(at))
+  return parts
 }
 
 const previewShell =
@@ -514,6 +560,7 @@ export function EntityLink({
   const target = entityOf(permalink ?? entityUrl(kind, entity))
   if (target?.kind !== kind || target.entity !== entity) return children
   if (kind === 'thread') return <ThreadLink id={entity} fallback={children} />
+  if (kind === 'bot') return <BotLink id={entity} fallback={children} />
   if (kind === 'pr') return <PullLink entity={entity} permalink={permalink} />
   if (kind === 'issue') return <IssueLink entity={entity} permalink={permalink} />
   return <CommitLink entity={entity} permalink={permalink} />

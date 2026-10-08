@@ -1,0 +1,24 @@
+/* A bot's @mention in a message: the composer's chip (composer_slash.css), made opaque so it reads
+   on a filled bubble too. */
+.bot-link {
+  --chip: var(--bot-deep);
+  border-radius: 4px;
+  padding: 0.0625em 0.3em;
+  white-space: nowrap;
+  background: color-mix(in oklch, var(--chip) 16%, var(--popover));
+  color: oklch(from var(--chip) min(l, 0.5) c h);
+}
+.dark .bot-link {
+  --chip: var(--bot);
+  color: oklch(from var(--chip) max(l, 0.75) c h);
+}
+.bot-link:hover {
+  background: color-mix(in oklch, var(--chip) 26%, var(--popover));
+}
+.bot-link svg {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.25em;
+  vertical-align: -0.12em;
+}

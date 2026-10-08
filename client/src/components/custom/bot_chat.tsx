@@ -13,7 +13,7 @@ import {
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
 import { DisabledTooltip } from '@/components/custom/disabled_tooltip'
-import { inlineLinkClass } from '@/components/custom/entity_link'
+import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
 import {
   ArrowTurnBackwardIcon,
   ArrowUp02Icon,
@@ -608,7 +608,7 @@ function MessageRow({
                   : 'bot-reply'
               )}
             >
-              {jett ? message.text : <Markdown>{message.text}</Markdown>}
+              {jett ? <BotMentions text={message.text} /> : <Markdown>{message.text}</Markdown>}
             </BubbleContent>
             {message.reaction && (
               <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
