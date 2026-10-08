@@ -39,7 +39,7 @@ export function ThreadSourceLabel({
   className?: string
 }) {
   const navigate = useNavigate()
-  const provider = useThreadMeta(from.threadId)?.provider
+  const meta = useThreadMeta(from.threadId)
   const bot = useBot(from.threadId)
   if (bot)
     return (
@@ -53,8 +53,15 @@ export function ThreadSourceLabel({
         {bot.name}
       </button>
     )
+  // No meta: the sender was deleted, so its title stays as plain text.
+  if (!meta)
+    return (
+      <SourceLabel className={className}>
+        <span className='truncate text-foreground'>{from.title}</span>
+      </SourceLabel>
+    )
   return (
-    <SourceLabel provider={provider} className={className}>
+    <SourceLabel provider={meta.provider} className={className}>
       <button
         type='button'
         onClick={() => navigate({ to: '/threads/$threadId', params: { threadId: from.threadId } })}

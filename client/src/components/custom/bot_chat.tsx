@@ -778,37 +778,45 @@ function Indicator({
   )
 }
 
+// A thread with no meta was deleted: its marker keeps the title, unlinked and without a status.
 function MarkerLink({ marker }: { marker: Marker }) {
   const meta = useThreadMeta(marker.threadId)
-  const status = threadStatus(meta?.status ?? 'idle', meta?.readyForReview)
+  if (!meta) return <span className='max-w-60 truncate text-foreground'>{marker.title}</span>
   return (
     <span className='inline-flex min-w-0 items-center gap-[3px]'>
-      <StatusGlyph status={status} className='size-3' />
+      <StatusGlyph status={threadStatus(meta.status, meta.readyForReview)} className='size-3' />
       <Link
         to='/threads/$threadId'
         params={{ threadId: marker.threadId }}
         className={cn(inlineLinkClass, 'max-w-60 truncate')}
       >
-        {meta?.title ?? marker.title}
+        {meta.title}
       </Link>
     </span>
   )
 }
 
+const menuEntryClass =
+  'flex h-7.5 min-w-0 items-center gap-2 rounded-menu-item px-2 text-xs text-foreground outline-none'
+
 function MarkerMenuEntry({ marker }: { marker: Marker }) {
   const meta = useThreadMeta(marker.threadId)
   const project = useProject(meta?.projectId)
+  if (!meta)
+    return (
+      <div className={menuEntryClass}>
+        <span aria-hidden='true' className='size-3.5 shrink-0' />
+        <span className='min-w-0 flex-1 truncate'>{marker.title}</span>
+      </div>
+    )
   return (
     <Link
       to='/threads/$threadId'
       params={{ threadId: marker.threadId }}
-      className='flex h-7.5 min-w-0 items-center gap-2 rounded-menu-item px-2 text-xs text-foreground outline-none hover:bg-accent focus-visible:bg-accent'
+      className={cn(menuEntryClass, 'hover:bg-accent focus-visible:bg-accent')}
     >
-      <StatusGlyph
-        status={threadStatus(meta?.status ?? 'idle', meta?.readyForReview)}
-        className='size-3.5'
-      />
-      <span className='min-w-0 flex-1 truncate'>{meta?.title ?? marker.title}</span>
+      <StatusGlyph status={threadStatus(meta.status, meta.readyForReview)} className='size-3.5' />
+      <span className='min-w-0 flex-1 truncate'>{meta.title}</span>
       <span className='shrink-0 text-muted-foreground'>{project?.title}</span>
     </Link>
   )
@@ -861,7 +869,8 @@ function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly 
   const tally = new Map<ReturnType<typeof threadStatus>, number>()
   for (const marker of markers) {
     const meta = metas.find((entry) => entry.id === marker.threadId)
-    const status = threadStatus(meta?.status ?? 'idle', meta?.readyForReview)
+    if (!meta) continue
+    const status = threadStatus(meta.status, meta.readyForReview)
     tally.set(status, (tally.get(status) ?? 0) + 1)
   }
   return [...tally].map(([status, count]) => (
