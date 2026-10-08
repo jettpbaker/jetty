@@ -135,9 +135,15 @@ export const AppSidebar = memo(function AppSidebar() {
 
   const list = useSidebarList()
   const groups = list && sidebarGroups(list, { ...view, query }, now)
-  const numbered = (groups ?? [])
-    .flatMap((group) => (group.archived ? [] : group.threads))
-    .slice(0, keybinds.threads.length)
+  // ⌥1–9 run down the sidebar from the top: bots first, then threads.
+  const numbered = [
+    ...(bots ?? []).map((bot) => ({ kind: 'bot' as const, id: bot.id })),
+    ...(groups ?? [])
+      .flatMap((group) => (group.archived ? [] : group.threads))
+      .map((id) => ({ kind: 'thread' as const, id })),
+  ].slice(0, keybinds.sidebarRows.length)
+  const shortcutFor = (kind: 'bot' | 'thread', id: string) =>
+    keybinds.sidebarRows[numbered.findIndex((row) => row.kind === kind && row.id === id)]
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
   const items = (groups ?? []).flatMap((group) => [
     { kind: 'heading' as const, ...group, id: `heading:${group.id}`, count: group.threads.length },
@@ -163,9 +169,9 @@ export const AppSidebar = memo(function AppSidebar() {
   )
 
   useHotkeys(
-    keybinds.threads.flatMap((binding, index) => {
-      const thread = numbered[index]
-      return thread
+    keybinds.sidebarRows.flatMap((binding, index) => {
+      const row = numbered[index]
+      return row
         ? [
             {
               hotkey: binding.hotkey,
@@ -173,7 +179,9 @@ export const AppSidebar = memo(function AppSidebar() {
                 // ⌥-digit glyphs stay available in every text field except the composer.
                 if (!appShortcut(event)) return
                 event.preventDefault()
-                openThread(thread)
+                if (row.kind === 'bot')
+                  void navigate({ to: '/bots/$botId', params: { botId: row.id } })
+                else openThread(row.id)
               },
             },
           ]
@@ -369,6 +377,7 @@ export const AppSidebar = memo(function AppSidebar() {
                 key={bot.id}
                 bot={bot}
                 selected={bot.id === selectedBotId}
+                shortcut={shortcutFor('bot', bot.id)}
                 onOpen={() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } })}
               />
             ))}
@@ -481,7 +490,7 @@ export const AppSidebar = memo(function AppSidebar() {
                     <SidebarThreadRow
                       id={item.id}
                       now={now}
-                      shortcut={keybinds.threads[numbered.indexOf(item.id)]}
+                      shortcut={shortcutFor('thread', item.id)}
                       selected={selectedId === item.id}
                       onSelect={openThread}
                       onArchive={archive}

@@ -1,5 +1,7 @@
+import type { Keybind } from '@/components/custom/keybinds'
 import type { Bot } from '@jetty/shared/wire'
 
+import { HeldKeybind } from '@/components/custom/keybinds'
 import { cn } from '@/lib/utils'
 import { botFace } from '@jetty/shared/bots'
 import { useEffect, useRef } from 'react'
@@ -9,10 +11,12 @@ import { BotAvatar } from './bot_avatar'
 export function BotRow({
   bot,
   selected,
+  shortcut,
   onOpen,
 }: {
   bot: Bot
   selected: boolean
+  shortcut?: Keybind
   onOpen: () => void
 }) {
   const rowRef = useRef<HTMLButtonElement>(null)
@@ -41,6 +45,9 @@ export function BotRow({
     >
       <BotAvatar bot={bot} size={24} unread={bot.unread && !selected} />
       <span className='min-w-0 flex-1 truncate'>{bot.name}</span>
+      <HeldKeybind binding={shortcut}>
+        <span />
+      </HeldKeybind>
     </button>
   )
 }
