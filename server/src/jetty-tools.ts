@@ -8,6 +8,8 @@ export const SELF_TOOLS = [
   'send_images',
   'send_video',
   'ask_parent',
+  'tell_user',
+  'react',
 ] as const
 
 // Tools that act on other threads. Claude's and Grok's auto reviewers judge these like any other

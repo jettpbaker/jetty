@@ -169,7 +169,7 @@ function reconcileOnStartup(store: Store) {
   return Effect.gen(function* () {
     const starts = yield* store.recordServerStart(Date.now(), RESTART_WINDOW_MS)
     const autoResume = starts < RESTART_LIMIT
-    for (const thread of yield* store.listThreads()) {
+    for (const thread of yield* store.listThreads(true)) {
       const state = yield* store.getThreadState(thread.id)
       const stoppedNames: string[] = []
       yield* store.transaction(
@@ -575,7 +575,8 @@ function createServer(opts: ServerOptions = {}) {
         return Effect.promise(() =>
           provider === 'grok' ? readGrokProviderUsage() : readClaudeProviderUsage()
         )
-      }
+      },
+      home
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

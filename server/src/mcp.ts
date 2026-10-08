@@ -13,6 +13,7 @@ import type { PullRequestLinks } from './pull-requests'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
+import { botUserName } from './bot-home'
 import { relayedMessage } from './jetty-instructions'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
@@ -151,7 +152,11 @@ const sendInput = z.object({
 })
 
 function result(value: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(value) }] }
+  return {
+    content: [
+      { type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) },
+    ],
+  }
 }
 
 export function createMcpHandler(
@@ -247,11 +252,11 @@ export function createMcpHandler(
             if (previous) return previous
           }
           const turn = yield* store.turnContext(caller.id)
-          if ((yield* store.lineageDepth(caller.id)) >= 2)
+          if ((yield* store.lineageDepth(caller.id)) >= 3)
             return yield* Effect.fail(
               new StoreError(
                 'invalid_params',
-                "This thread is already two levels below the user's thread, so it can't create threads. Do the work here, or say in your final message what should be delegated."
+                "This thread is already three levels below the user's thread, so it can't create threads. Do the work here, or say in your final message what should be delegated."
               )
             )
           if (turn.createdCount >= 5)
@@ -259,6 +264,11 @@ export function createMcpHandler(
               new StoreError('invalid_params', 'Maximum 5 threads per turn')
             )
           const catalog = models()
+          const bot = yield* store.getBot(caller.id)
+          if (bot && input.effort === 'max')
+            return yield* Effect.fail(
+              new StoreError('invalid_params', "max isn't available to bots; use xhigh")
+            )
           if (!catalog)
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Provider discovery is still running; retry shortly')
@@ -296,7 +306,7 @@ export function createMcpHandler(
                 `Unsupported effort for ${selected[0].name}. Choose: ${selected[0].efforts.join(', ') || 'none'}`
               )
             )
-          const callerMode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
+          const callerMode = bot ? 'auto' : ((yield* store.getPermissionMode(caller.id)) ?? 'auto')
           const mode =
             selected[0]?.autoMode === false ||
             findProviderModel(catalog, caller.provider, caller.model)?.autoMode === false
@@ -328,7 +338,7 @@ export function createMcpHandler(
           const response = { threadId: id, link: `jetty://threads/${id}` }
           if (input.requestId)
             yield* store.saveRequest(caller.id, input.requestId, 'create_thread', response)
-          return response
+          return { ...response, created: true }
         })
       )
       return Effect.gen(function* () {
@@ -337,10 +347,23 @@ export function createMcpHandler(
           const previous = yield* store.getRequest(caller.id, input.requestId, 'create_thread')
           if (previous) return previous
         }
+        const bot = yield* store.getBot(caller.id)
+        if (bot && input.effort === 'max')
+          return yield* Effect.fail(
+            new StoreError('invalid_params', "max isn't available to bots; use xhigh")
+          )
+        const projects = yield* store.listProjects()
+        if (bot && !bot.projectId && !input.project)
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              `Name a project. Available: ${projects.map((project) => project.title).join(', ') || 'none'}`
+            )
+          )
         const target = yield* matchProject(
-          yield* store.listProjects(),
+          projects,
           input.project,
-          caller.projectId
+          bot?.projectId ?? caller.projectId
         )
         projectId = target.id
         const sameProject = target.id === caller.projectId
@@ -450,6 +473,12 @@ export function createMcpHandler(
               : response.busy
                 ? 'Queued; it reads this when its current turn ends.'
                 : 'Queued; it starts on this within a second or so.'
+        if ((yield* store.isBot(identity.threadId)) && !response.duplicate)
+          yield* orch.botMarker(
+            identity.threadId,
+            'messaged',
+            yield* store.requireThread(response.threadId)
+          )
         return {
           threadId: response.threadId,
           title: response.title,
@@ -464,6 +493,7 @@ export function createMcpHandler(
 
     async function register(server: McpServer, identity: McpIdentity) {
       const parentId = (await run(accessible(identity, identity.threadId))).parentThreadId
+      const bot = await run(store.getBot(identity.threadId))
       function invoke<A>(effect: Effect.Effect<A, Error>) {
         return run(
           effect.pipe(
@@ -608,7 +638,7 @@ export function createMcpHandler(
                 provider,
                 id,
                 name,
-                efforts,
+                efforts: bot ? efforts.filter((effort) => effort !== 'max') : efforts,
                 defaultEffort,
               }))
             })
@@ -618,10 +648,25 @@ export function createMcpHandler(
         'create_thread',
         {
           description:
-            "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your environment, provider and model unless you set them; in another project, that project's environment default and worktree base. list_models has the options. Up to 5 per turn, and nesting stops two levels below the user's thread.",
+            "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your environment, provider and model unless you set them; in another project, that project's environment default and worktree base. list_models has the options. Up to 5 per turn, and nesting stops three levels below the user's thread.",
           inputSchema: createInput,
         },
-        (input) => invoke(createThread(identity, input))
+        (input) =>
+          invoke(
+            createThread(identity, input).pipe(
+              Effect.tap((created) =>
+                bot && 'created' in created
+                  ? store
+                      .requireThread(created.threadId)
+                      .pipe(
+                        Effect.flatMap((thread) =>
+                          orch.botMarker(identity.threadId, 'started', thread)
+                        )
+                      )
+                  : Effect.void
+              )
+            )
+          )
       )
       server.registerTool(
         'send_message',
@@ -632,6 +677,36 @@ export function createMcpHandler(
         },
         (input) => invoke(sendMessage(identity, input))
       )
+      if (bot) {
+        server.registerTool(
+          'tell_user',
+          {
+            description: 'Send a visible message to the user from a background turn.',
+            inputSchema: { text },
+          },
+          ({ text: message }) =>
+            invoke(orch.botMessage(bot.id, message).pipe(Effect.as({ sent: true })))
+        )
+        server.registerTool(
+          'react',
+          {
+            description: 'React to the latest user message with one emoji.',
+            inputSchema: { emoji: z.string().min(1).max(20) },
+          },
+          ({ emoji }) =>
+            invoke(
+              Effect.gen(function* () {
+                if (
+                  [...new Intl.Segmenter().segment(emoji)].length !== 1 ||
+                  !/[\p{Extended_Pictographic}\p{Emoji_Presentation}\u20e3]/u.test(emoji)
+                )
+                  return yield* Effect.fail(new StoreError('invalid_params', 'Use one emoji'))
+                yield* orch.botReaction(bot.id, emoji)
+                return `If that's your whole reply, end your turn now without writing anything. In a turn ${yield* Effect.promise(() => botUserName())} started, any text you write is sent to them as a message.`
+              })
+            )
+        )
+      }
       if (parentId)
         server.registerTool(
           'ask_parent',
@@ -654,41 +729,43 @@ export function createMcpHandler(
               })
             )
         )
-      server.registerTool(
-        'mark_ready_for_review',
-        {
-          description:
-            "Show this thread as Ready for review in the user's sidebar until they open it. In a child thread this does nothing: your final message goes to your creator instead.",
-          inputSchema: {},
-        },
-        () =>
-          invoke(
-            orch.markReadyForReview(identity.threadId).pipe(
-              Effect.map((thread) => ({
-                threadId: thread.id,
-                readyForReview: thread.readyForReview === true,
-                ...(thread.parentThreadId ? { reportsTo: thread.parentThreadId } : {}),
-              }))
+      if (!bot)
+        server.registerTool(
+          'mark_ready_for_review',
+          {
+            description:
+              "Show this thread as Ready for review in the user's sidebar until they open it. In a child thread this does nothing: your final message goes to your creator instead.",
+            inputSchema: {},
+          },
+          () =>
+            invoke(
+              orch.markReadyForReview(identity.threadId).pipe(
+                Effect.map((thread) => ({
+                  threadId: thread.id,
+                  readyForReview: thread.readyForReview === true,
+                  ...(thread.parentThreadId ? { reportsTo: thread.parentThreadId } : {}),
+                }))
+              )
             )
-          )
-      )
-      server.registerTool(
-        'link_pull_request',
-        {
-          description:
-            "Each pull request belongs to one Jetty thread: the one that opened it or last pushed to its branch, and its CI, review and merge news go to that thread. Linking moves it here, so only do that to take a pull request over, with a URL or a number in this project's GitHub repo. To look at one, such as a child's, use `gh pr view`, which never takes it.",
-          inputSchema: { pullRequest: z.string().trim().min(1).max(500) },
-        },
-        ({ pullRequest }) =>
-          invoke(
-            pullRequestLinks.link(identity.threadId, pullRequest).pipe(
-              Effect.map(({ ref }) => ({
-                linked: `${ref.repo}#${ref.number}`,
-                url: `https://github.com/${ref.repo}/pull/${ref.number}`,
-              }))
+        )
+      if (!bot)
+        server.registerTool(
+          'link_pull_request',
+          {
+            description:
+              "Each pull request belongs to one Jetty thread: the one that opened it or last pushed to its branch, and its CI, review and merge news go to that thread. Linking moves it here, so only do that to take a pull request over, with a URL or a number in this project's GitHub repo. To look at one, such as a child's, use `gh pr view`, which never takes it.",
+            inputSchema: { pullRequest: z.string().trim().min(1).max(500) },
+          },
+          ({ pullRequest }) =>
+            invoke(
+              pullRequestLinks.link(identity.threadId, pullRequest).pipe(
+                Effect.map(({ ref }) => ({
+                  linked: `${ref.repo}#${ref.number}`,
+                  url: `https://github.com/${ref.repo}/pull/${ref.number}`,
+                }))
+              )
             )
-          )
-      )
+        )
       server.registerTool(
         'archive_thread',
         {
@@ -723,45 +800,48 @@ export function createMcpHandler(
             })
           )
       )
-      const media = await run(
-        Effect.gen(function* () {
-          const caller = yield* accessible(identity, identity.threadId)
-          const project = yield* store.getProject(caller.projectId)
-          if (!project) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-          const host = {
-            attachments,
-            resolveAttachment: (id: string, kind: 'image' | 'video') =>
-              Effect.gen(function* () {
-                const found = yield* store.reserveAttachment(caller.id, id, kind)
-                if (yield* attachments.resolve(id)) return found
-                return yield* Effect.fail(
-                  new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
-                )
-              }),
-            projectPath: worktrees
-              ? yield* Effect.promise(() => worktrees.root(caller.id))
-              : project.path,
-            turnId: () => orch.currentTurn(caller.id) ?? '',
-            emit: (
-              event: Parameters<typeof orch.emitMedia>[2],
-              turnId: string,
-              onCommit: Effect.Effect<void>
-            ) => orch.emitMedia(caller.id, turnId, event, onCommit),
-          }
-          return [yield* createSendImagesTool(host), yield* createSendVideoTool(host)] as const
-        })
-      )
-      const [images, video] = media
-      server.registerTool(
-        images.name,
-        { description: images.description, inputSchema: images.inputSchema },
-        images.handler
-      )
-      server.registerTool(
-        video.name,
-        { description: video.description, inputSchema: video.inputSchema },
-        video.handler
-      )
+      if (!bot) {
+        const media = await run(
+          Effect.gen(function* () {
+            const caller = yield* accessible(identity, identity.threadId)
+            const project = yield* store.getProject(caller.projectId)
+            if (!project)
+              return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+            const host = {
+              attachments,
+              resolveAttachment: (id: string, kind: 'image' | 'video') =>
+                Effect.gen(function* () {
+                  const found = yield* store.reserveAttachment(caller.id, id, kind)
+                  if (yield* attachments.resolve(id)) return found
+                  return yield* Effect.fail(
+                    new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
+                  )
+                }),
+              projectPath: worktrees
+                ? yield* Effect.promise(() => worktrees.root(caller.id))
+                : project.path,
+              turnId: () => orch.currentTurn(caller.id) ?? '',
+              emit: (
+                event: Parameters<typeof orch.emitMedia>[2],
+                turnId: string,
+                onCommit: Effect.Effect<void>
+              ) => orch.emitMedia(caller.id, turnId, event, onCommit),
+            }
+            return [yield* createSendImagesTool(host), yield* createSendVideoTool(host)] as const
+          })
+        )
+        const [images, video] = media
+        server.registerTool(
+          images.name,
+          { description: images.description, inputSchema: images.inputSchema },
+          images.handler
+        )
+        server.registerTool(
+          video.name,
+          { description: video.description, inputSchema: video.inputSchema },
+          video.handler
+        )
+      }
     }
 
     async function handle(request: Request): Promise<Response> {

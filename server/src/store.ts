@@ -1,3 +1,4 @@
+import { shownInBotChat } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment, heldByRestarts } from '@jetty/shared/items'
 import {
@@ -24,6 +25,8 @@ import {
   type PullRequestList,
   type PullRequestListTab,
   type PullRequestSnapshot,
+  type Bot,
+  type ParamsOf,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
@@ -76,6 +79,22 @@ type ThreadRow = {
   worktree_json: string | null
   pending_messages: string
   awaiting_parent: number
+  bot_id: string | null
+}
+
+type BotRow = {
+  id: string
+  name: string
+  shape: Bot['shape']
+  color: Bot['color']
+  provider: Bot['provider']
+  model: string
+  effort: string | null
+  fast: number
+  project_id: string | null
+  permission_mode: Bot['permissionMode']
+  created_at: number
+  seen_at: number
 }
 
 export type WorktreeRecord = {
@@ -160,6 +179,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     ...(row.turn_ended_at === null ? {} : { turnEndedAt: row.turn_ended_at }),
     createdBy: row.created_by,
     ...(row.parent_thread_id ? { parentThreadId: row.parent_thread_id } : {}),
+    ...(row.bot_id ? { botId: row.bot_id } : {}),
     pendingMessages: JSON.parse(row.pending_messages),
     ...(provider ? { provider } : {}),
     ...(row.model ? { model: row.model } : {}),
@@ -764,8 +784,122 @@ export function createStore() {
       }).pipe(Effect.mapError(storeError))
     }
 
+    function readBot(threadId: string) {
+      return Effect.gen(function* () {
+        const [row] = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${threadId}`
+        if (!row) return null
+        const state = yield* getThreadState(row.id)
+        const [waiting] = yield* sql<{ count: number }>`SELECT COUNT(*) AS count FROM threads
+            WHERE bot_id = ${row.id} AND id != ${row.id} AND status = 'awaiting_approval'`
+        const needsYou =
+          state.items.some(
+            (item) =>
+              (item.kind === 'question' && !item.answers && !item.dismissed) ||
+              (item.kind === 'approval' && !item.decision)
+          ) || (waiting?.count ?? 0) > 0
+        const active = state.activeTurnId !== null
+        const current = state.items.filter((item) => item.turnId === state.activeTurnId)
+        const newest = [...current].reverse().find((item) => !item.agentId)
+        const working =
+          (newest?.kind === 'tool_call' &&
+            newest.status === 'running' &&
+            !['mcp__jetty__tell_user', 'mcp__jetty__react'].includes(newest.toolName)) ||
+          (newest?.kind === 'subagent' && newest.status === 'running') ||
+          (newest?.kind === 'workflow' && newest.status === 'running')
+        const visible = current.some(
+          (item) =>
+            item.kind === 'user_message' &&
+            (!item.from ||
+              (item.from.threadId === row.id &&
+                item.from.title === 'Jetty' &&
+                item.text.endsWith(' just created you.')))
+        )
+        const activity: Bot['activity'] =
+          !active || needsYou
+            ? 'idle'
+            : newest?.kind === 'compaction' && newest.status === 'running'
+              ? 'tidying'
+              : visible
+                ? working
+                  ? 'working'
+                  : 'typing'
+                : 'working'
+        return {
+          id: row.id,
+          name: row.name,
+          shape: row.shape,
+          color: row.color,
+          provider: row.provider,
+          model: row.model,
+          ...(isEffort(row.effort) ? { effort: row.effort } : {}),
+          fast: row.fast !== 0,
+          projectId: row.project_id,
+          permissionMode: row.permission_mode,
+          createdAt: row.created_at,
+          activity,
+          needsYou,
+          failed: state.lastTurnOutcome === 'failed',
+          unread:
+            !active &&
+            state.items.some(
+              (item) =>
+                item.kind === 'assistant_message' &&
+                !item.private &&
+                item.createdAt > row.seen_at &&
+                shownInBotChat(item)
+            ),
+        } satisfies Bot
+      }).pipe(Effect.mapError(storeError))
+    }
+
     return {
       queueChanges,
+      createBotRecord(input: ParamsOf<'bot.create'>, home: string) {
+        return Effect.gen(function* () {
+          const existing = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${input.id}`
+          if (existing.length) return false
+          const now = Date.now()
+          yield* sql`INSERT INTO projects (id, path, title, created_at, bot_id)
+            VALUES (${input.id}, ${home}, ${input.name}, ${now}, ${input.id})`
+          yield* sql`INSERT INTO threads (id, project_id, title, status, updated_at, bot_id,
+            provider, model, effort, fast, permission_mode)
+            VALUES (${input.id}, ${input.id}, ${input.name}, 'idle', ${now}, ${input.id},
+              ${input.provider}, ${input.model}, ${input.effort ?? null}, ${input.fast ? 1 : 0},
+              ${input.permissionMode})`
+          yield* sql`INSERT INTO bots (id, name, shape, color, provider, model, effort, fast,
+            project_id, permission_mode, created_at, seen_at)
+            VALUES (${input.id}, ${input.name}, ${input.shape}, ${input.color}, ${input.provider},
+              ${input.model}, ${input.effort ?? null}, ${input.fast ? 1 : 0}, ${input.projectId},
+              ${input.permissionMode}, ${now}, ${now})`
+          return true
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      isBot(threadId: string) {
+        return sql<{ id: string }>`SELECT id FROM bots WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) => rows.length > 0),
+          Effect.mapError(storeError)
+        )
+      },
+      getBot(threadId: string) {
+        return readBot(threadId)
+      },
+      listBots() {
+        return Effect.gen(function* () {
+          const rows = yield* sql<{ id: string }>`SELECT id FROM bots ORDER BY created_at, id`
+          const bots: Bot[] = []
+          for (const row of rows) {
+            const bot = yield* readBot(row.id)
+            if (bot) bots.push(bot)
+          }
+          return bots
+        }).pipe(Effect.mapError(storeError))
+      },
+      markBotSeen(threadId: string) {
+        return sql`UPDATE bots SET seen_at = ${Date.now()} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       noteLiveBackground(threadId: string) {
         return sql`INSERT OR IGNORE INTO live_background (thread_id) VALUES (${threadId})`.pipe(
           Effect.asVoid,
@@ -1238,7 +1372,7 @@ export function createStore() {
         )
       },
       markAgentThread(threadId: string, parentThreadId: string, notify: boolean) {
-        return sql`UPDATE threads SET lineage_depth = (SELECT lineage_depth + 1 FROM threads WHERE id = ${parentThreadId}), parent_thread_id = ${parentThreadId}, created_by = 'agent', notify_parent = ${notify ? 1 : 0} WHERE id = ${threadId}`.pipe(
+        return sql`UPDATE threads SET lineage_depth = (SELECT lineage_depth + 1 FROM threads WHERE id = ${parentThreadId}), parent_thread_id = ${parentThreadId}, bot_id = (SELECT bot_id FROM threads WHERE id = ${parentThreadId}), created_by = 'agent', notify_parent = ${notify ? 1 : 0} WHERE id = ${threadId}`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )
@@ -1298,7 +1432,7 @@ export function createStore() {
         }).pipe(Effect.mapError(storeError))
       },
       listProjects() {
-        return sql<ProjectRow>`SELECT * FROM projects ORDER BY created_at`.pipe(
+        return sql<ProjectRow>`SELECT * FROM projects WHERE bot_id IS NULL ORDER BY created_at`.pipe(
           Effect.map((rows) => rows.map(rowToProject)),
           Effect.mapError(storeError)
         )
@@ -1462,9 +1596,11 @@ export function createStore() {
       notifiesParent(threadId: string) {
         return notifiesParent(threadId).pipe(Effect.mapError(storeError))
       },
-      listThreads() {
+      listThreads(includeBots = false) {
         return Effect.gen(function* () {
-          const rows = yield* sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`
+          const rows = includeBots
+            ? yield* sql<ThreadRow>`SELECT * FROM threads ORDER BY updated_at DESC`
+            : yield* sql<ThreadRow>`SELECT * FROM threads WHERE id NOT IN (SELECT id FROM bots) ORDER BY updated_at DESC`
           const links = yield* sql<LinkRow>`${linkRows} ORDER BY l.linked_at DESC`
           const byThread = new Map<string, PullRequestLink[]>()
           for (const link of links) {

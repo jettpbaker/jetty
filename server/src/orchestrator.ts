@@ -26,6 +26,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
+import { commitBotHome } from './bot-home'
 import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
@@ -72,6 +73,8 @@ export type StartTurnInput = {
   resumeQueue?: boolean
   // The turn carries on the one before it, as the user's answer to its question does.
   carriesOn?: boolean
+  replyTo?: { itemId: string; text: string }
+  visibleBotTurn?: boolean
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -125,6 +128,18 @@ function agentText(
       error instanceof StoreError ? error : new StoreError('internal', String(error))
     )
   )
+}
+
+function botStamp() {
+  return `[${new Date().toLocaleString('en-AU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })}]`
 }
 
 function toAgentError(error: Error) {
@@ -186,7 +201,7 @@ export function createOrchestrator({
     let closing = false
     const lifecycle = Semaphore.makeUnsafe(1)
     const resuming = new Map<string, AbortController>()
-    hub.setThreads(yield* store.listThreads())
+    hub.setThreads(yield* store.listThreads(true))
     const threads = new Map<
       string,
       {
@@ -194,6 +209,7 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
+        visibleBotTurn: boolean
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -212,6 +228,7 @@ export function createOrchestrator({
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
           ready: true,
+          visibleBotTurn: false,
           pendingDelta: null,
         }
         threads.set(threadId, value)
@@ -222,11 +239,19 @@ export function createOrchestrator({
     // Ends the turn here too, so one whose end couldn't be saved doesn't hold up the queue, or a
     // stop, archive or delete waiting on it, forever.
     function settleTurn(threadId: string, turnId: string) {
-      return Effect.sync(() => {
+      return Effect.gen(function* () {
         const live = state(threadId)
         if (live.turnId === turnId) live.turnId = null
         live.ready = true
-      }).pipe(Effect.andThen(Queue.offer(store.queueChanges, undefined)))
+        if (yield* store.isBot(threadId)) {
+          const project = yield* store.getProject(threadId)
+          if (project)
+            yield* Effect.promise(() => commitBotHome(project.path)).pipe(
+              Effect.catch((error) => Effect.logWarning(error))
+            )
+        }
+        yield* Queue.offer(store.queueChanges, undefined)
+      }).pipe(Effect.orDie)
     }
 
     function interruptAdmittedThread(threadId: string) {
@@ -440,17 +465,27 @@ export function createOrchestrator({
           const thread = yield* store.requireThread(threadId)
           hub.pushChrome({ type: 'thread.upserted', thread })
         }
+        const bot = yield* store.getBot(appended.thread.botId ?? threadId)
+        if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
       })
     }
 
     function commit(threadId: string, event: ThreadEvent, onCommit: Effect.Effect<void>) {
       return Effect.gen(function* () {
+        if (
+          event.type === 'item.started' &&
+          event.item.kind === 'assistant_message' &&
+          !state(threadId).visibleBotTurn &&
+          (yield* store.isBot(threadId))
+        )
+          event = { ...event, item: { ...event.item, private: true } }
         const appended = yield* store.appendEvent(threadId, event)
         if (event.type === 'turn.started') state(threadId).turnId = event.turnId
         yield* onCommit
         yield* publish(threadId, appended)
         if (event.type === 'item.completed' && (onPullRequestOutput || onBranchPushed)) {
-          const item = appended.state.items.find((candidate) => candidate.id === event.itemId)
+          const itemId = event.itemId
+          const item = appended.state.items.find((candidate) => candidate.id === itemId)
           const command = ownShellCommand(item)
           if (command && item?.kind === 'tool_call') {
             // Creating a pull request takes it. Looking (`gh pr view`) links it only when no
@@ -461,7 +496,7 @@ export function createOrchestrator({
                 : GH_PR_VIEW.test(command)
                   ? 'claim'
                   : null
-              if (mode)
+              if (mode && (mode !== 'claim' || !(yield* store.isBot(threadId))))
                 yield* onPullRequestOutput(threadId, item.output, mode).pipe(
                   Effect.catchCause((cause) => Effect.logWarning(cause)),
                   Effect.forkIn(scope)
@@ -564,7 +599,7 @@ export function createOrchestrator({
     }
 
     function appendUser(
-      { threadId, messageId, text, queued, carriesOn, sendNow }: StartTurnInput,
+      { threadId, messageId, text, queued, carriesOn, sendNow, replyTo }: StartTurnInput,
       turnId: string,
       meta: Attachment[],
       onCommit: Effect.Effect<void>
@@ -581,6 +616,7 @@ export function createOrchestrator({
           ...(queued?.reports && { reports: queued.reports }),
           text,
           attachments: meta,
+          ...(replyTo ? { replyTo } : {}),
         }
         return yield* locked(
           threadId,
@@ -974,10 +1010,26 @@ export function createOrchestrator({
               }
               if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
-              const text = yield* agentText(input, fromCreator, saved.meta, attachments)
+              let text = yield* agentText(input, fromCreator, saved.meta, attachments)
+              const botChat = yield* store.isBot(input.threadId)
+              const creationWake =
+                input.queued?.from?.threadId === input.threadId &&
+                input.queued.from.title === 'Jetty' &&
+                input.queued.text.endsWith(' just created you.')
+              if (botChat) {
+                if (input.replyTo)
+                  text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
+                text = `${botStamp()}\n${text}`
+              }
               const live = state(input.threadId)
               if (live.turnId) {
                 const turnId = live.turnId
+                const wasVisible = live.visibleBotTurn
+                if (
+                  botChat &&
+                  (input.visibleBotTurn || creationWake || (!input.queued && !!input.messageId))
+                )
+                  live.visibleBotTurn = true
                 const accepted = yield* agent.steer(
                   input.threadId,
                   text,
@@ -988,6 +1040,7 @@ export function createOrchestrator({
                   )
                 )
                 if (!accepted) {
+                  live.visibleBotTurn = wasVisible
                   return yield* Effect.fail(
                     new StoreError('internal', 'Active turn is not accepting input')
                   )
@@ -997,6 +1050,11 @@ export function createOrchestrator({
               }
               const turnId = newId()
               live.turnId = turnId
+              live.visibleBotTurn =
+                botChat &&
+                (input.visibleBotTurn === true ||
+                  creationWake ||
+                  (!input.queued && !!input.messageId))
               live.ready = false
               const loadout = input.model && {
                 model: input.model,
@@ -1081,6 +1139,64 @@ export function createOrchestrator({
     }
 
     return {
+      botMessage(threadId: string, text: string) {
+        return Effect.gen(function* () {
+          if (!(yield* store.isBot(threadId)))
+            return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
+          const turn = yield* store.turnContext(threadId)
+          const item = {
+            id: newId(),
+            turnId: turn.turnId,
+            createdAt: Date.now(),
+            kind: 'assistant_message' as const,
+            text,
+          }
+          yield* locked(
+            threadId,
+            Effect.gen(function* () {
+              yield* flushDelta(threadId)
+              for (const event of yield* store.appendEvents(threadId, [
+                { type: 'item.started', item },
+                { type: 'item.completed', itemId: item.id },
+              ]))
+                yield* publish(threadId, event)
+            })
+          )
+        })
+      },
+      botReaction(threadId: string, emoji: string) {
+        return Effect.gen(function* () {
+          if (!(yield* store.isBot(threadId)))
+            return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
+          const state = yield* store.getThreadState(threadId)
+          const target = [...state.items]
+            .reverse()
+            .find((item) => item.kind === 'user_message' && !item.from)
+          if (!target)
+            return yield* Effect.fail(new StoreError('not_found', 'No message to react to'))
+          yield* append(threadId, {
+            type: 'item.updated',
+            itemId: target.id,
+            patch: { reaction: emoji },
+          })
+        })
+      },
+      botMarker(threadId: string, action: 'started' | 'messaged', target: ThreadMeta) {
+        return Effect.gen(function* () {
+          const turn = yield* store.turnContext(threadId)
+          const item = {
+            id: newId(),
+            turnId: turn.turnId,
+            createdAt: Date.now(),
+            kind: 'thread_marker' as const,
+            action,
+            threadId: target.id,
+            title: target.title,
+          }
+          yield* append(threadId, { type: 'item.started', item })
+          yield* append(threadId, { type: 'item.completed', itemId: item.id })
+        })
+      },
       providerCapabilities() {
         return Object.fromEntries(
           (['claude', 'codex', 'grok'] as const).map((provider) => [
@@ -1410,7 +1526,7 @@ export function createOrchestrator({
         // can't have newly settled; the drain runs every second and this keeps it cheap.
         const checked = new Map<string, string>()
         const drain = Effect.gen(function* () {
-          const threads = yield* store.listThreads()
+          const threads = yield* store.listThreads(true)
           const children = new Map<string, ThreadMeta[]>()
           for (const thread of threads)
             if (thread.parentThreadId && !thread.archived)
@@ -1468,7 +1584,7 @@ export function createOrchestrator({
               })
             ).pipe(Effect.onError(() => Effect.sync(() => checked.delete(thread.id))))
           }
-          for (const thread of yield* store.listThreads()) {
+          for (const thread of yield* store.listThreads(true)) {
             if (closing) return
             const queue = thread.pendingMessages ?? []
             if ((published.get(thread.id) ?? '[]') !== JSON.stringify(queue)) {

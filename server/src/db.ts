@@ -217,6 +217,18 @@ const migrations = SqliteMigrator.fromRecord({
       thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE
     )`
   }),
+  '031_bots': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE projects ADD COLUMN bot_id TEXT`
+    yield* sql`ALTER TABLE threads ADD COLUMN bot_id TEXT`
+    yield* sql`CREATE TABLE bots (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, shape TEXT NOT NULL, color TEXT NOT NULL,
+      provider TEXT NOT NULL, model TEXT NOT NULL, effort TEXT, fast INTEGER NOT NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      permission_mode TEXT NOT NULL, created_at INTEGER NOT NULL, seen_at INTEGER NOT NULL
+    )`
+    yield* sql`CREATE INDEX threads_by_bot ON threads(bot_id)`
+  }),
 })
 
 export function databaseLayer(home: string) {

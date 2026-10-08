@@ -13,6 +13,7 @@ import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { createAttachments } from './attachments'
+import { botUserName } from './bot-home'
 import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
@@ -87,6 +88,145 @@ function callTool(
     return (response as { result: { isError?: boolean; content: { text: string }[] } }).result
   }).pipe(Effect.scoped, Effect.provide(BunServices.layer))
 }
+
+async function botCaller() {
+  const { home, store } = await openStore()
+  const id = newId()
+  mkdirSync(join(home, 'bots', id), { recursive: true })
+  await Effect.runPromise(
+    store.createBotRecord(
+      {
+        id,
+        name: 'Verify',
+        shape: 'circle',
+        color: 'coral',
+        provider: 'claude',
+        model: 'sonnet',
+        effort: 'medium',
+        fast: false,
+        projectId: null,
+        permissionMode: 'auto',
+      },
+      join(home, 'bots', id)
+    )
+  )
+  await Effect.runPromise(store.beginDelivery(id, newId(), 0))
+  return { home, store, id }
+}
+
+function toolNames(home: string, store: Store, callerId: string) {
+  return Effect.gen(function* () {
+    const sessions = createMcpSessions()
+    sessions.setUrl('http://127.0.0.1/mcp')
+    const binding = yield* sessions.open({ threadId: callerId, provider: 'claude' })
+    const hub = createHub()
+    const scope = yield* Effect.scope
+    const handle = yield* createMcpHandler(
+      sessions,
+      store,
+      {} as Orchestrator,
+      yield* createAttachments(home),
+      () => catalog,
+      createPullRequestLinks(store, hub, createPullRequests(store, hub), scope),
+      () => Effect.void
+    )
+    const response = yield* Effect.promise(() =>
+      handle(
+        new Request(binding.url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${binding.token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+        })
+      ).then((res) => res.json())
+    )
+    return (response as { result: { tools: { name: string }[] } }).result.tools.map(
+      (tool) => tool.name
+    )
+  }).pipe(Effect.scoped, Effect.provide(BunServices.layer))
+}
+
+test('bots only receive their own safe tools', async () => {
+  const { home, store, id } = await botCaller()
+  const names = await Effect.runPromise(toolNames(home, store, id))
+  expect(names).toContain('tell_user')
+  expect(names).toContain('react')
+  for (const forbidden of [
+    'link_pull_request',
+    'mark_ready_for_review',
+    'ask_parent',
+    'send_images',
+    'send_video',
+  ])
+    expect(names).not.toContain(forbidden)
+})
+
+test('bot react result names what writing after a reaction means', async () => {
+  const { home, store, id } = await botCaller()
+  const result = await Effect.runPromise(
+    callTool(
+      home,
+      store,
+      {
+        botReaction: () => Effect.succeed(undefined),
+      },
+      id,
+      'react',
+      { emoji: '👍' }
+    )
+  )
+  expect(result.isError).toBeUndefined()
+  expect(result.content[0]!.text).toBe(
+    `If that's your whole reply, end your turn now without writing anything. In a turn ${await botUserName()} started, any text you write is sent to them as a message.`
+  )
+})
+
+test('bot create_thread refuses max effort', async () => {
+  const { home, store, id } = await botCaller()
+  const result = await Effect.runPromise(
+    callTool(home, store, {}, id, 'create_thread', {
+      prompt: 'Go',
+      effort: 'max',
+      environment: 'local',
+    })
+  )
+  expect(result.isError).toBe(true)
+  expect(result.content[0]!.text).toBe("max isn't available to bots; use xhigh")
+})
+
+test('create_thread allows three worker levels and refuses the fourth', async () => {
+  const { home, store } = await openStore()
+  const project = await Effect.runPromise(store.createProject(home))
+  const root = await Effect.runPromise(store.createThread(project.id, newId()))
+  let parent = root
+  let allowedParent = root
+  for (let depth = 1; depth <= 3; depth++) {
+    const child = await Effect.runPromise(store.createThread(project.id, newId()))
+    await Effect.runPromise(store.markAgentThread(child.id, parent.id, false))
+    parent = child
+    if (depth === 2) allowedParent = child
+  }
+  await Effect.runPromise(store.beginDelivery(allowedParent.id, newId(), 0))
+  const allowed = await Effect.runPromise(
+    callTool(home, store, {}, allowedParent.id, 'create_thread', {
+      prompt: 'Third level',
+      environment: 'local',
+    })
+  )
+  expect(allowed.isError).toBeUndefined()
+  await Effect.runPromise(store.beginDelivery(parent.id, newId(), 0))
+  const refused = await Effect.runPromise(
+    callTool(home, store, {}, parent.id, 'create_thread', {
+      prompt: 'One more',
+      environment: 'local',
+    })
+  )
+  expect(refused.isError).toBe(true)
+  expect(refused.content[0]!.text).toContain('three levels below')
+})
 
 test('create_thread refuses a child that would act without asking for a caller that asks', async () => {
   const { home, store } = await openStore()

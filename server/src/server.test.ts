@@ -123,6 +123,74 @@ afterEach(async () => {
 })
 
 describe('server skeleton', () => {
+  test('bot text is visible on user turns and private on worker reports', async () => {
+    const running = await boot()
+    const client = await connect(running.port)
+    const id = newId()
+    await client.request('bot.create', {
+      id,
+      name: 'Verify',
+      shape: 'circle',
+      color: 'coral',
+      provider: 'claude',
+      model: 'sonnet',
+      effort: 'medium',
+      fast: false,
+      projectId: null,
+      permissionMode: 'auto',
+    })
+    const chat = client.subscribeThread({ threadId: id })
+    await chat.ready
+    const greeting = await chat.waitFor(
+      (message) => message.type === 'event' && message.event.type === 'turn.completed',
+      10_000
+    )
+    if (greeting.type !== 'event' || greeting.event.type !== 'turn.completed')
+      throw new Error('No greeting')
+    const greetingTurnId = greeting.event.turnId
+    await client.request('bot.send', { botId: id, messageId: 'visible-message', text: 'Hello' })
+    const visible = await chat.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'item.started' &&
+        message.event.item.kind === 'assistant_message' &&
+        message.event.item.turnId !== greetingTurnId,
+      10_000
+    )
+    if (
+      visible.type !== 'event' ||
+      visible.event.type !== 'item.started' ||
+      visible.event.item.kind !== 'assistant_message'
+    )
+      throw new Error('No visible reply')
+    expect(visible.event.item.private).toBeUndefined()
+    const visibleTurnId = visible.event.item.turnId
+    await chat.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'turn.completed' &&
+        message.event.turnId === visibleTurnId,
+      10_000
+    )
+    await running.store
+      .enqueue(id, {
+        id: newId(),
+        text: 'The worker finished.',
+        from: { threadId: 'worker', title: 'Worker' },
+        kind: 'report',
+        createdAt: Date.now(),
+        hop: 1,
+      })
+      .pipe(Effect.runPromise)
+    await chat.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'item.started' &&
+        message.event.item.kind === 'assistant_message' &&
+        message.event.item.private === true,
+      15_000
+    )
+  })
   for (const admission of ['initial', 'steered'] as const) {
     test(`failed ${admission} user completion rolls back both admission events before publication`, async () => {
       const running = await boot()

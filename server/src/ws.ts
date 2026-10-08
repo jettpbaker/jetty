@@ -8,13 +8,16 @@ import type {
 
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
+import { newId } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Schema, Stream } from 'effect'
+import { join } from 'node:path'
 
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
+import { botUserName, createBotHome } from './bot-home'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
@@ -89,7 +92,8 @@ export function createRpcHandlers(
   }),
   getProviderUsage: (provider: ProviderUsage['provider']) => Effect.Effect<ProviderUsage> = (
     provider
-  ) => Effect.succeed({ provider, connected: false, windows: [] })
+  ) => Effect.succeed({ provider, connected: false, windows: [] }),
+  home = process.env.JETTY_HOME ?? ''
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -102,6 +106,23 @@ export function createRpcHandlers(
       return hub
         .withChromePublication(effect.pipe(Effect.uninterruptible))
         .pipe(Effect.mapError(wireError))
+    }
+
+    function wakeBot(id: string) {
+      return Effect.gen(function* () {
+        const queued = {
+          id: newId(),
+          text: `${yield* fromPromise(() => botUserName())} just created you.`,
+          from: { threadId: id, title: 'Jetty' },
+          hop: 0,
+          createdAt: Date.now(),
+        }
+        yield* store.enqueue(id, queued)
+        yield* Effect.forkIn(
+          orch.startTurnEffect({ threadId: id, text: queued.text, queued, visibleBotTurn: true }),
+          admissionScope
+        )
+      })
     }
 
     function upsertThread<E>(effect: Effect.Effect<ThreadMeta, E>) {
@@ -248,6 +269,7 @@ export function createRpcHandlers(
               yield* hub.watchGithubActivity(client.id)
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
+              const bots = yield* store.listBots()
               hub.setThreads(threads)
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
@@ -260,6 +282,7 @@ export function createRpcHandlers(
                 serverTime: Date.now(),
                 projects,
                 threads: threads.map(hub.decorateThread),
+                bots,
                 ...(models ? { models } : {}),
                 modelDiscovery,
                 providerCapabilities: orch.providerCapabilities(),
@@ -604,12 +627,94 @@ export function createRpcHandlers(
         orch
           .respondQuestion(params.threadId, params.itemId, null)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
-      // Contract stubs: docs/bots/m1.md's Server checklist replaces them.
-      'bot.create': () => Effect.fail(botsPending),
-      'bot.send': () => Effect.fail(botsPending),
-      'bot.markSeen': () => Effect.fail(botsPending),
+      'bot.create': (params) =>
+        mutation(
+          Effect.gen(function* () {
+            const previous = yield* store.getBot(params.id)
+            if (previous) {
+              const state = yield* store.getThreadState(params.id)
+              const thread = yield* store.requireThread(params.id)
+              if (!state.items.length && !thread.pendingMessages?.length) yield* wakeBot(params.id)
+              return { bot: previous }
+            }
+            if (params.provider !== 'claude')
+              return yield* Effect.fail(
+                new StoreError('invalid_params', 'Only Claude bots are available')
+              )
+            if (params.effort === 'max')
+              return yield* Effect.fail(
+                new StoreError('invalid_params', "max isn't available to bots; use xhigh")
+              )
+            const model = getModels()?.find(
+              (item) => item.provider === 'claude' && item.id === params.model
+            )
+            if (!model)
+              return yield* Effect.fail(
+                new StoreError('invalid_params', `Unknown Claude model ${params.model}`)
+              )
+            if (params.effort && !model.efforts.includes(params.effort))
+              return yield* Effect.fail(
+                new StoreError('invalid_params', 'Unsupported effort for this model')
+              )
+            if (
+              params.projectId &&
+              !(yield* store.listProjects()).some((project) => project.id === params.projectId)
+            )
+              return yield* Effect.fail(new StoreError('invalid_params', 'Project not found'))
+            const path = join(home, 'bots', params.id)
+            yield* fromPromise(() => createBotHome(path))
+            const created = yield* store.createBotRecord(params, path)
+            const bot = yield* store.getBot(params.id)
+            if (!bot) return yield* Effect.fail(new StoreError('internal', 'Bot was not saved'))
+            hub.pushChrome({ type: 'bot.upserted', bot })
+            if (created) yield* wakeBot(params.id)
+            return { bot }
+          })
+        ),
+      'bot.send': (params) =>
+        mutation(
+          Effect.gen(function* () {
+            const bot = yield* store.getBot(params.botId)
+            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+            let replyTo: { itemId: string; text: string } | undefined
+            if (params.replyTo) {
+              const state = yield* store.getThreadState(params.botId)
+              const quoted = state.items.find((item) => item.id === params.replyTo)
+              if (
+                !quoted ||
+                (quoted.kind !== 'assistant_message' && quoted.kind !== 'user_message')
+              )
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Quoted message not found')
+                )
+              replyTo = { itemId: quoted.id, text: quoted.text }
+            }
+            yield* store.markBotSeen(params.botId)
+            yield* Effect.forkIn(
+              orch.startTurnEffect({
+                threadId: params.botId,
+                messageId: params.messageId,
+                text: params.text,
+                replyTo,
+                visibleBotTurn: true,
+              }),
+              admissionScope
+            )
+            const updated = yield* store.getBot(params.botId)
+            if (updated) hub.pushChrome({ type: 'bot.upserted', bot: updated })
+            return null
+          })
+        ),
+      'bot.markSeen': ({ botId }) =>
+        mutation(
+          Effect.gen(function* () {
+            yield* store.markBotSeen(botId)
+            const bot = yield* store.getBot(botId)
+            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+            hub.pushChrome({ type: 'bot.upserted', bot })
+            return null
+          })
+        ),
     })
   })
 }
-
-const botsPending: WireError = { code: 'unknown_method', message: 'Bots are not built yet' }

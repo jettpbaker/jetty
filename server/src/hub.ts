@@ -152,6 +152,7 @@ export function createHub() {
     let parentId: string | undefined
     if (data.type === 'thread.upserted') {
       rememberThread(data.thread)
+      if (data.thread.id === data.thread.botId) return
       parentId = data.thread.parentThreadId
       data = { ...data, thread: decorateThread(data.thread) }
     } else if (data.type === 'thread.removed') {
@@ -164,7 +165,8 @@ export function createHub() {
     while (parentId) {
       const parent = threads.get(parentId)
       if (!parent) break
-      offerChrome({ type: 'thread.upserted', thread: decorateThread(parent) })
+      if (parent.id !== parent.botId)
+        offerChrome({ type: 'thread.upserted', thread: decorateThread(parent) })
       parentId = parent.parentThreadId
     }
   }

@@ -26,6 +26,7 @@ import {
   Semaphore,
   Stream,
 } from 'effect'
+import { join } from 'node:path'
 
 import type { Store } from './store'
 
@@ -41,6 +42,7 @@ import {
   type TurnInput,
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
+import { botInstructions } from './bot-home'
 import { createBackgroundTasks, type BackgroundTasks } from './claude-background'
 import { claudeBin } from './claude-bin'
 import {
@@ -109,6 +111,7 @@ type SessionOptions = {
 
 type WarmSession = {
   threadId: string
+  bot: boolean
   query: Query
   usageIdentity: string | undefined
   input: Queue.Queue<SDKUserMessage, Cause.Done>
@@ -444,6 +447,15 @@ export function createClaudeAdapter(
         Stream.runForEach((message) =>
           Effect.gen(function* () {
             if (!current(session)) return
+            if (
+              message.type === 'system' &&
+              message.subtype === 'init' &&
+              session.bot &&
+              !message.tools.includes('AskUserQuestion')
+            )
+              return yield* Effect.fail(
+                new AgentError('AskUserQuestion is unavailable to this bot')
+              )
             // /compact narrates its outcome as assistant text ("Compaction canceled."); a compaction
             // shows only as its seam.
             if (session.compact && 'local_command_source' in message) return
@@ -569,6 +581,12 @@ export function createClaudeAdapter(
     ) {
       const itemId = newId()
       return Effect.gen(function* () {
+        if (
+          (toolName === 'Agent' || toolName === 'Task') &&
+          toolInput.effort === 'max' &&
+          (yield* store.isBot(session.threadId))
+        )
+          return { behavior: 'deny' as const, message: "max isn't available to bots; use xhigh" }
         const result = yield* Deferred.make<PermissionResult>()
         yield* session.publication.withPermit(
           Effect.gen(function* () {
@@ -712,6 +730,14 @@ export function createClaudeAdapter(
 
     function spawnSession(input: TurnInput, emit: Emit, projectPath: string) {
       return Effect.gen(function* () {
+        const bot = yield* store
+          .getBot(input.threadId)
+          .pipe(Effect.mapError((error) => new AgentError(error.message)))
+        const projects = bot
+          ? yield* store
+              .listProjects()
+              .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          : []
         const scope = yield* Scope.fork(owner)
         const queue = yield* Queue.make<SDKUserMessage, Cause.Done>()
         const done = yield* Deferred.make<void, AgentError>()
@@ -741,13 +767,12 @@ export function createClaudeAdapter(
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
-        const instructions =
-          sdkMcp &&
-          jettyInstructions(
-            yield* store
-              .getAgentBehaviours()
-              .pipe(Effect.mapError((error) => new AgentError(error.message)))
-          )
+        const behaviours = yield* store
+          .getAgentBehaviours()
+          .pipe(Effect.mapError((error) => new AgentError(error.message)))
+        const instructions = bot
+          ? yield* Effect.promise(() => botInstructions(bot, projects, behaviours, projectPath))
+          : sdkMcp && jettyInstructions(behaviours)
         const usageIdentity = yield* Effect.promise(() => readClaudeUsageIdentity())
         const q = yield* Effect.acquireRelease(
           Effect.try({
@@ -764,6 +789,17 @@ export function createClaudeAdapter(
                 },
                 options: {
                   cwd: projectPath,
+                  ...(bot
+                    ? {
+                        additionalDirectories: [
+                          join(projectPath, '..'),
+                          ...(bot.projectId
+                            ? projects.filter((project) => project.id === bot.projectId)
+                            : projects
+                          ).map((project) => project.path),
+                        ],
+                      }
+                    : {}),
                   pathToClaudeCodeExecutable: claudeBin,
                   systemPrompt: {
                     type: 'preset',
@@ -785,8 +821,41 @@ export function createClaudeAdapter(
                   forwardSubagentText: true,
                   perTaskStopAffordance: true,
                   canUseTool,
+                  ...(bot
+                    ? {
+                        hooks: {
+                          PreToolUse: [
+                            {
+                              hooks: [
+                                async (hookInput) => {
+                                  if (
+                                    hookInput.hook_event_name !== 'PreToolUse' ||
+                                    !['Agent', 'Task'].includes(hookInput.tool_name) ||
+                                    !hookInput.tool_input ||
+                                    typeof hookInput.tool_input !== 'object' ||
+                                    (hookInput.tool_input as { effort?: unknown }).effort !== 'max'
+                                  )
+                                    return {}
+                                  return {
+                                    hookSpecificOutput: {
+                                      hookEventName: 'PreToolUse' as const,
+                                      permissionDecision: 'deny' as const,
+                                      permissionDecisionReason:
+                                        "max isn't available to bots; use xhigh",
+                                    },
+                                  }
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      }
+                    : {}),
                   resume: resume ?? undefined,
                   mcpServers: sdkMcp ? { jetty: sdkMcp } : {},
+                  ...(bot
+                    ? { tools: { type: 'preset' as const, preset: 'claude_code' as const } }
+                    : {}),
                   allowedTools: [
                     ...AUTO_ALLOWED_TOOLS,
                     'TaskCreate',
@@ -815,6 +884,7 @@ export function createClaudeAdapter(
         }).pipe(Scope.provide(scope))
         session = {
           threadId: input.threadId,
+          bot: bot !== null,
           query: q,
           usageIdentity: typeof q.accountInfo === 'function' ? usageIdentity : undefined,
           input: queue,
