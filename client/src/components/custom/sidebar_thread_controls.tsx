@@ -21,6 +21,7 @@ const groupings: Record<ThreadGrouping, string> = {
   project: 'Project',
   status: 'Status',
   date: 'Date',
+  bot: 'Bot',
 }
 
 export function SidebarThreadControls({

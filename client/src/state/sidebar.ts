@@ -4,6 +4,7 @@ import { useAtomValue } from '@effect/atom-react'
 import { Equal } from 'effect'
 import { Atom } from 'effect/reactivity'
 
+import { botsAtom } from './bots'
 import { chromeAtom, projectAtom, threadMetaAtom } from './chrome'
 
 export type SidebarRow = { thread: ThreadMeta; project?: Project }
@@ -27,6 +28,8 @@ const listAtom = Atom.readable((get) => {
   return (
     chrome && {
       projects: chrome.projects,
+      // In the Bots section's order; a face changing leaves the list alone.
+      bots: get(botsAtom).map((bot) => ({ id: bot.id, name: bot.name })),
       threads: chrome.threads.map((thread) => ({
         id: thread.id,
         title: thread.title,
@@ -38,6 +41,7 @@ const listAtom = Atom.readable((get) => {
         lastStartedAt: thread.turnStartedAt ?? thread.updatedAt,
         pinned: thread.pinned,
         archived: thread.archived,
+        botId: thread.botId,
       })),
     }
   )

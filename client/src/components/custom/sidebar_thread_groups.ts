@@ -7,7 +7,7 @@ import type { ThreadPullRequest } from './thread_pull_request'
 
 import { statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 
-export type ThreadGrouping = 'project' | 'status' | 'date'
+export type ThreadGrouping = 'project' | 'status' | 'date' | 'bot'
 
 export type SidebarThread = {
   id: string
@@ -84,19 +84,22 @@ function dateGroupId(updatedAt: number, now: Date) {
   return 'earlier'
 }
 
-function groupsFor(grouping: ThreadGrouping, threads: ListedThread[]) {
+function groupsFor(grouping: ThreadGrouping, threads: ListedThread[], bots: SidebarList['bots']) {
   // By id: two checkouts can share a folder name and still be different projects.
   if (grouping === 'project')
     return [...new Map(threads.map((thread) => [thread.projectId, thread.project])).entries()]
       .sort(([, a], [, b]) => a.localeCompare(b))
       .map(([id, label]) => ({ id, label }))
   if (grouping === 'status') return statusGroups
+  if (grouping === 'bot')
+    return [...bots.map(({ id, name }) => ({ id, label: name })), { id: '', label: 'No bot' }]
   return dateGroups
 }
 
 function threadInGroup(thread: ListedThread, grouping: ThreadGrouping, groupId: string, now: Date) {
   if (grouping === 'project') return thread.projectId === groupId
   if (grouping === 'status') return thread.status === groupId
+  if (grouping === 'bot') return (thread.botId ?? '') === groupId
   return dateGroupId(thread.updatedDay, now) === groupId
 }
 
@@ -107,13 +110,16 @@ type ThreadListView = {
   showArchived: boolean
 }
 
-function listedThreads({ threads, projects }: SidebarList) {
+function listedThreads({ threads, projects, bots }: SidebarList) {
   const byId = new Map(projects.map((project) => [project.id, project]))
+  const botIds = new Set(bots.map((bot) => bot.id))
   return threads.map((thread) => ({
     ...thread,
     project: byId.get(thread.projectId)?.title ?? '',
     projectIcon: byId.get(thread.projectId)?.icon,
     status: threadStatus(thread.status, thread.readyForReview),
+    // A bot the Bots section doesn't list has no group, so its threads go with No bot.
+    botId: thread.botId && botIds.has(thread.botId) ? thread.botId : undefined,
   }))
 }
 
@@ -121,6 +127,7 @@ type ListedThread = ReturnType<typeof listedThreads>[number]
 
 function groupSidebarThreads(
   threads: ListedThread[],
+  bots: SidebarList['bots'],
   { grouping, query, showPinned, showArchived }: ThreadListView,
   now: Date
 ) {
@@ -130,7 +137,7 @@ function groupSidebarThreads(
     .sort((a, b) => b.lastStartedAt - a.lastStartedAt)
   const filtered = matching.filter((thread) => !thread.archived)
   const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
-  const grouped = groupsFor(grouping, remaining).map((group) => ({
+  const grouped = groupsFor(grouping, remaining, bots).map((group) => ({
     id: `${grouping}:${group.id}`,
     label: group.label,
     pinned: false,
@@ -166,7 +173,7 @@ function groupSidebarThreads(
 
 // The list as groups of thread ids: rows read their own threads.
 export function sidebarGroups(list: SidebarList, view: ThreadListView, now: number) {
-  return groupSidebarThreads(listedThreads(list), view, new Date(now)).map(
+  return groupSidebarThreads(listedThreads(list), list.bots, view, new Date(now)).map(
     ({ threads, ...group }) => ({
       ...group,
       status:
@@ -174,6 +181,7 @@ export function sidebarGroups(list: SidebarList, view: ThreadListView, now: numb
           ? threads[0]?.status
           : undefined,
       projectIcon: threads[0]?.projectIcon,
+      botId: threads[0]?.botId,
       threads: threads.map((thread) => thread.id),
     })
   )

@@ -53,6 +53,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { BotAvatar } from './bot_avatar'
 import { BotRow } from './bot_row'
 import { DisabledTooltip } from './disabled_tooltip'
 import {
@@ -83,7 +84,10 @@ function storedView(): SidebarView {
     if (parsed && typeof parsed === 'object') saved = { ...parsed }
   } catch {}
   return {
-    grouping: saved.grouping === 'project' || saved.grouping === 'status' ? saved.grouping : 'date',
+    grouping:
+      saved.grouping === 'project' || saved.grouping === 'status' || saved.grouping === 'bot'
+        ? saved.grouping
+        : 'date',
     showPinned: saved.showPinned !== false,
     showArchived: saved.showArchived === true,
   }
@@ -416,6 +420,10 @@ export const AppSidebar = memo(function AppSidebar() {
             <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
               {items.map((item) => {
                 if (item.kind === 'heading') {
+                  const bot =
+                    !item.pinned && !item.archived && grouping === 'bot'
+                      ? bots.find((entry) => entry.id === item.botId)
+                      : undefined
                   const heading = (
                     <>
                       {item.pinned && (
@@ -438,6 +446,14 @@ export const AppSidebar = memo(function AppSidebar() {
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
                       {item.status && <StatusGlyph status={item.status} className='size-3' />}
+                      {bot && (
+                        <BotAvatar
+                          bot={bot}
+                          size={12}
+                          unread={false}
+                          className='[--jb-ring:var(--sidebar)]'
+                        />
+                      )}
                       <span className='flex min-w-0 flex-1 items-baseline gap-1'>
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>
                         <span
