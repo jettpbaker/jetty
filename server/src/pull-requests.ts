@@ -1377,6 +1377,7 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
 function inlinePatches(files: PullRequestData['files']) {
   let remaining = 1024 * 1024
   return files.map((file) => {
+    if (!file.patch && !file.binary && file.changes > 0) return { ...file, patchDeferred: true }
     const bytes = Buffer.byteLength(file.patch ?? '')
     if (bytes <= remaining) {
       remaining -= bytes

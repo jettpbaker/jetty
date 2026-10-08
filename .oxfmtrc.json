@@ -24,6 +24,7 @@
     "node_modules/**",
     "dist/**",
     "**/routeTree.gen.ts",
-    "server/src/bot-prompt/*.md"
+    "server/src/bot-prompt/*.md",
+    "server/src/pr-guide/*.md"
   ]
 }

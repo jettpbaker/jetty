@@ -8,6 +8,7 @@
     "@effect/sql-sqlite-bun": "4.0.1",
     "@jetty/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@pierre/diffs": "1.4.3",
     "effect": "4.0.0",
     "zod": "^4.4.3"
   }

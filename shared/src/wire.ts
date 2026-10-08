@@ -213,6 +213,36 @@ export const PullRequestSnapshot = Schema.Struct({
 })
 export type PullRequestSnapshot = Schema.Schema.Type<typeof PullRequestSnapshot>
 
+export const PullRequestGuideFile = Schema.Struct({
+  path: Schema.String,
+  // 0-based indexes into this file's hunks, in the order @pierre/diffs' parsePatchFiles yields
+  // them for the PR's patch (the same parse the Diff tab uses).
+  hunks: Schema.Array(Schema.Int),
+})
+export const PullRequestGuideChapter = Schema.Struct({
+  title: Schema.String,
+  why: Schema.String,
+  kind: Schema.Literals(['core', 'supporting', 'tests', 'generated']),
+  files: Schema.Array(PullRequestGuideFile),
+})
+export const PullRequestGuide = Schema.Struct({
+  summary: Schema.String,
+  chapters: Schema.Array(PullRequestGuideChapter),
+  // Hunks the model didn't place: the "Not in the guide" group.
+  unplaced: Schema.Array(PullRequestGuideFile),
+})
+export type PullRequestGuide = Schema.Schema.Type<typeof PullRequestGuide>
+export const PullRequestGuideState = Schema.Struct({
+  // skipped: the PR is under the size threshold, so it gets no guide.
+  status: Schema.Literals(['generating', 'ready', 'failed', 'skipped']),
+  headSha: Schema.String,
+  // The guide shown was made for an older head; a new one is generating.
+  outdated: Schema.Boolean,
+  guide: Schema.optional(PullRequestGuide),
+  error: Schema.optional(Schema.String),
+})
+export type PullRequestGuideState = Schema.Schema.Type<typeof PullRequestGuideState>
+
 export const PullRequestListTab = Schema.Literals(['for-you', 'created'])
 export type PullRequestListTab = Schema.Schema.Type<typeof PullRequestListTab>
 
@@ -669,6 +699,10 @@ export const methods = {
   'pullRequest.get': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestSnapshot,
+  },
+  'pullRequest.guide': {
+    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
+    result: PullRequestGuideState,
   },
   'pullRequest.prefetch': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
