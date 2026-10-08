@@ -384,8 +384,11 @@ export function useQuestion(
 
   function answerAt(index: number) {
     if (!progress) return ''
-    const typed = index === step ? draft : (progress.custom[index] ?? '')
-    return typed.trim() || (progress.picks[index] ?? []).join(', ')
+    const typed = (index === step ? draft : (progress.custom[index] ?? '')).trim()
+    const picks = progress.picks[index] ?? []
+    return item?.questions[index]?.multiSelect
+      ? [...picks, typed].filter(Boolean).join(', ')
+      : typed || picks.join(', ')
   }
   const current = answerAt(step)
 

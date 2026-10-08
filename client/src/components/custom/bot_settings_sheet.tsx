@@ -1,4 +1,4 @@
-import type { Bot } from '@jetty/shared/wire'
+import type { Bot, BotAllowRule } from '@jetty/shared/wire'
 
 import { BotAvatar } from '@/components/custom/bot_avatar'
 import { Cancel01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
@@ -101,11 +101,15 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
                     <RuleText text={rule.text} />
                   </div>
                   <div className='text-xs text-muted-foreground'>
-                    {rule.source ? `From ${rule.source}` : 'Written by you'} ·{' '}
-                    {new Date(rule.createdAt).toLocaleDateString('en-AU', {
-                      day: 'numeric',
-                      month: 'short',
-                    })}
+                    {[
+                      ruleOrigin(rule),
+                      new Date(rule.createdAt).toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                      }),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </div>
                 </div>
                 <Button
@@ -141,6 +145,11 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
       </SheetContent>
     </Sheet>
   )
+}
+
+function ruleOrigin(rule: BotAllowRule) {
+  if (!rule.source) return 'Written by you'
+  return rule.source === rule.text ? undefined : `From ${rule.source}`
 }
 
 // A rule's `command` reads in mono, as the approval card showed it.

@@ -1,4 +1,4 @@
-import type { ThreadItem } from '@jetty/shared/items'
+import type { QuestionSpec, ThreadItem } from '@jetty/shared/items'
 import type { Bot } from '@jetty/shared/wire'
 
 import { botAccentClass } from '@/components/custom/bot_avatar'
@@ -15,10 +15,18 @@ import {
   useRespondQuestion,
   type QuestionProgress,
 } from '@/state'
+import { Fragment } from 'react'
 
 export type BotDecision = Extract<ThreadItem, { kind: 'approval' | 'question' }>
 const cardClass =
-  'flex w-[78%] max-w-[515px] flex-col gap-3 self-start rounded-[18.5px] bg-muted px-4 pt-2 pb-3'
+  'flex w-full max-w-[515px] flex-col gap-3 self-start rounded-[18.5px] bg-muted px-4 pt-2 pb-3'
+const toolVerbs: Record<string, string> = {
+  WebFetch: 'Fetch',
+  WebSearch: 'Search',
+  Read: 'Read',
+  Glob: 'Find',
+  Grep: 'Search',
+}
 
 export function BotDecisionCard({ item, bot }: { item: BotDecision; bot: Bot }) {
   return item.kind === 'approval' ? (
@@ -62,9 +70,13 @@ function BotApprovalCard({
     <div className={cardClass}>
       <div className='flex flex-col gap-0.5'>
         <div className='text-sm leading-[22.75px]'>{item.title.replace(/[.!?…]*$/, '?')}</div>
-        <div className='flex min-w-0 items-center gap-1.5 text-sm'>
-          <span className='shrink-0 text-muted-foreground'>{view.run ? 'Run' : view.action}</span>
-          <span className='min-w-0 break-all font-mono text-xs'>{command}</span>
+        <div className='flex min-w-0 items-baseline gap-1.5 text-sm'>
+          <span className='shrink-0 text-muted-foreground'>
+            {view.run ? 'Run' : (toolVerbs[item.toolName] ?? view.action)}
+          </span>
+          <span className='min-w-0 font-mono text-xs wrap-anywhere'>
+            <SlashBreaks text={command} />
+          </span>
         </div>
       </div>
       <div className='flex items-center justify-between gap-2'>
@@ -127,7 +139,7 @@ function BotQuestionCard({
       Object.fromEntries(
         item.questions.map((question, index) => [
           question.question,
-          next.custom[index]?.trim() || next.picks[index]?.join(', ') || '',
+          [...(next.picks[index] ?? []), next.custom[index]?.trim()].filter(Boolean).join(', '),
         ])
       ),
       next,
@@ -142,34 +154,26 @@ function BotQuestionCard({
         ? selected.filter((pick) => pick !== label)
         : [...selected, label]
       : [label]
-    const next = {
-      ...progress,
-      picks: progress.picks.with(progress.step, picks),
-      custom: progress.custom.with(progress.step, ''),
-    }
-    if (spec.multiSelect) save(next)
-    else submit(next)
+    if (spec.multiSelect) save({ ...progress, picks: progress.picks.with(progress.step, picks) })
+    else
+      submit({
+        ...progress,
+        picks: progress.picks.with(progress.step, picks),
+        custom: progress.custom.with(progress.step, ''),
+      })
   }
   if (answered)
     return (
       <div className={cn(cardClass, 'text-muted-foreground')}>
         {item.questions.map((question) => {
           const answer = item.answers?.[question.question]
-          const selected = question.options.filter((option) =>
-            answer?.split(', ').includes(option.label)
-          )
           return (
             <div key={question.question} className='flex flex-col gap-3'>
               <div className='text-sm leading-[22.75px]'>{question.question}</div>
               <div className='overflow-hidden rounded-md border border-border bg-background'>
-                {(selected.length
-                  ? selected
-                  : [
-                      {
-                        label: answer || (item.dismissed ? 'Dismissed' : 'Withdrawn'),
-                        description: '',
-                      },
-                    ]
+                {(answer
+                  ? answerRows(question, answer)
+                  : [{ label: item.dismissed ? 'Dismissed' : 'Withdrawn', description: '' }]
                 ).map((option) => (
                   <div
                     key={option.label}
@@ -192,6 +196,7 @@ function BotQuestionCard({
     )
   if (!spec) return null
   const current = progress.custom[progress.step] ?? ''
+  const ready = Boolean(current.trim() || progress.picks[progress.step]?.length)
   return (
     <div className={cardClass}>
       <div className='flex items-baseline gap-2'>
@@ -242,20 +247,16 @@ function BotQuestionCard({
             save({ ...progress, custom: progress.custom.with(progress.step, event.target.value) })
           }
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && current.trim() && !event.nativeEvent.isComposing) {
+            if (event.key === 'Enter' && ready && !event.nativeEvent.isComposing) {
               event.preventDefault()
               submit(progress)
             }
           }}
-          className='border-0 bg-background shadow-none'
+          className='border-0 bg-background px-3 shadow-none dark:bg-background'
         />
         {(spec.multiSelect || current.trim()) && (
           <div className={cn('flex justify-end', botAccentClass)}>
-            <Button
-              size='sm'
-              disabled={!current.trim() && !progress.picks[progress.step]?.length}
-              onClick={() => submit(progress)}
-            >
+            <Button size='sm' disabled={!ready} onClick={() => submit(progress)}>
               {progress.step < item.questions.length - 1 ? 'Next' : 'Send'}
               <Kbd>↵</Kbd>
             </Button>
@@ -264,4 +265,22 @@ function BotQuestionCard({
       </div>
     </div>
   )
+}
+
+// Multi-select answers are the ticked labels, then any Other text, joined by ", ".
+function answerRows(question: QuestionSpec, answer: string) {
+  const parts = question.multiSelect ? answer.split(', ') : [answer]
+  const options = question.options.filter((option) => parts.includes(option.label))
+  const other = parts.filter((part) => !options.some((option) => option.label === part)).join(', ')
+  return other ? [...options, { label: other, description: '' }] : options
+}
+
+// Chrome won't break a path at its slashes on its own.
+function SlashBreaks({ text }: { text: string }) {
+  return text.split(/(?<=\/)/).map((part, index) => (
+    <Fragment key={index}>
+      {index > 0 && <wbr />}
+      {part}
+    </Fragment>
+  ))
 }
