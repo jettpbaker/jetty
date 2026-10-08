@@ -1103,9 +1103,33 @@ export function createOrchestrator({
                   )
                 )
                 if (!accepted) {
-                  return yield* Effect.fail(
-                    new StoreError('internal', 'Active turn is not accepting input')
+                  if (input.queued)
+                    return yield* Effect.fail(
+                      new StoreError('internal', 'Active turn is not accepting input')
+                    )
+                  // The turn stopped taking input (ending, compacting or stopping), so the message
+                  // starts the next one instead of failing.
+                  const message: QueuedMessage = {
+                    id: input.messageId ?? newId(),
+                    text: input.text,
+                    createdAt: Date.now(),
+                    hop: 0,
+                    attachments: saved.meta,
+                    ...(input.replyTo && { replyTo: input.replyTo }),
+                  }
+                  yield* hub.withChromePublication(
+                    store
+                      .enqueue(input.threadId, message)
+                      .pipe(
+                        Effect.tap((queued) =>
+                          Effect.sync(() =>
+                            hub.pushChrome({ type: 'thread.upserted', thread: queued })
+                          )
+                        )
+                      )
                   )
+                  yield* onCommit
+                  return { turnId: '' }
                 }
                 if (resumeQueue) yield* setQueuePaused(input.threadId, false)
                 return { turnId }

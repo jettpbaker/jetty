@@ -352,7 +352,7 @@ for (const admission of ['initial', 'steered'] as const) {
   }
 }
 
-test('late steering rejection removes the new upload but retains the active turn attachment', async () => {
+test('a steer the turn refuses waits in the queue with its upload', async () => {
   await runUploadTest(
     Effect.gen(function* () {
       const f = yield* makeUploadFixture()
@@ -383,13 +383,17 @@ test('late steering rejection removes the new upload but retains the active turn
       const result = yield* Effect.exit(
         orch.startTurnEffect({ threadId: f.thread.id, text: 'late', attachments: [upload] })
       )
-      expect(Exit.isFailure(result)).toBe(true)
+      expect(Exit.isSuccess(result)).toBe(true)
       expect(steeredText).toBe(
         `late\nAttached image saved at ${f.attachments.dir}/${added} (attachment id ${added.split('.')[0]}).`
       )
       expect(steeredImages).toEqual([{ mimeType: 'image/png', base64data: 'aW1hZ2U=' }])
-      expect(yield* f.fs.readDirectory(f.attachments.dir)).toEqual(existing)
+      expect((yield* f.fs.readDirectory(f.attachments.dir)).sort()).toEqual(
+        [...existing, added].sort()
+      )
       expect(yield* f.store.getEventsAfter(f.thread.id, 0)).toEqual(before)
+      const thread = yield* f.store.getThread(f.thread.id)
+      expect(thread?.pendingMessages?.map((message) => message.text)).toEqual(['late'])
     })
   )
 })
