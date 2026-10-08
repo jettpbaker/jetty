@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { Request, Reply } from './protocol'
@@ -28,6 +28,18 @@ setInterval(() => {
 
 const ready = (async () => {
   await mkdir(join(home, 'search'), { recursive: true })
+  const models = join(home, 'models')
+  await mkdir(models, { recursive: true })
+  for (const entry of await readdir(models, { recursive: true, withFileTypes: true })) {
+    const partial = /\.tmp\.(\d+)\./.exec(entry.name)
+    if (
+      entry.isFile() &&
+      entry.parentPath.endsWith('/onnx') &&
+      partial &&
+      Number(partial[1]) !== process.pid
+    )
+      await rm(join(entry.parentPath, entry.name), { force: true })
+  }
   const scores = await selfCheckEmbeddingGemma()
   console.error(
     `[search] self-check passed: ${scores.join(', ')} pid=${process.pid} rss=${process.memoryUsage().rss}`

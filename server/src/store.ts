@@ -2125,6 +2125,29 @@ export function createStore() {
       },
       getThreadState,
       getBotConversation,
+      getThreadTurnItemIds(threadId: string, turnId?: string | null) {
+        return Effect.gen(function* () {
+          const cached = loaded.get(threadId)
+          if (cached)
+            return cached.state.items
+              .filter((item) => item.turnId === turnId)
+              .map((item) => item.id)
+          const rows = yield* sql<{ item_id: string; turn_id: string | null }>`
+            SELECT
+              COALESCE(json_extract(payload_json, '$.item.id'), json_extract(payload_json, '$.itemId')) AS item_id,
+              CASE WHEN json_extract(payload_json, '$.type') = 'item.started'
+                THEN json_extract(payload_json, '$.item.turnId')
+                ELSE json_extract(payload_json, '$.patch.turnId') END AS turn_id
+            FROM thread_events WHERE thread_id = ${threadId} AND (
+              json_extract(payload_json, '$.type') = 'item.started' OR
+              (json_extract(payload_json, '$.type') IN ('item.updated', 'item.completed')
+                AND json_type(payload_json, '$.patch.turnId') IS NOT NULL)
+            ) ORDER BY seq`
+          const turns = new Map<string, string | null>()
+          for (const row of rows) turns.set(row.item_id, row.turn_id)
+          return [...turns].filter(([, id]) => id === turnId).map(([id]) => id)
+        }).pipe(Effect.mapError(storeError))
+      },
       markThreadSeen(threadId: string) {
         return Effect.gen(function* () {
           yield* requireThread(threadId)

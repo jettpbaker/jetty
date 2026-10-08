@@ -20,7 +20,10 @@ import {
 export function createSearchService(client: SearchClient, store: Store) {
   const queues = new Map<string, Promise<unknown>>()
   function serial<T>(botId: string, work: () => Promise<T>) {
-    const next = (queues.get(botId) ?? Promise.resolve()).catch(() => {}).then(work)
+    const next = Promise.all([
+      (queues.get(botId) ?? Promise.resolve()).catch(() => {}),
+      client.ready(),
+    ]).then(work)
     queues.set(botId, next)
     void next
       .finally(() => {
@@ -53,10 +56,7 @@ export function createSearchService(client: SearchClient, store: Store) {
   }
   function threads(botId: string, botName: string, input: SearchInput, turnId?: string | null) {
     return serial(botId, async () => {
-      const botState = await Effect.runPromise(store.getThreadState(botId))
-      const excludeMessageIds = botState.items
-        .filter((item) => item.turnId === turnId)
-        .map((item) => item.id)
+      const excludeMessageIds = await Effect.runPromise(store.getThreadTurnItemIds(botId, turnId))
       const cursors = (await client.request({ kind: 'cursors', botId })) as Record<
         string,
         ThreadCursor
@@ -72,8 +72,7 @@ export function createSearchService(client: SearchClient, store: Store) {
       const user = await botUserName()
       for (const thread of scope) {
         if (cursors[thread.id]?.lastSeq === thread.lastSeq) continue
-        const state =
-          thread.id === botId ? botState : await Effect.runPromise(store.getThreadState(thread.id))
+        const state = await Effect.runPromise(store.getThreadState(thread.id))
         const indexed = new Set(cursors[thread.id]?.messageIds)
         updates.push({
           ...thread,
