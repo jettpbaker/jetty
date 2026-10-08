@@ -493,7 +493,19 @@ export function createOrchestrator({
           (yield* store.isBot(threadId))
         )
           event = { ...event, item: { ...event.item, private: true } }
-        const appended = yield* store.appendEvent(threadId, event)
+        // A bad value in an item (a negative count, a malformed patch) loses that update, not the turn.
+        const appended = yield* store
+          .appendEvent(threadId, event)
+          .pipe(
+            Effect.catch((error) =>
+              error.code === 'invalid_params' && !event.type.startsWith('turn.')
+                ? Effect.logWarning(`Dropped ${event.type}: ${error.message}`).pipe(
+                    Effect.as(undefined)
+                  )
+                : Effect.fail(error)
+            )
+          )
+        if (!appended) return yield* onCommit
         if (event.type === 'turn.started') live.turnId = event.turnId
         yield* onCommit
         yield* publish(threadId, appended)

@@ -131,6 +131,10 @@ function storeError(error: unknown) {
     : new StoreError('internal', String(error), { cause: error })
 }
 
+function invalidEvent(error: unknown) {
+  return new StoreError('invalid_params', String(error), { cause: error })
+}
+
 function rowToProject(row: ProjectRow): Project {
   const icon: unknown = row.icon && JSON.parse(row.icon)
   return {
@@ -708,7 +712,9 @@ export function createStore() {
         if (!threadRow)
           return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
         const thread = rowToThread(threadRow)
-        const validated = yield* Schema.decodeUnknownEffect(ThreadEvent)(event)
+        const validated = yield* Schema.decodeUnknownEffect(ThreadEvent)(event).pipe(
+          Effect.mapError(invalidEvent)
+        )
         const entry = yield* loadThread(threadId)
         const prev = entry.state
         const seq = prev.lastSeq + 1
@@ -717,7 +723,7 @@ export function createStore() {
         yield* sql`INSERT INTO thread_events (thread_id, seq, ts, payload_json) VALUES (${threadId}, ${seq}, ${ts}, ${json})`
         const state = yield* Effect.try({
           try: () => applyEvent(prev, { seq, ts, event: validated }),
-          catch: storeError,
+          catch: invalidEvent,
         })
         entry.state = state
         if (validated.type === 'item.started') {

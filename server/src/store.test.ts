@@ -169,7 +169,7 @@ test('invalid merged item patches roll back their event and projection', async (
         patch: { text: 123 },
       })
     )
-  ).rejects.toMatchObject({ code: 'internal' })
+  ).rejects.toMatchObject({ code: 'invalid_params' })
   expect(await runtime.runPromise(store.getThreadState(thread.id))).toEqual(before)
   expect(await runtime.runPromise(store.getEventsAfter(thread.id, 0))).toHaveLength(1)
 })
