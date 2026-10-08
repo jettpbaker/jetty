@@ -101,7 +101,8 @@ export type Agent = {
   respondToQuestion(
     threadId: string,
     itemId: string,
-    answers: Record<string, string> | null
+    answers: Record<string, string> | null,
+    answeredInChat?: boolean
   ): Effect.Effect<boolean, AgentError>
 }
 

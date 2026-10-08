@@ -45,7 +45,7 @@ import {
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
 import { botApproval, botAutoMode, type BotPlace } from './bot-approval'
-import { botInstructions } from './bot-home'
+import { botInstructions, botUserName } from './bot-home'
 import { createBackgroundTasks, type BackgroundTasks } from './claude-background'
 import { claudeBin } from './claude-bin'
 import {
@@ -1245,10 +1245,8 @@ export function createClaudeAdapter(
               if (!current(session) || !session.accepting) return false
               yield* beforeAccept
               const accepted = yield* Queue.offer(session.input, userMessage(text, images))
-              if (accepted && fromUser) {
-                session.steerUnread = true
-                session.steerFolding = false
-              }
+              // A steer that lands while an earlier one is folding usually rides in the same request.
+              if (accepted && fromUser) session.steerUnread = true
               return accepted
             }).pipe(Effect.uninterruptible)
           )
@@ -1393,17 +1391,27 @@ export function createClaudeAdapter(
             })
         )
       },
-      respondToQuestion(threadId, itemId, answers) {
-        return resolvePending(
-          threadId,
-          itemId,
-          (session) => session.pendingQuestions,
-          answers ? { answers } : { dismissed: true },
-          (pending) =>
+      respondToQuestion(threadId, itemId, answers, answeredInChat) {
+        return Effect.gen(function* () {
+          const message = answeredInChat
+            ? `${yield* Effect.tryPromise({
+                try: botUserName,
+                catch: (error) => new AgentError(String(error)),
+              })} answered in the chat instead; their message is next.`
+            : 'The user dismissed the questions'
+          return yield* resolvePending(
+            threadId,
+            itemId,
+            (session) => session.pendingQuestions,
             answers
-              ? { behavior: 'allow', updatedInput: { ...pending.input, answers } }
-              : { behavior: 'deny', message: 'The user dismissed the questions' }
-        )
+              ? { answers }
+              : { dismissed: true, ...(answeredInChat ? { answeredInChat: true } : {}) },
+            (pending) =>
+              answers
+                ? { behavior: 'allow', updatedInput: { ...pending.input, answers } }
+                : { behavior: 'deny', message }
+          )
+        })
       },
     } satisfies Agent
   })

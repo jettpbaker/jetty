@@ -697,7 +697,7 @@ export function createOrchestrator({
             return yield* Effect.fail(
               new StoreError(
                 'conflict',
-                `${user} just sent a new message, so this wasn't sent. Read it first, then send this again if it still fits, or answer what they said.`
+                `${user} sent a new message while you were writing this, so it wasn't sent. If you've already read it, send this again as it is or as it now needs to be; if not, it reaches you next.`
               )
             )
           }
@@ -2190,10 +2190,15 @@ export function createOrchestrator({
             yield* agent.steer(threadId, deniedApprovalNote(message.trim()))
         })
       },
-      respondQuestion(threadId: string, itemId: string, answers: Record<string, string> | null) {
+      respondQuestion(
+        threadId: string,
+        itemId: string,
+        answers: Record<string, string> | null,
+        answeredInChat?: boolean
+      ) {
         return Effect.gen(function* () {
           const agent = yield* agentForThread(threadId)
-          if (yield* agent.respondToQuestion(threadId, itemId, answers)) return
+          if (yield* agent.respondToQuestion(threadId, itemId, answers, answeredInChat)) return
           const thread = yield* store.requireThread(threadId)
           const current = yield* store.getThreadState(threadId)
           const item = current.items.find((candidate) => candidate.id === itemId)

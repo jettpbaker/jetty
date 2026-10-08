@@ -195,7 +195,11 @@ function BotQuestionCard({
                   ))
                 ) : (
                   <div className='px-[11px] py-2 text-sm'>
-                    {item.dismissed ? 'Dismissed' : 'Withdrawn'}
+                    {item.answeredInChat
+                      ? 'Answered in chat'
+                      : item.dismissed
+                        ? 'Dismissed'
+                        : 'Withdrawn'}
                   </div>
                 )}
               </div>

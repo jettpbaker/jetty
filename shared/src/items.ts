@@ -178,6 +178,7 @@ export const ThreadItem = Schema.Union([
     // the turn ended unanswered, not a user choice
     skipped: Schema.optional(Schema.Boolean),
     dismissed: Schema.optional(Schema.Boolean),
+    answeredInChat: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
     ...itemBase,

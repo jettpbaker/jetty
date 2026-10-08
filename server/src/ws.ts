@@ -763,6 +763,15 @@ export function createRpcHandlers(
                 new StoreError('invalid_params', 'Quoted message not found')
               )
           }
+          const openQuestions = (yield* store.getThreadState(params.botId)).items.filter(
+            (item) =>
+              item.kind === 'question' &&
+              !item.agentId &&
+              !item.answers &&
+              !item.dismissed &&
+              !item.skipped &&
+              !item.completedAt
+          )
           yield* mutation(store.markBotSeen(params.botId))
           orch.botUserMessage(params.botId)
           const fiber = yield* Effect.forkIn(
@@ -776,6 +785,11 @@ export function createRpcHandlers(
             admissionScope
           )
           yield* Fiber.join(fiber)
+          // Settled after the message is queued, so it rides in with the question's tool result.
+          for (const question of openQuestions)
+            yield* orch
+              .respondQuestion(params.botId, question.id, null, true)
+              .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
           yield* mutation(
             Effect.gen(function* () {
               const updated = yield* store.getBot(params.botId)
