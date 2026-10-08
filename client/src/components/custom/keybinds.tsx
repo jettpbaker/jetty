@@ -182,7 +182,7 @@ export function KeybindChip({
     <Kbd
       aria-label={binding.label}
       className={cn(
-        'keybind-chip h-4 min-w-4 gap-0 rounded-[3px] bg-foreground/8 px-1 font-sans text-[10px] font-normal leading-none text-muted-foreground',
+        'keybind-chip h-4 min-w-4 gap-0 rounded-[3px] bg-foreground/8 px-1 font-sans text-[10px] font-bold leading-none text-muted-foreground',
         // Kbd clears its fill inside tooltips; a chip keeps it everywhere.
         'in-data-[slot=tooltip-content]:min-w-4 in-data-[slot=tooltip-content]:bg-foreground/8 in-data-[slot=tooltip-content]:px-1',
         className
