@@ -69,6 +69,11 @@ const EXIT_MS = 90
 const SESSION_GAP = 30 * 60_000
 // px from the bottom that still counts as at it; in a column-reverse scroller, 0 is the bottom.
 const PIN_SLACK = 8
+// Scrolled up, the fade comes in over the first 48px, so at the bottom there's none.
+const FADE_IN = 48
+// Gone under the composer, back to full 28px above its dock.
+const FADE_MASK =
+  'linear-gradient(to top, rgb(0 0 0 / calc(1 - var(--fade, 0))) calc(var(--dock) - 16px), #000 calc(var(--dock) + 28px))'
 const TIDY_NOTE = 'This can take a couple of minutes. Your message is next.'
 
 type Message = {
@@ -141,6 +146,10 @@ function play(
   const animation = element.animate(keyframes, { duration, delay, easing, fill: 'backwards' })
   animation.startTime = start
   return animation
+}
+
+function fade(scroller: HTMLElement) {
+  scroller.style.setProperty('--fade', String(Math.min(1, -scroller.scrollTop / FADE_IN)))
 }
 
 function stamp(at: number, now: number) {
@@ -262,7 +271,20 @@ export function BotChat({ bot }: { bot: Bot }) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const dockRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
+  // The floating composer's height, for the mask and the room the transcript leaves under it.
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    const dock = dockRef.current
+    if (!scroller || !dock) return
+    fade(scroller)
+    const observer = new ResizeObserver(() =>
+      scroller.style.setProperty('--dock', `${dock.offsetHeight}px`)
+    )
+    observer.observe(dock)
+    return () => observer.disconnect()
+  }, [])
   // Once the view is a pixel off the bottom, Chrome's scroll anchoring holds the rows on screen
   // still and new ones land under the composer, so a reader at the bottom is kept there.
   useEffect(() => {
@@ -315,14 +337,16 @@ export function BotChat({ bot }: { bot: Bot }) {
   }
   return (
     <div
-      className='flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
+      className='relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
       style={botColorStyle(bot.color)}
     >
       <div
         ref={scrollerRef}
         className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'
+        style={{ maskImage: FADE_MASK }}
         onScroll={({ currentTarget }) => {
           pinnedRef.current = currentTarget.scrollTop > -PIN_SLACK
+          fade(currentTarget)
         }}
       >
         <div ref={contentRef} className='flex shrink-0 grow flex-col'>
@@ -338,21 +362,27 @@ export function BotChat({ bot }: { bot: Bot }) {
             onReply={reply}
             onJump={jump}
           />
-          <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px] pt-4'>
-            <div className='bg-background pb-4'>
-              <BotComposer
-                key={bot.id}
-                bot={bot}
-                fieldRef={fieldRef}
-                busy={presence !== null}
-                replyTo={replyTo}
-                onClearReply={() => setReplyTo(undefined)}
-                onSend={send}
-                onStop={() => interrupt(bot.id)}
-                items={items}
-              />
-            </div>
-          </div>
+          <div className='h-(--dock) shrink-0' />
+        </div>
+      </div>
+      {/* Outside the scroller, floating over its bottom, clear of the mask. */}
+      <div
+        ref={dockRef}
+        className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden px-6'
+      >
+        <div className='mx-auto max-w-[660px] py-4'>
+          <BotComposer
+            key={bot.id}
+            bot={bot}
+            fieldRef={fieldRef}
+            busy={presence !== null}
+            replyTo={replyTo}
+            onClearReply={() => setReplyTo(undefined)}
+            onSend={send}
+            onStop={() => interrupt(bot.id)}
+            items={items}
+            className='pointer-events-auto'
+          />
         </div>
       </div>
       <AddToPrompt chatRef={scrollerRef} onAdd={reply} />
@@ -927,6 +957,7 @@ function BotComposer({
   onSend,
   onStop,
   items,
+  className,
 }: {
   bot: Bot
   fieldRef: RefObject<HTMLTextAreaElement | null>
@@ -936,6 +967,7 @@ function BotComposer({
   onSend: (text: string) => void
   onStop: () => void
   items: readonly ThreadItem[]
+  className?: string
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
   const draft = storedDraft.text
@@ -946,7 +978,13 @@ function BotComposer({
   const pending = pendingItems(items, { provider: bot.provider })
   const request = pending.at(-1)
   const answer = request && (
-    <BotRequest key={request.id} request={request} botId={bot.id} fieldRef={fieldRef} />
+    <BotRequest
+      key={request.id}
+      request={request}
+      botId={bot.id}
+      fieldRef={fieldRef}
+      className={className}
+    />
   )
   function change(text: string) {
     update({ text })
@@ -969,7 +1007,8 @@ function BotComposer({
       className={cn(
         'grid grid-cols-[auto_1fr_auto] items-center gap-x-1.5 rounded-[20px] bg-popover p-1.5',
         botAccentClass,
-        rows && 'gap-y-1.5'
+        rows && 'gap-y-1.5',
+        className
       )}
     >
       {replyTo && (
@@ -1032,10 +1071,12 @@ function BotRequest({
   request,
   botId,
   fieldRef,
+  className,
 }: {
   request: ReturnType<typeof pendingItems>[number]
   botId: string
   fieldRef: RefObject<HTMLTextAreaElement | null>
+  className?: string
 }) {
   const { draft, update } = useDraft(botId)
   const respondQuestion = useRespondQuestion()
@@ -1065,7 +1106,7 @@ function BotRequest({
   }
   // As in the thread composer, the request sits on the pill like a tab; inset past its corners.
   return (
-    <div className={botAccentClass}>
+    <div className={cn(botAccentClass, className)}>
       <div className='px-5'>
         {isQuestion ? (
           <QuestionStrip item={request} ctl={question} />
