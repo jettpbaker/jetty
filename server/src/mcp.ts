@@ -720,6 +720,25 @@ export function createMcpHandler(
       )
       if (bot) {
         server.registerTool(
+          'add_project',
+          {
+            ...toolMeta,
+            description: 'Add a local folder as a Jetty project, so threads can work in it.',
+            inputSchema: { path: z.string().trim().min(1) },
+          },
+          ({ path }) =>
+            invoke(
+              orch.addBotProject(bot.id, path).pipe(
+                Effect.map(({ id, title, path }) => ({
+                  id,
+                  title,
+                  path,
+                  detail: 'The project is ready for create_thread.',
+                }))
+              )
+            )
+        )
+        server.registerTool(
           'add_task',
           {
             ...toolMeta,

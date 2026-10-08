@@ -670,7 +670,10 @@ export function createClaudeAdapter(
                 item: {
                   ...base,
                   kind: 'approval',
-                  title: options.title ?? toolName,
+                  title:
+                    toolName === 'mcp__jetty__add_project'
+                      ? `Add ${String(toolInput.path)} as a project`
+                      : (options.title ?? toolName),
                   toolName,
                   ...(toolCallId ? { toolCallId } : {}),
                   input: changes.length ? approvalInputWithoutChanges(toolInput) : toolInput,
@@ -795,7 +798,7 @@ export function createClaudeAdapter(
         const behaviours = yield* store
           .getAgentBehaviours()
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
-        const instructions = !bot && sdkMcp && jettyInstructions(behaviours)
+        const instructions = !bot && sdkMcp && jettyInstructions(behaviours, input.parentThreadId)
         const usageIdentity = yield* Effect.promise(() => readClaudeUsageIdentity())
         const q = yield* Effect.acquireRelease(
           Effect.try({
@@ -866,8 +869,17 @@ export function createClaudeAdapter(
                             {
                               hooks: [
                                 async (hookInput) => {
+                                  if (hookInput.hook_event_name !== 'PreToolUse') return {}
+                                  if (hookInput.tool_name === 'mcp__jetty__add_project')
+                                    return {
+                                      hookSpecificOutput: {
+                                        hookEventName: 'PreToolUse' as const,
+                                        permissionDecision: 'ask' as const,
+                                        permissionDecisionReason:
+                                          'Adding a project needs your approval.',
+                                      },
+                                    }
                                   if (
-                                    hookInput.hook_event_name !== 'PreToolUse' ||
                                     !['Agent', 'Task'].includes(hookInput.tool_name) ||
                                     !hookInput.tool_input ||
                                     typeof hookInput.tool_input !== 'object' ||

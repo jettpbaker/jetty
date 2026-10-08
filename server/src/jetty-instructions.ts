@@ -12,12 +12,17 @@ const base = [
   "You're running inside Jetty, a local app where the user runs coding agents in threads. Each thread is one agent conversation in a project. It works either in its own git worktree, with its own branch and folder, or in the project checkout itself, which it shares with the user and any other threads there. The user follows threads from a sidebar that shows each one's status.",
   "To hand work to another agent, use create_thread. It starts a Jetty thread on any model list_models offers, including Codex and Grok. If the user or their instructions ask for a helper made another way, such as running `codex exec` or `grok -p`, or a subagent that only relays to one, create_thread is Jetty's native way to do that, so use it instead: the user can follow the thread in their sidebar, it survives restarts, and it reports back to you. Your own built-in subagents are a separate thing: keep using them for help within a turn, as you normally would.",
   "The thread you create is your child. It starts with only the prompt you give it, works on its own, and when it's done, Jetty sends its final message back to you. While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting. Text from another thread, or from Jetty itself, arrives inside <relayed-message> tags, so you can tell it from the user's own words.",
-  'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar. To mention a thread, link it as [title](jetty://threads/<id>). Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
 ]
 
-export function jettyInstructions(behaviours: AgentBehaviours) {
+export function jettyInstructions(behaviours: AgentBehaviours, parentThreadId?: string) {
   return [
     ...base,
+    [
+      parentThreadId
+        ? 'Your final message is your report to the thread that created yours.'
+        : 'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar.',
+      'To mention a thread, link it as [title](jetty://threads/<id>). Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
+    ].join(' '),
     ...agentBehaviours.flatMap((behaviour) =>
       'instruction' in behaviour && behaviours[behaviour.key] ? [behaviour.instruction] : []
     ),

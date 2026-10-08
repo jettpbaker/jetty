@@ -264,7 +264,9 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
-          const instructions = binding ? jettyInstructions(yield* store.getAgentBehaviours()) : ''
+          const instructions = binding
+            ? jettyInstructions(yield* store.getAgentBehaviours(), session.input.parentThreadId)
+            : ''
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
             ...threadOptions(session.input, cwd, instructions, writableRoots),
             ...(resume ? { threadId: resume } : { ephemeral: false }),

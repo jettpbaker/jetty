@@ -356,7 +356,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             : undefined
           const args = grokArgs(session.input)
           // `grok agent stdio` ignores --rules; ACP takes them on the session instead.
-          const rules = binding && jettyInstructions(yield* store.getAgentBehaviours())
+          const rules =
+            binding &&
+            jettyInstructions(yield* store.getAgentBehaviours(), session.input.parentThreadId)
           // Folder trust gates project AGENTS.md, skills, hooks and MCP; the user chose this project.
           // The env var lifts it for this process only, where --trust would save a grant per worktree.
           const env = { ...process.env, ...options.env, GROK_FOLDER_TRUST: '0' }

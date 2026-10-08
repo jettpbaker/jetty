@@ -716,13 +716,22 @@ export function createStore() {
               : event.error === 'interrupted'
                 ? { type: 'interrupted' }
                 : { type: 'failed', error: event.error }
-        const final = state.items.findLast(
+        const lastWork = state.items.findLastIndex(
           (item) =>
             item.turnId === turn.turn_id &&
-            item.kind === 'assistant_message' &&
             !item.agentId &&
-            item.text.trim()
+            (item.kind === 'tool_call' || item.kind === 'subagent' || item.kind === 'workflow')
         )
+        const final = state.items
+          .slice(lastWork + 1)
+          .filter(
+            (item) =>
+              item.turnId === turn.turn_id &&
+              item.kind === 'assistant_message' &&
+              !item.agentId &&
+              !item.private &&
+              item.text.trim()
+          )
         const text = childReport({
           threadId,
           title: thread.title,
@@ -731,8 +740,10 @@ export function createStore() {
             thread.environment === 'worktree'
               ? (thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable')
               : null,
-          message: final?.kind === 'assistant_message' ? final.text.trim() : '',
-          messageId: final?.id,
+          message: final
+            .map((item) => (item.kind === 'assistant_message' ? item.text.trim() : ''))
+            .join('\n\n'),
+          messageId: final.at(-1)?.id,
         })
         const summary = {
           threadId,
@@ -995,6 +1006,13 @@ export function createStore() {
       },
       getBot(threadId: string) {
         return readBot(threadId)
+      },
+      setBotProjectIfUnset(threadId: string, projectId: string) {
+        return sql`UPDATE bots SET project_id = ${projectId}
+          WHERE id = ${threadId} AND project_id IS NULL`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
       },
       listBots() {
         return Effect.gen(function* () {
