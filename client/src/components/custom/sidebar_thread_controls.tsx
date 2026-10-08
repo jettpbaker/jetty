@@ -33,6 +33,8 @@ export function SidebarThreadControls({
   onShowPinnedChange,
   showArchived,
   onShowArchivedChange,
+  showQuiet,
+  onShowQuietChange,
 }: {
   query: string
   onQueryChange: (query: string) => void
@@ -42,6 +44,8 @@ export function SidebarThreadControls({
   onShowPinnedChange: (show: boolean) => void
   showArchived: boolean
   onShowArchivedChange: (show: boolean) => void
+  showQuiet: boolean
+  onShowQuietChange: (show: boolean) => void
 }) {
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
@@ -106,6 +110,22 @@ export function SidebarThreadControls({
               render={<span />}
               size='sm'
               checked={showArchived}
+              tabIndex={-1}
+              aria-hidden='true'
+              className='pointer-events-none ml-auto'
+            />
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+            checked={showQuiet}
+            onCheckedChange={onShowQuietChange}
+            closeOnClick={false}
+          >
+            Show quiet threads
+            <Switch
+              render={<span />}
+              size='sm'
+              checked={showQuiet}
               tabIndex={-1}
               aria-hidden='true'
               className='pointer-events-none ml-auto'

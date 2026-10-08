@@ -108,6 +108,7 @@ type ThreadListView = {
   query: string
   showPinned: boolean
   showArchived: boolean
+  showQuiet: boolean
 }
 
 function listedThreads({ threads, projects, bots }: SidebarList) {
@@ -128,20 +129,23 @@ type ListedThread = ReturnType<typeof listedThreads>[number]
 function groupSidebarThreads(
   threads: ListedThread[],
   bots: SidebarList['bots'],
-  { grouping, query, showPinned, showArchived }: ThreadListView,
+  { grouping, query, showPinned, showArchived, showQuiet }: ThreadListView,
   now: Date
 ) {
   const search = query.trim().toLowerCase()
   const matching = threads
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
+    // A quiet thread lists only when asked for: the switch, or a search that finds it.
+    .filter((thread) => !thread.quiet || showQuiet || search)
     .sort((a, b) => b.lastStartedAt - a.lastStartedAt)
-  const filtered = matching.filter((thread) => !thread.archived)
+  const filtered = matching.filter((thread) => !thread.archived && !thread.quiet)
   const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
   const grouped = groupsFor(grouping, remaining, bots).map((group) => ({
     id: `${grouping}:${group.id}`,
     label: group.label,
     pinned: false,
     archived: false,
+    quiet: false,
     threads: remaining.filter((thread) => threadInGroup(thread, grouping, group.id, now)),
   }))
   return [
@@ -152,11 +156,20 @@ function groupSidebarThreads(
             label: 'Pinned',
             pinned: true,
             archived: false,
+            quiet: false,
             threads: filtered.filter((thread) => thread.pinned),
           },
         ]
       : []),
     ...grouped,
+    {
+      id: 'quiet',
+      label: 'Quiet',
+      pinned: false,
+      archived: false,
+      quiet: true,
+      threads: matching.filter((thread) => thread.quiet && !thread.archived),
+    },
     ...(showArchived
       ? [
           {
@@ -164,6 +177,7 @@ function groupSidebarThreads(
             label: 'Archived',
             pinned: false,
             archived: true,
+            quiet: false,
             threads: matching.filter((thread) => thread.archived),
           },
         ]
@@ -177,7 +191,7 @@ export function sidebarGroups(list: SidebarList, view: ThreadListView, now: numb
     ({ threads, ...group }) => ({
       ...group,
       status:
-        !group.pinned && !group.archived && view.grouping === 'status'
+        !group.pinned && !group.archived && !group.quiet && view.grouping === 'status'
           ? threads[0]?.status
           : undefined,
       projectIcon: threads[0]?.projectIcon,

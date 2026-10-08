@@ -6,6 +6,7 @@ import {
   PencilEdit02Icon,
   PinIcon,
   PlusSignIcon,
+  VolumeMute02Icon,
 } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/lucide_icons'
 import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
@@ -75,7 +76,12 @@ import './app_sidebar.css'
 
 const viewKey = 'jetty.sidebar.view'
 
-type SidebarView = { grouping: ThreadGrouping; showPinned: boolean; showArchived: boolean }
+type SidebarView = {
+  grouping: ThreadGrouping
+  showPinned: boolean
+  showArchived: boolean
+  showQuiet: boolean
+}
 
 function storedView(): SidebarView {
   let saved: Record<string, unknown> = {}
@@ -90,6 +96,7 @@ function storedView(): SidebarView {
         : 'date',
     showPinned: saved.showPinned !== false,
     showArchived: saved.showArchived === true,
+    showQuiet: saved.showQuiet === true,
   }
 }
 
@@ -122,7 +129,7 @@ export const AppSidebar = memo(function AppSidebar() {
   const checkChanges = useWorktreeChanges()
   const [query, setQuery] = useState('')
   const [view, setView] = useState(storedView)
-  const { grouping, showPinned, showArchived } = view
+  const { grouping, showPinned, showArchived, showQuiet } = view
   const [archivedOpen, setArchivedOpen] = useStoredState(
     'jetty.sidebar.archivedOpen',
     false,
@@ -148,7 +155,7 @@ export const AppSidebar = memo(function AppSidebar() {
   ].slice(0, keybinds.sidebarRows.length)
   const shortcutFor = (kind: 'bot' | 'thread', id: string) =>
     keybinds.sidebarRows[numbered.findIndex((row) => row.kind === kind && row.id === id)]
-  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
+  const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${showQuiet}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
   const items = (groups ?? []).flatMap((group) => [
     { kind: 'heading' as const, ...group, id: `heading:${group.id}`, count: group.threads.length },
     ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
@@ -409,6 +416,8 @@ export const AppSidebar = memo(function AppSidebar() {
           onShowPinnedChange={(next) => changeView({ showPinned: next })}
           showArchived={showArchived}
           onShowArchivedChange={(next) => changeView({ showArchived: next })}
+          showQuiet={showQuiet}
+          onShowQuietChange={(next) => changeView({ showQuiet: next })}
         />
       </div>
       <ThreadHoverGroup>
@@ -420,8 +429,9 @@ export const AppSidebar = memo(function AppSidebar() {
             <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
               {items.map((item) => {
                 if (item.kind === 'heading') {
+                  const ordinary = !item.pinned && !item.archived && !item.quiet
                   const bot =
-                    !item.pinned && !item.archived && grouping === 'bot'
+                    ordinary && grouping === 'bot'
                       ? bots.find((entry) => entry.id === item.botId)
                       : undefined
                   const heading = (
@@ -442,7 +452,10 @@ export const AppSidebar = memo(function AppSidebar() {
                           />
                         </span>
                       )}
-                      {!item.pinned && !item.archived && grouping === 'project' && (
+                      {item.quiet && (
+                        <VolumeMute02Icon className='size-3 shrink-0' aria-hidden='true' />
+                      )}
+                      {ordinary && grouping === 'project' && (
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
                       )}
                       {item.status && <StatusGlyph status={item.status} className='size-3' />}
