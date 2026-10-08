@@ -331,8 +331,7 @@ export function BotChat({ bot }: { bot: Bot }) {
             }}
             onJump={jump}
           />
-          <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px]'>
-            <div className='h-4 bg-linear-to-t from-background to-transparent' />
+          <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px] pt-4'>
             <div className='bg-background pb-4'>
               <BotComposer
                 key={bot.id}
@@ -993,6 +992,7 @@ function BotComposer({
       <InputGroupTextarea
         ref={fieldRef}
         rows={1}
+        spellCheck={false}
         value={draft}
         placeholder={`Message ${bot.name}`}
         aria-label={`Message ${bot.name}`}
@@ -1091,6 +1091,7 @@ function BotRequest({
         <InputGroupTextarea
           ref={fieldRef}
           rows={1}
+          spellCheck={false}
           value={draft.text}
           placeholder={
             isQuestion
