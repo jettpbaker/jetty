@@ -29,6 +29,7 @@ import {
   type RpcMessage,
 } from './codex-rpc'
 import { createCodexTranslator } from './codex-translate'
+import { gitWritableRoots } from './git-process'
 import { deniedApprovalNote, jettyInstructions, userAnswers } from './jetty-instructions'
 import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 
@@ -65,7 +66,12 @@ function codexInput(text: string, images?: AgentImage[]) {
   ]
 }
 
-function threadOptions(input: TurnInput, cwd: string, instructions: string) {
+function threadOptions(
+  input: TurnInput,
+  cwd: string,
+  instructions: string,
+  writableRoots: string[]
+) {
   const full = input.permissionMode === 'full_access'
   return {
     cwd,
@@ -75,6 +81,9 @@ function threadOptions(input: TurnInput, cwd: string, instructions: string) {
     approvalsReviewer: 'user',
     developerInstructions: instructions,
     sandbox: full ? 'danger-full-access' : 'workspace-write',
+    ...(!full && writableRoots.length
+      ? { config: { 'sandbox_workspace_write.writable_roots': writableRoots } }
+      : {}),
   }
 }
 
@@ -215,6 +224,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     function run(session: Session, cwd: string) {
       return Effect.scoped(
         Effect.gen(function* () {
+          const writableRoots =
+            session.input.permissionMode === 'full_access'
+              ? []
+              : yield* gitWritableRoots(cwd).pipe(
+                  Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+                )
           const binding = options.mcp
             ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'codex' })
             : undefined
@@ -251,7 +266,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
           const instructions = binding ? jettyInstructions(yield* store.getAgentBehaviours()) : ''
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
-            ...threadOptions(session.input, cwd, instructions),
+            ...threadOptions(session.input, cwd, instructions, writableRoots),
             ...(resume ? { threadId: resume } : { ephemeral: false }),
           })
           const threadId = string(object(result.thread).id)
