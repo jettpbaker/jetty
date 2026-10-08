@@ -192,6 +192,7 @@ export function Composer({
               <InputGroupTextarea
                 ref={textarea}
                 aria-label='Thread prompt'
+                spellCheck={false}
                 {...menu.input}
                 placeholder={placeholder}
                 onPaste={(event) => {

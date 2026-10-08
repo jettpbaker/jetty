@@ -15,7 +15,7 @@
 }
 
 /* The mirror behind the textarea paints the text, so chip names can take the chip's tint; the
-   textarea keeps the caret, the selection and spellcheck. While an IME composes, the textarea
+   textarea keeps the caret and the selection. While an IME composes, the textarea
    paints its own text again, so the marked text shows the way the platform draws it. */
 .skill-chip-field textarea {
   color: transparent;
