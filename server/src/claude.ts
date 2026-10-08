@@ -801,6 +801,14 @@ export function createClaudeAdapter(
                       }
                     : {}),
                   pathToClaudeCodeExecutable: claudeBin,
+                  ...(bot
+                    ? {
+                        env: {
+                          ...process.env,
+                          CLAUDE_CODE_TERMINAL_MCP_TOOLS: 'mcp__jetty__react,mcp__jetty__tell_user',
+                        },
+                      }
+                    : {}),
                   systemPrompt: {
                     type: 'preset',
                     preset: 'claude_code',
