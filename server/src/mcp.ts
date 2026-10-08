@@ -511,7 +511,8 @@ export function createMcpHandler(
           yield* orch.botMarker(
             identity.threadId,
             'messaged',
-            yield* store.requireThread(response.threadId)
+            yield* store.requireThread(response.threadId),
+            response.messageId
           )
         return {
           threadId: response.threadId,

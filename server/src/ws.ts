@@ -687,6 +687,16 @@ export function createRpcHandlers(
             return { bot }
           })
         ),
+      'bot.conversation': ({ botId, otherBotId }) =>
+        Effect.gen(function* () {
+          if (botId === otherBotId)
+            return yield* Effect.fail(
+              new StoreError('invalid_params', 'Conversation requires two different bots')
+            )
+          if (!(yield* store.isBot(botId)) || !(yield* store.isBot(otherBotId)))
+            return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          return { messages: yield* store.getBotConversation(botId, otherBotId) }
+        }).pipe(Effect.mapError(wireError)),
       'bot.send': (params) =>
         mutation(
           Effect.gen(function* () {

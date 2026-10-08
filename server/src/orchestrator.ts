@@ -1325,7 +1325,12 @@ export function createOrchestrator({
           return true
         })
       },
-      botMarker(threadId: string, action: 'started' | 'messaged', target: ThreadMeta) {
+      botMarker(
+        threadId: string,
+        action: 'started' | 'messaged',
+        target: ThreadMeta,
+        messageId?: string
+      ) {
         return Effect.gen(function* () {
           const turn = yield* store.turnContext(threadId)
           const item = {
@@ -1336,6 +1341,7 @@ export function createOrchestrator({
             action,
             threadId: target.id,
             title: target.title,
+            ...(messageId && { messageId }),
           }
           yield* append(threadId, { type: 'item.started', item })
           yield* append(threadId, { type: 'item.completed', itemId: item.id })

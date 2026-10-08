@@ -27,6 +27,7 @@ import {
   type PullRequestSnapshot,
   type PullRequestGuideState,
   type Bot,
+  type BotConversationMessage,
   type BotTask,
   type ParamsOf,
 } from '@jetty/shared/wire'
@@ -429,6 +430,46 @@ export function createStore() {
         sql.withTransaction,
         Effect.mapError(storeError)
       )
+    }
+
+    function getBotConversation(botId: string, otherBotId: string) {
+      return Effect.gen(function* () {
+        const messages: BotConversationMessage[] = []
+        for (const [from, to] of [
+          [botId, otherBotId],
+          [otherBotId, botId],
+        ] as const) {
+          const state = yield* getThreadState(to)
+          const delivered = new Set<string>()
+          for (const item of state.items) {
+            if (
+              item.kind !== 'user_message' ||
+              item.from?.threadId !== from ||
+              item.agentId !== undefined
+            )
+              continue
+            delivered.add(item.id)
+            messages.push({
+              id: item.id,
+              from,
+              text: item.text,
+              createdAt: item.createdAt,
+              attachments: item.attachments ?? [],
+            })
+          }
+          for (const message of (yield* requireThread(to)).pendingMessages ?? []) {
+            if (message.from?.threadId !== from || delivered.has(message.id)) continue
+            messages.push({
+              id: message.id,
+              from,
+              text: message.text,
+              createdAt: message.createdAt,
+              attachments: message.attachments ?? [],
+            })
+          }
+        }
+        return messages.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+      }).pipe(sql.withTransaction, Effect.mapError(storeError))
     }
 
     function writeState(threadId: string, state: ThreadState) {
@@ -1990,6 +2031,7 @@ export function createStore() {
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getThreadState,
+      getBotConversation,
       markThreadSeen(threadId: string) {
         return Effect.gen(function* () {
           yield* requireThread(threadId)

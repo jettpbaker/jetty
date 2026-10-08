@@ -108,6 +108,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('question.respond'),
   unary('question.dismiss'),
   unary('bot.create'),
+  unary('bot.conversation'),
   unary('bot.send'),
   unary('bot.markSeen'),
   Rpc.make('chrome.subscribe', {
