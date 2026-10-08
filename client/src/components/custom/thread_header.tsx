@@ -5,7 +5,6 @@ import { useBot } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 
 import { BotAvatar } from './bot_avatar'
-import { botColorStyle } from './bot_avatar'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 
 export function ThreadHeader({
@@ -31,13 +30,9 @@ export function ThreadHeader({
           <button
             type='button'
             {...pressProps(() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } }))}
-            className='flex shrink-0 items-center gap-2 text-muted-foreground hover:text-foreground'
-            style={botColorStyle(bot.color)}
+            className='flex shrink-0 items-center gap-2 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
-            <BotAvatar
-              bot={{ ...bot, activity: 'idle', needsYou: false, failed: false, unread: false }}
-              size={20}
-            />
+            <BotAvatar bot={bot} size={20} unread={false} />
             {bot.name}
           </button>
           <span className='text-faint-foreground'>/</span>

@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
-import { useThreadMeta } from '@/state'
-import { useBot } from '@/state'
+import { useBot, useThreadMeta } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 
 import { BotAvatar, botColorStyle, botTextClass } from './bot_avatar'
@@ -50,10 +49,7 @@ export function ThreadSourceLabel({
         style={botColorStyle(bot.color)}
         className={cn('flex items-center gap-1.5 text-xs font-medium', botTextClass, className)}
       >
-        <BotAvatar
-          bot={{ ...bot, activity: 'idle', needsYou: false, failed: false, unread: false }}
-          size={14}
-        />
+        <BotAvatar bot={bot} size={14} unread={false} />
         {bot.name}
       </button>
     )

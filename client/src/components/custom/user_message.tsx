@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { useBot } from '@/state'
 import { useLayoutEffect, useRef, useState } from 'react'
 
-import { botColorStyle } from './bot_avatar'
+import { botAccentClass, botColorStyle } from './bot_avatar'
 import { ThreadSourceLabel, type MessageSource } from './source_label'
 
 export const collapsedTextHeight = 240
@@ -49,6 +49,8 @@ export function UserMessage({
 }) {
   const openMedia = useOpenMedia()
   const bot = useBot(from?.threadId)
+  // Another thread's message is tinted; Jett's, and a bot's in its colour, are filled.
+  const tinted = from && !bot
   const textRef = useRef<HTMLParagraphElement>(null)
   const [collapsible, setCollapsible] = useState(
     () => collapsibleTexts.get(text)?.collapsible ?? false
@@ -81,17 +83,12 @@ export function UserMessage({
       <MessageContent className={cn(from && (bot ? 'gap-1' : 'gap-1.5'))}>
         {from && <ThreadSourceLabel from={from} className='self-end' />}
         <Bubble
-          variant={bot ? 'default' : from ? 'tinted' : 'default'}
+          variant={tinted ? 'tinted' : 'default'}
           align='end'
+          className={cn(bot && botAccentClass)}
           style={bot ? botColorStyle(bot.color) : undefined}
         >
-          <BubbleContent
-            className={cn(
-              'rounded-lg',
-              bot &&
-                'max-w-[515px] bg-(--bot-deep)! text-white! dark:bg-(--bot)! dark:text-sidebar-primary-foreground!'
-            )}
-          >
+          <BubbleContent className='rounded-lg'>
             {images.length > 0 && (
               <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
                 {images.map((image, index) => (
@@ -104,7 +101,7 @@ export function UserMessage({
                     aria-label={`Open ${image.name}`}
                     className={cn(
                       'shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2',
-                      from
+                      tinted
                         ? 'focus-visible:outline-ring'
                         : 'focus-visible:outline-primary-foreground'
                     )}
@@ -150,7 +147,7 @@ export function UserMessage({
                 size='xs'
                 className={cn(
                   '-ml-1 mt-1 px-1',
-                  !from &&
+                  !tinted &&
                     'text-primary-foreground/85 not-disabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
                 )}
                 aria-expanded={expanded}
@@ -168,7 +165,7 @@ export function UserMessage({
                 key={attachment.id}
                 className={cn(
                   'mt-2 text-xs',
-                  from ? 'text-muted-foreground' : 'text-primary-foreground/85'
+                  tinted ? 'text-muted-foreground' : 'text-primary-foreground/85'
                 )}
               >
                 {attachment.name}

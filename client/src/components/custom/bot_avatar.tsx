@@ -41,3 +41,8 @@ export function botColorStyle(color: BotColor) {
 
 // Text in the bot's colour: its deep ink in light, as its face is drawn.
 export const botTextClass = 'text-(--bot-deep) dark:text-(--bot)'
+
+// The bot's colour plays the accent inside: bubbles and buttons that fill with primary take it,
+// deep with light text in light. Links keep the app's accent, so this never wraps them.
+export const botAccentClass =
+  '[--primary-foreground:oklch(0.99_0_0)] [--primary:var(--bot-deep)] dark:[--primary-foreground:oklch(0.205_0_0)] dark:[--primary:var(--bot)]'

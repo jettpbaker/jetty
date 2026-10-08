@@ -349,7 +349,8 @@ export const AppSidebar = memo(function AppSidebar() {
         </nav>
       </SidebarHeader>
       <section aria-label='Bots' className='flex shrink-0 flex-col gap-0.5 px-1.5 pb-3.5'>
-        <div className='flex h-6 items-center justify-between px-2.5'>
+        {/* The plus lines up with the status glyphs below. */}
+        <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
           <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
           <Button
             variant='ghost'

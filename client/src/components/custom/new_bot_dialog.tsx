@@ -39,7 +39,10 @@ function firstClaudeLoadout(slots: readonly LoadoutSlot[], catalog: ReturnType<t
     model && {
       provider: 'claude' as const,
       model: model.id,
-      effort: model.efforts.find((effort) => BOT_EFFORTS.includes(effort)),
+      effort:
+        model.defaultEffort && BOT_EFFORTS.includes(model.defaultEffort)
+          ? model.defaultEffort
+          : model.efforts.find((effort) => BOT_EFFORTS.includes(effort)),
       fast: false,
     }
   )
@@ -59,9 +62,16 @@ export function NewBotDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  // Each opening starts a fresh form, and the last one stays put while the dialog animates out.
+  const [opened, setOpened] = useState(0)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setOpened(opened + 1)
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <NewBotForm onOpenChange={onOpenChange} />}
+      <NewBotForm key={opened} onOpenChange={onOpenChange} />
     </Dialog>
   )
 }

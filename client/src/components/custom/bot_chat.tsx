@@ -2,7 +2,7 @@ import type { PendingBotMessage } from '@/state/bots'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
-import { botColorStyle } from '@/components/custom/bot_avatar'
+import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import {
   ApprovalStrip,
   QuestionStrip,
@@ -253,7 +253,7 @@ export function BotChat({ bot }: { bot: Bot }) {
   }
   return (
     <div
-      className='flex min-h-0 flex-1 flex-col overflow-hidden bg-background [--primary-foreground:oklch(0.99_0_0)] [--primary:var(--bot-deep)] dark:[--primary-foreground:oklch(0.205_0_0)] dark:[--primary:var(--bot)]'
+      className='flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
       style={botColorStyle(bot.color)}
     >
       <div className='flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'>
@@ -266,7 +266,10 @@ export function BotChat({ bot }: { bot: Bot }) {
             bot={bot}
             childMetas={childMetas}
             calm={calm}
-            onReply={setReplyTo}
+            onReply={(reply) => {
+              setReplyTo(reply)
+              fieldRef.current?.focus()
+            }}
             onJump={jump}
           />
           <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px] pt-4'>
@@ -474,17 +477,18 @@ function MessageRow({
         id={`bot-message-${message.id}`}
         className={cn(
           'group/row flex flex-col',
-          jett ? 'origin-bottom-right' : 'origin-bottom-left'
+          jett ? cn('origin-bottom-right', botAccentClass) : 'origin-bottom-left',
+          message.reaction && 'pt-1.5'
         )}
       >
         {message.replyTo && (
           <button
             type='button'
             onClick={() => onJump(message.replyTo!.itemId)}
-            className='mb-1 max-w-[515px] self-end truncate rounded-full border border-border px-2.5 py-1 text-left text-xs text-muted-foreground hover:text-foreground'
+            className='mb-0.75 flex max-w-[380px] min-w-0 items-center gap-1.5 self-end rounded-[14px] border border-border px-2.5 py-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
-            <ArrowTurnBackwardIcon className='mr-1 inline size-3' />
-            {message.replyTo.text}
+            <ArrowTurnBackwardIcon className='size-3 shrink-0' />
+            <span className='min-w-0 truncate'>{message.replyTo.text}</span>
           </button>
         )}
         <div className={cn('relative w-fit max-w-full', jett && 'ml-auto')}>
@@ -506,7 +510,7 @@ function MessageRow({
             </BubbleContent>
             {message.reaction && (
               <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
-                <img src={emojiUrl(message.reaction)} alt={message.reaction} className='size-4' />
+                <img src={emojiUrl(message.reaction)} alt={message.reaction} className='size-3' />
               </span>
             )}
           </Bubble>
@@ -650,7 +654,7 @@ function MarkerLink({ marker }: { marker: Marker }) {
   const meta = useThreadMeta(marker.threadId)
   const status = threadStatus(meta?.status ?? 'idle', meta?.readyForReview)
   return (
-    <span className='inline-flex min-w-0 items-center gap-1'>
+    <span className='inline-flex min-w-0 items-center gap-[3px]'>
       <StatusGlyph status={status} className='size-3' />
       <Link
         to='/threads/$threadId'
@@ -669,10 +673,14 @@ function MarkerMenuEntry({ marker }: { marker: Marker }) {
     <Link
       to='/threads/$threadId'
       params={{ threadId: marker.threadId }}
-      className='flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent'
+      className='flex h-7.5 min-w-0 items-center gap-2 rounded-menu-item px-2 text-xs text-foreground outline-none hover:bg-accent focus-visible:bg-accent'
     >
-      <MarkerLink marker={marker} />
-      <span className='ml-auto truncate text-muted-foreground'>{project?.title}</span>
+      <StatusGlyph
+        status={threadStatus(meta?.status ?? 'idle', meta?.readyForReview)}
+        className='size-3.5'
+      />
+      <span className='min-w-0 flex-1 truncate'>{meta?.title ?? marker.title}</span>
+      <span className='shrink-0 text-muted-foreground'>{project?.title}</span>
     </Link>
   )
 }
@@ -681,41 +689,39 @@ function MarkerRun({ markers, metas }: { markers: Marker[]; metas: readonly Thre
   const sameThread = markers.every((marker) => marker.threadId === first.threadId)
   if (first.action === 'messaged' && sameThread && markers.length > 1)
     return (
-      <span className='inline-flex items-center gap-1'>
+      <span className='inline-flex items-center gap-[5px]'>
         <span className='text-foreground'>{markers.length}</span> messages to{' '}
         <MarkerLink marker={first} />
       </span>
     )
   if (first.action === 'started' && markers.length === 2)
     return (
-      <span className='inline-flex items-center gap-1'>
+      <span className='inline-flex items-center gap-[5px]'>
         Started <MarkerLink marker={first} /> and <MarkerLink marker={markers[1]!} />
       </span>
     )
   if (first.action === 'started' && markers.length >= 3)
     return (
-      <span className='inline-flex items-center gap-1'>
+      <span className='inline-flex items-center gap-[5px]'>
         Started{' '}
         <Popover>
           <PopoverTrigger className='rounded-sm text-foreground hover:underline'>
             {markers.length} threads
           </PopoverTrigger>
-          <PopoverContent className='w-72 gap-0 rounded-sm p-1'>
-            <PopoverTitle className='px-2 py-1 text-xs text-muted-foreground'>
-              Started threads
-            </PopoverTitle>
+          <PopoverContent className='w-75 gap-0 rounded-sm p-1'>
+            <PopoverTitle className='sr-only'>Started threads</PopoverTitle>
             {markers.map((marker) => (
               <MarkerMenuEntry key={marker.id} marker={marker} />
             ))}
           </PopoverContent>
         </Popover>
-        <span className='ml-1 inline-flex items-center gap-2'>
+        <span className='inline-flex items-center gap-[7px] pl-0.5'>
           <MarkerTallies markers={markers} metas={metas} />
         </span>
       </span>
     )
   return (
-    <span className='inline-flex items-center gap-1'>
+    <span className='inline-flex items-center gap-[5px]'>
       {first.action === 'started' ? 'Started' : 'Messaged'} <MarkerLink marker={first} />
     </span>
   )
@@ -728,7 +734,10 @@ function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly 
     tally.set(status, (tally.get(status) ?? 0) + 1)
   }
   return [...tally].map(([status, count]) => (
-    <span key={status} className='inline-flex items-center gap-1 font-mono text-muted-foreground'>
+    <span
+      key={status}
+      className='inline-flex items-center gap-[3px] font-mono text-muted-foreground'
+    >
       <StatusGlyph status={status} className='size-3' />
       {count}
     </span>
@@ -764,7 +773,7 @@ function MarkerRow({
       )}
     >
       {groups.map((group) => (
-        <div key={group[0]!.id} className='flex min-w-0 items-center justify-center gap-1 py-0.5'>
+        <div key={group[0]!.id} className='flex min-w-0 items-center justify-center py-0.5'>
           <MarkerRun markers={group} metas={metas} />
         </div>
       ))}
@@ -784,8 +793,8 @@ function ErrorRow({
 }) {
   return (
     <div data-row={id} className={cn('flex flex-col items-start gap-1.5', gapClass[gap])}>
-      <div className='max-w-[515px] rounded-xl bg-destructive/15 px-3 py-2 text-sm text-destructive'>
-        {name}’s turn failed: {error.message}
+      <div className='max-w-[515px] rounded-xl bg-(--status-error-wash) px-3 py-2 text-sm leading-normal text-status-error'>
+        {name}’s turn failed: {sentenceCase(error.message)}
       </div>
       <DisabledTooltip reason='Coming soon' wrap='flex'>
         <Button variant='ghost-text' size='xs' disabled className='ml-1 gap-1.5'>
@@ -795,6 +804,12 @@ function ErrorRow({
       </DisabledTooltip>
     </div>
   )
+}
+
+// "The model provider is overloaded." reads on after the colon as "the model provider…"; an
+// acronym ("API …") keeps its capitals.
+function sentenceCase(message: string) {
+  return /^[A-Z][a-z]/.test(message) ? message[0]!.toLowerCase() + message.slice(1) : message
 }
 
 let measure: CanvasRenderingContext2D | null = null
@@ -847,19 +862,28 @@ function BotComposer({
     setStacked(false)
   }
   if (request) return answer
+  // Replying stacks the pill like a wrapped draft, with the quote on a row above the text.
+  const rows = stacked || replyTo
   return (
     <div
       ref={boxRef}
       className={cn(
         'grid grid-cols-[auto_1fr_auto] items-center gap-x-1.5 rounded-[20px] bg-popover p-1.5',
-        (stacked || replyTo) && 'gap-y-1.5'
+        botAccentClass,
+        rows && 'gap-y-1.5'
       )}
     >
       {replyTo && (
-        <div className='col-span-3 flex h-8 min-w-0 items-center gap-2 rounded-xl bg-accent pl-2.5 pr-1 text-xs text-muted-foreground'>
+        <div className='col-span-3 row-start-1 flex h-8 min-w-0 items-center gap-2 rounded-[14px] bg-accent pr-1 pl-2.5 text-13 text-muted-foreground'>
           <ArrowTurnBackwardIcon className='size-3 shrink-0' />
           <span className='min-w-0 flex-1 truncate'>{replyTo.text}</span>
-          <Button variant='ghost' size='icon-xs' aria-label='Clear reply' onClick={onClearReply}>
+          <Button
+            variant='ghost'
+            size='icon-xs'
+            aria-label='Clear reply'
+            className='rounded-[10px]'
+            onClick={onClearReply}
+          >
             <Cancel01Icon />
           </Button>
         </div>
@@ -875,13 +899,12 @@ function BotComposer({
           if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault()
             send()
-          }
+          } else if (event.key === 'Escape' && replyTo) onClearReply()
         }}
         className={cn(
           'col-start-2 row-start-1 max-h-48 min-h-0 p-0 text-sm md:text-sm',
-          replyTo && 'row-start-2',
-          (stacked || replyTo) && 'col-span-3 col-start-1 px-1.5 pt-1',
-          stacked && replyTo && 'row-start-2'
+          rows && 'col-span-3 col-start-1 px-1.5 pt-1',
+          replyTo && 'row-start-2'
         )}
       />
       <Button
@@ -892,7 +915,6 @@ function BotComposer({
         aria-label='Attach'
         className={cn(
           'col-start-1 row-start-1 rounded-full',
-          replyTo && 'row-start-2',
           stacked && 'row-start-2',
           replyTo && 'row-start-3'
         )}
@@ -903,11 +925,11 @@ function BotComposer({
         size='icon'
         aria-label={stop ? 'Stop' : 'Send'}
         disabled={empty && !busy}
+        // Keep the caret in the draft.
         onMouseDown={(event) => event.preventDefault()}
         {...pressProps(stop ? onStop : send)}
         className={cn(
           'col-start-3 row-start-1 rounded-full',
-          replyTo && 'row-start-2',
           stacked && 'row-start-2',
           replyTo && 'row-start-3'
         )}
@@ -952,14 +974,17 @@ function BotRequest({
     if (isQuestion) question.next()
     else approval.send()
   }
+  // As in the thread composer, the request sits on the pill like a tab; inset past its corners.
   return (
-    <div className='rounded-[20px] bg-popover p-1.5 [--strip-bg:var(--popover)]'>
-      {isQuestion ? (
-        <QuestionStrip item={request} ctl={question} />
-      ) : (
-        <ApprovalStrip item={request} ctl={approval} typed={!!draft.text.trim()} />
-      )}
-      <div className='flex items-center gap-1.5 px-1.5 pb-1'>
+    <div className={botAccentClass}>
+      <div className='px-5'>
+        {isQuestion ? (
+          <QuestionStrip item={request} ctl={question} />
+        ) : (
+          <ApprovalStrip item={request} ctl={approval} typed={!!draft.text.trim()} />
+        )}
+      </div>
+      <div className='flex items-center gap-1.5 rounded-[20px] bg-popover p-1.5 pl-3'>
         <InputGroupTextarea
           ref={fieldRef}
           rows={1}
@@ -985,6 +1010,7 @@ function BotRequest({
         />
         <Button
           size='sm'
+          className='rounded-full'
           disabled={isQuestion ? !question.answer : !draft.text.trim() && !approval.confirming}
           onClick={submit}
         >

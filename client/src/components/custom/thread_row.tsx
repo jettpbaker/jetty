@@ -57,23 +57,25 @@ export function ThreadRow({
                 : onSelect()
             }
             heading={
-              <OverflowTitle
-                focusable={false}
-                className='font-normal leading-normal'
-                renderText={
-                  bot
-                    ? (text) => (
-                        <span className='inline-flex items-center gap-0.5'>
-                          <JettyBot shape={bot.shape} color={bot.color} state='idle' size={14} />
-                          <span className='text-muted-foreground'>/</span>
-                          {text}
-                        </span>
-                      )
-                    : undefined
-                }
-              >
-                {title}
-              </OverflowTitle>
+              <span className='flex min-w-0 flex-1 items-center gap-0.5'>
+                {bot && (
+                  <>
+                    {/* The face's slot is a pixel narrower than the face, as the board draws it. */}
+                    <span className='relative h-3.5 w-[13px] shrink-0'>
+                      <JettyBot
+                        shape={bot.shape}
+                        color={bot.color}
+                        size={14}
+                        className='absolute top-0 -left-px'
+                      />
+                    </span>
+                    <span className='shrink-0 text-faint-foreground'>/</span>
+                  </>
+                )}
+                <OverflowTitle focusable={false} className='font-normal leading-normal'>
+                  {title}
+                </OverflowTitle>
+              </span>
             }
             glyph={
               <span className='ml-auto flex shrink-0 items-center'>

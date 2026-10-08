@@ -1,6 +1,5 @@
 import type { SubagentStatus } from '@jetty/shared/items'
-import type { ProviderId, RunningSubagent } from '@jetty/shared/wire'
-import type { Bot } from '@jetty/shared/wire'
+import type { Bot, ProviderId, RunningSubagent } from '@jetty/shared/wire'
 
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Button } from '@/components/ui/button'
@@ -35,9 +34,10 @@ import {
   type ReactNode,
 } from 'react'
 
-import { BotAvatar, botColorStyle, botTextClass } from './bot_avatar'
+import { botColorStyle, botTextClass } from './bot_avatar'
 import { useChildThreads } from './child_threads'
 import { environments } from './composer_environment'
+import { JettyBot } from './jetty_bot'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { RollingDuration } from './rolling_duration'
@@ -458,10 +458,7 @@ function ThreadHoverPanel({
           className={cn('flex w-fit items-center gap-1 text-xs', botTextClass)}
           style={botColorStyle(owner.color)}
         >
-          <BotAvatar
-            bot={{ ...owner, activity: 'idle', needsYou: false, failed: false, unread: false }}
-            size={14}
-          />
+          <JettyBot shape={owner.shape} color={owner.color} size={14} />
           {owner.name}
         </button>
       )}

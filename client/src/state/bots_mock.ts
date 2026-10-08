@@ -41,6 +41,11 @@ const chromeListeners = new Set<(push: ChromePushData) => void>()
 const timers = new Map<string, Set<ReturnType<typeof setTimeout>>>()
 const replies = new Map<string, number>()
 let seeded = false
+// A thread page opened directly subscribes before chrome's snapshot seeds the mock.
+let markSeeded = () => {}
+const seededOnce = new Promise<void>((resolve) => {
+  markSeeded = resolve
+})
 // The first real project, where Forge's workers live.
 let workProject: string | undefined
 
@@ -174,6 +179,7 @@ function seedWorker(worker: ThreadMeta, brief: string, report?: string) {
 
 function seed(projects: readonly Project[]) {
   seeded = true
+  markSeeded()
   if (import.meta.env.VITE_BOTS_MOCK === 'empty') return
   const project = projects[0]?.id
   workProject = project
@@ -658,8 +664,14 @@ export function withBotsMock(connection: Connection): Connection {
     subscribeChrome: () =>
       Stream.merge(connection.subscribeChrome().pipe(Stream.map(withMock)), chromePushes),
     subscribeThread: (threadId, afterSeq) =>
-      threads.has(threadId)
-        ? threadStream(threadId)
-        : connection.subscribeThread(threadId, afterSeq),
+      Stream.unwrap(
+        Effect.promise(() => seededOnce).pipe(
+          Effect.map(() =>
+            threads.has(threadId)
+              ? threadStream(threadId)
+              : connection.subscribeThread(threadId, afterSeq)
+          )
+        )
+      ),
   }
 }
