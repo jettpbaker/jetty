@@ -3,7 +3,7 @@ import type { ThreadState } from '@jetty/shared/reducer'
 import type { ThreadMeta } from '@jetty/shared/wire'
 
 import { WAIT_NOTES } from '@jetty/shared/bots'
-import { heldByRestarts } from '@jetty/shared/items'
+import { awaitsInput, heldByRestarts } from '@jetty/shared/items'
 
 export type ChildWaitResult = WaitedThread extends infer Result
   ? Result extends WaitedThread
@@ -17,10 +17,7 @@ export function needsUser(thread: ThreadMeta, state: ThreadState) {
     thread.worktree?.state === 'failed' ||
     heldByRestarts(state.items) ||
     state.items.some(
-      (item) =>
-        (item.kind === 'question' && !item.answers && !item.dismissed) ||
-        (item.kind === 'approval' && !item.decision) ||
-        (item.kind === 'error' && item.turnId === state.activeTurnId)
+      (item) => awaitsInput(item) || (item.kind === 'error' && item.turnId === state.activeTurnId)
     )
   )
 }

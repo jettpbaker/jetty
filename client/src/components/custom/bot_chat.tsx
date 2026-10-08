@@ -43,13 +43,13 @@ import {
   useThreadMeta,
   useThreadOverlay,
 } from '@/state'
-import { awaitsInput } from '@/state/thread_tab'
 import {
   botTurnActivity,
   exchangeEntry,
   shownInBotChat,
   type ExchangeEntry,
 } from '@jetty/shared/bots'
+import { awaitsInput } from '@jetty/shared/items'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'

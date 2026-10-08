@@ -1,6 +1,6 @@
 import type { QuestionSpec, ThreadItem } from '@jetty/shared/items'
 
-import { awaitsInput } from '@/state/thread_tab'
+import { awaitsInput } from '@jetty/shared/items'
 
 import { projectRelative, toolAction, toolDetail, toolTarget } from './thread_rows'
 

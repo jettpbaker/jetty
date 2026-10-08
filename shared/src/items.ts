@@ -257,6 +257,13 @@ export const RESTART_LIMIT = 3
 export const RESTART_WINDOW_MS = 10 * 60_000
 export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
 
+// An approval or question still waiting on the user's answer.
+export function awaitsInput(item: ThreadItem) {
+  if (item.kind === 'approval') return !item.decision && !item.withdrawn
+  if (item.kind === 'question') return !item.answers && !item.skipped && !item.dismissed
+  return false
+}
+
 // The thread's last turn is one the guard held, and nothing has come after it. The guard's note
 // closes that turn; only errors about it, such as an undelivered report, PR watcher lines, and
 // the note that a restart stopped background work can follow.

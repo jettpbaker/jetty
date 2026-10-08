@@ -6,7 +6,7 @@ import {
   WAIT_NOTES,
 } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
-import { Attachment, heldByRestarts } from '@jetty/shared/items'
+import { Attachment, awaitsInput, heldByRestarts } from '@jetty/shared/items'
 import {
   displayedRollupState,
   failedCheckConclusions,
@@ -958,18 +958,15 @@ export function createStore() {
         const state = yield* getThreadState(row.id)
         const [waiting] = yield* sql<{ count: number }>`SELECT COUNT(*) AS count FROM threads
             WHERE bot_id = ${row.id} AND id != ${row.id} AND status = 'awaiting_approval'`
-        const needsYou =
-          state.items.some(
-            (item) =>
-              (item.kind === 'question' && !item.answers && !item.dismissed) ||
-              (item.kind === 'approval' && !item.decision && !item.withdrawn)
-          ) || (waiting?.count ?? 0) > 0
+        // The bot's own card stops its turn; a worker waiting on the user leaves it working.
+        const asking = state.items.some(awaitsInput)
+        const needsYou = asking || (waiting?.count ?? 0) > 0
         const active = state.activeTurnId !== null
         const current = state.items.filter((item) => item.turnId === state.activeTurnId)
         const newest = [...current].reverse().find((item) => !item.agentId)
         const turn = state.activeTurnId && botTurnActivity(current, state.activeTurnId)
         const activity: Bot['activity'] =
-          !active || !turn
+          !active || asking || !turn
             ? 'idle'
             : newest?.kind === 'compaction' && newest.status === 'running'
               ? 'tidying'

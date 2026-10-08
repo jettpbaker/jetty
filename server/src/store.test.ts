@@ -409,7 +409,7 @@ test('active PR link pages reach every linked PR beyond the first hundred', asyn
 
 for (const fromUser of [true, false]) {
   test(`bot activity follows running say calls during ${fromUser ? 'user' : 'background'} turns`, async () => {
-    const { store, runtime, home, sql } = await setup()
+    const { store, runtime, home, sql, thread } = await setup()
     const id = newId()
     await runtime.runPromise(
       store.createBotRecord(
@@ -485,7 +485,7 @@ for (const fromUser of [true, false]) {
       })
     )
     expect(await runtime.runPromise(store.getBot(id))).toMatchObject({
-      activity: 'typing',
+      activity: 'idle',
       needsYou: true,
     })
     await runtime.runPromise(
@@ -509,6 +509,14 @@ for (const fromUser of [true, false]) {
       })
     )
     expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('working')
+    await runtime.runPromise(
+      sql`UPDATE threads SET bot_id = ${id}, status = 'awaiting_approval' WHERE id = ${thread.id}`
+    )
+    expect(await runtime.runPromise(store.getBot(id))).toMatchObject({
+      activity: 'working',
+      needsYou: true,
+    })
+    await runtime.runPromise(sql`UPDATE threads SET status = 'idle' WHERE id = ${thread.id}`)
     await runtime.runPromise(
       store.appendEvent(id, {
         type: 'item.completed',

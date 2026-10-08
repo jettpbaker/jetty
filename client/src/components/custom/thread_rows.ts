@@ -4,9 +4,13 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { createItemSelection, itemDeltasSince } from '@/state/item_selection'
 import { isQueuedEditing } from '@/state/queue_editing'
-import { awaitsInput } from '@/state/thread_tab'
 import { pendingTurnId } from '@/state/turns'
-import { RESTART_LIMIT_NOTE, type ChildReport, type ThreadItem } from '@jetty/shared/items'
+import {
+  awaitsInput,
+  RESTART_LIMIT_NOTE,
+  type ChildReport,
+  type ThreadItem,
+} from '@jetty/shared/items'
 import { claudeModelLabel } from '@jetty/shared/model-name'
 
 import type { Subagent } from './subagent_row'

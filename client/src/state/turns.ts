@@ -15,7 +15,7 @@ import {
 import { resendOnDrop } from '@/net/connection'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { heldByRestarts } from '@jetty/shared/items'
+import { awaitsInput, heldByRestarts } from '@jetty/shared/items'
 import { deliversQueue, newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
@@ -42,7 +42,6 @@ import {
   without,
   withoutId,
 } from './mutations'
-import { awaitsInput } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
 

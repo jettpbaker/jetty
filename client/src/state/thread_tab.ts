@@ -1,6 +1,7 @@
 import type { SubagentStatus, ThreadItem } from '@jetty/shared/items'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { awaitsInput } from '@jetty/shared/items'
 import { Atom } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
@@ -29,12 +30,6 @@ export type SubagentTab = {
   agentType: string | undefined
   status: SubagentStatus
   needsInput: boolean
-}
-
-export function awaitsInput(item: ThreadItem) {
-  if (item.kind === 'approval') return !item.decision && !item.withdrawn
-  if (item.kind === 'question') return !item.answers && !item.skipped && !item.dismissed
-  return false
 }
 
 // Only running subagents get a tab, plus the one being viewed so finishing doesn't yank it away.
