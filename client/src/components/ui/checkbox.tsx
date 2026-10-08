@@ -1,6 +1,6 @@
 import { Tick02Icon } from '@/components/custom/huge_icons'
+import { cn } from '@/lib/utils'
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
-import { cn } from 'cn'
 
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   return (

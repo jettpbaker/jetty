@@ -1,7 +1,7 @@
 import type { ExtraProps } from 'streamdown'
 
 import { Button } from '@/components/ui/button'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import {
   Children,
   createContext,

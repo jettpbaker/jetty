@@ -7,8 +7,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
+import { cn } from '@/lib/utils'
 import { Command as CommandPrimitive } from 'cmdk'
-import { cn } from 'cn'
 import * as React from 'react'
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {

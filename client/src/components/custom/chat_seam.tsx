@@ -1,7 +1,7 @@
 import type { ComponentProps, ComponentType, ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 
 // A divider across the transcript that carries a short state between messages: queued, paused,
 // compacted, a report arriving. Hairlines either side; the content stays one line.
