@@ -262,16 +262,12 @@ export function BotChat({ bot }: { bot: Bot }) {
   const streaming = items.some(
     (item) => item.kind === 'assistant_message' && item.streaming && shownInBotChat(item)
   )
-  // The bot's activity arrives apart from its thread, so the thread decides when a reply has
-  // taken the indicator's place: the reply and the indicator leaving must share one commit.
-  const newest = items.findLast((item) => !item.agentId)
-  const replied =
-    newest?.kind === 'assistant_message' && shownInBotChat(newest) && !!newest.text.trim()
+  // The indicator and Stop stay for exactly as long as the turn runs, replies or not.
   const presence = streaming
     ? 'typing'
-    : !thread?.activeTurnId || bot.activity === 'idle' || replied
-      ? null
-      : bot.activity
+    : thread?.activeTurnId && bot.activity !== 'idle'
+      ? bot.activity
+      : null
   function send(text: string) {
     sendToBot(bot.id, text, replyTo)
     setReplyTo(undefined)

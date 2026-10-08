@@ -23,7 +23,7 @@ export function BotRow({
   const face = botFace(bot)
   const label = `${bot.name}, ${face === 'thinking' ? 'typing' : face === 'waiting' ? 'needs you' : face}${bot.unread && !selected ? ', unread' : ''}`
   const className = cn(
-    'flex h-9 w-full min-w-0 items-center gap-2.5 rounded-md px-2 text-left text-sm [--jb-ring:var(--sidebar)]',
+    'flex h-9 w-full min-w-0 shrink-0 items-center gap-2.5 rounded-md px-2 text-left text-sm [--jb-ring:var(--sidebar)]',
     selected && 'bg-sidebar-accent [--jb-ring:var(--sidebar-accent)]'
   )
   return (

@@ -362,8 +362,8 @@ export const AppSidebar = memo(function AppSidebar() {
           </Button>
         </div>
         {bots.length ? (
-          // Many bots scroll here, so the threads below keep most of the height.
-          <div className='no-scrollbar scroll-fade-y -mx-1.5 flex max-h-[30svh] flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5'>
+          // Six bots show; more scroll here, so the threads below keep their place.
+          <div className='no-scrollbar scroll-fade-y -mx-1.5 flex max-h-[calc(6*2.25rem+5*0.125rem)] flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5'>
             {bots.map((bot) => (
               <BotRow
                 key={bot.id}
