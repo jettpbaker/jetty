@@ -29,6 +29,18 @@ import { ProjectFolderDialog } from './project_folder_dialog'
 
 const ALL = 'all'
 
+// Accent follows whichever accent is on, so its swatch is a wheel of the accent presets rather
+// than a copy of the one that's on.
+const accentWheel = ['orange', 'teal', 'blue', 'lilac', 'rose', 'orange'] as const
+
+function swatchStyle(id: BotColor) {
+  if (id !== 'accent')
+    return { '--body': botColors[id], '--deep': deepBotColors[id] } as CSSProperties
+  const wheel = (colors: Record<BotColor, string>) =>
+    `conic-gradient(${accentWheel.map((each) => colors[each]).join(', ')})`
+  return { '--body': wheel(botColors), '--deep': wheel(deepBotColors) } as CSSProperties
+}
+
 function firstClaudeLoadout(slots: readonly LoadoutSlot[], catalog: ReturnType<typeof useModels>) {
   for (const slot of slots) {
     const loadout = slotLoadout(slot)
@@ -190,10 +202,8 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
                       className='aria-pressed:bg-accent'
                     >
                       <span
-                        className='size-4 rounded-full bg-(--deep) dark:bg-(--body)'
-                        style={
-                          { '--body': botColors[id], '--deep': deepBotColors[id] } as CSSProperties
-                        }
+                        className='size-4 rounded-full [background:var(--deep)] dark:[background:var(--body)]'
+                        style={swatchStyle(id)}
                       />
                     </Button>
                   ))}

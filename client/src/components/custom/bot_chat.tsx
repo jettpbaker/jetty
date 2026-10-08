@@ -259,17 +259,17 @@ export function BotChat({ bot }: { bot: Bot }) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const items = thread?.items ?? []
   const rows = toRows(toItems(items, pending))
-  const streaming = items.some((item) => item.kind === 'assistant_message' && item.streaming)
-  const repliedThisTurn = items.some(
-    (item) =>
-      item.kind === 'assistant_message' &&
-      item.turnId === thread?.activeTurnId &&
-      !item.streaming &&
-      !!item.text.trim()
+  const streaming = items.some(
+    (item) => item.kind === 'assistant_message' && item.streaming && shownInBotChat(item)
   )
+  // The bot's activity arrives apart from its thread, so the thread decides when a reply has
+  // taken the indicator's place: the reply and the indicator leaving must share one commit.
+  const newest = items.findLast((item) => !item.agentId)
+  const replied =
+    newest?.kind === 'assistant_message' && shownInBotChat(newest) && !!newest.text.trim()
   const presence = streaming
     ? 'typing'
-    : bot.activity === 'idle' || (bot.activity === 'typing' && repliedThisTurn)
+    : !thread?.activeTurnId || bot.activity === 'idle' || replied
       ? null
       : bot.activity
   function send(text: string) {
@@ -690,7 +690,7 @@ function Indicator({
       className={cn(
         'flex items-center gap-2 pb-1.5',
         spaced ? 'pt-5' : 'pt-1.5',
-        leaving && 'pointer-events-none'
+        leaving && 'pointer-events-none absolute bottom-0 left-0'
       )}
     >
       <JettyBot
@@ -870,11 +870,15 @@ function ErrorRow({
   )
 }
 
-// "The model provider is overloaded." reads on after the colon as "the model provider…"; an
-// acronym ("API …") keeps its capitals.
+// The names provider and Jetty errors open with.
+const names = new Set(['Anthropic', 'Claude', 'Codex', 'Grok', 'Jetty'])
+
+// "The model provider is overloaded." reads on after the colon as "the model provider…". Only a
+// plain capitalised word is lowered: acronyms (API), mixed case (GitHub) and names keep theirs.
 function sentenceCase(message: string) {
   const detail = message.replace(/^Error: /i, '')
-  return /^[A-Z][a-z]/.test(detail) ? detail[0]!.toLowerCase() + detail.slice(1) : detail
+  const word = /^[A-Z][a-z]+\b/.exec(detail)?.[0]
+  return word && !names.has(word) ? detail[0]!.toLowerCase() + detail.slice(1) : detail
 }
 
 function plainQuote(markdown: string) {

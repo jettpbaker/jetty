@@ -1,8 +1,8 @@
 import type { Bot } from '@jetty/shared/wire'
 
-import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { botFace } from '@jetty/shared/bots'
+import { useEffect, useRef } from 'react'
 
 import { BotAvatar } from './bot_avatar'
 
@@ -15,6 +15,11 @@ export function BotRow({
   selected: boolean
   onOpen: () => void
 }) {
+  const rowRef = useRef<HTMLButtonElement>(null)
+  // A bot opened from elsewhere (just created, the palette) shows in the list, however long it is.
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   const face = botFace(bot)
   const label = `${bot.name}, ${face === 'thinking' ? 'typing' : face === 'waiting' ? 'needs you' : face}${bot.unread && !selected ? ', unread' : ''}`
   const className = cn(
@@ -23,10 +28,12 @@ export function BotRow({
   )
   return (
     <button
+      ref={rowRef}
       type='button'
       aria-label={label}
       aria-current={selected || undefined}
-      {...pressProps(onOpen)}
+      // The list scrolls, so a press might be a scroll: open on click, like the thread rows.
+      onClick={onOpen}
       className={cn(
         className,
         'outline-none hover:bg-sidebar-accent hover:[--jb-ring:var(--sidebar-accent)] focus-visible:ring-2 focus-visible:ring-ring'
