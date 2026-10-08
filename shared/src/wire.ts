@@ -87,6 +87,11 @@ export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | u
 
 export const agentBehaviours = [
   {
+    key: 'prefetchPullRequestGuides',
+    label: 'Prepare guides for PRs waiting on your review',
+    defaultEnabled: true,
+  },
+  {
     key: 'archiveCompletedThreads',
     label: 'Agents proactively archive completed threads',
     defaultEnabled: true,
@@ -249,6 +254,7 @@ export const PullRequestListTab = Schema.Literals(['for-you', 'created'])
 export type PullRequestListTab = Schema.Schema.Type<typeof PullRequestListTab>
 
 export const PullRequestListItem = Schema.Struct({
+  headSha: Schema.optional(Schema.String),
   repo: Schema.String,
   number: Schema.Int,
   title: Schema.String,

@@ -15,6 +15,7 @@ import { PullRequestData, rollupChecks } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { PullRequestReference } from './pull-request-graphql'
+import type { createPullRequestGuides } from './pull-request-guides'
 import type { Store } from './store'
 
 import { closestActivity, type Hub } from './hub'
@@ -2875,6 +2876,7 @@ function listItem(value: unknown): PullRequestListItem | null {
   return {
     repo,
     number,
+    headSha: string(node.headRefOid),
     title: string(node.title),
     url: string(node.url),
     state: node.merged
@@ -2898,7 +2900,7 @@ function listItem(value: unknown): PullRequestListItem | null {
 export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[]) {
   const searches = tabs.flatMap(listSearches)
   const fields = `issueCount nodes { ... on PullRequest {
-    id number title url isDraft state merged updatedAt closedAt repository { nameWithOwner }
+    id number title url headRefOid isDraft state merged updatedAt closedAt repository { nameWithOwner }
     author { ${actorFields} }
     additions deletions
     reviewDecision mergeable mergeStateStatus
@@ -2951,6 +2953,7 @@ function listSignature(value: unknown, tabIndex = 0) {
             node.id,
             node.number,
             record(node.repository).nameWithOwner,
+            node.headRefOid,
             node.updatedAt,
             node.closedAt,
             node.state,
@@ -2979,7 +2982,7 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
       query:${JSON.stringify(search)},type:ISSUE,first:${listLimit}
     ) {
       issueCount nodes { ... on PullRequest {
-        id number repository { nameWithOwner } updatedAt closedAt state isDraft
+        id number repository { nameWithOwner } headRefOid updatedAt closedAt state isDraft
         reviewDecision mergeStateStatus mergeable
       } }
     }`
@@ -3064,6 +3067,7 @@ export function createPullRequestLists(
   store: Store,
   hub: Hub,
   pulls: ReturnType<typeof createPullRequests>,
+  guides: ReturnType<typeof createPullRequestGuides>,
   scope: Scope.Scope
 ) {
   const signatures = new Map<PullRequestListTab, string>()
@@ -3207,6 +3211,11 @@ export function createPullRequestLists(
       const list = yield* store.getPullRequestList(tab)
       const decorated = decorate(list)
       if (list.status === 'ready') {
+        if (tab === 'for-you')
+          yield* guides.prefetch(list.items ?? []).pipe(
+            Effect.catchCause((cause) => Effect.logWarning('PR guide prefetch failed', cause)),
+            Effect.forkIn(scope)
+          )
         const previous = new Set((cached.items ?? []).map(prKey))
         const arrivals = cached.items
           ? (list.items ?? []).filter((item) => !previous.has(prKey(item)))

@@ -177,8 +177,14 @@ export function createRpcHandlers(
     }
 
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
-    const pullRequestLists = createPullRequestLists(store, hub, pullRequests, admissionScope)
     const pullRequestGuides = createPullRequestGuides(store, pullRequests, admissionScope)
+    const pullRequestLists = createPullRequestLists(
+      store,
+      hub,
+      pullRequests,
+      pullRequestGuides,
+      admissionScope
+    )
     yield* Stream.tick('5 seconds').pipe(
       Stream.mapEffect(() => pullRequestLists.poll().pipe(Effect.catch(() => Effect.void))),
       Stream.runDrain,
