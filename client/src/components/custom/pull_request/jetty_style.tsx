@@ -694,7 +694,7 @@ function StatusPill({ pr }: { pr: PrPull }) {
   return (
     <span
       style={{ '--pill': `var(--pr-${pr.state})` } as CSSProperties}
-      className='inline-flex h-7 items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--pill)_16%,transparent)] px-2.5 text-sm font-medium text-[color-mix(in_oklch,var(--pill)_70%,white)] transition-[background-color,color] duration-300'
+      className='inline-flex h-7 items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--pill)_16%,transparent)] px-2.5 text-sm font-medium text-[oklch(from_var(--pill)_min(l,0.5)_c_h)] transition-[background-color,color] duration-300 dark:text-[color-mix(in_oklch,var(--pill)_70%,white)]'
     >
       <Icon className='size-3.5' />
       {label}
