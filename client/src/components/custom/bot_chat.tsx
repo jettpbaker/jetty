@@ -152,10 +152,12 @@ function fade(scroller: HTMLElement) {
   scroller.style.setProperty('--fade', String(Math.min(1, -scroller.scrollTop / FADE_IN)))
 }
 
+// A quiet thread's marker stays hidden until the thread surfaces, then shows where it was started.
 function toItems(
   items: readonly ThreadItem[],
   pending: readonly PendingBotMessage[],
-  otherBots: ReadonlySet<string>
+  otherBots: ReadonlySet<string>,
+  quiet: ReadonlySet<string>
 ): RowItem[] {
   const listed = new Set(items.map((item) => item.id))
   const visible: RowItem[] = []
@@ -169,6 +171,7 @@ function toItems(
       continue
     }
     if (!shownInBotChat(item)) continue
+    if (item.kind === 'thread_marker' && quiet.has(item.threadId)) continue
     if (item.kind === 'assistant_message' && (item.streaming || !item.text.trim())) continue
     if (item.kind === 'user_message' || item.kind === 'assistant_message')
       visible.push({
@@ -304,7 +307,8 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     return () => observer.disconnect()
   }, [])
   const { serverItems: items } = useThreadOverlay(bot.id, thread)
-  const rows = toRows(toItems(items, pending, otherBots))
+  const quiet = new Set(childMetas.flatMap((meta) => (meta.quiet ? [meta.id] : [])))
+  const rows = toRows(toItems(items, pending, otherBots, quiet))
   const turnId = thread?.activeTurnId
   const turn = turnId && !bot.needsYou ? botTurnActivity(items, turnId) : 'quiet'
   const presence = turn === 'quiet' ? null : bot.activity === 'tidying' ? 'tidying' : turn

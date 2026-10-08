@@ -48,6 +48,11 @@ function Thread() {
     },
     [markSeen, threadId]
   )
+  // Opening a quiet thread surfaces it.
+  const quiet = meta?.quiet === true
+  useEffect(() => {
+    if (quiet) markSeen(threadId)
+  }, [quiet, markSeen, threadId])
   const project = useProject(meta?.projectId)
   const projectPath = meta?.workingPath ?? project?.path
   const [tab, setTab] = useThreadTab(threadId)
