@@ -40,13 +40,19 @@ import {
   type StreamdownProps,
 } from 'streamdown'
 import 'streamdown/styles.css'
-import { unified, type PluggableList } from 'unified'
+import { unified, type PluggableList, type Processor } from 'unified'
 
 const allowedTags = { ...fileLinkTag, ...entityLinkTag }
 const internalTag = new RegExp(`<(?=/?(?:${Object.keys(allowedTags).join('|')}))`, 'gi')
 
-// Only Jetty makes these tags, from links. One an author writes as raw HTML (an agent, a PR
-// comment) shows as text, as GFM does disallowed HTML, rather than pass for Jetty's own.
+// Agents write `<placeholder>` in prose, so their text never parses HTML: tags show as typed.
+function remarkLiteralHtml(this: Processor) {
+  const extensions = this.data('micromarkExtensions') ?? []
+  this.data('micromarkExtensions', [...extensions, { disable: { null: ['htmlFlow', 'htmlText'] } }])
+}
+
+// GitHub bodies keep their HTML (images, details), but only Jetty makes these tags, from links:
+// one an author writes shows as text, as GFM does disallowed HTML, rather than pass for Jetty's own.
 function remarkEscapeInternalTags() {
   function visit(node: MarkdownNode) {
     if (node.type === 'html') node.value = node.value?.replace(internalTag, '&lt;')
@@ -55,13 +61,15 @@ function remarkEscapeInternalTags() {
   return visit
 }
 
-const remarkPlugins = [
-  remarkEscapeInternalTags,
+const sharedRemarkPlugins = [
   ...Object.values(defaultRemarkPlugins),
   remarkBreaks,
   remarkFileLinks,
   remarkEntityLinks,
 ]
+const remarkPlugins = [remarkLiteralHtml, ...sharedRemarkPlugins]
+const htmlRemarkPlugins = [remarkEscapeInternalTags, ...sharedRemarkPlugins]
+
 function MarkdownImage({
   node: _node,
   src,
@@ -125,9 +133,8 @@ function rehypeLocalLinks() {
 
 type SanitizeSchema = { tagNames: string[]; attributes: Record<string, unknown[]> }
 const [sanitize, schema] = defaultRehypePlugins.sanitize as [unknown, SanitizeSchema]
-// Streamdown ignores allowedTags once the pipeline is custom, so they're listed here too.
+// Keep the custom elements produced by Jetty's link and media plugins.
 const rehypePlugins = [
-  defaultRehypePlugins.raw,
   [
     sanitize,
     {
@@ -144,11 +151,15 @@ const rehypePlugins = [
   rehypeLocalLinks,
   rehypeMarkdownMedia,
 ] as StreamdownProps['rehypePlugins']
+const htmlRehypePlugins = [
+  defaultRehypePlugins.raw,
+  ...(rehypePlugins ?? []),
+] as StreamdownProps['rehypePlugins']
 
 // Streamdown parses a block every time it mounts, and a thread switch remounts every message.
 // This is its Block render (Streamdown 2.6.0) keeping each tree by text, so a block parses once.
 // It skips what the app never sets (dir, indentation normalising, animation, element filters,
-// html-to-text without rehype-raw) and the incomplete-fence context only a streaming block needs.
+// HTML handling) and the incomplete-fence context only a streaming block needs.
 // Re-check it against Streamdown's on upgrade.
 function cachedBlock() {
   const trees = new Map<string, ReactElement>()
@@ -174,23 +185,23 @@ function cachedBlock() {
 }
 
 function blockProcessor(remarkPlugins: PluggableList, rehypePlugins: PluggableList) {
-  return unified()
-    .use(remarkParse)
-    .use(remarkPlugins)
-    .use(remarkRehype, { allowDangerousHtml: true })
-    .use(rehypePlugins)
+  return unified().use(remarkParse).use(remarkPlugins).use(remarkRehype).use(rehypePlugins)
 }
 
 const MarkdownBlock = cachedBlock()
+const HtmlMarkdownBlock = cachedBlock()
 
 export function Markdown({
   children,
   streaming,
   arrived,
   reply,
+  html,
   className = 'text-sm leading-relaxed',
 }: {
   children: string
+  // GitHub-authored text (PR bodies, review comments), whose HTML renders; agents' text never does.
+  html?: boolean
   streaming?: boolean
   // Complete a moment ago, so it rolls in like a stream rather than appearing at once.
   arrived?: boolean
@@ -209,7 +220,9 @@ export function Markdown({
   const [smooth] = useState(() =>
     streaming || from < children.length ? smoothBlocks(children.slice(0, from)) : undefined
   )
-  const [BlockComponent] = useState(() => smooth?.SmoothBlock ?? MarkdownBlock)
+  const [BlockComponent] = useState(
+    () => smooth?.SmoothBlock ?? (html ? HtmlMarkdownBlock : MarkdownBlock)
+  )
   useEffect(() => smooth?.mounted(), [smooth])
   const text = smooth && streaming ? wholeWords(children) : children
   const shown = usePacedText(text, smooth && from)
@@ -218,11 +231,10 @@ export function Markdown({
     <Streamdown
       className={className}
       components={components}
-      allowedTags={allowedTags}
       linkSafety={linkSafety}
       isAnimating={streaming || shown !== text}
-      remarkPlugins={remarkPlugins}
-      rehypePlugins={rehypePlugins}
+      remarkPlugins={html ? htmlRemarkPlugins : remarkPlugins}
+      rehypePlugins={html ? htmlRehypePlugins : rehypePlugins}
       BlockComponent={BlockComponent}
       parseMarkdownIntoBlocksFn={blocksWithDefinitions}
     >
@@ -252,7 +264,7 @@ function nodeText(node: TextNode): string {
   return (node.children ?? []).map(nodeText).join(phrasing.has(node.type) ? '' : ' ')
 }
 
-// One line of plain text for a preview: images and HTML drop out, code blocks become a label.
+// One line of plain text for a preview: images drop out, code blocks become a label.
 export function markdownText(markdown: string) {
   return nodeText(textParser.parse(markdown)).replace(/\s+/g, ' ').trim()
 }

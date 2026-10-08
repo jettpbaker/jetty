@@ -276,14 +276,25 @@ export function Body({
     thread.line === null ||
     thread.outdated
   )
-    return <Markdown className={className}>{body}</Markdown>
+    return (
+      <Markdown html className={className}>
+        {body}
+      </Markdown>
+    )
   const old = threadLine(thread)
-  if (old === undefined) return <Markdown className={className}>{body}</Markdown>
+  if (old === undefined)
+    return (
+      <Markdown html className={className}>
+        {body}
+      </Markdown>
+    )
   const replacement = suggestion[1]!.trimEnd().split('\n')
   const patch = `@@ -${thread.line ?? 1},1 +${thread.line ?? 1},${replacement.length} @@\n-${old}\n${replacement.map((l) => `+${l}`).join('\n')}`
   return (
     <>
-      <Markdown className={className}>{body.slice(0, suggestion.index)}</Markdown>
+      <Markdown html className={className}>
+        {body.slice(0, suggestion.index)}
+      </Markdown>
       {/* A bordered card like the comment's tables and code blocks: a label band, then just the change. */}
       <div className='my-2 overflow-hidden rounded-md border-[0.5px] border-border first:mt-0 last:mb-0'>
         <p className='border-b-[0.5px] border-border px-3 py-2 text-xs text-muted-foreground'>
@@ -305,7 +316,7 @@ export function Body({
         />
       </div>
       {body.slice(suggestion.index + suggestion[0].length).trim() && (
-        <Markdown className={className}>
+        <Markdown html className={className}>
           {body.slice(suggestion.index + suggestion[0].length)}
         </Markdown>
       )}

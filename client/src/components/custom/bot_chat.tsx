@@ -625,11 +625,11 @@ function MessageRow({
             className='mb-0.75'
           />
         )}
-        <div className={cn('relative w-fit max-w-full', jett && 'ml-auto')}>
+        <div className={cn('relative w-fit min-w-0 max-w-[calc(100%-3.5rem)]', jett && 'ml-auto')}>
           <Bubble
             variant={jett ? 'default' : 'muted'}
             align={jett ? 'end' : 'start'}
-            className={cn('max-w-[515px]', !jett && 'has-[pre,table]:max-w-full')}
+            className={cn('max-w-[min(515px,100%)]', !jett && 'has-[pre,table]:max-w-full')}
           >
             <BubbleContent
               data-quote={jett ? undefined : message.id}
