@@ -1388,29 +1388,29 @@ function makeBotFixture() {
 
 for (const scenario of [
   {
-    name: 'failed say still gets fallback',
+    name: 'failed say still gets nudge',
     source: 'user',
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 0,
     failedSay: true,
-    fallback: true,
+    nudge: true,
   },
   {
-    name: 'user reply fallback',
+    name: 'user reply nudge',
     source: 'user',
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 0,
-    fallback: true,
+    nudge: true,
   },
   {
-    name: 'queued user reply fallback',
+    name: 'queued user reply nudge',
     source: 'queuedUser',
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 0,
-    fallback: true,
+    nudge: true,
   },
   {
     name: 'worker notes stay private',
@@ -1418,23 +1418,23 @@ for (const scenario of [
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 0,
-    fallback: false,
+    nudge: false,
   },
   {
-    name: 'user steered into worker turn gets fallback',
+    name: 'user steered into worker turn gets no nudge',
     source: 'steered',
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 0,
-    fallback: true,
+    nudge: false,
   },
   {
-    name: 'say suppresses fallback',
+    name: 'say suppresses nudge',
     source: 'user',
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 2,
-    fallback: false,
+    nudge: false,
   },
   {
     name: 'background say sends bubbles',
@@ -1442,23 +1442,23 @@ for (const scenario of [
     outcome: 'completed',
     text: 'Last reply',
     sayCount: 2,
-    fallback: false,
+    nudge: false,
   },
   {
-    name: 'failed user turn has no fallback',
+    name: 'failed user turn has no nudge',
     source: 'user',
     outcome: 'failed',
     text: 'Last reply',
     sayCount: 0,
-    fallback: false,
+    nudge: false,
   },
   {
-    name: 'interrupted user turn has no fallback',
+    name: 'interrupted user turn has no nudge',
     source: 'user',
     outcome: 'interrupted',
     text: 'Last reply',
     sayCount: 0,
-    fallback: false,
+    nudge: false,
   },
   {
     name: 'reaction-only turn has no bubble',
@@ -1466,15 +1466,15 @@ for (const scenario of [
     outcome: 'completed',
     text: '',
     sayCount: 0,
-    fallback: false,
+    nudge: false,
   },
   {
-    name: 'whitespace notes have no fallback',
+    name: 'whitespace notes get a nudge',
     source: 'user',
     outcome: 'completed',
     text: '   ',
     sayCount: 0,
-    fallback: false,
+    nudge: true,
   },
 ] as const) {
   test(`bot ${scenario.name}`, async () => {
@@ -1535,6 +1535,23 @@ for (const scenario of [
           })
         }
         const textIds: string[] = []
+        if (scenario.name === 'reaction-only turn has no bubble') {
+          const id = newId()
+          yield* emit({
+            type: 'item.started',
+            item: {
+              id,
+              turnId,
+              createdAt: Date.now(),
+              kind: 'tool_call',
+              toolName: 'mcp__jetty__react',
+              input: { emoji: '👍' },
+              output: '',
+              status: 'running',
+            },
+          })
+          yield* emit({ type: 'item.completed', itemId: id, patch: { status: 'succeeded' } })
+        }
         if (scenario.text) {
           for (const text of scenario.text.trim()
             ? ['First note', scenario.text, '']
@@ -1592,7 +1609,7 @@ for (const scenario of [
         expect(
           privateState.items
             .filter((item) => item.kind === 'assistant_message')
-            .every((item) => item.private === true)
+            .every((item) => item.kind === 'assistant_message' && item.private === true)
         ).toBe(true)
         expect(
           privateState.items
@@ -1612,25 +1629,23 @@ for (const scenario of [
           .filter((item) => item.kind === 'assistant_message')
           .filter(shownInBotChat)
         expect(replies.map((item) => item.text)).toEqual(
-          scenario.fallback
-            ? [scenario.text]
-            : Array.from({ length: scenario.sayCount }, (_, i) => `Message ${i}`)
+          Array.from({ length: scenario.sayCount }, (_, i) => `Message ${i}`)
         )
         expect(final.items.filter((item) => item.kind === 'assistant_message')).toHaveLength(
           textIds.length + scenario.sayCount
         )
-        if (scenario.fallback) {
-          expect(replies[0]).toMatchObject({ id: textIds[1], private: false, streaming: false })
-          const events = yield* f.store.getEventsAfter(f.id, 0)
-          expect(
-            events.some(
-              ({ event }) =>
-                event.type === 'item.updated' &&
-                event.itemId === textIds[1] &&
-                event.patch.private === false
-            )
-          ).toBe(true)
-        }
+        expect(
+          final.items
+            .filter((item) => item.kind === 'assistant_message' && textIds.includes(item.id))
+            .every((item) => item.kind === 'assistant_message' && item.private === true)
+        ).toBe(true)
+        const thread = yield* f.store.requireThread(f.id)
+        expect(thread.pendingMessages ?? []).toHaveLength(scenario.nudge ? 1 : 0)
+        if (scenario.nudge)
+          expect(thread.pendingMessages![0]).toMatchObject({
+            from: { threadId: f.id, title: 'Jetty' },
+            text: expect.stringContaining('Your last turn ended without a say or a reaction,'),
+          })
       })
     )
   })

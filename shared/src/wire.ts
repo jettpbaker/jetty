@@ -297,6 +297,7 @@ export const QueuedMessage = Schema.Struct({
   createdAt: Schema.Int,
   editingUntil: Schema.optional(Schema.Int),
   from: Schema.optional(MessageSource),
+  skill: Schema.optional(Schema.String),
   // Jetty's own messages: a restart continuation, a child's report, or the PR watcher's news.
   kind: Schema.optional(Schema.Literals(['continuation', 'report', 'pull_request'])),
   // an answer to the turn's async question, kept while its setup ran: it carries that turn on

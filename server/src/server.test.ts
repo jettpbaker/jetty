@@ -123,7 +123,7 @@ afterEach(async () => {
 })
 
 describe('server skeleton', () => {
-  test('bot text starts private and only user turns get a fallback', async () => {
+  test('bot text stays private and only user turns get a Jetty nudge', async () => {
     const running = await boot()
     const client = await connect(running.port)
     const id = newId()
@@ -173,20 +173,35 @@ describe('server skeleton', () => {
         message.event.turnId === replyTurnId,
       10_000
     )
+    const nudge = await chat.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'item.started' &&
+        message.event.item.kind === 'user_message' &&
+        message.event.item.from?.title === 'Jetty' &&
+        message.event.item.turnId !== greetingTurnId,
+      10_000
+    )
+    if (nudge.type !== 'event' || nudge.event.type !== 'item.started')
+      throw new Error('No Jetty nudge')
+    const nudgeTurnId = nudge.event.item.turnId
+    expect(nudge.event.item).toMatchObject({
+      from: { threadId: id, title: 'Jetty' },
+      text: expect.stringContaining('Your last turn ended without a say or a reaction,'),
+    })
     await chat.waitFor(
       (message) =>
         message.type === 'event' &&
-        message.event.type === 'item.updated' &&
-        message.event.itemId === replyItemId &&
-        message.event.patch.private === false,
+        message.event.type === 'turn.completed' &&
+        message.event.turnId === nudgeTurnId,
       10_000
     )
     const completed = await Effect.runPromise(running.store.getThreadState(id))
-    const fallback = completed.items.find((item) => item.id === replyItemId)
-    expect(fallback).toMatchObject({ private: false, streaming: false })
+    const privateReply = completed.items.find((item) => item.id === replyItemId)
+    expect(privateReply).toMatchObject({ private: true, streaming: false })
     expect(
       completed.items.filter((item) => item.kind === 'assistant_message' && !item.private)
-    ).toHaveLength(1)
+    ).toHaveLength(0)
     await running.store
       .enqueue(id, {
         id: newId(),
@@ -204,6 +219,7 @@ describe('server skeleton', () => {
         message.event.item.kind === 'assistant_message' &&
         message.event.item.turnId !== greetingTurnId &&
         message.event.item.turnId !== replyTurnId &&
+        message.event.item.turnId !== nudgeTurnId &&
         message.event.item.private === true,
       15_000
     )

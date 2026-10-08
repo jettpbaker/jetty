@@ -3,7 +3,7 @@ import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
 import { newId, type BotTask, type ProviderModel, type WireError } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { Effect, Path, Scope } from 'effect'
+import { Effect, FileSystem, Path, Scope } from 'effect'
 import { z } from 'zod'
 
 import type { Attachments } from './attachments'
@@ -16,6 +16,7 @@ import type { Worktrees } from './worktrees'
 import { relayedMessage } from './jetty-instructions'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
+import { listSkills } from './skills'
 import { StoreError } from './store'
 
 const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' }
@@ -142,6 +143,11 @@ const createInput = z.object({
     .optional()
     .describe('An id, name or unique short name from list_models.'),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+  skill: z
+    .string()
+    .regex(/^[^\s/]+$/, 'Use a skill name without the slash')
+    .optional()
+    .describe('A skill for the thread to run, by name without the slash; Claude threads only.'),
   notify: z
     .boolean()
     .default(true)
@@ -181,7 +187,7 @@ export function createMcpHandler(
   worktrees?: Worktrees
 ) {
   return Effect.gen(function* () {
-    const context = yield* Effect.context<Path.Path | Scope.Scope>()
+    const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | Scope.Scope>()
     const run = Effect.runPromiseWith(context)
 
     function accessible(identity: McpIdentity, targetId: string) {
@@ -287,6 +293,10 @@ export function createMcpHandler(
           const matches = input.model ? matchingModels(catalog, input.model) : []
           const provider =
             input.provider ?? (matches.length === 1 ? matches[0]!.provider : identity.provider)
+          if (input.skill && provider !== 'claude')
+            return yield* Effect.fail(
+              new StoreError('invalid_params', 'Skills can only run in Claude threads')
+            )
           const available = catalog.filter((m) => m.provider === provider)
           if (!available.length)
             return yield* Effect.fail(
@@ -341,6 +351,7 @@ export function createMcpHandler(
           yield* store.enqueue(id, {
             id: newId(),
             text: input.prompt,
+            ...(input.skill && { skill: input.skill }),
             from: { threadId: caller.id, title: caller.title },
             hop: turn.hop + 1,
             createdAt: Date.now(),
@@ -377,6 +388,18 @@ export function createMcpHandler(
           bot?.projectId ?? caller.projectId
         )
         projectId = target.id
+        if (input.skill) {
+          const skills = yield* listSkills({ projectPath: target.path }).pipe(
+            Effect.provideContext(context)
+          )
+          if (!skills.some((skill) => skill.name === input.skill))
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                `No skill named ${input.skill} exists for this project`
+              )
+            )
+        }
         const sameProject = target.id === caller.projectId
         const environment =
           input.environment ??
@@ -742,7 +765,28 @@ export function createMcpHandler(
             inputSchema: { text },
           },
           ({ text: message }) =>
-            invoke(orch.botMessage(bot.id, message).pipe(Effect.as({ sent: true })))
+            invoke(
+              Effect.gen(function* () {
+                for (const match of message.matchAll(
+                  /jetty:\/\/(threads|bots)\/([^\s)\]<>"'?#/]+)/g
+                )) {
+                  const [, kind, id] = match
+                  const found =
+                    kind === 'threads' ? yield* store.getThread(id!) : yield* store.getBot(id!)
+                  if (!found) {
+                    const entity = kind === 'threads' ? 'thread' : 'bot'
+                    return yield* Effect.fail(
+                      new StoreError(
+                        'invalid_params',
+                        `No ${entity} has the id ${id}. Link a ${entity} only with an id from ${kind === 'threads' ? 'create_thread or another tool result' : 'a tool result'}.`
+                      )
+                    )
+                  }
+                }
+                yield* orch.botMessage(bot.id, message)
+                return { sent: true }
+              })
+            )
         )
         server.registerTool(
           'react',

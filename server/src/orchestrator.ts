@@ -28,7 +28,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
-import { commitBotHome, commitSharedPreferences } from './bot-home'
+import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
 import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
@@ -123,7 +123,8 @@ function agentText(
     const message = lines.join('\n')
     if (!queued?.from) return message
     const relayed = relayedMessage(queued.from, message)
-    return fromCreator ? `${relayed}\n${CHILD_REPORT_INSTRUCTION}` : relayed
+    const wrapped = fromCreator ? `${relayed}\n${CHILD_REPORT_INSTRUCTION}` : relayed
+    return queued.skill ? `/${queued.skill} ${wrapped}` : wrapped
   }).pipe(
     Effect.mapError((error) =>
       error instanceof StoreError ? error : new StoreError('internal', String(error))
@@ -536,7 +537,8 @@ export function createOrchestrator({
           const current = appended.state.items.filter(
             (item) => item.turnId === turnId && !item.agentId
           )
-          const fromUser = current.some((item) => item.kind === 'user_message' && !item.from)
+          const firstMessage = current.find((item) => item.kind === 'user_message')
+          const fromUser = firstMessage?.kind === 'user_message' && !firstMessage.from
           // A bubble, a reaction or a question already answers the user.
           const sent = current.some(
             (item) =>
@@ -547,19 +549,20 @@ export function createOrchestrator({
                 item.status === 'succeeded')
           )
           if (fromUser && !sent) {
-            const lastText = [...current]
-              .reverse()
-              .find((item) => item.kind === 'assistant_message' && item.private && item.text.trim())
-            if (lastText)
-              yield* commit(
-                threadId,
-                {
-                  type: 'item.updated',
-                  itemId: lastText.id,
-                  patch: { private: false, streaming: false },
-                },
-                Effect.void
-              )
+            const user = yield* Effect.promise(() => botUserName())
+            const thread = yield* store.requireThread(threadId)
+            if (
+              live.turnId === turnId &&
+              !thread.queuePaused &&
+              !thread.pendingMessages?.some((message) => !message.from)
+            )
+              yield* store.enqueue(threadId, {
+                id: newId(),
+                text: `Your last turn ended without a say or a reaction, so ${user} saw nothing from you. If you meant to answer, send it with say now. If nothing needs saying, react to their message.`,
+                from: { threadId, title: 'Jetty' },
+                hop: 0,
+                createdAt: Date.now(),
+              })
           }
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
@@ -1286,10 +1289,20 @@ export function createOrchestrator({
             return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
           const turn = yield* store.turnContext(threadId)
           const threadState = yield* store.getThreadState(threadId)
+          const firstMessage = threadState.items.find(
+            (item) => item.turnId === turn.turnId && item.kind === 'user_message'
+          )
+          const fromJetty =
+            firstMessage?.kind === 'user_message' &&
+            firstMessage.from?.threadId === threadId &&
+            firstMessage.from.title === 'Jetty'
           const target = [...threadState.items]
             .reverse()
             .find(
-              (item) => item.kind === 'user_message' && !item.from && item.turnId === turn.turnId
+              (item) =>
+                item.kind === 'user_message' &&
+                !item.from &&
+                (item.turnId === turn.turnId || fromJetty)
             )
           if (!target || target.kind !== 'user_message')
             return yield* Effect.fail(
