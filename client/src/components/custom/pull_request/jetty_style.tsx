@@ -63,6 +63,7 @@ import { perf } from '@/perf'
 import {
   usePullRequestCommitFiles,
   usePullRequestDiffFileLoader,
+  usePullRequestGuide,
   useSetReviewRequest,
 } from '@/state/pull_requests'
 import { Link } from '@tanstack/react-router'
@@ -95,16 +96,24 @@ import type {
   PrThread,
   PrUser,
 } from './adapter'
+import type { GuidePart } from './guide'
 
 import { DiffFileCard, DiffViewed } from '../diff/file_card'
 import { DiffFileList } from '../diff/file_list'
 import { byTreeOrder } from '../diff/model'
-import { DiffToolbar, DiffToolbarButton, useDiffStyle, useDiffWrap } from '../diff/toolbar'
+import {
+  DiffDisplayOptions,
+  DiffToolbar,
+  DiffToolbarButton,
+  useDiffStyle,
+  useDiffWrap,
+} from '../diff/toolbar'
 import { primeDiffHighlights } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
 import { keyTarget } from '../keybinds'
 import { githubUser, prFile } from './adapter'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
+import { GuideWide } from './guide_wide'
 import {
   checkCounts,
   countLabel,
@@ -120,6 +129,7 @@ import {
   QuoteContext,
   repoName,
   repoPath,
+  visibleLines,
 } from './model'
 import {
   usePrRuntime,
@@ -1491,6 +1501,7 @@ function FileCard({
   onViewed,
   hideGenerated,
   commit,
+  part,
 }: {
   file: PrFile
   pr: PrPull
@@ -1502,13 +1513,16 @@ function FileCard({
   onViewed: (path: string, checked: boolean) => void
   hideGenerated: boolean
   commit?: PrCommit
+  // Some of the file's hunks, as a guide chapter shows them; the Diff tab shows the whole file.
+  part?: GuidePart
 }) {
+  const shownPatch = part ? part.patch : file.patch
   const [height] = useState(() =>
     Math.max(
       80,
-      (file.patchDeferred
+      (shownPatch === undefined && file.patchDeferred
         ? file.additions + file.deletions + 4
-        : (file.patch?.split('\n').length ?? 4)) *
+        : (shownPatch?.split('\n').length ?? 4)) *
         20 +
         32
     )
@@ -1522,13 +1536,25 @@ function FileCard({
     setCollapsed(viewed)
   }
   const open = !collapsed
-  const openThreads = threads.filter((t) => !t.resolved).length
+  // A guide card holds the threads on the lines it shows.
+  const shownLines =
+    part?.patch === undefined
+      ? undefined
+      : {
+          LEFT: visibleLines({ status: 'removed', patch: part.patch }),
+          RIGHT: visibleLines({ status: 'modified', patch: part.patch }),
+        }
+  const cardThreads = shownLines
+    ? threads.filter((t) => !t.outdated && t.line !== null && shownLines[t.side].has(t.line))
+    : threads
+  const openThreads = cardThreads.filter((t) => !t.resolved).length
   const renderThreads = (threads: PrThread[]) => (
     <InlineThreads threads={threads} author={pr.viewer} />
   )
   return (
     <DiffFileCard
       file={file}
+      anchor={!part}
       deferHeader={deferHeader}
       initiallyNear={initiallyNear}
       open={open}
@@ -1606,11 +1632,20 @@ function FileCard({
                 )
               })}
             </div>
+          ) : part ? (
+            <Diff
+              file={file}
+              patch={part.patch}
+              hunks={part.hunks}
+              snippet
+              threads={cardThreads}
+              renderThreads={renderThreads}
+            />
           ) : (
             <Diff file={file} threads={threads} renderThreads={renderThreads} />
           )}
-          {file.binary && threads.length > 0 && (
-            <div className='border-t border-border px-4 py-3'>{renderThreads(threads)}</div>
+          {file.binary && cardThreads.length > 0 && (
+            <div className='border-t border-border px-4 py-3'>{renderThreads(cardThreads)}</div>
           )}
         </>
       )}
@@ -1848,6 +1883,63 @@ function MergeButton({
 
 const MemoizedActivity = memo(Activity)
 
+// The Guide tab, or what stands in for it: a guide being written, one that failed, or none for a
+// small PR.
+function GuidePane({
+  pr,
+  guide,
+  hideGenerated,
+  threadsByPath,
+}: {
+  pr: PrPull
+  guide: ReturnType<typeof usePullRequestGuide>
+  hideGenerated: boolean
+  threadsByPath: ReadonlyMap<string, PrThread[]>
+}) {
+  const { state, failed, retry } = guide
+  if (failed || state?.status === 'failed')
+    return (
+      <div className='flex h-full min-h-24 flex-col items-center justify-center gap-3 p-4 text-xs text-muted-foreground'>
+        <p>{state?.error ?? "Couldn't load the guide"}</p>
+        <Button variant='outline' size='sm' {...pressProps(retry)}>
+          Retry
+        </Button>
+      </div>
+    )
+  if (state?.status === 'skipped')
+    return (
+      <p className='flex h-full min-h-24 items-center justify-center p-4 text-xs text-muted-foreground'>
+        Small PR, no guide
+      </p>
+    )
+  if (!state?.guide) return <Loading label='Writing the guide…' />
+  return (
+    <GuideWide
+      files={pr.files}
+      guide={state.guide}
+      hideGenerated={hideGenerated}
+      note={
+        state.outdated && <p className='text-xs text-muted-foreground'>Updating for new commits…</p>
+      }
+      renderCard={(part, key, viewed, onViewed) => (
+        <FileCard
+          key={key}
+          file={part.file}
+          part={part}
+          pr={pr}
+          threads={threadsByPath.get(part.file.path) ?? noThreads}
+          deferHeader={false}
+          initiallyNear={false}
+          comments={false}
+          hideGenerated={false}
+          viewed={viewed}
+          onViewed={(_, checked) => onViewed(checked)}
+        />
+      )}
+    />
+  )
+}
+
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
   const { actions, ref, status, more, sidebar } = usePrRuntime()
@@ -1859,6 +1951,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const painted = useContext(PrPaintedContext)
   const [diffSeen, setDiffSeen] = useState(false)
   if (tab === 'diff' && !diffSeen) setDiffSeen(true)
+  const [guideSeen, setGuideSeen] = useState(false)
+  if (tab === 'guide' && !guideSeen) setGuideSeen(true)
+  const guide = usePullRequestGuide(ref, pr.data.pull.head.sha, guideSeen)
+  const guideSkipped = guide.state?.status === 'skipped'
   const [mode, setMode] = useState('all')
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
@@ -1895,14 +1991,14 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
             target.closest('input, textarea, [role=dialog], [role=menu], [role=listbox]')))
       )
         return
-      if (e.key === '1' || e.key === '2') {
+      if (e.key === '1' || e.key === '2' || (e.key === '3' && !guideSkipped)) {
         e.preventDefault()
-        setTab(e.key === '1' ? 'overview' : 'diff')
+        setTab(e.key === '1' ? 'overview' : e.key === '2' ? 'diff' : 'guide')
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [guideSkipped])
   useEffect(() => {
     if (selected)
       view.current
@@ -1914,6 +2010,12 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     ref.repo,
     commit ? (commitFiles.data?.parentSha ?? undefined) : pr.data.pull.base.sha,
     commit?.sha ?? pr.data.pull.head.sha
+  )
+  // The guide always reads the whole PR, whichever commit the Diff tab shows.
+  const guideLoadFile = usePullRequestDiffFileLoader(
+    ref.repo,
+    pr.data.pull.base.sha,
+    pr.data.pull.head.sha
   )
   const threadsByPath = useMemo(() => {
     const grouped = new Map<string, PrThread[]>()
@@ -1957,6 +2059,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     ]
   }, [commit, commitFiles.data, mode, pr.files, threadsByPath])
   const revision = `${ref.repo}:${commit?.sha ?? pr.data.pull.head.sha}:${commitFiles.data?.parentSha ?? pr.data.pull.base.sha}`
+  const guideRevision = `${ref.repo}:${pr.data.pull.head.sha}:${pr.data.pull.base.sha}`
   useEffect(() => {
     if (painted)
       return whenIdle(() => {
@@ -1999,25 +2102,50 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                 <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
                   {sidebar}
                   <nav aria-label='Pull request view' className='flex gap-1'>
-                    {(['overview', 'diff'] as const).map((value) => (
-                      <Hint key={value} text={value === 'overview' ? 'Overview · 1' : 'Diff · 2'}>
+                    {(
+                      [
+                        ['overview', 'Overview', 'Overview · 1'],
+                        ['diff', 'Diff', 'Diff · 2'],
+                        ['guide', 'Guide', guideSkipped ? 'Small PR, no guide' : 'Guide · 3'],
+                      ] as const
+                    ).map(([value, label, hint]) => (
+                      <Hint key={value} text={hint}>
                         <Button
                           variant='ghost'
                           tone='muted'
                           size='sm'
                           aria-pressed={tab === value}
+                          disabled={value === 'guide' && guideSkipped}
                           className='rounded-sm font-normal aria-pressed:bg-accent'
                           {...pressProps(() => {
                             if (value === 'diff') perf.start('pr.diff')
                             setTab(value)
                           })}
                         >
-                          {value === 'overview' ? 'Overview' : 'Diff'}
+                          {label}
                         </Button>
                       </Hint>
                     ))}
                   </nav>
                   <div className='ml-auto flex items-center gap-1'>
+                    {tab === 'guide' && guide.state?.guide && (
+                      <DiffDisplayOptions
+                        trigger={
+                          <Button
+                            variant='ghost'
+                            tone='muted'
+                            size='icon'
+                            aria-label='Diff display options'
+                          />
+                        }
+                        diffStyle={diffStyle}
+                        onDiffStyleChange={setDiffStyle}
+                        toggles={[
+                          ['Hide generated', hideGenerated, setHideGenerated],
+                          ['Wrap lines', wrap, setWrapChoice],
+                        ]}
+                      />
+                    )}
                     {status}
                     {pr.state === 'draft' ? (
                       <Button
@@ -2248,7 +2376,22 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   </div>
                 )}
 
-                {(painted || diffSeen) && (
+                {guideSeen && (
+                  <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'guide' && 'hidden')}>
+                    <PrDiffRevisionContext value={guideRevision}>
+                      <PrDiffLoaderContext value={guideLoadFile}>
+                        <GuidePane
+                          pr={pr}
+                          guide={guide}
+                          hideGenerated={hideGenerated}
+                          threadsByPath={threadsByPath}
+                        />
+                      </PrDiffLoaderContext>
+                    </PrDiffRevisionContext>
+                  </div>
+                )}
+
+                {(painted || diffSeen || guideSeen) && (
                   <svg
                     aria-hidden='true'
                     className='absolute size-0 overflow-hidden'
