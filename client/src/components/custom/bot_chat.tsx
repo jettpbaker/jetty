@@ -4,6 +4,13 @@ import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
+import {
+  BotConversation,
+  ExchangeLine,
+  exchangeEntry,
+  type ExchangeEntry,
+  type Room,
+} from '@/components/custom/bot_conversation'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
 import {
   ApprovalStrip,
@@ -35,6 +42,7 @@ import { InputGroupTextarea } from '@/components/ui/input-group'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { emojiUrl } from '@/lib/fluent_emoji'
 import { pressProps } from '@/lib/press'
+import { chatStamp, SESSION_GAP } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
   useBots,
@@ -69,7 +77,6 @@ const RISE_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)'
 const STAGGER = 90
 const FADE_MS = 150
 const EXIT_MS = 90
-const SESSION_GAP = 30 * 60_000
 // px from the bottom that still counts as at it; in a column-reverse scroller, 0 is the bottom.
 const PIN_SLACK = 8
 // Scrolled up, the fade comes in over the first 48px, so at the bottom there's none.
@@ -97,6 +104,7 @@ type RowItem =
   | { kind: 'markers'; markers: Marker[] }
   | { kind: 'error'; error: ErrorItem }
   | { kind: 'decision'; decision: DecisionItem }
+  | { kind: 'exchange'; entries: ExchangeEntry[] }
 type Gap = 'none' | 'run' | 'tight'
 type Row = { key: string; gap: Gap } & ({ kind: 'stamp'; at: number } | RowItem)
 type Presence = 'typing' | 'working' | 'tidying'
@@ -155,24 +163,22 @@ function fade(scroller: HTMLElement) {
   scroller.style.setProperty('--fade', String(Math.min(1, -scroller.scrollTop / FADE_IN)))
 }
 
-function stamp(at: number, now: number) {
-  const date = new Date(at)
-  const days = Math.round(
-    (new Date(now).setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000
-  )
-  const day =
-    days === 0
-      ? 'Today'
-      : days === 1
-        ? 'Yesterday'
-        : date.toLocaleDateString('en-AU', { weekday: 'long' })
-  return `${day} ${date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`
-}
-
-function toItems(items: readonly ThreadItem[], pending: readonly PendingBotMessage[]): RowItem[] {
+function toItems(
+  items: readonly ThreadItem[],
+  pending: readonly PendingBotMessage[],
+  otherBots: ReadonlySet<string>
+): RowItem[] {
   const listed = new Set(items.map((item) => item.id))
   const visible: RowItem[] = []
   for (const item of items) {
+    // Messages between bots gather on one line until the chat shows something else.
+    const entry = exchangeEntry(item, otherBots)
+    if (entry) {
+      const last = visible.at(-1)
+      if (last?.kind === 'exchange') last.entries.push(entry)
+      else visible.push({ kind: 'exchange', entries: [entry] })
+      continue
+    }
     if (!shownInBotChat(item)) continue
     if (item.kind === 'assistant_message' && (item.streaming || !item.text.trim())) continue
     if (item.kind === 'user_message' || item.kind === 'assistant_message')
@@ -228,7 +234,9 @@ function toRows(items: RowItem[]): Row[] {
           ? item.error.createdAt
           : item.kind === 'decision'
             ? item.decision.createdAt
-            : item.markers[0]!.createdAt
+            : item.kind === 'exchange'
+              ? item.entries[0]!.at
+              : item.markers[0]!.createdAt
     const key =
       item.kind === 'message'
         ? item.message.id
@@ -236,7 +244,9 @@ function toRows(items: RowItem[]): Row[] {
           ? item.error.id
           : item.kind === 'decision'
             ? item.decision.id
-            : item.markers[0]!.id
+            : item.kind === 'exchange'
+              ? item.entries[0]!.id
+              : item.markers[0]!.id
     const prevAt =
       previous?.kind === 'message'
         ? previous.message.at
@@ -244,7 +254,9 @@ function toRows(items: RowItem[]): Row[] {
           ? previous.error.createdAt
           : previous?.kind === 'decision'
             ? previous.decision.createdAt
-            : previous?.markers[0]?.createdAt
+            : previous?.kind === 'exchange'
+              ? previous.entries[0]!.at
+              : previous?.markers[0]?.createdAt
     const session = prevAt === undefined || at - prevAt > SESSION_GAP
     if (session)
       rows.push({ kind: 'stamp', key: `stamp-${key}`, at, gap: previous ? 'run' : 'none' })
@@ -262,9 +274,12 @@ function toRows(items: RowItem[]): Row[] {
   return rows
 }
 
-export function BotChat({ bot }: { bot: Bot }) {
+// `overlayHost` is the page the bots' conversation opens over.
+export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLElement | null }) {
   const thread = useThread(bot.id)
   const pending = usePendingBotMessages(bot.id)
+  const otherBots = new Set(useBots().flatMap((other) => (other.id === bot.id ? [] : [other.id])))
+  const [room, setRoom] = useState<Room>()
   const childMetas = useChildThreadMetas(bot.id)
   const sendToBot = useSendToBot()
   const interrupt = useInterruptTurn()
@@ -299,7 +314,7 @@ export function BotChat({ bot }: { bot: Bot }) {
     return () => observer.disconnect()
   }, [])
   const items = thread?.items ?? []
-  const rows = toRows(toItems(items, pending))
+  const rows = toRows(toItems(items, pending, otherBots))
   const turnId = thread?.activeTurnId
   const turn = turnId && !bot.needsYou ? botTurnActivity(items, turnId) : 'quiet'
   const presence = turn === 'quiet' ? null : bot.activity === 'tidying' ? 'tidying' : turn
@@ -352,6 +367,7 @@ export function BotChat({ bot }: { bot: Bot }) {
             loaded={thread !== undefined}
             onReply={reply}
             onJump={jump}
+            onOpenRoom={setRoom}
           />
           <div className='h-(--dock) shrink-0' />
         </div>
@@ -375,6 +391,15 @@ export function BotChat({ bot }: { bot: Bot }) {
         </div>
       </div>
       <AddToPrompt chatRef={scrollerRef} onAdd={reply} />
+      {room && (
+        <BotConversation
+          key={room.botId}
+          bot={bot}
+          room={room}
+          host={overlayHost}
+          onClose={() => setRoom(undefined)}
+        />
+      )}
     </div>
   )
 }
@@ -389,6 +414,7 @@ function Transcript({
   loaded,
   onReply,
   onJump,
+  onOpenRoom,
 }: {
   rows: Row[]
   now: number
@@ -399,6 +425,7 @@ function Transcript({
   loaded: boolean
   onReply: (reply: Reply) => void
   onJump: (id: string) => void
+  onOpenRoom: (room: Room) => void
 }) {
   const stackRef = useRef<HTMLDivElement>(null)
   const [seen] = useState(() => new Set(rows.map((row) => row.key)))
@@ -497,6 +524,7 @@ function Transcript({
         calm ||
         kind === 'stamp' ||
         kind === 'markers' ||
+        kind === 'exchange' ||
         kind === 'error' ||
         kind === 'decision'
       ) {
@@ -519,7 +547,7 @@ function Transcript({
     <div ref={stackRef} className='relative mx-auto flex w-full max-w-[660px] flex-col pt-6'>
       {rows.map((row) =>
         row.kind === 'stamp' ? (
-          <Stamp key={row.key} id={row.key} label={stamp(row.at, now)} gap={row.gap} />
+          <Stamp key={row.key} id={row.key} label={chatStamp(row.at, now)} gap={row.gap} />
         ) : row.kind === 'message' ? (
           <MessageRow
             key={row.key}
@@ -537,6 +565,10 @@ function Transcript({
             gap={row.gap}
             metas={childMetas}
           />
+        ) : row.kind === 'exchange' ? (
+          <div key={row.key} data-row={row.key} className={gapClass[row.gap]}>
+            <ExchangeLine chatBotId={bot.id} entries={row.entries} onOpen={onOpenRoom} />
+          </div>
         ) : row.kind === 'decision' ? (
           <div key={row.key} data-row={row.key} className={cn('px-1', gapClass[row.gap])}>
             <TranscriptMarker item={row.decision} provider={bot.provider} />

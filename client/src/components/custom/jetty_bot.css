@@ -58,6 +58,14 @@
   fill: var(--background);
 }
 
+/* Stacked faces: each cuts a ring out of the one behind it. */
+.jb-outline {
+  fill: var(--jb-ring, var(--background));
+  stroke: var(--jb-ring, var(--background));
+  stroke-width: 14.3;
+  stroke-linejoin: round;
+}
+
 /* Needs-you badge. The ring matches whatever the bot sits on; set --jb-ring on the container. */
 .jb-badge-ring {
   fill: var(--jb-ring, var(--background));

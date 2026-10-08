@@ -44,6 +44,24 @@ const fullDate = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
 })
 
+// A quiet stretch this long starts a new session in a chat, under its own stamp.
+export const SESSION_GAP = 30 * minute
+
+// A chat's session stamp: "Today 2:41 pm", "Yesterday 9:05 am", "Monday 4:30 pm".
+export function chatStamp(at: number, now: number) {
+  const date = new Date(at)
+  const days = Math.round(
+    (new Date(now).setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000
+  )
+  const day =
+    days === 0
+      ? 'Today'
+      : days === 1
+        ? 'Yesterday'
+        : date.toLocaleDateString('en-AU', { weekday: 'long' })
+  return `${day} ${date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`
+}
+
 // When a message was sent: the time today, the day and time this year, the date before that.
 export function formatSentAt(timestamp: number) {
   const date = new Date(timestamp)

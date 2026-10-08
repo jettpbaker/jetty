@@ -799,6 +799,8 @@ export type JettyBotProps = {
   interactive?: boolean
   /** It has sent messages you haven't seen. A blue dot shows it once its turn is over. */
   unread?: boolean
+  /** A ring in the colour it sits on, so faces stacked over each other stay apart. */
+  outlined?: boolean
   label?: string
   className?: string
   style?: CSSProperties
@@ -813,6 +815,7 @@ export function JettyBot({
   follow = false,
   interactive = false,
   unread = false,
+  outlined = false,
   label,
   className,
   style,
@@ -897,6 +900,11 @@ export function JettyBot({
         </clipPath>
       </defs>
       <g data-jb='body'>
+        {outlined && (
+          <g className='jb-outline'>
+            <BodyClip body={body} />
+          </g>
+        )}
         <BodyFill body={body} />
         {/* Eyes are clipped to the body, so a glance toward the edge reads as the body turning. */}
         <g clipPath={`url(#${id}-face)`}>

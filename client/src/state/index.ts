@@ -1,6 +1,7 @@
 export { useAccessMode } from './access_mode'
 export {
   useBot,
+  useBotConversation,
   useBots,
   useCreateBot,
   useMarkBotSeen,

@@ -1,5 +1,5 @@
 import type { Reply } from '@jetty/shared/items'
-import type { Bot, ParamsOf } from '@jetty/shared/wire'
+import type { Bot, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
 import { resendOnDrop } from '@/net/connection'
 import { useAtomValue } from '@effect/atom-react'
@@ -8,7 +8,7 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
 
 import { chromeAtom, serverChrome } from './chrome'
-import { run, useAction } from './connection'
+import { connectionAtom, run, useAction } from './connection'
 import { settleWhen, trackCreation, without } from './mutations'
 import { threadAtom } from './threads'
 
@@ -187,4 +187,36 @@ const pendingAtom = Atom.family((botId: string) =>
 // Jett's messages the bot's thread doesn't have yet, oldest first.
 export function usePendingBotMessages(botId: string) {
   return useAtomValue(pendingAtom(botId))
+}
+
+// Two bots' conversation, one entry per pair whichever chat it's read from.
+const conversationAtom = Atom.family((_pair: string) =>
+  Atom.make<readonly BotConversationMessage[] | undefined>(undefined).pipe(
+    Atom.setIdleTTL('30 minutes')
+  )
+)
+
+// One fetch per version of the conversation; the last answer stays on screen while it runs.
+const conversationFetchAtom = Atom.family((key: string) =>
+  Atom.make((get) => {
+    const [pair = ''] = key.split('|')
+    const [botId = '', otherBotId = ''] = pair.split(':')
+    return get.result(connectionAtom).pipe(
+      Effect.flatMap((connection) => connection.request('bot.conversation', { botId, otherBotId })),
+      Effect.tap(({ messages }) => Effect.sync(() => get.set(conversationAtom(pair), messages)))
+    )
+  }).pipe(Atom.setIdleTTL('1 minute'))
+)
+
+const shownConversationAtom = Atom.family((key: string) =>
+  Atom.readable((get) => {
+    get(conversationFetchAtom(key))
+    return get(conversationAtom(key.split('|')[0]!))
+  })
+)
+
+// What two bots sent each other, oldest first; a new version fetches it again.
+export function useBotConversation(botId: string, otherBotId: string, version: string) {
+  const pair = botId < otherBotId ? `${botId}:${otherBotId}` : `${otherBotId}:${botId}`
+  return useAtomValue(shownConversationAtom(`${pair}|${version}`))
 }
