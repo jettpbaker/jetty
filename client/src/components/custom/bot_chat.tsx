@@ -1,5 +1,5 @@
 import type { PendingBotMessage } from '@/state/bots'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
@@ -15,7 +15,6 @@ import { inlineLinkClass } from '@/components/custom/entity_link'
 import {
   ArrowTurnBackwardIcon,
   ArrowUp02Icon,
-  Cancel01Icon,
   Copy01Icon,
   PlusSignIcon,
   Refresh01Icon,
@@ -24,6 +23,7 @@ import {
 } from '@/components/custom/huge_icons'
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
+import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { TranscriptMarker } from '@/components/custom/transcript_marker'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -75,7 +75,7 @@ type Message = {
   from: 'jett' | 'bot'
   text: string
   at: number
-  replyTo?: { itemId: string; text: string }
+  replyTo?: Reply
   reaction?: string
   streaming?: boolean
 }
@@ -257,7 +257,7 @@ export function BotChat({ bot }: { bot: Bot }) {
   const interrupt = useInterruptTurn()
   const calm = useReducedMotion() ?? false
   const [now] = useState(() => Date.now())
-  const [replyTo, setReplyTo] = useState<{ itemId: string; text: string }>()
+  const [replyTo, setReplyTo] = useState<Reply>()
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -297,6 +297,10 @@ export function BotChat({ bot }: { bot: Bot }) {
     pinnedRef.current = true
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
   }
+  function reply(quote: Reply) {
+    setReplyTo(quote)
+    fieldRef.current?.focus()
+  }
   function jump(id: string) {
     const target = document.getElementById(`bot-message-${id}`)
     target?.scrollIntoView({ behavior: calm ? 'instant' : 'smooth', block: 'center' })
@@ -330,10 +334,7 @@ export function BotChat({ bot }: { bot: Bot }) {
             childMetas={childMetas}
             calm={calm}
             loaded={thread !== undefined}
-            onReply={(reply) => {
-              setReplyTo(reply)
-              fieldRef.current?.focus()
-            }}
+            onReply={reply}
             onJump={jump}
           />
           <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px] pt-4'>
@@ -375,7 +376,7 @@ function Transcript({
   childMetas: readonly ThreadMeta[]
   calm: boolean
   loaded: boolean
-  onReply: (reply: { itemId: string; text: string }) => void
+  onReply: (reply: Reply) => void
   onJump: (id: string) => void
 }) {
   const stackRef = useRef<HTMLDivElement>(null)
@@ -551,7 +552,7 @@ function MessageRow({
   id: string
   message: Message
   gap: Gap
-  onReply: (reply: { itemId: string; text: string }) => void
+  onReply: (reply: Reply) => void
   onJump: (id: string) => void
 }) {
   const jett = message.from === 'jett'
@@ -567,14 +568,11 @@ function MessageRow({
         )}
       >
         {message.replyTo && (
-          <button
-            type='button'
-            onClick={() => onJump(message.replyTo!.itemId)}
-            className='mb-0.75 flex max-w-[380px] min-w-0 items-center gap-1.5 self-end rounded-[14px] border border-border px-2.5 py-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
-          >
-            <ArrowTurnBackwardIcon className='size-3 shrink-0' />
-            <span className='min-w-0 truncate'>{plainQuote(message.replyTo.text)}</span>
-          </button>
+          <RepliedTo
+            text={message.replyTo.text}
+            onJump={() => onJump(message.replyTo!.itemId)}
+            className='mb-0.75'
+          />
         )}
         <div className={cn('relative w-fit max-w-full', jett && 'ml-auto')}>
           <Bubble
@@ -908,14 +906,6 @@ function sentenceCase(message: string) {
   return word && !names.has(word) ? detail[0]!.toLowerCase() + detail.slice(1) : detail
 }
 
-function plainQuote(markdown: string) {
-  return markdown
-    .replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[`*_~]/g, '')
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+)/gm, '')
-    .trim()
-}
-
 let measure: CanvasRenderingContext2D | null = null
 function wraps(text: string, field: HTMLTextAreaElement, box: HTMLElement) {
   if (text.includes('\n')) return true
@@ -938,7 +928,7 @@ function BotComposer({
   bot: Bot
   fieldRef: RefObject<HTMLTextAreaElement | null>
   busy: boolean
-  replyTo?: { itemId: string; text: string }
+  replyTo?: Reply
   onClearReply: () => void
   onSend: (text: string) => void
   onStop: () => void
@@ -980,19 +970,7 @@ function BotComposer({
       )}
     >
       {replyTo && (
-        <div className='col-span-3 row-start-1 flex h-8 min-w-0 items-center gap-2 rounded-[14px] bg-accent pr-1 pl-2.5 text-13 text-muted-foreground'>
-          <ArrowTurnBackwardIcon className='size-3 shrink-0' />
-          <span className='min-w-0 flex-1 truncate'>{plainQuote(replyTo.text)}</span>
-          <Button
-            variant='ghost'
-            size='icon-xs'
-            aria-label='Clear reply'
-            className='rounded-[10px]'
-            onClick={onClearReply}
-          >
-            <Cancel01Icon />
-          </Button>
-        </div>
+        <ReplyTab text={replyTo.text} onClear={onClearReply} className='col-span-3 row-start-1' />
       )}
       <InputGroupTextarea
         ref={fieldRef}
