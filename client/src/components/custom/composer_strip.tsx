@@ -78,6 +78,7 @@ export function Pager({
   onPrev,
   onNext,
   nextDisabled,
+  inScroller,
   className,
 }: {
   index: number
@@ -86,8 +87,10 @@ export function Pager({
   onPrev: () => void
   onNext: () => void
   nextDisabled?: boolean
+  inScroller?: boolean
   className?: string
 }) {
+  const activate = (action: () => void) => (inScroller ? { onClick: action } : pressProps(action))
   return (
     <span
       className={cn('-my-1 flex shrink-0 items-center text-xs text-muted-foreground', className)}
@@ -97,7 +100,7 @@ export function Pager({
         size='icon'
         aria-label={`Previous ${noun}`}
         disabled={index === 0}
-        {...pressProps(onPrev)}
+        {...activate(onPrev)}
       >
         <ArrowLeft01Icon />
       </Button>
@@ -109,7 +112,7 @@ export function Pager({
         size='icon'
         aria-label={`Next ${noun}`}
         disabled={nextDisabled ?? index === total - 1}
-        {...pressProps(onNext)}
+        {...activate(onNext)}
       >
         <ArrowRight01Icon />
       </Button>

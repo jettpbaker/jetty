@@ -8,6 +8,7 @@ export {
   usePendingBotMessages,
   useSendToBot,
   useSetBotAllowRules,
+  useUpdateBot,
   type NewBot,
   type PendingBotMessage,
 } from './bots'

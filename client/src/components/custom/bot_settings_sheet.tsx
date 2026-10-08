@@ -2,8 +2,13 @@ import type { Bot, BotAllowRule } from '@jetty/shared/wire'
 
 import { BotAvatar } from '@/components/custom/bot_avatar'
 import { Cancel01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
-import { FullAccessLabel, Row } from '@/components/custom/new_bot_dialog'
-import { ProviderGlyph } from '@/components/custom/provider_glyph'
+import {
+  BotLoadoutPicker,
+  BotNameInput,
+  FacePicker,
+  FullAccessLabel,
+  Row,
+} from '@/components/custom/new_bot_dialog'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -14,16 +19,23 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { describeLoadout } from '@/lib/loadout'
-import { useModels, useSetBotAllowRules } from '@/state'
-import { catalogModelName } from '@jetty/shared/model-name'
+import { useSetBotAllowRules, useUpdateBot } from '@/state'
+import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 export function BotSettingsSheet({ bot }: { bot: Bot }) {
+  const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+  const [name, setName] = useState<string>()
   const setRules = useSetBotAllowRules()
-  const models = useModels()
+  const update = useUpdateBot()
+  const navigate = useNavigate()
   const rules = bot.allowRules ?? []
+  function saveName() {
+    const next = name?.trim()
+    if (next && next !== bot.name) update(bot.id, { name: next })
+    setName(undefined)
+  }
   function addRule() {
     if (!text.trim()) return
     setRules(bot.id, [
@@ -33,7 +45,7 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
     setText('')
   }
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
           <Button variant='ghost' size='icon' aria-label='Open bot settings' className='ml-auto' />
@@ -57,28 +69,42 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
         </SheetHeader>
         <div className='flex flex-col gap-4'>
           <div className='flex flex-col items-center gap-1'>
-            <div className='p-2'>
-              <BotAvatar
-                bot={{ ...bot, activity: 'idle', needsYou: false, unread: false, failed: false }}
-                size={64}
-                unread={false}
-              />
-            </div>
-            <span className='py-1 text-base font-medium'>{bot.name}</span>
+            <FacePicker
+              shape={bot.shape}
+              color={bot.color}
+              label={bot.name}
+              onShapeChange={(shape) => update(bot.id, { shape })}
+              onColorChange={(color) => update(bot.id, { color })}
+            />
+            <BotNameInput
+              value={name ?? bot.name}
+              onChange={(event) => setName(event.target.value)}
+              onBlur={saveName}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) saveName()
+              }}
+            />
           </div>
           <div className='flex flex-col'>
             <Row label='Model'>
-              <Button variant='ghost' size='sm' disabled className='gap-1.5 rounded-sm'>
-                <ProviderGlyph provider={bot.provider} className='size-3' />
-                {catalogModelName(models, bot.provider, bot.model)}
-                <span>{describeLoadout(bot)}</span>
-              </Button>
+              <BotLoadoutPicker
+                value={bot}
+                onChange={(next) => {
+                  if (next.model !== bot.model) update(bot.id, { model: next.model })
+                }}
+                onOpenSettings={() => {
+                  setOpen(false)
+                  void navigate({ to: '/settings' })
+                }}
+              />
             </Row>
             <Row label={<FullAccessLabel />}>
               <Switch
                 aria-label='Full access'
                 checked={bot.permissionMode === 'full_access'}
-                disabled
+                onCheckedChange={(on) =>
+                  update(bot.id, { permissionMode: on ? 'full_access' : 'auto' })
+                }
               />
             </Row>
           </div>
@@ -149,7 +175,7 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
 
 function ruleOrigin(rule: BotAllowRule) {
   if (!rule.source) return 'Written by you'
-  return rule.source === rule.text ? undefined : `From ${rule.source}`
+  return rule.source === rule.text.replaceAll('`', '') ? undefined : `From ${rule.source}`
 }
 
 // A rule's `command` reads in mono, as the approval card showed it.

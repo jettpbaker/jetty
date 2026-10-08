@@ -1,5 +1,5 @@
 import type { BotColor, BotShape, PermissionMode } from '@jetty/shared/wire'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -94,8 +94,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const createProject = useCreateProject()
   const loadedProjects = useProjects()
   const projects = loadedProjects ?? []
-  const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
-  const models = useModels()
+  const { loadouts, catalog } = useLoadouts()
   const [name, setName] = useState('')
   const [shape, setShape] = useState<BotShape>('squircle')
   const [color, setColor] = useState<BotColor>('mint')
@@ -107,10 +106,6 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const [access, setAccess] = useState<PermissionMode>('auto')
   const [adding, setAdding] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
-  const filteredCatalog = models.map((model) => ({
-    ...model,
-    efforts: model.efforts.filter((effort) => BOT_EFFORTS.includes(effort)),
-  }))
   const chosenLoadout = loadout ?? firstClaudeLoadout(loadouts, catalog)
   useEffect(() => {
     if (projectReady.current || !loadedProjects) return
@@ -150,94 +145,28 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
           }}
         >
           <div className='flex flex-col items-center gap-1'>
-            <Popover>
-              <PopoverTrigger
-                aria-label='Change face'
-                className='flex rounded-xl p-2 outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-accent'
-              >
-                <JettyBot
-                  shape={shape}
-                  color={color}
-                  state='idle'
-                  size={64}
-                  follow
-                  label={name || 'Bot'}
-                />
-              </PopoverTrigger>
-              <PopoverContent
-                side='bottom'
-                align='center'
-                className='w-auto gap-0 rounded-sm p-0 ring-border'
-              >
-                <PopoverTitle className='sr-only'>Face</PopoverTitle>
-                {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- sketchpad face grid */}
-                <div className='grid grid-cols-7 gap-1 p-2' role='group' aria-label='Shape'>
-                  {shapeIds.map((id) => (
-                    <Button
-                      key={id}
-                      type='button'
-                      variant='ghost'
-                      size='icon'
-                      aria-label={id}
-                      aria-pressed={id === shape}
-                      onClick={() => setShape(id)}
-                      className='aria-pressed:bg-accent'
-                    >
-                      <JettyBot shape={id} color={color} size={20} className='size-5' />
-                    </Button>
-                  ))}
-                </div>
-                <Separator />
-                {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- sketchpad colour grid */}
-                <div className='grid grid-cols-7 gap-1 p-2' role='group' aria-label='Colour'>
-                  {colorIds.map((id) => (
-                    <Button
-                      key={id}
-                      type='button'
-                      variant='ghost'
-                      size='icon'
-                      aria-label={id === 'accent' ? 'Accent' : id}
-                      aria-pressed={id === color}
-                      onClick={() => setColor(id)}
-                      className='aria-pressed:bg-accent'
-                    >
-                      <span
-                        className='size-4 rounded-full [background:var(--deep)] dark:[background:var(--body)]'
-                        style={swatchStyle(id)}
-                      />
-                    </Button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <input
-              ref={nameRef}
-              aria-label='Name'
-              data-1p-ignore
-              autoComplete='off'
-              placeholder='Bot'
-              maxLength={BOT_NAME_MAX}
+            <FacePicker
+              shape={shape}
+              color={color}
+              label={name || 'Bot'}
+              onShapeChange={setShape}
+              onColorChange={setColor}
+            />
+            <BotNameInput
+              inputRef={nameRef}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className='w-full rounded-sm bg-transparent px-2 py-1 text-center text-base font-medium text-foreground outline-none placeholder:text-muted-foreground'
             />
           </div>
           <div className='flex flex-col'>
             <Row label='Model'>
-              <ComposerLoadout
-                catalog={filteredCatalog}
-                loadouts={loadouts}
-                usable={usable}
+              <BotLoadoutPicker
                 value={chosenLoadout}
-                onChange={(next) => setLoadout(botLoadout(next))}
-                onReorder={setLoadouts}
+                onChange={setLoadout}
                 onOpenSettings={() => {
                   onOpenChange(false)
                   void navigate({ to: '/settings' })
                 }}
-                disabledProviders={['codex', 'grok']}
-                allowedEfforts={BOT_EFFORTS}
-                hotkeys={false}
               />
             </Row>
             <Row label='Project'>
@@ -297,6 +226,126 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
         onAdd={(path) => createProject(path, (created) => setProject(created.id))}
       />
     </>
+  )
+}
+
+export function FacePicker({
+  shape,
+  color,
+  label,
+  onShapeChange,
+  onColorChange,
+}: {
+  shape: BotShape
+  color: BotColor
+  label: string
+  onShapeChange: (shape: BotShape) => void
+  onColorChange: (color: BotColor) => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label='Change face'
+        className='flex rounded-xl p-2 outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-accent'
+      >
+        <JettyBot shape={shape} color={color} state='idle' size={64} follow label={label} />
+      </PopoverTrigger>
+      <PopoverContent
+        side='bottom'
+        align='center'
+        className='w-auto gap-0 rounded-sm p-0 ring-border'
+      >
+        <PopoverTitle className='sr-only'>Face</PopoverTitle>
+        {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- sketchpad face grid */}
+        <div className='grid grid-cols-7 gap-1 p-2' role='group' aria-label='Shape'>
+          {shapeIds.map((id) => (
+            <Button
+              key={id}
+              type='button'
+              variant='ghost'
+              size='icon'
+              aria-label={id}
+              aria-pressed={id === shape}
+              onClick={() => onShapeChange(id)}
+              className='aria-pressed:bg-accent'
+            >
+              <JettyBot shape={id} color={color} size={20} className='size-5' />
+            </Button>
+          ))}
+        </div>
+        <Separator />
+        {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- sketchpad colour grid */}
+        <div className='grid grid-cols-7 gap-1 p-2' role='group' aria-label='Colour'>
+          {colorIds.map((id) => (
+            <Button
+              key={id}
+              type='button'
+              variant='ghost'
+              size='icon'
+              aria-label={id === 'accent' ? 'Accent' : id}
+              aria-pressed={id === color}
+              onClick={() => onColorChange(id)}
+              className='aria-pressed:bg-accent'
+            >
+              <span
+                className='size-4 rounded-full [background:var(--deep)] dark:[background:var(--body)]'
+                style={swatchStyle(id)}
+              />
+            </Button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// Bots run Claude for now, at any effort but max.
+export function BotLoadoutPicker({
+  value,
+  onChange,
+  onOpenSettings,
+}: {
+  value: Loadout | undefined
+  onChange: (loadout: Loadout) => void
+  onOpenSettings: () => void
+}) {
+  const { loadouts, usable, setLoadouts } = useLoadouts()
+  const models = useModels()
+  const catalog = models.map((model) => ({
+    ...model,
+    efforts: model.efforts.filter((effort) => BOT_EFFORTS.includes(effort)),
+  }))
+  return (
+    <ComposerLoadout
+      catalog={catalog}
+      loadouts={loadouts}
+      usable={usable}
+      value={value}
+      onChange={(next) => onChange(botLoadout(next))}
+      onReorder={setLoadouts}
+      onOpenSettings={onOpenSettings}
+      disabledProviders={['codex', 'grok']}
+      allowedEfforts={BOT_EFFORTS}
+      hotkeys={false}
+    />
+  )
+}
+
+export function BotNameInput({
+  inputRef,
+  ...props
+}: ComponentProps<'input'> & { inputRef?: Ref<HTMLInputElement> }) {
+  return (
+    <input
+      ref={inputRef}
+      aria-label='Name'
+      data-1p-ignore
+      autoComplete='off'
+      placeholder='Bot'
+      maxLength={BOT_NAME_MAX}
+      className='w-full rounded-sm bg-transparent px-2 py-1 text-center text-base font-medium text-foreground outline-none placeholder:text-muted-foreground'
+      {...props}
+    />
   )
 }
 

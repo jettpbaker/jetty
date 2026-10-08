@@ -255,3 +255,43 @@ function setBotAllowRules(registry: Registry, botId: string, rules: readonly Bot
 }
 
 export const useSetBotAllowRules = () => useAction(setBotAllowRules)
+
+type BotUpdate = Omit<ParamsOf<'bot.update'>, 'botId'>
+
+function updateBot(registry: Registry, botId: string, update: BotUpdate) {
+  const keys = Object.keys(update) as (keyof BotUpdate)[]
+  registry.update(botPatchesAtom, (patches) =>
+    new Map(patches).set(botId, { ...patches.get(botId), ...update })
+  )
+  const clear = () =>
+    registry.update(botPatchesAtom, (patches) => {
+      const patch = { ...patches.get(botId) }
+      for (const key of keys) if (patch[key] === update[key]) delete patch[key]
+      const next = new Map(patches)
+      if (Object.keys(patch).length) next.set(botId, patch)
+      else next.delete(botId)
+      return next
+    })
+  run(
+    registry,
+    (connection) =>
+      connection.request('bot.update', { botId, ...update }).pipe(
+        Effect.tap(({ bot }) =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => {
+                const listed = serverBot(registry, botId)
+                return !!listed && keys.every((key) => listed[key] === bot[key])
+              },
+              clear
+            )
+          )
+        ),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
+    clear
+  )
+}
+
+export const useUpdateBot = () => useAction(updateBot)

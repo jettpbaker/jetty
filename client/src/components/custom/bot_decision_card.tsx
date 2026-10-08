@@ -2,6 +2,7 @@ import type { QuestionSpec, ThreadItem } from '@jetty/shared/items'
 import type { Bot } from '@jetty/shared/wire'
 
 import { botAccentClass } from '@/components/custom/bot_avatar'
+import { Pager } from '@/components/custom/composer_strip'
 import { approvalView } from '@/components/custom/composer_strip_model'
 import { Tick02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,9 @@ function BotApprovalCard({
     return (
       <div className={cn(cardClass, 'py-2 text-muted-foreground')}>
         <div className='flex min-w-0 items-center gap-2 text-sm'>
-          <Tick02Icon className='size-3.5 shrink-0' />
+          {(item.decision === 'always' || item.decision === 'allow') && (
+            <Tick02Icon className='size-3.5 shrink-0' />
+          )}
           <span className='shrink-0'>
             {item.decision === 'always'
               ? 'Allowed always'
@@ -61,7 +64,7 @@ function BotApprovalCard({
                   : 'Withdrawn'}
           </span>
           <span className='truncate font-mono text-xs' title={command}>
-            {command}
+            {view.run ? withoutCd(command) : command}
           </span>
         </div>
       </div>
@@ -171,23 +174,23 @@ function BotQuestionCard({
             <div key={question.question} className='flex flex-col gap-3'>
               <div className='text-sm leading-[22.75px]'>{question.question}</div>
               <div className='overflow-hidden rounded-md border border-border bg-background'>
-                {(answer
-                  ? answerRows(question, answer)
-                  : [{ label: item.dismissed ? 'Dismissed' : 'Withdrawn', description: '' }]
-                ).map((option) => (
-                  <div
-                    key={option.label}
-                    className='flex items-start gap-2 border-t border-border px-[11px] py-2 first:border-t-0'
-                  >
-                    <span className='flex h-5 w-4 shrink-0 items-center'>
-                      <Tick02Icon className='size-3.5' />
-                    </span>
-                    <div className='flex min-w-0 flex-wrap items-baseline gap-x-2'>
-                      <span className='text-sm'>{option.label}</span>
-                      <span className='text-xs'>{option.description}</span>
+                {answer ? (
+                  answerRows(question, answer).map((option) => (
+                    <div
+                      key={option.label}
+                      className='flex items-start gap-2 border-t border-border px-[11px] py-2 first:border-t-0'
+                    >
+                      <span className='flex h-5 w-4 shrink-0 items-center'>
+                        <Tick02Icon className='size-3.5' />
+                      </span>
+                      <OptionText option={option} />
                     </div>
+                  ))
+                ) : (
+                  <div className='px-[11px] py-2 text-sm'>
+                    {item.dismissed ? 'Dismissed' : 'Withdrawn'}
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )
@@ -195,21 +198,36 @@ function BotQuestionCard({
       </div>
     )
   if (!spec) return null
+  const total = item.questions.length
   const current = progress.custom[progress.step] ?? ''
   const ready = Boolean(current.trim() || progress.picks[progress.step]?.length)
   return (
     <div className={cardClass}>
       <div className='flex items-baseline gap-2'>
         <div className='min-w-0 grow text-sm leading-[22.75px]'>{spec.question}</div>
-        <Button
-          variant='ghost-text'
-          tone='muted'
-          size='sm'
-          className='-mr-2.25'
-          onClick={() => dismiss(bot.id, item.id, progress, true)}
+        <span
+          className={cn('flex shrink-0 items-center gap-1', total > 1 ? '-mr-1.5' : '-mr-2.25')}
         >
-          Dismiss
-        </Button>
+          <Button
+            variant='ghost-text'
+            tone='muted'
+            size='sm'
+            onClick={() => dismiss(bot.id, item.id, progress, true)}
+          >
+            Dismiss
+          </Button>
+          {total > 1 && (
+            <Pager
+              noun='question'
+              index={progress.step}
+              total={total}
+              onPrev={() => save({ ...progress, step: progress.step - 1 })}
+              onNext={() => submit(progress)}
+              nextDisabled={progress.step === total - 1 || !ready}
+              inScroller
+            />
+          )}
+        </span>
       </div>
       <div className='flex flex-col gap-3'>
         <div className='flex flex-col overflow-hidden rounded-md border border-border bg-background'>
@@ -232,10 +250,7 @@ function BotQuestionCard({
                   </span>
                 )}
               </span>
-              <div className='flex min-w-0 flex-wrap items-baseline gap-x-2'>
-                <span className='text-sm'>{option.label}</span>
-                <span className='text-xs text-muted-foreground'>{option.description}</span>
-              </div>
+              <OptionText option={option} />
             </button>
           ))}
         </div>
@@ -257,7 +272,7 @@ function BotQuestionCard({
         {(spec.multiSelect || current.trim()) && (
           <div className={cn('flex justify-end', botAccentClass)}>
             <Button size='sm' disabled={!ready} onClick={() => submit(progress)}>
-              {progress.step < item.questions.length - 1 ? 'Next' : 'Send'}
+              {progress.step < total - 1 ? 'Next' : 'Send'}
               <Kbd>↵</Kbd>
             </Button>
           </div>
@@ -265,6 +280,22 @@ function BotQuestionCard({
       </div>
     </div>
   )
+}
+
+function OptionText({ option }: { option: { label: string; description: string } }) {
+  return (
+    <span className='min-w-0 text-sm'>
+      {option.label}
+      {option.description && (
+        <span className='ml-2 text-xs text-muted-foreground'>{option.description}</span>
+      )}
+    </span>
+  )
+}
+
+// Bots start most commands with `cd <dir> &&`; the collapsed row names what ran after it.
+function withoutCd(command: string) {
+  return command.replace(/^(?:cd\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*)+/, '')
 }
 
 // Multi-select answers are the ticked labels, then any Other text, joined by ", ".
