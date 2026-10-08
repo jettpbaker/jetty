@@ -272,20 +272,17 @@ export function BotChat({ bot }: { bot: Bot }) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const dockRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
-  // The floating composer's height, for the mask and the room the transcript leaves under it.
-  useLayoutEffect(() => {
-    const scroller = scrollerRef.current
-    const dock = dockRef.current
-    if (!scroller || !dock) return
-    fade(scroller)
+  // The floating composer's height, for the mask and the room the transcript leaves under it. A ref
+  // callback follows the dock to whichever element it's on; an effect run once at mount kept
+  // measuring the old one after a hot update moved it.
+  function measureDock(dock: HTMLDivElement) {
     const observer = new ResizeObserver(() =>
-      scroller.style.setProperty('--dock', `${dock.offsetHeight}px`)
+      scrollerRef.current?.style.setProperty('--dock', `${dock.offsetHeight}px`)
     )
     observer.observe(dock)
     return () => observer.disconnect()
-  }, [])
+  }
   // Once the view is a pixel off the bottom, Chrome's scroll anchoring holds the rows on screen
   // still and new ones land under the composer, so a reader at the bottom is kept there.
   useEffect(() => {
@@ -360,7 +357,7 @@ export function BotChat({ bot }: { bot: Bot }) {
       {/* Outside the scroller, floating over its bottom, clear of the mask. It spans the chat, so
           the / menu over the composer isn't clipped. */}
       <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-0 flex flex-col justify-end overflow-hidden px-6'>
-        <div ref={dockRef} className='mx-auto w-full max-w-[660px] py-4'>
+        <div ref={measureDock} className='mx-auto w-full max-w-[660px] py-4'>
           <BotComposer
             key={bot.id}
             bot={bot}
