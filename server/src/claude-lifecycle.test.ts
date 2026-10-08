@@ -335,6 +335,93 @@ async function pendingDecision(f: Fixture, kind: DecisionKind) {
 }
 
 describe('scoped Claude sessions', () => {
+  test('bot Allow always owns its rules, keeps defaults and never sends provider suggestions', async () => {
+    const f = await setup({ bot: true })
+    const saved = { id: newId(), text: 'Verify may run checks', createdAt: 0 }
+    await f.runtime.runPromise(f.store.setBotAllowRules(f.thread.id, [saved]))
+    await f.start()
+    const q = f.queries[0]!
+    expect(q.options.settings).toEqual({ autoMode: { allow: ['$defaults', saved.text] } })
+    const input = {
+      command: 'gh issue close 212 214 --reason completed',
+      description: 'Close the two v16 issues',
+    }
+    const callback = Promise.resolve(
+      q.options.canUseTool!('Bash', input, {
+        signal: new AbortController().signal,
+        toolUseID: 'close',
+        requestId: 'close',
+        suggestions: [
+          {
+            type: 'addRules',
+            rules: [{ toolName: 'Bash', ruleContent: 'gh issue close *' }],
+            behavior: 'allow',
+            destination: 'projectSettings',
+          },
+        ],
+      })
+    )
+    await f.runtime.runPromise(f.next('session.status'))
+    const started = f.events.find(
+      (event) => event.type === 'item.started' && event.item.kind === 'approval'
+    )
+    if (started?.type !== 'item.started' || started.item.kind !== 'approval')
+      throw new Error('Missing approval')
+    expect(started.item.title).toBe(input.description)
+    expect(
+      await f.runtime.runPromise(f.agent.respondToApproval(f.thread.id, started.item.id, 'always'))
+    ).toBe(true)
+    expect(await callback).toEqual({ behavior: 'allow', updatedInput: input })
+    const bot = await f.runtime.runPromise(f.store.getBot(f.thread.id))
+    expect(bot?.allowRules?.[1]?.source).toBe(input.description)
+    expect(bot?.allowRules?.[1]?.text).toBe(`Verify may ${input.description} with ${input.command}`)
+    expect(q.controls).toContainEqual([
+      'applyFlagSettings',
+      { autoMode: { allow: ['$defaults', ...bot!.allowRules!.map((rule) => rule.text)] } },
+    ])
+    await f.runtime.runPromise(f.orch.setBotAllowRules(f.thread.id, []))
+    expect(q.controls.at(-1)).toEqual(['applyFlagSettings', { autoMode: { allow: ['$defaults'] } }])
+    expect((await f.runtime.runPromise(f.store.getBot(f.thread.id)))?.allowRules).toEqual([])
+    expect(await f.runtime.runPromise(f.store.getPermissionMode(f.thread.id))).toBe('auto')
+  })
+
+  test('bot Agent max refusal holds in the permission callback and Full access hook', async () => {
+    const f = await setup({ bot: true })
+    await f.start(newId(), { permissionMode: 'full_access' })
+    const q = f.queries[0]!
+    const refused = { behavior: 'deny' as const, message: "max isn't available to bots; use xhigh" }
+    for (const tool of ['Agent', 'Task']) {
+      expect(
+        await q.options.canUseTool!(
+          tool,
+          { effort: 'max' },
+          { signal: new AbortController().signal, toolUseID: tool, requestId: tool }
+        )
+      ).toEqual(refused)
+      const hook = q.options.hooks!.PreToolUse![0]!.hooks[0]!
+      const result = await hook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: tool,
+          tool_input: { effort: 'max' },
+          tool_use_id: tool,
+          session_id: 'bot',
+          transcript_path: '',
+          cwd: f.botHome,
+        },
+        tool,
+        { signal: new AbortController().signal }
+      )
+      expect(result).toEqual({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: refused.message,
+        },
+      })
+    }
+  })
+
   test('bot instructions own CLAUDE.md, import files in order and only rewrite changed content', async () => {
     const f = await setup({ bot: true })
     const bot = await f.runtime.runPromise(f.store.getBot(f.thread.id))

@@ -27,6 +27,7 @@ import {
   type PullRequestSnapshot,
   type PullRequestGuideState,
   type Bot,
+  BotAllowRule,
   type BotConversationMessage,
   type BotTask,
   type ParamsOf,
@@ -883,6 +884,18 @@ export function createStore() {
       )
     }
 
+    function readBotAllowRules(botId: string) {
+      return Effect.gen(function* () {
+        const [row] = yield* sql<{ value_json: string }>`SELECT value_json FROM settings
+          WHERE key = ${`bot_allow_rules.${botId}`}`
+        return row
+          ? yield* Schema.decodeUnknownEffect(Schema.Array(BotAllowRule))(
+              JSON.parse(row.value_json)
+            )
+          : []
+      }).pipe(Effect.mapError(storeError))
+    }
+
     function readBot(threadId: string) {
       return Effect.gen(function* () {
         const [row] = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${threadId}`
@@ -911,6 +924,7 @@ export function createStore() {
         return {
           id: row.id,
           name: row.name,
+          allowRules: yield* readBotAllowRules(threadId),
           shape: row.shape,
           color: row.color,
           provider: row.provider,
@@ -1037,6 +1051,14 @@ export function createStore() {
       setBotProjectIfUnset(threadId: string, projectId: string) {
         return sql`UPDATE bots SET project_id = ${projectId}
           WHERE id = ${threadId} AND project_id IS NULL`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      setBotAllowRules(botId: string, rules: readonly BotAllowRule[]) {
+        return sql`INSERT INTO settings (key, value_json)
+          VALUES (${`bot_allow_rules.${botId}`}, ${JSON.stringify(rules)})
+          ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )

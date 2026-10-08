@@ -5,14 +5,8 @@ import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
+import { BotDecisionCard } from '@/components/custom/bot_decision_card'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
-import {
-  ApprovalStrip,
-  QuestionStrip,
-  useApproval,
-  useQuestion,
-} from '@/components/custom/composer_strip'
-import { pendingItems } from '@/components/custom/composer_strip_model'
 import { DisabledTooltip } from '@/components/custom/disabled_tooltip'
 import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
 import {
@@ -29,7 +23,6 @@ import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
 import { linkMentions } from '@/components/custom/slash_model'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
-import { TranscriptMarker } from '@/components/custom/transcript_marker'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
@@ -41,16 +34,14 @@ import { cn } from '@/lib/utils'
 import {
   useBots,
   useChildThreadMetas,
-  useDismissQuestion,
   useDraft,
   useInterruptTurn,
   usePendingBotMessages,
   useProject,
-  useRespondApproval,
-  useRespondQuestion,
   useSendToBot,
   useThread,
   useThreadMeta,
+  useThreadOverlay,
 } from '@/state'
 import {
   botTurnActivity,
@@ -202,10 +193,8 @@ function toItems(
         last.markers.push(item)
       else visible.push({ kind: 'markers', markers: [item] })
     } else if (item.kind === 'error') visible.push({ kind: 'error', error: item })
-    else if (item.kind === 'approval' || item.kind === 'question') {
-      if (item.kind === 'approval' ? item.decision : item.answers || item.dismissed)
-        visible.push({ kind: 'decision', decision: item })
-    }
+    else if (item.kind === 'approval' || item.kind === 'question')
+      visible.push({ kind: 'decision', decision: item })
   }
   for (const message of pending)
     if (!listed.has(message.id))
@@ -260,9 +249,12 @@ function toRows(items: RowItem[]): Row[] {
     if (session)
       rows.push({ kind: 'stamp', key: `stamp-${key}`, at, gap: previous ? 'run' : 'none' })
     const sameSender =
-      item.kind === 'message' &&
-      previous?.kind === 'message' &&
-      item.message.from === previous.message.from
+      (item.kind === 'message' &&
+        previous?.kind === 'message' &&
+        item.message.from === previous.message.from) ||
+      (item.kind === 'decision' &&
+        (previous?.kind === 'decision' ||
+          (previous?.kind === 'message' && previous.message.from === 'bot')))
     rows.push({
       ...item,
       key: `${item.kind}-${key}`,
@@ -312,7 +304,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     observer.observe(content)
     return () => observer.disconnect()
   }, [])
-  const items = thread?.items ?? []
+  const { serverItems: items } = useThreadOverlay(bot.id, thread)
   const rows = toRows(toItems(items, pending, otherBots))
   const turnId = thread?.activeTurnId
   const turn = turnId && !bot.needsYou ? botTurnActivity(items, turnId) : 'quiet'
@@ -384,7 +376,6 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
             onClearReply={() => setReplyTo(undefined)}
             onSend={send}
             onStop={() => interrupt(bot.id)}
-            items={items}
             className='pointer-events-auto'
           />
         </div>
@@ -569,8 +560,8 @@ function Transcript({
             <ExchangeLine chatBotId={bot.id} entries={row.entries} onOpen={onOpenRoom} />
           </div>
         ) : row.kind === 'decision' ? (
-          <div key={row.key} data-row={row.key} className={cn('px-1', gapClass[row.gap])}>
-            <TranscriptMarker item={row.decision} provider={bot.provider} />
+          <div key={row.key} data-row={row.key} className={cn('flex flex-col', gapClass[row.gap])}>
+            <BotDecisionCard item={row.decision} bot={bot} />
           </div>
         ) : (
           <ErrorRow key={row.key} id={row.key} error={row.error} name={bot.name} gap={row.gap} />
@@ -976,7 +967,6 @@ function BotComposer({
   onClearReply,
   onSend,
   onStop,
-  items,
   className,
 }: {
   bot: Bot
@@ -986,7 +976,6 @@ function BotComposer({
   onClearReply: () => void
   onSend: (text: string) => void
   onStop: () => void
-  items: readonly ThreadItem[]
   className?: string
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
@@ -1006,17 +995,6 @@ function BotComposer({
   const calm = useReducedMotion() ?? false
   const empty = !draft.trim()
   const stop = empty && busy
-  const pending = pendingItems(items, { provider: bot.provider })
-  const request = pending.at(-1)
-  const answer = request && (
-    <BotRequest
-      key={request.id}
-      request={request}
-      botId={bot.id}
-      fieldRef={fieldRef}
-      className={className}
-    />
-  )
   // Measured as shown, chips and all.
   useLayoutEffect(() => {
     const textarea = fieldRef.current,
@@ -1052,7 +1030,6 @@ function BotComposer({
         Number(document.timeline.currentTime ?? performance.now())
       )
   })
-  if (request) return answer
   // Replying stacks the pill like a wrapped draft, with the quote on a row above the text.
   const rows = stacked || replyTo
   return (
@@ -1128,97 +1105,6 @@ function BotComposer({
       >
         {stop ? <StopIcon filled /> : <ArrowUp02Icon />}
       </Button>
-    </div>
-  )
-}
-
-function BotRequest({
-  request,
-  botId,
-  fieldRef,
-  className,
-}: {
-  request: ReturnType<typeof pendingItems>[number]
-  botId: string
-  fieldRef: RefObject<HTMLTextAreaElement | null>
-  className?: string
-}) {
-  const { draft, update } = useDraft(botId)
-  const respondQuestion = useRespondQuestion()
-  const dismissQuestion = useDismissQuestion()
-  const respondApproval = useRespondApproval()
-  const keepFocus = () => fieldRef.current?.focus()
-  const question = useQuestion(
-    request.kind === 'question' ? request : undefined,
-    draft,
-    update,
-    (item, answers, progress) => respondQuestion(botId, item.id, answers, progress),
-    (item, progress) => dismissQuestion(botId, item.id, progress),
-    keepFocus
-  )
-  const approval = useApproval(
-    request.kind === 'approval' ? request : undefined,
-    draft.text,
-    (text) => update({ text }),
-    (item, decision, note) =>
-      respondApproval(botId, item.id, decision === 'once' ? 'allow' : decision, note),
-    keepFocus
-  )
-  const isQuestion = request.kind === 'question'
-  function submit() {
-    if (isQuestion) question.next()
-    else approval.send()
-  }
-  // As in the thread composer, the request sits on the pill like a tab; inset past its corners.
-  return (
-    <div className={cn(botAccentClass, className)}>
-      <div className='px-5'>
-        {isQuestion ? (
-          <QuestionStrip item={request} ctl={question} />
-        ) : (
-          <ApprovalStrip item={request} ctl={approval} typed={!!draft.text.trim()} />
-        )}
-      </div>
-      <div className='flex items-center gap-1.5 rounded-[20px] bg-popover p-1.5 pl-3'>
-        <InputGroupTextarea
-          ref={fieldRef}
-          rows={1}
-          spellCheck={false}
-          value={draft.text}
-          placeholder={
-            isQuestion
-              ? question.spec?.options.length
-                ? 'Or type your own answer'
-                : 'Type your answer'
-              : 'Tell the agent what to do instead'
-          }
-          onChange={(event) => update({ text: event.target.value })}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              submit()
-            } else if (
-              isQuestion ? question.onKey(event.nativeEvent) : approval.onKey(event.nativeEvent)
-            )
-              event.preventDefault()
-          }}
-          className='max-h-48 min-h-0 flex-1 p-0 text-sm md:text-sm'
-        />
-        <Button
-          size='sm'
-          className='rounded-full'
-          disabled={isQuestion ? !question.answer : !draft.text.trim() && !approval.confirming}
-          onClick={submit}
-        >
-          {isQuestion
-            ? question.last
-              ? 'Submit'
-              : 'Next'
-            : approval.confirming
-              ? 'Allow always'
-              : 'Deny with note'}
-        </Button>
-      </div>
     </div>
   )
 }

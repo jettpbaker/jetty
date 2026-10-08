@@ -322,7 +322,8 @@ function respondQuestion(
   threadId: string,
   itemId: string,
   answers: Record<string, string>,
-  progress: QuestionProgress
+  progress: QuestionProgress,
+  preserveComposer = false
 ) {
   resolve(
     registry,
@@ -330,7 +331,7 @@ function respondQuestion(
     itemId,
     { answers },
     (connection) => connection.request('question.respond', { threadId, itemId, answers }),
-    { text: progress.custom[progress.step], progress },
+    { text: preserveComposer ? undefined : progress.custom[progress.step], progress },
     "Couldn't send your answer"
   )
 }
@@ -339,7 +340,8 @@ function dismissQuestion(
   registry: Registry,
   threadId: string,
   itemId: string,
-  progress: QuestionProgress
+  progress: QuestionProgress,
+  preserveComposer = false
 ) {
   resolve(
     registry,
@@ -347,7 +349,7 @@ function dismissQuestion(
     itemId,
     { dismissed: true },
     (connection) => connection.request('question.dismiss', { threadId, itemId }),
-    { text: progress.custom[progress.step], progress },
+    { text: preserveComposer ? undefined : progress.custom[progress.step], progress },
     "Couldn't dismiss the question"
   )
 }

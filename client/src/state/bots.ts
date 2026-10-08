@@ -1,5 +1,5 @@
 import type { Reply } from '@jetty/shared/items'
-import type { Bot, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
+import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
 import { resendOnDrop } from '@/net/connection'
 import { useAtomValue } from '@effect/atom-react'
@@ -220,3 +220,38 @@ export function useBotConversation(botId: string, otherBotId: string, version: s
   const pair = botId < otherBotId ? `${botId}:${otherBotId}` : `${otherBotId}:${botId}`
   return useAtomValue(shownConversationAtom(`${pair}|${version}`))
 }
+
+function setBotAllowRules(registry: Registry, botId: string, rules: readonly BotAllowRule[]) {
+  registry.update(botPatchesAtom, (patches) =>
+    new Map(patches).set(botId, { ...patches.get(botId), allowRules: rules })
+  )
+  const clear = () =>
+    registry.update(botPatchesAtom, (patches) => {
+      if (!Equal.equals(patches.get(botId)?.allowRules, rules)) return patches
+      const next = new Map(patches)
+      const patch = { ...next.get(botId) }
+      delete patch.allowRules
+      if (Object.keys(patch).length) next.set(botId, patch)
+      else next.delete(botId)
+      return next
+    })
+  run(
+    registry,
+    (connection) =>
+      connection.request('bot.setAllowRules', { botId, rules }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => Equal.equals(serverBot(registry, botId)?.allowRules ?? [], rules),
+              clear
+            )
+          )
+        ),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
+    clear
+  )
+}
+
+export const useSetBotAllowRules = () => useAction(setBotAllowRules)

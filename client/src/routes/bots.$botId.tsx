@@ -1,6 +1,7 @@
 import { BotAvatar } from '@/components/custom/bot_avatar'
 import { BotChat } from '@/components/custom/bot_chat'
 import { BotDetailsLayout } from '@/components/custom/bot_details_layout'
+import { BotSettingsSheet } from '@/components/custom/bot_settings_sheet'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { useBot, useChromeReady, useMarkBotSeen } from '@/state'
@@ -42,6 +43,7 @@ function BotChatRoute() {
           <PageSidebarTrigger />
           <BotAvatar bot={bot} size={20} unread={false} />
           <span className='text-sm font-medium'>{bot.name}</span>
+          <BotSettingsSheet bot={bot} />
         </header>
         <BotChat key={bot.id} bot={bot} overlayHost={section} />
       </BotDetailsLayout>

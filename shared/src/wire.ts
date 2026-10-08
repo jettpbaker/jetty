@@ -443,9 +443,18 @@ export type BotTask = Schema.Schema.Type<typeof BotTask>
 
 // A bot's chat is the thread with the bot's id: subscribe, interrupt and answer its questions
 // through the thread methods. That thread never appears in chrome's thread list.
+export const BotAllowRule = Schema.Struct({
+  id: Schema.String,
+  text: Schema.String.check(Schema.isMinLength(1)),
+  createdAt: Schema.Int,
+  source: Schema.optional(Schema.String),
+})
+export type BotAllowRule = Schema.Schema.Type<typeof BotAllowRule>
+
 export const Bot = Schema.Struct({
   id: BotId,
   name: Schema.String,
+  allowRules: Schema.optional(Schema.Array(BotAllowRule)),
   shape: BotShape,
   color: BotColor,
   provider: ProviderId,
@@ -1004,6 +1013,10 @@ export const methods = {
       // The chat item Jett is replying to, and the part of it he quotes.
       replyTo: Schema.optional(Reply),
     }),
+    result: Schema.Null,
+  },
+  'bot.setAllowRules': {
+    params: Schema.Struct({ botId: Schema.String, rules: Schema.Array(BotAllowRule) }),
     result: Schema.Null,
   },
   'bot.markSeen': {

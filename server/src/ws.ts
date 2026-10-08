@@ -729,6 +729,8 @@ export function createRpcHandlers(
             return null
           })
         ),
+      'bot.setAllowRules': ({ botId, rules }) =>
+        mutation(orch.setBotAllowRules(botId, rules).pipe(Effect.as(null))),
       'bot.markSeen': ({ botId }) =>
         mutation(
           Effect.gen(function* () {

@@ -7,6 +7,7 @@ export {
   useMarkBotSeen,
   usePendingBotMessages,
   useSendToBot,
+  useSetBotAllowRules,
   type NewBot,
   type PendingBotMessage,
 } from './bots'

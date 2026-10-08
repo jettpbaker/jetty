@@ -1,0 +1,261 @@
+import type { ThreadItem } from '@jetty/shared/items'
+import type { Bot } from '@jetty/shared/wire'
+
+import { botAccentClass } from '@/components/custom/bot_avatar'
+import { approvalView } from '@/components/custom/composer_strip_model'
+import { Tick02Icon } from '@/components/custom/huge_icons'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Kbd } from '@/components/ui/kbd'
+import { cn } from '@/lib/utils'
+import {
+  useDismissQuestion,
+  useDraft,
+  useRespondApproval,
+  useRespondQuestion,
+  type QuestionProgress,
+} from '@/state'
+
+export type BotDecision = Extract<ThreadItem, { kind: 'approval' | 'question' }>
+const cardClass =
+  'flex w-[78%] max-w-[515px] flex-col gap-3 self-start rounded-[18.5px] bg-muted px-4 pt-2 pb-3'
+
+export function BotDecisionCard({ item, bot }: { item: BotDecision; bot: Bot }) {
+  return item.kind === 'approval' ? (
+    <BotApprovalCard item={item} bot={bot} />
+  ) : (
+    <BotQuestionCard item={item} bot={bot} />
+  )
+}
+
+function BotApprovalCard({
+  item,
+  bot,
+}: {
+  item: Extract<BotDecision, { kind: 'approval' }>
+  bot: Bot
+}) {
+  const respond = useRespondApproval()
+  const view = approvalView(item, undefined)
+  const command = view.target || item.toolName
+  if (item.decision || item.completedAt)
+    return (
+      <div className={cn(cardClass, 'py-2 text-muted-foreground')}>
+        <div className='flex min-w-0 items-center gap-2 text-sm'>
+          <Tick02Icon className='size-3.5 shrink-0' />
+          <span className='shrink-0'>
+            {item.decision === 'always'
+              ? 'Allowed always'
+              : item.decision === 'allow'
+                ? 'Allowed once'
+                : item.decision === 'deny'
+                  ? 'Denied'
+                  : 'Withdrawn'}
+          </span>
+          <span className='truncate font-mono text-xs' title={command}>
+            {command}
+          </span>
+        </div>
+      </div>
+    )
+  return (
+    <div className={cardClass}>
+      <div className='flex flex-col gap-0.5'>
+        <div className='text-sm leading-[22.75px]'>{item.title}</div>
+        <div className='flex min-w-0 items-center gap-1.5 text-sm'>
+          <span className='shrink-0 text-muted-foreground'>{view.run ? 'Run' : view.action}</span>
+          <span className='min-w-0 break-all font-mono text-xs'>{command}</span>
+        </div>
+      </div>
+      <div className='flex items-center justify-between gap-2'>
+        <Button
+          size='sm'
+          variant='ghost-text'
+          tone='muted'
+          className='-ml-2.25'
+          onClick={() => respond(bot.id, item.id, 'deny')}
+        >
+          Deny
+        </Button>
+        <div className={cn('flex shrink-0 items-center gap-1', botAccentClass)}>
+          <Button size='sm' variant='secondary' onClick={() => respond(bot.id, item.id, 'always')}>
+            Allow always
+          </Button>
+          <Button size='sm' onClick={() => respond(bot.id, item.id, 'allow')}>
+            Allow once
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BotQuestionCard({
+  item,
+  bot,
+}: {
+  item: Extract<BotDecision, { kind: 'question' }>
+  bot: Bot
+}) {
+  const { draft, update } = useDraft(bot.id)
+  const respond = useRespondQuestion()
+  const dismiss = useDismissQuestion()
+  const progress: QuestionProgress = draft.questions?.[item.id] ?? {
+    step: 0,
+    picks: item.questions.map(() => []),
+    custom: item.questions.map(() => ''),
+  }
+  const spec = item.questions[progress.step]
+  const answered = Boolean(item.answers || item.dismissed || item.completedAt)
+  function save(next: QuestionProgress) {
+    update({ questions: { ...draft.questions, [item.id]: next } })
+  }
+  function submit(next: QuestionProgress) {
+    if (next.step < item.questions.length - 1) {
+      save({ ...next, step: next.step + 1 })
+      return
+    }
+    respond(
+      bot.id,
+      item.id,
+      Object.fromEntries(
+        item.questions.map((question, index) => [
+          question.question,
+          next.custom[index]?.trim() || next.picks[index]?.join(', ') || '',
+        ])
+      ),
+      next,
+      true
+    )
+  }
+  function pick(label: string) {
+    if (!spec) return
+    const selected = progress.picks[progress.step] ?? []
+    const picks = spec.multiSelect
+      ? selected.includes(label)
+        ? selected.filter((pick) => pick !== label)
+        : [...selected, label]
+      : [label]
+    const next = {
+      ...progress,
+      picks: progress.picks.with(progress.step, picks),
+      custom: progress.custom.with(progress.step, ''),
+    }
+    if (spec.multiSelect) save(next)
+    else submit(next)
+  }
+  if (answered)
+    return (
+      <div className={cn(cardClass, 'text-muted-foreground')}>
+        {item.questions.map((question) => {
+          const answer = item.answers?.[question.question]
+          const selected = question.options.filter((option) =>
+            answer?.split(', ').includes(option.label)
+          )
+          return (
+            <div key={question.question} className='flex flex-col gap-3'>
+              <div className='text-sm leading-[22.75px]'>{question.question}</div>
+              <div className='overflow-hidden rounded-md border border-border bg-background'>
+                {(selected.length
+                  ? selected
+                  : [
+                      {
+                        label: answer || (item.dismissed ? 'Dismissed' : 'Withdrawn'),
+                        description: '',
+                      },
+                    ]
+                ).map((option) => (
+                  <div
+                    key={option.label}
+                    className='flex items-start gap-2 border-t border-border px-[11px] py-2 first:border-t-0'
+                  >
+                    <span className='flex h-5 w-4 shrink-0 items-center'>
+                      <Tick02Icon className='size-3.5' />
+                    </span>
+                    <div className='flex min-w-0 flex-wrap items-baseline gap-x-2'>
+                      <span className='text-sm'>{option.label}</span>
+                      <span className='text-xs'>{option.description}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  if (!spec) return null
+  const current = progress.custom[progress.step] ?? ''
+  return (
+    <div className={cardClass}>
+      <div className='flex items-baseline gap-2'>
+        <div className='min-w-0 grow text-sm leading-[22.75px]'>{spec.question}</div>
+        <Button
+          variant='ghost-text'
+          tone='muted'
+          size='sm'
+          className='-mr-2.25'
+          onClick={() => dismiss(bot.id, item.id, progress, true)}
+        >
+          Dismiss
+        </Button>
+      </div>
+      <div className='flex flex-col gap-3'>
+        <div className='flex flex-col overflow-hidden rounded-md border border-border bg-background'>
+          {spec.options.map((option, index) => (
+            <button
+              key={option.label}
+              type='button'
+              aria-pressed={
+                spec.multiSelect ? progress.picks[progress.step]?.includes(option.label) : undefined
+              }
+              className='flex items-start gap-2 border-t border-border px-[11px] py-2 text-left outline-none first:border-t-0 hover:bg-accent focus-visible:bg-accent'
+              onClick={() => pick(option.label)}
+            >
+              <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
+                {progress.picks[progress.step]?.includes(option.label) ? (
+                  <Tick02Icon className='size-3.5' />
+                ) : (
+                  <span className='rounded-sm border border-border px-0.5 font-mono text-xs text-muted-foreground'>
+                    {String.fromCharCode(65 + index)}
+                  </span>
+                )}
+              </span>
+              <div className='flex min-w-0 flex-wrap items-baseline gap-x-2'>
+                <span className='text-sm'>{option.label}</span>
+                <span className='text-xs text-muted-foreground'>{option.description}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+        <Input
+          aria-label='Other answer'
+          placeholder='Other…'
+          value={current}
+          onChange={(event) =>
+            save({ ...progress, custom: progress.custom.with(progress.step, event.target.value) })
+          }
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && current.trim() && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              submit(progress)
+            }
+          }}
+          className='border-0 bg-background shadow-none'
+        />
+        {(spec.multiSelect || current.trim()) && (
+          <div className={cn('flex justify-end', botAccentClass)}>
+            <Button
+              size='sm'
+              disabled={!current.trim() && !progress.picks[progress.step]?.length}
+              onClick={() => submit(progress)}
+            >
+              {progress.step < item.questions.length - 1 ? 'Next' : 'Send'}
+              <Kbd>↵</Kbd>
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

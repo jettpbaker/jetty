@@ -9,6 +9,7 @@ import type {
   UploadAttachment,
   RunningSubagent,
   ThreadMeta,
+  BotAllowRule,
 } from '@jetty/shared/wire'
 
 import {
@@ -1860,6 +1861,17 @@ export function createOrchestrator({
           const agent = yield* agentForThread(threadId)
           if (!agent.stopWorkflow || !(yield* agent.stopWorkflow(threadId, taskId)))
             return yield* Effect.fail(new StoreError('not_found', 'Running workflow not found'))
+        })
+      },
+      setBotAllowRules(botId: string, rules: readonly BotAllowRule[]) {
+        return Effect.gen(function* () {
+          if (!(yield* store.isBot(botId)))
+            return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          const agent = yield* agentForThread(botId)
+          if (agent.setBotAllowRules) yield* agent.setBotAllowRules(botId, rules)
+          yield* store.setBotAllowRules(botId, rules)
+          const bot = yield* store.getBot(botId)
+          if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
         })
       },
       respondApproval(
