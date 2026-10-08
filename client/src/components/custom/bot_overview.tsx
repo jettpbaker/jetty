@@ -11,7 +11,7 @@ import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 
 import { ThreadFace } from './bot_avatar'
-import { DisabledTooltip } from './disabled_tooltip'
+import { BotSettingsSheet } from './bot_settings_sheet'
 import { InProgressIcon } from './in_progress_icon'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
@@ -46,15 +46,14 @@ export function BotOverview({ bot }: { bot: Bot }) {
   )
 }
 
-// Opens the bot's settings once they exist (bots M3); until then it only shows the model.
+// Opens the bot's settings.
 function ModelRow({ bot }: { bot: Bot }) {
   const models = useModels()
   const loadout = describeLoadout(bot)
   return (
-    <DisabledTooltip reason='Coming soon' wrap='flex'>
+    <BotSettingsSheet bot={bot}>
       <Button
         variant='ghost'
-        disabled
         className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 font-normal'
       >
         <span className='w-21 shrink-0 text-left text-muted-foreground'>Model</span>
@@ -65,7 +64,7 @@ function ModelRow({ bot }: { bot: Bot }) {
         {loadout && <span className='text-muted-foreground'>{loadout}</span>}
         <ArrowRight01Icon className='ml-auto size-3' />
       </Button>
-    </DisabledTooltip>
+    </BotSettingsSheet>
   )
 }
 

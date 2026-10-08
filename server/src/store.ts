@@ -1056,12 +1056,13 @@ export function createStore() {
             color: input.color ?? bot.color,
             model: input.model ?? bot.model,
             effort:
-              model && (!bot.effort || !model.efforts.includes(bot.effort))
+              input.effort ??
+              (model && (!bot.effort || !model.efforts.includes(bot.effort))
                 ? model.defaultEffort && BOT_EFFORTS.includes(model.defaultEffort)
                   ? model.defaultEffort
                   : model.efforts.find((effort) => BOT_EFFORTS.includes(effort))
-                : bot.effort,
-            fast: model ? bot.fast && model.fast : bot.fast,
+                : bot.effort),
+            fast: input.fast ?? (model ? bot.fast && model.fast : bot.fast),
             permissionMode: input.permissionMode ?? bot.permissionMode,
           }
           yield* sql`UPDATE bots SET name = ${next.name}, shape = ${next.shape},

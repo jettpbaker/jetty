@@ -701,17 +701,29 @@ export function createRpcHandlers(
         Effect.gen(function* () {
           if (params.name !== undefined && !params.name.trim())
             return yield* Effect.fail(new StoreError('invalid_params', 'Bot name is required'))
-          const model =
-            params.model === undefined
-              ? undefined
-              : getModels()?.find(
-                  (model) => model.provider === 'claude' && model.id === params.model
-                )
+          if (params.effort === 'max')
+            return yield* Effect.fail(
+              new StoreError('invalid_params', "max isn't available to bots; use xhigh")
+            )
+          const bot = yield* store.getBot(params.botId)
+          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          const id = params.model ?? bot.model
+          const model = getModels()?.find((model) => model.provider === 'claude' && model.id === id)
           if (params.model !== undefined && !model)
             return yield* Effect.fail(
               new StoreError('invalid_params', `Unknown Claude model ${params.model}`)
             )
-          return { bot: yield* orch.updateBot(params, model) }
+          if (params.effort && !model?.efforts.includes(params.effort))
+            return yield* Effect.fail(
+              new StoreError('invalid_params', 'Unsupported effort for this model')
+            )
+          if (params.fast && !model?.fast)
+            return yield* Effect.fail(
+              new StoreError('invalid_params', `${model?.name ?? id} doesn't support Fast`)
+            )
+          return {
+            bot: yield* orch.updateBot(params, params.model === undefined ? undefined : model),
+          }
         }).pipe(Effect.mapError(wireError)),
       'bot.send': (params) =>
         Effect.gen(function* () {

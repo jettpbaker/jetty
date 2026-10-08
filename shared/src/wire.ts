@@ -1014,6 +1014,8 @@ export const methods = {
       shape: Schema.optional(BotShape),
       color: Schema.optional(BotColor),
       model: Schema.optional(Schema.String),
+      effort: Schema.optional(EffortLevel),
+      fast: Schema.optional(Schema.Boolean),
       permissionMode: Schema.optional(PermissionMode),
     }),
     result: Schema.Struct({ bot: Bot }),

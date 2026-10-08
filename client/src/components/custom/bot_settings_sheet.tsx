@@ -1,7 +1,7 @@
 import type { Bot, BotAllowRule } from '@jetty/shared/wire'
 
 import { BotAvatar } from '@/components/custom/bot_avatar'
-import { Cancel01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
+import { Cancel01Icon } from '@/components/custom/huge_icons'
 import {
   BotLoadoutPicker,
   BotNameInput,
@@ -21,9 +21,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { useSetBotAllowRules, useUpdateBot } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, type ReactElement } from 'react'
 
-export function BotSettingsSheet({ bot }: { bot: Bot }) {
+// `children` is the control that opens the sheet.
+export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactElement }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [name, setName] = useState<string>()
@@ -46,13 +47,7 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
   }
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger
-        render={
-          <Button variant='ghost' size='icon' aria-label='Open bot settings' className='ml-auto' />
-        }
-      >
-        <SidebarLeftIcon className='rotate-180' />
-      </SheetTrigger>
+      <SheetTrigger render={children} />
       <SheetContent
         showCloseButton={false}
         className='gap-[22px] overflow-y-auto p-6 data-[side=right]:w-[440px] data-[side=right]:sm:max-w-full'
@@ -90,7 +85,12 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
               <BotLoadoutPicker
                 value={bot}
                 onChange={(next) => {
-                  if (next.model !== bot.model) update(bot.id, { model: next.model })
+                  const changes = {
+                    ...(next.model !== bot.model && { model: next.model }),
+                    ...(next.effort && next.effort !== bot.effort && { effort: next.effort }),
+                    ...(next.fast !== bot.fast && { fast: next.fast }),
+                  }
+                  if (Object.keys(changes).length) update(bot.id, changes)
                 }}
                 onOpenSettings={() => {
                   setOpen(false)
