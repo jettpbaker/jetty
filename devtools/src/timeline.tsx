@@ -157,7 +157,7 @@ export function TimelineView({
     return x1 >= -8 && x0 <= width + 8
   })
 
-  // A label outside its bar runs until the next thing in its row, or the next break.
+  // A label outside its bar runs until the next thing in its row; a text chip also stops at a break.
   const labelRoom = new Map<string, number>()
   const breakXs = axis.breaks.map((gap) => gap.x - left)
   const rows = new Map<string, Span[]>()
@@ -173,7 +173,9 @@ export function TimelineView({
       if (span.kind === 'turn') continue
       const x0 = toX(span.start)
       const next = row.slice(index + 1).find((other) => toX(other.start) > x0 + 1)
-      const nextBreak = breakXs.find((x) => x > x0) ?? Infinity
+      const nextBreak = CHIP_KINDS.has(span.kind)
+        ? (breakXs.find((x) => x > x0) ?? Infinity)
+        : Infinity
       const room = Math.min(next ? toX(next.start) - x0 - 12 : LABEL_MAX, nextBreak - x0 - 6)
       labelRoom.set(span.id, clamp(room, 0, LABEL_MAX))
     }
