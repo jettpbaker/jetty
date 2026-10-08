@@ -16,6 +16,7 @@ import {
 } from '@/components/custom/huge_icons'
 import { inComposition } from '@/lib/composition'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
+import { cn } from '@/lib/utils'
 import {
   useAccessMode,
   useBumpDraft,
@@ -56,7 +57,13 @@ import {
   type SlashQuery,
 } from './slash_model'
 
-export type SlashScope = { threadId?: string; projectId?: string; onUsage?: () => void }
+export type SlashScope = {
+  threadId?: string
+  projectId?: string
+  onUsage?: () => void
+  // A bot's chat lists only skills: the commands act on a thread.
+  bot?: boolean
+}
 
 type Section = 'Skills'
 type ValueCommand = 'model' | 'effort' | 'access'
@@ -95,7 +102,7 @@ export function useComposerSlash(
   text: string,
   onTextChange: (text: string) => void,
   textarea: RefObject<HTMLTextAreaElement | null>,
-  { threadId, projectId, onUsage }: SlashScope = {}
+  { threadId, projectId, onUsage, bot = false }: SlashScope = {}
 ) {
   const field = useRef<HTMLDivElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
@@ -130,8 +137,8 @@ export function useComposerSlash(
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
   const provider = loadout?.provider ?? lockedProvider
-  // Claude and Grok run Claude skills as /name; Codex has its own.
-  const runsSkills = provider !== 'codex'
+  // Claude and Grok run Claude skills as /name; Codex has its own. Bots run on Claude.
+  const runsSkills = bot || provider !== 'codex'
   const skills = runsSkills ? listed : []
   const isSkill = (name: string) => skills.some((skill) => skill.name === name)
 
@@ -381,7 +388,7 @@ export function useComposerSlash(
 
   function itemEntries(range: SlashQuery): Entry[] {
     return [
-      ...commandEntries(range),
+      ...(bot ? [] : commandEntries(range)),
       ...listed.map(
         (skill): Entry => ({
           id: `skill:${skill.name}`,
@@ -419,7 +426,7 @@ export function useComposerSlash(
           range.query
         ),
       ]
-    if (range.query) return rank(items, range.query)
+    if (range.query || bot) return rank(items, range.query)
     const skills = items.filter((entry) => entry.group === 'Skills')
     return [
       ...items.filter((entry) => entry.group === 'Commands'),
@@ -586,7 +593,7 @@ function chips(text: string, query: SlashQuery | undefined, skills: readonly Ski
 
 /* Mirror: paints the textarea's text, chips and all, behind its transparent text. */
 
-export function SlashMirror({ slash }: { slash: Slash }) {
+export function SlashMirror({ slash, className }: { slash: Slash; className?: string }) {
   const { shown, tokens, query, anchor, mirror } = slash
   const parts: ReactNode[] = []
   let at = 0
@@ -615,7 +622,10 @@ export function SlashMirror({ slash }: { slash: Slash }) {
     <div
       ref={mirror}
       aria-hidden='true'
-      className='skill-chip-text skill-chip-mirror pointer-events-none absolute inset-0 scroll-fade-y px-2.5 py-2 text-base break-words whitespace-pre-wrap md:text-sm'
+      className={cn(
+        'skill-chip-text skill-chip-mirror pointer-events-none absolute inset-0 scroll-fade-y px-2.5 py-2 text-base break-words whitespace-pre-wrap md:text-sm',
+        className
+      )}
     >
       {parts}
       {/* Gives a trailing newline its line, as the textarea does, so the two scroll alike. */}

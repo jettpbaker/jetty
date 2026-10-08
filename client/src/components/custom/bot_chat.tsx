@@ -4,6 +4,7 @@ import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
+import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
 import {
   ApprovalStrip,
   QuestionStrip,
@@ -356,12 +357,10 @@ export function BotChat({ bot }: { bot: Bot }) {
           <div className='h-(--dock) shrink-0' />
         </div>
       </div>
-      {/* Outside the scroller, floating over its bottom, clear of the mask. */}
-      <div
-        ref={dockRef}
-        className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden px-6'
-      >
-        <div className='mx-auto max-w-[660px] py-4'>
+      {/* Outside the scroller, floating over its bottom, clear of the mask. It spans the chat, so
+          the / menu over the composer isn't clipped. */}
+      <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-0 flex flex-col justify-end overflow-hidden px-6'>
+        <div ref={dockRef} className='mx-auto w-full max-w-[660px] py-4'>
           <BotComposer
             key={bot.id}
             bot={bot}
@@ -962,6 +961,11 @@ function BotComposer({
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
   const draft = storedDraft.text
+  const slash = useComposerSlash(draft, (text) => update({ text }), fieldRef, {
+    projectId: bot.projectId ?? undefined,
+    bot: true,
+  })
+  const { field, shown } = slash
   const [stacked, setStacked] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
   const [sent, setSent] = useState(0)
@@ -981,12 +985,12 @@ function BotComposer({
       className={className}
     />
   )
-  function change(text: string) {
-    update({ text })
-    const field = fieldRef.current,
+  // Measured as shown, chips and all.
+  useLayoutEffect(() => {
+    const textarea = fieldRef.current,
       box = boxRef.current
-    setStacked(field && box ? wraps(text, field, box) : false)
-  }
+    setStacked(textarea && box ? wraps(shown, textarea, box) : false)
+  }, [fieldRef, shown])
   function send() {
     if (empty) return
     onSend(draft.trim())
@@ -1032,26 +1036,37 @@ function BotComposer({
       {replyTo && (
         <ReplyTab text={replyTo.text} onClear={onClearReply} className='col-span-3 row-start-1' />
       )}
-      <InputGroupTextarea
-        ref={fieldRef}
-        rows={1}
-        spellCheck={false}
-        value={draft}
-        placeholder={`Message ${bot.name}`}
-        aria-label={`Message ${bot.name}`}
-        onChange={(event) => change(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault()
-            send()
-          } else if (event.key === 'Escape' && replyTo) onClearReply()
-        }}
+      <div
+        ref={field}
+        data-composing={slash.composing || undefined}
         className={cn(
-          'col-start-2 row-start-1 max-h-48 min-h-0 p-0 text-sm md:text-sm',
-          rows && 'col-span-3 col-start-1 px-1.5 pt-1',
+          'skill-chip-field relative col-start-2 row-start-1 min-w-0',
+          rows && 'col-span-3 col-start-1',
           replyTo && 'row-start-2'
         )}
-      />
+      >
+        <SlashMirror slash={slash} className={cn('p-0 text-sm', rows && 'px-1.5 pt-1')} />
+        <InputGroupTextarea
+          ref={fieldRef}
+          rows={1}
+          spellCheck={false}
+          {...slash.input}
+          placeholder={`Message ${bot.name}`}
+          aria-label={`Message ${bot.name}`}
+          onKeyDown={(event) => {
+            if (event.defaultPrevented) return
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              send()
+            } else if (event.key === 'Escape' && replyTo) onClearReply()
+          }}
+          className={cn(
+            'skill-chip-text relative max-h-48 min-h-0 p-0 text-sm md:text-sm',
+            rows && 'px-1.5 pt-1'
+          )}
+        />
+        {slash.open && <SlashMenu slash={slash} />}
+      </div>
       <Button
         variant='ghost'
         tone='muted'
