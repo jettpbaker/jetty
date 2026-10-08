@@ -122,7 +122,7 @@ export function AddToPrompt({
   return createPortal(
     <div
       ref={pillRef}
-      className='fixed top-0 left-0 z-50 origin-bottom animate-(--motion-popup-enter) rounded-md bg-popover p-0.5 text-popover-foreground shadow-md ring-1 ring-border motion-reduce:animate-none'
+      className='fixed top-0 left-0 z-50 flex origin-bottom animate-(--motion-popup-enter) rounded-md bg-popover p-0.5 text-popover-foreground shadow-md ring-1 ring-border motion-reduce:animate-none'
     >
       <Button
         variant='ghost'
