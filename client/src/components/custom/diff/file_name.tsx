@@ -32,7 +32,7 @@ export function CharmedFileIcon({ path }: { path: string }) {
     </svg>
   )
 }
-const basename = (path: string) => path.split('/').at(-1) ?? path
+export const basename = (path: string) => path.split('/').at(-1) ?? path
 export function Filename({ file, rename = false }: { file: DiffFile; rename?: boolean }) {
   const name = basename(file.path)
   const directory = file.path.slice(0, -name.length)

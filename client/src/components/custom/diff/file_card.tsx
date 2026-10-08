@@ -60,6 +60,7 @@ export function DiffFileCard({
   height,
   initiallyNear = false,
   deferHeader = false,
+  anchor = true,
   children,
 }: {
   file: DiffFile
@@ -71,6 +72,8 @@ export function DiffFileCard({
   height: number
   initiallyNear?: boolean
   deferHeader?: boolean
+  // Only one card per file is its scroll target; a guide's cards are excerpts of it.
+  anchor?: boolean
   children: () => ReactNode
 }) {
   const card = useRef<HTMLElement>(null)
@@ -80,7 +83,10 @@ export function DiffFileCard({
     if (!element) return
     const observer = new IntersectionObserver(
       ([entry]) => setNear((near) => near || entry!.isIntersecting),
-      { root: element.closest('[aria-label="File diffs"]'), rootMargin: '800px 0px' }
+      {
+        root: element.closest('[aria-label="File diffs"], [aria-label="Guide"]'),
+        rootMargin: '800px 0px',
+      }
     )
     observer.observe(element)
     return () => observer.disconnect()
@@ -126,7 +132,7 @@ export function DiffFileCard({
   return (
     <section
       ref={card}
-      id={`linear-file-${file.path}`}
+      id={anchor ? `linear-file-${file.path}` : undefined}
       data-open={open || undefined}
       className='file-card relative scroll-mt-3 overflow-clip rounded-md'
     >

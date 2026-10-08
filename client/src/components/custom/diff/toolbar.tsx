@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { pressProps } from '@/lib/press'
 import { useStoredState } from '@/lib/stored-state'
 import { cn } from '@/lib/utils'
-import { useState, useLayoutEffect, type RefObject, type ReactNode } from 'react'
+import { useState, useLayoutEffect, type ReactElement, type RefObject, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
 
@@ -34,7 +34,7 @@ export function DiffToolbarButton({ className, ...props }: React.ComponentProps<
   )
 }
 
-type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
+export type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
 
 export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
   const [narrow, setNarrow] = useState(false)
@@ -131,54 +131,75 @@ export function DiffToolbar({
           inView={inView}
           onSelect={onSelect}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant='ghost'
-                size='icon-sm'
-                className='rounded-sm'
-                aria-label='Diff display options'
-              />
-            }
-          >
-            <Settings2Icon aria-hidden='true' />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end' className='w-44'>
-            <DropdownMenuRadioGroup
-              value={diffStyle}
-              onValueChange={(value) => {
-                if (value === 'unified' || value === 'split') onDiffStyleChange(value)
-              }}
-            >
-              <DropdownMenuLabel>View</DropdownMenuLabel>
-              <DropdownMenuRadioItem value='unified'>Unified</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value='split'>Split</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            {toggles.map(([label, checked, set]) => (
-              <DropdownMenuCheckboxItem
-                key={label}
-                className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-                checked={checked}
-                onCheckedChange={set}
-                closeOnClick={false}
-              >
-                {label}
-                <Switch
-                  render={<span />}
-                  size='sm'
-                  checked={checked}
-                  tabIndex={-1}
-                  aria-hidden='true'
-                  className='pointer-events-none ml-auto'
-                />
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>{' '}
+        <DiffDisplayOptions
+          trigger={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              className='rounded-sm'
+              aria-label='Diff display options'
+            />
+          }
+          diffStyle={diffStyle}
+          onDiffStyleChange={onDiffStyleChange}
+          toggles={toggles}
+        />{' '}
       </div>
     </div>
+  )
+}
+
+// The diff's display options: the Diff tab's toolbar opens them, and so does the PR view's top bar on
+// the Guide tab.
+export function DiffDisplayOptions({
+  trigger,
+  diffStyle,
+  onDiffStyleChange,
+  toggles,
+}: {
+  trigger: ReactElement
+  diffStyle: 'unified' | 'split'
+  onDiffStyleChange: (style: 'unified' | 'split') => void
+  toggles: readonly DiffToggle[]
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={trigger}>
+        <Settings2Icon aria-hidden='true' />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-44'>
+        <DropdownMenuRadioGroup
+          value={diffStyle}
+          onValueChange={(value) => {
+            if (value === 'unified' || value === 'split') onDiffStyleChange(value)
+          }}
+        >
+          <DropdownMenuLabel>View</DropdownMenuLabel>
+          <DropdownMenuRadioItem value='unified'>Unified</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value='split'>Split</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        {toggles.map(([label, checked, set]) => (
+          <DropdownMenuCheckboxItem
+            key={label}
+            className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+            checked={checked}
+            onCheckedChange={set}
+            closeOnClick={false}
+          >
+            {label}
+            <Switch
+              render={<span />}
+              size='sm'
+              checked={checked}
+              tabIndex={-1}
+              aria-hidden='true'
+              className='pointer-events-none ml-auto'
+            />
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
