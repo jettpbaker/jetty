@@ -88,10 +88,11 @@ function commandPrefixes(
   matchedAskRule?: string
 ) {
   const heads = commandHeads(command)
-  const substantive = heads.filter(
-    (head) => !/^(?:echo|printf|true|cd|pwd|:)(?:\s|$)/.test(commandPrefix(head))
+  const withoutCd = heads.filter((head) => !/^cd(?:\s|$)/.test(commandPrefix(head)))
+  const substantive = withoutCd.filter(
+    (head) => !/^(?:echo|printf|true|pwd|:)(?:\s|$)/.test(commandPrefix(head))
   )
-  const candidates = substantive.length ? substantive : heads.slice(0, 1)
+  const candidates = substantive.length ? substantive : withoutCd.length ? withoutCd : heads
   function matchingPrefix(content: string) {
     const prefix = content.replace(/:?\s*\*$/, '').trim()
     const head = candidates.find((head) => head === prefix || head.startsWith(`${prefix} `))
@@ -113,9 +114,14 @@ function commandPrefixes(
         })
       : []
   )
-  return suggested.length
-    ? [...new Set(suggested)]
-    : [commandPrefix(candidates.at(-1) ?? command.trim())]
+  // No one segment of a compound command is reliably the one that needed approval, so the rule
+  // names them all.
+  return [...new Set(suggested.length ? suggested : candidates.map(commandPrefix))]
+}
+
+// "a", "a and b", "a, b and c"
+function listed(items: readonly string[]) {
+  return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items.join('')
 }
 
 // A bot's approval in plain words: the card's title, and the Allow always rule saved from it,
@@ -130,13 +136,16 @@ export function botApproval(
   const description = text(input.description)
   const command = text(input.command)
   if (toolName === 'Bash' && command) {
-    const covered = commandPrefixes(command, suggestions, matchedAskRule)
-      .map((prefix) => `\`${prefix}\``)
-      .join(' and ')
+    const covered = listed(
+      commandPrefixes(command, suggestions, matchedAskRule).map((prefix) => `\`${prefix}\``)
+    )
     return description
       ? { title: description, rule: `${description} with ${covered}` }
       : { title: `Run ${covered.replaceAll('`', '')}`, rule: `Run ${covered}` }
   }
+  // Jetty asks before every new project, so a rule would never be used.
+  if (toolName === 'mcp__jetty__add_project')
+    return { title: `Add ${text(input.path) ?? 'a folder'} as a project` }
   const title = description ?? actionOf(toolName, input, places)
   return { title, rule: title }
 }

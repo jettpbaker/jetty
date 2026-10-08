@@ -4,6 +4,7 @@ import type { Bot } from '@jetty/shared/wire'
 import { botAccentClass } from '@/components/custom/bot_avatar'
 import { Pager } from '@/components/custom/composer_strip'
 import { approvalView } from '@/components/custom/composer_strip_model'
+import { DisabledTooltip } from '@/components/custom/disabled_tooltip'
 import { Tick02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -93,15 +94,21 @@ function BotApprovalCard({
           Deny
         </Button>
         <div className={cn('flex shrink-0 items-center gap-1', botAccentClass)}>
-          <Button
-            size='sm'
-            variant='secondary'
-            // Secondary is the card's own muted fill; Allow always takes the accent step above it.
-            className='[--secondary:var(--accent)]'
-            onClick={() => respond(bot.id, item.id, 'always')}
+          <DisabledTooltip
+            reason={item.always ? undefined : 'Not available for this request'}
+            wrap='flex'
           >
-            Allow always
-          </Button>
+            <Button
+              size='sm'
+              variant='secondary'
+              disabled={!item.always}
+              // Secondary is the card's own muted fill; Allow always takes the accent step above it.
+              className={cn('[--secondary:var(--accent)]', !item.always && 'pointer-events-none')}
+              onClick={() => respond(bot.id, item.id, 'always')}
+            >
+              Allow always
+            </Button>
+          </DisabledTooltip>
           <Button size='sm' onClick={() => respond(bot.id, item.id, 'allow')}>
             Allow once
           </Button>

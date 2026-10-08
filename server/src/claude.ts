@@ -680,7 +680,7 @@ export function createClaudeAdapter(
                 result,
                 input: toolInput,
                 suggestions: options.suggestions,
-                ...(bot ? { rule: { text: bot.rule, source: bot.title } } : {}),
+                ...(bot && bot.rule ? { rule: { text: bot.rule, source: bot.title } } : {}),
               })
               yield* session.emit({
                 type: 'item.started',
@@ -693,9 +693,11 @@ export function createClaudeAdapter(
                   input: changes.length ? approvalInputWithoutChanges(toolInput) : toolInput,
                   suggestions: options.suggestions ?? [],
                   ...(changes.length ? { changes } : {}),
-                  ...(bot
-                    ? { always: { scope: 'user' as const, patterns: [bot.rule] } }
-                    : alwaysFrom(options.suggestions)),
+                  ...(!bot
+                    ? alwaysFrom(options.suggestions)
+                    : bot.rule
+                      ? { always: { scope: 'user' as const, patterns: [bot.rule] } }
+                      : {}),
                 },
               })
             }
