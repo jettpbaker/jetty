@@ -5,6 +5,7 @@ import {
   Archive02Icon,
   PencilEdit02Icon,
   PinIcon,
+  PlusSignIcon,
 } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/lucide_icons'
 import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
@@ -40,6 +41,7 @@ import {
   useThreadRowPrefetch,
   useRenameThread,
   useRefreshPullRequestListsOnArrival,
+  useBots,
 } from '@/state'
 import { threadTreeIds, useReadChrome, type Chrome } from '@/state/chrome'
 import { usePrefetchProviderUsage } from '@/state/provider-usage'
@@ -51,6 +53,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { BotRow } from './bot_row'
 import { DisabledTooltip } from './disabled_tooltip'
 import {
   HoverKeybind,
@@ -60,6 +63,7 @@ import {
   appShortcut,
   type Keybind,
 } from './keybinds'
+import { NewBotDialog } from './new_bot_dialog'
 import { ProjectGlyph } from './project_glyph'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import { sidebarGroups, sidebarThread, type ThreadGrouping } from './sidebar_thread_groups'
@@ -102,6 +106,9 @@ export const AppSidebar = memo(function AppSidebar() {
   const refreshPullRequestLists = useRefreshPullRequestListsOnArrival()
   const router = useRouter()
   const selectedId = useParams({ strict: false }).threadId
+  const selectedBotId = useParams({ strict: false }).botId
+  const bots = useBots()
+  const [newBotOpen, setNewBotOpen] = useState(false)
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onSettings = pathname === '/settings'
   const onUsage = pathname === '/usage'
@@ -341,6 +348,40 @@ export const AppSidebar = memo(function AppSidebar() {
           </SidebarMenu>
         </nav>
       </SidebarHeader>
+      <section aria-label='Bots' className='flex shrink-0 flex-col gap-0.5 px-1.5 pb-3.5'>
+        <div className='flex h-6 items-center justify-between px-2.5'>
+          <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
+          <Button
+            variant='ghost'
+            size='icon-xs'
+            aria-label='New bot'
+            onClick={() => setNewBotOpen(true)}
+          >
+            <PlusSignIcon />
+          </Button>
+        </div>
+        {bots.length ? (
+          bots.map((bot) => (
+            <BotRow
+              key={bot.id}
+              bot={bot}
+              selected={bot.id === selectedBotId}
+              onOpen={() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } })}
+            />
+          ))
+        ) : (
+          <button
+            type='button'
+            onClick={() => setNewBotOpen(true)}
+            className='flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+          >
+            <span className='flex size-6 shrink-0 items-center justify-center'>
+              <PlusSignIcon />
+            </span>
+            Create a bot
+          </button>
+        )}
+      </section>
       <div className='px-1.5 pb-4'>
         <SidebarThreadControls
           query={query}
@@ -519,6 +560,7 @@ export const AppSidebar = memo(function AppSidebar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <NewBotDialog open={newBotOpen} onOpenChange={setNewBotOpen} />
     </Sidebar>
   )
 })
@@ -560,6 +602,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   return (
     <ThreadRow
       {...thread}
+      botId={row.thread.botId}
       shortcut={shortcut}
       selected={selected}
       actions={{

@@ -2,8 +2,10 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 import { useThreadMeta } from '@/state'
+import { useBot } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 
+import { BotAvatar, botColorStyle, botTextClass } from './bot_avatar'
 import { inlineLinkClass } from './entity_link'
 import { ProviderGlyph } from './provider_glyph'
 
@@ -39,6 +41,22 @@ export function ThreadSourceLabel({
 }) {
   const navigate = useNavigate()
   const provider = useThreadMeta(from.threadId)?.provider
+  const bot = useBot(from.threadId)
+  if (bot)
+    return (
+      <button
+        type='button'
+        onClick={() => navigate({ to: '/bots/$botId', params: { botId: bot.id } })}
+        style={botColorStyle(bot.color)}
+        className={cn('flex items-center gap-1.5 text-xs font-medium', botTextClass, className)}
+      >
+        <BotAvatar
+          bot={{ ...bot, activity: 'idle', needsYou: false, failed: false, unread: false }}
+          size={14}
+        />
+        {bot.name}
+      </button>
+    )
   return (
     <SourceLabel provider={provider} className={className}>
       <button

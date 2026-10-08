@@ -1,5 +1,6 @@
 import type { SubagentStatus } from '@jetty/shared/items'
 import type { ProviderId, RunningSubagent } from '@jetty/shared/wire'
+import type { Bot } from '@jetty/shared/wire'
 
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ import {
   useSubagentOutcome,
   useThreadJourney,
   useThreadMeta,
+  useBot,
 } from '@/state'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
@@ -33,6 +35,7 @@ import {
   type ReactNode,
 } from 'react'
 
+import { BotAvatar, botColorStyle, botTextClass } from './bot_avatar'
 import { useChildThreads } from './child_threads'
 import { environments } from './composer_environment'
 import { OverflowTitle } from './overflow_title'
@@ -58,6 +61,8 @@ type ThreadHoverPanelProps = {
   environment: 'local' | 'worktree'
   checkout?: Checkout
   parent?: ThreadLink
+  owner?: Bot
+  onOpenBot: (id: string) => void
   pullRequests: readonly ThreadPullRequest[]
   childThreads: readonly (ThreadLink & { archived: boolean })[]
   subagents: readonly SubagentRow[]
@@ -372,6 +377,8 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const openOverview = useOpenOverview()
   const thread = useThreadMeta(threadId)
   const parent = useThreadMeta(thread?.parentThreadId)
+  const parentBot = useBot(thread?.parentThreadId)
+  const owner = useBot(thread?.botId)
   const checkout = useCheckout(thread?.environment === 'local' ? thread.projectId : undefined)
   const subagents = useFinishingSubagents(threadId, thread?.runningSubagents ?? noSubagents)
   if (!thread) return null
@@ -388,12 +395,16 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
       environment={thread.environment}
       checkout={checkout ?? (branch ? { label: branch, branch: true } : undefined)}
       parent={
-        parent && {
-          id: parent.id,
-          title: parent.title,
-          status: threadStatus(parent.status, parent.readyForReview),
-        }
+        parent && !parentBot
+          ? {
+              id: parent.id,
+              title: parent.title,
+              status: threadStatus(parent.status, parent.readyForReview),
+            }
+          : undefined
       }
+      owner={owner ?? parentBot}
+      onOpenBot={(id) => void navigate({ to: '/bots/$botId', params: { botId: id } })}
       pullRequests={threadPullRequests(thread.pullRequests ?? []).pullRequests}
       childThreads={childThreads}
       subagents={subagents}
@@ -414,6 +425,8 @@ function ThreadHoverPanel({
   environment,
   checkout,
   parent,
+  owner,
+  onOpenBot,
   pullRequests,
   childThreads,
   subagents,
@@ -438,6 +451,20 @@ function ThreadHoverPanel({
           </span>
         )}
       </div>
+      {owner && (
+        <button
+          type='button'
+          {...pressProps(() => onOpenBot(owner.id))}
+          className={cn('flex w-fit items-center gap-1 text-xs', botTextClass)}
+          style={botColorStyle(owner.color)}
+        >
+          <BotAvatar
+            bot={{ ...owner, activity: 'idle', needsYou: false, failed: false, unread: false }}
+            size={14}
+          />
+          {owner.name}
+        </button>
+      )}
       <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
       {parent && (
         <Section label='Parent thread'>

@@ -1,5 +1,8 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
 
+import { useBot } from '@/state'
+
+import { JettyBot } from './jetty_bot'
 import { HeldKeybind, type Keybind } from './keybinds'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
@@ -12,6 +15,7 @@ import './thread_row.css'
 
 export function ThreadRow({
   id,
+  botId,
   title,
   project,
   projectIcon,
@@ -25,6 +29,7 @@ export function ThreadRow({
   onOpenPullRequest,
 }: {
   id: string
+  botId?: string
   title: string
   project: string
   projectIcon?: ProjectIcon
@@ -37,6 +42,7 @@ export function ThreadRow({
   onSelect: () => void
   onOpenPullRequest: () => void
 }) {
+  const bot = useBot(botId)
   return (
     <div className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>
@@ -51,7 +57,21 @@ export function ThreadRow({
                 : onSelect()
             }
             heading={
-              <OverflowTitle focusable={false} className='font-normal leading-normal'>
+              <OverflowTitle
+                focusable={false}
+                className='font-normal leading-normal'
+                renderText={
+                  bot
+                    ? (text) => (
+                        <span className='inline-flex items-center gap-0.5'>
+                          <JettyBot shape={bot.shape} color={bot.color} state='idle' size={14} />
+                          <span className='text-muted-foreground'>/</span>
+                          {text}
+                        </span>
+                      )
+                    : undefined
+                }
+              >
                 {title}
               </OverflowTitle>
             }

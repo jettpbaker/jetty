@@ -7,8 +7,10 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
+import { useBot } from '@/state'
 import { useLayoutEffect, useRef, useState } from 'react'
 
+import { botColorStyle } from './bot_avatar'
 import { ThreadSourceLabel, type MessageSource } from './source_label'
 
 export const collapsedTextHeight = 240
@@ -46,6 +48,7 @@ export function UserMessage({
   steering?: boolean
 }) {
   const openMedia = useOpenMedia()
+  const bot = useBot(from?.threadId)
   const textRef = useRef<HTMLParagraphElement>(null)
   const [collapsible, setCollapsible] = useState(
     () => collapsibleTexts.get(text)?.collapsible ?? false
@@ -75,10 +78,20 @@ export function UserMessage({
   const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
   return (
     <Message align='end'>
-      <MessageContent className={cn(from && 'gap-1.5')}>
+      <MessageContent className={cn(from && (bot ? 'gap-1' : 'gap-1.5'))}>
         {from && <ThreadSourceLabel from={from} className='self-end' />}
-        <Bubble variant={from ? 'tinted' : 'default'} align='end'>
-          <BubbleContent className='rounded-lg'>
+        <Bubble
+          variant={bot ? 'default' : from ? 'tinted' : 'default'}
+          align='end'
+          style={bot ? botColorStyle(bot.color) : undefined}
+        >
+          <BubbleContent
+            className={cn(
+              'rounded-lg',
+              bot &&
+                'max-w-[515px] bg-(--bot-deep)! text-white! dark:bg-(--bot)! dark:text-sidebar-primary-foreground!'
+            )}
+          >
             {images.length > 0 && (
               <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
                 {images.map((image, index) => (

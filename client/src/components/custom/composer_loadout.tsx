@@ -144,6 +144,7 @@ function SortableLoadoutItem({
   details,
   provider,
   disabled,
+  disabledReason,
   onMove,
   onOpenSettings,
 }: {
@@ -153,6 +154,7 @@ function SortableLoadoutItem({
   details: string
   provider: ProviderId
   disabled: boolean
+  disabledReason?: string
   onMove: (from: number, to: number) => void
   onOpenSettings: () => void
 }) {
@@ -163,7 +165,10 @@ function SortableLoadoutItem({
     transition: reducedMotion ? null : { duration: 150, easing: 'ease-out' },
   })
   return (
-    <DisabledTooltip reason={disabled ? 'Threads can’t switch providers' : undefined} side='right'>
+    <DisabledTooltip
+      reason={disabled ? (disabledReason ?? 'Threads can’t switch providers') : undefined}
+      side='right'
+    >
       <DropdownMenuRadioItem
         ref={ref}
         value={id}
@@ -253,6 +258,9 @@ export function ComposerLoadout({
   usable,
   value,
   lockedProvider,
+  disabledProviders = [],
+  allowedEfforts,
+  hotkeys = true,
   onChange,
   onReorder,
   onOpenSettings,
@@ -265,6 +273,9 @@ export function ComposerLoadout({
   usable: readonly LoadoutSlot[]
   value?: Loadout
   lockedProvider?: ProviderId
+  disabledProviders?: readonly ProviderId[]
+  allowedEfforts?: readonly ProviderModel['efforts'][number][]
+  hotkeys?: boolean
   onChange: (loadout: Loadout) => void
   onReorder: (loadouts: LoadoutSlot[]) => void
   onOpenSettings: () => void
@@ -274,7 +285,9 @@ export function ComposerLoadout({
 }) {
   const model = value && findModel(catalog, value)
   const name = value && catalogModelName(catalog, value.provider, value.model)
-  const efforts = (value && model?.efforts) ?? []
+  const efforts = ((value && model?.efforts) ?? []).filter(
+    (effort) => !allowedEfforts || allowedEfforts.includes(effort)
+  )
   const allModels = useModels()
   const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
@@ -305,14 +318,14 @@ export function ComposerLoadout({
     (event) => {
       if (appShortcut(event)) openSubmenu('model')
     },
-    { requireReset: true, ignoreInputs: false }
+    { enabled: hotkeys, requireReset: true, ignoreInputs: false }
   )
   useHotkey(
     keybinds.effort.hotkey,
     (event) => {
       if (appShortcut(event)) openSubmenu('effort')
     },
-    { requireReset: true, ignoreInputs: false }
+    { enabled: hotkeys, requireReset: true, ignoreInputs: false }
   )
 
   function reorder(from: number, to: number) {
@@ -324,7 +337,7 @@ export function ComposerLoadout({
 
   function swapModel(key: string) {
     const next = models.find((item) => modelKey(item) === key)
-    if (!next) return
+    if (!next || disabledProviders.includes(next.provider)) return
     const { provider, model: id, effort, fast } = equipModel(value ?? { fast: false }, next)
     onChange({ provider, model: id, effort, fast })
   }
@@ -431,7 +444,20 @@ export function ComposerLoadout({
                     provider={loadout.provider}
                     disabled={
                       !usable.some((item) => item.id === slot.id) ||
-                      Boolean(lockedProvider && lockedProvider !== loadout.provider)
+                      Boolean(lockedProvider && lockedProvider !== loadout.provider) ||
+                      disabledProviders.includes(loadout.provider) ||
+                      Boolean(
+                        loadout.effort && allowedEfforts && !allowedEfforts.includes(loadout.effort)
+                      )
+                    }
+                    disabledReason={
+                      disabledProviders.includes(loadout.provider)
+                        ? 'Claude bots only for now'
+                        : loadout.effort &&
+                            allowedEfforts &&
+                            !allowedEfforts.includes(loadout.effort)
+                          ? 'Max effort is not available to bots'
+                          : undefined
                     }
                     onMove={reorder}
                     onOpenSettings={onOpenSettings}
@@ -455,7 +481,11 @@ export function ComposerLoadout({
                 onValueChange={(key) => swapModel(String(key))}
               >
                 {models.map((item) => (
-                  <DropdownMenuRadioItem key={modelKey(item)} value={modelKey(item)}>
+                  <DropdownMenuRadioItem
+                    key={modelKey(item)}
+                    value={modelKey(item)}
+                    disabled={disabledProviders.includes(item.provider)}
+                  >
                     <ProviderGlyph provider={item.provider} className='size-3' />
                     <ModelLabel model={item} />
                   </DropdownMenuRadioItem>
