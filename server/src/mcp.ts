@@ -13,7 +13,6 @@ import type { PullRequestLinks } from './pull-requests'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
-import { botUserName } from './bot-home'
 import { relayedMessage } from './jetty-instructions'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
@@ -685,21 +684,15 @@ export function createMcpHandler(
       )
       if (bot) {
         server.registerTool(
-          'tell_user',
+          'say',
           {
             ...toolMeta,
-            description: 'Send a visible message to the user from a background turn.',
+            description:
+              'Send the user a message in your chat. Each call is one message; you can send several in a turn. Nothing else you write is shown.',
             inputSchema: { text },
           },
           ({ text: message }) =>
-            invoke(
-              orch.botMessage(bot.id, message).pipe(
-                Effect.as({
-                  sent: true,
-                  note: 'This message is already visible in the chat. End this turn without repeating or narrating it.',
-                })
-              )
-            )
+            invoke(orch.botMessage(bot.id, message).pipe(Effect.as({ sent: true })))
         )
         server.registerTool(
           'react',
@@ -719,7 +712,7 @@ export function createMcpHandler(
                 yield* orch.botReaction(bot.id, emoji)
                 return {
                   reacted: emoji,
-                  note: `If that's your whole reply, end your turn now without writing anything. In a turn ${yield* Effect.promise(() => botUserName())} started, any text you write is sent to them as a message.`,
+                  note: "If that's your whole reply, end your turn now without calling say.",
                 }
               })
             )

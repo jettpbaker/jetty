@@ -277,6 +277,78 @@ describe('translate()', () => {
     expect(ctx.toolUseToItemId.get('tu_1')).toBeTruthy()
   })
 
+  test('say starts while its input streams and updates the same item when complete', () => {
+    const ctx = createTranslateCtx('t1')
+    translate(
+      { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_say' } } },
+      ctx
+    )
+    const start = translate(
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'tu_say', name: 'mcp__jetty__say', input: {} },
+        },
+      },
+      ctx
+    )
+    const itemId = startedItemId(start)
+    expect(start).toMatchObject([
+      {
+        type: 'item.started',
+        item: { kind: 'tool_call', toolName: 'mcp__jetty__say', input: {}, status: 'running' },
+      },
+    ])
+    for (const partial of ['{"text":', '"Hello"}']) {
+      expect(
+        translate(
+          {
+            type: 'stream_event',
+            event: {
+              type: 'content_block_delta',
+              index: 0,
+              delta: { type: 'input_json_delta', partial_json: partial },
+            },
+          },
+          ctx
+        )
+      ).toEqual([])
+    }
+    expect(
+      translate({ type: 'stream_event', event: { type: 'content_block_stop', index: 0 } }, ctx)
+    ).toEqual([{ type: 'item.updated', itemId, patch: { input: { text: 'Hello' } } }])
+    expect(
+      translate(
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg_say',
+            content: [
+              { type: 'tool_use', id: 'tu_say', name: 'mcp__jetty__say', input: { text: 'Hello' } },
+            ],
+          },
+        },
+        ctx
+      )
+    ).toEqual([])
+    expect(
+      translate(
+        {
+          type: 'user',
+          message: {
+            content: [{ type: 'tool_result', tool_use_id: 'tu_say', content: '{"sent":true}' }],
+          },
+        },
+        ctx
+      )
+    ).toEqual([
+      { type: 'item.delta', itemId, delta: '{"sent":true}' },
+      { type: 'item.completed', itemId, patch: { status: 'succeeded' } },
+    ])
+  })
+
   test('tool_result → item.delta output + item.completed with status', () => {
     const ctx = createTranslateCtx('t1')
     translate(

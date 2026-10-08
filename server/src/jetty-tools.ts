@@ -8,7 +8,7 @@ export const SELF_TOOLS = [
   'send_images',
   'send_video',
   'ask_parent',
-  'tell_user',
+  'say',
   'react',
 ] as const
 

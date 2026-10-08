@@ -74,7 +74,6 @@ export type StartTurnInput = {
   // The turn carries on the one before it, as the user's answer to its question does.
   carriesOn?: boolean
   replyTo?: { itemId: string; text: string }
-  visibleBotTurn?: boolean
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -212,7 +211,6 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
-        visibleBotTurn: boolean
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -231,7 +229,6 @@ export function createOrchestrator({
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
           ready: true,
-          visibleBotTurn: false,
           pendingDelta: null,
         }
         threads.set(threadId, value)
@@ -244,10 +241,7 @@ export function createOrchestrator({
     function settleTurn(threadId: string, turnId: string) {
       return Effect.gen(function* () {
         const live = state(threadId)
-        if (live.turnId === turnId) {
-          live.turnId = null
-          live.visibleBotTurn = false
-        }
+        if (live.turnId === turnId) live.turnId = null
         live.ready = true
         if (yield* store.isBot(threadId)) {
           const project = yield* store.getProject(threadId)
@@ -480,16 +474,16 @@ export function createOrchestrator({
       })
     }
 
-    function commit(threadId: string, event: ThreadEvent, onCommit: Effect.Effect<void>) {
+    function commit(
+      threadId: string,
+      event: ThreadEvent,
+      onCommit: Effect.Effect<void>
+    ): Effect.Effect<void, StoreError> {
       return Effect.gen(function* () {
         const live = state(threadId)
-        if (event.type === 'turn.started' && !live.turnId) {
-          live.visibleBotTurn = false
-        }
         if (
           event.type === 'item.started' &&
           event.item.kind === 'assistant_message' &&
-          !live.visibleBotTurn &&
           (yield* store.isBot(threadId))
         )
           event = { ...event, item: { ...event.item, private: true } }
@@ -535,9 +529,31 @@ export function createOrchestrator({
               )
           }
         }
+        if (event.type === 'turn.completed' && (yield* store.isBot(threadId))) {
+          const turnId = event.turnId
+          const current = appended.state.items.filter(
+            (item) => item.turnId === turnId && !item.agentId
+          )
+          const fromUser = current.some((item) => item.kind === 'user_message' && !item.from)
+          const sent = current.some((item) => item.kind === 'assistant_message' && !item.private)
+          if (fromUser && !sent) {
+            const lastText = [...current]
+              .reverse()
+              .find((item) => item.kind === 'assistant_message' && item.private && item.text.trim())
+            if (lastText)
+              yield* commit(
+                threadId,
+                {
+                  type: 'item.updated',
+                  itemId: lastText.id,
+                  patch: { private: false, streaming: false },
+                },
+                Effect.void
+              )
+          }
+        }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           live.turnId = null
-          live.visibleBotTurn = false
           if (worktrees)
             yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
         }
@@ -1068,10 +1084,6 @@ export function createOrchestrator({
               const live = state(input.threadId)
               if (live.turnId) {
                 const turnId = live.turnId
-                const wasVisible = live.visibleBotTurn
-                if (botChat && (input.visibleBotTurn || (!input.queued && !!input.messageId))) {
-                  live.visibleBotTurn = true
-                }
                 const accepted = yield* agent.steer(
                   input.threadId,
                   text,
@@ -1082,7 +1094,6 @@ export function createOrchestrator({
                   )
                 )
                 if (!accepted) {
-                  live.visibleBotTurn = wasVisible
                   return yield* Effect.fail(
                     new StoreError('internal', 'Active turn is not accepting input')
                   )
@@ -1092,8 +1103,6 @@ export function createOrchestrator({
               }
               const turnId = newId()
               live.turnId = turnId
-              live.visibleBotTurn =
-                botChat && (input.visibleBotTurn === true || (!input.queued && !!input.messageId))
               live.ready = false
               const loadout = input.model && {
                 model: input.model,
@@ -1219,13 +1228,6 @@ export function createOrchestrator({
           if (!(yield* store.isBot(threadId)))
             return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
           const turn = yield* store.turnContext(threadId)
-          if (!state(threadId).visibleBotTurn)
-            return yield* Effect.fail(
-              new StoreError(
-                'invalid_params',
-                'React only works in a turn the user started. Use tell_user to message them from a private turn.'
-              )
-            )
           const threadState = yield* store.getThreadState(threadId)
           const target = [...threadState.items]
             .reverse()
@@ -1236,7 +1238,7 @@ export function createOrchestrator({
             return yield* Effect.fail(
               new StoreError(
                 'not_found',
-                'No current user message to react to. Use tell_user instead.'
+                'No message from the user in this turn to react to. Use say instead.'
               )
             )
           if (target.reaction === emoji) return false

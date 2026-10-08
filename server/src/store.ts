@@ -809,20 +809,26 @@ export function createStore() {
         const working =
           (newest?.kind === 'tool_call' &&
             newest.status === 'running' &&
-            !['mcp__jetty__tell_user', 'mcp__jetty__react'].includes(newest.toolName)) ||
+            !['mcp__jetty__say', 'mcp__jetty__react'].includes(newest.toolName)) ||
           (newest?.kind === 'subagent' && newest.status === 'running') ||
           (newest?.kind === 'workflow' && newest.status === 'running')
-        const visible = current.some((item) => item.kind === 'user_message' && !item.from)
+        const typing = current.some(
+          (item) =>
+            !item.agentId &&
+            item.kind === 'tool_call' &&
+            item.toolName === 'mcp__jetty__say' &&
+            item.status === 'running'
+        )
         const activity: Bot['activity'] =
           !active || needsYou
             ? 'idle'
-            : newest?.kind === 'compaction' && newest.status === 'running'
-              ? 'tidying'
-              : visible
-                ? working
-                  ? 'working'
-                  : 'typing'
-                : 'working'
+            : typing
+              ? 'typing'
+              : working
+                ? 'working'
+                : newest?.kind === 'compaction' && newest.status === 'running'
+                  ? 'tidying'
+                  : 'working'
         return {
           id: row.id,
           name: row.name,

@@ -1,4 +1,5 @@
 import { BunServices } from '@effect/platform-bun'
+import { shownInBotChat } from '@jetty/shared/bots'
 import { RESTART_LIMIT_NOTE } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
 import { expect, test } from 'bun:test'
@@ -20,6 +21,7 @@ import {
   createEchoAdapter,
 } from './agent'
 import { createAttachments } from './attachments'
+import { createBotHome } from './bot-home'
 import { databaseLayer } from './db'
 import { createHub } from './hub'
 import { relayedMessage } from './jetty-instructions'
@@ -1339,6 +1341,291 @@ for (const sendNow of [false, true]) {
         if (!sendNow) {
           expect((yield* f.store.getThreadState(f.thread.id)).items).toEqual([])
           expect((yield* f.store.requireThread(f.thread.id)).status).toBe('idle')
+        }
+      })
+    )
+  })
+}
+
+function makeBotFixture() {
+  return Effect.gen(function* () {
+    const f = yield* makeUploadFixture()
+    const id = newId()
+    const home = join(f.home, 'bots', id)
+    yield* Effect.promise(() => createBotHome(home))
+    yield* f.store.createBotRecord(
+      {
+        id,
+        name: 'Verify',
+        shape: 'circle',
+        color: 'coral',
+        provider: 'claude',
+        model: 'sonnet',
+        fast: false,
+        projectId: null,
+        permissionMode: 'auto',
+      },
+      home
+    )
+    const emitters: Emit[] = []
+    const agent: Agent = {
+      ...f.agent,
+      startTurn: (input, emit) =>
+        Effect.gen(function* () {
+          emitters.push(emit)
+          yield* emit({ type: 'turn.started', turnId: input.turnId })
+          return { await: Effect.never }
+        }),
+    }
+    const orch = yield* createOrchestrator({ store: f.store, agent, hub: f.hub })
+    return { ...f, id, orch, emitters }
+  })
+}
+
+for (const scenario of [
+  {
+    name: 'failed say still gets fallback',
+    source: 'user',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 0,
+    failedSay: true,
+    fallback: true,
+  },
+  {
+    name: 'user reply fallback',
+    source: 'user',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 0,
+    fallback: true,
+  },
+  {
+    name: 'queued user reply fallback',
+    source: 'queuedUser',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 0,
+    fallback: true,
+  },
+  {
+    name: 'worker notes stay private',
+    source: 'worker',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 0,
+    fallback: false,
+  },
+  {
+    name: 'user steered into worker turn gets fallback',
+    source: 'steered',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 0,
+    fallback: true,
+  },
+  {
+    name: 'say suppresses fallback',
+    source: 'user',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 2,
+    fallback: false,
+  },
+  {
+    name: 'background say sends bubbles',
+    source: 'worker',
+    outcome: 'completed',
+    text: 'Last reply',
+    sayCount: 2,
+    fallback: false,
+  },
+  {
+    name: 'failed user turn has no fallback',
+    source: 'user',
+    outcome: 'failed',
+    text: 'Last reply',
+    sayCount: 0,
+    fallback: false,
+  },
+  {
+    name: 'interrupted user turn has no fallback',
+    source: 'user',
+    outcome: 'interrupted',
+    text: 'Last reply',
+    sayCount: 0,
+    fallback: false,
+  },
+  {
+    name: 'reaction-only turn has no bubble',
+    source: 'user',
+    outcome: 'completed',
+    text: '',
+    sayCount: 0,
+    fallback: false,
+  },
+  {
+    name: 'whitespace notes have no fallback',
+    source: 'user',
+    outcome: 'completed',
+    text: '   ',
+    sayCount: 0,
+    fallback: false,
+  },
+] as const) {
+  test(`bot ${scenario.name}`, async () => {
+    await runUploadTest(
+      Effect.gen(function* () {
+        const f = yield* makeBotFixture()
+        if (scenario.source === 'worker') {
+          const previousTurn = newId()
+          yield* f.store.appendEvents(f.id, [
+            { type: 'turn.started', turnId: previousTurn },
+            {
+              type: 'item.started',
+              item: {
+                id: newId(),
+                turnId: previousTurn,
+                createdAt: Date.now(),
+                kind: 'user_message',
+                text: 'Earlier user message',
+                attachments: [],
+              },
+            },
+            { type: 'turn.completed', turnId: previousTurn },
+          ])
+        }
+        const messageId = newId()
+        let turnId: string
+        if (scenario.source === 'user') {
+          const turn = yield* f.orch.startTurnEffect({ threadId: f.id, messageId, text: 'Hello' })
+          turnId = turn.turnId
+        } else {
+          const queued = {
+            id: messageId,
+            text: 'Hello',
+            createdAt: Date.now(),
+            hop: 0,
+            ...(scenario.source !== 'queuedUser' && {
+              from: { threadId: f.thread.id, title: 'Worker' },
+            }),
+          }
+          yield* f.store.enqueue(f.id, queued)
+          const turn = yield* f.orch.startTurnEffect({ threadId: f.id, text: '', queued })
+          turnId = turn.turnId
+          if (scenario.source === 'steered')
+            yield* f.orch.startTurnEffect({ threadId: f.id, messageId: newId(), text: 'From Jett' })
+        }
+        const emit = f.emitters[0]!
+        const fromUser = scenario.source !== 'worker'
+        if (fromUser) {
+          expect(yield* f.orch.botReaction(f.id, '👍')).toBe(true)
+          expect(yield* f.orch.botReaction(f.id, '👍')).toBe(false)
+        } else {
+          const reacted = yield* f.orch.botReaction(f.id, '👍').pipe(Effect.result)
+          expect(reacted).toMatchObject({
+            _tag: 'Failure',
+            failure: {
+              message: 'No message from the user in this turn to react to. Use say instead.',
+            },
+          })
+        }
+        const textIds: string[] = []
+        if (scenario.text) {
+          for (const text of scenario.text.trim()
+            ? ['First note', scenario.text, '']
+            : [scenario.text]) {
+            const id = newId()
+            textIds.push(id)
+            yield* emit({
+              type: 'item.started',
+              item: {
+                id,
+                turnId,
+                createdAt: Date.now(),
+                kind: 'assistant_message',
+                text: '',
+                streaming: true,
+              },
+            })
+            yield* emit({ type: 'item.delta', itemId: id, delta: text })
+            yield* emit({ type: 'item.completed', itemId: id })
+          }
+        }
+        if (scenario.text.trim()) {
+          const id = newId()
+          textIds.push(id)
+          yield* emit({
+            type: 'item.started',
+            item: {
+              id,
+              turnId,
+              createdAt: Date.now(),
+              kind: 'assistant_message',
+              agentId: 'subagent',
+              text: 'Subagent notes',
+            },
+          })
+        }
+        if ('failedSay' in scenario) {
+          const id = newId()
+          yield* emit({
+            type: 'item.started',
+            item: {
+              id,
+              turnId,
+              createdAt: Date.now(),
+              kind: 'tool_call',
+              toolName: 'mcp__jetty__say',
+              input: { text: 'Unsent' },
+              output: '',
+              status: 'running',
+            },
+          })
+          yield* emit({ type: 'item.completed', itemId: id, patch: { status: 'failed' } })
+        }
+        const privateState = yield* f.store.getThreadState(f.id)
+        expect(
+          privateState.items
+            .filter((item) => item.kind === 'assistant_message')
+            .every((item) => item.private === true)
+        ).toBe(true)
+        expect(
+          privateState.items
+            .filter(shownInBotChat)
+            .some((item) => item.kind === 'assistant_message')
+        ).toBe(false)
+        for (let i = 0; i < scenario.sayCount; i++) yield* f.orch.botMessage(f.id, `Message ${i}`)
+        if (scenario.outcome === 'completed') yield* emit({ type: 'turn.completed', turnId })
+        else
+          yield* emit({
+            type: 'turn.failed',
+            turnId,
+            error: scenario.outcome === 'interrupted' ? 'interrupted' : 'Failed',
+          })
+        const final = yield* f.store.getThreadState(f.id)
+        const replies = final.items
+          .filter((item) => item.kind === 'assistant_message')
+          .filter(shownInBotChat)
+        expect(replies.map((item) => item.text)).toEqual(
+          scenario.fallback
+            ? [scenario.text]
+            : Array.from({ length: scenario.sayCount }, (_, i) => `Message ${i}`)
+        )
+        expect(final.items.filter((item) => item.kind === 'assistant_message')).toHaveLength(
+          textIds.length + scenario.sayCount
+        )
+        if (scenario.fallback) {
+          expect(replies[0]).toMatchObject({ id: textIds[1], private: false, streaming: false })
+          const events = yield* f.store.getEventsAfter(f.id, 0)
+          expect(
+            events.some(
+              ({ event }) =>
+                event.type === 'item.updated' &&
+                event.itemId === textIds[1] &&
+                event.patch.private === false
+            )
+          ).toBe(true)
         }
       })
     )

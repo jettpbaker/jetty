@@ -25,7 +25,7 @@ export function shownInBotChat(item: ThreadItem) {
     case 'user_message':
       return !item.from
     case 'assistant_message':
-      return !item.private
+      return item.private !== true
     case 'thread_marker':
     case 'error':
     case 'question':

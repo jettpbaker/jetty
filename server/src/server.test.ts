@@ -123,7 +123,7 @@ afterEach(async () => {
 })
 
 describe('server skeleton', () => {
-  test('bot text is visible on user turns and private on worker reports', async () => {
+  test('bot text starts private and only user turns get a fallback', async () => {
     const running = await boot()
     const client = await connect(running.port)
     const id = newId()
@@ -148,8 +148,8 @@ describe('server skeleton', () => {
     if (greeting.type !== 'event' || greeting.event.type !== 'turn.completed')
       throw new Error('No greeting')
     const greetingTurnId = greeting.event.turnId
-    await client.request('bot.send', { botId: id, messageId: 'visible-message', text: 'Hello' })
-    const visible = await chat.waitFor(
+    await client.request('bot.send', { botId: id, messageId: 'user-message', text: 'Hello' })
+    const reply = await chat.waitFor(
       (message) =>
         message.type === 'event' &&
         message.event.type === 'item.started' &&
@@ -158,20 +158,35 @@ describe('server skeleton', () => {
       10_000
     )
     if (
-      visible.type !== 'event' ||
-      visible.event.type !== 'item.started' ||
-      visible.event.item.kind !== 'assistant_message'
+      reply.type !== 'event' ||
+      reply.event.type !== 'item.started' ||
+      reply.event.item.kind !== 'assistant_message'
     )
-      throw new Error('No visible reply')
-    expect(visible.event.item.private).toBeUndefined()
-    const visibleTurnId = visible.event.item.turnId
+      throw new Error('No private reply')
+    expect(reply.event.item.private).toBe(true)
+    const replyTurnId = reply.event.item.turnId
+    const replyItemId = reply.event.item.id
     await chat.waitFor(
       (message) =>
         message.type === 'event' &&
         message.event.type === 'turn.completed' &&
-        message.event.turnId === visibleTurnId,
+        message.event.turnId === replyTurnId,
       10_000
     )
+    await chat.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'item.updated' &&
+        message.event.itemId === replyItemId &&
+        message.event.patch.private === false,
+      10_000
+    )
+    const completed = await Effect.runPromise(running.store.getThreadState(id))
+    const fallback = completed.items.find((item) => item.id === replyItemId)
+    expect(fallback).toMatchObject({ private: false, streaming: false })
+    expect(
+      completed.items.filter((item) => item.kind === 'assistant_message' && !item.private)
+    ).toHaveLength(1)
     await running.store
       .enqueue(id, {
         id: newId(),
@@ -182,14 +197,33 @@ describe('server skeleton', () => {
         hop: 1,
       })
       .pipe(Effect.runPromise)
-    await chat.waitFor(
+    const report = await chat.waitFor(
       (message) =>
         message.type === 'event' &&
         message.event.type === 'item.started' &&
         message.event.item.kind === 'assistant_message' &&
+        message.event.item.turnId !== greetingTurnId &&
+        message.event.item.turnId !== replyTurnId &&
         message.event.item.private === true,
       15_000
     )
+    if (report.type !== 'event' || report.event.type !== 'item.started')
+      throw new Error('No private worker reply')
+    const reportTurnId = report.event.item.turnId
+    await chat.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'turn.completed' &&
+        message.event.turnId === reportTurnId,
+      10_000
+    )
+    const afterReport = await Effect.runPromise(running.store.getThreadState(id))
+    expect(
+      afterReport.items
+        .filter((item) => item.kind === 'assistant_message')
+        .filter((item) => item.turnId === reportTurnId)
+        .every((item) => item.private === true)
+    ).toBe(true)
   })
   for (const admission of ['initial', 'steered'] as const) {
     test(`failed ${admission} user completion rolls back both admission events before publication`, async () => {

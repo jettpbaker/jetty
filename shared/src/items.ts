@@ -111,8 +111,8 @@ export const ThreadItem = Schema.Union([
     kind: Schema.Literal('assistant_message'),
     text: Schema.String,
     streaming: Schema.optional(Schema.Boolean),
-    // Bot chats: written in a turn Jett didn't start, so it's a note to itself, never a bubble.
-    private: Schema.optional(Schema.Literal(true)),
+    // Bot chats: plain text stays private unless revealed as a fallback reply.
+    private: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
     ...itemBase,

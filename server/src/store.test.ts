@@ -406,3 +406,189 @@ test('active PR link pages reach every linked PR beyond the first hundred', asyn
   expect(await runtime.runPromise(store.activePullRequestLinks(third.at(-1)))).toEqual([])
   expect(await runtime.runPromise(store.activePullRequestLinks())).toEqual(first)
 })
+
+for (const fromUser of [true, false]) {
+  test(`bot activity follows running say calls during ${fromUser ? 'user' : 'background'} turns`, async () => {
+    const { store, runtime, home, sql } = await setup()
+    const id = newId()
+    await runtime.runPromise(
+      store.createBotRecord(
+        {
+          id,
+          name: 'Verify',
+          shape: 'circle',
+          color: 'coral',
+          provider: 'claude',
+          model: 'sonnet',
+          fast: false,
+          projectId: null,
+          permissionMode: 'auto',
+        },
+        join(home, 'bots', id)
+      )
+    )
+    await runtime.runPromise(sql`UPDATE bots SET seen_at = 0 WHERE id = ${id}`)
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('idle')
+    const turnId = newId()
+    await runtime.runPromise(
+      store.appendEvents(id, [
+        { type: 'turn.started', turnId },
+        {
+          type: 'item.started',
+          item: {
+            id: newId(),
+            turnId,
+            createdAt: Date.now(),
+            kind: 'user_message',
+            text: 'Hello',
+            attachments: [],
+            ...(!fromUser && { from: { threadId: 'worker', title: 'Worker' } }),
+          },
+        },
+        {
+          type: 'item.started',
+          item: {
+            id: newId(),
+            turnId,
+            createdAt: Date.now(),
+            kind: 'assistant_message',
+            text: 'Notes',
+            private: true,
+            streaming: true,
+          },
+        },
+      ])
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('working')
+    const sayId = newId()
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.started',
+        item: {
+          id: sayId,
+          turnId,
+          createdAt: Date.now(),
+          kind: 'tool_call',
+          toolName: 'mcp__jetty__say',
+          input: {},
+          output: '',
+          status: 'running',
+        },
+      })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('typing')
+    const questionId = newId()
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.started',
+        item: { id: questionId, turnId, createdAt: Date.now(), kind: 'question', questions: [] },
+      })
+    )
+    expect(await runtime.runPromise(store.getBot(id))).toMatchObject({
+      activity: 'idle',
+      needsYou: true,
+    })
+    await runtime.runPromise(
+      store.appendEvent(id, { type: 'item.updated', itemId: questionId, patch: { answers: {} } })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('typing')
+    const workId = newId()
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.started',
+        item: {
+          id: workId,
+          turnId,
+          createdAt: Date.now(),
+          kind: 'tool_call',
+          toolName: 'Read',
+          input: {},
+          output: '',
+          status: 'running',
+        },
+      })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('typing')
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.completed',
+        itemId: sayId,
+        patch: { status: 'succeeded' },
+      })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('working')
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.completed',
+        itemId: workId,
+        patch: { status: 'succeeded' },
+      })
+    )
+    const compactionId = newId()
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.started',
+        item: {
+          id: compactionId,
+          turnId,
+          createdAt: Date.now(),
+          kind: 'compaction',
+          status: 'running',
+        },
+      })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('tidying')
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.completed',
+        itemId: compactionId,
+        patch: { status: 'completed' },
+      })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('working')
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.started',
+        item: {
+          id: newId(),
+          turnId,
+          createdAt: Date.now(),
+          kind: 'tool_call',
+          toolName: 'mcp__jetty__say',
+          input: {},
+          output: '',
+          status: 'running',
+        },
+      })
+    )
+    await runtime.runPromise(store.appendEvent(id, { type: 'turn.completed', turnId }))
+    expect(await runtime.runPromise(store.getBot(id))).toMatchObject({
+      activity: 'idle',
+      unread: false,
+    })
+    const fallbackId = newId()
+    await runtime.runPromise(
+      store.appendEvent(id, {
+        type: 'item.started',
+        item: {
+          id: fallbackId,
+          turnId,
+          createdAt: Date.now(),
+          kind: 'assistant_message',
+          text: 'Fallback',
+          private: true,
+        },
+      })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.unread).toBe(false)
+    await runtime.runPromise(
+      store.appendEvent(id, { type: 'item.updated', itemId: fallbackId, patch: { private: false } })
+    )
+    expect((await runtime.runPromise(store.getBot(id)))?.unread).toBe(true)
+    await runtime.runPromise(store.markBotSeen(id))
+    expect((await runtime.runPromise(store.getBot(id)))?.unread).toBe(false)
+    const nextTurn = newId()
+    await runtime.runPromise(store.appendEvent(id, { type: 'turn.started', turnId: nextTurn }))
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('working')
+  })
+}

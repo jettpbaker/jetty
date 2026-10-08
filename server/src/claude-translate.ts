@@ -434,7 +434,10 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
       } else if (block.type === 'tool_use') {
         ctx.blockKinds.set(index, 'tool_use')
         // block.input is a `{}` placeholder; the real input arrives via input_json_delta.
-        ctx.toolBlocks.set(index, { id: block.id ?? '', name: block.name ?? 'tool', json: '' })
+        const tool = { id: block.id ?? '', name: block.name ?? 'tool', json: '' }
+        ctx.toolBlocks.set(index, tool)
+        if (tool.name === 'mcp__jetty__say')
+          out.push({ type: 'item.started', item: toolItem(ctx, tool.id, tool.name, {}) })
       }
       return out
     }
@@ -496,7 +499,12 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
                 input = tool.json
               }
             }
-            out.push({ type: 'item.started', item: toolItem(ctx, tool.id, tool.name, input) })
+            if (tool.name === 'mcp__jetty__say') {
+              const itemId = ctx.toolUseToItemId.get(tool.id)
+              if (itemId) out.push({ type: 'item.updated', itemId, patch: { input } })
+            } else {
+              out.push({ type: 'item.started', item: toolItem(ctx, tool.id, tool.name, input) })
+            }
           }
         }
       }

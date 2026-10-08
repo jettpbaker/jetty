@@ -696,7 +696,6 @@ export function createRpcHandlers(
                 messageId: params.messageId,
                 text: params.text,
                 replyTo,
-                visibleBotTurn: true,
               }),
               admissionScope
             )

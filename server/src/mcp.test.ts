@@ -13,7 +13,6 @@ import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { createAttachments } from './attachments'
-import { botUserName } from './bot-home'
 import { createHub } from './hub'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
@@ -152,7 +151,8 @@ function toolNames(home: string, store: Store, callerId: string) {
 test('bots only receive their own safe tools', async () => {
   const { home, store, id } = await botCaller()
   const names = await Effect.runPromise(toolNames(home, store, id))
-  expect(names).toContain('tell_user')
+  expect(names).toContain('say')
+  expect(names).not.toContain('tell_user')
   expect(names).toContain('react')
   for (const forbidden of [
     'link_pull_request',
@@ -164,7 +164,34 @@ test('bots only receive their own safe tools', async () => {
     expect(names).not.toContain(forbidden)
 })
 
-test('bot react result names what writing after a reaction means', async () => {
+test('bot say sends each message and returns only sent', async () => {
+  const { home, store, id } = await botCaller()
+  const messages: string[] = []
+  for (const message of ['First message', 'Second message']) {
+    const result = await Effect.runPromise(
+      callTool(
+        home,
+        store,
+        {
+          botMessage: (threadId, text) =>
+            Effect.sync(() => {
+              expect(threadId).toBe(id)
+              messages.push(text)
+              return undefined
+            }),
+        },
+        id,
+        'say',
+        { text: message }
+      )
+    )
+    expect(result.isError).toBeUndefined()
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ sent: true })
+  }
+  expect(messages).toEqual(['First message', 'Second message'])
+})
+
+test('bot react result allows ending without say', async () => {
   const { home, store, id } = await botCaller()
   const result = await Effect.runPromise(
     callTool(
@@ -181,7 +208,7 @@ test('bot react result names what writing after a reaction means', async () => {
   expect(result.isError).toBeUndefined()
   expect(JSON.parse(result.content[0]!.text)).toEqual({
     reacted: '👍',
-    note: `If that's your whole reply, end your turn now without writing anything. In a turn ${await botUserName()} started, any text you write is sent to them as a message.`,
+    note: "If that's your whole reply, end your turn now without calling say.",
   })
 })
 
