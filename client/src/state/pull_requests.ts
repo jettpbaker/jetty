@@ -2,6 +2,7 @@ import type { Connection } from '@/net/connection'
 import type { SessionStatus } from '@jetty/shared/events'
 import type { PullRequestData } from '@jetty/shared/pull-request'
 import type {
+  PullRequestGuideState,
   PullRequestLink,
   PullRequestList,
   PullRequestListTab,
@@ -782,6 +783,46 @@ const commitFilesAtom = Atom.family((key: string) =>
     )
   }).pipe(Atom.setIdleTTL('30 minutes'))
 )
+
+const guideCacheAtom = Atom.family((_key: string) =>
+  Atom.make<PullRequestGuideState | undefined>(undefined).pipe(Atom.setIdleTTL('30 minutes'))
+)
+
+// Asks once per head, then again every 2 seconds while the guide generates.
+const guideAtom = Atom.family((key: string) =>
+  Atom.make((get) =>
+    Effect.gen(function* () {
+      const ref = parseKey(key.slice(0, key.indexOf('\n')))
+      const connection = yield* get.result(connectionAtom)
+      for (;;) {
+        const state = yield* connection.request('pullRequest.guide', ref)
+        get.set(guideCacheAtom(pullRequestKey(ref)), state)
+        if (state.status !== 'generating') return state
+        yield* Effect.sleep('2 seconds')
+      }
+    })
+  ).pipe(Atom.setIdleTTL('5 seconds'))
+)
+
+// Asks only once `ask` is set (the Guide tab has opened); until then a skip seen earlier still shows.
+export function usePullRequestGuide(ref: PullRequestRef, headSha: string, ask: boolean) {
+  const registry = useContext(RegistryContext)
+  const key = pullRequestKey(ref)
+  const atom = useMemo(
+    () =>
+      ask
+        ? guideAtom(`${key}\n${headSha}`)
+        : Atom.make(AsyncResult.initial<PullRequestGuideState>()),
+    [key, headSha, ask]
+  )
+  const result = useAtomValue(atom)
+  const state = useAtomValue(guideCacheAtom(key))
+  return {
+    state,
+    failed: AsyncResult.isFailure(result),
+    retry: () => registry.refresh(atom),
+  }
+}
 
 export function usePullRequestCommitFiles(repo: string, sha: string | null) {
   const registry = useContext(RegistryContext)
