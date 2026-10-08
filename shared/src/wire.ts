@@ -1029,6 +1029,9 @@ export const methods = {
       text: Schema.String.check(Schema.isMinLength(1)),
       // The chat item Jett is replying to, and the part of it he quotes.
       replyTo: Schema.optional(Reply),
+      attachmentIds: Schema.optional(
+        Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+      ),
     }),
     result: Schema.Null,
   },

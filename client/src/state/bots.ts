@@ -1,4 +1,4 @@
-import type { Reply } from '@jetty/shared/items'
+import type { Attachment, Reply } from '@jetty/shared/items'
 import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
 import { resendOnDrop } from '@/net/connection'
@@ -132,7 +132,13 @@ function listed(registry: Registry, botId: string, messageId: string) {
   return !!registry.get(threadAtom(botId))?.items.some((item) => item.id === messageId)
 }
 
-function sendToBot(registry: Registry, botId: string, text: string, replyTo?: Reply) {
+function sendToBot(
+  registry: Registry,
+  botId: string,
+  text: string,
+  replyTo?: Reply,
+  attachments?: readonly Attachment[]
+) {
   const message: PendingBotMessage = {
     id: crypto.randomUUID(),
     text,
@@ -151,6 +157,9 @@ function sendToBot(registry: Registry, botId: string, text: string, replyTo?: Re
           botId,
           messageId: message.id,
           text,
+          ...(attachments?.length && {
+            attachmentIds: attachments.map((attachment) => attachment.id),
+          }),
           ...(replyTo && { replyTo }),
         })
       ).pipe(

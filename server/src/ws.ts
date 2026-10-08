@@ -729,6 +729,20 @@ export function createRpcHandlers(
         Effect.gen(function* () {
           const bot = yield* store.getBot(params.botId)
           if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          const persistedAttachments = []
+          if (params.attachmentIds?.length) {
+            const state = yield* store.getThreadState(params.botId)
+            for (const id of params.attachmentIds) {
+              const attachment = state.items
+                .flatMap((item) =>
+                  item.kind === 'user_message' && !item.from ? item.attachments : []
+                )
+                .find((item) => item.id === id)
+              if (!attachment)
+                return yield* Effect.fail(new StoreError('invalid_params', 'Attachment not found'))
+              persistedAttachments.push(attachment)
+            }
+          }
           const { replyTo } = params
           if (replyTo) {
             const state = yield* store.getThreadState(params.botId)
@@ -744,6 +758,7 @@ export function createRpcHandlers(
               threadId: params.botId,
               messageId: params.messageId,
               text: params.text,
+              persistedAttachments,
               replyTo,
             }),
             admissionScope

@@ -30,6 +30,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
+import { approvalCommand } from './bot-approval'
 import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
 import {
   CHILD_REPORT_INSTRUCTION,
@@ -67,6 +68,7 @@ export type StartTurnInput = {
   messageId?: string
   text: string
   attachments?: readonly UploadAttachment[]
+  persistedAttachments?: readonly Attachment[]
   model?: string
   effort?: EffortLevel
   fast?: boolean
@@ -532,6 +534,28 @@ export function createOrchestrator({
                 Effect.catchCause((cause) => Effect.logWarning(cause)),
                 Effect.forkIn(scope)
               )
+          }
+        }
+        if (appended.event.type === 'item.started') {
+          const item = appended.event.item
+          if (item.kind === 'approval' && !item.decision && !item.withdrawn && !item.completedAt) {
+            const bot = yield* store.getOwningBot(threadId)
+            if (bot && bot.id !== threadId) {
+              const chat = yield* store.getThread(bot.id)
+              const messageId = `approval:${threadId}:${item.id}`
+              if (chat && !chat.archived && !(yield* store.wasQueued(bot.id, messageId))) {
+                const user = yield* Effect.promise(() => botUserName())
+                const command = approvalCommand(item.toolName, item.input)
+                const thread = appended.thread
+                yield* store.enqueueOnce(bot.id, {
+                  id: messageId,
+                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for ${user}'s approval to ${item.title}.${command ? ` Command: \`${command}\`` : ''}`,
+                  createdAt: appended.ts,
+                  hop: 0,
+                  from: { threadId, title: thread.title },
+                })
+              }
+            }
           }
         }
         if (event.type === 'turn.completed' && (yield* store.isBot(threadId))) {
@@ -1031,7 +1055,7 @@ export function createOrchestrator({
               const onCommit = Effect.sync(() => {
                 committed = true
               })
-              const queuedMeta = input.queued?.attachments ?? []
+              const queuedMeta = input.queued?.attachments ?? input.persistedAttachments ?? []
               const saved = !attachments
                 ? EMPTY_ATTACHMENTS
                 : queuedMeta.length

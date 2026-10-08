@@ -1084,6 +1084,19 @@ export function createStore() {
       getBot(threadId: string) {
         return readBot(threadId)
       },
+      getOwningBot(threadId: string) {
+        return Effect.gen(function* () {
+          let thread = yield* getThread(threadId)
+          const visited = new Set<string>()
+          while (thread && !visited.has(thread.id)) {
+            visited.add(thread.id)
+            const bot = yield* readBot(thread.botId ?? thread.id)
+            if (bot) return bot
+            thread = thread.parentThreadId ? yield* getThread(thread.parentThreadId) : null
+          }
+          return null
+        }).pipe(Effect.mapError(storeError))
+      },
       setBotProjectIfUnset(threadId: string, projectId: string) {
         return sql`UPDATE bots SET project_id = ${projectId}
           WHERE id = ${threadId} AND project_id IS NULL`.pipe(

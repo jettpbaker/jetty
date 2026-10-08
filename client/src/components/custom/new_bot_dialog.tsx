@@ -14,7 +14,14 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { findModel, slotLoadout, type Loadout, type LoadoutSlot } from '@/lib/loadout'
-import { useCreateBot, useLoadouts, useModels, useProjects, useCreateProject } from '@/state'
+import {
+  useCreateBot,
+  useLoadouts,
+  useModels,
+  useProjects,
+  useCreateProject,
+  useBots,
+} from '@/state'
 import { BOT_EFFORTS } from '@jetty/shared/bots'
 import { BOT_NAME_MAX } from '@jetty/shared/wire'
 import { useNavigate } from '@tanstack/react-router'
@@ -88,6 +95,25 @@ export function NewBotDialog({
   )
 }
 
+function unusedFace(bots: ReturnType<typeof useBots>) {
+  const colors = [...colorIds].sort(
+    (a, b) =>
+      Number(bots.some((bot) => bot.color === a)) - Number(bots.some((bot) => bot.color === b))
+  )
+  const shapes = [...shapeIds].sort(
+    (a, b) =>
+      Number(bots.some((bot) => bot.shape === a)) - Number(bots.some((bot) => bot.shape === b))
+  )
+  for (const color of colors)
+    for (const shape of shapes)
+      if (!bots.some((bot) => bot.color === color && bot.shape === shape)) return { shape, color }
+  const color = [...colorIds].sort(
+    (a, b) =>
+      bots.filter((bot) => bot.color === a).length - bots.filter((bot) => bot.color === b).length
+  )[0]!
+  return { shape: shapeIds[0]!, color }
+}
+
 function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate()
   const createBot = useCreateBot()
@@ -96,8 +122,10 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const projects = loadedProjects ?? []
   const { loadouts, catalog } = useLoadouts()
   const [name, setName] = useState('')
-  const [shape, setShape] = useState<BotShape>('squircle')
-  const [color, setColor] = useState<BotColor>('mint')
+  const bots = useBots()
+  const [face] = useState(() => unusedFace(bots))
+  const [shape, setShape] = useState<BotShape>(face.shape)
+  const [color, setColor] = useState<BotColor>(face.color)
   const [loadout, setLoadout] = useState<Loadout | undefined>(() =>
     firstClaudeLoadout(loadouts, catalog)
   )

@@ -7,7 +7,6 @@ import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
-import { DisabledTooltip } from '@/components/custom/disabled_tooltip'
 import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
 import {
   ArrowTurnBackwardIcon,
@@ -564,7 +563,7 @@ function Transcript({
             <BotDecisionCard item={row.decision} bot={bot} />
           </div>
         ) : (
-          <ErrorRow key={row.key} id={row.key} error={row.error} name={bot.name} gap={row.gap} />
+          <ErrorRow key={row.key} id={row.key} error={row.error} bot={bot} gap={row.gap} />
         )
       )}
       {indicator && (
@@ -922,28 +921,43 @@ function MarkerRow({
   )
 }
 
-function ErrorRow({
-  id,
-  error,
-  name,
-  gap,
-}: {
-  id: string
-  error: ErrorItem
-  name: string
-  gap: Gap
-}) {
+function ErrorRow({ id, error, bot, gap }: { id: string; error: ErrorItem; bot: Bot; gap: Gap }) {
+  const thread = useThread(bot.id)
+  const pending = usePendingBotMessages(bot.id)
+  const sendToBot = useSendToBot()
+  const latestTurnId = thread && Object.keys(thread.turnOutcomes).at(-1)
+  const firstMessage = thread?.items.find(
+    (item) => item.turnId === error.turnId && item.kind === 'user_message'
+  )
+  const message =
+    firstMessage?.kind === 'user_message' && !firstMessage.from
+      ? thread?.items.findLast(
+          (item) => item.turnId === error.turnId && item.kind === 'user_message' && !item.from
+        )
+      : undefined
+  const retry =
+    thread?.lastTurnOutcome === 'failed' &&
+    !thread.activeTurnId &&
+    latestTurnId === error.turnId &&
+    !pending.length &&
+    message?.kind === 'user_message'
+      ? () => sendToBot(bot.id, message.text, message.replyTo, message.attachments)
+      : undefined
   return (
     <div data-row={id} className={cn('flex flex-col items-start gap-1.5', gapClass[gap])}>
       <div className='max-w-[515px] rounded-xl bg-(--status-error-wash) px-3 py-2 text-sm leading-normal text-status-error'>
-        {name}’s turn failed: {sentenceCase(error.message)}
+        {bot.name}’s turn failed: {sentenceCase(error.message)}
       </div>
-      <DisabledTooltip reason='Coming soon' wrap='flex'>
-        <Button variant='ghost-text' size='xs' disabled className='ml-1 gap-1.5'>
-          <Refresh01Icon />
-          Retry
-        </Button>
-      </DisabledTooltip>
+      <Button
+        variant='ghost-text'
+        size='xs'
+        disabled={!retry}
+        onClick={retry}
+        className='ml-1 gap-1.5'
+      >
+        <Refresh01Icon />
+        Retry
+      </Button>
     </div>
   )
 }

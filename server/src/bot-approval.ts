@@ -21,6 +21,18 @@ function text(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+export function approvalCommand(toolName: string, input: unknown) {
+  if (!input || typeof input !== 'object') return undefined
+  if (['edit', 'multiedit', 'write', 'notebookedit', 'filechange'].includes(toolName.toLowerCase()))
+    return undefined
+  const command = (input as Record<string, unknown>).command
+  return Array.isArray(command)
+    ? command.filter((part) => typeof part === 'string').join(' ')
+    : typeof command === 'string'
+      ? command
+      : undefined
+}
+
 // "Re-run" becomes "re-run"; "GitHub" and "PR" keep their capitals.
 function lowerFirst(phrase: string) {
   const word = phrase.split(/\s/, 1)[0]!
@@ -134,7 +146,7 @@ export function botApproval(
   matchedAskRule?: string
 ) {
   const description = text(input.description)
-  const command = text(input.command)
+  const command = text(approvalCommand(toolName, input))
   if (toolName === 'Bash' && command) {
     const covered = listed(
       commandPrefixes(command, suggestions, matchedAskRule).map((prefix) => `\`${prefix}\``)
