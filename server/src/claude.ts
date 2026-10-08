@@ -9,6 +9,7 @@ import {
   type PermissionUpdate,
   type Query,
   type SDKUserMessage,
+  type SessionMessage,
 } from '@anthropic-ai/claude-agent-sdk'
 import { type ThreadEvent } from '@jetty/shared/events'
 import { QuestionSpec } from '@jetty/shared/items'
@@ -146,13 +147,25 @@ type WarmSession = {
   compact: boolean
   compactFailureNoted: boolean
   compactSucceeded: boolean
-  // Resumed at the last entry before a /compact that didn't finish, which it leaves behind.
-  rewound: boolean
+  // The entry it resumed at, the last before a /compact that didn't finish, until a turn lands
+  // on that branch.
+  rewoundTo: string | null
   accepting: boolean
   failReason: string | null
   done: Deferred.Deferred<void, AgentError>
   contextPoller: ContextPoller
   publication: Semaphore.Semaphore
+}
+
+function thinkingOnly(message: SessionMessage) {
+  const content = (message.message as { content?: unknown } | null)?.content
+  return (
+    message.type === 'assistant' &&
+    Array.isArray(content) &&
+    content.every(
+      (block: { type?: string }) => block.type === 'thinking' || block.type === 'redacted_thinking'
+    )
+  )
 }
 
 function userMessage(text: string, images?: AgentImage[]): SDKUserMessage {
@@ -558,8 +571,20 @@ export function createClaudeAdapter(
                 .setCompactAnchor(session.threadId, undefined)
                 .pipe(Effect.mapError((error) => new AgentError(error.message)))
             }
-            if (message.type === 'result' && !session.compact && session.rewound) {
-              session.rewound = false
+            // A resume Claude Code can't place drops the anchor too: a plain resume beats a bot whose
+            // every turn fails.
+            if (
+              message.type === 'result' &&
+              session.rewoundTo &&
+              (!session.compact ||
+                (message.subtype !== 'success' &&
+                  message.errors.some((error) => error.includes(session.rewoundTo!))))
+            ) {
+              if (session.compact)
+                yield* Effect.logWarning(
+                  `Dropped compaction anchor ${session.rewoundTo} for ${session.threadId}: ${message.subtype === 'success' ? '' : message.errors.join('; ')}`
+                )
+              session.rewoundTo = null
               yield* store
                 .setCompactAnchor(session.threadId, undefined)
                 .pipe(Effect.mapError((error) => new AgentError(error.message)))
@@ -1035,7 +1060,7 @@ export function createClaudeAdapter(
           compact: false,
           compactFailureNoted: false,
           compactSucceeded: false,
-          rewound: Boolean(resume && compactAnchor),
+          rewoundTo: (resume && compactAnchor) || null,
           accepting: false,
           failReason: null,
           done,
@@ -1126,11 +1151,11 @@ export function createClaudeAdapter(
               .pipe(Effect.mapError((error) => new AgentError(error.message)))
             if (sessionId) {
               const messages = yield* Effect.tryPromise({
-                try: () =>
-                  getSessionMessages(sessionId, { dir: projectPath, includeSystemMessages: true }),
+                try: () => getSessionMessages(sessionId, { dir: projectPath }),
                 catch: (error) => new AgentError(String(error)),
               })
-              const anchor = messages.at(-1)?.uuid
+              // A resume drops a trailing reply that is only thinking, so it can't stop there.
+              const anchor = messages.findLast((message) => !thinkingOnly(message))?.uuid
               if (anchor)
                 yield* store
                   .setCompactAnchor(input.threadId, anchor)
