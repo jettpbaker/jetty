@@ -355,6 +355,33 @@ export function ThreadDetailsTabs({
   )
 }
 
+// A bot's pane has Overview, and Chat while it's full width: nothing to close, move or add.
+export function BotDetailsTabs({ chat }: { chat: boolean }) {
+  const shown: TabId[] = chat ? ['chat', 'overview'] : ['overview']
+  return (
+    <TabsList
+      activateOnFocus={false}
+      variant='line'
+      aria-label='Bot details views'
+      className='h-full! gap-1.5 p-1 px-2'
+    >
+      {shown.map((id) => {
+        const { label, Icon } = tabs[id]
+        return (
+          <TabsTrigger
+            key={id}
+            value={id}
+            className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+          >
+            <Icon className='size-3' />
+            {label}
+          </TabsTrigger>
+        )
+      })}
+    </TabsList>
+  )
+}
+
 function PullTab({
   link,
   look,

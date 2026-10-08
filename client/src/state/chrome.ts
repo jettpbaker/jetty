@@ -268,6 +268,20 @@ export function useChildThreadMetas(parentId: string) {
   return useAtomValue(childThreadsAtom(parentId))
 }
 
+// The threads working for a bot, however far below its chat, newest activity first.
+const botThreadsAtom = Atom.family((botId: string) =>
+  Atom.readable(
+    (get) =>
+      get(chromeAtom)
+        ?.threads.filter((thread) => thread.botId === botId && !thread.archived)
+        .toSorted((a, b) => b.updatedAt - a.updatedAt) ?? noThreads
+  ).pipe(Atom.withEquality(Equal.equals))
+)
+
+export function useBotThreadMetas(botId: string) {
+  return useAtomValue(botThreadsAtom(botId))
+}
+
 // Each linked PR by repo#number (the first thread's link to it), and each project's PR repos.
 const pullLinksAtom = Atom.readable((get) => {
   const pulls = new Map<string, PullRequestLink>()

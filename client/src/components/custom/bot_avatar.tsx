@@ -1,7 +1,9 @@
 import type { Bot, BotColor } from '@jetty/shared/wire'
 
-import { botFace } from '@jetty/shared/bots'
+import { botFace, type BotFace } from '@jetty/shared/bots'
 import { useEffect, useState, type CSSProperties } from 'react'
+
+import type { ThreadStatus } from './thread_status'
 
 import { ErrorBot } from './bot_error_states'
 import { JettyBot } from './jetty_bot'
@@ -10,16 +12,15 @@ import { botColors, deepBotColors } from './jetty_bot_shapes'
 // Done's hops, twinkles and wink, before the face settles back to idle.
 const DONE_MS = 1200
 
-// Done plays once when a turn ends with a reply Jett hasn't seen, then settles back to idle; the
-// unread dot alone keeps saying unseen.
-function useDoneOnce({ id, unread }: Pick<Bot, 'id' | 'unread'>) {
-  const [prior, setPrior] = useState({ id, unread })
+// Done plays once when `finished` turns true, then the face settles back to idle.
+function useDoneOnce(id: string, finished: boolean) {
+  const [prior, setPrior] = useState({ id, finished })
   const [done, setDone] = useState(false)
-  if (id !== prior.id || unread !== prior.unread) {
-    setPrior({ id, unread })
-    // A face that moves to another bot (switching chats) starts over.
+  if (id !== prior.id || finished !== prior.finished) {
+    setPrior({ id, finished })
+    // A face that moves to another bot or thread (switching chats) starts over.
     if (id !== prior.id) setDone(false)
-    else if (unread) setDone(true)
+    else if (finished) setDone(true)
   }
   useEffect(() => {
     if (!done) return
@@ -42,7 +43,8 @@ export function BotAvatar({
   className?: string
 }) {
   const resting = botFace(bot)
-  const done = useDoneOnce(bot)
+  // A turn that ends with a reply Jett hasn't seen; the unread dot alone keeps saying unseen.
+  const done = useDoneOnce(bot.id, bot.unread)
   const face = resting === 'idle' && done ? 'done' : resting
   if (face === 'error')
     return <ErrorBot shape={bot.shape} color={bot.color} size={size} className={className} />
@@ -54,6 +56,40 @@ export function BotAvatar({
       size={size}
       unread={unread ?? bot.unread}
       className={className}
+    />
+  )
+}
+
+const threadFaces: Record<ThreadStatus, BotFace> = {
+  working: 'working',
+  monitoring: 'working',
+  'needs-attention': 'waiting',
+  error: 'error',
+  idle: 'idle',
+  ready: 'idle',
+}
+
+// A bot's face showing the state of one of its threads. Finishing plays done once.
+export function ThreadFace({
+  bot,
+  threadId,
+  status,
+  size,
+}: {
+  bot: Pick<Bot, 'shape' | 'color'>
+  threadId: string
+  status: ThreadStatus
+  size: number
+}) {
+  const resting = threadFaces[status]
+  const done = useDoneOnce(threadId, resting === 'idle')
+  if (resting === 'error') return <ErrorBot shape={bot.shape} color={bot.color} size={size} />
+  return (
+    <JettyBot
+      shape={bot.shape}
+      color={bot.color}
+      state={resting === 'idle' && done ? 'done' : resting}
+      size={size}
     />
   )
 }

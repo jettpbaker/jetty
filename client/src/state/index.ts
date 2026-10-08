@@ -11,6 +11,7 @@ export {
 } from './bots'
 export { useBrowse } from './browse'
 export {
+  useBotThreadMetas,
   useChildThreadMetas,
   useChrome,
   useChromeReady,

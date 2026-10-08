@@ -24,9 +24,6 @@ import { currentTodos } from './todo_model'
 import { WorkflowLineGrid } from './workflow_lines'
 import { type Workflow } from './workflow_parts'
 
-type SectionId = 'todos' | 'subagents' | 'workflows' | 'threads' | 'pulls' | 'changes'
-
-const collapsedKey = 'jetty.overview.collapsed'
 // The list's top padding, kept above a revealed section.
 const sectionInset = 8
 const changedFileLimit = 8
@@ -44,13 +41,32 @@ export function useHasOverview(threadId: string, childThreads: readonly ChildThr
   return hasItems || childThreads.length > 0 || (pullRequests?.length ?? 0) > 0
 }
 
-function loadCollapsed(): SectionId[] {
+function loadCollapsed(key: string): string[] {
   try {
-    const saved: unknown = JSON.parse(storage.get(collapsedKey) ?? '[]')
-    return Array.isArray(saved) ? (saved as SectionId[]) : []
+    const saved: unknown = JSON.parse(storage.get(key) ?? '[]')
+    return Array.isArray(saved) ? (saved as string[]) : []
   } catch {
     return []
   }
+}
+
+// An overview's collapsed sections, remembered under `key`.
+export function useCollapsedSections(key: string) {
+  const [collapsed, setCollapsed] = useState(() => loadCollapsed(key))
+  useEffect(() => {
+    storage.set(key, JSON.stringify(collapsed))
+  }, [key, collapsed])
+  function sectionProps(id: string) {
+    return {
+      id,
+      open: !collapsed.includes(id),
+      onOpenChange: (open: boolean) =>
+        setCollapsed((current) =>
+          open ? current.filter((entry) => entry !== id) : [...current, id]
+        ),
+    }
+  }
+  return { setCollapsed, sectionProps }
 }
 
 type ChangedFile = { path: string; added: number; removed: number }
@@ -87,7 +103,7 @@ export function ThreadOverview({
   const [tab, setTab] = useThreadTab(threadId)
   const reveal = useRequestReveal()
   const { diff } = useThreadDiff(threadId)
-  const [collapsed, setCollapsed] = useState(loadCollapsed)
+  const { setCollapsed, sectionProps } = useCollapsedSections('jetty.overview.collapsed')
   const [revealing, clearReveal] = useRevealSection(threadId)
   const scroller = useRef<HTMLDivElement>(null)
 
@@ -108,10 +124,6 @@ export function ThreadOverview({
   )
   const minuteNow = useNow(60_000)
 
-  useEffect(() => {
-    storage.set(collapsedKey, JSON.stringify(collapsed))
-  }, [collapsed])
-
   // A section only moves when something above it opens, so its header can be scrolled to before
   // it finishes opening.
   useLayoutEffect(() => {
@@ -123,18 +135,7 @@ export function ThreadOverview({
     if (!element || !section) return
     element.scrollTop +=
       section.getBoundingClientRect().top - element.getBoundingClientRect().top - sectionInset
-  }, [revealing, clearReveal])
-
-  function sectionProps(id: SectionId) {
-    return {
-      id,
-      open: !collapsed.includes(id),
-      onOpenChange: (open: boolean) =>
-        setCollapsed((current) =>
-          open ? current.filter((entry) => entry !== id) : [...current, id]
-        ),
-    }
-  }
+  }, [revealing, clearReveal, setCollapsed])
 
   const done = todos.filter((todo) => todo.status === 'done').length
   const empty =
@@ -235,7 +236,7 @@ export function ThreadOverview({
   )
 }
 
-function Section({
+export function Section({
   id,
   label,
   count,
@@ -243,7 +244,7 @@ function Section({
   onOpenChange,
   children,
 }: {
-  id: SectionId
+  id: string
   label: string
   count: ReactNode
   open: boolean
