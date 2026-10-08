@@ -35,3 +35,25 @@ export function shownInBotChat(item: ThreadItem) {
       return false
   }
 }
+
+// What a bot is visibly doing in a turn. Once a bubble or a reaction lands it goes quiet, until it
+// starts a tool (working) or writes another say (typing); its thinking and private notes don't count.
+export function botTurnActivity(
+  items: readonly ThreadItem[],
+  turnId: string
+): 'typing' | 'working' | 'quiet' {
+  const latest = items.findLast(
+    (item) =>
+      item.turnId === turnId &&
+      !item.agentId &&
+      (item.kind === 'tool_call' ||
+        item.kind === 'subagent' ||
+        item.kind === 'workflow' ||
+        (item.kind === 'assistant_message' && item.private !== true))
+  )
+  if (latest?.kind === 'assistant_message') return 'quiet'
+  if (latest?.kind === 'tool_call' && latest.toolName === 'mcp__jetty__react') return 'quiet'
+  if (latest?.kind === 'tool_call' && latest.toolName === 'mcp__jetty__say')
+    return latest.status === 'running' ? 'typing' : latest.status === 'failed' ? 'working' : 'quiet'
+  return 'working'
+}

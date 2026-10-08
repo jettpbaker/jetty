@@ -536,7 +536,15 @@ export function createOrchestrator({
             (item) => item.turnId === turnId && !item.agentId
           )
           const fromUser = current.some((item) => item.kind === 'user_message' && !item.from)
-          const sent = current.some((item) => item.kind === 'assistant_message' && !item.private)
+          // A bubble, a reaction or a question already answers the user.
+          const sent = current.some(
+            (item) =>
+              (item.kind === 'assistant_message' && !item.private) ||
+              item.kind === 'question' ||
+              (item.kind === 'tool_call' &&
+                item.toolName === 'mcp__jetty__react' &&
+                item.status === 'succeeded')
+          )
           if (fromUser && !sent) {
             const lastText = [...current]
               .reverse()

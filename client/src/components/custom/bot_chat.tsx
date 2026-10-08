@@ -47,7 +47,7 @@ import {
   useThread,
   useThreadMeta,
 } from '@/state'
-import { shownInBotChat } from '@jetty/shared/bots'
+import { botTurnActivity, shownInBotChat } from '@jetty/shared/bots'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
@@ -300,20 +300,11 @@ export function BotChat({ bot }: { bot: Bot }) {
   }, [])
   const items = thread?.items ?? []
   const rows = toRows(toItems(items, pending))
-  const saying = items.some(
-    (item) =>
-      item.turnId === thread?.activeTurnId &&
-      !item.agentId &&
-      item.kind === 'tool_call' &&
-      item.toolName === 'mcp__jetty__say' &&
-      item.status === 'running'
-  )
-  // The indicator and Stop stay for exactly as long as the turn runs, replies or not.
-  const presence = saying
-    ? 'typing'
-    : thread?.activeTurnId && bot.activity !== 'idle'
-      ? bot.activity
-      : null
+  const turnId = thread?.activeTurnId
+  const turn = turnId && !bot.needsYou ? botTurnActivity(items, turnId) : 'quiet'
+  const presence = turn === 'quiet' ? null : bot.activity === 'tidying' ? 'tidying' : turn
+  // Stop lasts the whole turn, including the quiet stretch after a bubble.
+  const running = Boolean(turnId) && !bot.needsYou
   function send(text: string) {
     sendToBot(bot.id, text, replyTo)
     setReplyTo(undefined)
@@ -375,7 +366,7 @@ export function BotChat({ bot }: { bot: Bot }) {
             key={bot.id}
             bot={bot}
             fieldRef={fieldRef}
-            busy={presence !== null}
+            busy={running}
             replyTo={replyTo}
             onClearReply={() => setReplyTo(undefined)}
             onSend={send}

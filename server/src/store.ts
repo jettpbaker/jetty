@@ -1,4 +1,4 @@
-import { shownInBotChat } from '@jetty/shared/bots'
+import { botTurnActivity, shownInBotChat } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment, heldByRestarts } from '@jetty/shared/items'
 import {
@@ -815,29 +815,15 @@ export function createStore() {
         const active = state.activeTurnId !== null
         const current = state.items.filter((item) => item.turnId === state.activeTurnId)
         const newest = [...current].reverse().find((item) => !item.agentId)
-        const working =
-          (newest?.kind === 'tool_call' &&
-            newest.status === 'running' &&
-            !['mcp__jetty__say', 'mcp__jetty__react'].includes(newest.toolName)) ||
-          (newest?.kind === 'subagent' && newest.status === 'running') ||
-          (newest?.kind === 'workflow' && newest.status === 'running')
-        const typing = current.some(
-          (item) =>
-            !item.agentId &&
-            item.kind === 'tool_call' &&
-            item.toolName === 'mcp__jetty__say' &&
-            item.status === 'running'
-        )
+        const turn = state.activeTurnId && botTurnActivity(current, state.activeTurnId)
         const activity: Bot['activity'] =
-          !active || needsYou
+          !active || needsYou || !turn
             ? 'idle'
-            : typing
-              ? 'typing'
-              : working
-                ? 'working'
-                : newest?.kind === 'compaction' && newest.status === 'running'
-                  ? 'tidying'
-                  : 'working'
+            : newest?.kind === 'compaction' && newest.status === 'running'
+              ? 'tidying'
+              : turn === 'quiet'
+                ? 'idle'
+                : turn
         return {
           id: row.id,
           name: row.name,
