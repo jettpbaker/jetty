@@ -76,6 +76,7 @@ type Message = {
   reaction?: string
   streaming?: boolean
 }
+
 type Marker = Extract<ThreadItem, { kind: 'thread_marker' }>
 type ErrorItem = Extract<ThreadItem, { kind: 'error' }>
 type RowItem =
@@ -93,6 +94,7 @@ const gapPx: Record<Gap, number> = { none: 0, run: 14, tight: 3 }
 function bezier(t: number, a: number, b: number) {
   return 3 * (1 - t) ** 2 * t * a + 3 * (1 - t) * t ** 2 * b + t ** 3
 }
+
 function eased(x: number) {
   let lo = 0,
     hi = 1
@@ -103,10 +105,12 @@ function eased(x: number) {
   }
   return bezier(lo, curve[1], curve[3])
 }
+
 function offsetAt(glide: Glide | null, now: number) {
   const x = glide ? (now - glide.start) / glide.ms : 1
   return glide && x < 1 ? glide.from * (1 - eased(Math.max(0, x))) : 0
 }
+
 function timeUntil(glide: Glide, left: number) {
   const target = 1 - left / Math.abs(glide.from)
   if (target <= 0) return 0
@@ -119,6 +123,7 @@ function timeUntil(glide: Glide, left: number) {
   }
   return hi * glide.ms
 }
+
 function play(
   element: Element,
   keyframes: Keyframe[],
@@ -131,6 +136,7 @@ function play(
   animation.startTime = start
   return animation
 }
+
 function stamp(at: number, now: number) {
   const date = new Date(at)
   const days = Math.round(
@@ -144,6 +150,7 @@ function stamp(at: number, now: number) {
         : date.toLocaleDateString('en-AU', { weekday: 'long' })
   return `${day} ${date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`
 }
+
 function toItems(items: readonly ThreadItem[], pending: readonly PendingBotMessage[]): RowItem[] {
   const listed = new Set(items.map((item) => item.id))
   const visible: RowItem[] = []
@@ -186,6 +193,7 @@ function toItems(items: readonly ThreadItem[], pending: readonly PendingBotMessa
       })
   return visible
 }
+
 function toRows(items: RowItem[]): Row[] {
   const rows: Row[] = []
   let previous: RowItem | undefined
@@ -448,6 +456,7 @@ function Transcript({
     </div>
   )
 }
+
 function Stamp({ id, label, gap }: { id: string; label: string; gap: Gap }) {
   return (
     <div
@@ -458,6 +467,7 @@ function Stamp({ id, label, gap }: { id: string; label: string; gap: Gap }) {
     </div>
   )
 }
+
 function MessageRow({
   id,
   message,
@@ -525,6 +535,7 @@ function MessageRow({
     </div>
   )
 }
+
 function MessageActions({
   text,
   onReply,
@@ -606,6 +617,7 @@ function MessageActions({
     </div>
   )
 }
+
 function Indicator({
   presence,
   leaving,
@@ -667,6 +679,7 @@ function MarkerLink({ marker }: { marker: Marker }) {
     </span>
   )
 }
+
 function MarkerMenuEntry({ marker }: { marker: Marker }) {
   const meta = useThreadMeta(marker.threadId)
   const project = useProject(meta?.projectId)
@@ -685,6 +698,7 @@ function MarkerMenuEntry({ marker }: { marker: Marker }) {
     </Link>
   )
 }
+
 function MarkerRun({ markers, metas }: { markers: Marker[]; metas: readonly ThreadMeta[] }) {
   const first = markers[0]!
   const sameThread = markers.every((marker) => marker.threadId === first.threadId)
@@ -727,6 +741,7 @@ function MarkerRun({ markers, metas }: { markers: Marker[]; metas: readonly Thre
     </span>
   )
 }
+
 function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly ThreadMeta[] }) {
   const tally = new Map<ReturnType<typeof threadStatus>, number>()
   for (const marker of markers) {
@@ -744,6 +759,7 @@ function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly 
     </span>
   ))
 }
+
 function MarkerRow({
   id,
   markers,
@@ -781,6 +797,7 @@ function MarkerRow({
     </div>
   )
 }
+
 function ErrorRow({
   id,
   error,
@@ -821,6 +838,7 @@ function wraps(text: string, field: HTMLTextAreaElement, box: HTMLElement) {
   measure.font = getComputedStyle(field).font
   return measure.measureText(text).width > box.clientWidth - 12 - 56 - 12
 }
+
 function BotComposer({
   bot,
   fieldRef,
@@ -940,6 +958,7 @@ function BotComposer({
     </div>
   )
 }
+
 function BotRequest({
   request,
   botId,
