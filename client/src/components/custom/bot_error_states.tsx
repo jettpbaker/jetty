@@ -72,6 +72,9 @@ export function ErrorBot({
       data-color={color}
       style={
         {
+          // Inline, so a Button's glyph sizing can't override the face's size.
+          width: size,
+          height: size,
           '--jb-body': botColors[color],
           '--jb-deep': deepBotColors[color],
           '--eb-phase': `${phase}s`,

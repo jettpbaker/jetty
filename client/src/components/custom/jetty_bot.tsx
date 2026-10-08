@@ -881,6 +881,9 @@ export function JettyBot({
       className={cn('jb', interactive && 'jb-interactive', className)}
       style={
         {
+          // Inline, so a Button's glyph sizing can't override the face's size.
+          width: size,
+          height: size,
           '--jb-body': botColors[color],
           '--jb-deep': deepBotColors[color],
           ...style,
