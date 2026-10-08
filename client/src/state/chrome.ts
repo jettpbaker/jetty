@@ -57,6 +57,7 @@ export type Chrome = {
   modelDiscovery?: ModelDiscovery
   providerCapabilities?: ProviderCapabilities
   branchPrefix?: string
+  defaultEnvironment?: ThreadMeta['environment']
   titleModel?: TitleModel
   agentBehaviours?: AgentBehaviours
   bots: readonly Bot[]
@@ -81,6 +82,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         modelDiscovery: update.modelDiscovery,
         providerCapabilities: update.providerCapabilities,
         branchPrefix: update.branchPrefix,
+        defaultEnvironment: update.defaultEnvironment,
         titleModel: update.titleModel,
         agentBehaviours: update.agentBehaviours,
         bots: update.bots ?? [],
@@ -108,6 +110,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, modelDiscovery: update.status }
     case 'branchPrefix':
       return { ...chrome, branchPrefix: update.prefix }
+    case 'defaultEnvironment':
+      return { ...chrome, defaultEnvironment: update.environment }
     case 'titleModel':
       return { ...chrome, titleModel: { model: update.model, effort: update.effort } }
     case 'agentBehaviours':

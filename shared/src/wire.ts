@@ -577,6 +577,20 @@ export const methods = {
     params: Schema.Struct({ prefix: Schema.String }),
     result: Schema.Null,
   },
+  'settings.info': {
+    params: Schema.Struct({}),
+    result: Schema.Struct({
+      home: Schema.String,
+      userHome: Schema.String,
+      databaseBytes: Schema.Number,
+      sharedPreferences: Schema.String,
+      guideCount: Schema.Number,
+    }),
+  },
+  'settings.setDefaultEnvironment': {
+    params: Schema.Struct({ environment: Schema.Literals(['worktree', 'local']) }),
+    result: Schema.Null,
+  },
   'project.branches': {
     params: Schema.Struct({
       projectId: Schema.String,
@@ -591,6 +605,7 @@ export const methods = {
         branches: Schema.Array(Branch),
         // from the project's .jetty/worktree.json
         defaultEnvironment: Schema.optional(Schema.Literals(['local', 'worktree'])),
+        setupCommand: Schema.optional(Schema.String),
         // Absolute path of Jetty's worktree setup guide, sent while the project has no
         // .jetty/worktree.json.
         setupGuide: Schema.optional(Schema.String),
@@ -1102,6 +1117,7 @@ export const ChromePushData = Schema.Union([
     providerCapabilities: Schema.optional(ProviderCapabilities),
     modelDiscovery: Schema.optional(ModelDiscovery),
     branchPrefix: Schema.optional(Schema.String),
+    defaultEnvironment: Schema.optional(Schema.Literals(['worktree', 'local'])),
     titleModel: Schema.optional(TitleModel),
     agentBehaviours: Schema.optional(AgentBehaviours),
     // Oldest first.
@@ -1115,6 +1131,10 @@ export const ChromePushData = Schema.Union([
   Schema.Struct({ type: Schema.Literal('models'), models: Schema.Array(ProviderModel) }),
   Schema.Struct({ type: Schema.Literal('modelDiscovery'), status: ModelDiscovery }),
   Schema.Struct({ type: Schema.Literal('branchPrefix'), prefix: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('defaultEnvironment'),
+    environment: Schema.Literals(['worktree', 'local']),
+  }),
   Schema.Struct({ type: Schema.Literal('titleModel'), ...TitleModel.fields }),
   Schema.Struct({ type: Schema.Literal('agentBehaviours'), behaviours: AgentBehaviours }),
 ])

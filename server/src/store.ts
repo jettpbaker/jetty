@@ -1413,6 +1413,24 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      getDefaultEnvironment() {
+        return sql<{
+          value_json: string
+        }>`SELECT value_json FROM settings WHERE key = 'defaultEnvironment'`.pipe(
+          Effect.map((rows) =>
+            rows[0]
+              ? (JSON.parse(rows[0].value_json) as ThreadMeta['environment'])
+              : ('worktree' as const)
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      setDefaultEnvironment(environment: ThreadMeta['environment']) {
+        return sql`INSERT INTO settings (key, value_json) VALUES ('defaultEnvironment', ${JSON.stringify(environment)}) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
       setBranchPrefix(prefix: string) {
         return Effect.gen(function* () {
           if (
@@ -2144,6 +2162,14 @@ export function createStore() {
               updatedAt: row.updated_at,
             }))
           ),
+          Effect.mapError(storeError)
+        )
+      },
+      countReadyPullRequestGuides() {
+        return sql<{
+          count: number
+        }>`SELECT COUNT(*) AS count FROM pull_request_guides WHERE status = 'ready'`.pipe(
+          Effect.map((rows) => rows[0]?.count ?? 0),
           Effect.mapError(storeError)
         )
       },

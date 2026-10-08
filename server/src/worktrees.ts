@@ -254,15 +254,19 @@ export function createWorktrees(
       currentBranch,
       branches: [...byName.values()],
       defaultEnvironment: config?.environment,
+      ...(config?.setup ? { setupCommand: config.setup } : {}),
       ...(configured ? {} : { setupGuide }),
     }
   }
 
   // A new thread's environment unless the user picked one; a folder git can't use works in place.
-  async function defaultEnvironment(path: string): Promise<ThreadMeta['environment']> {
+  async function defaultEnvironment(
+    path: string,
+    fallback: ThreadMeta['environment'] = 'worktree'
+  ): Promise<ThreadMeta['environment']> {
     if ((await gitState(path)) !== 'ok') return 'local'
     const top = await git(path, 'rev-parse', '--show-toplevel')
-    return (await worktreeConfig(top).catch(() => undefined))?.environment ?? 'worktree'
+    return (await worktreeConfig(top).catch(() => undefined))?.environment ?? fallback
   }
 
   async function locate(threadId: string) {

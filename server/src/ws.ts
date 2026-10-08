@@ -10,7 +10,8 @@ import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
 import { newId } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Schema, Stream } from 'effect'
-import { join } from 'node:path'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
@@ -201,10 +202,36 @@ export function createRpcHandlers(
     }
 
     return JettyRpcs.of({
+      'settings.info': () =>
+        Effect.gen(function* () {
+          const absoluteHome = resolve(home)
+          const database = join(absoluteHome, 'jetty.db')
+          const preferences = Bun.file(join(absoluteHome, 'bots', 'shared', 'preferences.md'))
+          return {
+            home: absoluteHome,
+            userHome: homedir(),
+            databaseBytes: [database, `${database}-wal`, `${database}-shm`]
+              .map((path) => Bun.file(path).size)
+              .reduce((total, size) => total + size, 0),
+            sharedPreferences: (yield* fromPromise(() => preferences.exists()))
+              ? yield* fromPromise(() => preferences.text())
+              : '',
+            guideCount: yield* store.countReadyPullRequestGuides(),
+          }
+        }).pipe(Effect.mapError(wireError)),
       'settings.setBranchPrefix': ({ prefix }) =>
         mutation(
           store.setBranchPrefix(prefix).pipe(
             Effect.tap(() => Effect.sync(() => hub.pushChrome({ type: 'branchPrefix', prefix }))),
+            Effect.as(null)
+          )
+        ),
+      'settings.setDefaultEnvironment': ({ environment }) =>
+        mutation(
+          store.setDefaultEnvironment(environment).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => hub.pushChrome({ type: 'defaultEnvironment', environment }))
+            ),
             Effect.as(null)
           )
         ),
@@ -284,6 +311,7 @@ export function createRpcHandlers(
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
               const branchPrefix = yield* store.getBranchPrefix()
+              const defaultEnvironment = yield* store.getDefaultEnvironment()
               const titleModel = yield* store.getTitleModel()
               const agentBehaviours = yield* store.getAgentBehaviours()
               const queue = yield* hub.subscribeChrome()
@@ -297,6 +325,7 @@ export function createRpcHandlers(
                 modelDiscovery,
                 providerCapabilities: orch.providerCapabilities(),
                 branchPrefix,
+                defaultEnvironment,
                 titleModel,
                 agentBehaviours,
               }
@@ -358,7 +387,13 @@ export function createRpcHandlers(
           const project = yield* requireProject(params.projectId)
           const environment =
             params.environment ??
-            (yield* fromPromise(() => worktrees.defaultEnvironment(project.path)))
+            (yield* store
+              .getDefaultEnvironment()
+              .pipe(
+                Effect.flatMap((fallback) =>
+                  fromPromise(() => worktrees.defaultEnvironment(project.path, fallback))
+                )
+              ))
           const baseCommit =
             environment === 'worktree'
               ? yield* fromPromise(() => worktrees.resolveRef(project.path, params.ref))

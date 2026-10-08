@@ -46,6 +46,8 @@ export const JettyRpcs = RpcGroup.make(
   unary('settings.providerUsage'),
   unary('models.refresh'),
   unary('settings.setBranchPrefix'),
+  unary('settings.info'),
+  unary('settings.setDefaultEnvironment'),
   unary('project.branches'),
   unary('thread.worktreeChanges'),
   unary('thread.retrySetup'),
