@@ -1,0 +1,15 @@
+/* The footer's divider shows only while threads are scrolled under it. A list that doesn't scroll
+   has no active timeline, and a list scrolled to its end is past the range, so both leave it clear. */
+.sidebar-footer {
+  border-top: 1px solid transparent;
+  animation: sidebar-footer-divider linear;
+  animation-timeline: --sidebar-threads;
+  animation-range-end: calc(100% - 1px);
+}
+
+@keyframes sidebar-footer-divider {
+  from,
+  to {
+    border-top-color: var(--sidebar-border);
+  }
+}

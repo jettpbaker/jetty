@@ -66,6 +66,7 @@ import { sidebarGroups, sidebarThread, type ThreadGrouping } from './sidebar_thr
 import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
 import { StatusGlyph } from './thread_status'
+import './app_sidebar.css'
 
 const viewKey = 'jetty.sidebar.view'
 
@@ -287,7 +288,7 @@ export const AppSidebar = memo(function AppSidebar() {
     <Sidebar
       data-perf-region='sidebar'
       aria-label='Thread sidebar'
-      className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0'
+      className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0 [timeline-scope:--sidebar-threads]'
       variant='inset'
       collapsible='offcanvas'
     >
@@ -353,7 +354,10 @@ export const AppSidebar = memo(function AppSidebar() {
         />
       </div>
       <ThreadHoverGroup>
-        <MotionSidebarContent layoutScroll className='overscroll-contain px-1.5 pb-0'>
+        <MotionSidebarContent
+          layoutScroll
+          className='overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
+        >
           <nav aria-label='Threads'>
             <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
               {items.map((item) => {
@@ -452,7 +456,7 @@ export const AppSidebar = memo(function AppSidebar() {
           </nav>
         </MotionSidebarContent>
       </ThreadHoverGroup>
-      <SidebarFooter className='shrink-0 flex-row items-center gap-1 border-t border-sidebar-border px-2.5 py-1.5'>
+      <SidebarFooter className='sidebar-footer shrink-0 flex-row items-center gap-1 px-2.5 py-1.5'>
         <KeybindTooltip binding={keybinds.settings}>
           <Button
             variant='ghost'
