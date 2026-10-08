@@ -598,7 +598,7 @@ export function createOrchestrator({
             return yield* Effect.fail(
               new StoreError(
                 'conflict',
-                `${user} just sent a new message, which reaches you next. Hold the rest of this until you've read it.`
+                `${user} just sent a new message, so this wasn't sent. Read it first, then send this again if it still fits, or answer what they said.`
               )
             )
           }

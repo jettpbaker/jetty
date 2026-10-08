@@ -12,9 +12,6 @@ import { useBot, useRequestReveal } from '@/state'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import { botAccentClass, botColorStyle } from './bot_avatar'
-import { AiFileIcon } from './huge_icons'
-import { chipLead } from './slash_model'
-import './composer_slash.css'
 import { ThreadSourceLabel, type MessageSource } from './source_label'
 
 export const collapsedTextHeight = 240
@@ -152,19 +149,7 @@ export function UserMessage({
                     : undefined
                 }
               >
-                {skill && (
-                  <span className='skill-chip-text'>
-                    <span className='skill-chip'>
-                      <span className='whitespace-nowrap'>
-                        <AiFileIcon />
-                        {chipLead}
-                      </span>
-                      {skill}
-                    </span>
-                    {'\u2002'}
-                  </span>
-                )}
-                {text}
+                {skill ? `/${skill} ${text}` : text}
               </p>
             ) : null}
             {collapsible && (
