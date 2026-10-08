@@ -242,6 +242,8 @@ export const PullRequestGuideState = Schema.Struct({
   error: Schema.optional(Schema.String),
 })
 export type PullRequestGuideState = Schema.Schema.Type<typeof PullRequestGuideState>
+// PRs with fewer changed lines (additions plus deletions) get no guide.
+export const GUIDE_MIN_CHANGED_LINES = 30
 
 export const PullRequestListTab = Schema.Literals(['for-you', 'created'])
 export type PullRequestListTab = Schema.Schema.Type<typeof PullRequestListTab>

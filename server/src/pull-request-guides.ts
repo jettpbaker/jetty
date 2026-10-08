@@ -1,6 +1,7 @@
 import type { PullRequestData } from '@jetty/shared/pull-request'
 import type { PullRequestGuideState } from '@jetty/shared/wire'
 
+import { GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
 import { Cause, Effect, Scope, Semaphore } from 'effect'
 
 import type { GuideMetrics } from './pr-guide'
@@ -82,7 +83,10 @@ export function createPullRequestGuides(
         if (running.has(key)) return state
         const now = Date.now()
         const row: StoredPullRequestGuide = {
-          status: data.pull.additions + data.pull.deletions < 30 ? 'skipped' : 'generating',
+          status:
+            data.pull.additions + data.pull.deletions < GUIDE_MIN_CHANGED_LINES
+              ? 'skipped'
+              : 'generating',
           headSha,
           model: GUIDE_MODEL.model,
           createdAt: current?.createdAt ?? now,

@@ -66,6 +66,7 @@ import {
   usePullRequestGuide,
   useSetReviewRequest,
 } from '@/state/pull_requests'
+import { GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
 import { Link } from '@tanstack/react-router'
 import {
   cloneElement,
@@ -131,14 +132,14 @@ import {
   repoPath,
   visibleLines,
 } from './model'
+import '@/components/custom/charmed_icons.css'
+
 import {
   usePrRuntime,
   PrDiffLoaderContext,
   PrDiffRevisionContext,
   PrPaintedContext,
 } from './runtime'
-import '@/components/custom/charmed_icons.css'
-
 import { Ago, Body, Comment, Diff, Section } from './shared'
 
 function Hint({
@@ -1953,8 +1954,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   if (tab === 'diff' && !diffSeen) setDiffSeen(true)
   const [guideSeen, setGuideSeen] = useState(false)
   if (tab === 'guide' && !guideSeen) setGuideSeen(true)
-  const guide = usePullRequestGuide(ref, pr.data.pull.head.sha, guideSeen)
-  const guideSkipped = guide.state?.status === 'skipped'
+  // The PR's size is known up front, so a small one's Guide tab is disabled before anyone asks.
+  const small = pr.data.pull.additions + pr.data.pull.deletions < GUIDE_MIN_CHANGED_LINES
+  const guide = usePullRequestGuide(ref, pr.data.pull.head.sha, guideSeen && !small)
+  const guideSkipped = small || guide.state?.status === 'skipped'
   const [mode, setMode] = useState('all')
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
