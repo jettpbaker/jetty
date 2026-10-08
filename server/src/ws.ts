@@ -604,6 +604,12 @@ export function createRpcHandlers(
         orch
           .respondQuestion(params.threadId, params.itemId, null)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
+      // Contract stubs: docs/bots/m1.md's Server checklist replaces them.
+      'bot.create': () => Effect.fail(botsPending),
+      'bot.send': () => Effect.fail(botsPending),
+      'bot.markSeen': () => Effect.fail(botsPending),
     })
   })
 }
+
+const botsPending: WireError = { code: 'unknown_method', message: 'Bots are not built yet' }

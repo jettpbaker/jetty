@@ -339,8 +339,76 @@ export const ThreadMeta = Schema.Struct({
   parentThreadId: Schema.optional(Schema.String),
   createdBy: Schema.optional(Schema.Literals(['user', 'agent'])),
   pendingMessages: Schema.optional(Schema.Array(QueuedMessage)),
+  // The bot whose work this is: set on every thread below a bot, however deep.
+  botId: Schema.optional(Schema.String),
 })
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
+
+// An id names the bot's home folder, as a thread id names its worktree.
+export const BotId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/))
+
+export const BOT_NAME_MAX = 24
+
+export const BotShape = Schema.Literals([
+  'circle',
+  'squircle',
+  'drop',
+  'cloud',
+  'flower',
+  'hex',
+  'tri',
+  'tablet',
+  'gumdrop',
+  'burst',
+  'star',
+  'bean',
+  'ghost',
+  'heart',
+])
+export type BotShape = Schema.Schema.Type<typeof BotShape>
+
+export const BotColor = Schema.Literals([
+  'coral',
+  'orange',
+  'butter',
+  'mint',
+  'teal',
+  'blue',
+  'lilac',
+  'rose',
+  'cloud',
+  'slate',
+])
+export type BotColor = Schema.Schema.Type<typeof BotColor>
+
+// What the bot's own turn is doing. Between turns it's idle, whatever its workers are doing.
+export const BotActivity = Schema.Literals(['idle', 'typing', 'working', 'tidying'])
+export type BotActivity = Schema.Schema.Type<typeof BotActivity>
+
+// A bot's chat is the thread with the bot's id: subscribe, interrupt and answer its questions
+// through the thread methods. That thread never appears in chrome's thread list.
+export const Bot = Schema.Struct({
+  id: BotId,
+  name: Schema.String,
+  shape: BotShape,
+  color: BotColor,
+  provider: ProviderId,
+  model: Schema.String,
+  effort: Schema.optional(EffortLevel),
+  fast: Schema.Boolean,
+  // null: all projects
+  projectId: Schema.NullOr(Schema.String),
+  permissionMode: PermissionMode,
+  createdAt: Schema.Int,
+  activity: BotActivity,
+  // An open question or approval in its chat, or a worker of its waiting on an approval.
+  needsYou: Schema.Boolean,
+  // Its last turn failed and no turn has started since.
+  failed: Schema.Boolean,
+  // A turn ended with a message Jett hasn't seen. Never true mid-turn.
+  unread: Schema.Boolean,
+})
+export type Bot = Schema.Schema.Type<typeof Bot>
 
 export const UploadAttachment = Schema.Struct({
   name: Schema.String,
@@ -833,6 +901,39 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, itemId: Schema.String }),
     result: Schema.Null,
   },
+  // The id is the client's, so it can open the bot's chat before the server answers. The bot
+  // speaks first: creating it starts a turn that counts as Jett's.
+  'bot.create': {
+    params: Schema.Struct({
+      id: BotId,
+      name: Schema.String.check(Schema.isMinLength(1)).check(Schema.isMaxLength(BOT_NAME_MAX)),
+      shape: BotShape,
+      color: BotColor,
+      provider: ProviderId,
+      model: Schema.String,
+      effort: Schema.optional(EffortLevel),
+      fast: Schema.Boolean,
+      projectId: Schema.NullOr(Schema.String),
+      permissionMode: PermissionMode,
+    }),
+    result: Schema.Struct({ bot: Bot }),
+  },
+  // Starts a turn, or joins the running one, whose text Jett sees from then on.
+  'bot.send': {
+    params: Schema.Struct({
+      botId: Schema.String,
+      // The user_message item's id, as with turn.start.
+      messageId: Schema.String.check(Schema.isMinLength(1)),
+      text: Schema.String.check(Schema.isMinLength(1)),
+      // The chat item Jett is replying to; the server copies its text into the message.
+      replyTo: Schema.optional(Schema.String),
+    }),
+    result: Schema.Null,
+  },
+  'bot.markSeen': {
+    params: Schema.Struct({ botId: Schema.String }),
+    result: Schema.Null,
+  },
 } as const
 
 export type MethodName = keyof typeof methods
@@ -867,7 +968,10 @@ export const ChromePushData = Schema.Union([
     branchPrefix: Schema.optional(Schema.String),
     titleModel: Schema.optional(TitleModel),
     agentBehaviours: Schema.optional(AgentBehaviours),
+    // Oldest first.
+    bots: Schema.optional(Schema.Array(Bot)),
   }),
+  Schema.Struct({ type: Schema.Literal('bot.upserted'), bot: Bot }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),

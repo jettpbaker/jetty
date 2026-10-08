@@ -106,6 +106,9 @@ export const JettyRpcs = RpcGroup.make(
   unary('approval.respond'),
   unary('question.respond'),
   unary('question.dismiss'),
+  unary('bot.create'),
+  unary('bot.send'),
+  unary('bot.markSeen'),
   Rpc.make('chrome.subscribe', {
     payload: methods['chrome.subscribe'].params,
     success: ChromePushData,

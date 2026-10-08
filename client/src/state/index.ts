@@ -1,4 +1,14 @@
 export { useAccessMode } from './access_mode'
+export {
+  useBot,
+  useBots,
+  useCreateBot,
+  useMarkBotSeen,
+  usePendingBotMessages,
+  useSendToBot,
+  type NewBot,
+  type PendingBotMessage,
+} from './bots'
 export { useBrowse } from './browse'
 export {
   useChildThreadMetas,

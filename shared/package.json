@@ -10,7 +10,8 @@
     "./model-name": "./src/model-name.ts",
     "./rpc": "./src/rpc.ts",
     "./pull-request": "./src/pull-request.ts",
-    "./github-media": "./src/github-media.ts"
+    "./github-media": "./src/github-media.ts",
+    "./bots": "./src/bots.ts"
   },
   "dependencies": {
     "effect": "4.0.0",

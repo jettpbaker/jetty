@@ -56,6 +56,12 @@ export function awaitCreation(threadId: string) {
   return creation ? Fiber.join(creation) : Effect.void
 }
 
+// A bot's chat is the thread with the bot's id, so bot.create counts as that thread's creation.
+export function trackCreation(id: string, creation: Fiber.Fiber<unknown, unknown>) {
+  creations.set(id, creation)
+  creation.addObserver(() => creations.delete(id))
+}
+
 // Without a picked environment the server applies the project's default, which the composer may
 // not know yet; `shown`, its best guess, stands in until the server answers.
 function createThread(
@@ -101,8 +107,7 @@ function createThread(
       ),
     forget
   )
-  creations.set(id, creation)
-  creation.addObserver(() => creations.delete(id))
+  trackCreation(id, creation)
   return id
 }
 
@@ -167,7 +172,7 @@ export function clearPatch<K extends keyof ThreadPatch>(
 
 // After the server accepts a change, its push (which lands just after the reply) takes over from
 // the patch, so a later change by an agent or another tab shows instead of the stale patch.
-function settleWhen(registry: Registry, agrees: () => boolean, clear: () => void) {
+export function settleWhen(registry: Registry, agrees: () => boolean, clear: () => void) {
   function check() {
     if (!agrees()) return
     stop()

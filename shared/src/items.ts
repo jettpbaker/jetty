@@ -101,12 +101,18 @@ export const ThreadItem = Schema.Union([
     reports: Schema.optional(Schema.Array(ChildReport)),
     text: Schema.String,
     attachments: Schema.Array(Attachment),
+    // Bot chats: the bubble this one replies to, as it read when Jett sent it.
+    replyTo: Schema.optional(Schema.Struct({ itemId: Schema.String, text: Schema.String })),
+    // Bot chats: the bot's emoji reaction to this message.
+    reaction: Schema.optional(Schema.String),
   }),
   Schema.Struct({
     ...itemBase,
     kind: Schema.Literal('assistant_message'),
     text: Schema.String,
     streaming: Schema.optional(Schema.Boolean),
+    // Bot chats: written in a turn Jett didn't start, so it's a note to itself, never a bubble.
+    private: Schema.optional(Schema.Literal(true)),
   }),
   Schema.Struct({
     ...itemBase,
@@ -216,6 +222,14 @@ export const ThreadItem = Schema.Union([
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
   // Background tasks or Monitor watches were still running when Jetty last shut down or crashed.
   Schema.Struct({ ...itemBase, kind: Schema.Literal('background_stopped') }),
+  // Bot chats: the bot started a thread, or sent one a message. Its status is the thread's own.
+  Schema.Struct({
+    ...itemBase,
+    kind: Schema.Literal('thread_marker'),
+    action: Schema.Literals(['started', 'messaged']),
+    threadId: Schema.String,
+    title: Schema.String,
+  }),
   // A line in the chat for the PR watcher; what woke the agent reaches it as a message from Jetty.
   Schema.Struct({
     ...itemBase,
