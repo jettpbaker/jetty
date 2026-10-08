@@ -1,4 +1,5 @@
 import { AutoModel, AutoTokenizer, env } from '@huggingface/transformers'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { EmbedClient, EmbedItem } from './types'
@@ -57,7 +58,8 @@ async function createSession(): Promise<Session> {
     const model = await AutoModel.from_pretrained(MODEL_ID, {
       dtype: MODEL_DTYPE,
       device: 'cpu',
-      progress_callback: progress,
+      // Streaming cached weights for progress retains an extra buffer in Transformers.js.
+      progress_callback: modelIsCached() ? undefined : progress,
     })
     return {
       async embed(texts: string[]): Promise<Float32Array[]> {
@@ -75,6 +77,13 @@ async function createSession(): Promise<Session> {
     const message = err instanceof Error ? err.message : String(err)
     throw new Error(`Failed to load EmbeddingGemma (${MODEL_ID}, ${MODEL_DTYPE}).\n${message}`)
   }
+}
+
+function modelIsCached() {
+  const directory = join(env.cacheDir!, MODEL_ID, 'onnx')
+  return ['model_quantized.onnx', 'model_quantized.onnx_data'].every((file) =>
+    existsSync(join(directory, file))
+  )
 }
 
 type TensorLike = { dims?: number[]; data?: Float32Array; dispose?: () => void }
