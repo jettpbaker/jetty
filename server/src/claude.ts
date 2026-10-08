@@ -824,6 +824,9 @@ export function createClaudeAdapter(
                     'EnterPlanMode',
                     'ExitPlanMode',
                     ...(input.parentThreadId ? ['AskUserQuestion'] : []),
+                    ...(bot
+                      ? ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TodoWrite']
+                      : []),
                   ],
                   // Only permits a later live switch into bypassPermissions.
                   allowDangerouslySkipPermissions: true,
@@ -868,11 +871,9 @@ export function createClaudeAdapter(
                     : {}),
                   allowedTools: [
                     ...AUTO_ALLOWED_TOOLS,
-                    'TaskCreate',
-                    'TaskUpdate',
-                    'TaskGet',
-                    'TaskList',
-                    'TodoWrite',
+                    ...(!bot
+                      ? ['TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'TodoWrite']
+                      : []),
                   ],
                 },
               }),

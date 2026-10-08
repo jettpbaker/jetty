@@ -5,6 +5,9 @@ import type { Bot } from './wire'
 // Bots never get max.
 export const BOT_EFFORTS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh']
 
+// A done or dropped task stays on its bot's list this long, then drops off (it stays stored).
+export const CLOSED_TASK_SHOWN_MS = 24 * 60 * 60_000
+
 // The sketchpad's BotState ids, plus the error face. Typing is 'thinking'.
 export type BotFace = 'idle' | 'thinking' | 'working' | 'waiting' | 'done' | 'tidying' | 'error'
 

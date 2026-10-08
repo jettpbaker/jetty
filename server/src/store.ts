@@ -1,4 +1,4 @@
-import { botTurnActivity, shownInBotChat } from '@jetty/shared/bots'
+import { botTurnActivity, CLOSED_TASK_SHOWN_MS, shownInBotChat } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment, heldByRestarts } from '@jetty/shared/items'
 import {
@@ -27,6 +27,7 @@ import {
   type PullRequestSnapshot,
   type PullRequestGuideState,
   type Bot,
+  type BotTask,
   type ParamsOf,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
@@ -106,6 +107,17 @@ type BotRow = {
   seen_at: number
 }
 
+type BotTaskRow = {
+  id: string
+  bot_id: string
+  title: string
+  status: BotTask['status']
+  note: string | null
+  created_at: number
+  updated_at: number
+  closed_at: number | null
+}
+
 export type WorktreeRecord = {
   checkoutPath: string | null
   baseCommit: string
@@ -142,6 +154,18 @@ function storeError(error: unknown) {
 
 function invalidEvent(error: unknown) {
   return new StoreError('invalid_params', String(error), { cause: error })
+}
+
+function rowToBotTask(row: BotTaskRow): BotTask {
+  return {
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    ...(row.note ? { note: row.note } : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.closed_at !== null ? { closedAt: row.closed_at } : {}),
+  }
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -799,6 +823,16 @@ export function createStore() {
       }).pipe(Effect.mapError(storeError))
     }
 
+    function listBotTasks(botId: string) {
+      return sql<BotTaskRow>`SELECT * FROM bot_tasks WHERE bot_id = ${botId}
+        AND (status IN ('todo', 'in_progress') OR closed_at >= ${Date.now() - CLOSED_TASK_SHOWN_MS})
+        ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'todo' THEN 1
+          WHEN 'done' THEN 2 WHEN 'dropped' THEN 3 END, created_at, id`.pipe(
+        Effect.map((rows) => rows.map(rowToBotTask)),
+        Effect.mapError(storeError)
+      )
+    }
+
     function readBot(threadId: string) {
       return Effect.gen(function* () {
         const [row] = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${threadId}`
@@ -836,6 +870,7 @@ export function createStore() {
           projectId: row.project_id,
           permissionMode: row.permission_mode,
           createdAt: row.created_at,
+          tasks: yield* listBotTasks(row.id),
           activity,
           needsYou,
           failed: state.lastTurnOutcome === 'failed',
@@ -854,6 +889,45 @@ export function createStore() {
 
     return {
       queueChanges,
+      listBotTasks,
+      addBotTask(
+        botId: string,
+        input: Pick<BotTask, 'title'> & Partial<Pick<BotTask, 'status' | 'note'>>
+      ) {
+        return Effect.gen(function* () {
+          const id = newId()
+          const now = Date.now()
+          const status = input.status ?? 'todo'
+          const closedAt = status === 'done' || status === 'dropped' ? now : null
+          const [row] = yield* sql<BotTaskRow>`INSERT INTO bot_tasks
+            (id, bot_id, title, status, note, created_at, updated_at, closed_at)
+            VALUES (${id}, ${botId}, ${input.title}, ${status}, ${input.note || null},
+              ${now}, ${now}, ${closedAt}) RETURNING *`
+          return rowToBotTask(row!)
+        }).pipe(Effect.mapError(storeError))
+      },
+      updateBotTask(
+        botId: string,
+        id: string,
+        input: Partial<Pick<BotTask, 'title' | 'status' | 'note'>>
+      ) {
+        return Effect.gen(function* () {
+          const [previous] = yield* sql<BotTaskRow>`SELECT * FROM bot_tasks
+            WHERE id = ${id} AND bot_id = ${botId}`
+          if (!previous)
+            return yield* Effect.fail(new StoreError('not_found', `No task ${id} on your list`))
+          const now = Date.now()
+          const status = input.status ?? previous.status
+          const closedAt =
+            status === 'done' || status === 'dropped' ? (previous.closed_at ?? now) : null
+          const note = input.note === undefined ? previous.note : input.note || null
+          const [row] = yield* sql<BotTaskRow>`UPDATE bot_tasks
+            SET title = ${input.title ?? previous.title}, status = ${status}, note = ${note},
+              updated_at = ${now}, closed_at = ${closedAt}
+            WHERE id = ${id} AND bot_id = ${botId} RETURNING *`
+          return rowToBotTask(row!)
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
       createBotRecord(input: ParamsOf<'bot.create'>, home: string) {
         return Effect.gen(function* () {
           const existing = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${input.id}`

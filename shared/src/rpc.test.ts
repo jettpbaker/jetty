@@ -172,6 +172,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
                 needsYou: false,
                 failed: false,
                 unread: false,
+                tasks: [],
               },
             }),
           'bot.send': () => Effect.succeed(null),

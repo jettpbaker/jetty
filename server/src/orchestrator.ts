@@ -1,5 +1,6 @@
 import type { EffortLevel, ThreadEvent } from '@jetty/shared/events'
 import type {
+  BotTask,
   PermissionMode,
   ProviderId,
   QueuedMessage,
@@ -1248,6 +1249,29 @@ export function createOrchestrator({
     }
 
     return {
+      addBotTask(
+        botId: string,
+        input: Pick<BotTask, 'title'> & Partial<Pick<BotTask, 'status' | 'note'>>
+      ) {
+        return Effect.gen(function* () {
+          const task = yield* store.addBotTask(botId, input)
+          const bot = yield* store.getBot(botId)
+          if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
+          return task
+        })
+      },
+      updateBotTask(
+        botId: string,
+        id: string,
+        input: Partial<Pick<BotTask, 'title' | 'status' | 'note'>>
+      ) {
+        return Effect.gen(function* () {
+          const task = yield* store.updateBotTask(botId, id, input)
+          const bot = yield* store.getBot(botId)
+          if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
+          return task
+        })
+      },
       botMessage(threadId: string, text: string) {
         return Effect.gen(function* () {
           if (!(yield* store.isBot(threadId)))

@@ -1,6 +1,6 @@
 import { heldByRestarts } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
-import { newId, type ProviderModel, type WireError } from '@jetty/shared/wire'
+import { newId, type BotTask, type ProviderModel, type WireError } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { Effect, Path, Scope } from 'effect'
@@ -80,6 +80,18 @@ function matchingModels(catalog: readonly ProviderModel[], name: string) {
   )
 }
 
+function taskResult(task: BotTask) {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    ...(task.note ? { note: task.note } : {}),
+  }
+}
+
+const taskTitle = z.string().trim().min(1).max(200)
+const taskStatus = z.enum(['todo', 'in_progress', 'done', 'dropped'])
+const taskNote = z.string().trim().max(300)
 const text = z.string().trim().min(1).max(32_000)
 const requestId = z
   .string()
@@ -683,6 +695,44 @@ export function createMcpHandler(
         (input) => invoke(sendMessage(identity, input))
       )
       if (bot) {
+        server.registerTool(
+          'add_task',
+          {
+            ...toolMeta,
+            description: 'Add a task to your list, which the user sees beside your chat.',
+            inputSchema: {
+              title: taskTitle,
+              status: taskStatus.optional().default('todo'),
+              note: taskNote.optional(),
+            },
+          },
+          (input) => invoke(orch.addBotTask(bot.id, input).pipe(Effect.map(taskResult)))
+        )
+        server.registerTool(
+          'update_task',
+          {
+            ...toolMeta,
+            description: "Change a task's title, status or note; an empty note clears it.",
+            inputSchema: {
+              id: z.string(),
+              title: taskTitle.optional(),
+              status: taskStatus.optional(),
+              note: taskNote.optional(),
+            },
+          },
+          ({ id, ...input }) =>
+            invoke(orch.updateBotTask(bot.id, id, input).pipe(Effect.map(taskResult)))
+        )
+        server.registerTool(
+          'list_tasks',
+          {
+            ...toolMeta,
+            description: 'List your open tasks and the ones closed in the last day.',
+            inputSchema: {},
+          },
+          () =>
+            invoke(store.listBotTasks(bot.id).pipe(Effect.map((tasks) => tasks.map(taskResult))))
+        )
         server.registerTool(
           'say',
           {

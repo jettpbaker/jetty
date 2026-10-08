@@ -425,6 +425,21 @@ export type BotColor = Schema.Schema.Type<typeof BotColor>
 export const BotActivity = Schema.Literals(['idle', 'typing', 'working', 'tidying'])
 export type BotActivity = Schema.Schema.Type<typeof BotActivity>
 
+export const BotTaskStatus = Schema.Literals(['todo', 'in_progress', 'done', 'dropped'])
+export type BotTaskStatus = Schema.Schema.Type<typeof BotTaskStatus>
+
+// One entry on a bot's own task list. closedAt is set while it's done or dropped.
+export const BotTask = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  status: BotTaskStatus,
+  note: Schema.optional(Schema.String),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+  closedAt: Schema.optional(Schema.Int),
+})
+export type BotTask = Schema.Schema.Type<typeof BotTask>
+
 // A bot's chat is the thread with the bot's id: subscribe, interrupt and answer its questions
 // through the thread methods. That thread never appears in chrome's thread list.
 export const Bot = Schema.Struct({
@@ -447,6 +462,9 @@ export const Bot = Schema.Struct({
   failed: Schema.Boolean,
   // A turn ended with a message Jett hasn't seen. Never true mid-turn.
   unread: Schema.Boolean,
+  // Every open task, and the ones closed within CLOSED_TASK_SHOWN_MS: in progress, todo, done,
+  // then dropped, each oldest first.
+  tasks: Schema.Array(BotTask),
 })
 export type Bot = Schema.Schema.Type<typeof Bot>
 

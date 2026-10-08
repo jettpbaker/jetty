@@ -238,6 +238,15 @@ const migrations = SqliteMigrator.fromRecord({
       PRIMARY KEY (repo, number, head_sha)
     )`
   }),
+  '033_bot_tasks': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE bot_tasks (
+      id TEXT PRIMARY KEY, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, status TEXT NOT NULL, note TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, closed_at INTEGER
+    )`
+    yield* sql`CREATE INDEX bot_tasks_by_bot ON bot_tasks(bot_id)`
+  }),
 })
 
 export function databaseLayer(home: string) {

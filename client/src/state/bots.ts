@@ -77,6 +77,7 @@ function createBot(registry: Registry, bot: NewBot) {
       needsYou: false,
       failed: false,
       unread: false,
+      tasks: [],
     })
   )
   const forget = () => registry.update(createdBotsAtom, (bots) => without(bots, [id]))
