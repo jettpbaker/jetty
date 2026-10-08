@@ -2,6 +2,7 @@ import type { ContextUsage, EffortLevel, ThreadEvent } from '@jetty/shared/event
 import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type {
   BackgroundTask,
+  Bot,
   BotAllowRule,
   PermissionMode,
   ProviderModel,
@@ -70,6 +71,7 @@ export type Emit = (
 export type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
+  updateBot?: (bot: Bot) => Effect.Effect<void, AgentError>
   setBotAllowRules?: (
     threadId: string,
     rules: readonly BotAllowRule[]

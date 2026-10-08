@@ -1,4 +1,9 @@
-import { botTurnActivity, CLOSED_TASK_SHOWN_MS, shownInBotChat } from '@jetty/shared/bots'
+import {
+  BOT_EFFORTS,
+  botTurnActivity,
+  CLOSED_TASK_SHOWN_MS,
+  shownInBotChat,
+} from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment, heldByRestarts } from '@jetty/shared/items'
 import {
@@ -18,6 +23,7 @@ import {
   type Project,
   ProjectIcon,
   type ProviderId,
+  type ProviderModel,
   type ThreadMeta,
   type QueuedMessage,
   type PermissionMode,
@@ -1037,6 +1043,35 @@ export function createStore() {
               ${input.model}, ${input.effort ?? null}, ${input.fast ? 1 : 0}, ${input.projectId},
               ${input.permissionMode}, ${now}, ${now})`
           return true
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      updateBot(input: ParamsOf<'bot.update'>, model?: ProviderModel) {
+        return Effect.gen(function* () {
+          const bot = yield* readBot(input.botId)
+          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          const next = {
+            ...bot,
+            name: input.name ?? bot.name,
+            shape: input.shape ?? bot.shape,
+            color: input.color ?? bot.color,
+            model: input.model ?? bot.model,
+            effort:
+              model && (!bot.effort || !model.efforts.includes(bot.effort))
+                ? model.defaultEffort && BOT_EFFORTS.includes(model.defaultEffort)
+                  ? model.defaultEffort
+                  : model.efforts.find((effort) => BOT_EFFORTS.includes(effort))
+                : bot.effort,
+            fast: model ? bot.fast && model.fast : bot.fast,
+            permissionMode: input.permissionMode ?? bot.permissionMode,
+          }
+          yield* sql`UPDATE bots SET name = ${next.name}, shape = ${next.shape},
+            color = ${next.color}, model = ${next.model}, effort = ${next.effort ?? null},
+            fast = ${next.fast ? 1 : 0}, permission_mode = ${next.permissionMode}
+            WHERE id = ${input.botId}`
+          yield* sql`UPDATE threads SET title = ${next.name}, model = ${next.model},
+            effort = ${next.effort ?? null}, fast = ${next.fast ? 1 : 0}, permission_mode = ${next.permissionMode} WHERE id = ${input.botId}`
+          yield* sql`UPDATE projects SET title = ${next.name} WHERE id = ${input.botId}`
+          return next
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       isBot(threadId: string) {

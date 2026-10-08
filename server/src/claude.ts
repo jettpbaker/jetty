@@ -203,16 +203,17 @@ export function createClaudeAdapter(
     const supportsAutoMode = config.supportsAutoMode ?? (() => true)
     let usageInFlight = false
 
-    function toSdkPermissionMode(input: TurnInput): PermissionMode {
+    function toSdkPermissionMode(input: TurnInput, bot: boolean): PermissionMode {
+      if (bot && input.permissionMode === 'full_access') return 'bypassPermissions'
       if (input.model && !supportsAutoMode(input.model)) return 'default'
       return input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto'
     }
 
-    function sessionOptions(input: TurnInput): SessionOptions {
+    function sessionOptions(input: TurnInput, bot = false): SessionOptions {
       return {
         model: input.model,
         effort: input.effort,
-        permissionMode: toSdkPermissionMode(input),
+        permissionMode: toSdkPermissionMode(input, bot),
       }
     }
 
@@ -666,7 +667,15 @@ export function createClaudeAdapter(
               const toolCallId = toolCallItemId(session.ctx, options.toolUseID, toolName, agentId)
               const bot =
                 session.bot &&
-                botApproval(toolName, toolInput, options.suggestions ?? [], session.places)
+                botApproval(
+                  toolName,
+                  toolInput,
+                  options.suggestions ?? [],
+                  session.places,
+                  options.matchedAskRule?.toolName === 'Bash'
+                    ? options.matchedAskRule.ruleContent
+                    : undefined
+                )
               session.pendingApprovals.set(itemId, {
                 result,
                 input: toolInput,
@@ -684,7 +693,9 @@ export function createClaudeAdapter(
                   input: changes.length ? approvalInputWithoutChanges(toolInput) : toolInput,
                   suggestions: options.suggestions ?? [],
                   ...(changes.length ? { changes } : {}),
-                  ...alwaysFrom(options.suggestions),
+                  ...(bot
+                    ? { always: { scope: 'user' as const, patterns: [bot.rule] } }
+                    : alwaysFrom(options.suggestions)),
                 },
               })
             }
@@ -802,7 +813,7 @@ export function createClaudeAdapter(
               catch: (error) => new AgentError(`Jetty tools failed to start: ${String(error)}`),
             })
           : undefined
-        const options = sessionOptions(input)
+        const options = sessionOptions(input, Boolean(bot))
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
@@ -1045,7 +1056,7 @@ export function createClaudeAdapter(
             session = undefined
           }
           if (session) {
-            const next = sessionOptions(input)
+            const next = sessionOptions(input, session.bot)
             if (input.compact) next.permissionMode = session.options.permissionMode
             const applied = yield* applyOptions(session, next).pipe(
               Effect.as(true),
@@ -1182,6 +1193,22 @@ export function createClaudeAdapter(
         return Boolean(
           session &&
           (session.wakePending || session.runningAgents.size || session.runningWorkflows.size)
+        )
+      },
+      updateBot(bot) {
+        const session = sessions.get(bot.id)
+        if (!session || !current(session) || !session.bot) return Effect.void
+        return applyOptions(
+          session,
+          sessionOptions({ ...bot, threadId: bot.id, turnId: session.activeTurnId, text: '' }, true)
+        ).pipe(
+          Effect.andThen(
+            Effect.tryPromise({
+              try: () =>
+                session.query.applyFlagSettings(botAutoMode(bot.name, bot.allowRules ?? [])),
+              catch: (error) => new AgentError(String(error)),
+            })
+          )
         )
       },
       setBotAllowRules(threadId, rules) {

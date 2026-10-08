@@ -1005,6 +1005,19 @@ export const methods = {
     }),
     result: Schema.Struct({ bot: Bot }),
   },
+  'bot.update': {
+    params: Schema.Struct({
+      botId: BotId,
+      name: Schema.optional(
+        Schema.String.check(Schema.isMinLength(1)).check(Schema.isMaxLength(BOT_NAME_MAX))
+      ),
+      shape: Schema.optional(BotShape),
+      color: Schema.optional(BotColor),
+      model: Schema.optional(Schema.String),
+      permissionMode: Schema.optional(PermissionMode),
+    }),
+    result: Schema.Struct({ bot: Bot }),
+  },
   // Starts a turn, or joins the running one, whose text Jett sees from then on.
   'bot.send': {
     params: Schema.Struct({

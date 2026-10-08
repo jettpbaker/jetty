@@ -36,29 +36,86 @@ function placeOf(folder: string, places: readonly BotPlace[]) {
   return folder.startsWith(`${home}/`) ? `~${folder.slice(home.length)}` : folder
 }
 
-// Claude's suggested prefixes win; otherwise use the last non-cd command before its pipe.
-function commandPrefixes(command: string, suggestions: readonly PermissionUpdate[]) {
-  const suggested = suggestions.flatMap((suggestion) =>
-    suggestion.type === 'addRules'
-      ? suggestion.rules.flatMap((rule) =>
-          rule.toolName === 'Bash' && rule.ruleContent
-            ? [rule.ruleContent.replace(/:?\s*\*$/, '').trim()]
-            : []
-        )
-      : []
-  )
-  if (suggested.length) return [...new Set(suggested)]
-  const segments = command
-    .split(/&&|\|\||;/)
-    .map((segment) => segment.split('|', 1)[0]!.trim())
-    .filter((segment) => segment && !/^cd(?:\s|$)/.test(segment))
-  const tokens = (segments.at(-1) ?? command.trim()).split(/\s+/)
-  const words: string[] = []
-  for (const token of tokens) {
-    if (words.length === 3 || !/^[a-z][\w-]*$/i.test(token)) break
+function commandHeads(command: string) {
+  const heads: string[] = []
+  let start = 0
+  let quote = ''
+  let depth = 0
+  let piped = false
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]!
+    if (char === '\\' && quote !== "'") {
+      index++
+      continue
+    }
+    if (quote) {
+      if (char === quote) quote = ''
+      continue
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char
+      continue
+    }
+    if (char === '(') depth++
+    if (char === ')') depth--
+    if (depth || ![';', '&', '|', '\n'].includes(char)) continue
+    if (char === '&' && /[<>]/.test(command[index - 1] ?? '')) continue
+    const paired = (char === '&' || char === '|') && command[index + 1] === char
+    if (!piped) heads.push(command.slice(start, index).trim())
+    piped = char === '|' && !paired
+    if (paired) index++
+    start = index + 1
+  }
+  if (!piped) heads.push(command.slice(start).trim())
+  return heads.filter(Boolean)
+}
+
+function commandPrefix(command: string) {
+  const tokens = command.replace(/^(?:[A-Za-z_][\w]*=\S+\s+)+/, '').split(/\s+/)
+  const executable = tokens[0]!
+  const words = [executable]
+  const limit = executable === 'gh' ? 3 : executable === 'git' ? 2 : 1
+  for (const token of tokens.slice(1)) {
+    if (words.length === limit || !/^[a-z][\w-]*$/i.test(token)) break
     words.push(token)
   }
-  return [words.join(' ') || tokens[0]!]
+  return words.join(' ')
+}
+
+function commandPrefixes(
+  command: string,
+  suggestions: readonly PermissionUpdate[],
+  matchedAskRule?: string
+) {
+  const heads = commandHeads(command)
+  const substantive = heads.filter(
+    (head) => !/^(?:echo|printf|true|cd|pwd|:)(?:\s|$)/.test(commandPrefix(head))
+  )
+  const candidates = substantive.length ? substantive : heads.slice(0, 1)
+  function matchingPrefix(content: string) {
+    const prefix = content.replace(/:?\s*\*$/, '').trim()
+    const head = candidates.find((head) => head === prefix || head.startsWith(`${prefix} `))
+    if (!head) return undefined
+    return content.endsWith('*') && /^[a-z][\w-]*(?: [a-z][\w-]*){0,2}$/i.test(prefix)
+      ? prefix
+      : commandPrefix(head)
+  }
+  const matched = matchedAskRule && matchingPrefix(matchedAskRule)
+  if (matched) return [matched]
+  const suggested = suggestions.flatMap((suggestion) =>
+    suggestion.type === 'addRules'
+      ? suggestion.rules.flatMap((rule) => {
+          const prefix =
+            rule.toolName === 'Bash' && rule.ruleContent
+              ? matchingPrefix(rule.ruleContent)
+              : undefined
+          return prefix ? [prefix] : []
+        })
+      : []
+  )
+  return suggested.length
+    ? [...new Set(suggested)]
+    : [commandPrefix(candidates.at(-1) ?? command.trim())]
 }
 
 // A bot's approval in plain words: the card's title, and the Allow always rule saved from it,
@@ -67,12 +124,13 @@ export function botApproval(
   toolName: string,
   input: Record<string, unknown>,
   suggestions: readonly PermissionUpdate[],
-  places: readonly BotPlace[]
+  places: readonly BotPlace[],
+  matchedAskRule?: string
 ) {
   const description = text(input.description)
   const command = text(input.command)
   if (toolName === 'Bash' && command) {
-    const covered = commandPrefixes(command, suggestions)
+    const covered = commandPrefixes(command, suggestions, matchedAskRule)
       .map((prefix) => `\`${prefix}\``)
       .join(' and ')
     return description

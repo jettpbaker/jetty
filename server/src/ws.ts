@@ -697,38 +697,54 @@ export function createRpcHandlers(
             return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
           return { messages: yield* store.getBotConversation(botId, otherBotId) }
         }).pipe(Effect.mapError(wireError)),
-      'bot.send': (params) =>
-        mutation(
-          Effect.gen(function* () {
-            const bot = yield* store.getBot(params.botId)
-            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-            const { replyTo } = params
-            if (replyTo) {
-              const state = yield* store.getThreadState(params.botId)
-              const quoted = state.items.find((item) => item.id === replyTo.itemId)
-              if (
-                !quoted ||
-                (quoted.kind !== 'assistant_message' && quoted.kind !== 'user_message')
-              )
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', 'Quoted message not found')
+      'bot.update': (params) =>
+        Effect.gen(function* () {
+          if (params.name !== undefined && !params.name.trim())
+            return yield* Effect.fail(new StoreError('invalid_params', 'Bot name is required'))
+          const model =
+            params.model === undefined
+              ? undefined
+              : getModels()?.find(
+                  (model) => model.provider === 'claude' && model.id === params.model
                 )
-            }
-            yield* store.markBotSeen(params.botId)
-            yield* Effect.forkIn(
-              orch.startTurnEffect({
-                threadId: params.botId,
-                messageId: params.messageId,
-                text: params.text,
-                replyTo,
-              }),
-              admissionScope
+          if (params.model !== undefined && !model)
+            return yield* Effect.fail(
+              new StoreError('invalid_params', `Unknown Claude model ${params.model}`)
             )
-            const updated = yield* store.getBot(params.botId)
-            if (updated) hub.pushChrome({ type: 'bot.upserted', bot: updated })
-            return null
-          })
-        ),
+          return { bot: yield* orch.updateBot(params, model) }
+        }).pipe(Effect.mapError(wireError)),
+      'bot.send': (params) =>
+        Effect.gen(function* () {
+          const bot = yield* store.getBot(params.botId)
+          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          const { replyTo } = params
+          if (replyTo) {
+            const state = yield* store.getThreadState(params.botId)
+            const quoted = state.items.find((item) => item.id === replyTo.itemId)
+            if (!quoted || (quoted.kind !== 'assistant_message' && quoted.kind !== 'user_message'))
+              return yield* Effect.fail(
+                new StoreError('invalid_params', 'Quoted message not found')
+              )
+          }
+          yield* mutation(store.markBotSeen(params.botId))
+          const fiber = yield* Effect.forkIn(
+            orch.startTurnEffect({
+              threadId: params.botId,
+              messageId: params.messageId,
+              text: params.text,
+              replyTo,
+            }),
+            admissionScope
+          )
+          yield* Fiber.join(fiber)
+          yield* mutation(
+            Effect.gen(function* () {
+              const updated = yield* store.getBot(params.botId)
+              if (updated) hub.pushChrome({ type: 'bot.upserted', bot: updated })
+            })
+          )
+          return null
+        }).pipe(Effect.mapError(wireError)),
       'bot.setAllowRules': ({ botId, rules }) =>
         mutation(orch.setBotAllowRules(botId, rules).pipe(Effect.as(null))),
       'bot.markSeen': ({ botId }) =>

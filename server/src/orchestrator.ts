@@ -1,6 +1,7 @@
 import type { EffortLevel, ThreadEvent } from '@jetty/shared/events'
 import type {
   BotTask,
+  ParamsOf,
   PermissionMode,
   ProviderId,
   QueuedMessage,
@@ -935,6 +936,16 @@ export function createOrchestrator({
                   new StoreError('conflict', 'Thread was archived before the turn could start')
                 )
               const resumeQueue = !input.queued || (input.sendNow && input.resumeQueue !== false)
+              const bot = yield* store.getBot(input.threadId)
+              const botChat = bot !== null
+              if (bot)
+                input = {
+                  ...input,
+                  model: input.model ?? bot.model,
+                  effort: input.effort ?? bot.effort,
+                  fast: input.fast ?? bot.fast,
+                  permissionMode: input.permissionMode ?? bot.permissionMode,
+                }
               let fromCreator = false
               if (input.queued) {
                 if (
@@ -1104,7 +1115,6 @@ export function createOrchestrator({
               let text = yield* agentText(input, fromCreator, saved.meta, attachments)
               if (input.replyTo)
                 text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
-              const botChat = yield* store.isBot(input.threadId)
               if (botChat) text = `${botStamp()}\n${text}`
               const live = state(input.threadId)
               if (live.turnId) {
@@ -1862,6 +1872,19 @@ export function createOrchestrator({
           if (!agent.stopWorkflow || !(yield* agent.stopWorkflow(threadId, taskId)))
             return yield* Effect.fail(new StoreError('not_found', 'Running workflow not found'))
         })
+      },
+      updateBot(input: ParamsOf<'bot.update'>, model?: ProviderModel) {
+        return state(input.botId).admission.withPermit(
+          hub.withChromePublication(
+            Effect.gen(function* () {
+              const bot = yield* store.updateBot(input, model)
+              const agent = yield* agentForThread(input.botId)
+              if (agent.updateBot) yield* agent.updateBot(bot)
+              hub.pushChrome({ type: 'bot.upserted', bot })
+              return bot
+            })
+          )
+        )
       },
       setBotAllowRules(botId: string, rules: readonly BotAllowRule[]) {
         return Effect.gen(function* () {
