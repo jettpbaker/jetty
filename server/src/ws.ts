@@ -576,15 +576,22 @@ export function createRpcHandlers(
           }).pipe(Effect.mapError(wireError))
         ),
       'queue.add': (params) =>
-        orch
-          .enqueue(
-            params.threadId,
-            params.messageId,
-            params.text,
-            params.attachments,
-            params.replyTo
-          )
-          .pipe(Effect.as(null), Effect.mapError(wireError)),
+        store
+          .noteUserMessage()
+          .pipe(
+            Effect.andThen(
+              orch
+                .enqueue(
+                  params.threadId,
+                  params.messageId,
+                  params.text,
+                  params.attachments,
+                  params.replyTo
+                )
+                .pipe(Effect.as(null))
+            ),
+            Effect.mapError(wireError)
+          ),
       'queue.remove': (params) =>
         orch
           .editQueued(params.threadId, params.messageId)
@@ -620,6 +627,7 @@ export function createRpcHandlers(
         orch.continueThread(threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'turn.start': (params) =>
         Effect.gen(function* () {
+          yield* store.noteUserMessage()
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)
           return yield* Fiber.join(fiber)
         }).pipe(Effect.mapError(wireError)),
@@ -729,6 +737,7 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'bot.send': (params) =>
         Effect.gen(function* () {
+          yield* store.noteUserMessage()
           const bot = yield* store.getBot(params.botId)
           if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
           const persistedAttachments = []

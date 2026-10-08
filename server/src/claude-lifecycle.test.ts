@@ -341,7 +341,10 @@ describe('scoped Claude sessions', () => {
     await f.runtime.runPromise(f.store.setBotAllowRules(f.thread.id, [saved]))
     await f.start()
     const q = f.queries[0]!
-    expect(q.options.settings).toEqual({ autoMode: { allow: ['$defaults', saved.text] } })
+    expect(q.options.settings).toEqual({
+      autoMode: { allow: ['$defaults', saved.text] },
+      idleCompaction: false,
+    })
     const rule = 'Verify may close the two v16 issues with `gh issue close`'
     const input = {
       command: 'gh issue close 212 214 --reason completed',

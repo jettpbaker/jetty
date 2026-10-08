@@ -545,7 +545,7 @@ for (const fromUser of [true, false]) {
         },
       })
     )
-    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('tidying')
+    expect((await runtime.runPromise(store.getBot(id)))?.activity).toBe('working')
     await runtime.runPromise(
       store.appendEvent(id, {
         type: 'item.completed',

@@ -42,6 +42,8 @@ import {
   type AgentHooks,
 } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
+import { botTiming } from './bot-lifecycle'
+import { startBotScheduler } from './bot-scheduler'
 import { claudeLayer } from './claude'
 import { claudeBin } from './claude-bin'
 import { discoverClaudeModels } from './claude-models'
@@ -202,6 +204,20 @@ function reconcileOnStartup(store: Store) {
           )
           const turnId = cutTurnId ?? (unsent.length ? state.items.at(-1)?.turnId : undefined)
           if (!turnId) return
+          const opening = state.items.find((item) => item.turnId === turnId && !item.agentId)
+          const onlyCompact =
+            opening?.kind === 'compaction' &&
+            !state.items.some((item) => item.turnId === turnId && item.kind === 'user_message')
+          if (onlyCompact) {
+            for (const message of unsent) yield* store.editQueued(thread.id, message.id)
+            if (state.activeTurnId)
+              yield* store.appendEvent(thread.id, {
+                type: 'turn.failed',
+                turnId,
+                error: 'server_restarted',
+              })
+            return
+          }
           if (!autoResume) {
             yield* store.setQueuePaused(thread.id, true)
             // Resume queues the note afresh, for the turn it holds.
@@ -690,6 +706,14 @@ function createServer(opts: ServerOptions = {}) {
       `http://${bound.hostname.includes(':') ? `[${bound.hostname}]` : bound.hostname}:${bound.port}/mcp`
     )
     yield* orch.resumeQueues()
+    yield* startBotScheduler(
+      store,
+      orch,
+      hub,
+      registry,
+      botTiming,
+      agentKind !== 'echo' && envAgent !== 'echo'
+    )
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => markCleanShutdown(home)).pipe(
         Effect.andThen(orch.beginShutdown()),

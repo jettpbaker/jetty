@@ -1,5 +1,6 @@
 import {
   query,
+  getSessionMessages,
   type McpSdkServerConfigWithInstance,
   type EffortLevel,
   type Options,
@@ -144,6 +145,9 @@ type WarmSession = {
   // the current turn is Jetty's /compact
   compact: boolean
   compactFailureNoted: boolean
+  compactSucceeded: boolean
+  // Resumed at the last entry before a /compact that didn't finish, which it leaves behind.
+  rewound: boolean
   accepting: boolean
   failReason: string | null
   done: Deferred.Deferred<void, AgentError>
@@ -278,7 +282,8 @@ export function createClaudeAdapter(
             trackAgents(session.runningAgents, event)
             if (terminal) {
               session.awaitingResult = false
-              yield* Deferred.succeed(session.done, undefined)
+              if (!session.compact || session.compactSucceeded)
+                yield* Deferred.succeed(session.done, undefined)
               const grace = session.grace
               session.grace = null
               return grace
@@ -367,8 +372,8 @@ export function createClaudeAdapter(
             })
             .pipe(Effect.ignore)
         }
-        yield* Deferred.succeed(session.done, undefined)
         if (sessions.get(session.threadId) === session) sessions.delete(session.threadId)
+        yield* Deferred.succeed(session.done, undefined)
         return true
       }).pipe(session.publication.withPermit, Effect.uninterruptible)
     }
@@ -543,6 +548,22 @@ export function createClaudeAdapter(
               yield* publish(session, { type: 'turn.started', turnId })
             }
             if (!session.awaitingResult && message.type !== 'system' && !fromSubagent) return
+            if (
+              session.compact &&
+              message.type === 'system' &&
+              message.subtype === 'compact_boundary'
+            ) {
+              session.compactSucceeded = true
+              yield* store
+                .setCompactAnchor(session.threadId, undefined)
+                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+            }
+            if (message.type === 'result' && !session.compact && session.rewound) {
+              session.rewound = false
+              yield* store
+                .setCompactAnchor(session.threadId, undefined)
+                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+            }
             if (message.type === 'result') {
               yield* session.publication.withPermit(
                 Effect.sync(() => {
@@ -590,6 +611,10 @@ export function createClaudeAdapter(
               sdk.compact_result === 'failed'
             )
               yield* noteManualCompact(session, sdk.compact_error?.trim() || 'Compaction failed')
+            if (message.type === 'result' && session.compact && !session.compactSucceeded) {
+              yield* retire(session, 'compaction ended without a boundary')
+              return
+            }
             // Background subagents outlive their turn; the session stays warm until they settle.
             if (!session.awaitingResult) yield* armIdle(session)
             if (message.type === 'result') {
@@ -826,6 +851,9 @@ export function createClaudeAdapter(
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
+        const compactAnchor = yield* store
+          .getCompactAnchor(input.threadId)
+          .pipe(Effect.mapError((error) => new AgentError(error.message)))
         const behaviours = yield* store
           .getAgentBehaviours()
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
@@ -877,7 +905,14 @@ export function createClaudeAdapter(
                     ...(instructions ? { append: instructions } : {}),
                   },
                   settingSources: ['user', 'project', 'local'],
-                  ...(bot ? { settings: botAutoMode(bot.name, bot.allowRules ?? []) } : {}),
+                  ...(bot
+                    ? {
+                        settings: {
+                          ...botAutoMode(bot.name, bot.allowRules ?? []),
+                          idleCompaction: false,
+                        },
+                      }
+                    : {}),
                   model: options.model,
                   effort: options.effort,
                   permissionMode: options.permissionMode,
@@ -936,6 +971,7 @@ export function createClaudeAdapter(
                       }
                     : {}),
                   resume: resume ?? undefined,
+                  resumeSessionAt: resume ? compactAnchor : undefined,
                   mcpServers: sdkMcp ? { jetty: sdkMcp } : {},
                   ...(bot
                     ? { tools: { type: 'preset' as const, preset: 'claude_code' as const } }
@@ -998,6 +1034,8 @@ export function createClaudeAdapter(
           wakePending: false,
           compact: false,
           compactFailureNoted: false,
+          compactSucceeded: false,
+          rewound: Boolean(resume && compactAnchor),
           accepting: false,
           failReason: null,
           done,
@@ -1077,6 +1115,28 @@ export function createClaudeAdapter(
               session = undefined
             }
           }
+          if (
+            input.compact &&
+            !(yield* store
+              .getCompactAnchor(input.threadId)
+              .pipe(Effect.mapError((error) => new AgentError(error.message))))
+          ) {
+            const sessionId = yield* store
+              .getThreadSessionId(input.threadId)
+              .pipe(Effect.mapError((error) => new AgentError(error.message)))
+            if (sessionId) {
+              const messages = yield* Effect.tryPromise({
+                try: () =>
+                  getSessionMessages(sessionId, { dir: projectPath, includeSystemMessages: true }),
+                catch: (error) => new AgentError(String(error)),
+              })
+              const anchor = messages.at(-1)?.uuid
+              if (anchor)
+                yield* store
+                  .setCompactAnchor(input.threadId, anchor)
+                  .pipe(Effect.mapError((error) => new AgentError(error.message)))
+            }
+          }
           const fresh = !session
           session ??= yield* spawnSession(
             input,
@@ -1096,9 +1156,23 @@ export function createClaudeAdapter(
             started.wakePending = false
             started.compact = Boolean(input.compact)
             started.compactFailureNoted = false
+            started.compactSucceeded = false
             started.accepting = !input.compact
             started.failReason = null
             started.done = yield* Deferred.make<void, AgentError>()
+            if (input.compact && bot) {
+              started.ctx.compactionId = newId()
+              yield* publish(started, {
+                type: 'item.started',
+                item: {
+                  id: started.ctx.compactionId,
+                  turnId: input.turnId,
+                  createdAt: Date.now(),
+                  kind: 'compaction',
+                  status: 'running',
+                },
+              })
+            }
             yield* publish(started, { type: 'turn.started', turnId: input.turnId })
             yield* Queue.offer(
               started.input,

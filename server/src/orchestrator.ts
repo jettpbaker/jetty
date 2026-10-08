@@ -34,6 +34,7 @@ import type { Worktrees } from './worktrees'
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
 import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
 import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
+import { botTiming } from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
   quietChangeInstruction,
@@ -229,6 +230,11 @@ export function createOrchestrator({
     const scope = yield* Effect.scope
     let closing = false
     const lifecycle = Semaphore.makeUnsafe(1)
+    const upkeep = new Map<string, { fiber?: Fiber.Fiber<void> }>()
+    const backgroundCompactions = new Map<
+      string,
+      { turnId: string; interrupted: boolean; failed: boolean }
+    >()
     const resuming = new Map<string, AbortController>()
     const childWaits = createChildWaits()
     yield* Effect.addFinalizer(() => Effect.sync(childWaits.close))
@@ -273,8 +279,20 @@ export function createOrchestrator({
       return Effect.gen(function* () {
         const live = state(threadId)
         if (live.turnId === turnId) live.turnId = null
-        live.ready = true
         if (yield* store.isBot(threadId)) {
+          yield* store.updateBotLifecycle(threadId, { turnEndedAt: Date.now() })
+          const compact = backgroundCompactions.get(threadId)
+          if (compact?.turnId === turnId) {
+            backgroundCompactions.delete(threadId)
+            if (!compact.interrupted) {
+              yield* store.updateBotLifecycle(threadId, {
+                compactRetryAt: Date.now() + botTiming.retryMs,
+              })
+              yield* Effect.logInfo(
+                `compaction for ${threadId} ${compact.failed ? 'failed' : 'succeeded'}`
+              )
+            }
+          }
           const project = yield* store.getProject(threadId)
           if (project) {
             yield* Effect.promise(() => commitBotHome(project.path)).pipe(
@@ -285,15 +303,27 @@ export function createOrchestrator({
             )
           }
         }
+        live.ready = true
         yield* Queue.offer(store.queueChanges, undefined)
-      }).pipe(Effect.orDie)
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            state(threadId).ready = true
+          })
+        ),
+        Effect.orDie
+      )
     }
 
     function interruptAdmittedThread(threadId: string) {
       return Effect.gen(function* () {
         const agent = yield* agentForThread(threadId)
         // An earlier queued upload may still be persisting between turns.
-        yield* setQueuePaused(threadId, true)
+        const compact = backgroundCompactions.get(threadId)
+        if (compact) {
+          compact.interrupted = true
+          yield* Effect.logInfo(`compaction for ${threadId} interrupted by Stop`)
+        } else yield* setQueuePaused(threadId, true)
         if (!state(threadId).turnId) return
         yield* agent.interrupt(threadId)
       })
@@ -327,6 +357,7 @@ export function createOrchestrator({
 
     function stopAdmittedThread(threadId: string) {
       return Effect.gen(function* () {
+        yield* interruptUpkeep(threadId)
         yield* store.suppressReport(threadId)
         yield* setQueuePaused(threadId, true)
         const agent = yield* agentForThread(threadId)
@@ -768,6 +799,7 @@ export function createOrchestrator({
           ...(queued ? { from: queued.from, hop: queued.hop } : {}),
           ...(queued?.reports && { reports: queued.reports }),
           ...(queued?.skill && { skill: queued.skill }),
+          ...((queued?.kind === 'check_in' || queued?.kind === 'tidy') && { wake: queued.kind }),
           text,
           attachments: meta,
           ...(replyTo ? { replyTo } : {}),
@@ -985,11 +1017,53 @@ export function createOrchestrator({
       )
     }
 
+    function botIdle(thread: ThreadMeta) {
+      const live = state(thread.id)
+      const provider = thread.provider ?? registry.defaultProvider
+      return (
+        !closing &&
+        !thread.archived &&
+        !thread.queuePaused &&
+        !thread.pendingMessages?.length &&
+        !live.turnId &&
+        live.ready &&
+        !upkeep.has(thread.id) &&
+        (!isAgentProvider(provider) || !registry.agent(provider)?.busy?.(thread.id)) &&
+        !hub.decorateThread(thread).backgroundTasks?.length
+      )
+    }
+
+    function interruptUpkeep(threadId: string) {
+      return Effect.gen(function* () {
+        const fiber = upkeep.get(threadId)?.fiber
+        if (fiber) yield* Fiber.interrupt(fiber)
+      })
+    }
+
     function startAdmittedTurn(input: StartTurnInput) {
       return Effect.scoped(
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
+              if (!input.queued && (yield* store.isBot(input.threadId))) {
+                yield* interruptUpkeep(input.threadId)
+                const compact = backgroundCompactions.get(input.threadId)
+                if (compact && state(input.threadId).turnId === compact.turnId) {
+                  const { context } = yield* store.getThreadState(input.threadId)
+                  const fraction =
+                    context && context.maxTokens > 0 ? context.usedTokens / context.maxTokens : null
+                  if (fraction === null || fraction < botTiming.compactUnskippableAt) {
+                    compact.interrupted = true
+                    yield* Effect.logInfo(
+                      `compaction for ${input.threadId} interrupted for Jett's message`
+                    )
+                    const agent = yield* agentForThread(input.threadId)
+                    yield* agent.interrupt(input.threadId)
+                    while (state(input.threadId).turnId || !state(input.threadId).ready)
+                      yield* Effect.sleep(10)
+                  }
+                }
+              }
               const thread = yield* store.requireThread(input.threadId)
               if (!input.queued && input.messageId) {
                 const earlier = yield* sentBefore(thread, input.messageId)
@@ -1504,13 +1578,52 @@ export function createOrchestrator({
           ])
         ) as ProviderCapabilities
       },
-      compact(threadId: string) {
+      botIdle(threadId: string) {
+        return store.requireThread(threadId).pipe(Effect.map(botIdle))
+      },
+      runBotUpkeep<E>(threadId: string, effect: Effect.Effect<void, E>) {
+        return state(threadId).admission.withPermit(
+          Effect.gen(function* () {
+            const thread = yield* store.requireThread(threadId)
+            if (!(yield* store.isBot(threadId)) || !botIdle(thread)) return false
+            const entry: { fiber?: Fiber.Fiber<void> } = {}
+            upkeep.set(threadId, entry)
+            state(threadId).ready = false
+            entry.fiber = yield* effect.pipe(
+              Effect.catchCause((cause) => Effect.logWarning(cause)),
+              Effect.ensuring(
+                Effect.gen(function* () {
+                  upkeep.delete(threadId)
+                  state(threadId).ready = true
+                  yield* Queue.offer(store.queueChanges, undefined)
+                })
+              ),
+              Effect.interruptible,
+              Effect.forkIn(scope)
+            )
+            return true
+          }).pipe(Effect.uninterruptible)
+        )
+      },
+      compact(threadId: string, background = false) {
         return Effect.suspend(() =>
           state(threadId).admission.withPermit(
             Effect.gen(function* () {
               const thread = yield* store.requireThread(threadId)
               const agent = yield* agentForThread(threadId)
               const live = state(threadId)
+              if (background) {
+                if (!(yield* store.isBot(threadId)) || !botIdle(thread)) return false
+                const record = yield* store.getBotLifecycle(threadId)
+                const presence = hub.botPresence(threadId)
+                if (
+                  presence.draft ||
+                  (presence.open &&
+                    Date.now() - (record.turnEndedAt ?? thread.updatedAt) < botTiming.awayIdleMs) ||
+                  Date.now() < (record.compactRetryAt ?? 0)
+                )
+                  return false
+              }
               if (live.turnId || !live.ready || agent.busy?.(threadId))
                 return yield* Effect.fail(
                   new StoreError('conflict', 'Wait for this turn to finish')
@@ -1520,6 +1633,11 @@ export function createOrchestrator({
                   new StoreError('conflict', 'This provider does not support compaction')
                 )
               const snapshot = yield* store.getThreadState(threadId)
+              const fraction =
+                snapshot.context && snapshot.context.maxTokens > 0
+                  ? snapshot.context.usedTokens / snapshot.context.maxTokens
+                  : 0
+              if (background && fraction < botTiming.compactAt) return false
               if (!snapshot.items.length)
                 return yield* Effect.fail(new StoreError('conflict', 'Send a message first'))
               if (thread.archived)
@@ -1533,8 +1651,24 @@ export function createOrchestrator({
               const turnId = newId()
               live.turnId = turnId
               live.ready = false
+              if (background) {
+                backgroundCompactions.set(threadId, { turnId, interrupted: false, failed: false })
+                yield* Effect.logInfo(`compacting ${threadId} at ${Math.round(fraction * 100)}%`)
+              }
               let compactNoted = false
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) => {
+                if (background) {
+                  const compact = backgroundCompactions.get(threadId)
+                  if (
+                    compact &&
+                    (event.type === 'turn.failed' ||
+                      (event.type === 'item.started' && event.item.kind === 'error') ||
+                      (event.type === 'item.completed' && event.patch?.status === 'failed'))
+                  )
+                    compact.failed = true
+                  if (event.type === 'item.started' && event.item.kind === 'error')
+                    return onCommit ?? Effect.void
+                }
                 if (
                   event.type === 'item.started' &&
                   event.item.kind === 'error' &&
@@ -1564,7 +1698,9 @@ export function createOrchestrator({
                   Effect.catch((error) => {
                     const detail = compactFailureReason(false, error.message)
                     return (
-                      compactNoted || !detail ? Effect.void : emit(couldntCompact(turnId, detail))
+                      background || compactNoted || !detail
+                        ? Effect.void
+                        : emit(couldntCompact(turnId, detail))
                     ).pipe(
                       Effect.andThen(emit({ type: 'turn.failed', turnId, error: error.message }))
                     )
@@ -1577,13 +1713,15 @@ export function createOrchestrator({
                   Effect.ensuring(settleTurn(threadId, turnId))
                 )
               yield* Effect.forkIn(lifecycle, scope, { startImmediately: true })
+              return true
             })
           )
         )
       },
       beginShutdown() {
-        return Effect.sync(() => {
+        return Effect.gen(function* () {
           closing = true
+          for (const threadId of upkeep.keys()) yield* interruptUpkeep(threadId)
         })
       },
       markReadyForReview(threadId: string) {

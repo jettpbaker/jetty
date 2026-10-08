@@ -1,6 +1,7 @@
 import {
   BOT_EFFORTS,
   botTurnActivity,
+  quietTurn,
   CLOSED_TASK_SHOWN_MS,
   shownInBotChat,
   WAIT_NOTES,
@@ -42,6 +43,7 @@ import {
 import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
+import type { BotLifecycle } from './bot-lifecycle'
 import type { GuideMetrics } from './pr-guide'
 import type { PullRequestWatchMemory } from './pull-request-watch'
 
@@ -1019,6 +1021,41 @@ export function createStore() {
       }).pipe(Effect.mapError(storeError))
     }
 
+    let lastUserMessageAt: number | undefined
+
+    function readSetting<A>(key: string) {
+      return sql<{ value_json: string }>`SELECT value_json FROM settings WHERE key = ${key}`.pipe(
+        Effect.map(([row]) => (row ? (JSON.parse(row.value_json) as A) : undefined)),
+        Effect.mapError(storeError)
+      )
+    }
+
+    function writeSetting(key: string, value: unknown) {
+      return (
+        value === undefined
+          ? sql`DELETE FROM settings WHERE key = ${key}`
+          : sql`INSERT INTO settings (key, value_json) VALUES (${key}, ${JSON.stringify(value)})
+          ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`
+      ).pipe(Effect.asVoid, Effect.mapError(storeError))
+    }
+
+    function getBotLifecycle(botId: string) {
+      return readSetting<BotLifecycle>(`bot_lifecycle.${botId}`).pipe(
+        Effect.map((record) => record ?? {})
+      )
+    }
+
+    function updateBotLifecycle(botId: string, patch: BotLifecycle) {
+      return sql
+        .withTransaction(
+          Effect.gen(function* () {
+            const record = yield* getBotLifecycle(botId)
+            yield* writeSetting(`bot_lifecycle.${botId}`, { ...record, ...patch })
+          })
+        )
+        .pipe(Effect.mapError(storeError))
+    }
+
     function readBot(threadId: string) {
       return Effect.gen(function* () {
         const [row] = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${threadId}`
@@ -1031,16 +1068,32 @@ export function createStore() {
         const needsYou = asking || (waiting?.count ?? 0) > 0
         const active = state.activeTurnId !== null
         const current = state.items.filter((item) => item.turnId === state.activeTurnId)
-        const newest = [...current].reverse().find((item) => !item.agentId)
+        const compaction = current.findLast(
+          (item) => !item.agentId && item.kind === 'compaction' && item.status === 'running'
+        )
+        const waitingOnCompact =
+          compaction &&
+          (current
+            .slice(current.indexOf(compaction) + 1)
+            .some((item) => item.kind === 'user_message' && !item.from) ||
+            (yield* requireThread(threadId)).pendingMessages?.some((message) => !message.from))
+        const conversationTurns = new Map<string, boolean>()
+        for (const item of state.items) {
+          if (item.agentId) continue
+          if (!conversationTurns.has(item.turnId))
+            conversationTurns.set(item.turnId, item.kind !== 'compaction')
+          else if (item.kind === 'user_message') conversationTurns.set(item.turnId, true)
+        }
+        const lastConversation = Object.entries(state.turnOutcomes).findLast(([turnId]) =>
+          conversationTurns.get(turnId)
+        )
         const turn = state.activeTurnId && botTurnActivity(current, state.activeTurnId)
         const activity: Bot['activity'] =
-          !active || asking || !turn
-            ? 'idle'
-            : newest?.kind === 'compaction' && newest.status === 'running'
-              ? 'tidying'
-              : turn === 'quiet'
-                ? 'idle'
-                : turn
+          active && waitingOnCompact
+            ? 'tidying'
+            : !active || asking || !turn || turn === 'quiet'
+              ? 'idle'
+              : turn
         return {
           id: row.id,
           name: row.name,
@@ -1057,9 +1110,9 @@ export function createStore() {
           tasks: yield* listBotTasks(row.id),
           activity,
           needsYou,
-          failed: state.lastTurnOutcome === 'failed',
+          failed: lastConversation?.[1] === 'failed',
           unread:
-            !active &&
+            (!state.activeTurnId || quietTurn(state.items, state.activeTurnId)) &&
             state.items.some(
               (item) =>
                 item.kind === 'assistant_message' &&
@@ -1213,6 +1266,49 @@ export function createStore() {
           Effect.asVoid,
           Effect.mapError(storeError)
         )
+      },
+      getBotLifecycle,
+      updateBotLifecycle,
+      getLastUserMessageAt() {
+        return Effect.gen(function* () {
+          lastUserMessageAt ??= (yield* readSetting<number>('last_user_message_at')) ?? 0
+          return lastUserMessageAt
+        })
+      },
+      noteUserMessage() {
+        return Effect.gen(function* () {
+          lastUserMessageAt = Date.now()
+          yield* writeSetting('last_user_message_at', lastUserMessageAt)
+        })
+      },
+      getCompactAnchor(threadId: string) {
+        return readSetting<string>(`compact_anchor.${threadId}`)
+      },
+      setCompactAnchor(threadId: string, anchor: string | undefined) {
+        return writeSetting(`compact_anchor.${threadId}`, anchor)
+      },
+      missingWorkerReport(threadId: string, since: number) {
+        return Effect.gen(function* () {
+          const [turn] = yield* sql<{ turn_id: string; ts: number; payload_json: string }>`
+            SELECT json_extract(payload_json, '$.turnId') AS turn_id, ts, payload_json
+            FROM thread_events WHERE thread_id = ${threadId}
+            AND json_extract(payload_json, '$.type') IN ('turn.completed', 'turn.failed')
+            ORDER BY seq DESC LIMIT 1`
+          if (!turn || turn.ts <= since) return null
+          const [report] = yield* sql`SELECT 1 FROM orchestration_requests
+            WHERE caller_id = ${threadId} AND request_id = ${`report:${threadId}:${turn.turn_id}`}
+              AND operation = 'report'`
+          if (report) return null
+          const event = JSON.parse(turn.payload_json) as Extract<
+            ThreadEvent,
+            { type: 'turn.completed' | 'turn.failed' }
+          >
+          return event.type === 'turn.completed'
+            ? 'finished'
+            : event.error === 'interrupted'
+              ? 'stopped'
+              : 'failed'
+        }).pipe(Effect.mapError(storeError))
       },
       listBots() {
         return Effect.gen(function* () {
