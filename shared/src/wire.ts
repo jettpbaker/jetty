@@ -441,8 +441,8 @@ export const BotTask = Schema.Struct({
 })
 export type BotTask = Schema.Schema.Type<typeof BotTask>
 
-// A bot's chat is the thread with the bot's id: subscribe, interrupt and answer its questions
-// through the thread methods. That thread never appears in chrome's thread list.
+// An Always allowed rule, worded as the bot's settings list it; source is the approval it was
+// saved from, absent for one written by hand.
 export const BotAllowRule = Schema.Struct({
   id: Schema.String,
   text: Schema.String.check(Schema.isMinLength(1)),
@@ -451,6 +451,8 @@ export const BotAllowRule = Schema.Struct({
 })
 export type BotAllowRule = Schema.Schema.Type<typeof BotAllowRule>
 
+// A bot's chat is the thread with the bot's id: subscribe, interrupt and answer its questions
+// through the thread methods. That thread never appears in chrome's thread list.
 export const Bot = Schema.Struct({
   id: BotId,
   name: Schema.String,

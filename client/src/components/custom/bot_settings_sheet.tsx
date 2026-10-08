@@ -2,16 +2,27 @@ import type { Bot } from '@jetty/shared/wire'
 
 import { BotAvatar } from '@/components/custom/bot_avatar'
 import { Cancel01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
+import { FullAccessLabel, Row } from '@/components/custom/new_bot_dialog'
+import { ProviderGlyph } from '@/components/custom/provider_glyph'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { useSetBotAllowRules } from '@/state'
+import { describeLoadout } from '@/lib/loadout'
+import { useModels, useSetBotAllowRules } from '@/state'
+import { catalogModelName } from '@jetty/shared/model-name'
 import { useState } from 'react'
 
 export function BotSettingsSheet({ bot }: { bot: Bot }) {
   const [text, setText] = useState('')
   const setRules = useSetBotAllowRules()
+  const models = useModels()
   const rules = bot.allowRules ?? []
   function addRule() {
     if (!text.trim()) return
@@ -30,12 +41,19 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
       >
         <SidebarLeftIcon className='rotate-180' />
       </SheetTrigger>
-      <SheetContent className='gap-[22px] overflow-y-auto p-6 data-[side=right]:w-[440px] data-[side=right]:max-w-full'>
-        <SheetHeader className='p-0'>
-          <SheetTitle className='flex items-center gap-2.5'>
+      <SheetContent
+        showCloseButton={false}
+        className='gap-[22px] overflow-y-auto p-6 data-[side=right]:w-[440px] data-[side=right]:sm:max-w-full'
+      >
+        <SheetHeader className='flex-row items-center justify-between p-0'>
+          <SheetTitle className='flex items-center gap-2.5 text-base'>
             <BotAvatar bot={bot} size={22} unread={false} />
             {bot.name} settings
           </SheetTitle>
+          <SheetClose render={<Button variant='ghost' size='icon-sm' className='-mr-1.5' />}>
+            <Cancel01Icon />
+            <span className='sr-only'>Close</span>
+          </SheetClose>
         </SheetHeader>
         <div className='flex flex-col gap-4'>
           <div className='flex flex-col items-center gap-1'>
@@ -49,20 +67,20 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
             <span className='py-1 text-base font-medium'>{bot.name}</span>
           </div>
           <div className='flex flex-col'>
-            <div className='flex h-8 items-center justify-between gap-3'>
-              <span>Model</span>
-              <Button variant='ghost-text' size='sm' disabled>
-                {bot.model} {bot.effort}
+            <Row label='Model'>
+              <Button variant='ghost' size='sm' disabled className='gap-1.5 rounded-sm'>
+                <ProviderGlyph provider={bot.provider} className='size-3' />
+                {catalogModelName(models, bot.provider, bot.model)}
+                <span>{describeLoadout(bot)}</span>
               </Button>
-            </div>
-            <div className='flex h-8 items-center justify-between gap-3'>
-              <span>Full access</span>
+            </Row>
+            <Row label={<FullAccessLabel />}>
               <Switch
                 aria-label='Full access'
                 checked={bot.permissionMode === 'full_access'}
                 disabled
               />
-            </div>
+            </Row>
           </div>
         </div>
         <div className='flex flex-col gap-2'>
@@ -79,7 +97,9 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
                 className='flex items-center gap-2 border-b border-border py-2 pr-[5px] pl-[11px]'
               >
                 <div className='flex min-w-0 grow flex-col gap-0.5'>
-                  <div className='break-words text-[13px]'>{rule.text}</div>
+                  <div className='text-13 break-words'>
+                    <RuleText text={rule.text} />
+                  </div>
                   <div className='text-xs text-muted-foreground'>
                     {rule.source ? `From ${rule.source}` : 'Written by you'} ·{' '}
                     {new Date(rule.createdAt).toLocaleDateString('en-AU', {
@@ -103,29 +123,35 @@ export function BotSettingsSheet({ bot }: { bot: Bot }) {
                 </Button>
               </div>
             ))}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                addRule()
+            <input
+              aria-label='Add a rule in plain words'
+              placeholder='Add a rule in plain words…'
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  addRule()
+                }
               }}
-              className='flex min-h-9 items-center px-[11px] py-2'
-            >
-              <Input
-                aria-label='Add a rule in plain words'
-                placeholder='Add a rule in plain words…'
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                className='h-auto rounded-none border-0 p-0 text-[13px] shadow-none md:text-[13px]'
-              />
-              {text.trim() && (
-                <Button size='xs' variant='ghost-text' type='submit'>
-                  Add
-                </Button>
-              )}
-            </form>
+              className='min-h-9 bg-transparent px-[11px] py-2 text-13 outline-none placeholder:text-muted-foreground'
+            />
           </div>
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+// A rule's `command` reads in mono, as the approval card showed it.
+function RuleText({ text }: { text: string }) {
+  return text.split('`').map((part, index) =>
+    index % 2 ? (
+      <span key={index} className='font-mono text-xs'>
+        {part}
+      </span>
+    ) : (
+      part
+    )
   )
 }

@@ -42,6 +42,7 @@ import {
   type TurnInput,
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
+import { botApproval, botAutoMode, type BotPlace } from './bot-approval'
 import { botInstructions } from './bot-home'
 import { createBackgroundTasks, type BackgroundTasks } from './claude-background'
 import { claudeBin } from './claude-bin'
@@ -79,6 +80,8 @@ type PendingApproval = {
   result: Deferred.Deferred<PermissionResult>
   input: Record<string, unknown>
   suggestions?: PermissionUpdate[]
+  // what a bot's Allow always saves
+  rule?: { text: string; source: string }
 }
 
 const alwaysScopes = {
@@ -103,14 +106,6 @@ function alwaysFrom(suggestions: PermissionUpdate[] | undefined) {
   return { always: { scope: alwaysScopes[first.destination], patterns } }
 }
 
-function botApprovalTitle(toolName: string, input: Record<string, unknown>, title?: string) {
-  if (typeof input.description === 'string' && input.description.trim()) return input.description
-  if (title && title !== toolName) return title
-  if (typeof input.command === 'string') return `Run ${input.command}`
-  const path = input.file_path ?? input.path ?? input.notebook_path
-  return typeof path === 'string' ? `${toolName} ${path}` : toolName
-}
-
 type SessionOptions = {
   model: string | undefined
   effort: EffortLevel | undefined
@@ -120,6 +115,7 @@ type SessionOptions = {
 type WarmSession = {
   threadId: string
   bot: boolean
+  places: readonly BotPlace[]
   instructionsHash: string | undefined
   query: Query
   usageIdentity: string | undefined
@@ -668,22 +664,21 @@ export function createClaudeAdapter(
             } else {
               const changes = approvalChanges(toolName, toolInput)
               const toolCallId = toolCallItemId(session.ctx, options.toolUseID, toolName, agentId)
+              const bot =
+                session.bot &&
+                botApproval(toolName, toolInput, options.suggestions ?? [], session.places)
               session.pendingApprovals.set(itemId, {
                 result,
                 input: toolInput,
                 suggestions: options.suggestions,
+                ...(bot ? { rule: { text: bot.rule, source: bot.title } } : {}),
               })
               yield* session.emit({
                 type: 'item.started',
                 item: {
                   ...base,
                   kind: 'approval',
-                  title:
-                    toolName === 'mcp__jetty__add_project'
-                      ? `Add ${String(toolInput.path)} as a project`
-                      : session.bot
-                        ? botApprovalTitle(toolName, toolInput, options.title)
-                        : (options.title ?? toolName),
+                  title: bot ? bot.title : (options.title ?? toolName),
                   toolName,
                   ...(toolCallId ? { toolCallId } : {}),
                   input: changes.length ? approvalInputWithoutChanges(toolInput) : toolInput,
@@ -862,18 +857,7 @@ export function createClaudeAdapter(
                     ...(instructions ? { append: instructions } : {}),
                   },
                   settingSources: ['user', 'project', 'local'],
-                  ...(bot
-                    ? {
-                        settings: {
-                          autoMode: {
-                            allow: [
-                              '$defaults',
-                              ...(bot.allowRules ?? []).map((rule) => rule.text),
-                            ],
-                          },
-                        },
-                      }
-                    : {}),
+                  ...(bot ? { settings: botAutoMode(bot.name, bot.allowRules ?? []) } : {}),
                   model: options.model,
                   effort: options.effort,
                   permissionMode: options.permissionMode,
@@ -962,6 +946,12 @@ export function createClaudeAdapter(
         session = {
           threadId: input.threadId,
           bot: bot !== null,
+          places: bot
+            ? [
+                { path: projectPath, name: 'its home' },
+                ...projects.map((project) => ({ path: project.path, name: project.title })),
+              ]
+            : [],
           instructionsHash,
           query: q,
           usageIdentity: typeof q.accountInfo === 'function' ? usageIdentity : undefined,
@@ -1197,12 +1187,15 @@ export function createClaudeAdapter(
       setBotAllowRules(threadId, rules) {
         const session = sessions.get(threadId)
         if (!session || !session.bot) return Effect.void
-        return Effect.tryPromise({
-          try: () =>
-            session.query.applyFlagSettings({
-              autoMode: { allow: ['$defaults', ...rules.map((rule) => rule.text)] },
-            }),
-          catch: (error) => new AgentError(String(error)),
+        return Effect.gen(function* () {
+          const bot = yield* store
+            .getBot(threadId)
+            .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          if (!bot) return
+          yield* Effect.tryPromise({
+            try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
+            catch: (error) => new AgentError(String(error)),
+          })
         })
       },
       respondToApproval(threadId, itemId, decision, message) {
@@ -1227,32 +1220,15 @@ export function createClaudeAdapter(
                 },
           (session, pending) =>
             Effect.gen(function* () {
-              if (!session.bot || decision !== 'always') return
+              if (!pending.rule || decision !== 'always') return
               const bot = yield* store
                 .getBot(threadId)
                 .pipe(Effect.mapError((error) => new AgentError(error.message)))
               if (!bot) return
-              const state = yield* store
-                .getThreadState(threadId)
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
-              const item = state.items.find((item) => item.id === itemId)
-              if (item?.kind !== 'approval') return
-              const command =
-                typeof pending.input.command === 'string'
-                  ? pending.input.command
-                  : JSON.stringify(pending.input)
-              const rule = {
-                id: itemId,
-                text: `${bot.name} may ${item.title} with ${command}`,
-                source: item.title,
-                createdAt: Date.now(),
-              }
+              const rule = { id: itemId, ...pending.rule, createdAt: Date.now() }
               const rules = [...(bot.allowRules ?? []).filter((rule) => rule.id !== itemId), rule]
               yield* Effect.tryPromise({
-                try: () =>
-                  session.query.applyFlagSettings({
-                    autoMode: { allow: ['$defaults', ...rules.map((rule) => rule.text)] },
-                  }),
+                try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
                 catch: (error) => new AgentError(String(error)),
               })
               yield* store

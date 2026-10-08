@@ -275,24 +275,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
                 />
               )}
             </Row>
-            <Row
-              label={
-                <span className='flex items-start gap-0.5'>
-                  Full access
-                  <Tooltip>
-                    <TooltipTrigger
-                      aria-label='About full access'
-                      className='relative -mt-0.5 flex rounded-full text-muted-foreground before:absolute before:-inset-1.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
-                    >
-                      <InformationCircleIcon className='size-2.5' />
-                    </TooltipTrigger>
-                    <TooltipContent className='max-w-56'>
-                      Never stops to ask. Off, it stops before anything risky.
-                    </TooltipContent>
-                  </Tooltip>
-                </span>
-              }
-            >
+            <Row label={<FullAccessLabel />}>
               <Switch
                 aria-label='Full access'
                 checked={access === 'full_access'}
@@ -317,7 +300,26 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   )
 }
 
-function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
+export function FullAccessLabel() {
+  return (
+    <span className='flex items-start gap-0.5'>
+      Full access
+      <Tooltip>
+        <TooltipTrigger
+          aria-label='About full access'
+          className='relative -mt-0.5 flex rounded-full text-muted-foreground before:absolute before:-inset-1.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+        >
+          <InformationCircleIcon className='size-2.5' />
+        </TooltipTrigger>
+        <TooltipContent className='max-w-56'>
+          Never stops to ask. Off, it stops before anything risky.
+        </TooltipContent>
+      </Tooltip>
+    </span>
+  )
+}
+
+export function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className='flex h-8 items-center justify-between gap-3'>
       <span className='shrink-0 text-13'>{label}</span>

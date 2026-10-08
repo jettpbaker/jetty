@@ -342,6 +342,7 @@ describe('scoped Claude sessions', () => {
     await f.start()
     const q = f.queries[0]!
     expect(q.options.settings).toEqual({ autoMode: { allow: ['$defaults', saved.text] } })
+    const rule = 'Verify may close the two v16 issues with `gh issue close`'
     const input = {
       command: 'gh issue close 212 214 --reason completed',
       description: 'Close the two v16 issues',
@@ -374,10 +375,10 @@ describe('scoped Claude sessions', () => {
     expect(await callback).toEqual({ behavior: 'allow', updatedInput: input })
     const bot = await f.runtime.runPromise(f.store.getBot(f.thread.id))
     expect(bot?.allowRules?.[1]?.source).toBe(input.description)
-    expect(bot?.allowRules?.[1]?.text).toBe(`Verify may ${input.description} with ${input.command}`)
+    expect(bot?.allowRules?.[1]?.text).toBe('Close the two v16 issues with `gh issue close`')
     expect(q.controls).toContainEqual([
       'applyFlagSettings',
-      { autoMode: { allow: ['$defaults', ...bot!.allowRules!.map((rule) => rule.text)] } },
+      { autoMode: { allow: ['$defaults', saved.text, rule] } },
     ])
     await f.runtime.runPromise(f.orch.setBotAllowRules(f.thread.id, []))
     expect(q.controls.at(-1)).toEqual(['applyFlagSettings', { autoMode: { allow: ['$defaults'] } }])

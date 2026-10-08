@@ -61,7 +61,7 @@ function BotApprovalCard({
   return (
     <div className={cardClass}>
       <div className='flex flex-col gap-0.5'>
-        <div className='text-sm leading-[22.75px]'>{item.title}</div>
+        <div className='text-sm leading-[22.75px]'>{item.title.replace(/[.!?…]*$/, '?')}</div>
         <div className='flex min-w-0 items-center gap-1.5 text-sm'>
           <span className='shrink-0 text-muted-foreground'>{view.run ? 'Run' : view.action}</span>
           <span className='min-w-0 break-all font-mono text-xs'>{command}</span>
@@ -78,7 +78,13 @@ function BotApprovalCard({
           Deny
         </Button>
         <div className={cn('flex shrink-0 items-center gap-1', botAccentClass)}>
-          <Button size='sm' variant='secondary' onClick={() => respond(bot.id, item.id, 'always')}>
+          <Button
+            size='sm'
+            variant='secondary'
+            // Secondary is the card's own muted fill; Allow always takes the accent step above it.
+            className='[--secondary:var(--accent)]'
+            onClick={() => respond(bot.id, item.id, 'always')}
+          >
             Allow always
           </Button>
           <Button size='sm' onClick={() => respond(bot.id, item.id, 'allow')}>
