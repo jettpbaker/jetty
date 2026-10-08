@@ -532,6 +532,7 @@ test('agent startup failure after a durable user batch retains its referenced at
       expect(events.map(({ event }) => event.type)).toEqual([
         'item.started',
         'item.completed',
+        'item.started',
         'turn.failed',
       ])
       const item = events[0]!.event

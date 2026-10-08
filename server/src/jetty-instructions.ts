@@ -89,6 +89,13 @@ function escapeAttribute(value: string) {
 export const CHILD_REPORT_INSTRUCTION =
   "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, ask it with ask_parent. Mention the attachment ids of any images or videos you showed, so it can re-post them."
 
+export function quietChangeInstruction(branch: string) {
+  return `This is a quiet change: it lands straight on ${branch}, with no branch or pull request of its own. When it's done and checked, commit it and push it with \`git push origin HEAD:${branch}\`. If the push is rejected because ${branch} moved, rebase onto origin/${branch} and push again. If it's refused for any other reason, such as branch protection, don't open a pull request: say so in your final message.`
+}
+
+export const READ_ONLY_INSTRUCTION =
+  "This thread is read-only: it reads the project checkout, which the user and other threads share, and doesn't change anything there. Don't edit files, commit, or run commands that write. If the answer needs a change, describe it in your final message."
+
 export const REPORT_CAP = 20_000
 
 export type ReportOutcome =

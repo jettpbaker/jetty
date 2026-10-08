@@ -753,6 +753,7 @@ export function createRpcHandlers(
               )
           }
           yield* mutation(store.markBotSeen(params.botId))
+          orch.botUserMessage(params.botId)
           const fiber = yield* Effect.forkIn(
             orch.startTurnEffect({
               threadId: params.botId,

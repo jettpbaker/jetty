@@ -1,7 +1,7 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
-import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Cause, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
 import type { McpSessions } from './mcp-sessions'
@@ -99,9 +99,13 @@ export function grokArgs(input: TurnInput) {
   return [
     '--no-plan',
     '--permission-mode',
-    input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
+    input.readOnly
+      ? 'default'
+      : input.permissionMode === 'full_access'
+        ? 'bypassPermissions'
+        : 'auto',
     '--sandbox',
-    input.permissionMode === 'full_access' ? 'off' : 'workspace',
+    !input.readOnly && input.permissionMode === 'full_access' ? 'off' : 'workspace',
     'agent',
     '--no-leader',
     'stdio',
@@ -234,6 +238,38 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         }
         const itemId = newId()
         const base = { id: itemId, turnId: session.input.turnId, createdAt: Date.now() }
+        if (
+          (method === 'x.ai/hooks/run' || method === '_x.ai/hooks/run') &&
+          session.input.readOnly
+        ) {
+          const read =
+            [
+              'read_file',
+              'list_dir',
+              'grep',
+              'web_search',
+              'web_fetch',
+              'todo_write',
+              'ask_user_question',
+            ].includes(string(params.toolName)) ||
+            SELF_TOOLS.some(
+              (name) =>
+                params.toolName === `jetty__${name}` ||
+                params.toolName === `mcp__jetty__${name}` ||
+                (params.toolName === 'use_tool' &&
+                  object(params.toolInput).tool_name === `jetty__${name}`)
+            )
+          yield* connection.respond(
+            id,
+            read
+              ? { decision: 'continue' }
+              : {
+                  decision: 'deny',
+                  systemMessage: 'This thread is read-only. Only read tools are allowed.',
+                }
+          )
+          return
+        }
         if (method === 'session/request_permission') {
           const options = Array.isArray(params.options) ? params.options.map(object) : []
           const tool = object(params.toolCall)
@@ -371,6 +407,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             env,
           }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
+          if (session.input.readOnly) {
+            const events = object(
+              object(object(init.agentCapabilities)._meta)['x.ai/hooks']
+            ).blockingEvents
+            if (!Array.isArray(events) || !events.includes('pre_tool_use'))
+              return yield* Effect.fail(new AgentError('Grok cannot enforce read-only tool access'))
+          }
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'grok')
           if (resume && object(init.agentCapabilities).loadSession !== true)
             return yield* Effect.fail(
@@ -389,7 +432,14 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 ]
               : [],
             ...(resume ? { sessionId: resume } : {}),
-            ...(rules ? { _meta: { rules } } : {}),
+            _meta: {
+              ...(rules ? { rules } : {}),
+              ...(session.input.readOnly
+                ? {
+                    'x.ai/hooks': { pre_tool_use: [{ hookCallbackIds: ['jetty-read-only'] }] },
+                  }
+                : {}),
+            },
           })
           const sessionId = resume ?? string(result.sessionId)
           if (!sessionId) return yield* Effect.fail(new AgentError('Grok returned no session id'))
@@ -702,7 +752,10 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             projectPath: project.path,
           }).pipe(
             Effect.onInterrupt(() => cleanup(session.reason ?? 'server shutdown')),
-            Effect.onError((cause) => cleanup(`Grok session failed: ${String(cause)}`, true)),
+            Effect.onError((cause) => {
+              const error = Cause.squash(cause)
+              return cleanup(error instanceof Error ? error.message : String(error), true)
+            }),
             Effect.ensuring(
               Effect.sync(() => {
                 if (sessions.get(input.threadId) === session) sessions.delete(input.threadId)

@@ -694,6 +694,13 @@ export function createWorktrees(
 
   return {
     branches,
+    setupGuide,
+    hasOrigin,
+    defaultRef,
+    configured: async (cwd: string) => {
+      const top = await tryGit(cwd, 'rev-parse', '--show-toplevel')
+      return Bun.file(join(top || cwd, CONFIG)).exists()
+    },
     defaultEnvironment,
     resolveRef: async (cwd: string, ref?: string) => {
       await requireGit(cwd)

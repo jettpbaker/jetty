@@ -114,7 +114,7 @@ async function botCaller() {
   return { home, store, id }
 }
 
-function toolNames(home: string, store: Store, callerId: string) {
+function toolDefinitions(home: string, store: Store, callerId: string) {
   return Effect.gen(function* () {
     const sessions = createMcpSessions()
     sessions.setUrl('http://127.0.0.1/mcp')
@@ -150,7 +150,10 @@ function toolNames(home: string, store: Store, callerId: string) {
             name: string
             description?: string
             _meta?: Record<string, unknown>
-            inputSchema: { properties: { k?: { default?: number } } }
+            inputSchema: {
+              properties: Record<string, unknown> & { k?: { default?: number } }
+              required?: string[]
+            }
           }[]
         }
       }
@@ -166,13 +169,13 @@ function toolNames(home: string, store: Store, callerId: string) {
         expect(tool.inputSchema.properties.k?.default).toBe(5)
       }
     }
-    return tools.map((tool) => tool.name)
+    return tools
   }).pipe(Effect.scoped, Effect.provide(BunServices.layer))
 }
 
 test('bots only receive their own safe tools', async () => {
   const { home, store, id } = await botCaller()
-  const names = await Effect.runPromise(toolNames(home, store, id))
+  const names = (await Effect.runPromise(toolDefinitions(home, store, id))).map((tool) => tool.name)
   expect(names).toContain('say')
   expect(names).not.toContain('tell_user')
   expect(names).toContain('react')
@@ -189,7 +192,9 @@ test('bots only receive their own safe tools', async () => {
   )
   const worker = await Effect.runPromise(store.createThread(project!.id, 'Worker'))
   await Effect.runPromise(store.markAgentThread(worker.id, id, true))
-  const workerTools = await Effect.runPromise(toolNames(home, store, worker.id))
+  const workerTools = (await Effect.runPromise(toolDefinitions(home, store, worker.id))).map(
+    (tool) => tool.name
+  )
   expect(workerTools).not.toContain('search_wiki')
   expect(workerTools).not.toContain('search_threads')
   for (const forbidden of [
@@ -504,4 +509,20 @@ test('archive_thread reaches any idle thread, and stop_thread stays on direct ch
   const stopChild = await tool('stop_thread', child.id)
   expect(stopChild.isError).toBeUndefined()
   expect(stopped).toEqual([child.id])
+})
+
+test('only a bot gets create_thread quiet options and an optional prompt', async () => {
+  const { home, store, id } = await botCaller()
+  const project = await Effect.runPromise(store.createProject(home))
+  const ordinary = await Effect.runPromise(store.createThread(project.id, newId()))
+  const worker = await Effect.runPromise(store.createThread(project.id, newId()))
+  await Effect.runPromise(store.markAgentThread(worker.id, id, true))
+  for (const callerId of [id, ordinary.id, worker.id]) {
+    const tool = (await Effect.runPromise(toolDefinitions(home, store, callerId))).find(
+      (tool) => tool.name === 'create_thread'
+    )!
+    for (const option of ['quiet', 'read_only', 'wait', 'setup_worktrees'])
+      expect(option in tool.inputSchema.properties).toBe(callerId === id)
+    expect(tool.inputSchema.required?.includes('prompt') ?? false).toBe(callerId !== id)
+  }
 })

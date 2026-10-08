@@ -586,6 +586,8 @@ function createServer(opts: ServerOptions = {}) {
         port,
         hostname,
         disablePreemptiveShutdown: true,
+        // MCP waits can be idle for ten minutes when the client sends no progress token.
+        idleTimeout: 0,
         websocket: { maxPayloadLength: MAX_TURN_PAYLOAD_BYTES, perMessageDeflate: true },
       })
     ).pipe(Effect.provideService(Scope.Scope, transportScope))

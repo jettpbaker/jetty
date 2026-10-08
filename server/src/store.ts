@@ -3,6 +3,7 @@ import {
   botTurnActivity,
   CLOSED_TASK_SHOWN_MS,
   shownInBotChat,
+  WAIT_NOTES,
 } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
 import { Attachment, heldByRestarts } from '@jetty/shared/items'
@@ -45,7 +46,8 @@ import type { GuideMetrics } from './pr-guide'
 import type { PullRequestWatchMemory } from './pull-request-watch'
 
 import { normalizePath } from './fs-browse'
-import { childReport, restartNote, type ReportOutcome } from './jetty-instructions'
+import { childReport, REPORT_CAP, restartNote, type ReportOutcome } from './jetty-instructions'
+import { needsUser, type ChildWaitResult } from './quiet-threads'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
@@ -56,6 +58,7 @@ export type AppendedEvent = {
   ts: number
   event: ThreadEvent
   state: ThreadState
+  surfaced: boolean
   prevStatus: SessionStatus
   thread: ThreadMeta
 }
@@ -98,6 +101,9 @@ type ThreadRow = {
   pending_messages: string
   awaiting_parent: number
   bot_id: string | null
+  quiet: number
+  read_only: number
+  lands_on: string | null
 }
 
 type BotRow = {
@@ -202,6 +208,8 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     id: row.id,
     projectId: row.project_id,
     environment: row.environment,
+    ...(row.quiet ? { quiet: true } : {}),
+    ...(row.read_only ? { readOnly: true } : {}),
     ...(worktree?.checkoutPath ? { workingPath: worktree.checkoutPath } : {}),
     ...(git?.branch
       ? {
@@ -580,6 +588,14 @@ export function createStore() {
       })
     }
 
+    function getLandsOn(threadId: string) {
+      return sql<{
+        lands_on: string | null
+      }>`SELECT lands_on FROM threads WHERE id = ${threadId}`.pipe(
+        Effect.map(([row]) => row?.lands_on ?? null)
+      )
+    }
+
     function notifiesParent(threadId: string) {
       return sql<{
         notify_parent: number
@@ -644,17 +660,17 @@ export function createStore() {
     // A question from ask_parent is reported in place of the turn's final message. It reaches the
     // parent however the turn started and even when the parent isn't notified, since it was asked,
     // and as soon as the turn ends: a report also waits for background work and busy children.
-    function reportSettledChild(threadId: string, working = false) {
+    function reportSettledChild(threadId: string, working = false, wait = false) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.createdBy !== 'agent' || !thread.parentThreadId) return { delivered: false }
         const question = yield* parentQuestion(threadId)
-        if (!question && (working || !(yield* notifiesParent(threadId))))
+        if (!question && (working || (!wait && !(yield* notifiesParent(threadId)))))
           return { delivered: false }
         const { state } = yield* loadThread(threadId)
         if (state.activeTurnId) return { delivered: false }
         const turn = yield* latestFinishedTurn(threadId)
-        if (!turn || (!question && turn.initiator_thread_id !== thread.parentThreadId))
+        if (!turn || (!question && !wait && turn.initiator_thread_id !== thread.parentThreadId))
           return { delivered: false }
         const event = JSON.parse(turn.payload_json) as Extract<
           ThreadEvent,
@@ -739,17 +755,43 @@ export function createStore() {
               !item.private &&
               item.text.trim()
           )
+        const closing = final
+          .map((item) => (item.kind === 'assistant_message' ? item.text.trim() : ''))
+          .join('\n\n')
+        if (wait) {
+          const report = closing.slice(0, REPORT_CAP)
+          const waited: ChildWaitResult =
+            outcome.type === 'asked'
+              ? { status: 'asked', question: outcome.question, detail: WAIT_NOTES.asked }
+              : outcome.type === 'finished'
+                ? { status: 'finished', report }
+                : outcome.type === 'interrupted'
+                  ? { status: 'interrupted' }
+                  : outcome.type === 'failed'
+                    ? {
+                        status: 'failed',
+                        error: outcome.error,
+                        ...(report && { report }),
+                      }
+                    : {
+                        status: 'failed',
+                        error: 'server_restarted',
+                        ...(report && { report }),
+                      }
+          yield* sql`INSERT OR IGNORE INTO orchestration_requests VALUES (${threadId}, ${reportId}, 'report', ${JSON.stringify({ threadId: parent.id })})`
+          yield* sql`UPDATE threads SET parent_question = NULL, awaiting_parent = ${question ? 1 : 0} WHERE id = ${threadId}`
+          return { delivered: true, waited }
+        }
         const text = childReport({
           threadId,
           title: thread.title,
           outcome,
           branch:
-            thread.environment === 'worktree'
+            (yield* getLandsOn(threadId)) ??
+            (thread.environment === 'worktree'
               ? (thread.worktree?.branch ?? thread.git?.branch ?? 'unavailable')
-              : null,
-          message: final
-            .map((item) => (item.kind === 'assistant_message' ? item.text.trim() : ''))
-            .join('\n\n'),
+              : null),
+          message: closing,
           messageId: final.at(-1)?.id,
         })
         const summary = {
@@ -838,7 +880,12 @@ export function createStore() {
             : validated.type === 'turn.completed' || validated.type === 'turn.failed'
               ? ts
               : (thread.turnEndedAt ?? null)
-        yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts},
+        const surface =
+          thread.quiet &&
+          ((validated.type === 'turn.failed' && validated.error !== 'server_restarted') ||
+            needsUser(thread, state))
+        yield* sql`UPDATE threads SET quiet = CASE WHEN ${surface ? 1 : 0} THEN 0 ELSE quiet END,
+          status = ${state.status}, updated_at = ${ts},
           turn_started_at = ${turnStartedAt}, turn_ended_at = ${turnEndedAt} WHERE id = ${threadId}`
         return {
           seq,
@@ -846,8 +893,10 @@ export function createStore() {
           event: validated,
           state,
           prevStatus: prev.status,
+          surfaced: Boolean(surface),
           thread: {
             ...thread,
+            ...(surface ? { quiet: undefined } : {}),
             pullRequests: [],
             status: state.status,
             updatedAt: ts,
@@ -920,7 +969,7 @@ export function createStore() {
         const newest = [...current].reverse().find((item) => !item.agentId)
         const turn = state.activeTurnId && botTurnActivity(current, state.activeTurnId)
         const activity: Bot['activity'] =
-          !active || needsYou || !turn
+          !active || !turn
             ? 'idle'
             : newest?.kind === 'compaction' && newest.status === 'running'
               ? 'tidying'
@@ -1259,7 +1308,8 @@ export function createStore() {
         )
       },
       saveWorktree(threadId: string, record: WorktreeRecord) {
-        return sql`UPDATE threads SET worktree_json = ${JSON.stringify(record)} WHERE id = ${threadId}`.pipe(
+        return sql`UPDATE threads SET worktree_json = ${JSON.stringify(record)},
+          quiet = CASE WHEN ${record.state === 'failed' ? 1 : 0} THEN 0 ELSE quiet END WHERE id = ${threadId}`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )
@@ -1678,6 +1728,15 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      setQuietThread(threadId: string, readOnly: boolean, landsOn: string | null) {
+        return sql`UPDATE threads SET quiet = 1, read_only = ${readOnly ? 1 : 0}, lands_on = ${landsOn} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      getLandsOn(threadId: string) {
+        return getLandsOn(threadId).pipe(Effect.mapError(storeError))
+      },
       createThread(projectId: string, id: string) {
         return Effect.gen(function* () {
           const projects = yield* sql`SELECT id FROM projects WHERE id = ${projectId}`
@@ -1737,9 +1796,10 @@ export function createStore() {
       },
       pinThread(threadId: string, pinned: boolean) {
         return Effect.gen(function* () {
-          const existing = yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET pinned = ${pinned ? 1 : 0} WHERE id = ${threadId}`
-          return { ...existing, pinned }
+          yield* requireThread(threadId)
+          yield* sql`UPDATE threads SET pinned = ${pinned ? 1 : 0},
+            quiet = CASE WHEN ${pinned ? 1 : 0} THEN 0 ELSE quiet END WHERE id = ${threadId}`
+          return yield* requireThread(threadId)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       deleteThread(threadId: string) {
@@ -1860,8 +1920,9 @@ export function createStore() {
           if (!had)
             yield* sql`INSERT OR IGNORE INTO thread_pull_requests (thread_id, repo, number, linked_at)
               VALUES (${threadId}, ${repo}, ${number}, ${Date.now()})`
+          yield* sql`UPDATE threads SET quiet = 0 WHERE id = ${threadId}`
           const changed: ThreadMeta[] = []
-          if (!had) changed.push(yield* requireThread(threadId))
+          if (!had || current.quiet) changed.push(yield* requireThread(threadId))
           for (const row of others) {
             const thread = yield* getThread(row.thread_id)
             if (thread) changed.push(thread)
@@ -2164,7 +2225,7 @@ export function createStore() {
       markThreadSeen(threadId: string) {
         return Effect.gen(function* () {
           yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET ready_for_review = 0 WHERE id = ${threadId}`
+          yield* sql`UPDATE threads SET ready_for_review = 0, quiet = 0 WHERE id = ${threadId}`
           return yield* requireThread(threadId)
         }).pipe(Effect.mapError(storeError))
       },

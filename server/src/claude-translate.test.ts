@@ -59,6 +59,49 @@ describe('translate()', () => {
     }
   )
 
+  test('a quiet wait result still completes its tool after a heartbeat', () => {
+    const ctx = createTranslateCtx('turn')
+    const itemId = startedItemId(
+      translate(
+        {
+          type: 'assistant',
+          message: {
+            content: [
+              {
+                type: 'tool_use',
+                id: 'wait',
+                name: 'mcp__jetty__create_thread',
+                input: { read_only: true, wait: true, prompt: 'Read the config.' },
+              },
+            ],
+          },
+        },
+        ctx
+      )
+    )
+    translate(
+      { type: 'tool_progress', tool_use_id: 'wait-heartbeat-0', parent_tool_use_id: 'wait' },
+      ctx
+    )
+    const output = JSON.stringify({
+      threadId: 'worker',
+      status: 'finished',
+      report: 'Port is 4322.',
+    })
+    expect(
+      translate(
+        {
+          type: 'user',
+          message: { content: [{ type: 'tool_result', tool_use_id: 'wait', content: output }] },
+        },
+        ctx
+      )
+    ).toEqual([
+      { type: 'item.delta', itemId, delta: output },
+      { type: 'item.completed', itemId, patch: { status: 'succeeded' } },
+    ])
+  })
+
   test('init captures session id', () => {
     const ctx = createTranslateCtx('t1')
     const events = translate(

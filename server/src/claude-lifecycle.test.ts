@@ -1099,6 +1099,33 @@ describe('scoped Claude sessions', () => {
     await f.runtime.runPromise(turn.await)
   })
 
+  test('read-only Claude sessions remove editing tools on start and resume', async () => {
+    const f = await setup()
+    const first = await f.start('read', { readOnly: true })
+    expect(f.queries[0]!.options.disallowedTools).toEqual([
+      'EnterPlanMode',
+      'ExitPlanMode',
+      'Edit',
+      'Write',
+      'NotebookEdit',
+    ])
+    f.queries[0]!.push({ type: 'system', subtype: 'init', session_id: 'read-only-session' })
+    f.queries[0]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(first.await)
+    f.queries[0]!.rejectControls()
+    const resumed = await f.start('resume-read', { readOnly: true, model: 'sonnet' })
+    expect(f.queries[1]!.options.resume).toBe('read-only-session')
+    expect(f.queries[1]!.options.disallowedTools).toEqual([
+      'EnterPlanMode',
+      'ExitPlanMode',
+      'Edit',
+      'Write',
+      'NotebookEdit',
+    ])
+    f.queries[1]!.push({ type: 'result', subtype: 'success' })
+    await f.runtime.runPromise(resumed.await)
+  })
+
   test('settled sessions stay warm and apply model, effort and mode changes live, recycling with resume only if that fails', async () => {
     const f = await setup()
     const first = await f.start('first')

@@ -82,11 +82,11 @@ function threadOptions(
     cwd,
     model: input.model,
     serviceTier: input.fast ? 'fast' : 'default',
-    approvalPolicy: full ? 'never' : 'on-request',
+    approvalPolicy: input.readOnly || full ? 'never' : 'on-request',
     approvalsReviewer: 'user',
     developerInstructions: instructions,
-    sandbox: full ? 'danger-full-access' : 'workspace-write',
-    ...(!full && writableRoots.length
+    sandbox: input.readOnly ? 'read-only' : full ? 'danger-full-access' : 'workspace-write',
+    ...(!full && !input.readOnly && writableRoots.length
       ? { config: { 'sandbox_workspace_write.writable_roots': writableRoots } }
       : {}),
   }

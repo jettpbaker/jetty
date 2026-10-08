@@ -1,3 +1,5 @@
+import type { ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
+
 import {
   SEARCH_WIKI_DESCRIPTION,
   SEARCH_THREADS_DESCRIPTION,
@@ -5,9 +7,21 @@ import {
   SEARCH_MAX_K,
   SEARCH_QUERY_MAX,
 } from '@jetty/shared/bot-search'
+import {
+  WAIT_CAP_MS,
+  WAIT_PROGRESS_MS,
+  type QuietThreadOptions,
+  type WaitedThread,
+} from '@jetty/shared/bots'
 import { heldByRestarts } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
-import { newId, type BotTask, type ProviderModel, type WireError } from '@jetty/shared/wire'
+import {
+  newId,
+  worktreeSetupPrompt,
+  type BotTask,
+  type ProviderModel,
+  type WireError,
+} from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { Effect, FileSystem, Path, Scope } from 'effect'
@@ -164,6 +178,40 @@ const createInput = z.object({
     ),
   requestId,
 })
+const botCreateInput = createInput.extend({
+  prompt: text
+    .optional()
+    .describe(
+      'Everything the child needs. It sees this and the project, not your conversation. Required unless setup_worktrees.'
+    ),
+  quiet: z
+    .boolean()
+    .optional()
+    .describe(
+      "Keep it out of the user's sidebar and your chat until it needs them (an approval, a question, a failure), opens a pull request, or they open it. A quiet change lands straight on the project's default branch: it works in a worktree from origin's default branch and pushes there, with no branch or pull request of its own."
+    ),
+  read_only: z
+    .boolean()
+    .optional()
+    .describe(
+      "Read without changing anything: it runs in the project checkout with no worktree, and can't edit files. Always quiet."
+    ),
+  wait: z
+    .boolean()
+    .optional()
+    .describe(
+      "Quiet threads only. Wait for its turn to end and get its final message back as this call's result. If it needs the user, after 10 minutes, or when the user messages you, the call returns early and its report reaches you when your turn ends."
+    ),
+  setup_worktrees: z
+    .boolean()
+    .optional()
+    .describe(
+      "For a project with no .jetty/worktree.json yet: start a thread in the project checkout on Jetty's own worktree setup instructions. Leave out prompt."
+    ),
+})
+type CreateThreadInput = Omit<z.infer<typeof createInput>, 'prompt'> &
+  QuietThreadOptions & { prompt?: string }
+
 const sendInput = z.object({
   threadId: z.string(),
   text,
@@ -267,9 +315,12 @@ export function createMcpHandler(
       return mode === 'full_access' ? 2 : 1
     }
 
-    function createThread(identity: McpIdentity, input: z.infer<typeof createInput>) {
+    function createThread(identity: McpIdentity, input: CreateThreadInput) {
       let baseCommit: string | undefined
       let projectId = ''
+      let prompt = input.prompt
+      let landsOn: string | null = null
+      const quiet = input.quiet || input.read_only
       const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
@@ -353,13 +404,15 @@ export function createMcpHandler(
           yield* store.createThread(projectId, id)
           yield* store.setThreadEnvironment(id, baseCommit)
           yield* store.markAgentThread(id, caller.id, input.notify)
+          if (quiet) yield* store.setQuietThread(id, input.read_only === true, landsOn)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
           yield* store.setPermissionMode(id, mode)
-          if (input.title) yield* store.setThreadTitle(id, input.title)
+          const title = input.title ?? (input.setup_worktrees ? 'Set up worktrees' : undefined)
+          if (title) yield* store.setThreadTitle(id, title)
           yield* store.enqueue(id, {
             id: newId(),
-            text: input.prompt,
+            text: prompt!,
             ...(input.skill && { skill: input.skill }),
             from: { threadId: caller.id, title: caller.title },
             hop: turn.hop + 1,
@@ -382,6 +435,45 @@ export function createMcpHandler(
         if (bot && input.effort === 'max')
           return yield* Effect.fail(
             new StoreError('invalid_params', "max isn't available to bots; use xhigh")
+          )
+        if (
+          input.setup_worktrees &&
+          ['prompt', 'skill', 'environment', 'ref', 'quiet', 'read_only', 'wait'].some(
+            (key) => input[key as keyof CreateThreadInput] !== undefined
+          )
+        )
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              "setup_worktrees starts a visible thread in the project checkout on Jetty's own prompt, so leave out prompt, skill, environment, ref, quiet, read_only and wait."
+            )
+          )
+        if (!input.prompt && !input.setup_worktrees)
+          return yield* Effect.fail(new StoreError('invalid_params', 'prompt is required.'))
+        if (input.wait && !quiet)
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              'wait is only for quiet threads: pass quiet or read_only too.'
+            )
+          )
+        if (input.read_only && (input.environment !== undefined || input.ref !== undefined))
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              'A read-only thread reads the project checkout, so leave out environment and ref.'
+            )
+          )
+        if (
+          input.quiet &&
+          !input.read_only &&
+          (input.environment !== undefined || input.ref !== undefined)
+        )
+          return yield* Effect.fail(
+            new StoreError(
+              'invalid_params',
+              "A quiet change works in a worktree from origin's default branch, so leave out environment and ref."
+            )
           )
         const projects = yield* store.listProjects()
         if (bot && !bot.projectId && !input.project)
@@ -409,9 +501,37 @@ export function createMcpHandler(
               )
             )
         }
+        if (input.setup_worktrees) {
+          if (!worktrees)
+            return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+          if (yield* Effect.promise(() => worktrees.configured(target.path)))
+            return yield* Effect.fail(
+              new StoreError('invalid_params', `${target.title} is already set up for worktrees.`)
+            )
+          prompt = worktreeSetupPrompt(worktrees.setupGuide)
+        }
+        if (quiet && !input.read_only) {
+          if (!worktrees)
+            return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+          if (!(yield* Effect.promise(() => worktrees.hasOrigin(target.path))))
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                `${target.title} has no origin remote, so a change there can't land on its default branch quietly. Start a visible thread instead.`
+              )
+            )
+          landsOn = (yield* Effect.promise(() => worktrees.defaultRef(target.path))).replace(
+            /^origin\//,
+            ''
+          )
+        }
         const sameProject = target.id === caller.projectId
         const environment =
-          input.environment ??
+          (input.read_only || input.setup_worktrees
+            ? 'local'
+            : quiet
+              ? 'worktree'
+              : input.environment) ??
           (sameProject
             ? caller.environment
             : worktrees
@@ -419,7 +539,7 @@ export function createMcpHandler(
               : 'worktree')
         if (environment === 'local') return yield* orch.withAdmission(caller.id, create)
         if (!worktrees) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-        const fromWorktree = sameProject && caller.environment === 'worktree'
+        const fromWorktree = !bot && !quiet && sameProject && caller.environment === 'worktree'
         const cwd = fromWorktree
           ? yield* Effect.promise(() => worktrees.root(caller.id))
           : target.path
@@ -698,23 +818,48 @@ export function createMcpHandler(
           ...toolMeta,
           description:
             "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your environment, provider and model unless you set them; in another project, that project's environment default and worktree base. list_models has the options. Up to 5 per turn, and nesting stops three levels below the user's thread.",
-          inputSchema: createInput,
+          ...(bot ? { annotations: { readOnlyHint: true } } : {}),
+          inputSchema: bot ? botCreateInput : createInput,
         },
-        (input) =>
+        (
+          input: z.infer<typeof botCreateInput>,
+          extra: Parameters<ToolCallback<typeof botCreateInput>>[1]
+        ) =>
           invoke(
-            createThread(identity, input).pipe(
-              Effect.tap((created) =>
-                bot && 'created' in created
-                  ? store
-                      .requireThread(created.threadId)
-                      .pipe(
-                        Effect.flatMap((thread) =>
-                          orch.botMarker(identity.threadId, 'started', thread)
+            Effect.gen(function* () {
+              const created = yield* createThread(identity, input)
+              if (!('created' in created)) return created
+              if (bot)
+                yield* orch.botMarker(
+                  identity.threadId,
+                  'started',
+                  yield* store.requireThread(created.threadId)
+                )
+              if (!bot || !('wait' in input) || !input.wait) return created
+              const startedAt = Date.now()
+              const token = extra._meta?.progressToken
+              const progress =
+                token === undefined
+                  ? undefined
+                  : setInterval(() => {
+                      void run(store.requireThread(created.threadId))
+                        .then((thread) =>
+                          extra.sendNotification({
+                            method: 'notifications/progress',
+                            params: {
+                              progressToken: token,
+                              progress: Math.floor((Date.now() - startedAt) / 1000),
+                              message: `${thread.title}: ${thread.status}`,
+                            },
+                          })
                         )
-                      )
-                  : Effect.void
-              )
-            )
+                        .catch(() => undefined)
+                    }, WAIT_PROGRESS_MS)
+              const waited = yield* orch
+                .waitForThread(created.threadId, identity.threadId, WAIT_CAP_MS, extra.signal)
+                .pipe(Effect.ensuring(Effect.sync(() => clearInterval(progress))))
+              return { ...created, ...waited } as WaitedThread
+            })
           )
       )
       server.registerTool(
@@ -1034,21 +1179,57 @@ export function createMcpHandler(
       const identity = sessions.authenticate(request.headers.get('authorization'))
       if (!identity) return new Response('Unauthorized', { status: 401 })
       if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+      const body = (await request
+        .clone()
+        .json()
+        .catch(() => null)) as {
+        method?: string
+        params?: { name?: string; arguments?: { wait?: boolean } }
+      } | null
+      const waiting =
+        body?.method === 'tools/call' &&
+        body.params?.name === 'create_thread' &&
+        body.params?.arguments?.wait === true
       const server = new McpServer({ name: 'jetty', version: '1.0.0' })
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
-        enableJsonResponse: true,
+        enableJsonResponse: !waiting,
       })
       try {
         await register(server, identity)
         await server.connect(transport)
-        return await transport.handleRequest(request)
+        const response = await transport.handleRequest(request)
+        if (!waiting || !response.body) {
+          await server.close()
+          return response
+        }
+        const reader = response.body.getReader()
+        return new Response(
+          new ReadableStream({
+            async pull(controller) {
+              try {
+                const next = await reader.read()
+                if (next.done) {
+                  controller.close()
+                  await server.close()
+                } else controller.enqueue(next.value)
+              } catch (error) {
+                controller.error(error)
+                await server.close()
+              }
+            },
+            async cancel() {
+              await reader.cancel()
+              await server.close()
+            },
+          }),
+          { status: response.status, headers: response.headers }
+        )
       } catch (error) {
+        await server.close()
         return new Response(error instanceof Error ? error.message : 'Thread unavailable', {
           status: 404,
         })
-      } finally {
-        await server.close()
       }
     }
     return Object.assign(handle, { register })

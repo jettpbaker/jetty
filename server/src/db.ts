@@ -247,6 +247,12 @@ const migrations = SqliteMigrator.fromRecord({
     )`
     yield* sql`CREATE INDEX bot_tasks_by_bot ON bot_tasks(bot_id)`
   }),
+  '034_quiet_threads': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE threads ADD COLUMN quiet INTEGER NOT NULL DEFAULT 0`
+    yield* sql`ALTER TABLE threads ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0`
+    yield* sql`ALTER TABLE threads ADD COLUMN lands_on TEXT`
+  }),
 })
 
 export function databaseLayer(home: string) {

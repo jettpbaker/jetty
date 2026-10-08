@@ -13,9 +13,9 @@ export type BotFace = 'idle' | 'thinking' | 'working' | 'waiting' | 'done' | 'ti
 
 export function botFace(bot: Pick<Bot, 'activity' | 'needsYou' | 'failed' | 'unread'>): BotFace {
   if (bot.activity === 'tidying') return 'tidying'
-  if (bot.needsYou) return 'waiting'
   if (bot.activity === 'typing') return 'thinking'
   if (bot.activity === 'working') return 'working'
+  if (bot.needsYou) return 'waiting'
   if (bot.failed) return 'error'
   return 'idle'
 }

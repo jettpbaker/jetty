@@ -511,7 +511,14 @@ export function createClaudeAdapter(
             }
             // Background subagents keep working after the turn that spawned them ends.
             const fromSubagent = 'parent_tool_use_id' in message && message.parent_tool_use_id
+            const hadBackgroundTasks = session.backgroundTasks.tasks().length > 0
             if (session.backgroundTasks.ingest(message)) {
+              if (
+                hadBackgroundTasks &&
+                !session.backgroundTasks.tasks().length &&
+                !session.awaitingResult
+              )
+                session.wakePending = true
               yield* publishBackgroundTasks(session)
               if (session.backgroundTasks.tasks().length && session.idle) {
                 yield* Fiber.interrupt(session.idle)
@@ -877,6 +884,7 @@ export function createClaudeAdapter(
                   disallowedTools: [
                     'EnterPlanMode',
                     'ExitPlanMode',
+                    ...(input.readOnly ? ['Edit', 'Write', 'NotebookEdit'] : []),
                     ...(input.parentThreadId ? ['AskUserQuestion'] : []),
                     ...(bot
                       ? ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TodoWrite']
