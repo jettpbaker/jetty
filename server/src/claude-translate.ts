@@ -119,8 +119,10 @@ type StreamEvent = {
 
 export function translate(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
   const parent = msg.parent_tool_use_id
-  if (parent != null && msg.type !== 'system' && msg.type !== 'result')
-    return translate({ ...msg, parent_tool_use_id: null }, agentCtx(ctx, parent))
+  if (parent != null && msg.type !== 'system' && msg.type !== 'result') {
+    const owner = [ctx, ...ctx.agents.values()].find((owner) => owner.toolUseToItemId.has(parent))
+    return translate({ ...msg, parent_tool_use_id: null }, owner ?? agentCtx(ctx, parent))
+  }
 
   switch (msg.type) {
     case 'system':

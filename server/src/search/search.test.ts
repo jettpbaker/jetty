@@ -142,6 +142,9 @@ test('thread indexing persists message ids and drops threads outside scope', asy
     ).toBe(1)
     expect(embed.docs).toBe(count + 1)
     expect((await recallThreads(path, 'zephyr quartz', 5, embed))[0]?.messageId).toBe('one')
+    expect(
+      (await recallThreads(path, 'zephyr quartz', 1, embed, ['one'])).map((hit) => hit.messageId)
+    ).toEqual(['two'])
     await reindexThreads(path, [], [], embed)
     expect(await recallThreads(path, 'zephyr quartz', 5, embed)).toEqual([])
   } finally {

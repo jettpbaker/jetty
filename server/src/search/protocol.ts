@@ -5,7 +5,14 @@ import type { recallThreads } from './threads'
 export type Request = { id: number; botId: string } & (
   | { kind: 'cursors' }
   | { kind: 'wiki'; home: string; query: string; k: number }
-  | { kind: 'threads'; scope: SearchThread[]; updates: ThreadUpdate[]; query: string; k: number }
+  | {
+      kind: 'threads'
+      scope: SearchThread[]
+      updates: ThreadUpdate[]
+      query: string
+      k: number
+      excludeMessageIds: string[]
+    }
 )
 export type Reply =
   | { type: 'ready' }

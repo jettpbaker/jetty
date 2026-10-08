@@ -11,6 +11,54 @@ function startedItemId(events: ThreadEvent[]): string {
 }
 
 describe('translate()', () => {
+  test.each([null, 'toolu_agent'])(
+    'plain tool heartbeat preserves its result (agent %s)',
+    (agentId) => {
+      const ctx = createTranslateCtx('t1')
+      const [started] = translate(
+        {
+          type: 'assistant',
+          parent_tool_use_id: agentId,
+          message: {
+            content: [
+              { type: 'tool_use', id: 'toolu_search', name: 'mcp__jetty__search_wiki', input: {} },
+            ],
+          },
+        },
+        ctx
+      )
+      const itemId = startedItemId([started!])
+      expect(
+        translate(
+          {
+            type: 'tool_progress',
+            parent_tool_use_id: 'toolu_search',
+            tool_use_id: 'toolu_search',
+          },
+          ctx
+        )
+      ).toEqual([])
+      expect(ctx.agents.has('toolu_search')).toBe(false)
+      expect(
+        translate(
+          {
+            type: 'user',
+            parent_tool_use_id: agentId,
+            message: {
+              content: [
+                { type: 'tool_result', tool_use_id: 'toolu_search', content: 'Found a page' },
+              ],
+            },
+          },
+          ctx
+        )
+      ).toEqual([
+        { type: 'item.delta', itemId, delta: 'Found a page' },
+        { type: 'item.completed', itemId, patch: { status: 'succeeded' } },
+      ])
+    }
+  )
+
   test('init captures session id', () => {
     const ctx = createTranslateCtx('t1')
     const events = translate(

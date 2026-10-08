@@ -6,6 +6,7 @@ type Payload = Request extends infer R ? (R extends Request ? Omit<R, 'id'> : ne
 export function createSearchClient(home: string) {
   let child: ReturnType<typeof Bun.spawn> | undefined
   let readiness: Promise<void> | undefined
+  let resetChild: ((error: Error) => void) | undefined
   let reason = 'its model is still downloading (0% of 316 MB)'
   let sequence = 0
   const waiting = new Map<
@@ -31,13 +32,13 @@ export function createSearchClient(home: string) {
       stdout: 'ignore',
       stderr: 'inherit',
       ipc(message: Reply) {
+        if (child !== spawned) return
         if (message.type === 'ready') resolveReady()
         else if (message.type === 'progress')
           reason = `its model is still downloading (${message.percent}% of 316 MB)`
         else if (message.type === 'loadError') {
           reason = message.error
-          rejectReady(new Error(reason))
-          spawned.kill()
+          reset(new Error(reason))
         } else {
           const waiter = waiting.get(message.id)
           waiting.delete(message.id)
@@ -47,33 +48,46 @@ export function createSearchClient(home: string) {
       },
     })
     child = spawned
-    void spawned.exited.then(() => {
+    function reset(error: Error) {
       if (child !== spawned) return
       child = undefined
-      rejectReady(new Error('search process exited'))
-      for (const waiter of waiting.values()) waiter.reject(new Error('search process exited'))
+      readiness = undefined
+      resetChild = undefined
+      rejectReady(error)
+      for (const waiter of waiting.values()) waiter.reject(error)
       waiting.clear()
+      spawned.kill()
+    }
+    resetChild = reset
+    void spawned.exited.then(() => {
+      reset(new Error('search process exited'))
     })
   }
   async function request(payload: Payload) {
     start()
+    const running = child!
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       await Promise.race([
         readiness!,
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(reason)), 60_000)
+          timer = setTimeout(() => {
+            const error = new Error(reason)
+            if (child === running) resetChild?.(error)
+            reject(error)
+          }, 60_000)
         }),
       ])
     } finally {
       clearTimeout(timer)
     }
+    if (child !== running) throw new Error('search process exited')
     const id = ++sequence
     return new Promise<NonNullable<Extract<Reply, { type: 'result' }>['result']>>(
       (resolve, reject) => {
         waiting.set(id, { resolve, reject })
         try {
-          child!.send({ ...payload, id })
+          running.send({ ...payload, id })
         } catch (error) {
           waiting.delete(id)
           reject(error)
@@ -84,7 +98,7 @@ export function createSearchClient(home: string) {
   async function stop() {
     const running = child
     if (running) {
-      running.kill()
+      resetChild?.(new Error('search process stopped'))
       await running.exited
     }
   }

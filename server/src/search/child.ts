@@ -36,9 +36,11 @@ const ready = (async () => {
   armIdle()
 })()
 ready.catch((error) => {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`[search] ${message}`)
   send({
     type: 'loadError',
-    error: String(error instanceof Error ? error.message : error).split('\n')[0]!,
+    error: message.replace(/\s+/g, ' ').trim(),
   })
   armIdle()
 })
@@ -67,7 +69,13 @@ process.on('message', (request: Request) => {
         send({
           type: 'result',
           id: request.id,
-          result: await recallThreads(path, request.query, request.k, gemmaEmbedder),
+          result: await recallThreads(
+            path,
+            request.query,
+            request.k,
+            gemmaEmbedder,
+            request.excludeMessageIds
+          ),
         })
       }
     } catch (error) {

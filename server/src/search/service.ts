@@ -51,8 +51,12 @@ export function createSearchService(client: SearchClient, store: Store) {
       }
     })
   }
-  function threads(botId: string, botName: string, input: SearchInput) {
+  function threads(botId: string, botName: string, input: SearchInput, turnId?: string | null) {
     return serial(botId, async () => {
+      const botState = await Effect.runPromise(store.getThreadState(botId))
+      const excludeMessageIds = botState.items
+        .filter((item) => item.turnId === turnId)
+        .map((item) => item.id)
       const cursors = (await client.request({ kind: 'cursors', botId })) as Record<
         string,
         ThreadCursor
@@ -68,7 +72,8 @@ export function createSearchService(client: SearchClient, store: Store) {
       const user = await botUserName()
       for (const thread of scope) {
         if (cursors[thread.id]?.lastSeq === thread.lastSeq) continue
-        const state = await Effect.runPromise(store.getThreadState(thread.id))
+        const state =
+          thread.id === botId ? botState : await Effect.runPromise(store.getThreadState(thread.id))
         const indexed = new Set(cursors[thread.id]?.messageIds)
         updates.push({
           ...thread,
@@ -85,7 +90,16 @@ export function createSearchService(client: SearchClient, store: Store) {
         updates,
         query: input.query,
         k: input.k ?? SEARCH_DEFAULT_K,
+        excludeMessageIds,
       })) as Awaited<ReturnType<typeof recallThreads>>
+      const authors = new Map<string, string>()
+      for (const thread of scope) {
+        if (thread.id === botId || !hits.some((hit) => hit.threadId === thread.id)) continue
+        const state = await Effect.runPromise(store.getThreadState(thread.id))
+        for (const item of state.items) {
+          if (item.kind === 'assistant_message') authors.set(item.id, thread.title)
+        }
+      }
       return {
         results: hits.map((hit): ThreadSearchHit => {
           const thread = scope.find((thread) => thread.id === hit.threadId)!
@@ -95,7 +109,7 @@ export function createSearchService(client: SearchClient, store: Store) {
             ...(thread.id === botId ? {} : { link: `jetty://threads/${thread.id}` }),
             ...(thread.archived ? { archived: true } : {}),
             messageId: hit.messageId,
-            author: hit.author,
+            author: authors.get(hit.messageId) ?? hit.author,
             date: hit.date,
             text: hit.text,
             score: Math.round(hit.score * 1000) / 1000,

@@ -181,14 +181,22 @@ export async function reindexThreads(
   }
 }
 
-export async function recallThreads(path: string, query: string, k: number, embed: EmbedClient) {
+export async function recallThreads(
+  path: string,
+  query: string,
+  k: number,
+  embed: EmbedClient,
+  excludeMessageIds: readonly string[] = []
+) {
   const db = openThreads(path)
   try {
+    const excluded = new Set(excludeMessageIds)
     const rows = db
       .query<SearchMessage & { embedding: Uint8Array }, []>(
         `SELECT m.id, m.thread_id AS threadId, m.author, m.date, m.created_at AS createdAt, c.text, c.embedding FROM message_chunks c JOIN search_messages m ON m.id = c.message_id`
       )
       .all()
+      .filter((row) => !excluded.has(row.id))
     if (!rows.length) return []
     const vector = await embed.embedQuery(query.trim())
     const keyword = bm25Scores(

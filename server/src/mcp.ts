@@ -752,12 +752,18 @@ export function createMcpHandler(
                         ))!.path,
                         input
                       )
-                    : await search.threads(bot.id, bot.name, input)
+                    : await search.threads(
+                        bot.id,
+                        bot.name,
+                        input,
+                        orch.currentTurn(identity.threadId)
+                      )
                 return result(value)
               } catch (error) {
-                const reason = (error instanceof Error ? error.message : String(error)).split(
-                  '\n'
-                )[0]
+                const reason = (error instanceof Error ? error.message : String(error))
+                  .replace(/\s+/g, ' ')
+                  .trim()
+                  .replace(/\.+$/, '')
                 const fallback =
                   kind === 'wiki'
                     ? 'Read your index.md or grep your pages meanwhile.'
