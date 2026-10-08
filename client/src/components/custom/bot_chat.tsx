@@ -277,11 +277,16 @@ export function BotChat({ bot }: { bot: Bot }) {
   }, [])
   const items = thread?.items ?? []
   const rows = toRows(toItems(items, pending))
-  const streaming = items.some(
-    (item) => item.kind === 'assistant_message' && item.streaming && shownInBotChat(item)
+  const saying = items.some(
+    (item) =>
+      item.turnId === thread?.activeTurnId &&
+      !item.agentId &&
+      item.kind === 'tool_call' &&
+      item.toolName === 'mcp__jetty__say' &&
+      item.status === 'running'
   )
   // The indicator and Stop stay for exactly as long as the turn runs, replies or not.
-  const presence = streaming
+  const presence = saying
     ? 'typing'
     : thread?.activeTurnId && bot.activity !== 'idle'
       ? bot.activity
