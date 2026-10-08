@@ -6,6 +6,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: 'Paper Mono';
+  src: url('./assets/fonts/paper-mono.woff2') format('woff2');
+  font-weight: 100 800;
+  font-display: swap;
+}
+
 @utility inline-code {
   background-color: color-mix(in oklch, var(--primary) 12%, transparent);
   color: color-mix(in oklab, var(--primary) 35%, currentColor);
@@ -32,6 +39,7 @@
   --motion-popup-enter: menu-enter var(--motion-popup-duration) var(--motion-popup-ease) both;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --duration-enter: 140ms;
+  --mono: 'Geist Mono Variable', ui-monospace, monospace;
   font-family: 'Geist Variable', sans-serif;
   color: var(--foreground);
   background: var(--sidebar);
@@ -87,6 +95,10 @@
   --pr-draft: oklch(0.697 0.003 286.325);
   --pr-merged: oklch(0.552 0.148 276.827);
   --pr-closed: oklch(0.6 0.2 23.018);
+}
+
+:root[data-mono='paper'] {
+  --mono: 'Paper Mono', ui-monospace, monospace;
 }
 
 .dark {
@@ -167,7 +179,7 @@
   --color-pr-merged: var(--pr-merged);
   --color-pr-closed: var(--pr-closed);
   --radius-menu-item: 4px;
-  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --font-mono: var(--mono);
   --spacing-menu-item-compact: 26px;
   --spacing-glyph: 1.125rem;
   --font-heading: var(--font-sans);

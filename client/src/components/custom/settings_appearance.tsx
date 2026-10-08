@@ -27,6 +27,7 @@ import {
   useAppearance,
   type Appearance,
 } from '@/lib/appearance'
+import { isMonoFont, monoFonts, setMonoFont, useMonoFont } from '@/lib/mono-font'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -46,6 +47,8 @@ const themes = [
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
   const themeLabel = themes.find((option) => option.value === theme)?.label
+  const monoFont = useMonoFont()
+  const monoFontLabel = monoFonts.find((option) => option.value === monoFont)?.label
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
   const wallpaperTintId = useId()
@@ -174,6 +177,38 @@ export function SettingsAppearance() {
       <div className='appearance-option-row'>
         <span>Accent</span>
         <AccentPicker />
+      </div>
+      <div className='appearance-option-row'>
+        <span>Mono font</span>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            aria-label={`Mono font: ${monoFontLabel}`}
+            render={
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
+              />
+            }
+          >
+            {monoFontLabel}
+            <ArrowDown01Icon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuRadioGroup
+              value={monoFont}
+              onValueChange={(value) => {
+                if (isMonoFont(value)) setMonoFont(value)
+              }}
+            >
+              {monoFonts.map(({ value, label }) => (
+                <DropdownMenuRadioItem key={value} value={value}>
+                  {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className='appearance-option-row'>
         <span>Wallpaper</span>
