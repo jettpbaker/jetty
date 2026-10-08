@@ -47,6 +47,7 @@ import { createItemSelection } from '@/state/item_selection'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
+import { worktreeSetupPrompt } from '@jetty/shared/wire'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -299,7 +300,7 @@ export function ThreadComposer({
   // Writes the prompt for the user to send, after anything already typed, and points the draft
   // at the project checkout. Jetty reads the config from there. The picker can still switch it.
   function setUpWorktrees(guide: string) {
-    const prompt = `Set up Jetty worktrees for this project. Read ${guide} and follow it.`
+    const prompt = worktreeSetupPrompt(guide)
     if (!draft.includes(prompt)) setDraft(draft.trim() ? `${draft.trimEnd()}\n\n${prompt}` : prompt)
     retarget({ environment: 'local' })
     input.current?.focus({ preventScroll: true })

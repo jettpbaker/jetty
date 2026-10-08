@@ -381,6 +381,11 @@ export const ThreadMeta = Schema.Struct({
   pendingMessages: Schema.optional(Schema.Array(QueuedMessage)),
   // The bot whose work this is: set on every thread below a bot, however deep.
   botId: Schema.optional(Schema.String),
+  // A bot's quiet thread, out of the sidebar and the bot's chat until it needs Jett, opens a pull
+  // request, or he opens or pins it. Absent from then on: it's an ordinary thread.
+  quiet: Schema.optional(Schema.Boolean),
+  // Reads the project checkout with edits blocked. Set at creation, never cleared.
+  readOnly: Schema.optional(Schema.Boolean),
 })
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
 
@@ -550,6 +555,12 @@ export const Branch = Schema.Struct({
 })
 export type Branch = Schema.Schema.Type<typeof Branch>
 
+// What the new-thread page's Set up worktrees button sends, and what a bot's setup_worktrees
+// thread starts on. `guide` is project.branches' setupGuide.
+export function worktreeSetupPrompt(guide: string) {
+  return `Set up Jetty worktrees for this project. Read ${guide} and follow it.`
+}
+
 export const methods = {
   'settings.providerUsage': {
     params: Schema.Struct({ provider: ProviderId }),
@@ -672,10 +683,12 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, title: Schema.String }),
     result: Schema.Null,
   },
+  // Pinning a quiet thread surfaces it.
   'thread.pin': {
     params: Schema.Struct({ threadId: Schema.String, pinned: Schema.Boolean }),
     result: Schema.Null,
   },
+  // Jett has seen it: clears Ready for review, and surfaces a quiet thread he opened.
   'thread.markSeen': {
     params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,

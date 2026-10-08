@@ -23,12 +23,31 @@ import { run, useAction } from './connection'
 type Registry = AtomRegistry.AtomRegistry
 type Environment = ThreadMeta['environment']
 
+function isQuiet(registry: Registry, threadId: string) {
+  return registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.quiet === true
+}
+
+// A quiet thread Jett opens or pins is an ordinary thread from then on; the server drops `quiet`.
+function settleSurfaced(registry: Registry, threadId: string) {
+  settleWhen(
+    registry,
+    () => !serverChrome(registry)?.threads.find((thread) => thread.id === threadId)?.quiet,
+    () => clearPatch(registry, threadId, 'quiet', false)
+  )
+}
+
+// Opening a thread is seeing it: Ready for review clears, and a quiet thread surfaces.
 function markThreadSeen(registry: Registry, threadId: string) {
-  setPatch(registry, threadId, { readyForReview: false })
-  run(registry, (connection) =>
-    connection
-      .request('thread.markSeen', { threadId })
-      .pipe(Effect.ensuring(Effect.sync(() => clearPatch(registry, threadId, 'readyForReview'))))
+  const surfacing = isQuiet(registry, threadId)
+  setPatch(registry, threadId, { readyForReview: false, ...(surfacing && { quiet: false }) })
+  run(
+    registry,
+    (connection) =>
+      connection.request('thread.markSeen', { threadId }).pipe(
+        Effect.tap(() => Effect.sync(() => surfacing && settleSurfaced(registry, threadId))),
+        Effect.ensuring(Effect.sync(() => clearPatch(registry, threadId, 'readyForReview')))
+      ),
+    () => surfacing && clearPatch(registry, threadId, 'quiet', false)
   )
 }
 
@@ -217,15 +236,24 @@ function renameThread(registry: Registry, threadId: string, title: string) {
 }
 
 function pinThread(registry: Registry, threadId: string, pinned: boolean) {
-  setPatch(registry, threadId, { pinned })
+  const surfacing = pinned && isQuiet(registry, threadId)
+  setPatch(registry, threadId, { pinned, ...(surfacing && { quiet: false }) })
   run(
     registry,
     (connection) =>
       awaitCreation(threadId).pipe(
         Effect.andThen(connection.request('thread.pin', { threadId, pinned })),
-        Effect.tap(() => Effect.sync(() => settlePatch(registry, threadId, 'pinned', pinned)))
+        Effect.tap(() =>
+          Effect.sync(() => {
+            settlePatch(registry, threadId, 'pinned', pinned)
+            if (surfacing) settleSurfaced(registry, threadId)
+          })
+        )
       ),
-    () => clearPatch(registry, threadId, 'pinned', pinned)
+    () => {
+      clearPatch(registry, threadId, 'pinned', pinned)
+      if (surfacing) clearPatch(registry, threadId, 'quiet', false)
+    }
   )
 }
 

@@ -42,6 +42,7 @@ const listAtom = Atom.readable((get) => {
         pinned: thread.pinned,
         archived: thread.archived,
         botId: thread.botId,
+        quiet: thread.quiet === true,
       })),
     }
   )

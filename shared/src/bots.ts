@@ -105,3 +105,34 @@ export function exchangeEntry(
     }
   return undefined
 }
+
+// create_thread's options in a bot's own session. A read-only thread is always quiet, only a quiet
+// thread can wait, and setup_worktrees starts on Jetty's own prompt instead of one from the bot.
+export type QuietThreadOptions = {
+  quiet?: boolean
+  read_only?: boolean
+  wait?: boolean
+  setup_worktrees?: boolean
+}
+
+// A wait holds the bot's call this long at most, and tells the provider it's alive this often.
+export const WAIT_CAP_MS = 10 * 60_000
+export const WAIT_PROGRESS_MS = 15_000
+
+// What a waiting call returns when it isn't the thread's final message. {user} is filled in.
+export const WAIT_NOTES = {
+  running: 'still running; its report reaches you when your turn ends',
+  asked: 'It asked you this and waits for your answer: reply with send_message.',
+  needs_user:
+    "It's waiting on {user}'s approval or answer in its own thread, which now shows in their sidebar. Its report reaches you when your turn ends.",
+} as const
+
+// create_thread's result with wait: the usual creation result, plus how far the thread got.
+export type WaitedThread = { threadId: string; link: string; created: true } & (
+  | { status: 'finished'; report: string }
+  | { status: 'failed'; error: string; report?: string }
+  | { status: 'interrupted' }
+  | { status: 'asked'; question: string; detail: (typeof WAIT_NOTES)['asked'] }
+  | { status: 'needs_user'; detail: string }
+  | { status: 'running'; detail: (typeof WAIT_NOTES)['running'] }
+)

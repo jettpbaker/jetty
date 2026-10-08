@@ -27,6 +27,8 @@ export type ThreadPatch = {
   archived?: boolean
   provider?: ProviderId
   readyForReview?: boolean
+  // false surfaces a quiet thread at once, before the server agrees.
+  quiet?: boolean
 }
 
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
