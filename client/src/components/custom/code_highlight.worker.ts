@@ -5,12 +5,12 @@ import { languages } from '@/lib/shiki-langs'
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
-import { cursorDark, cursorLight } from './diff/cursor_themes'
+import { vscodeDark, vscodeLight } from './diff/vscode_themes'
 
 // Pierre's resolveTheme refuses to run in a worker, so the theme comes as data (syntax_theme.ts).
-const themes = { light: cursorLight.name, dark: cursorDark.name }
+const themes = { light: vscodeLight.name, dark: vscodeDark.name }
 const core: Promise<HighlighterCore> = createHighlighterCore({
-  themes: [cursorLight as ThemeRegistration, cursorDark as ThemeRegistration],
+  themes: [vscodeLight as ThemeRegistration, vscodeDark as ThemeRegistration],
   langs: [],
   engine: createJavaScriptRegexEngine({ forgiving: true }),
 })

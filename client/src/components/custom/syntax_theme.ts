@@ -1,11 +1,11 @@
 import { registerCustomTheme } from '@pierre/diffs'
 
-// Jetty's one syntax theme, Cursor's, for chat code, diffs and the file editor. Its colours load
-// with the first highlight.
-const themes = () => import('./diff/cursor_themes')
-registerCustomTheme('cursor-dark', () => themes().then(({ cursorDark }) => cursorDark))
-registerCustomTheme('cursor-light', () => themes().then(({ cursorLight }) => cursorLight))
-export const syntaxTheme = { dark: 'cursor-dark', light: 'cursor-light' } as const
+// Jetty's one syntax theme, VS Code's 2026, for chat code, diffs and the file editor. Its colours
+// load with the first highlight.
+const themes = () => import('./diff/vscode_themes')
+registerCustomTheme('vscode-2026-dark', () => themes().then(({ vscodeDark }) => vscodeDark))
+registerCustomTheme('vscode-2026-light', () => themes().then(({ vscodeLight }) => vscodeLight))
+export const syntaxTheme = { dark: 'vscode-2026-dark', light: 'vscode-2026-light' } as const
 
 // Pierre's code views on Jetty's code surface, with Jetty's status colours for added and removed
 // lines instead of the theme's.
