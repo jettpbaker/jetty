@@ -19,6 +19,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -28,7 +37,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
-import { monoFonts, setMonoFont, useMonoFont } from '@/lib/mono-font'
+import { monoFont, sansFont, type FontSetting } from '@/lib/fonts'
 import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { storage } from '@/platform'
@@ -107,8 +116,6 @@ export const AppSidebar = memo(function AppSidebar() {
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onSettings = pathname === '/settings'
   const onUsage = pathname === '/usage'
-  const monoFont = useMonoFont()
-  const monoFontLabel = monoFonts.find((font) => font.value === monoFont)?.label
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
   const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
@@ -493,22 +500,25 @@ export const AppSidebar = memo(function AppSidebar() {
           </TooltipTrigger>
           <TooltipContent>Usage</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
             render={
               <Button
                 variant='ghost'
                 size='icon'
-                className='hover:bg-sidebar-accent'
-                aria-label={`Mono font: ${monoFontLabel}`}
-                {...pressProps(() => setMonoFont(monoFont === 'paper' ? 'geist' : 'paper'))}
+                className='hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent data-popup-open:text-foreground'
+                aria-label='Fonts'
               />
             }
           >
             <TextFontIcon />
-          </TooltipTrigger>
-          <TooltipContent>Mono font: {monoFontLabel}</TooltipContent>
-        </Tooltip>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side='top' align='start' className='w-44'>
+            <FontChoices label='Sans' setting={sansFont} />
+            <DropdownMenuSeparator />
+            <FontChoices label='Mono' setting={monoFont} />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
       <Dialog
         open={Boolean(deletePrompt)}
@@ -596,3 +606,29 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
     />
   )
 })
+
+// Temporary while Jett compares font pairings; the Settings rows stay once one is picked.
+function FontChoices<T extends string>({
+  label,
+  setting,
+}: {
+  label: string
+  setting: FontSetting<T>
+}) {
+  const value = setting.use()
+  return (
+    <DropdownMenuRadioGroup
+      value={value}
+      onValueChange={(next) => {
+        if (setting.is(next)) setting.set(next)
+      }}
+    >
+      <DropdownMenuLabel>{label}</DropdownMenuLabel>
+      {setting.options.map((option) => (
+        <DropdownMenuRadioItem key={option.value} value={option.value}>
+          {option.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  )
+}

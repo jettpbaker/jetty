@@ -3,6 +3,7 @@
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/instrument-sans';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -39,8 +40,9 @@
   --motion-popup-enter: menu-enter var(--motion-popup-duration) var(--motion-popup-ease) both;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --duration-enter: 140ms;
+  --sans: 'Geist Variable', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, monospace;
-  font-family: 'Geist Variable', sans-serif;
+  font-family: var(--sans);
   color: var(--foreground);
   background: var(--sidebar);
   font-synthesis: none;
@@ -95,10 +97,6 @@
   --pr-draft: oklch(0.697 0.003 286.325);
   --pr-merged: oklch(0.552 0.148 276.827);
   --pr-closed: oklch(0.6 0.2 23.018);
-}
-
-:root[data-mono='paper'] {
-  --mono: 'Paper Mono', ui-monospace, monospace;
 }
 
 .dark {
@@ -183,7 +181,7 @@
   --spacing-menu-item-compact: 26px;
   --spacing-glyph: 1.125rem;
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: var(--sans);
   --text-13: 0.8125rem;
   --text-13--line-height: calc(1.125 / 0.8125);
   --color-sidebar-ring: var(--sidebar-ring);

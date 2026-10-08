@@ -27,7 +27,7 @@ import {
   useAppearance,
   type Appearance,
 } from '@/lib/appearance'
-import { isMonoFont, monoFonts, setMonoFont, useMonoFont } from '@/lib/mono-font'
+import { monoFont, sansFont, type FontSetting } from '@/lib/fonts'
 import { useAnimatedTheme } from '@/lib/theme'
 import { pickFiles } from '@/platform'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -47,8 +47,6 @@ const themes = [
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
   const themeLabel = themes.find((option) => option.value === theme)?.label
-  const monoFont = useMonoFont()
-  const monoFontLabel = monoFonts.find((option) => option.value === monoFont)?.label
   const appearance = useAppearance()
   const wallpaperAccentId = useId()
   const wallpaperTintId = useId()
@@ -178,38 +176,8 @@ export function SettingsAppearance() {
         <span>Accent</span>
         <AccentPicker />
       </div>
-      <div className='appearance-option-row'>
-        <span>Mono font</span>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger
-            aria-label={`Mono font: ${monoFontLabel}`}
-            render={
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
-              />
-            }
-          >
-            {monoFontLabel}
-            <ArrowDown01Icon />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuRadioGroup
-              value={monoFont}
-              onValueChange={(value) => {
-                if (isMonoFont(value)) setMonoFont(value)
-              }}
-            >
-              {monoFonts.map(({ value, label }) => (
-                <DropdownMenuRadioItem key={value} value={value}>
-                  {label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <FontRow label='Sans font' setting={sansFont} />
+      <FontRow label='Mono font' setting={monoFont} />
       <div className='appearance-option-row'>
         <span>Wallpaper</span>
         {appearance.wallpaper ? (
@@ -393,6 +361,45 @@ export function SettingsAppearance() {
           {error}
         </p>
       )}
+    </div>
+  )
+}
+
+function FontRow<T extends string>({ label, setting }: { label: string; setting: FontSetting<T> }) {
+  const value = setting.use()
+  const current = setting.options.find((option) => option.value === value)?.label
+  return (
+    <div className='appearance-option-row'>
+      <span>{label}</span>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          aria-label={`${label}: ${current}`}
+          render={
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-7 gap-1.5 rounded-sm text-xs text-muted-foreground'
+            />
+          }
+        >
+          {current}
+          <ArrowDown01Icon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuRadioGroup
+            value={value}
+            onValueChange={(next) => {
+              if (setting.is(next)) setting.set(next)
+            }}
+          >
+            {setting.options.map((option) => (
+              <DropdownMenuRadioItem key={option.value} value={option.value}>
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
