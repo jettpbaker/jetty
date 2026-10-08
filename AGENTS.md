@@ -172,6 +172,10 @@
   service to start.
 - `bun test` forces the echo agent; the one live-Claude test is skipped unless
   `JETTY_LIVE_TEST=1` (spends tokens — leave it skipped).
-- Drive browsers through `perf/driver.ts` (`openPage`). A Chrome you launch yourself
-  needs `--use-mock-keychain --password-store=basic`, or macOS stops Jett with a
-  keychain password prompt.
+- For UI checks and screenshots, use playwright's `chrome-headless-shell`
+  (`~/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-mac-arm64/chrome-headless-shell`),
+  never a Chrome `.app`: even headless, an app puts a tile in Jett's dock, and quitting it
+  abruptly pops a crash dialog. `perf/driver.ts` (`openPage`) launches the Chrome for
+  Testing app and is for perf benchmarks only. Any Chrome you launch yourself needs
+  `--use-mock-keychain --password-store=basic`, or macOS stops Jett with a keychain
+  password prompt.
