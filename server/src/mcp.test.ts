@@ -29,6 +29,7 @@ afterEach(async () => {
 const catalog: ProviderModel[] = [
   { provider: 'claude', id: 'haiku', name: 'Haiku', efforts: [], fast: false, autoMode: false },
   { provider: 'claude', id: 'sonnet', name: 'Sonnet', efforts: [], fast: false, autoMode: true },
+  { provider: 'grok', id: 'grok-4.7', name: 'Grok 4.7', efforts: [], fast: false, autoMode: true },
 ]
 
 async function openStore() {
@@ -525,4 +526,39 @@ test('only a bot gets create_thread quiet options and an optional prompt', async
       expect(option in tool.inputSchema.properties).toBe(callerId === id)
     expect(tool.inputSchema.required?.includes('prompt') ?? false).toBe(callerId !== id)
   }
+})
+
+test("a bot's quiet change refuses Grok, which can't commit in a worktree", async () => {
+  const { home, store, id } = await botCaller()
+  const project = await Effect.runPromise(store.createProject(home))
+  const worktrees = {
+    hasOrigin: async () => true,
+    defaultRef: async () => 'origin/main',
+    resolveRef: async () => 'base',
+  } as unknown as Worktrees
+  const quietChange = (model: string, read_only?: boolean) =>
+    Effect.runPromise(
+      callTool(
+        home,
+        store,
+        { botMarker: () => Effect.void },
+        id,
+        'create_thread',
+        {
+          prompt: 'Fix it',
+          project: project.title,
+          model,
+          ...(read_only ? { read_only } : { quiet: true }),
+        },
+        () => Effect.void,
+        worktrees
+      )
+    )
+  const refused = await quietChange('grok-4.7')
+  expect(refused.isError).toBe(true)
+  expect(refused.content[0]!.text).toBe(
+    "Grok threads can't commit in a worktree yet, so a quiet change on Grok can't land. Use a Claude or Codex model."
+  )
+  expect((await quietChange('sonnet')).isError).toBeUndefined()
+  expect((await quietChange('grok-4.7', true)).isError).toBeUndefined()
 })

@@ -357,6 +357,13 @@ export function createMcpHandler(
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Skills can only run in Claude threads')
             )
+          if (quiet && !input.read_only && provider === 'grok')
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                "Grok threads can't commit in a worktree yet, so a quiet change on Grok can't land. Use a Claude or Codex model."
+              )
+            )
           const available = catalog.filter((m) => m.provider === provider)
           if (!available.length)
             return yield* Effect.fail(
