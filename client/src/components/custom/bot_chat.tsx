@@ -288,7 +288,7 @@ export function BotChat({ bot }: { bot: Bot }) {
       className='flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
       style={botColorStyle(bot.color)}
     >
-      <div className='flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'>
+      <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'>
         <div className='flex shrink-0 grow flex-col'>
           <div className='grow' />
           <Transcript
