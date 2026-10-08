@@ -318,12 +318,14 @@ export function createOrchestrator({
     function interruptAdmittedThread(threadId: string) {
       return Effect.gen(function* () {
         const agent = yield* agentForThread(threadId)
-        // An earlier queued upload may still be persisting between turns.
         const compact = backgroundCompactions.get(threadId)
+        // Stopping Jetty's own compaction lets a message waiting behind it go next.
         if (compact) {
           compact.interrupted = true
           yield* Effect.logInfo(`compaction for ${threadId} interrupted by Stop`)
-        } else yield* setQueuePaused(threadId, true)
+        }
+        // An earlier queued upload may still be persisting between turns.
+        else yield* setQueuePaused(threadId, true)
         if (!state(threadId).turnId) return
         yield* agent.interrupt(threadId)
       })
