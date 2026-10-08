@@ -81,16 +81,18 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --status-working: var(--primary);
-  --status-attention: oklch(0.69 0.145 61);
+  /* Light status colours hold 3:1 as glyphs on the selected sidebar row, the darkest light surface;
+     green, which is also diffstat and label text, holds 4.5:1 on the page. */
+  --status-attention: oklch(0.6 0.145 61);
   --status-error: var(--pr-closed);
   --status-error-glyph: var(--pr-closed);
-  --status-success: oklch(0.6 0.14 158.358);
+  --status-success: oklch(0.53 0.12 158.358);
   --tick-complete: var(--status-success);
   --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);
   --status-error-wash: color-mix(in oklch, var(--status-error) 16%, transparent);
   --pr-open: var(--status-success);
-  --pr-running: oklch(0.73 0.155 83);
-  --pr-draft: oklch(0.697 0.003 286.325);
+  --pr-running: oklch(0.59 0.125 83);
+  --pr-draft: oklch(0.56 0.003 286.325);
   --pr-merged: oklch(0.552 0.148 276.827);
   --pr-closed: oklch(0.6 0.2 23.018);
 }
@@ -102,6 +104,7 @@
   --status-success: oklch(0.698 0.125 158.358);
   --pr-closed: oklch(0.655 0.201 23.018);
   --pr-running: oklch(0.88 0.17 97);
+  --pr-draft: oklch(0.697 0.003 286.325);
   --pr-merged: oklch(0.7 0.15 277);
   color-scheme: dark;
   --tint: var(--tint-c);
