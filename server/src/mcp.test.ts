@@ -171,7 +171,7 @@ test('bot react result names what writing after a reaction means', async () => {
       home,
       store,
       {
-        botReaction: () => Effect.succeed(undefined),
+        botReaction: () => Effect.succeed(true),
       },
       id,
       'react',
@@ -181,7 +181,7 @@ test('bot react result names what writing after a reaction means', async () => {
   expect(result.isError).toBeUndefined()
   expect(JSON.parse(result.content[0]!.text)).toEqual({
     reacted: '👍',
-    note: `If that's your whole reply, end your turn now without writing anything. In a turn ${await botUserName()} started, any text you write is sent to them as a message.`,
+    note: `The reaction is already visible to ${await botUserName()}. End this turn now without another tool call or text unless you have new information to add.`,
   })
 })
 

@@ -692,7 +692,14 @@ export function createMcpHandler(
             inputSchema: { text },
           },
           ({ text: message }) =>
-            invoke(orch.botMessage(bot.id, message).pipe(Effect.as({ sent: true })))
+            invoke(
+              orch.botMessage(bot.id, message).pipe(
+                Effect.as({
+                  sent: true,
+                  note: 'This message is already visible in the chat. End this turn without repeating or narrating it.',
+                })
+              )
+            )
         )
         server.registerTool(
           'react',
@@ -709,10 +716,12 @@ export function createMcpHandler(
                   !/[\p{Extended_Pictographic}\p{Emoji_Presentation}\u20e3]/u.test(emoji)
                 )
                   return yield* Effect.fail(new StoreError('invalid_params', 'Use one emoji'))
-                yield* orch.botReaction(bot.id, emoji)
+                const changed = yield* orch.botReaction(bot.id, emoji)
                 return {
                   reacted: emoji,
-                  note: `If that's your whole reply, end your turn now without writing anything. In a turn ${yield* Effect.promise(() => botUserName())} started, any text you write is sent to them as a message.`,
+                  note: changed
+                    ? `The reaction is already visible to ${yield* Effect.promise(() => botUserName())}. End this turn now without another tool call or text unless you have new information to add.`
+                    : 'That same reaction is already visible. End this turn now without another tool call or text.',
                 }
               })
             )

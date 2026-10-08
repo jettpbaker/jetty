@@ -26,7 +26,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
-import { commitBotHome } from './bot-home'
+import { commitBotHome, commitSharedPreferences } from './bot-home'
 import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
@@ -213,6 +213,7 @@ export function createOrchestrator({
         turnId: string | null
         ready: boolean
         visibleBotTurn: boolean
+        terminalBotTool: boolean
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -232,6 +233,7 @@ export function createOrchestrator({
           turnId: null,
           ready: true,
           visibleBotTurn: false,
+          terminalBotTool: false,
           pendingDelta: null,
         }
         threads.set(threadId, value)
@@ -244,14 +246,22 @@ export function createOrchestrator({
     function settleTurn(threadId: string, turnId: string) {
       return Effect.gen(function* () {
         const live = state(threadId)
-        if (live.turnId === turnId) live.turnId = null
+        if (live.turnId === turnId) {
+          live.turnId = null
+          live.visibleBotTurn = false
+          live.terminalBotTool = false
+        }
         live.ready = true
         if (yield* store.isBot(threadId)) {
           const project = yield* store.getProject(threadId)
-          if (project)
+          if (project) {
             yield* Effect.promise(() => commitBotHome(project.path)).pipe(
               Effect.catch((error) => Effect.logWarning(error))
             )
+            yield* Effect.promise(() => commitSharedPreferences(project.path)).pipe(
+              Effect.catch((error) => Effect.logWarning(error))
+            )
+          }
         }
         yield* Queue.offer(store.queueChanges, undefined)
       }).pipe(Effect.orDie)
@@ -475,15 +485,28 @@ export function createOrchestrator({
 
     function commit(threadId: string, event: ThreadEvent, onCommit: Effect.Effect<void>) {
       return Effect.gen(function* () {
+        const live = state(threadId)
+        if (event.type === 'turn.started' && !live.turnId) {
+          live.visibleBotTurn = false
+          live.terminalBotTool = false
+        }
+        if (
+          event.type === 'item.started' &&
+          event.item.kind === 'tool_call' &&
+          !event.item.agentId &&
+          (event.item.toolName === 'mcp__jetty__react' ||
+            event.item.toolName === 'mcp__jetty__tell_user')
+        )
+          live.terminalBotTool = true
         if (
           event.type === 'item.started' &&
           event.item.kind === 'assistant_message' &&
-          !state(threadId).visibleBotTurn &&
+          (!live.visibleBotTurn || live.terminalBotTool) &&
           (yield* store.isBot(threadId))
         )
           event = { ...event, item: { ...event.item, private: true } }
         const appended = yield* store.appendEvent(threadId, event)
-        if (event.type === 'turn.started') state(threadId).turnId = event.turnId
+        if (event.type === 'turn.started') live.turnId = event.turnId
         yield* onCommit
         yield* publish(threadId, appended)
         if (event.type === 'item.completed' && (onPullRequestOutput || onBranchPushed)) {
@@ -513,7 +536,9 @@ export function createOrchestrator({
           }
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
-          state(threadId).turnId = null
+          live.turnId = null
+          live.visibleBotTurn = false
+          live.terminalBotTool = false
           if (worktrees)
             yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
         }
@@ -1028,11 +1053,14 @@ export function createOrchestrator({
               if (live.turnId) {
                 const turnId = live.turnId
                 const wasVisible = live.visibleBotTurn
+                const wasTerminal = live.terminalBotTool
                 if (
                   botChat &&
                   (input.visibleBotTurn || creationWake || (!input.queued && !!input.messageId))
-                )
+                ) {
                   live.visibleBotTurn = true
+                  live.terminalBotTool = false
+                }
                 const accepted = yield* agent.steer(
                   input.threadId,
                   text,
@@ -1044,6 +1072,7 @@ export function createOrchestrator({
                 )
                 if (!accepted) {
                   live.visibleBotTurn = wasVisible
+                  live.terminalBotTool = wasTerminal
                   return yield* Effect.fail(
                     new StoreError('internal', 'Active turn is not accepting input')
                   )
@@ -1199,17 +1228,39 @@ export function createOrchestrator({
         return Effect.gen(function* () {
           if (!(yield* store.isBot(threadId)))
             return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
-          const state = yield* store.getThreadState(threadId)
-          const target = [...state.items]
+          const turn = yield* store.turnContext(threadId)
+          if (!state(threadId).visibleBotTurn)
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                'React only works in a turn the user started. Use tell_user to message them from a private turn.'
+              )
+            )
+          const threadState = yield* store.getThreadState(threadId)
+          const target = [...threadState.items]
             .reverse()
-            .find((item) => item.kind === 'user_message' && !item.from)
-          if (!target)
-            return yield* Effect.fail(new StoreError('not_found', 'No message to react to'))
-          yield* append(threadId, {
-            type: 'item.updated',
-            itemId: target.id,
-            patch: { reaction: emoji },
-          })
+            .find(
+              (item) => item.kind === 'user_message' && !item.from && item.turnId === turn.turnId
+            )
+          if (!target || target.kind !== 'user_message')
+            return yield* Effect.fail(
+              new StoreError(
+                'not_found',
+                'No current user message to react to. Use tell_user instead.'
+              )
+            )
+          if (target.reaction === emoji) return false
+          yield* append(
+            threadId,
+            {
+              type: 'item.updated',
+              itemId: target.id,
+              patch: { reaction: emoji },
+            },
+            Effect.void,
+            turn.turnId
+          )
+          return true
         })
       },
       botMarker(threadId: string, action: 'started' | 'messaged', target: ThreadMeta) {
