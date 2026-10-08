@@ -73,13 +73,15 @@ export type Agent = {
   startTurn(input: TurnInput, emit: Emit): Effect.Effect<Turn, AgentError>
   interrupt(threadId: string, reason?: string): Effect.Effect<void, AgentError>
   busy?: (threadId: string) => boolean
+  hasPendingUserMessage?: (threadId: string) => boolean
   stopBackgroundTasks?: (threadId: string, taskId?: string) => Effect.Effect<void, AgentError>
   stopWorkflow?: (threadId: string, taskId: string) => Effect.Effect<boolean, AgentError>
   steer(
     threadId: string,
     text: string,
     images?: AgentImage[],
-    beforeAccept?: Effect.Effect<void, AgentError>
+    beforeAccept?: Effect.Effect<void, AgentError>,
+    fromUser?: boolean
   ): Effect.Effect<boolean, AgentError>
   respondToApproval(
     threadId: string,

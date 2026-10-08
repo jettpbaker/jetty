@@ -273,6 +273,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         id={row.item.id}
         threadId={threadId}
         text={row.item.text}
+        skill={row.item.skill}
         replyTo={row.item.replyTo}
         attachments={row.item.attachments}
         from={row.item.from}

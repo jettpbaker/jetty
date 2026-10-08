@@ -551,11 +551,7 @@ export function createOrchestrator({
           if (fromUser && !sent) {
             const user = yield* Effect.promise(() => botUserName())
             const thread = yield* store.requireThread(threadId)
-            if (
-              live.turnId === turnId &&
-              !thread.queuePaused &&
-              !thread.pendingMessages?.some((message) => !message.from)
-            )
+            if (live.turnId === turnId && !thread.queuePaused && !thread.pendingMessages?.length)
               yield* store.enqueue(threadId, {
                 id: newId(),
                 text: `Your last turn ended without a say or a reaction, so ${user} saw nothing from you. If you meant to answer, send it with say now. If nothing needs saying, react to their message.`,
@@ -592,6 +588,20 @@ export function createOrchestrator({
       return locked(
         threadId,
         Effect.gen(function* () {
+          const thread = yield* store.requireThread(threadId)
+          const agent = yield* agentForThread(threadId)
+          if (
+            agent.hasPendingUserMessage?.(threadId) ||
+            thread.pendingMessages?.some((message) => !message.from)
+          ) {
+            const user = yield* Effect.promise(() => botUserName())
+            return yield* Effect.fail(
+              new StoreError(
+                'conflict',
+                `${user} just sent a new message, which reaches you next. Hold the rest of this until you've read it.`
+              )
+            )
+          }
           yield* flushDelta(threadId)
           for (const event of yield* store.appendEvents(threadId, [
             { type: 'item.started', item },
@@ -691,6 +701,7 @@ export function createOrchestrator({
           kind: 'user_message' as const,
           ...(queued ? { from: queued.from, hop: queued.hop } : {}),
           ...(queued?.reports && { reports: queued.reports }),
+          ...(queued?.skill && { skill: queued.skill }),
           text,
           attachments: meta,
           ...(replyTo ? { replyTo } : {}),
@@ -1104,7 +1115,8 @@ export function createOrchestrator({
                   appendUser(input, turnId, saved.meta, onCommit).pipe(
                     Effect.asVoid,
                     Effect.mapError(toAgentError)
-                  )
+                  ),
+                  !input.queued?.from
                 )
                 if (!accepted) {
                   if (input.queued)

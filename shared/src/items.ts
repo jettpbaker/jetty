@@ -103,6 +103,7 @@ export const ThreadItem = Schema.Union([
     from: Schema.optional(Schema.Struct({ threadId: Schema.String, title: Schema.String })),
     hop: Schema.optional(Schema.Natural),
     reports: Schema.optional(Schema.Array(ChildReport)),
+    skill: Schema.optional(Schema.String),
     text: Schema.String,
     attachments: Schema.Array(Attachment),
     // What this one quotes, as it read when Jett sent it.

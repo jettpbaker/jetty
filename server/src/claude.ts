@@ -116,6 +116,8 @@ type WarmSession = {
   query: Query
   usageIdentity: string | undefined
   input: Queue.Queue<SDKUserMessage, Cause.Done>
+  // Jett steered in a message the model hasn't seen yet: it's folded into the next request.
+  steerUnread: boolean
   scope: Scope.Closeable
   options: SessionOptions
   activeTurnId: string
@@ -250,7 +252,10 @@ export function createClaudeAdapter(
             if (!current(session)) return null
             const terminal = event.type === 'turn.completed' || event.type === 'turn.failed'
             if (terminal && !session.awaitingResult) return null
-            if (terminal) session.accepting = false
+            if (terminal) {
+              session.accepting = false
+              session.steerUnread = false
+            }
             const outgoing = !session.failReason
               ? event
               : terminal
@@ -448,6 +453,12 @@ export function createClaudeAdapter(
         Stream.runForEach((message) =>
           Effect.gen(function* () {
             if (!current(session)) return
+            if (
+              message.type === 'stream_event' &&
+              !message.parent_tool_use_id &&
+              message.event.type === 'message_start'
+            )
+              session.steerUnread = false
             if (
               message.type === 'system' &&
               message.subtype === 'init' &&
@@ -900,6 +911,7 @@ export function createClaudeAdapter(
           query: q,
           usageIdentity: typeof q.accountInfo === 'function' ? usageIdentity : undefined,
           input: queue,
+          steerUnread: false,
           scope,
           options,
           activeTurnId: input.turnId,
@@ -1022,7 +1034,10 @@ export function createClaudeAdapter(
           }).pipe(Effect.onError(() => closeSession(started, 'Unable to start turn')))
         })
       },
-      steer(threadId, text, images, beforeAccept = Effect.void) {
+      hasPendingUserMessage(threadId) {
+        return sessions.get(threadId)?.steerUnread ?? false
+      },
+      steer(threadId, text, images, beforeAccept = Effect.void, fromUser = false) {
         return Effect.gen(function* () {
           const session = sessions.get(threadId)
           if (!session || !current(session) || !session.accepting) return false
@@ -1030,7 +1045,9 @@ export function createClaudeAdapter(
             Effect.gen(function* () {
               if (!current(session) || !session.accepting) return false
               yield* beforeAccept
-              return yield* Queue.offer(session.input, userMessage(text, images))
+              const accepted = yield* Queue.offer(session.input, userMessage(text, images))
+              if (accepted && fromUser) session.steerUnread = true
+              return accepted
             }).pipe(Effect.uninterruptible)
           )
         })

@@ -653,9 +653,9 @@ export function createStore() {
           ThreadEvent,
           { type: 'turn.completed' | 'turn.failed' }
         >
-        const paused =
-          heldByRestarts(state.items) ||
-          (event.type === 'turn.failed' && event.error === 'server_restarted')
+        const paused = heldByRestarts(state.items)
+        if (event.type === 'turn.failed' && event.error === 'server_restarted' && !paused)
+          return { delivered: false }
         if (!question && !paused && thread.pendingMessages?.length) return { delivered: false }
         if (
           !question &&
@@ -715,9 +715,7 @@ export function createStore() {
               ? { type: 'finished' }
               : event.error === 'interrupted'
                 ? { type: 'interrupted' }
-                : event.error === 'server_restarted'
-                  ? { type: 'paused' }
-                  : { type: 'failed', error: event.error }
+                : { type: 'failed', error: event.error }
         const final = state.items.findLast(
           (item) =>
             item.turnId === turn.turn_id &&
