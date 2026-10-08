@@ -284,6 +284,14 @@ export function useBotThreadMetas(botId: string) {
   return useAtomValue(botThreadsAtom(botId))
 }
 
+const quietThreadIdsAtom = Atom.readable((get) =>
+  (get(chromeAtom)?.threads ?? noThreads).flatMap((thread) => (thread.quiet ? [thread.id] : []))
+).pipe(Atom.withEquality(Equal.equals))
+
+export function useQuietThreadIds() {
+  return useAtomValue(quietThreadIdsAtom)
+}
+
 // Each linked PR by repo#number (the first thread's link to it), and each project's PR repos.
 const pullLinksAtom = Atom.readable((get) => {
   const pulls = new Map<string, PullRequestLink>()

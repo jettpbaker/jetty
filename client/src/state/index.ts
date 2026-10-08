@@ -16,6 +16,7 @@ export { useBrowse } from './browse'
 export {
   useBotThreadMetas,
   useChildThreadMetas,
+  useQuietThreadIds,
   useChrome,
   useChromeReady,
   useLinkedPull,

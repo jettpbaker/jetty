@@ -37,11 +37,13 @@ import {
   useInterruptTurn,
   usePendingBotMessages,
   useProject,
+  useQuietThreadIds,
   useSendToBot,
   useThread,
   useThreadMeta,
   useThreadOverlay,
 } from '@/state'
+import { awaitsInput } from '@/state/thread_tab'
 import {
   botTurnActivity,
   exchangeEntry,
@@ -274,6 +276,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const otherBots = new Set(useBots().flatMap((other) => (other.id === bot.id ? [] : [other.id])))
   const [room, setRoom] = useState<Room>()
   const childMetas = useChildThreadMetas(bot.id)
+  const quietThreadIds = useQuietThreadIds()
   const sendToBot = useSendToBot()
   const interrupt = useInterruptTurn()
   const calm = useReducedMotion() ?? false
@@ -307,13 +310,15 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     return () => observer.disconnect()
   }, [])
   const { serverItems: items } = useThreadOverlay(bot.id, thread)
-  const quiet = new Set(childMetas.flatMap((meta) => (meta.quiet ? [meta.id] : [])))
+  const quiet = new Set(quietThreadIds)
   const rows = toRows(toItems(items, pending, otherBots, quiet))
   const turnId = thread?.activeTurnId
-  const turn = turnId && !bot.needsYou ? botTurnActivity(items, turnId) : 'quiet'
+  // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.
+  const asking = items.some(awaitsInput)
+  const turn = turnId && !asking ? botTurnActivity(items, turnId) : 'quiet'
   const presence = turn === 'quiet' ? null : bot.activity === 'tidying' ? 'tidying' : turn
   // Stop lasts the whole turn, including the quiet stretch after a bubble.
-  const running = Boolean(turnId) && !bot.needsYou
+  const running = Boolean(turnId) && !asking
   function send(text: string) {
     sendToBot(bot.id, text, replyTo)
     setReplyTo(undefined)
