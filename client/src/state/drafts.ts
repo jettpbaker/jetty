@@ -9,6 +9,7 @@ import { Equal, Schema } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 
+import { botsAtom } from './bots'
 import { createdThreadsAtom, liveAtom } from './chrome'
 import { without } from './mutations'
 import { threadAtom } from './threads'
@@ -345,8 +346,9 @@ const unsureSendsAtom = Atom.readable((get): readonly UnsureSend[] | undefined =
     for (const entry of draft.unsure ?? []) {
       const { threadId, messageId } = entry.sent!
       const thread = chrome.threads.find((candidate) => candidate.id === threadId)
+      const bot = chrome.bots.some((candidate) => candidate.id === threadId)
       const queued = thread?.pendingMessages?.some((message) => message.id === messageId) ?? false
-      sends.push({ key, entry, known: thread !== undefined, queued })
+      sends.push({ key, entry, known: thread !== undefined || bot, queued })
     }
   return sends
 }).pipe(Atom.withEquality(sameSends))
@@ -413,7 +415,10 @@ function settleUnsure(registry: Registry, key: string, entry: Sending, restore: 
 // By value, so only a thread or draft coming or going runs the cleanup below.
 const serverThreadIdsAtom = Atom.readable((get) => {
   const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
-  return chrome && new Set(chrome.threads.map((thread) => thread.id))
+  return (
+    chrome &&
+    new Set([...chrome.threads.map((thread) => thread.id), ...get(botsAtom).map((bot) => bot.id)])
+  )
 }).pipe(Atom.withEquality(Equal.equals))
 const draftKeysAtom = Atom.readable((get) => new Set(get(draftsAtom).keys())).pipe(
   Atom.withEquality(Equal.equals)

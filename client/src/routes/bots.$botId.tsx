@@ -1,7 +1,9 @@
 import { BotAvatar } from '@/components/custom/bot_avatar'
 import { BotChat } from '@/components/custom/bot_chat'
+import { SidebarLeftIcon } from '@/components/custom/huge_icons'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
+import { Button } from '@/components/ui/button'
 import { useBot, useChromeReady, useMarkBotSeen } from '@/state'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
@@ -35,6 +37,15 @@ function BotChatRoute() {
         <PageSidebarTrigger />
         <BotAvatar bot={bot} size={20} unread={false} />
         <span className='text-sm font-medium'>{bot.name}</span>
+        <Button
+          variant='ghost'
+          size='icon'
+          disabled
+          aria-label='Open bot details'
+          className='ml-auto'
+        >
+          <SidebarLeftIcon className='rotate-180' />
+        </Button>
       </header>
       <BotChat key={bot.id} bot={bot} />
     </section>

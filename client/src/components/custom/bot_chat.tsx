@@ -25,6 +25,7 @@ import {
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
+import { TranscriptMarker } from '@/components/custom/transcript_marker'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
@@ -79,10 +80,12 @@ type Message = {
 
 type Marker = Extract<ThreadItem, { kind: 'thread_marker' }>
 type ErrorItem = Extract<ThreadItem, { kind: 'error' }>
+type DecisionItem = Extract<ThreadItem, { kind: 'approval' | 'question' }>
 type RowItem =
   | { kind: 'message'; message: Message }
   | { kind: 'markers'; markers: Marker[] }
   | { kind: 'error'; error: ErrorItem }
+  | { kind: 'decision'; decision: DecisionItem }
 type Gap = 'none' | 'run' | 'tight'
 type Row = { key: string; gap: Gap } & ({ kind: 'stamp'; at: number } | RowItem)
 type Presence = 'typing' | 'working' | 'tidying'
@@ -156,6 +159,7 @@ function toItems(items: readonly ThreadItem[], pending: readonly PendingBotMessa
   const visible: RowItem[] = []
   for (const item of items) {
     if (!shownInBotChat(item)) continue
+    if (item.kind === 'assistant_message' && (item.streaming || !item.text.trim())) continue
     if (item.kind === 'user_message' || item.kind === 'assistant_message')
       visible.push({
         kind: 'message',
@@ -178,6 +182,10 @@ function toItems(items: readonly ThreadItem[], pending: readonly PendingBotMessa
         last.markers.push(item)
       else visible.push({ kind: 'markers', markers: [item] })
     } else if (item.kind === 'error') visible.push({ kind: 'error', error: item })
+    else if (item.kind === 'approval' || item.kind === 'question') {
+      if (item.kind === 'approval' ? item.decision : item.answers || item.dismissed)
+        visible.push({ kind: 'decision', decision: item })
+    }
   }
   for (const message of pending)
     if (!listed.has(message.id))
@@ -203,19 +211,25 @@ function toRows(items: RowItem[]): Row[] {
         ? item.message.at
         : item.kind === 'error'
           ? item.error.createdAt
-          : item.markers[0]!.createdAt
+          : item.kind === 'decision'
+            ? item.decision.createdAt
+            : item.markers[0]!.createdAt
     const key =
       item.kind === 'message'
         ? item.message.id
         : item.kind === 'error'
           ? item.error.id
-          : item.markers[0]!.id
+          : item.kind === 'decision'
+            ? item.decision.id
+            : item.markers[0]!.id
     const prevAt =
       previous?.kind === 'message'
         ? previous.message.at
         : previous?.kind === 'error'
           ? previous.error.createdAt
-          : previous?.markers[0]?.createdAt
+          : previous?.kind === 'decision'
+            ? previous.decision.createdAt
+            : previous?.markers[0]?.createdAt
     const session = prevAt === undefined || at - prevAt > SESSION_GAP
     if (session)
       rows.push({ kind: 'stamp', key: `stamp-${key}`, at, gap: previous ? 'run' : 'none' })
@@ -245,7 +259,19 @@ export function BotChat({ bot }: { bot: Bot }) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const items = thread?.items ?? []
   const rows = toRows(toItems(items, pending))
-  const presence = bot.activity === 'idle' ? null : bot.activity
+  const streaming = items.some((item) => item.kind === 'assistant_message' && item.streaming)
+  const repliedThisTurn = items.some(
+    (item) =>
+      item.kind === 'assistant_message' &&
+      item.turnId === thread?.activeTurnId &&
+      !item.streaming &&
+      !!item.text.trim()
+  )
+  const presence = streaming
+    ? 'typing'
+    : bot.activity === 'idle' || (bot.activity === 'typing' && repliedThisTurn)
+      ? null
+      : bot.activity
   function send(text: string) {
     sendToBot(bot.id, text, replyTo)
     setReplyTo(undefined)
@@ -276,6 +302,7 @@ export function BotChat({ bot }: { bot: Bot }) {
             bot={bot}
             childMetas={childMetas}
             calm={calm}
+            loaded={thread !== undefined}
             onReply={(reply) => {
               setReplyTo(reply)
               fieldRef.current?.focus()
@@ -310,6 +337,7 @@ function Transcript({
   bot,
   childMetas,
   calm,
+  loaded,
   onReply,
   onJump,
 }: {
@@ -319,11 +347,13 @@ function Transcript({
   bot: Bot
   childMetas: readonly ThreadMeta[]
   calm: boolean
+  loaded: boolean
   onReply: (reply: { itemId: string; text: string }) => void
   onJump: (id: string) => void
 }) {
   const stackRef = useRef<HTMLDivElement>(null)
   const [seen] = useState(() => new Set(rows.map((row) => row.key)))
+  const initializedRef = useRef(loaded)
   const stateRef = useRef({
     height: -1,
     glide: null as Glide | null,
@@ -354,6 +384,12 @@ function Transcript({
     const height = stack.offsetHeight
     const grew = state.height < 0 ? 0 : height - state.height
     state.height = height
+    if (!initializedRef.current) {
+      for (const row of rows) seen.add(row.key)
+      if (!loaded) return
+      initializedRef.current = true
+      return
+    }
     const start = Number(document.timeline.currentTime ?? performance.now())
     const arrivals: Arrival[] = []
     for (const row of rows) {
@@ -408,7 +444,13 @@ function Transcript({
     let index = 0
     for (const { element, kind } of arrivals) {
       const delay = base + (kind === 'message' ? index++ * STAGGER : 0)
-      if (calm || kind === 'stamp' || kind === 'markers' || kind === 'error') {
+      if (
+        calm ||
+        kind === 'stamp' ||
+        kind === 'markers' ||
+        kind === 'error' ||
+        kind === 'decision'
+      ) {
         play(element, [{ opacity: 0 }, { opacity: 1 }], FADE_MS, start, delay)
         continue
       }
@@ -446,6 +488,10 @@ function Transcript({
             gap={row.gap}
             metas={childMetas}
           />
+        ) : row.kind === 'decision' ? (
+          <div key={row.key} data-row={row.key} className={cn('px-1', gapClass[row.gap])}>
+            <TranscriptMarker item={row.decision} provider={bot.provider} />
+          </div>
         ) : (
           <ErrorRow key={row.key} id={row.key} error={row.error} name={bot.name} gap={row.gap} />
         )
@@ -500,7 +546,7 @@ function MessageRow({
             className='mb-0.75 flex max-w-[380px] min-w-0 items-center gap-1.5 self-end rounded-[14px] border border-border px-2.5 py-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
             <ArrowTurnBackwardIcon className='size-3 shrink-0' />
-            <span className='min-w-0 truncate'>{message.replyTo.text}</span>
+            <span className='min-w-0 truncate'>{plainQuote(message.replyTo.text)}</span>
           </button>
         )}
         <div className={cn('relative w-fit max-w-full', jett && 'ml-auto')}>
@@ -644,7 +690,7 @@ function Indicator({
       className={cn(
         'flex items-center gap-2 pb-1.5',
         spaced ? 'pt-5' : 'pt-1.5',
-        leaving && 'pointer-events-none absolute bottom-0 left-0'
+        leaving && 'pointer-events-none'
       )}
     >
       <JettyBot
@@ -830,6 +876,14 @@ function sentenceCase(message: string) {
   return /^[A-Z][a-z]/.test(message) ? message[0]!.toLowerCase() + message.slice(1) : message
 }
 
+function plainQuote(markdown: string) {
+  return markdown
+    .replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[`*_~]/g, '')
+    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+)/gm, '')
+    .trim()
+}
+
 let measure: CanvasRenderingContext2D | null = null
 function wraps(text: string, field: HTMLTextAreaElement, box: HTMLElement) {
   if (text.includes('\n')) return true
@@ -858,7 +912,8 @@ function BotComposer({
   onStop: () => void
   items: readonly ThreadItem[]
 }) {
-  const [draft, setDraft] = useState('')
+  const { draft: storedDraft, update } = useDraft(bot.id)
+  const draft = storedDraft.text
   const [stacked, setStacked] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
   const empty = !draft.trim()
@@ -869,7 +924,7 @@ function BotComposer({
     <BotRequest key={request.id} request={request} botId={bot.id} fieldRef={fieldRef} />
   )
   function change(text: string) {
-    setDraft(text)
+    update({ text })
     const field = fieldRef.current,
       box = boxRef.current
     setStacked(field && box ? wraps(text, field, box) : false)
@@ -877,7 +932,7 @@ function BotComposer({
   function send() {
     if (empty) return
     onSend(draft.trim())
-    setDraft('')
+    update({ text: '' })
     setStacked(false)
   }
   if (request) return answer
@@ -895,7 +950,7 @@ function BotComposer({
       {replyTo && (
         <div className='col-span-3 row-start-1 flex h-8 min-w-0 items-center gap-2 rounded-[14px] bg-accent pr-1 pl-2.5 text-13 text-muted-foreground'>
           <ArrowTurnBackwardIcon className='size-3 shrink-0' />
-          <span className='min-w-0 flex-1 truncate'>{replyTo.text}</span>
+          <span className='min-w-0 flex-1 truncate'>{plainQuote(replyTo.text)}</span>
           <Button
             variant='ghost'
             size='icon-xs'

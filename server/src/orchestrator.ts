@@ -131,15 +131,18 @@ function agentText(
 }
 
 function botStamp() {
-  return `[${new Date().toLocaleString('en-AU', {
+  const parts = new Intl.DateTimeFormat('en-AU', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-  })}]`
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const part = (name: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === name)!.value
+  return `[${part('weekday')}, ${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')}]`
 }
 
 function toAgentError(error: Error) {
@@ -1062,11 +1065,39 @@ export function createOrchestrator({
                 fast: input.fast,
               }
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) =>
-                append(
-                  input.threadId,
-                  loadout && event.type === 'turn.started' ? { ...event, loadout } : event,
-                  onCommit
-                ).pipe(Effect.mapError(toAgentError))
+                Effect.gen(function* () {
+                  if (
+                    botChat &&
+                    event.type === 'turn.failed' &&
+                    event.error !== 'interrupted' &&
+                    event.error !== 'server shutdown'
+                  ) {
+                    const current = yield* store.getThreadState(input.threadId)
+                    if (
+                      !current.items.some(
+                        (item) =>
+                          item.turnId === turnId &&
+                          item.kind === 'error' &&
+                          item.message === event.error
+                      )
+                    )
+                      yield* append(input.threadId, {
+                        type: 'item.started',
+                        item: {
+                          id: newId(),
+                          turnId,
+                          createdAt: Date.now(),
+                          kind: 'error',
+                          message: event.error,
+                        },
+                      })
+                  }
+                  yield* append(
+                    input.threadId,
+                    loadout && event.type === 'turn.started' ? { ...event, loadout } : event,
+                    onCommit
+                  )
+                }).pipe(Effect.mapError(toAgentError))
               const turn = yield* appendUser(input, turnId, saved.meta, onCommit).pipe(
                 Effect.flatMap((delivered) =>
                   delivered
@@ -1106,7 +1137,7 @@ export function createOrchestrator({
                     : Effect.succeed(undefined)
                 ),
                 Effect.onError(() =>
-                  append(input.threadId, {
+                  emit({
                     type: 'turn.failed',
                     turnId,
                     error: 'Unable to start turn',
@@ -1122,22 +1153,6 @@ export function createOrchestrator({
               yield* turn.await.pipe(
                 Effect.catch((error) =>
                   Effect.gen(function* () {
-                    if (yield* store.isBot(input.threadId)) {
-                      const state = yield* store.getThreadState(input.threadId)
-                      if (
-                        !state.items.some((item) => item.turnId === turnId && item.kind === 'error')
-                      )
-                        yield* emit({
-                          type: 'item.started',
-                          item: {
-                            id: newId(),
-                            turnId,
-                            createdAt: Date.now(),
-                            kind: 'error',
-                            message: error.message,
-                          },
-                        })
-                    }
                     yield* emit({ type: 'turn.failed', turnId, error: error.message })
                   })
                 ),

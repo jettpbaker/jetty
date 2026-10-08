@@ -702,7 +702,10 @@ export function createMcpHandler(
                 )
                   return yield* Effect.fail(new StoreError('invalid_params', 'Use one emoji'))
                 yield* orch.botReaction(bot.id, emoji)
-                return `If that's your whole reply, end your turn now without writing anything. In a turn ${yield* Effect.promise(() => botUserName())} started, any text you write is sent to them as a message.`
+                return {
+                  reacted: emoji,
+                  note: `If that's your whole reply, end your turn now without writing anything. In a turn ${yield* Effect.promise(() => botUserName())} started, any text you write is sent to them as a message.`,
+                }
               })
             )
         )

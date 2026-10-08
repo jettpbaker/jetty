@@ -252,6 +252,24 @@ function SortableEmptyRow({
   )
 }
 
+function LoadoutShortcuts({ openSubmenu }: { openSubmenu: (target: 'model' | 'effort') => void }) {
+  useHotkey(
+    keybinds.model.hotkey,
+    (event) => {
+      if (appShortcut(event)) openSubmenu('model')
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
+  useHotkey(
+    keybinds.effort.hotkey,
+    (event) => {
+      if (appShortcut(event)) openSubmenu('effort')
+    },
+    { requireReset: true, ignoreInputs: false }
+  )
+  return null
+}
+
 export function ComposerLoadout({
   catalog,
   loadouts,
@@ -313,20 +331,7 @@ export function ComposerLoadout({
 
   if (modelMenuRef) modelMenuRef.current = () => openSubmenu('model')
 
-  useHotkey(
-    keybinds.model.hotkey,
-    (event) => {
-      if (appShortcut(event)) openSubmenu('model')
-    },
-    { enabled: hotkeys, requireReset: true, ignoreInputs: false }
-  )
-  useHotkey(
-    keybinds.effort.hotkey,
-    (event) => {
-      if (appShortcut(event)) openSubmenu('effort')
-    },
-    { enabled: hotkeys, requireReset: true, ignoreInputs: false }
-  )
+  const shortcuts = hotkeys && <LoadoutShortcuts openSubmenu={openSubmenu} />
 
   function reorder(from: number, to: number) {
     if (from === to || to < 0 || to >= loadouts.length) return
@@ -361,6 +366,7 @@ export function ComposerLoadout({
         if (item instanceof HTMLElement) item.focus()
       }}
     >
+      {shortcuts}
       <KeybindTooltip binding={keybinds.model}>
         <DropdownMenuTrigger
           aria-label={
