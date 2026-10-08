@@ -270,7 +270,9 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return (
       <UserMessage
         id={row.item.id}
+        threadId={threadId}
         text={row.item.text}
+        replyTo={row.item.replyTo}
         attachments={row.item.attachments}
         from={row.item.from}
         createdAt={row.item.createdAt}

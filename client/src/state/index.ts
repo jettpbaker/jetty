@@ -106,9 +106,9 @@ export {
   type PullRequestRef,
 } from './pull_requests'
 export {
-  queueComposer,
+  chatComposer,
+  useChatComposer,
   useQueueActions,
-  useQueueComposer,
   useQueueHeld,
   useRemovedQueued,
   useRenewQueueHolds,

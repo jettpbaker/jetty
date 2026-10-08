@@ -4,6 +4,7 @@ import type { Loadout } from '@/lib/loadout'
 import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel } from '@jetty/shared/events'
+import { Reply } from '@jetty/shared/items'
 import { ProviderId, UploadAttachment } from '@jetty/shared/wire'
 import { Equal, Schema } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
@@ -36,6 +37,7 @@ export type DraftTarget = {
 type Sending = {
   text: string
   images: readonly ReadyImage[]
+  quote?: Reply
   editing?: string
   target?: DraftTarget
   sent?: { threadId: string; messageId: string }
@@ -45,6 +47,8 @@ type Sending = {
 export type Draft = {
   text: string
   images: readonly ComposerImage[]
+  // what the message quotes from an agent's reply, shown on the composer's tab
+  quote?: Reply
   // the queued message this draft rewrites
   editing?: string
   sending?: readonly Sending[]
@@ -77,11 +81,13 @@ const StoredTarget = Schema.Struct({
 })
 const StoredDraft = Schema.Struct({
   text: Schema.String,
+  quote: Schema.optional(Reply),
   editing: Schema.optional(Schema.String),
   sending: Schema.optional(
     Schema.Array(
       Schema.Struct({
         text: Schema.String,
+        quote: Schema.optional(Reply),
         editing: Schema.optional(Schema.String),
         target: Schema.optional(StoredTarget),
         sent: Schema.optional(Schema.Struct({ threadId: Schema.String, messageId: Schema.String })),
@@ -153,6 +159,7 @@ function loadDrafts() {
         text: [...back.map((entry) => entry.text), draft.text]
           .filter((text) => text.trim())
           .join('\n\n'),
+        quote: draft.quote ?? back.find((entry) => entry.quote)?.quote,
         editing: draft.editing ?? back.find((entry) => entry.editing)?.editing,
         target: draft.target ?? back.find((entry) => entry.target)?.target,
         images: [],
@@ -191,6 +198,7 @@ function persist(key: string, current: Draft, previous: Draft) {
   const sending = [...unsure, ...inFlight]
   const kept =
     draft.text !== '' ||
+    draft.quote !== undefined ||
     draft.editing !== undefined ||
     sending.length > 0 ||
     draft.target !== undefined ||
@@ -203,8 +211,9 @@ function persist(key: string, current: Draft, previous: Draft) {
       ? {
           ...draft,
           ...(sending.length > 0 && {
-            sending: sending.map(({ text, editing, target, sent }) => ({
+            sending: sending.map(({ text, quote, editing, target, sent }) => ({
               text,
+              quote,
               editing,
               target,
               sent,
@@ -276,6 +285,7 @@ function restoreDraft(registry: Registry, key: string, restored: Sending) {
     typedFor: undefined,
     text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
     images: [...restored.images, ...draft.images],
+    quote: draft.quote ?? restored.quote,
     editing: draft.editing ?? restored.editing,
     target: key ? draft.target : (draft.target ?? restored.target),
   }))

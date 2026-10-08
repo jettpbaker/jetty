@@ -1,5 +1,5 @@
 import type { ReadyImage } from '@/hooks/use-image-attachments'
-import type { ApprovalDecision, Attachment, ThreadItem } from '@jetty/shared/items'
+import type { ApprovalDecision, Attachment, Reply, ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
@@ -51,6 +51,7 @@ export type PendingPrompt = {
   id: string
   text: string
   images: readonly Attachment[]
+  replyTo?: Reply
   sentAt: number
 }
 type Resolution = Readonly<Record<string, unknown>>
@@ -154,6 +155,7 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
     createdAt: prompt.sentAt,
     text: prompt.text,
     attachments: prompt.images,
+    ...(prompt.replyTo && { replyTo: prompt.replyTo }),
   }))
 }
 
@@ -179,6 +181,7 @@ function sendTurn(
   text: string,
   loadout: Loadout | undefined,
   images: readonly ReadyImage[] = [],
+  replyTo?: Reply,
   fromDraft?: string,
   onFailure?: () => void
 ) {
@@ -187,6 +190,7 @@ function sendTurn(
   const staged = stageSend(registry, fromDraft, {
     text,
     images,
+    quote: replyTo,
     sent: { threadId, messageId: id },
   })
   if (loadout)
@@ -194,6 +198,7 @@ function sendTurn(
   const prompt: PendingPrompt = {
     id,
     text,
+    ...(replyTo && { replyTo }),
     sentAt: Date.now(),
     images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
@@ -219,6 +224,7 @@ function sendTurn(
               threadId,
               messageId: prompt.id,
               text,
+              ...(replyTo && { replyTo }),
               ...loadout,
               permissionMode: registry.get(accessModeAtom),
               ...(images.length > 0

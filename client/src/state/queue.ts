@@ -1,5 +1,5 @@
 import type { ReadyImage } from '@/hooks/use-image-attachments'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { revokeBlobUrl } from '@/lib/blob_urls'
@@ -133,11 +133,13 @@ function addQueued(
   registry: Registry,
   threadId: string,
   text: string,
-  images: readonly ReadyImage[] = []
+  images: readonly ReadyImage[] = [],
+  replyTo?: Reply
 ) {
   const message = {
     id: newId(),
     text,
+    ...(replyTo && { replyTo }),
     createdAt: Date.now(),
     hop: 0,
     attachments: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
@@ -153,6 +155,7 @@ function addQueued(
   const staged = stageSend(registry, threadId, {
     text,
     images,
+    quote: replyTo,
     sent: { threadId, messageId: message.id },
   })
   // Adds go out one at a time per thread, so a message whose images take a while to store still
@@ -171,6 +174,7 @@ function addQueued(
               threadId,
               messageId: message.id,
               text,
+              ...(replyTo && { replyTo }),
               ...(images.length > 0
                 ? {
                     attachments: images.map(({ name, mimeType, dataUrl }) => ({
@@ -396,20 +400,25 @@ export function useRemovedQueued(threadId: string | undefined) {
   return useAtomValue(threadRemovedAtom(threadId ?? ''))
 }
 
-// The thread's composer, as the chat's queued messages reach it: Edit loads a message into it,
-// and Steer and Remove hand keyboard focus back to it.
-type QueueComposer = { edit: (entry: QueuedMessage) => void; keepFocus: () => void }
-const composers = new Map<string, QueueComposer>()
+// The thread's composer, as the chat reaches it: Edit loads a queued message into it, Add to
+// prompt quotes a reply in it, and Steer and Remove hand keyboard focus back to it.
+type ChatComposer = {
+  edit: (entry: QueuedMessage) => void
+  quote: (reply: Reply) => void
+  keepFocus: () => void
+}
+const composers = new Map<string, ChatComposer>()
 
-export function useQueueComposer(threadId: string | undefined, composer: QueueComposer) {
+export function useChatComposer(threadId: string | undefined, composer: ChatComposer) {
   const latest = useRef(composer)
   useLayoutEffect(() => {
     latest.current = composer
   })
   useEffect(() => {
     if (!threadId) return
-    const entry: QueueComposer = {
+    const entry: ChatComposer = {
       edit: (message) => latest.current.edit(message),
+      quote: (reply) => latest.current.quote(reply),
       keepFocus: () => latest.current.keepFocus(),
     }
     composers.set(threadId, entry)
@@ -419,7 +428,7 @@ export function useQueueComposer(threadId: string | undefined, composer: QueueCo
   }, [threadId])
 }
 
-export function queueComposer(threadId: string) {
+export function chatComposer(threadId: string) {
   return composers.get(threadId)
 }
 

@@ -44,6 +44,7 @@ export function Composer({
   running,
   stop,
   strip,
+  reply,
   placeholder = 'What would you like to work on?',
   sendLabel = 'Send',
   sendDisabled,
@@ -75,6 +76,8 @@ export function Composer({
   // Stop in place of Send even when a request is showing, as while an approval waits on an empty draft.
   stop?: boolean
   strip?: ReactNode
+  // The quote the message carries, at the top of the field.
+  reply?: ReactNode
   placeholder?: string
   sendLabel?: string
   // defaults to disabled while empty
@@ -182,6 +185,7 @@ export function Composer({
               ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
             )}
           >
+            {reply}
             <ComposerImages images={attachments.images} onRemove={attachments.remove} />
             <div
               ref={field}

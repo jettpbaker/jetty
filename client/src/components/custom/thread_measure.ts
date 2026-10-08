@@ -23,6 +23,8 @@ const font = '14px "Geist Variable"'
 const lineHeight = 23
 // The footer under a message, and the bubble's gap above it.
 const footerRow = 28
+// The quote a message carries, above its bubble, with its gap.
+const quoteRow = 29
 // Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
 type Measured = { text: string; prepared?: PreparedText; width?: number; height: number }
@@ -122,10 +124,10 @@ function estimateSignature(row: ThreadRow) {
             ])
       break
     case 'user':
-      inputs = [row.item.text, row.item.attachments, !!row.item.from]
+      inputs = [row.item.text, row.item.attachments, !!row.item.from, !!row.item.replyTo]
       break
     case 'queued':
-      inputs = [row.entry.text, row.entry.attachments]
+      inputs = [row.entry.text, row.entry.attachments, !!row.entry.replyTo]
       break
     case 'reports':
       inputs = row.reports.map((report) => report.question)
@@ -184,6 +186,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
           ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
           : full)
       if (row.item.from) height += 22
+      if (row.item.replyTo) height += quoteRow
       if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
       for (const attachment of attachments)
         if (!attachment.mimeType.startsWith('image/')) height += lineHeight
@@ -198,6 +201,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
           ? 4 * lineHeight + 28
           : textHeight(row.id, text, width * 0.8, true, rough))
       if (attachments.length > 0) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
+      if (row.entry.replyTo) height += quoteRow
       return height
     }
     case 'queueRemoved':

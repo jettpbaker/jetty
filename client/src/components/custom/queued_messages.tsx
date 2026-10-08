@@ -4,6 +4,7 @@ import type { QueuedMessage } from '@jetty/shared/wire'
 import { Cancel01Icon, Clock01Icon, Edit03Icon, PauseIcon } from '@/components/custom/huge_icons'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
+import { RepliedTo } from '@/components/custom/reply_quote'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
@@ -11,11 +12,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { serverNow } from '@/lib/server_time'
 import { cn } from '@/lib/utils'
 import {
-  queueComposer,
+  chatComposer,
   useDraftEditing,
   useQueueActions,
   useQueueHeld,
   useRemovedQueued,
+  useRequestReveal,
   useVisibleQueue,
 } from '@/state'
 import { heldByRestarts } from '@jetty/shared/items'
@@ -237,16 +239,21 @@ export function QueuedBubble({
   steer: boolean
 }) {
   const actions = useQueueActions()
+  const requestReveal = useRequestReveal()
+  const { replyTo } = entry
   // Steer and Remove unmount their button; a keyboard user goes back to the composer.
   function act(run: () => void) {
     return () => {
-      queueComposer(threadId)?.keepFocus()
+      chatComposer(threadId)?.keepFocus()
       run()
     }
   }
   return (
     <Message align='end'>
-      <MessageContent>
+      <MessageContent className={cn(replyTo && 'gap-0.75')}>
+        {replyTo && (
+          <RepliedTo text={replyTo.text} onJump={() => requestReveal(threadId, replyTo.itemId)} />
+        )}
         <Bubble variant={null} align='end'>
           <BubbleContent className='rounded-lg border-dashed border-primary bg-primary/8'>
             <QueuedText entry={entry} muted={editing} />
@@ -265,7 +272,7 @@ export function QueuedBubble({
                 hint={steer ? 'Send into the running turn' : 'Start a turn with this now'}
                 onClick={act(() => actions.sendNow(threadId, entry))}
               />
-              <IconAction label='Edit' onClick={() => queueComposer(threadId)?.edit(entry)}>
+              <IconAction label='Edit' onClick={() => chatComposer(threadId)?.edit(entry)}>
                 <Edit03Icon />
               </IconAction>
               <IconAction
@@ -291,7 +298,7 @@ export function QueueRemoved({ threadId }: { threadId: string }) {
         variant='ghost-text'
         size='xs'
         onClick={() => {
-          queueComposer(threadId)?.keepFocus()
+          chatComposer(threadId)?.keepFocus()
           actions.restore(threadId)
         }}
       >

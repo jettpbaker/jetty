@@ -1,13 +1,14 @@
-import type { Attachment } from '@jetty/shared/items'
+import type { Attachment, Reply } from '@jetty/shared/items'
 
 import { mediaUrl } from '@/components/custom/media_layout'
 import { useOpenMedia } from '@/components/custom/media_lightbox'
 import { UserMessageFooter } from '@/components/custom/message_footer'
+import { RepliedTo } from '@/components/custom/reply_quote'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
-import { useBot } from '@/state'
+import { useBot, useRequestReveal } from '@/state'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import { botAccentClass, botColorStyle } from './bot_avatar'
@@ -32,7 +33,9 @@ function measureCollapsible(element: HTMLElement, text: string) {
 
 export function UserMessage({
   id,
+  threadId,
   text,
+  replyTo,
   attachments,
   from,
   createdAt,
@@ -40,7 +43,9 @@ export function UserMessage({
   steering,
 }: {
   id: string
+  threadId: string
   text: string
+  replyTo?: Reply
   attachments: readonly Attachment[]
   from?: MessageSource
   createdAt: number
@@ -48,6 +53,7 @@ export function UserMessage({
   steering?: boolean
 }) {
   const openMedia = useOpenMedia()
+  const reveal = useRequestReveal()
   const bot = useBot(from?.threadId)
   // Another thread's message is tinted; Jett's, and a bot's in its colour, are filled.
   const tinted = from && !bot
@@ -80,8 +86,11 @@ export function UserMessage({
   const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
   return (
     <Message align='end'>
-      <MessageContent className={cn(from && (bot ? 'gap-1' : 'gap-1.5'))}>
+      <MessageContent className={cn(from ? (bot ? 'gap-1' : 'gap-1.5') : replyTo && 'gap-0.75')}>
         {from && <ThreadSourceLabel from={from} className='self-end' />}
+        {replyTo && (
+          <RepliedTo text={replyTo.text} onJump={() => reveal(threadId, replyTo.itemId)} />
+        )}
         <Bubble
           variant={tinted ? 'tinted' : 'default'}
           align='end'

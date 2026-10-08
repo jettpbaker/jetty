@@ -1,5 +1,5 @@
 import type { Draft, DraftTarget } from '@/state'
-import type { ThreadItem } from '@jetty/shared/items'
+import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { Composer } from '@/components/custom/composer'
@@ -14,6 +14,7 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
+import { ReplyTab } from '@/components/custom/reply_quote'
 import { UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -24,6 +25,7 @@ import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
 import {
   useAccessMode,
+  useChatComposer,
   useChromeReady,
   useContinueThread,
   useCreateThread,
@@ -34,7 +36,6 @@ import {
   useNewThreadProject,
   useProject,
   useQueueActions,
-  useQueueComposer,
   useRespondApproval,
   useRespondQuestion,
   useSendTurn,
@@ -319,7 +320,7 @@ export function ThreadComposer({
       background && !threadId
         ? toast('Started in background', { action: { label: 'Open', onClick: open } })
         : undefined
-    sendTurn(id, text, loadout, attachments.take(), draftKey, () => {
+    sendTurn(id, text, loadout, attachments.take(), takeQuote(), draftKey, () => {
       if (notice !== undefined) toast.dismiss(notice)
     })
     if (threadId) return
@@ -333,9 +334,24 @@ export function ThreadComposer({
       if (!text) return
       queueActions.edit(threadId, editingEntry.id, text)
     } else if (!text && attachments.images.length === 0) return
-    else if (threadId && running) queueActions.add(threadId, text, attachments.take())
+    else if (threadId && running) queueActions.add(threadId, text, attachments.take(), takeQuote())
     else return startTurn(text, background)
     clearDraft()
+  }
+
+  // A quote goes with the next new message, not with an edit to a queued one.
+  function takeQuote() {
+    const { quote } = read()
+    if (quote) update({ quote: undefined })
+    return quote
+  }
+
+  // Add to prompt in the chat: one quote at a time, then on to what's typed after it.
+  function quote(reply: Reply) {
+    update({ quote: reply })
+    const element = input.current
+    element?.focus({ preventScroll: true })
+    element?.setSelectionRange(element.value.length, element.value.length)
   }
 
   // A reply set aside to edit a queued message comes back once the edit is done.
@@ -367,7 +383,7 @@ export function ThreadComposer({
     if (queues && !attachments.ready) return setWaitingEdit(entry)
     if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
     else if (editingEntry) queueActions.release(threadId, editingEntry.id)
-    else if (queues) queueActions.add(threadId, previous, attachments.take())
+    else if (queues) queueActions.add(threadId, previous, attachments.take(), takeQuote())
     queueActions.hold(threadId, entry.id)
     focusEdit.current = true
     update({
@@ -384,7 +400,7 @@ export function ThreadComposer({
     setWaitingEdit(undefined)
     editWhenReady(waitingEdit)
   }, [waitingEdit, attachments.ready])
-  useQueueComposer(threadId, { edit: editQueued, keepFocus: keepKeyboardFocus })
+  useChatComposer(threadId, { edit: editQueued, quote, keepFocus: keepKeyboardFocus })
 
   // Each pending item keeps its own typed text, so paging never answers one with another's.
   function choose(to: number) {
@@ -478,9 +494,12 @@ export function ThreadComposer({
               : undefined,
           onSubmit: () => submit(),
           onKeyDown: keyHandler((event) => {
-            if (event.key !== 'Escape' || !editing) return false
-            if (threadId) queueActions.release(threadId, editing)
-            clearDraft()
+            if (event.key !== 'Escape') return false
+            if (editing) {
+              if (threadId) queueActions.release(threadId, editing)
+              clearDraft()
+            } else if (saved.quote) update({ quote: undefined })
+            else return false
             return true
           }),
         }
@@ -531,6 +550,15 @@ export function ThreadComposer({
             </>
           ) : (
             mode.strip
+          )
+        }
+        reply={
+          saved.quote && (
+            <ReplyTab
+              text={saved.quote.text}
+              onClear={() => update({ quote: undefined })}
+              className='mx-1 mt-1 self-stretch rounded-[calc(var(--radius-md)-4px)]'
+            />
           )
         }
         placeholder={mode.placeholder}
