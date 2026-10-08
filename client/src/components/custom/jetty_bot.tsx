@@ -92,74 +92,6 @@ const poses: Record<Expression, { L: Pose; R: Pose }> = {
   wink: { L: [-10, 2.5, 8, 0.2], R: openR },
 }
 
-/** Eyes: the pills, or ASCII. Dots act with glyphs (> typing, a spinner working, ? needs you, ^ done);
- * kaomoji put a _ mouth between the eyes; bars are chunky | | like the pills. */
-export type EyeStyle = 'pills' | 'dots' | 'kaomoji' | 'bars'
-type Ascii = Exclude<EyeStyle, 'pills'>
-// ASCII eyes are heavy Geist Mono glyphs. The expression (and for dots, what it's doing) picks a glyph
-// per eye, popping it in when the expression changes, while the springs still move it, so gaze, hops,
-// and tilts carry over. Per style: glyph size, how far apart the eyes sit, glyphs drawn bigger, and
-// glyphs thickened with an outline (the bars, and the dots' square corners). Kaomoji keep the font's own
-// baseline, so ^ sits high and _ low as typed; the others centre each glyph's ink on the eye by dy
-// (measured at 32px, weight 900).
-const ASCII: Record<
-  Ascii,
-  {
-    size: number
-    gap: number
-    centred: boolean
-    scale: Record<string, number>
-    stroke: Record<string, number>
-  }
-> = {
-  dots: { size: 30, gap: 12, centred: true, scale: { '.': 2.2, '^': 1.3 }, stroke: { '.': 1.5 } },
-  kaomoji: { size: 28, gap: 16.8, centred: false, scale: {}, stroke: {} },
-  bars: { size: 18, gap: 12, centred: true, scale: { '^': 1.7 }, stroke: { '|': 5 } },
-}
-const glyphDy: Record<string, number> = {
-  '|': 1.5,
-  '.': -6,
-  '^': 8.6,
-  '-': 0.6,
-  '?': 2.9,
-  '>': 0.6,
-  '/': 1.5,
-  '\\': 1.5,
-}
-const SPINNER = ['|', '/', '-', '\\']
-
-/** Each eye's glyph and the kaomoji mouth, before blinks. */
-function asciiFace(
-  style: Ascii,
-  look: Expression,
-  doing: { state: BotState; pausing: boolean; t: number }
-): [string, string, string] {
-  const done = doing.state === 'done',
-    working = doing.state === 'working'
-  if (style === 'kaomoji') {
-    if (look === 'happy') return ['^', '^', 'w']
-    if (look === 'wink') return ['^', '~', '_']
-    if (done) return ['^', '^', '_']
-    if (look === 'wide') return ['?', '?', '_']
-    if (working) return ['>', '<', '_']
-    return ["'", "'", '_']
-  }
-  if (style === 'dots') {
-    if (look === 'happy' || done) return ['^', '^', '']
-    if (look === 'wide') return ['?', '?', '']
-    // Working, the eyes turn like a terminal spinner.
-    if (working) {
-      const c = SPINNER[Math.floor(doing.t / 0.12) % 4]!
-      return [c, c, '']
-    }
-    if (doing.state === 'thinking' && !doing.pausing) return ['>', '>', '']
-    return ['.', '.', '']
-  }
-  if (look === 'happy') return ['^', '^', '']
-  if (look === 'wink') return ['^', '|', '']
-  return ['|', '|', '']
-}
-
 // Done: two hops while stars pop and twinkle in place around it, one after another, then a quick
 // wink. The winking eye closes into a bolder, lower arc so it carries the open eye's weight.
 const WINK = [0.7, 1.15] as const
@@ -331,10 +263,7 @@ type Parts = {
   root: SVGSVGElement
   body: SVGGElement
   face: SVGGElement
-  /** Pill rects, or glyph texts for ASCII eyes */
   eyes: SVGElement[]
-  /** The kaomoji mouth */
-  mouth: SVGElement | null
   arcs: SVGPathElement[]
   badge: SVGGElement
   /** The unread dot, in the badge's spot */
@@ -395,14 +324,6 @@ class Rig {
   parts!: Parts
   replay = false
   follow = false
-  eyes: EyeStyle = 'pills'
-  look: Expression = 'open'
-  pausing = false
-  // ASCII eyes: the glyph each eye shows when not blinking, the expression they show, and a pop when
-  // a new expression swaps one.
-  glyphs = ['', '']
-  shownLook: Expression | null = null
-  pops = [spring(1), spring(1)]
 
   constructor() {
     this.now = performance.now() / 1000
@@ -413,13 +334,10 @@ class Rig {
   }
 
   /** Point the rig at freshly rendered parts. Its state, springs, and pending moments carry over. */
-  attach(parts: Parts, options: { replay: boolean; follow: boolean; eyes: EyeStyle }) {
+  attach(parts: Parts, options: { replay: boolean; follow: boolean }) {
     this.parts = parts
     this.replay = options.replay
     this.follow = options.follow
-    this.eyes = options.eyes
-    this.glyphs = ['', '']
-    this.shownLook = null
     this.top = parts.root.querySelector<SVGGraphicsElement>('.jb-body')?.getBBox().y || 11
   }
 
@@ -536,10 +454,8 @@ class Rig {
     }
     set(this.L, pose.L)
     set(this.R, pose.R)
-    this.look = expression
-    const pills = this.eyes === 'pills'
-    this.arcL.t = pills && (expression === 'happy' || expression === 'wink') ? 1 : 0
-    this.arcR.t = pills && expression === 'happy' ? 1 : 0
+    this.arcL.t = expression === 'happy' || expression === 'wink' ? 1 : 0
+    this.arcR.t = expression === 'happy' ? 1 : 0
     this.winkSize.t = expression === 'wink' ? 1.4 : 1
 
     // Tidying up: a note lands, then two taps square the pile, once a cycle.
@@ -585,7 +501,6 @@ class Rig {
     }
     const tapping = state === 'thinking',
       pausing = tapping && age % TAP.cycle > TAP.typing
-    this.pausing = pausing
     // Typing: its eyes dart side to side as it taps, then glance up while it thinks.
     if (tapping)
       gaze = pausing ? [3, -3.5] : [reduced ? 0 : Math.sin(age * Math.PI * 10) * 1.6, 3.2]
@@ -672,7 +587,6 @@ class Rig {
       step(this.juggleIn, 18, 0.5, h, reduced)
       step(this.typeIn, 20, 0.5, h, reduced)
       step(this.notesIn, 18, 0.6, h, reduced)
-      for (const pop of this.pops) step(pop, 30, 0.42, h, reduced)
     }
 
     // Additive loops: breath, sway, and the typing and working rhythms. Non-syncing periods keep them organic.
@@ -719,43 +633,6 @@ class Rig {
     this.draw(age, y, sy, rot, lid)
   }
 
-  /** ASCII eyes and the kaomoji mouth: pick each glyph, pop it in on a new expression, and place it. */
-  drawGlyphs(style: Ascii, lid: number, gx: number, gy: number) {
-    const { parts } = this,
-      set = ASCII[style]
-    const face = asciiFace(style, this.look, {
-      state: this.state,
-      pausing: this.pausing,
-      t: this.now,
-    })
-    const fresh = this.look !== this.shownLook,
-      blink = style === 'kaomoji' ? '-' : '^'
-    this.shownLook = this.look
-    const place = (text: SVGElement, glyph: string, x: number, y: number, pop: number) => {
-      if (text.textContent !== glyph) text.textContent = glyph
-      const k = set.scale[glyph] ?? 1,
-        dy = set.centred ? ((glyphDy[glyph] ?? 0) * set.size * k) / 32 : 0
-      text.setAttribute(
-        'transform',
-        `translate(${x.toFixed(2)} ${(y + dy).toFixed(2)}) scale(${(pop * k).toFixed(3)})`
-      )
-      text.setAttribute('stroke-width', String(set.stroke[glyph] ?? 0))
-    }
-    for (const [i, e] of [this.L, this.R].entries()) {
-      if (fresh && this.glyphs[i] && face[i] !== this.glyphs[i]) this.pops[i]!.x = 0.6
-      this.glyphs[i] = face[i]!
-      place(
-        parts.eyes[i]!,
-        lid < 0.5 ? blink : face[i]!,
-        (e.x.x / 10) * set.gap + gx,
-        e.y.x + gy,
-        this.pops[i]!.x
-      )
-    }
-    if (parts.mouth)
-      place(parts.mouth, face[2], gx, gy + (this.L.y.x + this.R.y.x) / 2, this.pops[0]!.x)
-  }
-
   draw(age: number, y: number, sy: number, rot: number, lid: number) {
     const { parts } = this
     // Squash and tilt pivot on the bottom of the body, as if it sits on the ground.
@@ -773,29 +650,27 @@ class Rig {
       `translate(${(+base.x! + gx * 0.4).toFixed(2)} ${(+base.y! + gy * 0.4).toFixed(2)}) scale(${base.s})`
     )
 
-    if (this.eyes !== 'pills') this.drawGlyphs(this.eyes, lid, gx, gy)
-    else
-      for (const [i, e] of [this.L, this.R].entries()) {
-        const w = Math.max(0.01, e.w.x),
-          h = Math.max(0.01, e.h.x * lid)
-        const cx = e.x.x + gx,
-          cy = e.y.x + gy
-        const rect = parts.eyes[i]!
-        rect.setAttribute('x', (cx - w / 2).toFixed(2))
-        rect.setAttribute('y', (cy - h / 2).toFixed(2))
-        rect.setAttribute('width', w.toFixed(2))
-        rect.setAttribute('height', h.toFixed(2))
-        rect.setAttribute('rx', (Math.min(w, h) / 2).toFixed(2))
-        rect.setAttribute('opacity', clamp01((h - 0.6) / 1.4).toFixed(3))
-        parts.arcs[i]!.setAttribute(
-          'transform',
-          `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${(i === 0 ? this.winkSize.x : 1).toFixed(3)})`
-        )
-        parts.arcs[i]!.setAttribute(
-          'opacity',
-          clamp01((i === 0 ? this.arcL : this.arcR).x).toFixed(3)
-        )
-      }
+    for (const [i, e] of [this.L, this.R].entries()) {
+      const w = Math.max(0.01, e.w.x),
+        h = Math.max(0.01, e.h.x * lid)
+      const cx = e.x.x + gx,
+        cy = e.y.x + gy
+      const rect = parts.eyes[i]!
+      rect.setAttribute('x', (cx - w / 2).toFixed(2))
+      rect.setAttribute('y', (cy - h / 2).toFixed(2))
+      rect.setAttribute('width', w.toFixed(2))
+      rect.setAttribute('height', h.toFixed(2))
+      rect.setAttribute('rx', (Math.min(w, h) / 2).toFixed(2))
+      rect.setAttribute('opacity', clamp01((h - 0.6) / 1.4).toFixed(3))
+      parts.arcs[i]!.setAttribute(
+        'transform',
+        `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${(i === 0 ? this.winkSize.x : 1).toFixed(3)})`
+      )
+      parts.arcs[i]!.setAttribute(
+        'opacity',
+        clamp01((i === 0 ? this.arcL : this.arcR).x).toFixed(3)
+      )
+    }
 
     // Typing bubble: pops out on a spring from its tail, and its dots bounce like a typing indicator.
     const bubble = Math.max(0, this.typeIn.x)
@@ -922,7 +797,6 @@ export type JettyBotProps = {
   follow?: boolean
   /** Click or tap to boop. */
   interactive?: boolean
-  eyes?: EyeStyle
   /** It has sent messages you haven't seen. A blue dot shows it once its turn is over. */
   unread?: boolean
   label?: string
@@ -938,7 +812,6 @@ export function JettyBot({
   replay = false,
   follow = false,
   interactive = false,
-  eyes = 'pills',
   unread = false,
   label,
   className,
@@ -961,7 +834,6 @@ export function JettyBot({
       body: q<SVGGElement>('body'),
       face: q<SVGGElement>('face'),
       eyes: ['L', 'R'].map((part) => q<SVGElement>(`eye-${part}`)),
-      mouth: svg.querySelector<SVGElement>('[data-jb="mouth"]'),
       arcs: ['L', 'R'].map((part) => q<SVGPathElement>(`arc-${part}`)),
       badge: q<SVGGElement>('badge'),
       mark: q<SVGGElement>('mark'),
@@ -976,7 +848,7 @@ export function JettyBot({
     // remount (StrictMode, a new shape) re-attaches without losing a moment that is mid-flight.
     if (!rig.current) rig.current = new Rig()
     const current = rig.current
-    current.attach(parts, { replay, follow, eyes })
+    current.attach(parts, { replay, follow })
     const observer = new IntersectionObserver(([entry]) => {
       current.visible = entry!.isIntersecting
     })
@@ -986,7 +858,7 @@ export function JettyBot({
       rigs.delete(current)
       observer.disconnect()
     }
-  }, [id, shape, replay, follow, eyes])
+  }, [id, shape, replay, follow])
 
   useEffect(() => {
     rig.current?.setState(state)
@@ -1025,7 +897,7 @@ export function JettyBot({
         <BodyFill body={body} />
         {/* Eyes are clipped to the body, so a glance toward the edge reads as the body turning. */}
         <g clipPath={`url(#${id}-face)`}>
-          <Face face={face} eyes={eyes} />
+          <Face face={face} />
         </g>
         <g data-jb='notes' style={{ display: 'none' }}>
           {[0, 1, 2].map((i) => (
@@ -1071,7 +943,7 @@ export function JettyBot({
   )
 }
 
-function Face({ face, eyes }: { face: Body['face']; eyes: EyeStyle }) {
+function Face({ face }: { face: Body['face'] }) {
   return (
     <g
       data-jb='face'
@@ -1080,29 +952,9 @@ function Face({ face, eyes }: { face: Body['face']; eyes: EyeStyle }) {
       data-s={face.s}
       transform={`translate(${face.x} ${face.y}) scale(${face.s})`}
     >
-      {['L', 'R'].map((part) =>
-        eyes === 'pills' ? (
-          <rect key={part} data-jb={`eye-${part}`} className='jb-eye' />
-        ) : (
-          <text
-            key={part}
-            data-jb={`eye-${part}`}
-            className='jb-eye jb-glyph'
-            textAnchor='middle'
-            dominantBaseline='central'
-            fontSize={ASCII[eyes].size}
-          />
-        )
-      )}
-      {eyes === 'kaomoji' && (
-        <text
-          data-jb='mouth'
-          className='jb-eye jb-glyph'
-          textAnchor='middle'
-          dominantBaseline='central'
-          fontSize={ASCII.kaomoji.size}
-        />
-      )}
+      {['L', 'R'].map((part) => (
+        <rect key={part} data-jb={`eye-${part}`} className='jb-eye' />
+      ))}
       {['L', 'R'].map((part) => (
         <path
           key={part}

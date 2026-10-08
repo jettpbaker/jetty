@@ -15,14 +15,6 @@
 .jb-eye {
   fill: var(--jb-eye);
 }
-.jb-glyph {
-  font-family: var(--font-mono);
-  font-weight: 900;
-  stroke: var(--jb-eye);
-  stroke-linejoin: round;
-  paint-order: stroke;
-  user-select: none;
-}
 .jb-arc {
   fill: none;
   stroke: var(--jb-eye);
