@@ -12,7 +12,7 @@ import { generateGuide } from './pr-guide'
 import { guideInput } from './pr-guide/hunks'
 import { StoreError } from './store'
 
-const GUIDE_MODEL = { model: 'claude-haiku-5-5', effort: 'low' } as const
+const GUIDE_MODEL = { model: 'claude-sonnet-5-5', effort: 'medium' } as const
 
 export function createPullRequestGuides(
   store: Store,

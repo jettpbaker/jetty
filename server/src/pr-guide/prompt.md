@@ -25,4 +25,5 @@ Write like a senior engineer walking a colleague into an unfamiliar codebase: pl
 - Say what the code achieves, not what each line does. The reader has the diff right beside your text.
 - Use plain words and short sentences. Say "is" and "has", not "serves as" or "boasts". No filler ("it's worth noting", "in order to"), no hedging stacks, no hype (robust, seamless, crucial, leverage, comprehensive), and no closing lines that sum up.
 - No em dashes; use a full stop, comma or brackets. Bold nothing.
-- If the PR doesn't make the intent clear, say what the code does and that the reason isn't stated. A wrong guide is worse than a thin one.
+- Explain the change itself, in your own voice. Never point at the PR or its author as the source: no "This PR…", "The PR says…", "According to the description…", "The author…". State the fact directly: "Uploads now retry three times", not "The PR says uploads now retry three times".
+- If the reason for a change isn't clear from the PR or the code, describe what the code does and leave the why out. Never invent one, and don't remark that it's missing. A wrong guide is worse than a thin one.

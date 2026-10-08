@@ -54,7 +54,7 @@ function groupFiles(hunks: readonly HunkRef[]) {
 function resolveGuide(value: unknown, hunks: Map<string, HunkRef>): PullRequestGuide {
   const response = responseSchema.parse(value)
   const placed = new Set<string>()
-  const chapters: PullRequestGuide['chapters'][number][] = []
+  const placedChapters: { chapter: (typeof response.chapters)[number]; refs: HunkRef[] }[] = []
   for (const chapter of response.chapters) {
     const refs: HunkRef[] = []
     for (const id of chapter.hunks) {
@@ -63,18 +63,20 @@ function resolveGuide(value: unknown, hunks: Map<string, HunkRef>): PullRequestG
       placed.add(id)
       refs.push(ref)
     }
-    if (refs.length)
-      chapters.push({
-        title: chapter.title,
-        why: chapter.why,
-        kind: chapter.kind,
-        files: groupFiles(refs),
-      })
+    if (!refs.length) continue
+    // Tests and generated files each get one chapter; a second one folds into the first.
+    const same =
+      (chapter.kind === 'tests' || chapter.kind === 'generated') &&
+      placedChapters.find((entry) => entry.chapter.kind === chapter.kind)
+    if (same) same.refs.push(...refs)
+    else placedChapters.push({ chapter, refs })
   }
-  for (const kind of ['tests', 'generated'] as const) {
-    if (chapters.filter((chapter) => chapter.kind === kind).length > 1)
-      throw new Error(`Guide has more than one ${kind} chapter`)
-  }
+  const chapters = placedChapters.map(({ chapter, refs }) => ({
+    title: chapter.title,
+    why: chapter.why,
+    kind: chapter.kind,
+    files: groupFiles(refs),
+  }))
   const ordered = [
     ...chapters.filter((chapter) => chapter.kind === 'core' || chapter.kind === 'supporting'),
     ...chapters.filter((chapter) => chapter.kind === 'tests'),
