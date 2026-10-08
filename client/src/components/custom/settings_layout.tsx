@@ -39,6 +39,7 @@ export function SettingsPage({
   description,
   parent,
   action,
+  className,
   children,
 }: {
   title: string
@@ -46,6 +47,7 @@ export function SettingsPage({
   // A sub-page links back to the page it opened from.
   parent?: string
   action?: ReactNode
+  className?: string
   children: ReactNode
 }) {
   const back = parent ? settingsPage(parent) : undefined
@@ -53,7 +55,8 @@ export function SettingsPage({
     <div
       className={cn(
         'mx-auto flex w-full max-w-160 flex-col gap-10 pb-16',
-        back ? 'pt-5.5' : 'pt-14'
+        back ? 'pt-5.5' : 'pt-14',
+        className
       )}
     >
       <header className='relative flex flex-col gap-1.5 px-4'>
@@ -83,16 +86,21 @@ export function SettingsSection({
   title,
   description,
   action,
+  className,
   children,
 }: {
   id?: string
   title?: string
   description?: ReactNode
   action?: ReactNode
+  className?: string
   children: ReactNode
 }) {
   return (
-    <section id={id && `settings-${id}`} className='flex scroll-mt-6 flex-col gap-3'>
+    <section
+      id={id && `settings-${id}`}
+      className={cn('flex scroll-mt-6 flex-col gap-3', className)}
+    >
       {title && (
         <div className={cn('flex items-end gap-4 pl-4', action ? 'pr-0' : 'pr-4')}>
           <div className='flex min-w-0 grow flex-col gap-0.5'>
@@ -163,7 +171,7 @@ function RowText({
   disabled?: boolean
 }) {
   return (
-    <span className='flex min-w-0 grow basis-0 flex-col gap-0.5'>
+    <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
       <span className={cn('text-13', disabled && 'text-muted-foreground')}>{title}</span>
       {description && (
         <span
@@ -176,7 +184,8 @@ function RowText({
   )
 }
 
-// Every row: a title, one muted line, and exactly one control.
+// Every row: a title, one muted line, and exactly one control, which wraps under the text in a
+// column too narrow for both.
 export function SettingsRow({
   id,
   title,
@@ -195,7 +204,10 @@ export function SettingsRow({
   return (
     <div
       id={id && `settings-${id}`}
-      className={cn('flex items-center py-3', icon ? 'min-h-16 gap-3' : 'min-h-15 gap-4')}
+      className={cn(
+        'flex flex-wrap items-center gap-y-2 py-3',
+        icon ? 'min-h-16 gap-x-3' : 'min-h-15 gap-x-4'
+      )}
     >
       {icon && <RowIcon icon={icon} disabled={disabled} />}
       <RowText title={title} description={description} disabled={disabled} />
@@ -371,7 +383,7 @@ export function SettingsButton(props: ComponentProps<typeof Button>) {
       variant='outline'
       {...props}
       className={cn(
-        'h-7 gap-1.5 rounded-sm bg-transparent px-2.5 text-13 shadow-none dark:border-border dark:bg-transparent has-[svg]:pl-2',
+        'h-7 gap-1.5 rounded-sm bg-transparent px-2.5 text-13 shadow-none disabled:text-disabled-foreground disabled:opacity-100 dark:border-border dark:bg-transparent has-[svg]:pl-2',
         props.className
       )}
     />

@@ -161,7 +161,7 @@ function ProjectRow({
           <PathText path={info ? homePath(project.path, info) : project.path} />
         </div>
       </div>
-      <span className='flex w-34 shrink-0 items-center gap-1.5 text-13 text-muted-foreground [&_svg]:size-3.5'>
+      <span className='flex w-34 shrink-0 items-center gap-1.5 text-13 text-muted-foreground @max-md:hidden [&_svg]:size-3.5'>
         {ok && (
           <>
             <environment.Icon />
@@ -169,7 +169,7 @@ function ProjectRow({
           </>
         )}
       </span>
-      <span className='flex w-30 shrink-0 items-center gap-1.5'>
+      <span className='flex w-30 shrink-0 items-center gap-1.5 @max-md:hidden'>
         {!git ? null : !ok ? (
           <span className='text-xs text-muted-foreground'>Not a git repo</span>
         ) : ok.setupGuide ? (
@@ -261,7 +261,7 @@ export function SettingsProjects() {
           id='settings-worktree-setup'
           role='table'
           aria-label='Projects'
-          className={cn(cardClass, 'flex flex-col pr-2 pl-4')}
+          className={cn(cardClass, '@container flex flex-col pr-2 pl-4')}
         >
           <div
             role='row'
@@ -270,10 +270,10 @@ export function SettingsProjects() {
             <span role='columnheader' className='grow'>
               Project
             </span>
-            <span role='columnheader' className='w-34 shrink-0'>
+            <span role='columnheader' className='w-34 shrink-0 @max-md:hidden'>
               New threads in
             </span>
-            <span role='columnheader' className='w-30 shrink-0'>
+            <span role='columnheader' className='w-30 shrink-0 @max-md:hidden'>
               Worktree setup
             </span>
             <span className='w-7 shrink-0' />

@@ -46,6 +46,7 @@ export function SettingsKeyboard() {
     <SettingsPage
       title='Keyboard'
       description='Every shortcut in Jetty.'
+      className='gap-7 [&>header]:pb-1'
       action={
         <>
           <span className='text-xs text-muted-foreground'>{comingSoon}</span>
@@ -54,7 +55,12 @@ export function SettingsKeyboard() {
       }
     >
       {groups.map((group, index) => (
-        <SettingsSection key={group.title} id={index ? undefined : 'shortcuts'} title={group.title}>
+        <SettingsSection
+          key={group.title}
+          id={index ? undefined : 'shortcuts'}
+          title={group.title}
+          className='gap-2.5'
+        >
           <SettingsCard>
             {group.bindings.map((binding) => (
               <div key={binding.name} className='flex h-9 items-center gap-4'>
