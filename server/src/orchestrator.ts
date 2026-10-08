@@ -1121,7 +1121,25 @@ export function createOrchestrator({
               if (resumeQueue) yield* setQueuePaused(input.threadId, false)
               yield* turn.await.pipe(
                 Effect.catch((error) =>
-                  emit({ type: 'turn.failed', turnId, error: error.message })
+                  Effect.gen(function* () {
+                    if (yield* store.isBot(input.threadId)) {
+                      const state = yield* store.getThreadState(input.threadId)
+                      if (
+                        !state.items.some((item) => item.turnId === turnId && item.kind === 'error')
+                      )
+                        yield* emit({
+                          type: 'item.started',
+                          item: {
+                            id: newId(),
+                            turnId,
+                            createdAt: Date.now(),
+                            kind: 'error',
+                            message: error.message,
+                          },
+                        })
+                    }
+                    yield* emit({ type: 'turn.failed', turnId, error: error.message })
+                  })
                 ),
                 Effect.onInterrupt(() =>
                   emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(

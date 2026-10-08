@@ -155,6 +155,7 @@ export const shapeIds = Object.keys(botShapes) as BotShape[]
 // One palette with the accents: the five accent colours use the accent's exact dark-theme value,
 // so a bot and an accent of the same name match. Coral, butter, mint and the greys are bot-only.
 export const botColors = {
+  accent: 'var(--bot-accent-body)',
   coral: 'oklch(0.74 0.16 32)',
   orange: 'oklch(0.772 0.13 60)',
   butter: 'oklch(0.86 0.13 95)',
@@ -172,6 +173,7 @@ export const colorIds = Object.keys(botColors) as BotColor[]
 // In light mode each face takes its colour's deep ink (the accent's own
 // for the five shared colours) and the eyes go light. Dark keeps botColors.
 export const deepBotColors = {
+  accent: 'var(--bot-accent-deep)',
   coral: 'oklch(0.52 0.16 32)',
   orange: 'oklch(0.49 0.13 50)',
   butter: 'oklch(0.52 0.10 90)',

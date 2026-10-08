@@ -1,3 +1,8 @@
+:root {
+  --bot-accent-body: oklch(0.772 0.119 282.178);
+  --bot-accent-deep: oklch(0.5 0.18 282.178);
+}
+
 [data-accent='lilac'] {
   --accent-primary-light: oklch(0.5 0.18 282.178);
   --accent-primary-dark: oklch(0.772 0.119 282.178);
@@ -26,6 +31,8 @@
 }
 
 :root[data-accent] {
+  --bot-accent-body: var(--accent-primary-dark);
+  --bot-accent-deep: var(--accent-primary-light);
   --primary: var(--accent-primary-light);
   --primary-foreground: oklch(0.99 0 0);
   --ring: var(--primary);
@@ -38,6 +45,7 @@
   --primary-foreground: oklch(0.205 0 0);
 }
 :root.oled[data-accent] {
+  --bot-accent-body: var(--accent-primary-oled);
   --primary: var(--accent-primary-oled);
 }
 .accent-swatch {

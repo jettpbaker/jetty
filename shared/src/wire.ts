@@ -368,6 +368,7 @@ export const BotShape = Schema.Literals([
 export type BotShape = Schema.Schema.Type<typeof BotShape>
 
 export const BotColor = Schema.Literals([
+  'accent',
   'coral',
   'orange',
   'butter',

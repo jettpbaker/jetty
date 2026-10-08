@@ -12,17 +12,10 @@ const statusAtom = Atom.make<ConnectionStatus>('connecting').pipe(Atom.keepAlive
 
 export const connectionAtom = Atom.make((get) => {
   let seen = false
-  const connection = createConnection(connectionUrl, (connected) => {
+  return createConnection(connectionUrl, (connected) => {
     seen ||= connected
     get.set(statusAtom, connected ? 'online' : seen ? 'reconnecting' : 'connecting')
   })
-  // The bots mock's one switch. Builds without it drop the mock entirely.
-  if (!import.meta.env.VITE_BOTS_MOCK) return connection
-  return Effect.zipWith(
-    connection,
-    Effect.promise(() => import('./bots_mock')),
-    (live, mock) => mock.withBotsMock(live)
-  )
 }).pipe(Atom.keepAlive)
 
 // A server restart that settles within a beat passes unannounced.

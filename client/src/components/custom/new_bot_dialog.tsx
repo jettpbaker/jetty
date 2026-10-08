@@ -184,7 +184,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
                       type='button'
                       variant='ghost'
                       size='icon'
-                      aria-label={id}
+                      aria-label={id === 'accent' ? 'Accent' : id}
                       aria-pressed={id === color}
                       onClick={() => setColor(id)}
                       className='aria-pressed:bg-accent'
