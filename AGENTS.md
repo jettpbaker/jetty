@@ -77,6 +77,7 @@
   the pinned pin. Checks passed/failed reuse the status discs; selected answers
   stay stroked. GitHub is the official filled svgl mark. Provider logos, the
   in-progress glyph, status discs and context ring stay custom.
+- Keycaps: a shortcut the app registers shows as the `KeybindChip` of its entry in `keybinds.tsx`; a one-off key that isn't an app shortcut (↵ in a dialog's footer) is a `Kbd`. Both fill with translucent foreground (`bg-foreground/8`) so they sit on any surface. Never give a keycap an opaque fill.
 - Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
   `size-glyph` (18px) is for tab status glyphs only. No arbitrary `size-[Npx]`.
 - One muted: `text-muted-foreground`. No `/50`, `/60`, or `opacity-*` tints on
