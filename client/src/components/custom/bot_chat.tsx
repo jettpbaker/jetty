@@ -66,6 +66,8 @@ const STAGGER = 90
 const FADE_MS = 150
 const EXIT_MS = 90
 const SESSION_GAP = 30 * 60_000
+// px from the bottom that still counts as at it; in a column-reverse scroller, 0 is the bottom.
+const PIN_SLACK = 8
 const TIDY_NOTE = 'This can take a couple of minutes. Your message is next.'
 
 type Message = {
@@ -257,6 +259,22 @@ export function BotChat({ bot }: { bot: Bot }) {
   const [now] = useState(() => Date.now())
   const [replyTo, setReplyTo] = useState<{ itemId: string; text: string }>()
   const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const pinnedRef = useRef(true)
+  // Once the view is a pixel off the bottom, Chrome's scroll anchoring holds the rows on screen
+  // still and new ones land under the composer, so a reader at the bottom is kept there.
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    const content = contentRef.current
+    if (!scroller || !content) return
+    const observer = new ResizeObserver(() => {
+      if (pinnedRef.current) scroller.scrollTop = 0
+    })
+    observer.observe(scroller)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [])
   const items = thread?.items ?? []
   const rows = toRows(toItems(items, pending))
   const streaming = items.some(
@@ -271,6 +289,8 @@ export function BotChat({ bot }: { bot: Bot }) {
   function send(text: string) {
     sendToBot(bot.id, text, replyTo)
     setReplyTo(undefined)
+    pinnedRef.current = true
+    if (scrollerRef.current) scrollerRef.current.scrollTop = 0
   }
   function jump(id: string) {
     const target = document.getElementById(`bot-message-${id}`)
@@ -288,8 +308,14 @@ export function BotChat({ bot }: { bot: Bot }) {
       className='flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
       style={botColorStyle(bot.color)}
     >
-      <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'>
-        <div className='flex shrink-0 grow flex-col'>
+      <div
+        ref={scrollerRef}
+        className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'
+        onScroll={({ currentTarget }) => {
+          pinnedRef.current = currentTarget.scrollTop > -PIN_SLACK
+        }}
+      >
+        <div ref={contentRef} className='flex shrink-0 grow flex-col'>
           <div className='grow' />
           <Transcript
             rows={rows}
@@ -305,7 +331,8 @@ export function BotChat({ bot }: { bot: Bot }) {
             }}
             onJump={jump}
           />
-          <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px] pt-4'>
+          <div className='sticky bottom-0 z-10 mx-auto w-full max-w-[660px]'>
+            <div className='h-4 bg-linear-to-t from-background to-transparent' />
             <div className='bg-background pb-4'>
               <BotComposer
                 key={bot.id}
