@@ -610,8 +610,9 @@ export function createMcpHandler(
             }
             const caller = yield* store.requireThread(identity.threadId)
             if (
+              !((yield* store.isBot(caller.id)) && (yield* store.isBot(target.id))) &&
               accessLevel(target, yield* store.getPermissionMode(target.id)) >
-              accessLevel(caller, yield* store.getPermissionMode(caller.id))
+                accessLevel(caller, yield* store.getPermissionMode(caller.id))
             )
               return yield* Effect.fail(
                 new StoreError(
@@ -1032,7 +1033,17 @@ export function createMcpHandler(
                     id: other.id,
                     name: other.name,
                     project: other.projectId ? (titles.get(other.projectId) ?? null) : null,
-                    job: brief.split(/\r?\n/, 1)[0]?.trim().slice(0, 120) || null,
+                    job:
+                      brief
+                        .split(/\r?\n/)
+                        .map((line) => line.trim())
+                        .find(
+                          (line) =>
+                            line &&
+                            !/^#{1,6}(?:\s|$)/.test(line) &&
+                            !/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(line)
+                        )
+                        ?.slice(0, 120) || null,
                   })
                 }
                 return listed

@@ -185,7 +185,11 @@ function cachedBlock() {
 }
 
 function blockProcessor(remarkPlugins: PluggableList, rehypePlugins: PluggableList) {
-  return unified().use(remarkParse).use(remarkPlugins).use(remarkRehype).use(rehypePlugins)
+  return unified()
+    .use(remarkParse)
+    .use(remarkPlugins)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypePlugins)
 }
 
 const MarkdownBlock = cachedBlock()

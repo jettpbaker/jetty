@@ -45,9 +45,16 @@ import { SqlClient } from 'effect/sql'
 import type { GuideMetrics } from './pr-guide'
 import type { PullRequestWatchMemory } from './pull-request-watch'
 
+import { botApproval, lowerFirst } from './bot-approval'
 import { botUserName } from './bot-home'
 import { normalizePath } from './fs-browse'
-import { childReport, REPORT_CAP, reportMessage, restartNote, type ReportOutcome } from './jetty-instructions'
+import {
+  childReport,
+  REPORT_CAP,
+  reportMessage,
+  restartNote,
+  type ReportOutcome,
+} from './jetty-instructions'
 import { needsUser, type ChildWaitResult } from './quiet-threads'
 
 export const DEFAULT_THREAD_TITLE = 'New thread'
@@ -766,7 +773,14 @@ export function createStore() {
           (item) =>
             item.turnId === turn.turn_id && item.kind === 'approval' && item.decision === 'deny'
         )
-        const deniedTitle = denied?.kind === 'approval' ? denied.title : undefined
+        const deniedInput =
+          denied?.kind === 'approval' && denied.input && typeof denied.input === 'object'
+            ? (denied.input as Record<string, unknown>)
+            : {}
+        const deniedTitle =
+          denied?.kind === 'approval'
+            ? lowerFirst(botApproval(denied.toolName, deniedInput, [], []).title)
+            : undefined
         const outcome: ReportOutcome = question
           ? { type: 'asked', question }
           : paused
@@ -824,8 +838,11 @@ export function createStore() {
           return { delivered: true, waited }
         }
         const lastMessage = final.at(-1)
+        const userMessage = state.items.find(
+          (item) => item.turnId === turn.turn_id && item.kind === 'user_message' && !item.from
+        )
         const text = userWorked
-          ? `${user} worked with [${thread.title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId}) directly. Its reply: ${reportMessage(closing, final.at(-1)?.id)}`
+          ? `${user} worked with [${thread.title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId}) directly: "${userMessage?.kind === 'user_message' ? userMessage.text.slice(0, 200) : ''}". Its reply: ${reportMessage(closing, final.at(-1)?.id)}`
           : childReport({
               threadId,
               title: thread.title,

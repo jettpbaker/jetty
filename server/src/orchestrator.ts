@@ -619,7 +619,7 @@ export function createOrchestrator({
             const thread = yield* store.requireThread(threadId)
             if (live.turnId === turnId && !thread.queuePaused && !thread.pendingMessages?.length)
               yield* store.enqueue(threadId, {
-                id: newId(),
+                id: `nudge:${newId()}`,
                 text: `Your last turn ended without a say or a reaction, so ${user} saw nothing from you. If you meant to answer, send it with say now. If nothing needs saying, react to their message.`,
                 from: { threadId, title: 'Jetty' },
                 hop: 0,
@@ -1440,8 +1440,9 @@ export function createOrchestrator({
           const firstMessage = threadState.items.find(
             (item) => item.turnId === turn.turnId && item.kind === 'user_message'
           )
-          const fromJetty =
+          const fromNudge =
             firstMessage?.kind === 'user_message' &&
+            firstMessage.id.startsWith('nudge:') &&
             firstMessage.from?.threadId === threadId &&
             firstMessage.from.title === 'Jetty'
           const target = [...threadState.items]
@@ -1450,7 +1451,7 @@ export function createOrchestrator({
               (item) =>
                 item.kind === 'user_message' &&
                 !item.from &&
-                (item.turnId === turn.turnId || fromJetty)
+                (item.turnId === turn.turnId || fromNudge)
             )
           if (!target || target.kind !== 'user_message')
             return yield* Effect.fail(

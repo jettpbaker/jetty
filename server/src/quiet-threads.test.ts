@@ -105,7 +105,9 @@ test('a quiet wait finishes after a queued message from another thread', async (
     expect(await Effect.runPromise(store.reportSettledChild(child.id))).toEqual({
       delivered: false,
     })
-    expect(await Effect.runPromise(store.reportSettledChild(child.id, { wait: true }))).toMatchObject({
+    expect(
+      await Effect.runPromise(store.reportSettledChild(child.id, { wait: true }))
+    ).toMatchObject({
       waited: { status: 'finished', report: 'Retry limit is 3.' },
     })
   } finally {
