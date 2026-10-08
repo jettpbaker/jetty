@@ -144,6 +144,7 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
       completed = true
       return
     }
+    yield* Effect.logInfo(`tidy pass for ${bot.id} started`)
     const changelog = yield* Effect.tryPromise({
       try: (signal) => tidyQuery(bot, home, signal),
       catch: (error) => error,
