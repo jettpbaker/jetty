@@ -1371,6 +1371,8 @@ export function MarkdownEditor({
               ref={(input) => focusWhenShown(input)}
               disabled={disabled}
               aria-label='Link URL'
+              data-1p-ignore
+              autoComplete='off'
               placeholder='Enter link URL'
               value={link}
               onChange={(event) => setLink(event.target.value)}

@@ -84,6 +84,8 @@ function FolderPicker({
         <input
           {...picker.input}
           aria-label='Project folder path'
+          data-1p-ignore
+          autoComplete='off'
           value={picker.query}
           onChange={(event) => picker.setQuery(event.target.value)}
           placeholder='Search folders'
@@ -118,7 +120,7 @@ function FolderPicker({
             </p>
           )}
         </div>
-        <div className='absolute right-3 bottom-3 flex h-8 items-center gap-2 rounded-full bg-popover pr-1.5 pl-3 text-xs text-muted-foreground shadow-lg ring-1 ring-foreground/10'>
+        <div className='absolute right-3 bottom-3 flex h-8 items-center gap-2 rounded-full bg-popover pr-1.5 pl-3 text-xs text-muted-foreground shadow-lg ring-1 ring-border'>
           <span className='flex items-center gap-1.5'>
             {picker.activeIsUp ? 'Go up' : 'Open'}
             <Kbd>↵</Kbd>

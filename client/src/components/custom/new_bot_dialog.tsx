@@ -213,6 +213,8 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
             <input
               ref={nameRef}
               aria-label='Name'
+              data-1p-ignore
+              autoComplete='off'
               placeholder='Bot'
               maxLength={BOT_NAME_MAX}
               value={name}

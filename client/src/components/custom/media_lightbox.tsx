@@ -515,7 +515,7 @@ function Toolbar({
   }
 
   return (
-    <div className='fixed top-3 right-3 flex items-center gap-0.5 rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-foreground/10'>
+    <div className='fixed top-3 right-3 flex items-center gap-0.5 rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-border'>
       <ToolbarButton
         label='Zoom out'
         shortcut='−'
