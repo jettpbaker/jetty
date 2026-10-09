@@ -57,6 +57,14 @@ Everything below is for one combined review of the chat, not separate ports.
   notifications too.
 - An Archived threads page in Settings with proper search (Jett, "might want").
   Needs a design.
+- Grok workers can't commit in a worktree. Grok's `--sandbox workspace` writes only
+  the worktree folder, but a linked worktree's git data lives in the repo's `.git`,
+  and Grok has no flag, env var or config for an extra writable path (it reads
+  profiles only from `~/.grok/sandbox.toml` or a project `.grok/sandbox.toml`).
+  Options: run Grok threads in Auto with Grok's OS sandbox off, like Claude threads;
+  launch from a temp folder holding a profile that grants the git dir (hacky,
+  unverified); or leave it and have bots pick Claude or Codex for committed work
+  until xAI adds a way. Jett to decide when not at work.
 - Guides on Codex and Grok, not just Claude. `pr-guide.ts` runs on the Claude Agent
   SDK, so Settings › Guided reviews lists Claude models only, and its Fast switch
   stays off because Jetty has no Fast for Claude.
