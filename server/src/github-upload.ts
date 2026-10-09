@@ -1,4 +1,4 @@
-import { MAX_TURN_IMAGE_BYTES } from '@jetty/shared/wire'
+import { MAX_TURN_ATTACHMENT_BYTES } from '@jetty/shared/wire'
 
 import { checkBackoff, ghToken, observeRateLimit, restGet, validRepo } from './pull-requests'
 import { StoreError } from './store'
@@ -11,9 +11,9 @@ const uploadTypes: Record<string, { mimeType: string; maxBytes: number }> = {
   gif: { mimeType: 'image/gif', maxBytes: 10 * 1024 * 1024 },
   webp: { mimeType: 'image/webp', maxBytes: 10 * 1024 * 1024 },
   svg: { mimeType: 'image/svg+xml', maxBytes: 10 * 1024 * 1024 },
-  mp4: { mimeType: 'video/mp4', maxBytes: MAX_TURN_IMAGE_BYTES },
-  mov: { mimeType: 'video/quicktime', maxBytes: MAX_TURN_IMAGE_BYTES },
-  webm: { mimeType: 'video/webm', maxBytes: MAX_TURN_IMAGE_BYTES },
+  mp4: { mimeType: 'video/mp4', maxBytes: MAX_TURN_ATTACHMENT_BYTES },
+  mov: { mimeType: 'video/quicktime', maxBytes: MAX_TURN_ATTACHMENT_BYTES },
+  webm: { mimeType: 'video/webm', maxBytes: MAX_TURN_ATTACHMENT_BYTES },
 }
 
 export async function uploadGithubAttachment(params: {

@@ -18,7 +18,7 @@ import { ReplyTab } from '@/components/custom/reply_quote'
 import { UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
-import { useImageAttachments } from '@/hooks/use-image-attachments'
+import { useAttachments } from '@/hooks/use-attachments'
 import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
@@ -129,7 +129,7 @@ export function ThreadComposer({
   // The queue shows in the chat; here it's only the message being edited.
   const { own: queue, unsent } = useVisibleQueue(threadId, items)
   const editingEntry = queue.find((entry) => entry.id === editing)
-  const attachments = useImageAttachments(draftKey, { editing: editingEntry !== undefined })
+  const attachments = useAttachments(draftKey, { editing: editingEntry !== undefined })
   const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
@@ -164,7 +164,7 @@ export function ThreadComposer({
   // A started draft keeps the project it was started in, though a thread elsewhere may become the
   // most recent while it's written. Emptied and left, it lets go, so coming back follows the most
   // recent thread again; a picked project stays.
-  const started = draft.trim() !== '' || attachments.images.length > 0
+  const started = draft.trim() !== '' || attachments.items.length > 0
   useEffect(() => {
     if (threadId || !started || !projectId || picked) return
     draftPin = projectId
@@ -173,9 +173,9 @@ export function ThreadComposer({
   useEffect(() => {
     if (threadId) return
     return () => {
-      const { text, images, target } = read()
+      const { text, attachments: staged, target } = read()
       if (draftPin === undefined || target?.projectId !== draftPin) return
-      if (text.trim() || images.length > 0) return
+      if (text.trim() || staged.length > 0) return
       draftPin = undefined
       update({ target: { ...target, projectId: undefined } })
     }
@@ -339,7 +339,7 @@ export function ThreadComposer({
     if (threadId && editingEntry) {
       if (!text) return
       queueActions.edit(threadId, editingEntry.id, text)
-    } else if (!text && attachments.images.length === 0) return
+    } else if (!text && attachments.items.length === 0) return
     else if (threadId && running) queueActions.add(threadId, text, attachments.take(), takeQuotes())
     else return startTurn(text, background)
     clearDraft()
@@ -375,7 +375,7 @@ export function ThreadComposer({
   const steers = Boolean(threadId) && running && !item && !editingEntry
   function steer() {
     const text = draft.trim()
-    if (text || attachments.images.length > 0) startTurn(text, false)
+    if (text || attachments.items.length > 0) startTurn(text, false)
   }
 
   // Edit on a queued message in the chat loads it here, sending or queueing what was typed.
@@ -385,7 +385,7 @@ export function ThreadComposer({
     if (!threadId) return
     const previous = draft.trim()
     const reply = answering && previous ? item : undefined
-    const queues = !editingEntry && !reply && (previous || attachments.images.length > 0)
+    const queues = !editingEntry && !reply && (previous || attachments.items.length > 0)
     if (queues && !attachments.ready) return setWaitingEdit(entry)
     if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
     else if (editingEntry) queueActions.release(threadId, editingEntry.id)

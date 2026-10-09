@@ -25,6 +25,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 
 import type { QueueState, TranscriptQueue } from './thread_rows'
 
+import { FileLines, isImageAttachment } from './attachment_files'
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 
 const footer =
@@ -108,9 +109,7 @@ function QueuedText({ entry, muted }: { entry: QueuedMessage; muted: boolean }) 
   const [open, setOpen] = useState(false)
   const long = clampsQueued(entry.text)
   const clamped = long && !open
-  const images = (entry.attachments ?? []).filter((attachment) =>
-    attachment.mimeType.startsWith('image/')
-  )
+  const images = (entry.attachments ?? []).filter(isImageAttachment)
   return (
     <>
       <Images images={images} />
@@ -258,6 +257,9 @@ export function QueuedBubble({
             onJump={() => requestReveal(threadId, reply.itemId)}
           />
         ))}
+        <FileLines
+          files={(entry.attachments ?? []).filter((attachment) => !isImageAttachment(attachment))}
+        />
         <Bubble variant={null} align='end'>
           <BubbleContent className='rounded-lg border-dashed border-primary bg-primary/8'>
             <QueuedText entry={entry} muted={editing} />

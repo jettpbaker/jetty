@@ -11,7 +11,7 @@ import {
 } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { MAX_TURN_IMAGE_BYTES, newId } from '@jetty/shared/wire'
+import { MAX_TURN_ATTACHMENT_BYTES, newId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import {
   Context,
@@ -31,7 +31,7 @@ import { ChildProcessSpawner } from 'effect/process'
 import { RpcSerialization, RpcServer } from 'effect/rpc'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { homedir } from 'node:os'
-import { join, normalize, resolve, sep } from 'node:path'
+import { basename, join, normalize, resolve, sep } from 'node:path'
 
 import {
   AgentService,
@@ -275,7 +275,7 @@ function reconcileOnStartup(store: Store) {
 }
 
 // base64 inflates by 4/3; the extra MiB covers the rest of the turn.start frame.
-const MAX_TURN_PAYLOAD_BYTES = Math.ceil((MAX_TURN_IMAGE_BYTES * 4) / 3) + 1024 * 1024
+const MAX_TURN_PAYLOAD_BYTES = Math.ceil((MAX_TURN_ATTACHMENT_BYTES * 4) / 3) + 1024 * 1024
 
 const distDir = resolve(import.meta.dir, '../../client/dist')
 
@@ -437,6 +437,7 @@ function createServer(opts: ServerOptions = {}) {
                     },
                     supportsAutoMode: (id) =>
                       findProviderModel(models ?? [], 'claude', id)?.autoMode !== false,
+                    attachmentsDir: join(home, 'attachments'),
                   })
                 ),
                 codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp })),
@@ -667,7 +668,18 @@ function createServer(opts: ServerOptions = {}) {
         const id = url.pathname.slice('/attachments/'.length)
         const resolved = yield* attachments.resolve(id)
         if (!resolved) return HttpServerResponse.text('Not found', { status: 404 })
-        return yield* rangeResponse(resolved.path, resolved.mimeType, request.headers.range ?? null)
+        // A file is only ever downloaded, never rendered by the browser as a page of Jetty's own.
+        return yield* rangeResponse(
+          resolved.path,
+          resolved.mimeType,
+          request.headers.range ?? null,
+          resolved.file
+            ? {
+                'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(basename(resolved.path))}`,
+                'X-Content-Type-Options': 'nosniff',
+              }
+            : {}
+        )
       }
       if (
         (request.method === 'GET' || request.method === 'HEAD') &&

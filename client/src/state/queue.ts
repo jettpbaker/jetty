@@ -1,4 +1,4 @@
-import type { ReadyImage } from '@/hooks/use-image-attachments'
+import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
@@ -133,7 +133,7 @@ function addQueued(
   registry: Registry,
   threadId: string,
   text: string,
-  images: readonly ReadyImage[] = [],
+  attachments: readonly ReadyAttachment[] = [],
   replies?: readonly Reply[]
 ) {
   const message = {
@@ -142,7 +142,7 @@ function addQueued(
     ...(replies?.length && { replies }),
     createdAt: Date.now(),
     hop: 0,
-    attachments: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
+    attachments: attachments.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
       name,
       mimeType,
@@ -154,11 +154,11 @@ function addQueued(
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
   const staged = stageSend(registry, threadId, {
     text,
-    images,
+    attachments,
     quotes: replies,
     sent: { threadId, messageId: message.id },
   })
-  // Adds go out one at a time per thread, so a message whose images take a while to store still
+  // Adds go out one at a time per thread, so a message whose attachments take a while to store still
   // reaches the queue before a text-only one sent after it.
   const previous = latestAdd.get(threadId)
   const add = track(
@@ -175,9 +175,9 @@ function addQueued(
               messageId: message.id,
               text,
               ...(replies?.length && { replies }),
-              ...(images.length > 0
+              ...(attachments.length > 0
                 ? {
-                    attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                    attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
                       name,
                       mimeType,
                       dataUrl,
@@ -191,7 +191,7 @@ function addQueued(
     {
       onSuccess() {
         staged.sent()
-        for (const image of images) revokeBlobUrl(image.url)
+        for (const attachment of attachments) revokeBlobUrl(attachment.url)
       },
       onFailure() {
         staged.failed(threadId)
@@ -252,7 +252,7 @@ function restoreQueued(registry: Registry, threadId: string) {
 }
 
 function editQueued(registry: Registry, threadId: string, messageId: string, text: string) {
-  const staged = stageSend(registry, threadId, { text, images: [], editing: messageId })
+  const staged = stageSend(registry, threadId, { text, attachments: [], editing: messageId })
   track(
     registry,
     threadId,
@@ -281,7 +281,7 @@ function sendQueuedNow(registry: Registry, threadId: string, message: QueuedMess
     : showSent(registry, threadId, {
         id: message.id,
         text: message.text,
-        images: message.attachments ?? [],
+        attachments: message.attachments ?? [],
         sentAt: Date.now(),
       })
   runQueued(

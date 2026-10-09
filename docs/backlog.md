@@ -57,10 +57,6 @@ Everything below is for one combined review of the chat, not separate ports.
   notifications too.
 - An Archived threads page in Settings with proper search (Jett, "might want").
   Needs a design.
-- Non-image attachments (text, Markdown, logs, PDF) in threads and bots. Jetty only
-  accepts PNG, JPEG, GIF and WebP today. Needs wider allowed types and a way to hand a
-  file to the agent, probably saved to a path it reads. The bot chat's thumb strip
-  design (sketchpad `components.bot-attachments`, C) already draws file strips.
 - Grok workers can't commit in a worktree. Grok's `--sandbox workspace` writes only
   the worktree folder, but a linked worktree's git data lives in the repo's `.git`,
   and Grok has no flag, env var or config for an extra writable path (it reads

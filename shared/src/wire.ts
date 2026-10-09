@@ -16,10 +16,12 @@ export function newId() {
   return uuidv7()
 }
 
-export const MAX_IMAGES_PER_TURN = 20
+export const MAX_ATTACHMENTS_PER_TURN = 20
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-// Bounds the turn.start frame at ~65 MB rather than 20 full-size images (~270 MB).
-export const MAX_TURN_IMAGE_BYTES = 48 * 1024 * 1024
+// Any other file, which reaches the agent as a path rather than inline.
+export const MAX_FILE_BYTES = 25 * 1024 * 1024
+// Bounds the turn.start frame at ~65 MB rather than 20 full-size attachments.
+export const MAX_TURN_ATTACHMENT_BYTES = 48 * 1024 * 1024
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
 export const PermissionMode = Schema.Literals(['auto', 'full_access'])
@@ -525,9 +527,14 @@ export const BotConversationMessage = Schema.Struct({
 })
 export type BotConversationMessage = Schema.Schema.Type<typeof BotConversationMessage>
 
+// The images an agent sees inline. Every other type is a file, handed over as a path.
+export const ImageMimeType = Schema.Literals(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+export type ImageMimeType = Schema.Schema.Type<typeof ImageMimeType>
+export const isImageMimeType = Schema.is(ImageMimeType)
+
 export const UploadAttachment = Schema.Struct({
   name: Schema.String,
-  mimeType: Schema.Literals(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
+  mimeType: Schema.String,
   dataUrl: Schema.String,
 })
 export type UploadAttachment = Schema.Schema.Type<typeof UploadAttachment>
@@ -963,7 +970,7 @@ export const methods = {
       messageId: Schema.String.check(Schema.isMinLength(1)),
       text: Schema.String,
       attachments: Schema.optional(
-        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_ATTACHMENTS_PER_TURN))
       ),
       replies: Schema.optional(Schema.Array(Reply)),
     }),
@@ -1005,7 +1012,7 @@ export const methods = {
       messageId: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
       text: Schema.String,
       attachments: Schema.optional(
-        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_ATTACHMENTS_PER_TURN))
       ),
       model: Schema.optional(Schema.String),
       effort: Schema.optional(EffortLevel),
@@ -1088,17 +1095,17 @@ export const methods = {
       botId: Schema.String,
       // The user_message item's id, as with turn.start.
       messageId: Schema.String.check(Schema.isMinLength(1)),
-      // Empty only when the message carries images.
+      // Empty only when the message carries attachments.
       text: Schema.String,
       // The chat items Jett is replying to, and the part of each he quotes.
       replies: Schema.optional(Schema.Array(Reply)),
-      // New images, as turn.start takes them.
+      // New attachments, as turn.start takes them.
       attachments: Schema.optional(
-        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_ATTACHMENTS_PER_TURN))
       ),
-      // Images the bot's thread already holds, for Retry.
+      // Attachments the bot's thread already holds, for Retry.
       attachmentIds: Schema.optional(
-        Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+        Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_ATTACHMENTS_PER_TURN))
       ),
     }),
     result: Schema.Null,

@@ -1,10 +1,11 @@
-import type { ReadyImage } from '@/hooks/use-image-attachments'
+import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { PendingBotMessage } from '@/state/bots'
 import type { Attachment, Reply, ThreadItem } from '@jetty/shared/items'
 import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
-import { StagedImages, ThumbRow } from '@/components/custom/bot_attachments'
+import { FileLines, isImageAttachment } from '@/components/custom/attachment_files'
+import { StagedAttachments, ThumbRow } from '@/components/custom/bot_attachments'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
@@ -28,7 +29,7 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
-import { useImageAttachments } from '@/hooks/use-image-attachments'
+import { useAttachments } from '@/hooks/use-attachments'
 import { emojiUrl } from '@/lib/fluent_emoji'
 import { pressProps } from '@/lib/press'
 import { chatStamp, SESSION_GAP } from '@/lib/time'
@@ -333,8 +334,8 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   // Stop lasts the whole turn, including the quiet stretch after a bubble, but not a turn Jetty
   // started on its own while it shows nothing.
   const running = turnId ? !asking && (presence !== null || !quietTurn(items, turnId)) : false
-  function send(text: string, images: readonly ReadyImage[]) {
-    sendToBot(bot.id, text, replies, [], images, bot.id)
+  function send(text: string, attachments: readonly ReadyAttachment[]) {
+    sendToBot(bot.id, text, replies, [], attachments, bot.id)
     setReplies(undefined)
     pinnedRef.current = true
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
@@ -621,10 +622,10 @@ function MessageRow({
   onJump: (id: string) => void
 }) {
   const jett = message.from === 'jett'
-  const images = message.attachments.filter((attachment) =>
-    attachment.mimeType.startsWith('image/')
-  )
-  // On the message's top-left corner: its thumbs when it has any, else its bubble.
+  const images = message.attachments.filter(isImageAttachment)
+  const files = message.attachments.filter((attachment) => !isImageAttachment(attachment))
+  // On the message's top-left corner: its thumbs when it has any, else its bubble, else its files.
+  const reactsOn = images.length > 0 ? 'images' : message.text ? 'bubble' : 'files'
   const reaction = message.reaction && (
     <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
       <img src={emojiUrl(message.reaction)} alt={message.reaction} className='size-3' />
@@ -662,7 +663,13 @@ function MessageRow({
               {images.length > 0 && (
                 <div className='relative'>
                   <ThumbRow images={images} />
-                  {reaction}
+                  {reactsOn === 'images' && reaction}
+                </div>
+              )}
+              {files.length > 0 && (
+                <div className='relative'>
+                  <FileLines files={files} />
+                  {reactsOn === 'files' && reaction}
                 </div>
               )}
               {message.text && (
@@ -670,7 +677,7 @@ function MessageRow({
                   <BubbleContent className='rounded-[18.5px] border-0 leading-normal whitespace-pre-wrap selection:bg-primary-foreground/25 selection:text-primary-foreground'>
                     <BotMentions text={message.text} />
                   </BubbleContent>
-                  {images.length === 0 && reaction}
+                  {reactsOn === 'bubble' && reaction}
                 </Bubble>
               )}
             </div>
@@ -689,7 +696,10 @@ function MessageRow({
             side={jett ? 'left' : 'right'}
             text={message.text}
             onReply={() =>
-              onReply({ itemId: message.id, text: message.text || imagesLabel(images) })
+              onReply({
+                itemId: message.id,
+                text: message.text || attachmentsLabel(message.attachments),
+              })
             }
           />
         </div>
@@ -698,9 +708,12 @@ function MessageRow({
   )
 }
 
-// What a quote of an image-only message reads as.
-function imagesLabel(images: readonly Attachment[]) {
-  return images.length === 1 ? 'Image' : `${images.length} images`
+// What a quote of a message with no text reads as.
+function attachmentsLabel(attachments: readonly Attachment[]) {
+  const images = attachments.filter(isImageAttachment).length
+  if (images === attachments.length) return images === 1 ? 'Image' : `${images} images`
+  if (attachments.length === 1) return attachments[0]!.name
+  return images === 0 ? `${attachments.length} files` : `${attachments.length} attachments`
 }
 
 function MessageActions({
@@ -1060,13 +1073,13 @@ function BotComposer({
   busy: boolean
   replies?: readonly Reply[]
   onRemoveReply: (index: number) => void
-  onSend: (text: string, images: readonly ReadyImage[]) => void
+  onSend: (text: string, attachments: readonly ReadyAttachment[]) => void
   onStop: () => void
   className?: string
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
-  const attachments = useImageAttachments(bot.id, { keepFailed: true })
-  const staged = attachments.images.length > 0
+  const attachments = useAttachments(bot.id, { keepFailed: true })
+  const staged = attachments.items.length > 0
   const draft = storedDraft.text
   const others = useBots().filter((other) => other.id !== bot.id)
   const slash = useComposerSlash(draft, (text) => update({ text }), fieldRef, {
@@ -1082,7 +1095,7 @@ function BotComposer({
   const sentRef = useRef(0)
   const calm = useReducedMotion() ?? false
   // A failed image stays in view but sends nothing.
-  const empty = !draft.trim() && attachments.images.every((image) => image.error)
+  const empty = !draft.trim() && attachments.items.every((item) => item.error)
   useBotPresence(bot.id, !empty)
   const stop = empty && busy
   // Measured as shown, chips and all.
@@ -1142,7 +1155,7 @@ function BotComposer({
     >
       {staged && (
         <div className='col-span-3 min-w-0' style={{ gridRow: imagesRow }}>
-          <StagedImages images={attachments.images} onRemove={attachments.remove} />
+          <StagedAttachments items={attachments.items} onRemove={attachments.remove} />
         </div>
       )}
       {replies && (
@@ -1173,11 +1186,7 @@ function BotComposer({
           {...slash.input}
           placeholder={`Message ${bot.name}`}
           aria-label={`Message ${bot.name}`}
-          onPaste={(event) => {
-            if (event.clipboardData.files.length === 0) return
-            event.preventDefault()
-            attachments.add(event.clipboardData.files)
-          }}
+          onPaste={attachments.paste}
           onKeyDown={(event) => {
             if (event.defaultPrevented) return
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {

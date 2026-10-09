@@ -2,6 +2,7 @@ import { layout, prepare, type PreparedText } from '@chenglou/pretext'
 
 import type { ThreadRow } from './thread_rows'
 
+import { isImageAttachment } from './attachment_files'
 import {
   BUBBLE_THUMBNAIL_SIZE,
   fittedSize,
@@ -25,6 +26,8 @@ const lineHeight = 23
 const footerRow = 28
 // The quote a message carries, above its bubble, with its gap.
 const quoteRow = 29
+// A file a message carries, as a line above its bubble, with its gap.
+const fileRow = 30
 // Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
 type Measured = { text: string; prepared?: PreparedText; width?: number; height: number }
@@ -177,10 +180,10 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     }
     case 'user': {
       const { text, attachments } = row.item
-      const images = attachments.some((attachment) => attachment.mimeType.startsWith('image/'))
+      const images = attachments.some(isImageAttachment)
       const full = text ? textHeight(row.id, text, width * 0.8, true, rough) : 0
       let height =
-        28 +
+        (text || images ? 28 : 0) +
         footerRow +
         (full > collapseAfterHeight
           ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
@@ -188,8 +191,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       if (row.item.from) height += 22
       height += quoteRow * (row.item.replies?.length ?? 0)
       if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
-      for (const attachment of attachments)
-        if (!attachment.mimeType.startsWith('image/')) height += lineHeight
+      height += fileRow * attachments.filter((attachment) => !isImageAttachment(attachment)).length
       return height
     }
     case 'queued': {
@@ -200,7 +202,8 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         (clampsQueued(text)
           ? 4 * lineHeight + 28
           : textHeight(row.id, text, width * 0.8, true, rough))
-      if (attachments.length > 0) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
+      if (attachments.some(isImageAttachment)) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
+      height += fileRow * attachments.filter((attachment) => !isImageAttachment(attachment)).length
       height += quoteRow * (row.entry.replies?.length ?? 0)
       return height
     }

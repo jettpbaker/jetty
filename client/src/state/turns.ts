@@ -1,4 +1,4 @@
-import type { ReadyImage } from '@/hooks/use-image-attachments'
+import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { ApprovalDecision, Attachment, Reply, ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
@@ -49,7 +49,7 @@ type Registry = AtomRegistry.AtomRegistry
 export type PendingPrompt = {
   id: string
   text: string
-  images: readonly Attachment[]
+  attachments: readonly Attachment[]
   replies?: readonly Reply[]
   sentAt: number
 }
@@ -103,7 +103,8 @@ function threadMeta(registry: Registry, threadId: string) {
 }
 
 function releasePrompts(prompts: readonly PendingPrompt[]) {
-  for (const prompt of prompts) for (const image of prompt.images) revokeBlobUrl(image.id)
+  for (const prompt of prompts)
+    for (const attachment of prompt.attachments) revokeBlobUrl(attachment.id)
 }
 
 function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly ThreadItem[]) {
@@ -153,7 +154,7 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
     turnId: pendingTurnId,
     createdAt: prompt.sentAt,
     text: prompt.text,
-    attachments: prompt.images,
+    attachments: prompt.attachments,
     ...(prompt.replies?.length && { replies: prompt.replies }),
   }))
 }
@@ -179,7 +180,7 @@ function sendTurn(
   threadId: string,
   text: string,
   loadout: Loadout | undefined,
-  images: readonly ReadyImage[] = [],
+  attachments: readonly ReadyAttachment[] = [],
   replies?: readonly Reply[],
   fromDraft?: string,
   onFailure?: () => void
@@ -188,7 +189,7 @@ function sendTurn(
   const id = newId()
   const staged = stageSend(registry, fromDraft, {
     text,
-    images,
+    attachments,
     quotes: replies,
     sent: { threadId, messageId: id },
   })
@@ -199,7 +200,7 @@ function sendTurn(
     text,
     ...(replies?.length && { replies }),
     sentAt: Date.now(),
-    images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
+    attachments: attachments.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
       name,
       mimeType,
@@ -226,9 +227,9 @@ function sendTurn(
               ...(replies?.length && { replies }),
               ...loadout,
               permissionMode: registry.get(accessModeAtom),
-              ...(images.length > 0
+              ...(attachments.length > 0
                 ? {
-                    attachments: images.map(({ name, mimeType, dataUrl }) => ({
+                    attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
                       name,
                       mimeType,
                       dataUrl,

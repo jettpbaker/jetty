@@ -1,20 +1,28 @@
-import { Image01Icon } from '@/components/custom/huge_icons'
-import { canDropImages, dropImages, isImageType } from '@/hooks/use-image-attachments'
+import { Attachment01Icon } from '@/components/custom/huge_icons'
+import { canDropAttachments, dropAttachments } from '@/hooks/use-attachments'
 import { useEffect, useState } from 'react'
-
-type DragState = 'images' | 'other'
 
 function carriesFiles(event: DragEvent): event is DragEvent & { dataTransfer: DataTransfer } {
   return event.dataTransfer?.types.includes('Files') ?? false
 }
 
-function dragState(transfer: DataTransfer): DragState {
-  const types = [...transfer.items].flatMap((item) => (item.kind === 'file' ? [item.type] : []))
-  return types.every((type) => type && !isImageType(type)) && types.length > 0 ? 'other' : 'images'
+// A dropped folder arrives as a file too; only its entry says it's a folder.
+function dropped(transfer: DataTransfer) {
+  const files: File[] = []
+  let folders = 0
+  for (const item of transfer.items) {
+    if (item.kind !== 'file') continue
+    if (item.webkitGetAsEntry()?.isDirectory) folders += 1
+    else {
+      const file = item.getAsFile()
+      if (file) files.push(file)
+    }
+  }
+  return { files, folders }
 }
 
 export function FileDropOverlay() {
-  const [state, setState] = useState<DragState>()
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     let depth = 0
@@ -23,20 +31,20 @@ export function FileDropOverlay() {
     function reset() {
       clearTimeout(stale)
       depth = 0
-      setState(undefined)
+      setDragging(false)
     }
 
     function enter(event: DragEvent) {
       if (!carriesFiles(event)) return
       event.preventDefault()
       depth += 1
-      if (depth === 1 && canDropImages()) setState(dragState(event.dataTransfer))
+      if (depth === 1 && canDropAttachments()) setDragging(true)
     }
 
     function leave(event: DragEvent) {
       if (!carriesFiles(event)) return
       depth = Math.max(0, depth - 1)
-      if (depth === 0) setState(undefined)
+      if (depth === 0) setDragging(false)
     }
 
     function over(event: DragEvent) {
@@ -45,7 +53,7 @@ export function FileDropOverlay() {
       stale = setTimeout(reset, 1000)
       if (event.defaultPrevented) return
       event.preventDefault()
-      event.dataTransfer.dropEffect = canDropImages() ? 'copy' : 'none'
+      event.dataTransfer.dropEffect = canDropAttachments() ? 'copy' : 'none'
     }
 
     function drop(event: DragEvent) {
@@ -53,7 +61,8 @@ export function FileDropOverlay() {
       reset()
       if (event.defaultPrevented) return
       event.preventDefault()
-      dropImages(event.dataTransfer.files)
+      const { files, folders } = dropped(event.dataTransfer)
+      dropAttachments(files, folders)
     }
 
     window.addEventListener('dragenter', enter)
@@ -71,11 +80,11 @@ export function FileDropOverlay() {
     }
   }, [])
 
-  if (!state) return null
+  if (!dragging) return null
   return (
     <div className='pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background/80 text-sm supports-backdrop-filter:backdrop-blur-xs'>
-      <Image01Icon size={24} className='text-muted-foreground' />
-      {state === 'images' ? 'Drop images to attach' : 'Images only'}
+      <Attachment01Icon size={24} className='text-muted-foreground' />
+      Drop files to attach
     </div>
   )
 }

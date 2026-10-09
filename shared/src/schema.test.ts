@@ -4,7 +4,7 @@ import { Result, Schema } from 'effect'
 import { ContextUsage, SequencedEvent, ThreadEvent, Usage as TokenUsage } from './events'
 import { Attachment, MAX_GALLERY_IMAGES, QuestionSpec, ThreadItem } from './items'
 import { applyEvent, emptyThread, ThreadState } from './reducer'
-import { MAX_IMAGES_PER_TURN, methods, ThreadGitStatus, UsageWindow } from './wire'
+import { MAX_ATTACHMENTS_PER_TURN, methods, ThreadGitStatus, UsageWindow } from './wire'
 
 const attachment = { id: 'a', name: 'image.png', mimeType: 'image/png', sizeBytes: 0 }
 const itemBase = { id: 'item', turnId: 'turn', createdAt: 0 }
@@ -239,7 +239,7 @@ describe('wire schema decoding', () => {
     ).toBe(true)
   })
 
-  test('validates turn attachment counts, MIME types, and enum options', () => {
+  test('validates turn attachment counts and enum options, taking files of any type', () => {
     const decode = Schema.decodeUnknownResult(methods['turn.start'].params)
     const params = { threadId: 'thread', text: '' }
     const upload = { name: 'image.png', mimeType: 'image/png', dataUrl: '' }
@@ -249,7 +249,7 @@ describe('wire schema decoding', () => {
       Result.isSuccess(
         decode({
           ...params,
-          attachments: Array(MAX_IMAGES_PER_TURN).fill(upload),
+          attachments: Array(MAX_ATTACHMENTS_PER_TURN).fill(upload),
           effort: 'xhigh',
           permissionMode: 'full_access',
         })
@@ -257,11 +257,13 @@ describe('wire schema decoding', () => {
     ).toBe(true)
     expect(
       Result.isFailure(
-        decode({ ...params, attachments: Array(MAX_IMAGES_PER_TURN + 1).fill(upload) })
+        decode({ ...params, attachments: Array(MAX_ATTACHMENTS_PER_TURN + 1).fill(upload) })
       )
     ).toBe(true)
     expect(
-      Result.isFailure(decode({ ...params, attachments: [{ ...upload, mimeType: 'video/mp4' }] }))
+      Result.isSuccess(
+        decode({ ...params, attachments: [{ ...upload, mimeType: 'application/pdf' }] })
+      )
     ).toBe(true)
     expect(Result.isFailure(decode({ ...params, effort: 'extreme' }))).toBe(true)
     expect(Result.isFailure(decode({ ...params, permissionMode: 'unknown' }))).toBe(true)

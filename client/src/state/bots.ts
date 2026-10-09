@@ -1,4 +1,4 @@
-import type { ReadyImage } from '@/hooks/use-image-attachments'
+import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { Attachment, Reply } from '@jetty/shared/items'
 import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
@@ -140,9 +140,9 @@ function sendToBot(
   botId: string,
   text: string,
   replies?: readonly Reply[],
-  // Images the bot's thread already holds (Retry), or new ones from the composer.
-  attachments: readonly Attachment[] = [],
-  images: readonly ReadyImage[] = [],
+  // Attachments the bot's thread already holds (Retry), or new ones from the composer.
+  held: readonly Attachment[] = [],
+  attachments: readonly ReadyAttachment[] = [],
   // The composer it came from, which gets it back if the send fails.
   fromDraft?: string
 ) {
@@ -151,8 +151,8 @@ function sendToBot(
     text,
     ...(replies?.length && { replies }),
     attachments: [
-      ...attachments,
-      ...images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
+      ...held,
+      ...attachments.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
         id: url,
         name,
         mimeType,
@@ -165,7 +165,7 @@ function sendToBot(
   }
   const staged = stageSend(registry, fromDraft, {
     text,
-    images,
+    attachments,
     quotes: replies,
     sent: { threadId: botId, messageId: message.id },
   })
@@ -181,11 +181,15 @@ function sendToBot(
           botId,
           messageId: message.id,
           text,
-          ...(attachments.length && {
-            attachmentIds: attachments.map((attachment) => attachment.id),
+          ...(held.length && {
+            attachmentIds: held.map((attachment) => attachment.id),
           }),
-          ...(images.length && {
-            attachments: images.map(({ name, mimeType, dataUrl }) => ({ name, mimeType, dataUrl })),
+          ...(attachments.length && {
+            attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
+              name,
+              mimeType,
+              dataUrl,
+            })),
           }),
           ...(replies?.length && { replies }),
         })

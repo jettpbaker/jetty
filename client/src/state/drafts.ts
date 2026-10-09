@@ -1,11 +1,11 @@
-import type { ComposerImage, ReadyImage } from '@/hooks/use-image-attachments'
+import type { ComposerAttachment, ReadyAttachment } from '@/hooks/use-attachments'
 import type { Loadout } from '@/lib/loadout'
 
 import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel } from '@jetty/shared/events'
 import { Reply } from '@jetty/shared/items'
-import { ProviderId, UploadAttachment } from '@jetty/shared/wire'
+import { ProviderId } from '@jetty/shared/wire'
 import { Equal, Schema } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
@@ -36,7 +36,7 @@ export type DraftTarget = {
 // the id it will have in its thread, so a reload can tell whether the server took it after all.
 type Sending = {
   text: string
-  images: readonly ReadyImage[]
+  attachments: readonly ReadyAttachment[]
   quotes?: readonly Reply[]
   editing?: string
   target?: DraftTarget
@@ -46,7 +46,7 @@ type Sending = {
 // The unsent composer state of one thread; the new-thread composer uses the key ''.
 export type Draft = {
   text: string
-  images: readonly ComposerImage[]
+  attachments: readonly ComposerAttachment[]
   // what the message quotes from the chat, each shown on its own composer tab
   quotes?: readonly Reply[]
   // the queued message this draft rewrites
@@ -62,8 +62,8 @@ export type Draft = {
   parked?: Readonly<Record<string, string>>
   questions?: Readonly<Record<string, QuestionProgress>>
   target?: DraftTarget
-  // composer images too large to keep through a reload, named until the composer's images change
-  lostImages?: readonly string[]
+  // composer attachments too large to keep through a reload, named until they change
+  lostAttachments?: readonly string[]
 }
 
 const StoredTarget = Schema.Struct({
@@ -100,9 +100,9 @@ const StoredDraft = Schema.Struct({
   questions: Schema.optional(Schema.Record(Schema.String, QuestionProgress)),
   target: Schema.optional(StoredTarget),
 })
-const StoredImage = Schema.Struct({
+const StoredAttachment = Schema.Struct({
   name: Schema.String,
-  mimeType: UploadAttachment.fields.mimeType,
+  mimeType: Schema.String,
   sizeBytes: Schema.Number,
   dataUrl: Schema.String,
   width: Schema.optional(Schema.Number),
@@ -110,24 +110,26 @@ const StoredImage = Schema.Struct({
   // the unsure send it belongs to; absent, it's the composer's
   messageId: Schema.optional(Schema.String),
 })
-const LostImage = Schema.Struct({ name: Schema.String, lost: Schema.Literal(true) })
+const LostAttachment = Schema.Struct({ name: Schema.String, lost: Schema.Literal(true) })
 const isStoredDraft = Schema.is(StoredDraft)
-const isStoredImage = Schema.is(StoredImage)
-const isLostImage = Schema.is(LostImage)
+const isStoredAttachment = Schema.is(StoredAttachment)
+const isLostAttachment = Schema.is(LostAttachment)
 
-// Each tab keeps its own drafts, and they survive its reloads. Images live apart so typing never
-// rewrites them, and only get what sessionStorage (~5M characters) can spare; the composer's
-// others come back as names, so it can say they're gone.
+// Each tab keeps its own drafts, and they survive its reloads. Attachments live apart so typing
+// never rewrites them, and only get what sessionStorage (~5M characters) can spare; the
+// composer's others come back as names, so it can say they're gone.
 const textsKey = 'jetty.drafts'
-const imagesKey = 'jetty.draft-images'
-const imageBudget = 2_000_000
+const attachmentsKey = 'jetty.draft-attachments'
+const attachmentBudget = 2_000_000
 
 // Drafts used to be shared by every tab.
 storage.remove(textsKey)
-storage.remove(imagesKey)
+storage.remove('jetty.draft-images')
+// The tab's images before files joined them.
+session.remove('jetty.draft-images')
 session.remove('jetty.draft-owner')
 
-const emptyDraft: Draft = { text: '', images: [] }
+const emptyDraft: Draft = { text: '', attachments: [] }
 
 function readStored(key: string): Record<string, unknown> {
   try {
@@ -153,7 +155,7 @@ function loadDrafts() {
       // again; a new message waits until the server says whether it got it.
       const { sending = [], ...draft } = stored
       const back = sending.filter((entry) => !entry.sent)
-      const unsure = sending.flatMap((entry) => (entry.sent ? [{ ...entry, images: [] }] : []))
+      const unsure = sending.flatMap((entry) => (entry.sent ? [{ ...entry, attachments: [] }] : []))
       drafts.set(key, {
         ...draft,
         text: [...back.map((entry) => entry.text), draft.text]
@@ -162,39 +164,45 @@ function loadDrafts() {
         quotes: withQuotes(...back.map((entry) => entry.quotes), draft.quotes),
         editing: draft.editing ?? back.find((entry) => entry.editing)?.editing,
         target: draft.target ?? back.find((entry) => entry.target)?.target,
-        images: [],
+        attachments: [],
         ...(unsure.length > 0 && { unsure }),
       })
     }
-  for (const [key, stored] of Object.entries(readStored(imagesKey))) {
+  for (const [key, stored] of Object.entries(readStored(attachmentsKey))) {
     if (!Array.isArray(stored)) continue
     const draft = drafts.get(key) ?? emptyDraft
-    // A restored image's data URL is its identity, so a picture attached twice comes back once.
-    const images = new Map<string, ComposerImage>()
+    // A restored attachment's data URL is its identity, so a file attached twice comes back once.
+    const attachments = new Map<string, ComposerAttachment>()
     const unsure = new Map((draft.unsure ?? []).map((entry) => [entry.sent?.messageId, entry]))
     const lost: string[] = []
-    for (const image of stored) {
-      if (isLostImage(image)) lost.push(image.name)
-      if (!isStoredImage(image)) continue
-      const { messageId, ...rest } = image
+    for (const attachment of stored) {
+      if (isLostAttachment(attachment)) lost.push(attachment.name)
+      if (!isStoredAttachment(attachment)) continue
+      const { messageId, ...rest } = attachment
       const entry = unsure.get(messageId)
       const restored = { ...rest, url: rest.dataUrl }
       if (messageId && entry)
-        unsure.set(messageId, { ...entry, images: [...entry.images, restored] })
-      else images.set(image.dataUrl, restored)
+        unsure.set(messageId, { ...entry, attachments: [...entry.attachments, restored] })
+      else attachments.set(attachment.dataUrl, restored)
     }
     drafts.set(key, {
       ...draft,
-      images: [...images.values()],
+      attachments: [...attachments.values()],
       ...(draft.unsure && { unsure: [...unsure.values()] }),
-      ...(lost.length > 0 && { lostImages: lost }),
+      ...(lost.length > 0 && { lostAttachments: lost }),
     })
   }
   return drafts
 }
 
 function persist(key: string, current: Draft, previous: Draft) {
-  const { images, sending: inFlight = [], unsure = [], lostImages = [], ...draft } = current
+  const {
+    attachments,
+    sending: inFlight = [],
+    unsure = [],
+    lostAttachments = [],
+    ...draft
+  } = current
   const sending = [...unsure, ...inFlight]
   const kept =
     draft.text !== '' ||
@@ -223,23 +231,23 @@ function persist(key: string, current: Draft, previous: Draft) {
       : undefined
   )
   if (
-    images === previous.images &&
+    attachments === previous.attachments &&
     current.sending === previous.sending &&
     current.unsure === previous.unsure
   )
     return
-  const stored = readStored(imagesKey)
+  const stored = readStored(attachmentsKey)
   delete stored[key]
-  let room = imageBudget - JSON.stringify(stored).length
-  const saved: unknown[] = lostImages.map((name) => ({ name, lost: true }))
+  let room = attachmentBudget - JSON.stringify(stored).length
+  const saved: unknown[] = lostAttachments.map((name) => ({ name, lost: true }))
   const owned = [
-    ...images.map((image) => ({ image, messageId: undefined })),
+    ...attachments.map((attachment) => ({ attachment, messageId: undefined })),
     ...sending.flatMap((entry) =>
-      entry.images.map((image) => ({ image, messageId: entry.sent?.messageId }))
+      entry.attachments.map((attachment) => ({ attachment, messageId: entry.sent?.messageId }))
     ),
   ]
   for (const {
-    image: { name, mimeType, sizeBytes, dataUrl, width, height },
+    attachment: { name, mimeType, sizeBytes, dataUrl, width, height },
     messageId,
   } of owned) {
     if (!dataUrl) continue
@@ -250,7 +258,7 @@ function persist(key: string, current: Draft, previous: Draft) {
     room -= dataUrl.length
     saved.push({ name, mimeType, sizeBytes, dataUrl, width, height, messageId })
   }
-  writeStored(imagesKey, key, saved.length ? saved : undefined, stored)
+  writeStored(attachmentsKey, key, saved.length ? saved : undefined, stored)
 }
 
 const draftsAtom = Atom.make<ReadonlyMap<string, Draft>>(loadDrafts()).pipe(Atom.keepAlive)
@@ -294,7 +302,7 @@ function restoreDraft(registry: Registry, key: string, restored: Sending) {
     ...draft,
     typedFor: undefined,
     text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
-    images: [...restored.images, ...draft.images],
+    attachments: [...restored.attachments, ...draft.attachments],
     quotes: withQuotes(restored.quotes, draft.quotes),
     editing: draft.editing ?? restored.editing,
     target: key ? draft.target : (draft.target ?? restored.target),
@@ -322,7 +330,7 @@ export function restoreAnswer(
 // A fresh new thread starts from the defaults; one with something typed keeps its target.
 export function resetDraftTarget(registry: Registry) {
   change(registry, '', (draft) =>
-    draft.text.trim() || draft.images.length ? draft : { ...draft, target: undefined }
+    draft.text.trim() || draft.attachments.length ? draft : { ...draft, target: undefined }
   )
 }
 
@@ -458,7 +466,7 @@ export function useForgetDeletedDrafts() {
     registry.update(draftsAtom, (drafts) => without(drafts, gone))
     for (const key of gone) {
       writeStored(textsKey, key, undefined)
-      writeStored(imagesKey, key, undefined)
+      writeStored(attachmentsKey, key, undefined)
     }
   }, [threads, created, keys, registry])
 }

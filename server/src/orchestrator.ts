@@ -32,6 +32,7 @@ import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
+import { fileSize } from './attachments'
 import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
 import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
 import { botTiming } from './bot-lifecycle'
@@ -137,8 +138,11 @@ function agentText(
       for (const attachment of meta) {
         const found = yield* attachments.resolve(attachment.id)
         if (!found) return yield* Effect.fail(new StoreError('not_found', 'Attachment is missing'))
-        const kind = found.mimeType.startsWith('video/') ? 'video' : 'image'
-        lines.push(`Attached ${kind} saved at ${found.path} (attachment id ${attachment.id}).`)
+        lines.push(
+          found.file
+            ? `Attached file ${attachment.name} (${fileSize(attachment.sizeBytes)}) saved at ${found.path} (attachment id ${attachment.id}). Read it from there.`
+            : `Attached ${found.mimeType.startsWith('video/') ? 'video' : 'image'} saved at ${found.path} (attachment id ${attachment.id}).`
+        )
       }
     }
     const message = lines.join('\n')

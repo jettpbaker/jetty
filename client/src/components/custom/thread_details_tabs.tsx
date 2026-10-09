@@ -356,7 +356,14 @@ export function ThreadDetailsTabs({
 }
 
 // A bot's pane has Overview, and Chat while it's full width: nothing to close, move or add.
-export function BotDetailsTabs({ chat }: { chat: boolean }) {
+export function BotDetailsTabs({
+  chat,
+  file,
+}: {
+  chat: boolean
+  // an attached file open read-only
+  file?: { name: string; onClose: () => void }
+}) {
   const shown: TabId[] = chat ? ['chat', 'overview'] : ['overview']
   return (
     <TabsList
@@ -378,6 +385,21 @@ export function BotDetailsTabs({ chat }: { chat: boolean }) {
           </TabsTrigger>
         )
       })}
+      {file && (
+        <TabsTrigger
+          value='file'
+          className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+          title={file.name}
+        >
+          <TabLabel
+            label={file.name}
+            mono
+            icon={<File01Icon className='details-tab-kind size-3' />}
+            canClose
+            onClose={file.onClose}
+          />
+        </TabsTrigger>
+      )}
     </TabsList>
   )
 }

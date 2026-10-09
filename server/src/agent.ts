@@ -4,17 +4,17 @@ import type {
   BackgroundTask,
   Bot,
   BotAllowRule,
+  ImageMimeType,
   PermissionMode,
   ProviderModel,
   ProviderUsage,
-  UploadAttachment,
 } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
 export type AgentImage = {
-  mimeType: UploadAttachment['mimeType']
+  mimeType: ImageMimeType
   base64data: string
 }
 

@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { useBot, useRequestReveal } from '@/state'
 import { useLayoutEffect, useRef, useState } from 'react'
 
+import { FileLines, isImageAttachment } from './attachment_files'
 import { botAccentClass, botColorStyle } from './bot_avatar'
 import { ThreadSourceLabel, type MessageSource } from './source_label'
 
@@ -122,8 +123,8 @@ export function UserMessage({
     return () => observer.disconnect()
   }, [text])
   const collapsed = collapsible && !expanded
-  const images = attachments.filter((attachment) => attachment.mimeType.startsWith('image/'))
-  const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
+  const images = attachments.filter(isImageAttachment)
+  const files = attachments.filter((attachment) => !isImageAttachment(attachment))
   return (
     <Message align='end'>
       <MessageContent className={cn(from ? (bot ? 'gap-1' : 'gap-1.5') : replies && 'gap-0.75')}>
@@ -135,62 +136,55 @@ export function UserMessage({
             onJump={() => reveal(threadId, reply.itemId)}
           />
         ))}
+        <FileLines files={files} />
         <Bubble
           variant={tinted ? 'tinted' : 'default'}
           align='end'
           className={cn(bot && botAccentClass)}
           style={bot ? botColorStyle(bot.color) : undefined}
         >
-          <BubbleContent className='rounded-lg'>
-            <MessageImages images={images} tinted={tinted} />
-            {text || skill ? (
-              <p
-                ref={textRef}
-                className={cn(
-                  'leading-relaxed whitespace-pre-wrap',
-                  images.length > 0 && 'mt-2',
-                  collapsed && 'overflow-hidden'
-                )}
-                style={
-                  collapsed
-                    ? { maxHeight: collapsedTextHeight, maskImage: fade, WebkitMaskImage: fade }
-                    : undefined
-                }
-              >
-                {skill ? `/${skill} ${text}` : text}
-              </p>
-            ) : null}
-            {collapsible && (
-              <Button
-                variant='ghost-text'
-                size='xs'
-                className={cn(
-                  '-ml-1 mt-1 px-1',
-                  !tinted &&
-                    'text-primary-foreground/85 not-disabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
-                )}
-                aria-expanded={expanded}
-                onClick={() => {
-                  if (expanded) expandedMessages.delete(id)
-                  else expandedMessages.add(id)
-                  setExpanded(!expanded)
-                }}
-              >
-                {expanded ? 'Show less' : 'Show full message'}
-              </Button>
-            )}
-            {others.map((attachment) => (
-              <span
-                key={attachment.id}
-                className={cn(
-                  'mt-2 text-xs',
-                  tinted ? 'text-muted-foreground' : 'text-primary-foreground/85'
-                )}
-              >
-                {attachment.name}
-              </span>
-            ))}
-          </BubbleContent>
+          {/* A message of files alone has no bubble, only its footer under them. */}
+          {(text || skill || images.length > 0) && (
+            <BubbleContent className='rounded-lg'>
+              <MessageImages images={images} tinted={tinted} />
+              {text || skill ? (
+                <p
+                  ref={textRef}
+                  className={cn(
+                    'leading-relaxed whitespace-pre-wrap',
+                    images.length > 0 && 'mt-2',
+                    collapsed && 'overflow-hidden'
+                  )}
+                  style={
+                    collapsed
+                      ? { maxHeight: collapsedTextHeight, maskImage: fade, WebkitMaskImage: fade }
+                      : undefined
+                  }
+                >
+                  {skill ? `/${skill} ${text}` : text}
+                </p>
+              ) : null}
+              {collapsible && (
+                <Button
+                  variant='ghost-text'
+                  size='xs'
+                  className={cn(
+                    '-ml-1 mt-1 px-1',
+                    !tinted &&
+                      'text-primary-foreground/85 not-disabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
+                  )}
+                  aria-expanded={expanded}
+                  onClick={() => {
+                    if (expanded) expandedMessages.delete(id)
+                    else expandedMessages.add(id)
+                    setExpanded(!expanded)
+                  }}
+                >
+                  {expanded ? 'Show less' : 'Show full message'}
+                </Button>
+              )}
+            </BubbleContent>
+          )}
           <UserMessageFooter
             text={text}
             createdAt={createdAt}

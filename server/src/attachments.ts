@@ -1,10 +1,13 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import {
+  isImageMimeType,
+  MAX_FILE_BYTES,
   MAX_IMAGE_BYTES,
-  MAX_TURN_IMAGE_BYTES,
+  MAX_TURN_ATTACHMENT_BYTES,
   MAX_VIDEO_BYTES,
   newId,
+  type ImageMimeType,
   type UploadAttachment,
 } from '@jetty/shared/wire'
 import { Context, Effect, FileSystem, Layer, Path } from 'effect'
@@ -42,6 +45,24 @@ export type PersistKind = keyof typeof KINDS
 
 const ATTACHMENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export function fileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+// A file keeps its name, in a folder of its own, so the agent reads ci.log rather than an id.
+export function safeFileName(name: string) {
+  const safe = [...name]
+    .map((char) => {
+      const code = char.charCodeAt(0)
+      return char === '/' || char === '\\' || code < 32 || code === 127 ? '_' : char
+    })
+    .join('')
+    .trim()
+    .slice(0, 200)
+  return safe === '' || safe === '.' || safe === '..' ? 'file' : safe
+}
+
 export type PersistedAttachments = {
   meta: Attachment[]
   images: AgentImage[]
@@ -76,32 +97,38 @@ export function createAttachments(home: string) {
           let totalBytes = 0
           for (const upload of uploads) {
             const { bytes, base64data } = yield* decodeDataUrl(upload)
-            if (bytes.byteLength > MAX_IMAGE_BYTES) {
+            const image = isImageMimeType(upload.mimeType) ? upload.mimeType : undefined
+            const limit = image ? MAX_IMAGE_BYTES : MAX_FILE_BYTES
+            if (bytes.byteLength > limit) {
               return yield* Effect.fail(
                 new StoreError(
                   'invalid_params',
-                  `Image exceeds ${MAX_IMAGE_BYTES} bytes (got ${bytes.byteLength})`
+                  `${image ? 'Image' : 'File'} exceeds ${limit} bytes (got ${bytes.byteLength})`
                 )
               )
             }
             totalBytes += bytes.byteLength
-            if (totalBytes > MAX_TURN_IMAGE_BYTES) {
+            if (totalBytes > MAX_TURN_ATTACHMENT_BYTES) {
               return yield* Effect.fail(
                 new StoreError(
                   'invalid_params',
-                  `Images exceed ${MAX_TURN_IMAGE_BYTES} bytes in total`
+                  `Attachments exceed ${MAX_TURN_ATTACHMENT_BYTES} bytes in total`
                 )
               )
             }
 
             const id = newId()
-            const filename = `${id}.${MIME_EXT[upload.mimeType]}`
-            const destination = path.join(dir, filename)
-            yield* fs.writeFile(path.join(staging, filename), bytes)
+            const entry = image ? `${id}.${MIME_EXT[image]}` : id
+            const destination = path.join(dir, entry)
+            if (image) yield* fs.writeFile(path.join(staging, entry), bytes)
+            else {
+              yield* fs.makeDirectory(path.join(staging, entry))
+              yield* fs.writeFile(path.join(staging, entry, safeFileName(upload.name)), bytes)
+            }
             yield* Effect.uninterruptible(
               Effect.gen(function* () {
                 written.push(destination)
-                yield* fs.rename(path.join(staging, filename), destination)
+                yield* fs.rename(path.join(staging, entry), destination)
               })
             )
 
@@ -110,15 +137,19 @@ export function createAttachments(home: string) {
               name: upload.name,
               mimeType: upload.mimeType,
               sizeBytes: bytes.byteLength,
-              ...imageSize(bytes),
+              ...(image ? imageSize(bytes) : {}),
             })
-            images.push({ mimeType: upload.mimeType, base64data })
+            if (image) images.push({ mimeType: image, base64data })
           }
           return { meta, images }
         })
       ).pipe(
         Effect.onError(() =>
-          Effect.forEach(written, (file) => fs.remove(file).pipe(Effect.ignore), { discard: true })
+          Effect.forEach(
+            written,
+            (file) => fs.remove(file, { recursive: true }).pipe(Effect.ignore),
+            { discard: true }
+          )
         )
       )
     }
@@ -202,33 +233,49 @@ export function createAttachments(home: string) {
       )
     }
 
+    // An image or video is <id>.<ext>; any other file is the one file in folder <id>, which
+    // `entry` names so it goes as a whole.
     function resolve(id: string) {
       return Effect.gen(function* () {
         if (!ATTACHMENT_ID_RE.test(id)) return null
+        const root = yield* fs.realPath(dir)
+        const inside = (file: string) =>
+          fs.realPath(file).pipe(
+            Effect.map((actual) => actual.startsWith(root + path.sep)),
+            Effect.catch(() => Effect.succeed(false))
+          )
 
         for (const [ext, mimeType] of Object.entries(EXT_MIME)) {
           const file = path.join(dir, `${id}.${ext}`)
-          const actual = yield* fs.realPath(file).pipe(Effect.catch(() => Effect.succeed(null)))
-          if (!actual) continue
-          const root = yield* fs.realPath(dir)
-          if (!actual.startsWith(root + path.sep)) continue
+          if (!(yield* inside(file))) continue
           const stat = yield* fs.stat(file).pipe(Effect.catch(() => Effect.succeed(null)))
-          if (stat?.type === 'File') return { path: file, mimeType }
+          if (stat?.type === 'File') return { path: file, mimeType, entry: file, file: false }
+        }
+        const folder = path.join(dir, id)
+        if (!(yield* inside(folder))) return null
+        const names = yield* fs.readDirectory(folder).pipe(Effect.catch(() => Effect.succeed([])))
+        for (const name of names) {
+          const file = path.join(folder, name)
+          if (!(yield* inside(file))) continue
+          const stat = yield* fs.stat(file).pipe(Effect.catch(() => Effect.succeed(null)))
+          if (stat?.type === 'File')
+            return { path: file, mimeType: 'application/octet-stream', entry: folder, file: true }
         }
         return null
       })
     }
 
-    // Reads persisted images back for delivery, e.g. a queued message's attachments.
+    // Reads persisted images back for delivery, e.g. a queued message's attachments. Files go as
+    // paths, so they have nothing to load.
     function load(meta: readonly Attachment[]) {
-      return Effect.forEach(meta, (attachment) =>
+      return Effect.forEach(meta.filter(isImage), (attachment) =>
         Effect.gen(function* () {
           const found = yield* resolve(attachment.id)
           if (!found)
             return yield* Effect.fail(new StoreError('not_found', 'Attachment is missing'))
           const bytes = yield* fs.readFile(found.path)
           return {
-            mimeType: attachment.mimeType as UploadAttachment['mimeType'],
+            mimeType: attachment.mimeType as ImageMimeType,
             base64data: Buffer.from(bytes).toString('base64'),
           }
         })
@@ -243,7 +290,7 @@ export function createAttachments(home: string) {
       return Effect.gen(function* () {
         const found = yield* resolve(id)
         if (!found) return
-        yield* fs.remove(found.path)
+        yield* fs.remove(found.entry, { recursive: true })
       }).pipe(Effect.ignore)
     }
 
@@ -265,6 +312,10 @@ export function createAttachments(home: string) {
 
     return { dir, persist, persistFile, resolve, load, remove, sweep }
   })
+}
+
+function isImage(attachment: Attachment): attachment is Attachment & { mimeType: ImageMimeType } {
+  return isImageMimeType(attachment.mimeType)
 }
 
 function decodeDataUrl(upload: UploadAttachment) {

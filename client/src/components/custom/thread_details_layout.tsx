@@ -1,3 +1,5 @@
+import type { Attachment } from '@jetty/shared/items'
+
 import { threadBranch } from '@/lib/thread_worktree'
 import {
   defaultDiffScope,
@@ -22,6 +24,7 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 
+import { OpenAttachment } from './attachment_files'
 import { ChildThreadList, useChildThreads } from './child_threads'
 import {
   DetailsChatPanel,
@@ -81,7 +84,7 @@ export function ThreadDetailsLayout({
   const [fileView, setFileView] = useState<ThreadFileTarget>()
   const requestedFile = fileRequest?.threadId === threadId ? fileRequest.target : undefined
   const viewedFile = fileView?.threadId === threadId ? fileView.target : undefined
-  const fileDirty = useFileDirty(threadId, viewedFile?.path ?? '')
+  const fileDirty = useFileDirty(threadId, viewedFile?.attachment ? '' : (viewedFile?.path ?? ''))
   const checkout = useMemo(
     () => ({
       environment: meta?.environment,
@@ -148,6 +151,19 @@ export function ThreadDetailsLayout({
       return true
     },
     [projectPath, threadId, open, changesDisabled, showFile, showPane]
+  )
+
+  const openAttachment = useCallback(
+    (attachment: Attachment) => {
+      showFile({ threadId, target: { path: attachment.name, attachment } })
+      setTab('file')
+      if (!open) {
+        openingTab.current = 'file'
+        showPane()
+      }
+      return true
+    },
+    [threadId, open, showFile, showPane]
   )
 
   const settleFile = useCallback(
@@ -280,7 +296,7 @@ export function ThreadDetailsLayout({
               key={threadId}
               threadId={threadId}
               projectId={projectId}
-              openPath={viewedFile?.path}
+              openPath={viewedFile?.attachment ? undefined : viewedFile?.path}
               find={findFile}
               onOpen={editFile}
             />
@@ -352,9 +368,11 @@ export function ThreadDetailsLayout({
 
   return (
     <OpenFileLink value={openFile}>
-      <DetailsLayout layout={layout} label='Thread details' pane={detailsPane}>
-        <OpenPullLink value={threadId}>{children}</OpenPullLink>
-      </DetailsLayout>
+      <OpenAttachment value={openAttachment}>
+        <DetailsLayout layout={layout} label='Thread details' pane={detailsPane}>
+          <OpenPullLink value={threadId}>{children}</OpenPullLink>
+        </DetailsLayout>
+      </OpenAttachment>
     </OpenFileLink>
   )
 }

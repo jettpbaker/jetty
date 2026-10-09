@@ -109,6 +109,7 @@ export function FileEditor({
   disk,
   checkout,
   focus,
+  locked = false,
 }: {
   threadId: string
   target: FileTarget
@@ -116,6 +117,8 @@ export function FileEditor({
   checkout: Checkout
   // a request for the caret, answered once the editor has attached
   focus: number
+  // shown but never edited, as an attached file is
+  locked?: boolean
 }) {
   const { path, line } = target
   const name = path.split('/').at(-1) ?? path
@@ -127,9 +130,9 @@ export function FileEditor({
   const save = useSaveProjectFile()
   const writeDraft = useWriteFileDraft()
   const dirty = useFileDirty(threadId, path)
-  const readOnly = notUtf8(disk)
+  const readOnly = locked || notUtf8(disk)
   const [opened] = useState(() =>
-    notUtf8(disk) ? diskText(disk) : (readFileDraft(threadId, path)?.text ?? diskText(disk))
+    readOnly ? diskText(disk) : (readFileDraft(threadId, path)?.text ?? diskText(disk))
   )
   // The text as last typed. The draft holds it with the disk text it descends from, and a save
   // settles the draft even when it completes after this view has gone.
@@ -322,7 +325,7 @@ export function FileEditor({
               <span className='flex items-center gap-2'>
                 {readOnly && (
                   <span className='text-xs text-muted-foreground select-none'>
-                    Read-only · not UTF-8
+                    {locked ? 'Attachment · read-only' : 'Read-only · not UTF-8'}
                   </span>
                 )}
                 {place && (

@@ -1,9 +1,12 @@
+import type { Attachment } from '@jetty/shared/items'
+
 import { createContext, use, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { visitLinks, type MarkdownNode } from './markdown_links'
 
-export type FileTarget = { path: string; line?: number }
+// A file in the thread's project, or an attached file, which opens read-only under its name.
+export type FileTarget = { path: string; line?: number; attachment?: Attachment }
 
 // Opens a linked file inside Jetty; false when the file isn't in the thread's project.
 export const OpenFileLink = createContext<(target: FileTarget) => boolean>(() => false)

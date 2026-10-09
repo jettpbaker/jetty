@@ -1,8 +1,8 @@
-import type { ImageAttachments } from '@/hooks/use-image-attachments'
+import type { Attachments } from '@/hooks/use-attachments'
 import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
-import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
+import { ComposerAttach, ComposerAttachments } from '@/components/custom/composer_attach'
 import { ComposerShadow, useWallpaperUnderComposer } from '@/components/custom/composer_shadow'
 import {
   SlashMenu,
@@ -88,7 +88,7 @@ export function Composer({
   model?: ProviderModel
   accessMode: PermissionMode
   onAccessModeChange: (accessMode: PermissionMode) => void
-  attachments: ImageAttachments
+  attachments: Attachments
   header?: ReactNode
   context: ReactNode
   rows?: number
@@ -101,7 +101,7 @@ export function Composer({
   const wallpaperUnder = useWallpaperUnderComposer()
   const ownInput = useRef<HTMLTextAreaElement>(null)
   const textarea = inputRef ?? ownInput
-  const empty = !value.trim() && attachments.images.length === 0
+  const empty = !value.trim() && attachments.items.length === 0
   const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stopping = stop || (running && empty)
   const play = !stopping && !running && empty && onContinue !== undefined
@@ -186,7 +186,7 @@ export function Composer({
             )}
           >
             {reply}
-            <ComposerImages images={attachments.images} onRemove={attachments.remove} />
+            <ComposerAttachments items={attachments.items} onRemove={attachments.remove} />
             <div
               ref={field}
               data-composing={menu.composing || undefined}
@@ -199,11 +199,7 @@ export function Composer({
                 spellCheck={false}
                 {...menu.input}
                 placeholder={placeholder}
-                onPaste={(event) => {
-                  if (event.clipboardData.files.length === 0) return
-                  event.preventDefault()
-                  attachments.add(event.clipboardData.files)
-                }}
+                onPaste={attachments.paste}
                 onKeyDown={(event) => {
                   if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return
                   if (inComposition(event.nativeEvent)) return
