@@ -6,7 +6,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { BOT_PROMPT_FILES } from './bot-prompt'
-import { jettyInstructions } from './jetty-instructions'
+import { botJettyInstructions, jettyInstructions } from './jetty-instructions'
 
 async function git(cwd: string, args: string[]) {
   const proc = Bun.spawn(['git', '-C', cwd, ...args], { stdout: 'pipe', stderr: 'pipe' })
@@ -167,10 +167,7 @@ export async function botInstructions(
     others: others.join(', ') || 'none',
     questionTool: 'AskUserQuestion',
   }
-  const base = jettyInstructions(behaviours).replace(
-    'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar. ',
-    ''
-  )
+  const base = botJettyInstructions(behaviours)
   const files = [{ name: 'jetty.md', content: `${base}\n` }]
   for (const name of BOT_PROMPT_FILES) {
     const source = await readFile(new URL(`./bot-prompt/${name}`, import.meta.url), 'utf8')

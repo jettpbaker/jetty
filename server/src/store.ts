@@ -53,6 +53,9 @@ import { botUserName } from './bot-home'
 import { normalizePath } from './fs-browse'
 import {
   childReport,
+  classifierDenial,
+  refusalNote,
+  refusedCall,
   REPORT_CAP,
   reportMessage,
   restartNote,
@@ -858,8 +861,29 @@ export function createStore() {
         const closing = final
           .map((item) => (item.kind === 'assistant_message' ? item.text.trim() : ''))
           .join('\n\n')
+        // What was refused this turn, so the parent hears it even when the child's own words don't.
+        const refused = refusalNote(
+          state.items.flatMap((item) => {
+            if (item.turnId !== turn.turn_id || item.agentId) return []
+            const stoppedByIt = outcome.type === 'interrupted' && outcome.approval
+            if (item.kind === 'approval' && item.decision === 'deny' && !stoppedByIt) {
+              const input =
+                item.input && typeof item.input === 'object'
+                  ? (item.input as Record<string, unknown>)
+                  : {}
+              const title = lowerFirst(botApproval(item.toolName, input, [], []).title)
+              return [
+                `${user} denied its request to ${title}${item.deniedReason ? `, saying: "${item.deniedReason}"` : ''}.`,
+              ]
+            }
+            const reason = item.kind === 'tool_call' ? classifierDenial(item.output) : undefined
+            return item.kind === 'tool_call' && reason !== undefined
+              ? [`Auto mode refused ${refusedCall(item.toolName, item.input)}: ${reason}.`]
+              : []
+          })
+        )
         if (wait) {
-          const report = closing.slice(0, REPORT_CAP)
+          const report = [closing.slice(0, REPORT_CAP), refused].filter(Boolean).join('\n\n')
           const waited: ChildWaitResult =
             outcome.type === 'asked'
               ? { status: 'asked', question: outcome.question, detail: WAIT_NOTES.asked }
@@ -886,7 +910,7 @@ export function createStore() {
         const userMessage = state.items.find(
           (item) => item.turnId === turn.turn_id && item.kind === 'user_message' && !item.from
         )
-        const text = userWorked
+        const told = userWorked
           ? `${user} worked with [${thread.title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId}) directly: "${userMessage?.kind === 'user_message' ? userMessage.text.slice(0, 200) : ''}". Its reply: ${reportMessage(closing, final.at(-1)?.id)}`
           : childReport({
               threadId,
@@ -905,6 +929,7 @@ export function createStore() {
                     : '',
               messageId: final.at(-1)?.id,
             })
+        const text = [told, refused].filter(Boolean).join('\n\n')
         const summary = {
           threadId,
           title: thread.title,

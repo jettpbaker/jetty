@@ -39,6 +39,7 @@ import { botTiming } from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
   quietChangeInstruction,
+  QUIET_IN_PLACE_INSTRUCTION,
   READ_ONLY_INSTRUCTION,
   deniedApprovalNote,
   relayedMessage,
@@ -130,7 +131,8 @@ function agentText(
   meta: readonly Attachment[],
   attachments: Attachments | null,
   readOnly: boolean,
-  landsOn: string | null
+  landsOn: string | null,
+  inPlace: boolean
 ) {
   return Effect.gen(function* () {
     const lines = text ? [text] : []
@@ -151,7 +153,13 @@ function agentText(
     const wrapped = [
       relayed,
       ...(fromCreator ? [CHILD_REPORT_INSTRUCTION] : []),
-      ...(readOnly ? [READ_ONLY_INSTRUCTION] : landsOn ? [quietChangeInstruction(landsOn)] : []),
+      ...(readOnly
+        ? [READ_ONLY_INSTRUCTION]
+        : landsOn
+          ? [quietChangeInstruction(landsOn)]
+          : inPlace
+            ? [QUIET_IN_PLACE_INSTRUCTION]
+            : []),
     ].join('\n')
     return queued.skill ? `/${queued.skill} ${wrapped}` : wrapped
   }).pipe(
@@ -1263,7 +1271,8 @@ export function createOrchestrator({
                 saved.meta,
                 attachments,
                 thread.readOnly === true,
-                landsOn
+                landsOn,
+                thread.quiet === true && thread.environment === 'local'
               )
               for (const reply of (input.replies ?? []).toReversed())
                 text = `> ${reply.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`

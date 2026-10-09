@@ -195,7 +195,7 @@ const botCreateInput = createInput.extend({
     .boolean()
     .optional()
     .describe(
-      "Keep it out of the user's sidebar and your chat until it needs them (an approval, a question, a failure), opens a pull request, or they open it. A quiet change lands straight on the project's default branch: it works in a worktree from origin's default branch and pushes there, with no branch or pull request of its own."
+      "For errands: it stays out of the user's sidebar and your chat, and its result comes back to you, inside your turn with wait. It surfaces on its own if it needs the user (an approval, a question, a failure) or opens a pull request. Where a change lands depends on the project: in a git repo with an origin remote it works in a worktree from origin's default branch and pushes straight there, with no branch or pull request of its own; in a folder that isn't a git repo it works in the folder itself, so its edits apply as it makes them. A git repo with no origin can't take a quiet change."
     ),
   read_only: z
     .boolean()
@@ -366,7 +366,7 @@ export function createMcpHandler(
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Skills can only run in Claude threads')
             )
-          if (quiet && !input.read_only && provider === 'grok')
+          if (landsOn && provider === 'grok')
             return yield* Effect.fail(
               new StoreError(
                 'invalid_params',
@@ -497,7 +497,7 @@ export function createMcpHandler(
           return yield* Effect.fail(
             new StoreError(
               'invalid_params',
-              "A quiet change works in a worktree from origin's default branch, so leave out environment and ref."
+              "A quiet change picks its own place (a worktree from origin's default branch, or the folder itself when it isn't a git repo), so leave out environment and ref."
             )
           )
         if (input.full_access && (yield* store.getPermissionMode(caller.id)) !== 'full_access')
@@ -542,27 +542,33 @@ export function createMcpHandler(
             )
           prompt = worktreeSetupPrompt(worktrees.setupGuide)
         }
+        // A quiet change in a git repo lands on origin's default branch; a folder without git has
+        // no branch to land on, so it runs in place.
         if (quiet && !input.read_only) {
           if (!worktrees)
             return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-          if (!(yield* Effect.promise(() => worktrees.hasOrigin(target.path))))
-            return yield* Effect.fail(
-              new StoreError(
-                'invalid_params',
-                `${target.title} has no origin remote, so a change there can't land on its default branch quietly. Start a visible thread instead.`
+          if (yield* Effect.promise(() => worktrees.isGit(target.path))) {
+            if (!(yield* Effect.promise(() => worktrees.hasOrigin(target.path))))
+              return yield* Effect.fail(
+                new StoreError(
+                  'invalid_params',
+                  `${target.title} is a git repo with no origin remote, so a quiet change has no default branch to push to. Start a visible thread, which works on a branch of its own.`
+                )
               )
+            landsOn = (yield* Effect.promise(() => worktrees.defaultRef(target.path))).replace(
+              /^origin\//,
+              ''
             )
-          landsOn = (yield* Effect.promise(() => worktrees.defaultRef(target.path))).replace(
-            /^origin\//,
-            ''
-          )
+          }
         }
         const sameProject = target.id === caller.projectId
         const environment =
           (input.read_only || input.setup_worktrees
             ? 'local'
             : quiet
-              ? 'worktree'
+              ? landsOn
+                ? 'worktree'
+                : 'local'
               : input.environment) ??
           (sameProject
             ? caller.environment

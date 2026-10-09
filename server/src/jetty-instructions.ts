@@ -14,6 +14,14 @@ const base = [
   "The thread you create is your child. It starts with only the prompt you give it, works on its own, and when it's done, Jetty sends its final message back to you. While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting. Text from another thread, or from Jetty itself, arrives inside <relayed-message> tags, so you can tell it from the user's own words.",
 ]
 
+// Bots can wait on a quiet child, so "end your turn instead of waiting" is only for visible ones.
+const botBase = base.map((line) =>
+  line.replace(
+    "While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting.",
+    "While a visible child works, end your turn instead of polling: its report can't reach you until you do. A quiet child you start with wait is the exception: its result comes back as the result of your call."
+  )
+)
+
 export type ThreadWorkspace = {
   environment: 'local' | 'worktree'
   workingPath: string
@@ -23,10 +31,11 @@ export type ThreadWorkspace = {
 export function jettyInstructions(
   behaviours: AgentBehaviours,
   parentThreadId?: string,
-  workspace?: ThreadWorkspace
+  workspace?: ThreadWorkspace,
+  bot = false
 ) {
   return [
-    ...base,
+    ...(bot ? botBase : base),
     ...(workspace?.environment === 'worktree'
       ? [
           `You work in your own git worktree, \`${workspace.workingPath}\`, on its own branch. The project's main checkout, \`${workspace.projectPath}\`, belongs to the user: never edit, commit, reset or switch branches there, even if a message names that folder. Do that work here instead.`,
@@ -35,13 +44,27 @@ export function jettyInstructions(
     [
       parentThreadId
         ? 'Your final message is your report to the thread that created yours.'
-        : 'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar.',
+        : bot
+          ? ''
+          : 'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar.',
       'To mention a thread, link it as [title](jetty://threads/<id>). Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
-    ].join(' '),
+    ]
+      .filter(Boolean)
+      .join(' '),
     ...agentBehaviours.flatMap((behaviour) =>
       'instruction' in behaviour && behaviours[behaviour.key] ? [behaviour.instruction] : []
     ),
   ].join('\n\n')
+}
+
+// A bot's jetty.md. Archiving is in its own workers prompt, as a bot's rule rather than every agent's.
+export function botJettyInstructions(behaviours: AgentBehaviours) {
+  return jettyInstructions(
+    { ...behaviours, archiveCompletedThreads: false },
+    undefined,
+    undefined,
+    true
+  )
 }
 
 // The message that opened a turn Jetty restarted before the agent started, so it never got it.
@@ -92,6 +115,9 @@ export const CHILD_REPORT_INSTRUCTION =
 export function quietChangeInstruction(branch: string) {
   return `This is a quiet change: it lands straight on ${branch}, with no branch or pull request of its own. When it's done and checked, commit it and push it with \`git push origin HEAD:${branch}\`. If the push is rejected because ${branch} moved, rebase onto origin/${branch} and push again. If it's refused for any other reason, such as branch protection, don't open a pull request: say so in your final message.`
 }
+
+export const QUIET_IN_PLACE_INSTRUCTION =
+  "This is a quiet change in a folder that isn't a git repo: you work in the folder itself, so each edit applies as you make it, with nothing to commit and no undo. Make only the change asked for, check it, and say exactly what you changed in your final message."
 
 export const READ_ONLY_INSTRUCTION =
   "This thread is read-only: it reads the project checkout, which the user and other threads share, and doesn't change anything there. Don't edit files, commit, or run commands that write. If the answer needs a change, describe it in your final message."
@@ -153,6 +179,30 @@ export function reportMessage(message: string, messageId?: string) {
 
 export function deniedApprovalNote(note: string) {
   return `User's note on the denied approval: ${note}`
+}
+
+// The reason in Claude Code's auto mode refusal, which the child sees but its parent otherwise wouldn't.
+const AUTO_MODE_DENIAL =
+  /denied by the Claude Code auto mode classifier\. Reason: (.+?)\. If you have/s
+
+export function classifierDenial(output: string) {
+  const reason = AUTO_MODE_DENIAL.exec(output)?.[1]?.trim()
+  if (reason === undefined) return undefined
+  return /no explanation/i.test(reason) ? 'it gave no reason' : reason.replace(/^\[(.*)\]$/, '$1')
+}
+
+export function refusedCall(toolName: string, input: unknown) {
+  const command =
+    input && typeof input === 'object' ? (input as Record<string, unknown>).command : undefined
+  if (typeof command !== 'string') return toolName
+  const line = command.trim().split('\n')[0]!
+  return `\`${line.length > 120 ? `${line.slice(0, 120)}…` : line}\``
+}
+
+export function refusalNote(lines: readonly string[]) {
+  return lines.length
+    ? `Refused along the way:\n${lines.map((line) => `- ${line}`).join('\n')}`
+    : ''
 }
 
 export function userAnswers(lines: readonly string[]) {

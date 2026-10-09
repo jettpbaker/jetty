@@ -532,6 +532,7 @@ test("a bot's quiet change refuses Grok, which can't commit in a worktree", asyn
   const { home, store, id } = await botCaller()
   const project = await Effect.runPromise(store.createProject(home))
   const worktrees = {
+    isGit: async () => true,
     hasOrigin: async () => true,
     defaultRef: async () => 'origin/main',
     resolveRef: async () => 'base',
