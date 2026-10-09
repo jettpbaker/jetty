@@ -23,6 +23,7 @@ import {
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
+import { ScrollToBottom, scrollToBottomAfter } from '@/components/custom/scroll_to_bottom'
 import { linkMentions } from '@/components/custom/slash_model'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { CollapsibleText } from '@/components/custom/user_message'
@@ -163,6 +164,11 @@ function fade(scroller: HTMLElement) {
   scroller.style.setProperty('--fade', String(Math.min(1, -scroller.scrollTop / FADE_IN)))
 }
 
+// The scroller is reversed, so its scrollTop counts down from 0 at the bottom.
+function farFromBottom(scroller: HTMLElement) {
+  return -scroller.scrollTop > scroller.clientHeight * scrollToBottomAfter
+}
+
 // A quiet thread's marker stays hidden until the thread surfaces, then shows where it was started.
 function toItems(
   items: readonly ThreadItem[],
@@ -300,6 +306,11 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
+  // The scroll-to-bottom arrow: whether the reader is far enough up for it (set only when that
+  // flips, not per scroll event), and whether something new arrived below meanwhile.
+  const [away, setAway] = useState(false)
+  const awayRef = useRef(false)
+  const [fresh, setFresh] = useState(false)
   // The floating composer's height, for the mask and the room the transcript leaves under it. A ref
   // callback follows the dock to whichever element it's on; an effect run once at mount kept
   // measuring the old one after a hot update moved it.
@@ -318,6 +329,11 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     if (!scroller || !content) return
     const observer = new ResizeObserver(() => {
       if (pinnedRef.current) scroller.scrollTop = 0
+      // Growth below a reader up the chat can carry them past the point where the arrow shows.
+      else if (farFromBottom(scroller) !== awayRef.current) {
+        awayRef.current = !awayRef.current
+        setAway(awayRef.current)
+      }
     })
     observer.observe(scroller)
     observer.observe(content)
@@ -326,6 +342,22 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const { serverItems: items } = useThreadOverlay(bot.id, thread)
   const quiet = new Set(quietThreadIds)
   const rows = toRows(toItems(items, pending, otherBots, quiet))
+  // Something new at the end while the reader is up the chat puts a dot on the arrow.
+  const tailRow = rows.at(-1)
+  const tail = tailRow
+    ? `${rows.length}:${tailRow.key}:${tailRow.kind === 'message' ? tailRow.message.text.length : ''}`
+    : ''
+  const seenTail = useRef(tail)
+  useEffect(() => {
+    if (tail === seenTail.current) return
+    seenTail.current = tail
+    if (!pinnedRef.current) setFresh(true)
+  }, [tail])
+  function toBottom() {
+    pinnedRef.current = true
+    setFresh(false)
+    scrollerRef.current?.scrollTo({ top: 0, behavior: calm ? 'instant' : 'smooth' })
+  }
   const turnId = thread?.activeTurnId
   // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.
   const asking = items.some(awaitsInput)
@@ -367,6 +399,11 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
         style={{ maskImage: FADE_MASK }}
         onScroll={({ currentTarget }) => {
           pinnedRef.current = currentTarget.scrollTop > -PIN_SLACK
+          if (pinnedRef.current && fresh) setFresh(false)
+          if (farFromBottom(currentTarget) !== awayRef.current) {
+            awayRef.current = !awayRef.current
+            setAway(awayRef.current)
+          }
           fade(currentTarget)
         }}
       >
@@ -391,6 +428,11 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
           the / menu over the composer isn't clipped. */}
       <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-0 flex flex-col justify-end overflow-hidden px-6'>
         <div ref={measureDock} className='mx-auto w-full max-w-[660px] py-4'>
+          {/* No height, on the composer's top edge, so the arrow sits just above it; the dot takes
+              the bot's colour. */}
+          <div className={cn('relative', botAccentClass)}>
+            <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />
+          </div>
           <BotComposer
             key={bot.id}
             bot={bot}

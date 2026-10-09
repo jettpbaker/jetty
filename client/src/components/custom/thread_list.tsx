@@ -15,6 +15,7 @@ import {
   QueueSeam,
   useTranscriptQueue,
 } from '@/components/custom/queued_messages'
+import { ScrollToBottom, scrollToBottomAfter } from '@/components/custom/scroll_to_bottom'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
@@ -545,10 +546,40 @@ export function ThreadList({
       window.removeEventListener('pointercancel', release)
     }
   }, [])
+  // The scroll-to-bottom arrow: whether the reader is far enough up for it (set only when that
+  // flips, not per scroll event), and whether something new arrived below meanwhile.
+  const [away, setAway] = useState(false)
+  const awayRef = useRef(false)
+  const [fresh, setFresh] = useState(false)
+  const checkAway = useCallback((element: HTMLElement) => {
+    const behind = element.scrollHeight - element.clientHeight - element.scrollTop
+    const next = behind > element.clientHeight * scrollToBottomAfter
+    if (next === awayRef.current) return
+    awayRef.current = next
+    setAway(next)
+  }, [])
   const pin = useCallback((value: boolean) => {
     pinned.current = value
-    if (!value) glider.current?.stop()
+    if (value) setFresh(false)
+    else glider.current?.stop()
   }, [])
+  // While it glides, the list keeps its own scroll position: the virtualizer would hold rows that
+  // resize above the fold in place from an offset a gliding frame stale, dragging it up.
+  const gliderFor = useCallback(
+    (element: HTMLElement) => {
+      if (!glider.current)
+        glider.current = bottomGlide(
+          element,
+          (top) => (shownTop.current = top),
+          (running) =>
+            (virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
+              ? () => false
+              : undefined)
+        )
+      return glider.current
+    },
+    [virtualizer]
+  )
   // The browser's End and Home aim at the ends of rows still at their estimated sizes, so they
   // land short once those rows measure (639px in a 200-turn thread). Keys aimed at something
   // focused inside the chat (a scrolling tool output) stay its own.
@@ -585,27 +616,46 @@ export function ThreadList({
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
     if (glides) {
-      // While it glides, the list keeps its own scroll position: the virtualizer would hold rows
-      // that resize above the fold in place from an offset a gliding frame stale, dragging it up.
-      glider.current ??= bottomGlide(
-        element,
-        (top) => (shownTop.current = top),
-        (running) =>
-          (virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
-            ? () => false
-            : undefined)
-      )
+      const glide = gliderFor(element)
       // Rows above the last changing size (a turn's Working line going) keep it where it is.
       if (last && anchor?.key === last.key && anchor.start !== last.start)
-        glider.current.write(shownTop.current + last.start - anchor.start)
-      glider.current.start()
+        glide.write(shownTop.current + last.start - anchor.start)
+      glide.start()
       return
     }
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, totalSize, view])
+  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor])
   useEffect(() => () => glider.current?.stop(), [])
+
+  // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
+  // below them can also carry them past the point where it shows.
+  const tailRow = rows.at(-1)
+  const tail = tailRow ? `${rows.length}:${tailRow.id}:${rowStamp(tailRow)}` : ''
+  const seenTail = useRef(tail)
+  useEffect(() => {
+    const element = scroller.current
+    if (element) checkAway(element)
+    if (tail === seenTail.current) return
+    seenTail.current = tail
+    if (!pinned.current) setFresh(true)
+  }, [tail, totalSize, checkAway])
+
+  // Far up, it lands a screen short first, then glides the rest the way the list follows its
+  // bottom; under reduced motion it lands at once.
+  const toBottom = useCallback(() => {
+    const element = scroller.current
+    if (!element) return
+    pin(true)
+    if (reducedMotion.matches) {
+      virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
+      return
+    }
+    const start = element.scrollHeight - element.clientHeight * 2
+    if (element.scrollTop < start) element.scrollTop = start
+    gliderFor(element).start()
+  }, [pin, virtualizer, gliderFor])
 
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
@@ -642,12 +692,13 @@ export function ThreadList({
       if (pinned.current && element.clientHeight < height)
         element.scrollTop += height - element.clientHeight
       height = element.clientHeight
+      checkAway(element)
     }
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     measure()
     return () => observer.disconnect()
-  }, [virtualizer])
+  }, [virtualizer, checkAway])
 
   // Lays out the rough rows when idle, then swaps in their exact estimates in one commit, keeping
   // the top visible row in place. A list left early keeps refining, so a revisit finds them cached.
@@ -732,6 +783,7 @@ export function ThreadList({
             // Coming back down near the bottom holds on, as does landing right on it; the
             // virtualizer holding a reader's place as a row above grows doesn't.
             else if (behind < (hand && !up ? pinSlack : 1)) pin(true)
+            checkAway(element)
           }}
         >
           <div className='relative w-full' style={{ height: totalSize }}>
@@ -762,6 +814,7 @@ export function ThreadList({
             ))}
           </div>
         </section>
+        <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />
         {!agentId && (
           <AddToPrompt chatRef={scroller} onAdd={(reply) => chatComposer(threadId)?.quote(reply)} />
         )}
