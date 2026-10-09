@@ -26,6 +26,17 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   - Test with real bots: a rule Jett gives, a lesson it learns itself, a tidy that merges two
     lines, and an old bot migrating.
 
+## bot chat, from Jett's first full office day with bots (10 Oct)
+
+- A bot's chat shows its own work. Today a turn shows "Name is working…" for minutes while it
+  thinks and calls tools, and Jett wanted to see where it was. Render the bot's own thinking and
+  tool calls the way a thread does (the work block: a live tail while it runs, folded to "Worked
+  for …" after). Its errand threads stay out of the chat.
+- Bot chat shares thread chat's parts. The Grok Bot-inspired look is cute but too different, and
+  the two chats each build bubbles, copy, errors, stop, line-height and scroll-to-bottom their own
+  way (`~/code/scratch/teardowns/chat-jetty.md`, §8 item 8). Bots become Jetty chat plus a few
+  extras, so the chat re-pass covers both.
+
 ## sketchpad designs not ported yet (needs Jett's call)
 
 - PR view E (sketchpad `pr_redesign/jetty_style.tsx`). Agreed for the port:
