@@ -61,7 +61,6 @@ const triggers: Record<string, (store: Store, id: string) => Effect.Effect<unkno
     }),
   pullRequest: (store, id) => store.linkPullRequest(id, 'test/repo', 1),
   pin: (store, id) => store.pinThread(id, true),
-  seen: (store, id) => store.markThreadSeen(id),
 }
 
 test('a quiet wait finishes after a queued message from another thread', async () => {

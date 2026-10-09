@@ -2406,7 +2406,7 @@ export function createStore() {
       markThreadSeen(threadId: string) {
         return Effect.gen(function* () {
           yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET ready_for_review = 0, quiet = 0 WHERE id = ${threadId}`
+          yield* sql`UPDATE threads SET ready_for_review = 0 WHERE id = ${threadId}`
           return yield* requireThread(threadId)
         }).pipe(Effect.mapError(storeError))
       },

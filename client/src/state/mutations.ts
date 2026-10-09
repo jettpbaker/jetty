@@ -27,7 +27,7 @@ function isQuiet(registry: Registry, threadId: string) {
   return registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.quiet === true
 }
 
-// A quiet thread Jett opens or pins is an ordinary thread from then on; the server drops `quiet`.
+// A quiet thread Jett pins is an ordinary thread from then on; the server drops `quiet`.
 function settleSurfaced(registry: Registry, threadId: string) {
   settleWhen(
     registry,
@@ -36,18 +36,13 @@ function settleSurfaced(registry: Registry, threadId: string) {
   )
 }
 
-// Opening a thread is seeing it: Ready for review clears, and a quiet thread surfaces.
+// Opening a thread clears Ready for review. A quiet thread stays quiet: opening it is only a look.
 function markThreadSeen(registry: Registry, threadId: string) {
-  const surfacing = isQuiet(registry, threadId)
-  setPatch(registry, threadId, { readyForReview: false, ...(surfacing && { quiet: false }) })
-  run(
-    registry,
-    (connection) =>
-      connection.request('thread.markSeen', { threadId }).pipe(
-        Effect.tap(() => Effect.sync(() => surfacing && settleSurfaced(registry, threadId))),
-        Effect.ensuring(Effect.sync(() => clearPatch(registry, threadId, 'readyForReview')))
-      ),
-    () => surfacing && clearPatch(registry, threadId, 'quiet', false)
+  setPatch(registry, threadId, { readyForReview: false })
+  run(registry, (connection) =>
+    connection
+      .request('thread.markSeen', { threadId })
+      .pipe(Effect.ensuring(Effect.sync(() => clearPatch(registry, threadId, 'readyForReview'))))
   )
 }
 
