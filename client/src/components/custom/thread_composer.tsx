@@ -511,7 +511,7 @@ export function ThreadComposer({
         }
 
   return (
-    <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
+    <div data-chat-composer className='mx-auto w-full max-w-[708px] px-6 pb-1'>
       {worktree && setupNotice && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}

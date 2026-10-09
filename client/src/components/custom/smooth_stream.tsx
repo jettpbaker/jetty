@@ -52,10 +52,15 @@ export function fadeStyle(age = 0) {
   return `--fade:${fadeMs}ms;--fade-delay:${-Math.round(age)}ms`
 }
 
+// How text that runs ahead of what's shown catches up. Pacing starts once it's `lump` characters
+// ahead and stops within `chars`; each step, every `ms` (0: every frame), shows at least `chars`
+// and at least 1/`count` of what's left. A steady run keeps the size it started at.
+export type Pacing = { lump: number; ms: number; chars: number; count: number; steady: boolean }
+
 // A reply that lands in a lump (Claude often sends one written after a tool call all at once)
 // shows a step at a time, like a fast stream: a server batch apart, and all of it within 1.5s.
 // A fast model's batches are smaller than a lump, so they show as they come.
-const step = { ms: 50, chars: 50, count: 30, lump: 200 }
+export const jettyPacing: Pacing = { lump: 200, ms: 50, chars: 50, count: 30, steady: true }
 
 // Where the word at or after `index` starts.
 function wordStart(text: string, index: number) {
@@ -67,7 +72,7 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 
 // How much of `text` to show, from `from` characters at mount: all of it, unless it has run ahead
 // by a lump, and then a step at a time until it's within a step. No `from`, no pacing.
-export function usePacedText(text: string, from?: number) {
+export function usePacedText(text: string, from?: number, step: Pacing = jettyPacing) {
   const [shown, setShown] = useState(from ?? 0)
   const [rolling, setRolling] = useState(false)
   const latest = useRef(text)
@@ -80,17 +85,25 @@ export function usePacedText(text: string, from?: number) {
   if (behind < 0 || (behind > 0 && !pacing)) setShown(text.length)
   useEffect(() => {
     if (!pacing) return
-    // Steps keep the size the lump started at, so it lands at an even pace.
     let size = 0
-    const timer = setInterval(() => {
+    function advance() {
       const text = latest.current
       setShown((shown) => {
-        size = Math.max(size, step.chars, Math.ceil((text.length - shown) / step.count))
+        const fresh = Math.max(step.chars, Math.ceil((text.length - shown) / step.count))
+        size = step.steady ? Math.max(size, fresh) : fresh
         return wordStart(text, shown + size)
       })
-    }, step.ms)
-    return () => clearInterval(timer)
-  }, [pacing])
+    }
+    if (step.ms > 0) {
+      const timer = setInterval(advance, step.ms)
+      return () => clearInterval(timer)
+    }
+    let frame = requestAnimationFrame(function tick() {
+      advance()
+      frame = requestAnimationFrame(tick)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [pacing, step])
   return pacing ? wholeWords(text.slice(0, shown)) : text
 }
 

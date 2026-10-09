@@ -764,7 +764,11 @@ export function ThreadList({
 
   return (
     <MediaLightboxProvider>
-      <div data-perf-region='messages' className='relative flex min-h-0 flex-1 flex-col'>
+      <div
+        data-perf-region='messages'
+        data-chat-thread
+        className='relative flex min-h-0 flex-1 flex-col'
+      >
         <section
           ref={scroller}
           className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
@@ -796,6 +800,7 @@ export function ThreadList({
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
               >
                 <div
+                  data-chat-row={rows[virtualRow.index]!.kind}
                   className={cn(
                     'mx-auto w-full max-w-[708px] px-6',
                     paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'

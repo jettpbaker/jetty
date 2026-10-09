@@ -1,3 +1,4 @@
+import { streamFeels } from '@/components/custom/chat_feel'
 import { CodePre } from '@/components/custom/code_block'
 import { EntityLink, entityLinkTag, remarkEntityLinks } from '@/components/custom/entity_link'
 import { FileLink, fileLinkTag, remarkFileLinks } from '@/components/custom/file_link'
@@ -15,13 +16,8 @@ import {
   MarkdownTableHeader,
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
-import {
-  replyShown,
-  smoothBlocks,
-  usePacedText,
-  useReplyShown,
-  wholeWords,
-} from '@/components/custom/smooth_stream'
+import { replyShown, usePacedText, useReplyShown } from '@/components/custom/smooth_stream'
+import { getChatFeel } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
@@ -220,16 +216,18 @@ export function Markdown({
       ? children.length
       : Math.min(children.length, replyShown(reply) ?? (arrived ? 0 : children.length))
   )
+  // The chat feel streaming when it mounted; ⌥⌘F remounts the thread to change it.
+  const [stream] = useState(() => streamFeels[getChatFeel()])
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
   const [smooth] = useState(() =>
-    streaming || from < children.length ? smoothBlocks(children.slice(0, from)) : undefined
+    streaming || from < children.length ? stream.smoothBlocks(children.slice(0, from)) : undefined
   )
   const [BlockComponent] = useState(
     () => smooth?.SmoothBlock ?? (html ? HtmlMarkdownBlock : MarkdownBlock)
   )
   useEffect(() => smooth?.mounted(), [smooth])
-  const text = smooth && streaming ? wholeWords(children) : children
-  const shown = usePacedText(text, smooth && from)
+  const text = smooth && streaming ? stream.wholeWords(children) : children
+  const shown = usePacedText(text, smooth && from, stream.pacing)
   useReplyShown(reply, shown.length)
   return (
     <Streamdown

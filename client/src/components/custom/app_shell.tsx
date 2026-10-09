@@ -2,6 +2,7 @@ import type { SubagentStatus } from '@jetty/shared/items'
 
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tabs, TabsList } from '@/components/ui/tabs'
+import { chatFeelNames, cycleChatFeel } from '@/lib/chat-feel'
 import { storage } from '@/platform'
 import {
   MAIN_TAB,
@@ -27,6 +28,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+import { toast } from 'sonner'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
@@ -279,6 +281,11 @@ function Workspace({
     (event) => {
       if (!inDialog(event)) void navigate({ to: '/settings' })
     },
+    { requireReset: true, ignoreInputs: false }
+  )
+  useHotkey(
+    keybinds.chatFeel.hotkey,
+    () => toast(`Chat feel: ${chatFeelNames[cycleChatFeel()]}`, { id: 'chat-feel' }),
     { requireReset: true, ignoreInputs: false }
   )
 

@@ -44,6 +44,12 @@ export const keybinds = {
   save: { hotkey: 'Mod+S', label: '⌘S', name: 'Save file', modifiers: ['Meta'] },
   findFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Find a file', modifiers: ['Meta'] },
   addToPrompt: { hotkey: 'Mod+L', label: '⌘L', name: 'Add to prompt', modifiers: ['Meta'] },
+  chatFeel: {
+    hotkey: 'Mod+Alt+F',
+    label: '⌥⌘F',
+    name: 'Cycle chat feel (experiment)',
+    modifiers: ['Alt', 'Meta'],
+  },
   // The composer handles these keys itself; they're here to be listed and shown.
   send: { hotkey: 'Enter', label: '↵', name: 'Send', modifiers: [] },
   steer: {

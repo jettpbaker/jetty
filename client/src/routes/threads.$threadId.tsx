@@ -7,6 +7,7 @@ import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
 import { threadSubagents } from '@/components/custom/thread_rows'
 import { Button } from '@/components/ui/button'
+import { useChatFeel } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
 import { settingUpWorktree } from '@/lib/thread_worktree'
 import { perf } from '@/perf'
@@ -29,6 +30,7 @@ export const Route = createFileRoute('/threads/$threadId')({ component: Thread }
 
 function Thread() {
   const { threadId } = Route.useParams()
+  const chatFeel = useChatFeel()
   const thread = useThread(threadId)
   perf.threadLocal(threadId, thread !== undefined)
   useLayoutEffect(() => perf.threadShown(threadId, thread !== undefined))
@@ -99,7 +101,7 @@ function Thread() {
             <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
           ) : thread || !overlay.empty ? (
             <ThreadList
-              key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
+              key={`${threadId}:${agent?.id ?? MAIN_TAB}:${chatFeel}`}
               threadId={threadId}
               items={overlay.items}
               status={
