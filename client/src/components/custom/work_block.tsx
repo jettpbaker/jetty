@@ -1,8 +1,10 @@
+import { getChatFeel } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
+import { capyMotion } from './chat_feel/capy'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -108,7 +110,11 @@ function WorkHistory({
               className='overflow-hidden'
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
-              transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }}
+              transition={
+                getChatFeel() === 'capy'
+                  ? capyMotion(true, reducedMotion)
+                  : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
+              }
             >
               {entry.type === 'thinking' ? (
                 <ThinkingBlock activity={entry} />

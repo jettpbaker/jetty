@@ -196,6 +196,7 @@ function WorkerCodeBlock({
     <CodeWell
       className={fade?.className}
       style={fade?.style}
+      language={language}
       copy={
         <>
           {wrapButton}
@@ -248,15 +249,21 @@ export function CodeWell({
   copy,
   className,
   style,
+  language,
   children,
 }: {
   copy: ReactNode
   className?: string
   style?: CSSProperties
+  language?: string
   children: ReactNode
 }) {
   return (
-    <div className={cn('group/code relative my-3 rounded-md', well, className)} style={style}>
+    <div
+      className={cn('group/code relative my-3 rounded-md', well, className)}
+      style={style}
+      data-language={language || undefined}
+    >
       {children}
       <div
         contentEditable={false}
