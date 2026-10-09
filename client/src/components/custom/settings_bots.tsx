@@ -10,6 +10,7 @@ import { useState } from 'react'
 
 import { BotAvatar } from './bot_avatar'
 import { BotSettingsSheet } from './bot_settings_sheet'
+import { accessModes } from './composer_access_mode'
 import { copyFilePath } from './file_link'
 import { ArrowRight01Icon, Folder01Icon, PlusSignIcon } from './huge_icons'
 import { NewBotDialog } from './new_bot_dialog'
@@ -30,13 +31,6 @@ function BotRow({ bot }: { bot: Bot }) {
   const project = bot.projectId
     ? chrome?.projects.find((entry) => entry.id === bot.projectId)?.title
     : 'All projects'
-  const details = [
-    model ? modelLabelText(model) : bot.model,
-    bot.effort && effortLabels[bot.effort],
-    bot.permissionMode === 'full_access' && 'Full access',
-  ]
-    .filter(Boolean)
-    .join(' · ')
   return (
     <BotSettingsSheet bot={bot}>
       <button
@@ -50,7 +44,19 @@ function BotRow({ bot }: { bot: Bot }) {
         </span>
         <span className='flex min-w-0 grow basis-0 flex-col gap-0.5'>
           <span className='text-13'>{bot.name}</span>
-          <span className='truncate text-xs text-muted-foreground'>{details}</span>
+          <span className='flex min-w-0 items-center gap-2 text-xs text-muted-foreground'>
+            <span className='truncate'>
+              {[model ? modelLabelText(model) : bot.model, bot.effort && effortLabels[bot.effort]]
+                .filter(Boolean)
+                .join(' ')}
+            </span>
+            {bot.permissionMode === 'full_access' && (
+              <span className='flex shrink-0 items-center gap-1 [&_svg]:size-3'>
+                <accessModes.full_access.Icon />
+                {accessModes.full_access.label}
+              </span>
+            )}
+          </span>
         </span>
         <span className='flex w-30 shrink-0 items-center gap-1.5 text-13 text-muted-foreground [&_svg]:size-3.5'>
           <Folder01Icon />

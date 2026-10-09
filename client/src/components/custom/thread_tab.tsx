@@ -23,7 +23,6 @@ type ThreadTabProps = Omit<ComponentProps<typeof TabsTrigger>, 'children' | 'tit
   title: string
   status: ThreadStatus
   model?: string
-  effort?: string
   agentType?: 'main' | 'subagent'
   // A finished subagent's tab on its way out: it shrinks away with its title held at this width.
   leaving?: { titleWidth: number }
@@ -33,14 +32,13 @@ export function ThreadTab({
   title,
   status,
   model,
-  effort,
   agentType = 'main',
   leaving,
   className,
   ...props
 }: ThreadTabProps) {
   const isSubagent = agentType === 'subagent'
-  const hasTooltip = isSubagent && Boolean(model || effort)
+  const hasTooltip = isSubagent && Boolean(model)
   const renderTab = (trigger?: ReactElement) => (
     <TabsTrigger
       data-overflow-hover
@@ -84,7 +82,7 @@ export function ThreadTab({
     <Tooltip>
       {renderTab(<TooltipTrigger />)}
       <TooltipContent side='bottom'>
-        <span>{[model, effort && `${effort} effort`].filter(Boolean).join(' · ')}</span>
+        <span>{model}</span>
       </TooltipContent>
     </Tooltip>
   )
