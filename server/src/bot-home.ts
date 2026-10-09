@@ -178,9 +178,11 @@ export async function botInstructions(
       .split('\n')
       .filter((line) => !line.includes('{if auto}') || bot.permissionMode === 'auto')
       .filter((line) => !line.includes('{if full access}') || bot.permissionMode === 'full_access')
+      .filter((line) => !line.includes('{if archive}') || behaviours.archiveCompletedThreads)
       .join('\n')
       .replaceAll('{if auto} ', '')
       .replaceAll('{if full access} ', '')
+      .replaceAll('{if archive} ', '')
     for (const [key, value] of Object.entries(fill)) content = content.replaceAll(`{${key}}`, value)
     files.push({ name, content })
   }

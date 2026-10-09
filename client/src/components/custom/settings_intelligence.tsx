@@ -166,7 +166,7 @@ export function SettingsIntelligence() {
             id='archive'
             icon={Archive02Icon}
             title='Archive finished threads'
-            description='Agents archive threads they started once the work is merged'
+            description='Agents and bots archive threads they started once the work is merged'
           >
             <Switch
               aria-label='Archive finished threads'
