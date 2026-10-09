@@ -5,11 +5,9 @@ import { SettingsAccounts } from '@/components/custom/settings_accounts'
 import { SettingsAppearance } from '@/components/custom/settings_appearance'
 import { SettingsBots } from '@/components/custom/settings_bots'
 import {
-  SettingsBotTidying,
   SettingsGuidedReviews,
   SettingsIntelligence,
   SettingsPullRequestActivity,
-  SettingsThreadTitles,
 } from '@/components/custom/settings_intelligence'
 import { SettingsKeyboard } from '@/components/custom/settings_keyboard'
 import { revealSettingsRow } from '@/components/custom/settings_layout'
@@ -31,10 +29,8 @@ const pages: Record<string, ComponentType> = {
   'connected-accounts': SettingsAccounts,
   models: SettingsModels,
   intelligence: SettingsIntelligence,
-  'thread-titles': SettingsThreadTitles,
   'guided-reviews': SettingsGuidedReviews,
   'pr-activity': SettingsPullRequestActivity,
-  'bot-tidying': SettingsBotTidying,
   bots: SettingsBots,
   projects: SettingsProjects,
   worktrees: SettingsWorktrees,

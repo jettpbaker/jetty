@@ -52,10 +52,8 @@ export const settingsGroups: { label: string; pages: SettingsPage[] }[] = [
 ]
 
 const subPages: SettingsPage[] = [
-  { id: 'thread-titles', title: 'Thread titles', icon: SparklesIcon, parent: 'intelligence' },
   { id: 'guided-reviews', title: 'Guided reviews', icon: SparklesIcon, parent: 'intelligence' },
   { id: 'pr-activity', title: 'Wake on PR activity', icon: SparklesIcon, parent: 'intelligence' },
-  { id: 'bot-tidying', title: 'Bot tidying', icon: SparklesIcon, parent: 'intelligence' },
 ]
 
 export const settingsPages = [...settingsGroups.flatMap((group) => group.pages), ...subPages]
@@ -112,8 +110,8 @@ export const settingsRows: SettingsRow[] = [
   { page: 'intelligence', id: 'archive', title: 'Archive finished threads' },
   { page: 'intelligence', id: 'check-ins', title: 'Bot check-ins' },
   {
-    page: 'bot-tidying',
-    id: 'tidy-model',
+    page: 'intelligence',
+    id: 'tidying',
     title: 'Bot tidying',
     keywords: 'compaction, notes, wiki',
   },

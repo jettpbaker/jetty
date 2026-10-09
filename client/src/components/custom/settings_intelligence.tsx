@@ -201,14 +201,21 @@ export function SettingsIntelligence() {
         description='Small jobs Jetty runs itself, on your own subscriptions.'
       >
         <SettingsCard>
-          <SettingsLinkRow
+          <SettingsRow
             id='thread-titles'
-            page='thread-titles'
             icon={TextFontIcon}
             title='Thread titles'
             description='Names new threads, and the branches they work on'
-            value={<JobModelValue catalog={titles.catalog} value={titles.value} />}
-          />
+          >
+            <span className={cn('flex shrink-0', !titles.ready && 'invisible')}>
+              <JobModelSelect
+                label='Title model'
+                catalog={titles.catalog}
+                value={titles.value}
+                onChange={titles.set}
+              />
+            </span>
+          </SettingsRow>
           <SettingsLinkRow
             id='guided-reviews'
             page='guided-reviews'
@@ -217,14 +224,22 @@ export function SettingsIntelligence() {
             description='Walks you through a pull request in chapters, from its Guide tab'
             value={<JobModelValue catalog={guides.catalog} value={guides.value} />}
           />
-          <SettingsLinkRow
+          <SettingsRow
             id='tidying'
-            page='bot-tidying'
             icon={ArrowShrink02Icon}
             title='Bot tidying'
             description='Bots compact their chats and file their notes'
-            value={<JobModelValue catalog={tidying.catalog} value={tidying.value} />}
-          />
+          >
+            <span className={cn('flex shrink-0', !tidying.ready && 'invisible')}>
+              <JobModelSelect
+                label='Tidy model'
+                catalog={tidying.catalog}
+                value={tidying.value}
+                lockedProvider='claude'
+                onChange={tidying.set}
+              />
+            </span>
+          </SettingsRow>
           <SettingsRow
             id='digest'
             icon={NewspaperIcon}
@@ -272,23 +287,6 @@ export function SettingsIntelligence() {
           />
         </SettingsCard>
       </SettingsSection>
-    </SettingsPage>
-  )
-}
-
-export function SettingsThreadTitles() {
-  const { catalog, value, set, ready } = useJobModel('title')
-  return (
-    <SettingsPage
-      parent='intelligence'
-      title='Thread titles'
-      description='A short title for each new thread, and the branch name a worktree takes from it.'
-    >
-      <SettingsCard className={ready ? undefined : 'invisible'}>
-        <SettingsRow title='Model' description='Reads your first message and names the thread'>
-          <JobModelSelect label='Title model' catalog={catalog} value={value} onChange={set} />
-        </SettingsRow>
-      </SettingsCard>
     </SettingsPage>
   )
 }
@@ -364,29 +362,6 @@ export function SettingsGuidedReviews() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-    </SettingsPage>
-  )
-}
-
-export function SettingsBotTidying() {
-  const { catalog, value, set, ready } = useJobModel('tidy')
-  return (
-    <SettingsPage
-      parent='intelligence'
-      title='Bot tidying'
-      description='Once a day a separate run reads each bot’s notes and files them, and the bot checks the changes afterwards. Bots also compact their chats while you’re away.'
-    >
-      <SettingsCard className={ready ? undefined : 'invisible'}>
-        <SettingsRow id='tidy-model' title='Model' description='Reads and files each bot’s notes'>
-          <JobModelSelect
-            label='Tidy model'
-            catalog={catalog}
-            value={value}
-            lockedProvider='claude'
-            onChange={set}
-          />
-        </SettingsRow>
-      </SettingsCard>
     </SettingsPage>
   )
 }
