@@ -25,6 +25,7 @@ import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
 import { linkMentions } from '@/components/custom/slash_model'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
+import { CollapsibleText } from '@/components/custom/user_message'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
@@ -674,8 +675,10 @@ function MessageRow({
               )}
               {message.text && (
                 <Bubble variant='default' align='end' className='max-w-full'>
-                  <BubbleContent className='rounded-[18.5px] border-0 leading-normal whitespace-pre-wrap selection:bg-primary-foreground/25 selection:text-primary-foreground'>
-                    <BotMentions text={message.text} />
+                  <BubbleContent className='rounded-[18.5px] border-0 leading-normal selection:bg-primary-foreground/25 selection:text-primary-foreground'>
+                    <CollapsibleText id={message.id} text={message.text} filled>
+                      <BotMentions text={message.text} />
+                    </CollapsibleText>
                   </BubbleContent>
                   {reactsOn === 'bubble' && reaction}
                 </Bubble>

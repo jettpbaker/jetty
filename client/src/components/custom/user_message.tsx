@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
 import { useBot, useRequestReveal } from '@/state'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 import { FileLines, isImageAttachment } from './attachment_files'
 import { botAccentClass, botColorStyle } from './bot_avatar'
@@ -30,6 +30,81 @@ function measureCollapsible(element: HTMLElement, text: string) {
   if (collapsibleTexts.size >= 512) collapsibleTexts.clear()
   collapsibleTexts.set(text, { width: element.getBoundingClientRect().width, collapsible })
   return collapsible
+}
+
+// A sent message's text, cut to collapsedTextHeight with a fade and a toggle once it runs long.
+// `filled` is for text on a filled bubble, where the toggle takes the bubble's foreground.
+export function CollapsibleText({
+  id,
+  text,
+  filled,
+  className,
+  children,
+}: {
+  id: string
+  text: string
+  filled?: boolean
+  className?: string
+  children: ReactNode
+}) {
+  const textRef = useRef<HTMLParagraphElement>(null)
+  const [collapsible, setCollapsible] = useState(
+    () => collapsibleTexts.get(text)?.collapsible ?? false
+  )
+  const [expanded, setExpanded] = useState(() => expandedMessages.has(id))
+  useLayoutEffect(() => {
+    const element = textRef.current
+    if (!element) return
+    const cached = collapsibleTexts.get(text)
+    if (!cached) {
+      setCollapsible(measureCollapsible(element, text))
+      return
+    }
+    setCollapsible(cached.collapsible)
+    // Once laid out its width is free to read, and a new one means the cached result is stale.
+    const observer = new ResizeObserver(([entry]) => {
+      observer.disconnect()
+      if (entry!.borderBoxSize[0]!.inlineSize !== cached.width)
+        setCollapsible(measureCollapsible(element, text))
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [text])
+  const collapsed = collapsible && !expanded
+  return (
+    <>
+      <p
+        ref={textRef}
+        className={cn('whitespace-pre-wrap', className, collapsed && 'overflow-hidden')}
+        style={
+          collapsed
+            ? { maxHeight: collapsedTextHeight, maskImage: fade, WebkitMaskImage: fade }
+            : undefined
+        }
+      >
+        {children}
+      </p>
+      {collapsible && (
+        <Button
+          variant='ghost-text'
+          size='xs'
+          className={cn(
+            '-ml-1 mt-1 px-1',
+            filled &&
+              'text-primary-foreground/85 not-disabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
+          )}
+          aria-expanded={expanded}
+          onClick={() => {
+            if (expanded) expandedMessages.delete(id)
+            else expandedMessages.add(id)
+            setExpanded(!expanded)
+          }}
+        >
+          {expanded ? 'Show less' : 'Show full message'}
+        </Button>
+      )}
+    </>
+  )
 }
 
 // A sent message's images as thumbnails, each opening the media viewer.
@@ -99,30 +174,6 @@ export function UserMessage({
   const bot = useBot(from?.threadId)
   // Another thread's message is tinted; Jett's, and a bot's in its colour, are filled.
   const tinted = from && !bot
-  const textRef = useRef<HTMLParagraphElement>(null)
-  const [collapsible, setCollapsible] = useState(
-    () => collapsibleTexts.get(text)?.collapsible ?? false
-  )
-  const [expanded, setExpanded] = useState(() => expandedMessages.has(id))
-  useLayoutEffect(() => {
-    const element = textRef.current
-    if (!element) return
-    const cached = collapsibleTexts.get(text)
-    if (!cached) {
-      setCollapsible(measureCollapsible(element, text))
-      return
-    }
-    setCollapsible(cached.collapsible)
-    // Once laid out its width is free to read, and a new one means the cached result is stale.
-    const observer = new ResizeObserver(([entry]) => {
-      observer.disconnect()
-      if (entry!.borderBoxSize[0]!.inlineSize !== cached.width)
-        setCollapsible(measureCollapsible(element, text))
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [text])
-  const collapsed = collapsible && !expanded
   const images = attachments.filter(isImageAttachment)
   const files = attachments.filter((attachment) => !isImageAttachment(attachment))
   return (
@@ -148,41 +199,15 @@ export function UserMessage({
             <BubbleContent className='rounded-lg'>
               <MessageImages images={images} tinted={tinted} />
               {text || skill ? (
-                <p
-                  ref={textRef}
-                  className={cn(
-                    'leading-relaxed whitespace-pre-wrap',
-                    images.length > 0 && 'mt-2',
-                    collapsed && 'overflow-hidden'
-                  )}
-                  style={
-                    collapsed
-                      ? { maxHeight: collapsedTextHeight, maskImage: fade, WebkitMaskImage: fade }
-                      : undefined
-                  }
+                <CollapsibleText
+                  id={id}
+                  text={text}
+                  filled={!tinted}
+                  className={cn('leading-relaxed', images.length > 0 && 'mt-2')}
                 >
                   {skill ? `/${skill} ${text}` : text}
-                </p>
+                </CollapsibleText>
               ) : null}
-              {collapsible && (
-                <Button
-                  variant='ghost-text'
-                  size='xs'
-                  className={cn(
-                    '-ml-1 mt-1 px-1',
-                    !tinted &&
-                      'text-primary-foreground/85 not-disabled:hover:text-primary-foreground aria-expanded:text-primary-foreground'
-                  )}
-                  aria-expanded={expanded}
-                  onClick={() => {
-                    if (expanded) expandedMessages.delete(id)
-                    else expandedMessages.add(id)
-                    setExpanded(!expanded)
-                  }}
-                >
-                  {expanded ? 'Show less' : 'Show full message'}
-                </Button>
-              )}
             </BubbleContent>
           )}
           <UserMessageFooter
