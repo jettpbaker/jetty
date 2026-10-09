@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { describeLoadout, type Loadout } from '@/lib/loadout'
+import { describeLoadout, findModel, type Loadout } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useChrome } from '@/state'
 import { useModelRefresh, useSetAgentBehaviour, useSetJobModel } from '@/state/models'
@@ -103,7 +103,16 @@ function useJobModel(job: JobName) {
   const catalog = chrome?.models ?? []
   const value = jobLoadout(job, pending ?? chrome?.jobModels?.[job], catalog)
   function set({ provider, model, effort, fast }: Loadout) {
-    const next: JobModel = { model: { provider, id: model }, ...(effort ? { effort } : {}), fast }
+    // Titles keep their effort across a model switch where they can, and otherwise take the lowest.
+    const switched =
+      job === 'title' && value && (value.provider !== provider || value.model !== model)
+    const picked = switched ? findModel(catalog, { provider, model }) : undefined
+    const kept = picked ? resolveTitleEffort(picked, value?.effort) : effort
+    const next: JobModel = {
+      model: { provider, id: model },
+      ...(kept ? { effort: kept } : {}),
+      fast,
+    }
     setPending(next)
     save(job, next, () => setPending((current) => (current === next ? undefined : current)))
   }

@@ -538,11 +538,13 @@ export function ModelMenuItems({
             value={model ? modelKey(model) : ''}
             onValueChange={(key) => swapModel(String(key))}
           >
+            {/* A model pick leaves the menu open, so Effort is one move away. */}
             {models.map((item) => (
               <DropdownMenuRadioItem
                 key={modelKey(item)}
                 value={modelKey(item)}
                 disabled={disabledProviders.includes(item.provider)}
+                closeOnClick={false}
               >
                 <ProviderGlyph provider={item.provider} className='size-3' />
                 <ModelLabel model={item} />
