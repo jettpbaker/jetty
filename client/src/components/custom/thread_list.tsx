@@ -41,6 +41,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
+import { getChatFeel } from '@/lib/chat-feel'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -612,6 +613,7 @@ export function ThreadList({
     const behind = element.scrollHeight - element.clientHeight - element.scrollTop
     const glides =
       !reducedMotion.matches &&
+      getChatFeel() !== 'opencode' &&
       behind < element.clientHeight &&
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
@@ -648,7 +650,7 @@ export function ThreadList({
     const element = scroller.current
     if (!element) return
     pin(true)
-    if (reducedMotion.matches) {
+    if (reducedMotion.matches || getChatFeel() === 'opencode') {
       virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       return
     }
