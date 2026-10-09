@@ -4,7 +4,8 @@ import type {
   ChromePushData,
   ModelDiscovery,
   ProviderCapabilities,
-  TitleModel,
+  JobModel,
+  JobName,
   Project,
   ProjectIcon,
   ProviderId,
@@ -58,7 +59,7 @@ export type Chrome = {
   providerCapabilities?: ProviderCapabilities
   branchPrefix?: string
   defaultEnvironment?: ThreadMeta['environment']
-  titleModel?: TitleModel
+  jobModels?: Partial<Record<JobName, JobModel>>
   agentBehaviours?: AgentBehaviours
   bots: readonly Bot[]
 }
@@ -83,7 +84,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         providerCapabilities: update.providerCapabilities,
         branchPrefix: update.branchPrefix,
         defaultEnvironment: update.defaultEnvironment,
-        titleModel: update.titleModel,
+        jobModels: update.jobModels,
         agentBehaviours: update.agentBehaviours,
         bots: update.bots ?? [],
       }
@@ -112,8 +113,10 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, branchPrefix: update.prefix }
     case 'defaultEnvironment':
       return { ...chrome, defaultEnvironment: update.environment }
-    case 'titleModel':
-      return { ...chrome, titleModel: { model: update.model, effort: update.effort } }
+    case 'jobModel': {
+      const { job, model, effort, fast } = update
+      return { ...chrome, jobModels: { ...chrome.jobModels, [job]: { model, effort, fast } } }
+    }
     case 'agentBehaviours':
       return { ...chrome, agentBehaviours: update.behaviours }
   }

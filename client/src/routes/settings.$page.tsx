@@ -5,6 +5,7 @@ import { SettingsAccounts } from '@/components/custom/settings_accounts'
 import { SettingsAppearance } from '@/components/custom/settings_appearance'
 import { SettingsBots } from '@/components/custom/settings_bots'
 import {
+  SettingsBotTidying,
   SettingsGuidedReviews,
   SettingsIntelligence,
   SettingsPullRequestActivity,
@@ -33,6 +34,7 @@ const pages: Record<string, ComponentType> = {
   'thread-titles': SettingsThreadTitles,
   'guided-reviews': SettingsGuidedReviews,
   'pr-activity': SettingsPullRequestActivity,
+  'bot-tidying': SettingsBotTidying,
   bots: SettingsBots,
   projects: SettingsProjects,
   worktrees: SettingsWorktrees,

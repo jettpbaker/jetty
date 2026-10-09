@@ -5,7 +5,7 @@ import type { ModelPrompt } from './title-model'
 
 import { claudeBin } from './claude-bin'
 
-export const claudePrompt: ModelPrompt = (model, effort, instructions, text) =>
+export const claudePrompt: ModelPrompt = (model, effort, _fast, instructions, text) =>
   Effect.acquireUseRelease(
     Effect.try(() =>
       query({

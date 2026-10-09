@@ -1,23 +1,36 @@
-import type { EffortLevel } from '@jetty/shared/events'
-import type { AgentBehaviourKey, TitleModel } from '@jetty/shared/wire'
+import type {
+  AgentBehaviourKey,
+  JobModel,
+  JobName,
+  ProviderId,
+  ProviderModel,
+} from '@jetty/shared/wire'
 
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { effortLabels, findModel, modelKey } from '@/lib/loadout'
+import { describeLoadout, type Loadout } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useChrome } from '@/state'
-import { useSetAgentBehaviour, useSetTitleModel } from '@/state/models'
-import { modelLabelText } from '@jetty/shared/model-name'
+import { useModelRefresh, useSetAgentBehaviour, useSetJobModel } from '@/state/models'
 import {
   agentBehaviours,
+  claudeJobModel,
   GUIDE_MIN_CHANGED_LINES,
   resolveTitleEffort,
   resolveTitleModel,
 } from '@jetty/shared/wire'
 import { useState } from 'react'
 
+import { loadoutParts, ModelMenuItems } from './composer_loadout'
 import { DisabledTooltip } from './disabled_tooltip'
 import {
   Archive02Icon,
+  ArrowDown01Icon,
   ArrowShrink02Icon,
   BookOpenIcon,
   Clock01Icon,
@@ -25,6 +38,7 @@ import {
   TextFontIcon,
 } from './huge_icons'
 import { GitPullRequestIcon } from './lucide_icons'
+import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import {
   ComingSoon,
@@ -34,13 +48,9 @@ import {
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  SettingsSegmented,
-  SettingsSelect,
   comingSoon,
+  selectTriggerClass,
 } from './settings_layout'
-
-// Guides are written by one model the server picks; settings show it until it can be changed.
-const guideModel = { provider: 'claude', label: 'Sonnet 5.5', effort: 'medium' } as const
 
 function useAgentBehaviours() {
   const chrome = useChrome()
@@ -64,35 +74,114 @@ function useAgentBehaviours() {
   return { enabled, set }
 }
 
-function useTitleModel() {
-  const chrome = useChrome()
-  const save = useSetTitleModel()
-  const [pending, setPending] = useState<TitleModel>()
-  const models = chrome?.models ?? []
-  const choice = pending ?? chrome?.titleModel ?? { model: null }
-  const chosen =
-    choice.model && findModel(models, { provider: choice.model.provider, model: choice.model.id })
-  const resolved = chosen || resolveTitleModel(null, models)
-  const effort = resolved && resolveTitleEffort(resolved, choice.effort)
-  function set(next: TitleModel) {
-    setPending(next)
-    save(next, () => setPending((current) => (current === next ? undefined : current)))
+// A job's saved choice as the loadout the composer's menu edits: titles fall back to the cheapest
+// model you have, at its lowest effort; guides and tidy passes to their Claude default.
+function jobLoadout(
+  job: JobName,
+  choice: JobModel | undefined,
+  catalog: readonly ProviderModel[]
+): Loadout | undefined {
+  if (job !== 'title') {
+    const { model, effort } = claudeJobModel(job, choice)
+    return { provider: model.provider, model: model.id, ...(effort ? { effort } : {}), fast: false }
   }
-  return { models, choice, chosen, resolved, effort, set, ready: !!chrome }
+  const model = resolveTitleModel(choice?.model, catalog)
+  if (!model) return undefined
+  const effort = resolveTitleEffort(model, choice?.effort)
+  return {
+    provider: model.provider,
+    model: model.id,
+    ...(effort ? { effort } : {}),
+    fast: model.fast && choice?.fast === true,
+  }
 }
 
-function ModelValue({ provider, label }: { provider?: string; label: string }) {
+function useJobModel(job: JobName) {
+  const chrome = useChrome()
+  const save = useSetJobModel()
+  const [pending, setPending] = useState<JobModel>()
+  const catalog = chrome?.models ?? []
+  const value = jobLoadout(job, pending ?? chrome?.jobModels?.[job], catalog)
+  function set({ provider, model, effort, fast }: Loadout) {
+    const next: JobModel = { model: { provider, id: model }, ...(effort ? { effort } : {}), fast }
+    setPending(next)
+    save(job, next, () => setPending((current) => (current === next ? undefined : current)))
+  }
+  return { catalog, value, set, ready: !!chrome }
+}
+
+function JobModelValue({
+  catalog,
+  value,
+}: {
+  catalog: readonly ProviderModel[]
+  value: Loadout | undefined
+}) {
+  if (!value) return 'None available'
+  const { model, name } = loadoutParts(catalog, value)
+  const details = describeLoadout(value)
   return (
     <>
-      {provider && <ProviderGlyph provider={provider} className='size-3' />}
-      {label}
+      <ProviderGlyph provider={value.provider} className='size-3' />
+      {model ? <ModelLabel model={model} /> : name}
+      {details && <span className='text-muted-foreground'>{details}</span>}
     </>
+  )
+}
+
+// The composer's model menu without its loadout, on a settings select trigger.
+function JobModelSelect({
+  label,
+  catalog,
+  value,
+  lockedProvider,
+  onChange,
+}: {
+  label: string
+  catalog: readonly ProviderModel[]
+  value: Loadout | undefined
+  lockedProvider?: ProviderId
+  onChange: (loadout: Loadout) => void
+}) {
+  const { refresh } = useModelRefresh()
+  const models = lockedProvider
+    ? catalog.filter((model) => model.provider === lockedProvider)
+    : catalog
+  const { model, name } = loadoutParts(catalog, value)
+  const details = value && describeLoadout(value)
+  return (
+    <DropdownMenu modal={false} onOpenChange={(open) => open && refresh()}>
+      <DropdownMenuTrigger
+        aria-label={`${label}: ${[name, details].filter(Boolean).join(', ') || 'none'}`}
+        render={<Button variant='ghost' className={cn(selectTriggerClass, 'group/chip')} />}
+      >
+        {value ? (
+          <>
+            <ProviderGlyph provider={value.provider} className='size-3' />
+            {model ? <ModelLabel model={model} /> : name}
+            {details && (
+              <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
+                {details}
+              </span>
+            )}
+          </>
+        ) : (
+          'Choose a model'
+        )}
+        <ArrowDown01Icon />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-max min-w-56'>
+        <ModelMenuItems catalog={catalog} models={models} value={value} onChange={onChange} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
 export function SettingsIntelligence() {
   const { enabled, set } = useAgentBehaviours()
-  const titles = useTitleModel()
+  const titles = useJobModel('title')
+  const guides = useJobModel('guide')
+  const tidying = useJobModel('tidy')
   return (
     <SettingsPage
       title='Intelligence'
@@ -109,21 +198,7 @@ export function SettingsIntelligence() {
             icon={TextFontIcon}
             title='Thread titles'
             description='Names new threads, and the branches they work on'
-            value={
-              <ModelValue
-                provider={titles.resolved?.provider}
-                label={
-                  titles.resolved
-                    ? [
-                        modelLabelText(titles.resolved),
-                        titles.effort && effortLabels[titles.effort],
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')
-                    : 'Automatic'
-                }
-              />
-            }
+            value={<JobModelValue catalog={titles.catalog} value={titles.value} />}
           />
           <SettingsLinkRow
             id='guided-reviews'
@@ -131,12 +206,15 @@ export function SettingsIntelligence() {
             icon={BookOpenIcon}
             title='Guided reviews'
             description='Walks you through a pull request in chapters, from its Guide tab'
-            value={
-              <ModelValue
-                provider={guideModel.provider}
-                label={`${guideModel.label} · ${effortLabels[guideModel.effort]}`}
-              />
-            }
+            value={<JobModelValue catalog={guides.catalog} value={guides.value} />}
+          />
+          <SettingsLinkRow
+            id='tidying'
+            page='bot-tidying'
+            icon={ArrowShrink02Icon}
+            title='Bot tidying'
+            description='Bots compact their chats and file their notes'
+            value={<JobModelValue catalog={tidying.catalog} value={tidying.value} />}
           />
           <SettingsRow
             id='digest'
@@ -183,27 +261,14 @@ export function SettingsIntelligence() {
             description="Quiet bots look over their area, only while you're around"
             value='Hourly'
           />
-          <SettingsLinkRow
-            id='tidying'
-            page='bots'
-            hash='rhythm'
-            icon={ArrowShrink02Icon}
-            title='Bot tidying'
-            description='Bots compact their chats and file their notes'
-            value="While you're away"
-          />
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>
   )
 }
 
-const automatic = 'automatic'
-
 export function SettingsThreadTitles() {
-  const { models, choice, chosen, resolved, effort, set, ready } = useTitleModel()
-  const automaticModel = resolveTitleModel(null, models)
-  const efforts = resolved?.efforts ?? []
+  const { catalog, value, set, ready } = useJobModel('title')
   return (
     <SettingsPage
       parent='intelligence'
@@ -211,42 +276,8 @@ export function SettingsThreadTitles() {
       description='A short title for each new thread, and the branch name a worktree takes from it.'
     >
       <SettingsCard className={ready ? undefined : 'invisible'}>
-        <SettingsRow
-          title='Model'
-          description={
-            automaticModel
-              ? `Automatic picks ${modelLabelText(automaticModel)}, or the cheapest you have`
-              : 'Automatic picks the cheapest model you have'
-          }
-        >
-          <SettingsSelect
-            label='Title model'
-            value={chosen ? modelKey(chosen) : automatic}
-            onChange={(key) => {
-              const model = models.find((candidate) => modelKey(candidate) === key)
-              set({ ...choice, model: model ? { provider: model.provider, id: model.id } : null })
-            }}
-            options={[
-              { value: automatic, label: 'Automatic' },
-              ...models.map((model) => ({
-                value: modelKey(model),
-                label: modelLabelText(model),
-                icon: <ProviderGlyph provider={model.provider} className='size-3' />,
-              })),
-            ]}
-          />
-        </SettingsRow>
-        <SettingsRow title='Effort' description='Titles are short; low effort is plenty'>
-          {efforts.length > 0 && effort ? (
-            <SettingsSegmented
-              label='Title effort'
-              value={effort}
-              onChange={(next: EffortLevel) => set({ ...choice, effort: next })}
-              options={efforts.map((level) => ({ value: level, label: effortLabels[level] }))}
-            />
-          ) : (
-            <span className='shrink-0 pr-1 text-13 text-muted-foreground'>None</span>
-          )}
+        <SettingsRow title='Model' description='Reads your first message and names the thread'>
+          <JobModelSelect label='Title model' catalog={catalog} value={value} onChange={set} />
         </SettingsRow>
       </SettingsCard>
     </SettingsPage>
@@ -255,13 +286,14 @@ export function SettingsThreadTitles() {
 
 export function SettingsGuidedReviews() {
   const { enabled, set } = useAgentBehaviours()
+  const guides = useJobModel('guide')
   return (
     <SettingsPage
       parent='intelligence'
       title='Guided reviews'
       description='A Guide tab on pull requests that walks you through the change in chapters, in the order it reads best.'
     >
-      <SettingsCard>
+      <SettingsCard className={guides.ready ? undefined : 'invisible'}>
         <SettingsRow
           title='Guided reviews'
           description='Show a Guide tab on pull requests'
@@ -269,33 +301,13 @@ export function SettingsGuidedReviews() {
         >
           <DisabledSwitch checked label='Guided reviews' />
         </SettingsRow>
-        <SettingsRow title='Model' description='Reads the diff and writes the chapters' disabled>
-          <SettingsSelect
+        <SettingsRow title='Model' description='Reads the diff and writes the chapters'>
+          <JobModelSelect
             label='Guide model'
-            value='sonnet'
-            options={[
-              {
-                value: 'sonnet',
-                label: guideModel.label,
-                icon: <ProviderGlyph provider={guideModel.provider} className='size-3' />,
-              },
-            ]}
-            disabled
-          />
-        </SettingsRow>
-        <SettingsRow
-          title='Effort'
-          description='More effort reads further around each change, and takes longer'
-          disabled
-        >
-          <SettingsSegmented
-            label='Guide effort'
-            value={guideModel.effort}
-            options={(['low', 'medium', 'high'] as const).map((level) => ({
-              value: level,
-              label: effortLabels[level],
-            }))}
-            disabled
+            catalog={guides.catalog}
+            value={guides.value}
+            lockedProvider='claude'
+            onChange={guides.set}
           />
         </SettingsRow>
       </SettingsCard>
@@ -343,6 +355,29 @@ export function SettingsGuidedReviews() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+    </SettingsPage>
+  )
+}
+
+export function SettingsBotTidying() {
+  const { catalog, value, set, ready } = useJobModel('tidy')
+  return (
+    <SettingsPage
+      parent='intelligence'
+      title='Bot tidying'
+      description='Once a day a separate run reads each bot’s notes and files them, and the bot checks the changes afterwards. Bots also compact their chats while you’re away.'
+    >
+      <SettingsCard className={ready ? undefined : 'invisible'}>
+        <SettingsRow id='tidy-model' title='Model' description='Reads and files each bot’s notes'>
+          <JobModelSelect
+            label='Tidy model'
+            catalog={catalog}
+            value={value}
+            lockedProvider='claude'
+            onChange={set}
+          />
+        </SettingsRow>
+      </SettingsCard>
     </SettingsPage>
   )
 }

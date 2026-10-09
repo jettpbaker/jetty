@@ -542,7 +542,7 @@ function createServer(opts: ServerOptions = {}) {
       codex: opts.codex,
       grok: opts.grok,
       catalog: modelCatalog,
-      choice: () => store.getTitleModel().pipe(Effect.orElseSucceed(() => ({ model: null }))),
+      choice: () => store.getJobModel('title').pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
     const titler = selectTitler(agentKind, opts, titlePrompt, store)
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, discoveryScope)

@@ -5,7 +5,7 @@ import {
   resolveTitleModel,
   type ProviderId,
   type ProviderModel,
-  type TitleModel,
+  type JobModel,
 } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 
@@ -18,6 +18,7 @@ import { createGrokPrompt } from './grok-prompt'
 export type ModelPrompt = (
   model: ProviderModel,
   effort: EffortLevel | undefined,
+  fast: boolean,
   instructions: string,
   text: string
 ) => Effect.Effect<string, unknown>
@@ -28,7 +29,7 @@ export function createTitlePrompt(options: {
   codex?: StdioProcessOptions
   grok?: StdioProcessOptions
   catalog: () => Effect.Effect<readonly ProviderModel[]>
-  choice: () => Effect.Effect<TitleModel>
+  choice: () => Effect.Effect<JobModel>
 }) {
   return Effect.gen(function* () {
     const prompts: Record<ProviderId, ModelPrompt> = {
@@ -42,7 +43,8 @@ export function createTitlePrompt(options: {
         const model = resolveTitleModel(choice.model, yield* options.catalog())
         if (!model) return yield* Effect.fail(new Error('No title model is available'))
         const effort = resolveTitleEffort(model, choice.effort)
-        return yield* prompts[model.provider](model, effort, instructions, text)
+        const fast = model.fast && choice.fast === true
+        return yield* prompts[model.provider](model, effort, fast, instructions, text)
       })
     return prompt
   })

@@ -21,7 +21,8 @@ import {
   newId,
   type ErrorCode,
   ModelRef,
-  type TitleModel,
+  type JobModel,
+  type JobName,
   type Project,
   ProjectIcon,
   type ProviderId,
@@ -157,6 +158,8 @@ export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boole
 const isEffort = Schema.is(EffortLevel)
 const isProjectIcon = Schema.is(ProjectIcon)
 const isModelRef = Schema.is(ModelRef)
+// Titles were the first job, saved as the utility model.
+const jobPrefixes: Record<JobName, string> = { title: 'utility', guide: 'guide', tidy: 'tidy' }
 
 export class StoreError extends Error {
   readonly _tag = 'StoreError'
@@ -596,6 +599,46 @@ export function createStore() {
         const held = yield* heldAttachments()
         return [...new Set(ids)].filter((id) => !held.has(id))
       })
+    }
+
+    // A job's model lives in settings as <prefix>_model, <prefix>_effort and <prefix>_fast.
+    function getJobModel(job: JobName) {
+      const prefix = jobPrefixes[job]
+      const keys = [`${prefix}_model`, `${prefix}_effort`, `${prefix}_fast`]
+      return sql<{
+        key: string
+        value_json: string
+      }>`SELECT key, value_json FROM settings WHERE key IN ${sql.in(keys)}`.pipe(
+        Effect.map((rows): JobModel => {
+          const value = (key: string): unknown => {
+            const row = rows.find((candidate) => candidate.key === `${prefix}_${key}`)
+            return row && JSON.parse(row.value_json)
+          }
+          const model = value('model')
+          const effort = value('effort')
+          const fast = value('fast')
+          return {
+            model: isModelRef(model) ? model : null,
+            ...(isEffort(effort) ? { effort } : {}),
+            ...(fast === true ? { fast } : {}),
+          }
+        }),
+        Effect.mapError(storeError)
+      )
+    }
+
+    function setJobModel(job: JobName, { model, effort, fast }: JobModel) {
+      const prefix = jobPrefixes[job]
+      const write = (key: string, value: unknown) =>
+        value === undefined || value === null || value === false
+          ? sql`DELETE FROM settings WHERE key = ${`${prefix}_${key}`}`
+          : sql`INSERT INTO settings (key, value_json) VALUES (${`${prefix}_${key}`}, ${JSON.stringify(value)})
+              ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`
+      return Effect.all([write('model', model), write('effort', effort), write('fast', fast)]).pipe(
+        sql.withTransaction,
+        Effect.asVoid,
+        Effect.mapError(storeError)
+      )
     }
 
     function getLandsOn(threadId: string) {
@@ -1507,38 +1550,8 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      getTitleModel() {
-        return sql<{
-          key: string
-          value_json: string
-        }>`SELECT key, value_json FROM settings WHERE key IN ('utility_model', 'utility_effort')`.pipe(
-          Effect.map((rows): TitleModel => {
-            const value = (key: string): unknown => {
-              const row = rows.find((candidate) => candidate.key === key)
-              return row && JSON.parse(row.value_json)
-            }
-            const model = value('utility_model')
-            const effort = value('utility_effort')
-            return {
-              model: isModelRef(model) ? model : null,
-              ...(isEffort(effort) ? { effort } : {}),
-            }
-          }),
-          Effect.mapError(storeError)
-        )
-      },
-      setTitleModel({ model, effort }: TitleModel) {
-        const write = (key: string, value: unknown) =>
-          value === undefined || value === null
-            ? sql`DELETE FROM settings WHERE key = ${key}`
-            : sql`INSERT INTO settings (key, value_json) VALUES (${key}, ${JSON.stringify(value)})
-                ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`
-        return Effect.all([write('utility_model', model), write('utility_effort', effort)]).pipe(
-          sql.withTransaction,
-          Effect.asVoid,
-          Effect.mapError(storeError)
-        )
-      },
+      getJobModel,
+      setJobModel,
       getAgentBehaviours() {
         return sql<{
           key: string

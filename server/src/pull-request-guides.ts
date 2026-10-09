@@ -1,7 +1,8 @@
+import type { EffortLevel } from '@jetty/shared/events'
 import type { PullRequestData } from '@jetty/shared/pull-request'
 import type { PullRequestGuideState, PullRequestListItem } from '@jetty/shared/wire'
 
-import { GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
+import { claudeJobModel, GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Scope, Semaphore } from 'effect'
 
 import type { GuideMetrics } from './pr-guide'
@@ -11,8 +12,6 @@ import type { Store, StoredPullRequestGuide } from './store'
 import { generateGuide } from './pr-guide'
 import { guideInput } from './pr-guide/hunks'
 import { StoreError } from './store'
-
-const GUIDE_MODEL = { model: 'claude-sonnet-5-5', effort: 'medium' } as const
 
 function guideKey(ref: PullRequestRef, headSha: string) {
   return `${ref.repo}\0${ref.number}\0${headSha}`
@@ -28,11 +27,16 @@ export function createPullRequestGuides(
   const queued = new Set<string>()
   const running = new Set<string>()
 
-  function generate(ref: PullRequestRef, data: PullRequestData, row: StoredPullRequestGuide) {
+  function generate(
+    ref: PullRequestRef,
+    data: PullRequestData,
+    row: StoredPullRequestGuide,
+    model: { model: string; effort?: EffortLevel }
+  ) {
     return Effect.gen(function* () {
       const result = yield* Effect.tryPromise({
         try: async (signal) =>
-          generateGuide(await guideInput(ref.repo, data), { ...GUIDE_MODEL, signal }),
+          generateGuide(await guideInput(ref.repo, data), { ...model, signal }),
         catch: (error) => error,
       })
       yield* store.savePullRequestGuide(ref.repo, ref.number, {
@@ -85,13 +89,18 @@ export function createPullRequestGuides(
       }
       if (running.has(key)) return { state }
       const now = Date.now()
+      const choice = claudeJobModel(
+        'guide',
+        yield* store.getJobModel('guide').pipe(Effect.orElseSucceed(() => undefined))
+      )
+      const model = { model: choice.model.id, ...(choice.effort ? { effort: choice.effort } : {}) }
       const row: StoredPullRequestGuide = {
         status:
           data.pull.additions + data.pull.deletions < GUIDE_MIN_CHANGED_LINES
             ? 'skipped'
             : 'generating',
         headSha,
-        model: GUIDE_MODEL.model,
+        model: model.model,
         createdAt: current?.createdAt ?? now,
         updatedAt: now,
       }
@@ -99,7 +108,7 @@ export function createPullRequestGuides(
       if (row.status === 'skipped')
         return { state: { status: 'skipped', headSha, outdated: false } as const }
       running.add(key)
-      const fiber = yield* generate(ref, data, row).pipe(
+      const fiber = yield* generate(ref, data, row, model).pipe(
         Effect.ensuring(Effect.sync(() => running.delete(key))),
         Effect.forkIn(scope)
       )

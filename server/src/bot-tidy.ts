@@ -1,5 +1,7 @@
+import type { EffortLevel } from '@jetty/shared/events'
+
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk'
-import { newId, type Bot } from '@jetty/shared/wire'
+import { claudeJobModel, newId, type Bot } from '@jetty/shared/wire'
 import { Cause, Effect, Exit, Queue } from 'effect'
 import { readFile, readdir, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
@@ -37,7 +39,12 @@ async function canonical(path: string): Promise<string> {
   }
 }
 
-async function tidyQuery(bot: Bot, home: string, signal: AbortSignal) {
+async function tidyQuery(
+  bot: Bot,
+  home: string,
+  model: { id: string; effort?: EffortLevel },
+  signal: AbortSignal
+) {
   const bots = await realpath(join(home, '..'))
   const root = await realpath(home)
   const pages = join(root, 'pages')
@@ -77,8 +84,8 @@ async function tidyQuery(bot: Bot, home: string, signal: AbortSignal) {
   const q = query({
     prompt,
     options: {
-      model: 'sonnet',
-      effort: 'high',
+      model: model.id,
+      ...(model.effort ? { effort: model.effort } : {}),
       cwd: home,
       pathToClaudeCodeExecutable: claudeBin,
       settingSources: [],
@@ -145,8 +152,13 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
       return
     }
     yield* Effect.logInfo(`tidy pass for ${bot.id} started`)
+    const choice = claudeJobModel(
+      'tidy',
+      yield* store.getJobModel('tidy').pipe(Effect.orElseSucceed(() => undefined))
+    )
+    const model = { id: choice.model.id, ...(choice.effort ? { effort: choice.effort } : {}) }
     const changelog = yield* Effect.tryPromise({
-      try: (signal) => tidyQuery(bot, home, signal),
+      try: (signal) => tidyQuery(bot, home, model, signal),
       catch: (error) => error,
     })
     yield* Effect.gen(function* () {

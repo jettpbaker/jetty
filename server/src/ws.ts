@@ -267,10 +267,12 @@ export function createRpcHandlers(
       'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
       'settings.providerUsage': ({ provider }) => getProviderUsage(provider),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
-      'settings.setTitleModel': (choice) =>
+      'settings.setJobModel': ({ job, ...choice }) =>
         mutation(
-          store.setTitleModel(choice).pipe(
-            Effect.tap(() => Effect.sync(() => hub.pushChrome({ type: 'titleModel', ...choice }))),
+          store.setJobModel(job, choice).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => hub.pushChrome({ type: 'jobModel', job, ...choice }))
+            ),
             Effect.as(null)
           )
         ),
@@ -311,7 +313,11 @@ export function createRpcHandlers(
               const modelDiscovery = getModelDiscovery()
               const branchPrefix = yield* store.getBranchPrefix()
               const defaultEnvironment = yield* store.getDefaultEnvironment()
-              const titleModel = yield* store.getTitleModel()
+              const jobModels = {
+                title: yield* store.getJobModel('title'),
+                guide: yield* store.getJobModel('guide'),
+                tidy: yield* store.getJobModel('tidy'),
+              }
               const agentBehaviours = yield* store.getAgentBehaviours()
               const queue = yield* hub.subscribeChrome()
               const snapshot: ChromePushData = {
@@ -325,7 +331,7 @@ export function createRpcHandlers(
                 providerCapabilities: orch.providerCapabilities(),
                 branchPrefix,
                 defaultEnvironment,
-                titleModel,
+                jobModels,
                 agentBehaviours,
               }
               return Stream.concat(Stream.succeed(snapshot), Stream.fromQueue(queue))

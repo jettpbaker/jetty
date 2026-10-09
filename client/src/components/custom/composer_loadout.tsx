@@ -270,6 +270,19 @@ function LoadoutShortcuts({ openSubmenu }: { openSubmenu: (target: 'model' | 'ef
   return null
 }
 
+export function loadoutParts(
+  catalog: readonly ProviderModel[],
+  value: Loadout | undefined,
+  allowedEfforts?: readonly ProviderModel['efforts'][number][]
+) {
+  const model = value && findModel(catalog, value)
+  const name = value && catalogModelName(catalog, value.provider, value.model)
+  const efforts = ((value && model?.efforts) ?? []).filter(
+    (effort) => !allowedEfforts || allowedEfforts.includes(effort)
+  )
+  return { model, name, efforts }
+}
+
 export function ComposerLoadout({
   catalog,
   loadouts,
@@ -301,11 +314,7 @@ export function ComposerLoadout({
   loading?: boolean
   modelMenuRef?: RefObject<(() => void) | null>
 }) {
-  const model = value && findModel(catalog, value)
-  const name = value && catalogModelName(catalog, value.provider, value.model)
-  const efforts = ((value && model?.efforts) ?? []).filter(
-    (effort) => !allowedEfforts || allowedEfforts.includes(effort)
-  )
+  const { model, name } = loadoutParts(catalog, value, allowedEfforts)
   const allModels = useModels()
   const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
@@ -338,13 +347,6 @@ export function ComposerLoadout({
     const next = [...loadouts]
     next.splice(to, 0, ...next.splice(from, 1))
     onReorder(next)
-  }
-
-  function swapModel(key: string) {
-    const next = models.find((item) => modelKey(item) === key)
-    if (!next || disabledProviders.includes(next.provider)) return
-    const { provider, model: id, effort, fast } = equipModel(value ?? { fast: false }, next)
-    onChange({ provider, model: id, effort, fast })
   }
 
   return (
@@ -474,99 +476,147 @@ export function ComposerLoadout({
           </DragDropProvider>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuSub defaultOpen={submenu === 'model'} closeParentOnEsc={submenu === 'model'}>
-            <DropdownMenuSubTrigger className={subTriggerClass}>
-              Model
-              <span className='ml-auto pl-4 text-muted-foreground'>{name}</span>
-              <KeybindChip binding={keybinds.model} />
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent ref={submenu === 'model' ? submenuPopup : undefined}>
-              <DropdownMenuRadioGroup
-                value={model ? modelKey(model) : ''}
-                onValueChange={(key) => swapModel(String(key))}
-              >
-                {models.map((item) => (
-                  <DropdownMenuRadioItem
-                    key={modelKey(item)}
-                    value={modelKey(item)}
-                    disabled={disabledProviders.includes(item.provider)}
-                  >
-                    <ProviderGlyph provider={item.provider} className='size-3' />
-                    <ModelLabel model={item} />
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSub
-            defaultOpen={submenu === 'effort' && efforts.length > 0}
-            closeParentOnEsc={submenu === 'effort'}
-          >
-            <DisabledTooltip
-              reason={
-                efforts.length > 0
-                  ? undefined
-                  : value
-                    ? `${name} doesn’t support effort levels`
-                    : 'Choose a model first'
-              }
-              side='right'
-            >
-              <DropdownMenuSubTrigger className={subTriggerClass} disabled={efforts.length === 0}>
-                Effort
-                <span className='ml-auto pl-4 text-muted-foreground'>
-                  {value?.effort && effortLabels[value.effort]}
-                </span>
-                <KeybindChip binding={keybinds.effort} />
-              </DropdownMenuSubTrigger>
-            </DisabledTooltip>
-            <DropdownMenuSubContent ref={submenu === 'effort' ? submenuPopup : undefined}>
-              <DropdownMenuRadioGroup
-                value={value?.effort ?? ''}
-                onValueChange={(next) => {
-                  const effort = efforts.find((level) => level === next)
-                  if (value && effort) onChange({ ...value, effort })
-                }}
-              >
-                {efforts.map((effort) => (
-                  <DropdownMenuRadioItem key={effort} value={effort}>
-                    {effortLabels[effort]}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DisabledTooltip
-            reason={
-              value && model?.fast
-                ? undefined
-                : value
-                  ? `${name} doesn’t support Fast`
-                  : 'Choose a model first'
-            }
-            side='right'
-          >
-            <DropdownMenuCheckboxItem
-              className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-              disabled={!value || !model?.fast}
-              checked={value?.fast ?? false}
-              closeOnClick={false}
-              onCheckedChange={(fast) => value && onChange({ ...value, fast })}
-            >
-              Fast
-              <Switch
-                render={<span />}
-                size='sm'
-                checked={value?.fast ?? false}
-                tabIndex={-1}
-                aria-hidden='true'
-                className='pointer-events-none ml-auto'
-              />
-            </DropdownMenuCheckboxItem>
-          </DisabledTooltip>
-        </DropdownMenuGroup>
+        <ModelMenuItems
+          catalog={catalog}
+          models={models}
+          value={value}
+          allowedEfforts={allowedEfforts}
+          disabledProviders={disabledProviders}
+          submenu={submenu}
+          submenuRef={submenuPopup}
+          keybindChips
+          onChange={onChange}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+// The composer menu's Model, Effort and Fast rows, shared with Settings' job models.
+export function ModelMenuItems({
+  catalog,
+  models,
+  value,
+  allowedEfforts,
+  disabledProviders = [],
+  submenu,
+  submenuRef,
+  keybindChips = false,
+  onChange,
+}: {
+  catalog: readonly ProviderModel[]
+  // what the Model submenu lists
+  models: readonly ProviderModel[]
+  value?: Loadout
+  allowedEfforts?: readonly ProviderModel['efforts'][number][]
+  disabledProviders?: readonly ProviderId[]
+  // the submenu a shortcut opened, which takes focus on its current pick
+  submenu?: 'model' | 'effort'
+  submenuRef?: RefObject<HTMLDivElement | null>
+  keybindChips?: boolean
+  onChange: (loadout: Loadout) => void
+}) {
+  const { model, name, efforts } = loadoutParts(catalog, value, allowedEfforts)
+
+  function swapModel(key: string) {
+    const next = models.find((item) => modelKey(item) === key)
+    if (!next || disabledProviders.includes(next.provider)) return
+    const { provider, model: id, effort, fast } = equipModel(value ?? { fast: false }, next)
+    onChange({ provider, model: id, effort, fast })
+  }
+
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuSub defaultOpen={submenu === 'model'} closeParentOnEsc={submenu === 'model'}>
+        <DropdownMenuSubTrigger className={subTriggerClass}>
+          Model
+          <span className='ml-auto pl-4 text-muted-foreground'>{name}</span>
+          {keybindChips && <KeybindChip binding={keybinds.model} />}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent ref={submenu === 'model' ? submenuRef : undefined}>
+          <DropdownMenuRadioGroup
+            value={model ? modelKey(model) : ''}
+            onValueChange={(key) => swapModel(String(key))}
+          >
+            {models.map((item) => (
+              <DropdownMenuRadioItem
+                key={modelKey(item)}
+                value={modelKey(item)}
+                disabled={disabledProviders.includes(item.provider)}
+              >
+                <ProviderGlyph provider={item.provider} className='size-3' />
+                <ModelLabel model={item} />
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSub
+        defaultOpen={submenu === 'effort' && efforts.length > 0}
+        closeParentOnEsc={submenu === 'effort'}
+      >
+        <DisabledTooltip
+          reason={
+            efforts.length > 0
+              ? undefined
+              : value
+                ? `${name} doesn’t support effort levels`
+                : 'Choose a model first'
+          }
+          side='right'
+        >
+          <DropdownMenuSubTrigger className={subTriggerClass} disabled={efforts.length === 0}>
+            Effort
+            <span className='ml-auto pl-4 text-muted-foreground'>
+              {value?.effort && effortLabels[value.effort]}
+            </span>
+            {keybindChips && <KeybindChip binding={keybinds.effort} />}
+          </DropdownMenuSubTrigger>
+        </DisabledTooltip>
+        <DropdownMenuSubContent ref={submenu === 'effort' ? submenuRef : undefined}>
+          <DropdownMenuRadioGroup
+            value={value?.effort ?? ''}
+            onValueChange={(next) => {
+              const effort = efforts.find((level) => level === next)
+              if (value && effort) onChange({ ...value, effort })
+            }}
+          >
+            {efforts.map((effort) => (
+              <DropdownMenuRadioItem key={effort} value={effort}>
+                {effortLabels[effort]}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DisabledTooltip
+        reason={
+          value && model?.fast
+            ? undefined
+            : value
+              ? `${name} doesn’t support Fast`
+              : 'Choose a model first'
+        }
+        side='right'
+      >
+        <DropdownMenuCheckboxItem
+          className='pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
+          disabled={!value || !model?.fast}
+          checked={value?.fast ?? false}
+          closeOnClick={false}
+          onCheckedChange={(fast) => value && onChange({ ...value, fast })}
+        >
+          Fast
+          <Switch
+            render={<span />}
+            size='sm'
+            checked={value?.fast ?? false}
+            tabIndex={-1}
+            aria-hidden='true'
+            className='pointer-events-none ml-auto'
+          />
+        </DropdownMenuCheckboxItem>
+      </DisabledTooltip>
+    </DropdownMenuGroup>
   )
 }

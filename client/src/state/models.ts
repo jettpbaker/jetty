@@ -1,4 +1,4 @@
-import type { AgentBehaviourKey, ResultOf, TitleModel } from '@jetty/shared/wire'
+import type { AgentBehaviourKey, JobModel, JobName, ResultOf } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
@@ -29,21 +29,23 @@ export function useModelRefresh() {
   return { refreshing: useAtomValue(refreshingAtom), refresh: useAction(refreshModels) }
 }
 
-function setTitleModel(
+function setJobModel(
   registry: AtomRegistry.AtomRegistry,
-  choice: TitleModel,
+  job: JobName,
+  choice: JobModel,
   settled: () => void
 ) {
   const pending = observeOptimistic(
     registry,
     liveAtom,
     (state) => {
-      const server = AsyncResult.getOrElse(state, () => undefined)?.titleModel
+      const server = AsyncResult.getOrElse(state, () => undefined)?.jobModels?.[job]
       return (
         !!server &&
         choice.model?.provider === server.model?.provider &&
         choice.model?.id === server.model?.id &&
-        (choice.effort ?? null) === (server.effort ?? null)
+        (choice.effort ?? null) === (server.effort ?? null) &&
+        (choice.fast ?? false) === (server.fast ?? false)
       )
     },
     settled
@@ -52,13 +54,13 @@ function setTitleModel(
     registry,
     (connection) =>
       connection
-        .request('settings.setTitleModel', choice)
+        .request('settings.setJobModel', { job, ...choice })
         .pipe(Effect.tap(() => Effect.sync(pending.accepted))),
     pending.failed
   )
 }
 
-export const useSetTitleModel = () => useAction(setTitleModel)
+export const useSetJobModel = () => useAction(setJobModel)
 
 function setAgentBehaviour(
   registry: AtomRegistry.AtomRegistry,

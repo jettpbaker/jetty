@@ -139,18 +139,6 @@ export function SettingsBots() {
               disabled
             />
           </SettingsRow>
-          <SettingsRow
-            title='Tidying'
-            description='Bots compact their chats and file their notes'
-            disabled
-          >
-            <SettingsSelect
-              label='Tidying'
-              value='away'
-              options={[{ value: 'away', label: "While you're away" }]}
-              disabled
-            />
-          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
       <NewBotDialog open={creating} onOpenChange={setCreating} />

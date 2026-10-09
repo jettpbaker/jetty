@@ -58,14 +58,20 @@ export type ModelDiscovery = Schema.Schema.Type<typeof ModelDiscovery>
 export const ModelRef = Schema.Struct({ provider: ProviderId, id: Schema.String })
 export type ModelRef = Schema.Schema.Type<typeof ModelRef>
 
-export const TitleModel = Schema.Struct({
+// Jetty's own model jobs: thread titles, PR guides and the bots' daily tidy pass.
+export const JobName = Schema.Literals(['title', 'guide', 'tidy'])
+export type JobName = Schema.Schema.Type<typeof JobName>
+
+// The model a job runs on; null keeps the job's default.
+export const JobModel = Schema.Struct({
   model: Schema.NullOr(ModelRef),
   effort: Schema.optional(EffortLevel),
+  fast: Schema.optional(Schema.Boolean),
 })
-export type TitleModel = Schema.Schema.Type<typeof TitleModel>
+export type JobModel = Schema.Schema.Type<typeof JobModel>
 
 // Haiku (5.5) first, at its lowest effort; then the cheapest of the others.
-const AUTOMATIC_TITLE_MODELS: readonly ModelRef[] = [
+const DEFAULT_TITLE_MODELS: readonly ModelRef[] = [
   { provider: 'claude', id: 'haiku' },
   { provider: 'codex', id: 'gpt-6-luna' },
   { provider: 'grok', id: 'grok-4.7' },
@@ -77,7 +83,22 @@ export function resolveTitleModel(
 ): ProviderModel | undefined {
   const find = (ref: ModelRef) =>
     models.find((model) => model.provider === ref.provider && model.id === ref.id)
-  return (choice && find(choice)) || AUTOMATIC_TITLE_MODELS.map(find).find(Boolean)
+  return (choice && find(choice)) || DEFAULT_TITLE_MODELS.map(find).find(Boolean)
+}
+
+// Guides and tidy passes run on Claude only (pr-guide.ts and bot-tidy.ts drive the Claude Agent SDK).
+export const CLAUDE_JOB_DEFAULTS = {
+  guide: { model: { provider: 'claude', id: 'claude-sonnet-5-5' }, effort: 'medium' },
+  tidy: { model: { provider: 'claude', id: 'sonnet' }, effort: 'high' },
+} as const satisfies Record<'guide' | 'tidy', JobModel>
+
+export function claudeJobModel(
+  job: 'guide' | 'tidy',
+  choice: JobModel | undefined
+): JobModel & { model: ModelRef } {
+  return choice?.model?.provider === 'claude'
+    ? { ...choice, model: choice.model }
+    : CLAUDE_JOB_DEFAULTS[job]
 }
 
 export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | undefined) {
@@ -620,8 +641,8 @@ export const methods = {
   'thread.retrySetup': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   // Resumes a thread the crash-loop guard paused, as a restart would have.
   'thread.continue': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
-  'settings.setTitleModel': {
-    params: TitleModel,
+  'settings.setJobModel': {
+    params: Schema.Struct({ job: JobName, ...JobModel.fields }),
     result: Schema.Null,
   },
   'settings.setAgentBehaviour': {
@@ -1117,7 +1138,7 @@ export const ChromePushData = Schema.Union([
     modelDiscovery: Schema.optional(ModelDiscovery),
     branchPrefix: Schema.optional(Schema.String),
     defaultEnvironment: Schema.optional(Schema.Literals(['worktree', 'local'])),
-    titleModel: Schema.optional(TitleModel),
+    jobModels: Schema.optional(Schema.Record(JobName, JobModel)),
     agentBehaviours: Schema.optional(AgentBehaviours),
     // Oldest first.
     bots: Schema.optional(Schema.Array(Bot)),
@@ -1134,7 +1155,7 @@ export const ChromePushData = Schema.Union([
     type: Schema.Literal('defaultEnvironment'),
     environment: Schema.Literals(['worktree', 'local']),
   }),
-  Schema.Struct({ type: Schema.Literal('titleModel'), ...TitleModel.fields }),
+  Schema.Struct({ type: Schema.Literal('jobModel'), job: JobName, ...JobModel.fields }),
   Schema.Struct({ type: Schema.Literal('agentBehaviours'), behaviours: AgentBehaviours }),
 ])
 export type ChromePushData = Schema.Schema.Type<typeof ChromePushData>
