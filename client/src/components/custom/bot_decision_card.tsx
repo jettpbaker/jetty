@@ -256,7 +256,7 @@ function BotQuestionCard({
                 {progress.picks[progress.step]?.includes(option.label) ? (
                   <Tick02Icon className='size-3.5' />
                 ) : (
-                  <span className='rounded-sm border border-border px-0.5 font-mono text-xs text-muted-foreground'>
+                  <span className='flex size-4 items-center justify-center rounded-sm border border-border font-mono text-xs leading-none text-muted-foreground'>
                     {String.fromCharCode(65 + index)}
                   </span>
                 )}
