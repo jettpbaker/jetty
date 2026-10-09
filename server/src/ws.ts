@@ -780,6 +780,8 @@ export function createRpcHandlers(
           yield* store.noteUserMessage()
           const bot = yield* store.getBot(params.botId)
           if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          if (!params.text.trim() && !params.attachments?.length && !params.attachmentIds?.length)
+            return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
           const persistedAttachments = []
           if (params.attachmentIds?.length) {
             const state = yield* store.getThreadState(params.botId)
@@ -819,6 +821,7 @@ export function createRpcHandlers(
               threadId: params.botId,
               messageId: params.messageId,
               text: params.text,
+              ...(params.attachments?.length && { attachments: params.attachments }),
               persistedAttachments,
               replyTo,
             }),

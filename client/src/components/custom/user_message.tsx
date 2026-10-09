@@ -31,6 +31,52 @@ function measureCollapsible(element: HTMLElement, text: string) {
   return collapsible
 }
 
+// A sent message's images as thumbnails, each opening the media viewer. Bots' chats show them too.
+export function MessageImages({
+  images,
+  tinted,
+}: {
+  images: readonly Attachment[]
+  tinted?: boolean
+}) {
+  const openMedia = useOpenMedia()
+  const thumbnailsRef = useRef<(HTMLButtonElement | null)[]>([])
+  if (images.length === 0) return null
+  return (
+    <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
+      {images.map((image, index) => (
+        <button
+          key={image.id}
+          ref={(element) => {
+            thumbnailsRef.current[index] = element
+          }}
+          type='button'
+          aria-label={`Open ${image.name}`}
+          className={cn(
+            'shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2',
+            tinted ? 'focus-visible:outline-ring' : 'focus-visible:outline-primary-foreground'
+          )}
+          onClick={() =>
+            openMedia({
+              items: images,
+              index,
+              origin: (at) => thumbnailsRef.current[at] ?? null,
+            })
+          }
+        >
+          <img
+            src={mediaUrl(image)}
+            alt={image.name}
+            decoding='async'
+            draggable={false}
+            className='size-12 rounded-sm object-cover'
+          />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function UserMessage({
   id,
   threadId,
@@ -54,7 +100,6 @@ export function UserMessage({
   steered?: boolean
   steering?: boolean
 }) {
-  const openMedia = useOpenMedia()
   const reveal = useRequestReveal()
   const bot = useBot(from?.threadId)
   // Another thread's message is tinted; Jett's, and a bot's in its colour, are filled.
@@ -83,7 +128,6 @@ export function UserMessage({
     return () => observer.disconnect()
   }, [text])
   const collapsed = collapsible && !expanded
-  const thumbnails = useRef<(HTMLButtonElement | null)[]>([])
   const images = attachments.filter((attachment) => attachment.mimeType.startsWith('image/'))
   const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
   return (
@@ -100,41 +144,7 @@ export function UserMessage({
           style={bot ? botColorStyle(bot.color) : undefined}
         >
           <BubbleContent className='rounded-lg'>
-            {images.length > 0 && (
-              <div className='no-scrollbar scroll-fade-x flex max-w-full gap-2 overflow-x-auto'>
-                {images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    ref={(element) => {
-                      thumbnails.current[index] = element
-                    }}
-                    type='button'
-                    aria-label={`Open ${image.name}`}
-                    className={cn(
-                      'shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2',
-                      tinted
-                        ? 'focus-visible:outline-ring'
-                        : 'focus-visible:outline-primary-foreground'
-                    )}
-                    onClick={() =>
-                      openMedia({
-                        items: images,
-                        index,
-                        origin: (at) => thumbnails.current[at] ?? null,
-                      })
-                    }
-                  >
-                    <img
-                      src={mediaUrl(image)}
-                      alt={image.name}
-                      decoding='async'
-                      draggable={false}
-                      className='size-12 rounded-sm object-cover'
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
+            <MessageImages images={images} tinted={tinted} />
             {text || skill ? (
               <p
                 ref={textRef}

@@ -1,3 +1,4 @@
+import type { ReadyImage } from '@/hooks/use-image-attachments'
 import type { Attachment, Reply } from '@jetty/shared/items'
 import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
@@ -21,6 +22,7 @@ export type PendingBotMessage = {
   id: string
   text: string
   replyTo?: Reply
+  attachments: readonly Attachment[]
   sentAt: number
 }
 
@@ -137,12 +139,25 @@ function sendToBot(
   botId: string,
   text: string,
   replyTo?: Reply,
-  attachments?: readonly Attachment[]
+  // Images the bot's thread already holds (Retry), or new ones from the composer.
+  attachments: readonly Attachment[] = [],
+  images: readonly ReadyImage[] = []
 ) {
   const message: PendingBotMessage = {
     id: crypto.randomUUID(),
     text,
     ...(replyTo && { replyTo }),
+    attachments: [
+      ...attachments,
+      ...images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
+        id: url,
+        name,
+        mimeType,
+        sizeBytes,
+        width,
+        height,
+      })),
+    ],
     sentAt: Date.now(),
   }
   registry.update(pendingMessagesAtom, (map) =>
@@ -157,8 +172,11 @@ function sendToBot(
           botId,
           messageId: message.id,
           text,
-          ...(attachments?.length && {
+          ...(attachments.length && {
             attachmentIds: attachments.map((attachment) => attachment.id),
+          }),
+          ...(images.length && {
+            attachments: images.map(({ name, mimeType, dataUrl }) => ({ name, mimeType, dataUrl })),
           }),
           ...(replyTo && { replyTo }),
         })

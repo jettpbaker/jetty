@@ -18,9 +18,11 @@ import { DisabledTooltip } from './disabled_tooltip'
 export function ComposerAttach({
   onAttach,
   disabledReason,
+  className,
 }: {
   onAttach: (files: File[]) => void
   disabledReason?: string
+  className?: string
 }) {
   return (
     <DropdownMenu modal={false}>
@@ -28,7 +30,7 @@ export function ComposerAttach({
         <DropdownMenuTrigger
           aria-label='Add attachment'
           disabled={disabledReason !== undefined}
-          render={<Button variant='ghost' size='icon' />}
+          render={<Button variant='ghost' size='icon' className={className} />}
         >
           <PlusSignIcon />
         </DropdownMenuTrigger>

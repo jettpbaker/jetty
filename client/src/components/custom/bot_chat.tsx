@@ -1,18 +1,19 @@
+import type { ReadyImage } from '@/hooks/use-image-attachments'
 import type { PendingBotMessage } from '@/state/bots'
-import type { Reply, ThreadItem } from '@jetty/shared/items'
+import type { Attachment, Reply, ThreadItem } from '@jetty/shared/items'
 import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
+import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
 import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
 import {
   ArrowTurnBackwardIcon,
   ArrowUp02Icon,
   Copy01Icon,
-  PlusSignIcon,
   Refresh01Icon,
   StopIcon,
   Tick02Icon,
@@ -22,10 +23,12 @@ import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
 import { linkMentions } from '@/components/custom/slash_model'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
+import { MessageImages } from '@/components/custom/user_message'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { emojiUrl } from '@/lib/fluent_emoji'
 import { pressProps } from '@/lib/press'
 import { chatStamp, SESSION_GAP } from '@/lib/time'
@@ -83,6 +86,7 @@ type Message = {
   id: string
   from: 'jett' | 'bot'
   text: string
+  attachments: readonly Attachment[]
   at: number
   replyTo?: Reply
   reaction?: string
@@ -184,6 +188,7 @@ function toItems(
           id: item.id,
           from: item.kind === 'user_message' ? 'jett' : 'bot',
           text: item.text,
+          attachments: item.kind === 'user_message' ? item.attachments : [],
           at: item.createdAt,
           ...(item.kind === 'user_message'
             ? { replyTo: item.replyTo, reaction: item.reaction }
@@ -210,6 +215,7 @@ function toItems(
           id: message.id,
           from: 'jett',
           text: message.text,
+          attachments: message.attachments,
           at: message.sentAt,
           replyTo: message.replyTo,
         },
@@ -323,8 +329,8 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   // Stop lasts the whole turn, including the quiet stretch after a bubble, but not a turn Jetty
   // started on its own while it shows nothing.
   const running = turnId ? !asking && (presence !== null || !quietTurn(items, turnId)) : false
-  function send(text: string) {
-    sendToBot(bot.id, text, replyTo)
+  function send(text: string, images: readonly ReadyImage[]) {
+    sendToBot(bot.id, text, replyTo, [], images)
     setReplyTo(undefined)
     pinnedRef.current = true
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
@@ -611,6 +617,9 @@ function MessageRow({
   onJump: (id: string) => void
 }) {
   const jett = message.from === 'jett'
+  const images = message.attachments.filter((attachment) =>
+    attachment.mimeType.startsWith('image/')
+  )
   return (
     <div className={cn('flex flex-col', gapClass[gap])}>
       <div
@@ -651,7 +660,18 @@ function MessageRow({
                   : 'bot-reply'
               )}
             >
-              {jett ? <BotMentions text={message.text} /> : <Markdown>{message.text}</Markdown>}
+              {jett ? (
+                <>
+                  <MessageImages images={images} />
+                  {message.text && (
+                    <div className={cn(images.length > 0 && 'mt-2')}>
+                      <BotMentions text={message.text} />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Markdown>{message.text}</Markdown>
+              )}
             </BubbleContent>
             {message.reaction && (
               <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
@@ -662,12 +682,19 @@ function MessageRow({
           <MessageActions
             side={jett ? 'left' : 'right'}
             text={message.text}
-            onReply={() => onReply({ itemId: message.id, text: message.text })}
+            onReply={() =>
+              onReply({ itemId: message.id, text: message.text || imagesLabel(images) })
+            }
           />
         </div>
       </div>
     </div>
   )
+}
+
+// What a quote of an image-only message reads as.
+function imagesLabel(images: readonly Attachment[]) {
+  return images.length === 1 ? 'Image' : `${images.length} images`
 }
 
 function MessageActions({
@@ -693,52 +720,62 @@ function MessageActions({
         side === 'left' ? 'right-full mr-1.5 flex-row-reverse' : 'left-full ml-1.5'
       )}
     >
-      <Button
-        variant='ghost'
-        size='icon-xs'
-        aria-label={copied ? 'Copied' : 'Copy message'}
-        className='relative active:scale-[0.97] active:transition-transform active:duration-150'
-        onClick={() =>
-          void navigator.clipboard.writeText(text).then(
-            () => setCopied(true),
-            () => toast.error("Couldn't copy")
-          )
-        }
-      >
-        <AnimatePresence initial={false} mode='sync'>
-          {copied ? (
-            <motion.span
-              key='tick'
-              className='absolute inset-0 flex items-center justify-center'
-              initial={{
-                opacity: 0,
-                scale: calm ? 1 : 0.9,
-                filter: calm ? 'blur(0px)' : 'blur(2px)',
-              }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: calm ? 1 : 0.9, filter: calm ? 'blur(0px)' : 'blur(2px)' }}
-              transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-            >
-              <Tick02Icon />
-            </motion.span>
-          ) : (
-            <motion.span
-              key='copy'
-              className='absolute inset-0 flex items-center justify-center'
-              initial={{
-                opacity: 0,
-                scale: calm ? 1 : 0.9,
-                filter: calm ? 'blur(0px)' : 'blur(2px)',
-              }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: calm ? 1 : 0.9, filter: calm ? 'blur(0px)' : 'blur(2px)' }}
-              transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-            >
-              <Copy01Icon />
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </Button>
+      {text && (
+        <Button
+          variant='ghost'
+          size='icon-xs'
+          aria-label={copied ? 'Copied' : 'Copy message'}
+          className='relative active:scale-[0.97] active:transition-transform active:duration-150'
+          onClick={() =>
+            void navigator.clipboard.writeText(text).then(
+              () => setCopied(true),
+              () => toast.error("Couldn't copy")
+            )
+          }
+        >
+          <AnimatePresence initial={false} mode='sync'>
+            {copied ? (
+              <motion.span
+                key='tick'
+                className='absolute inset-0 flex items-center justify-center'
+                initial={{
+                  opacity: 0,
+                  scale: calm ? 1 : 0.9,
+                  filter: calm ? 'blur(0px)' : 'blur(2px)',
+                }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{
+                  opacity: 0,
+                  scale: calm ? 1 : 0.9,
+                  filter: calm ? 'blur(0px)' : 'blur(2px)',
+                }}
+                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+              >
+                <Tick02Icon />
+              </motion.span>
+            ) : (
+              <motion.span
+                key='copy'
+                className='absolute inset-0 flex items-center justify-center'
+                initial={{
+                  opacity: 0,
+                  scale: calm ? 1 : 0.9,
+                  filter: calm ? 'blur(0px)' : 'blur(2px)',
+                }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{
+                  opacity: 0,
+                  scale: calm ? 1 : 0.9,
+                  filter: calm ? 'blur(0px)' : 'blur(2px)',
+                }}
+                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+              >
+                <Copy01Icon />
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </Button>
+      )}
       <Button
         variant='ghost'
         size='icon-xs'
@@ -1017,11 +1054,13 @@ function BotComposer({
   busy: boolean
   replyTo?: Reply
   onClearReply: () => void
-  onSend: (text: string) => void
+  onSend: (text: string, images: readonly ReadyImage[]) => void
   onStop: () => void
   className?: string
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
+  const attachments = useImageAttachments(bot.id)
+  const staged = attachments.images.length > 0
   const draft = storedDraft.text
   const others = useBots().filter((other) => other.id !== bot.id)
   const slash = useComposerSlash(draft, (text) => update({ text }), fieldRef, {
@@ -1036,7 +1075,7 @@ function BotComposer({
   const heightRef = useRef(0)
   const sentRef = useRef(0)
   const calm = useReducedMotion() ?? false
-  const empty = !draft.trim()
+  const empty = !draft.trim() && !staged
   useBotPresence(bot.id, !empty)
   const stop = empty && busy
   // Measured as shown, chips and all.
@@ -1046,8 +1085,8 @@ function BotComposer({
     setStacked(textarea && box ? wraps(shown, textarea, box) : false)
   }, [fieldRef, shown])
   function send() {
-    if (empty) return
-    onSend(linkMentions(draft.trim(), others))
+    if (empty || !attachments.ready) return
+    onSend(linkMentions(draft.trim(), others), attachments.take())
     update({ text: '' })
     setStacked(false)
     setSent((count) => count + 1)
@@ -1057,7 +1096,8 @@ function BotComposer({
   useLayoutEffect(() => {
     const box = boxRef.current
     if (!box) return
-    if (stacked || replyTo) for (const animation of box.getAnimations()) animation.cancel()
+    if (stacked || replyTo || staged)
+      for (const animation of box.getAnimations()) animation.cancel()
     const from = heightRef.current
     const to = box.offsetHeight
     heightRef.current = to
@@ -1074,8 +1114,15 @@ function BotComposer({
         Number(document.timeline.currentTime ?? performance.now())
       )
   })
-  // Replying stacks the pill like a wrapped draft, with the quote on a row above the text.
-  const rows = stacked || replyTo
+  // Replying or staging images stacks the pill like a wrapped draft: images, then the quote, then
+  // the text, each on its own row above the buttons.
+  const rows = stacked || replyTo || staged
+  let row = 1
+  const imagesRow = staged ? row++ : 0
+  const replyRow = replyTo ? row++ : 0
+  const textRow = row
+  const buttonsRow = rows ? ++row : row
+  const errorRow = row + 1
   return (
     <div
       ref={boxRef}
@@ -1086,17 +1133,24 @@ function BotComposer({
         className
       )}
     >
+      {staged && (
+        <div className='col-span-3 min-w-0' style={{ gridRow: imagesRow }}>
+          <ComposerImages images={attachments.images} onRemove={attachments.remove} />
+        </div>
+      )}
       {replyTo && (
-        <ReplyTab text={replyTo.text} onClear={onClearReply} className='col-span-3 row-start-1' />
+        <div className='col-span-3 min-w-0' style={{ gridRow: replyRow }}>
+          <ReplyTab text={replyTo.text} onClear={onClearReply} />
+        </div>
       )}
       <div
         ref={field}
         data-composing={slash.composing || undefined}
         className={cn(
-          'skill-chip-field relative col-start-2 row-start-1 min-w-0',
-          rows && 'col-span-3 col-start-1',
-          replyTo && 'row-start-2'
+          'skill-chip-field relative col-start-2 min-w-0',
+          rows && 'col-span-3 col-start-1'
         )}
+        style={{ gridRow: textRow }}
       >
         <SlashMirror slash={slash} className={cn('p-0 text-sm', rows && 'px-1.5 pt-1')} />
         <InputGroupTextarea
@@ -1106,6 +1160,11 @@ function BotComposer({
           {...slash.input}
           placeholder={`Message ${bot.name}`}
           aria-label={`Message ${bot.name}`}
+          onPaste={(event) => {
+            if (event.clipboardData.files.length === 0) return
+            event.preventDefault()
+            attachments.add(event.clipboardData.files)
+          }}
           onKeyDown={(event) => {
             if (event.defaultPrevented) return
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -1120,35 +1179,33 @@ function BotComposer({
         />
         {slash.open && <SlashMenu slash={slash} />}
       </div>
-      <Button
-        variant='ghost'
-        tone='muted'
-        size='icon'
-        disabled
-        aria-label='Attach'
-        className={cn(
-          'col-start-1 row-start-1 rounded-full',
-          stacked && 'row-start-2',
-          replyTo && 'row-start-3'
-        )}
-      >
-        <PlusSignIcon />
-      </Button>
+      <div className='col-start-1 flex' style={{ gridRow: buttonsRow }}>
+        <ComposerAttach
+          onAttach={attachments.add}
+          disabledReason={attachments.refused}
+          className='rounded-full'
+        />
+      </div>
       <Button
         size='icon'
         aria-label={stop ? 'Stop' : 'Send'}
-        disabled={empty && !busy}
+        disabled={stop ? false : empty || !attachments.ready}
         // Keep the caret in the draft.
         onMouseDown={(event) => event.preventDefault()}
         {...pressProps(stop ? onStop : send)}
-        className={cn(
-          'col-start-3 row-start-1 rounded-full',
-          stacked && 'row-start-2',
-          replyTo && 'row-start-3'
-        )}
+        className='col-start-3 rounded-full'
+        style={{ gridRow: buttonsRow }}
       >
         {stop ? <StopIcon filled /> : <ArrowUp02Icon />}
       </Button>
+      {attachments.error && (
+        <p
+          className='col-span-3 px-2 pb-0.5 text-xs text-destructive'
+          style={{ gridRow: errorRow }}
+        >
+          {attachments.error}
+        </p>
+      )}
     </div>
   )
 }

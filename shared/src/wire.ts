@@ -1088,9 +1088,15 @@ export const methods = {
       botId: Schema.String,
       // The user_message item's id, as with turn.start.
       messageId: Schema.String.check(Schema.isMinLength(1)),
-      text: Schema.String.check(Schema.isMinLength(1)),
+      // Empty only when the message carries images.
+      text: Schema.String,
       // The chat item Jett is replying to, and the part of it he quotes.
       replyTo: Schema.optional(Reply),
+      // New images, as turn.start takes them.
+      attachments: Schema.optional(
+        Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
+      ),
+      // Images the bot's thread already holds, for Retry.
       attachmentIds: Schema.optional(
         Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
       ),
