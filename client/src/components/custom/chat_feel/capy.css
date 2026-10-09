@@ -1,2 +1,308 @@
 /* Capy's thread, rebuilt from ~/code/scratch/teardowns/chat-capy.md. Every rule is scoped under
-   :root[data-chat-feel='capy'], and to [data-chat-thread] where it should only touch threads. */
+   :root[data-chat-feel='capy'], and to [data-chat-thread] where it should only touch threads.
+   capy_fade.tsx draws the stream's colour fade; this file is type, layout and motion. */
+
+/* Rows that mount in a thread's first 400ms (opening it, switching to it) don't fade in. */
+@property --capy-armed {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@keyframes capy-arm {
+  to {
+    --capy-armed: 1;
+  }
+}
+
+:root[data-chat-feel='capy'] {
+  --capy-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Inter where it's installed; Geist, the app's own sans, everywhere else. */
+  --capy-font: Inter, 'Inter Variable', 'Geist Variable', sans-serif;
+  --capy-panel: var(--card);
+
+  [data-chat-composer] {
+    max-width: 768px;
+    padding-inline: 16px;
+  }
+  [data-chat-composer] .max-w-\[660px\] {
+    max-width: 736px;
+  }
+}
+
+:root[data-chat-feel='capy'] [data-chat-thread] {
+  --motion-disclosure-open-duration: 150ms;
+  --motion-disclosure-close-duration: 120ms;
+  --motion-disclosure-fast-open-duration: 150ms;
+  --motion-disclosure-fast-close-duration: 120ms;
+  --motion-disclosure-ease: var(--capy-ease);
+  --motion-control-duration: 150ms;
+  --motion-control-ease: var(--capy-ease);
+  --shimmer-duration: 2s;
+  --shimmer-color: var(--foreground);
+  /* What new text fades up to; anything coloured on its own says so below. */
+  --capy-ink: var(--foreground);
+  animation: capy-arm 0s 400ms both;
+
+  /* One 768px column, 736px of text. The list spaces rows 12px apart; a row's margin moves that
+     to 6px within a turn and 16px before a user message or marker. */
+  [data-chat-row] {
+    max-width: 768px;
+    padding-inline: 16px;
+    margin-top: -6px;
+    font-family: var(--capy-font);
+    font-size: 13px;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    font-weight: 450;
+  }
+  [data-chat-row]:is([data-chat-row='user'], [data-chat-row='marker']) {
+    margin-top: 4px;
+    padding-block: 0;
+  }
+
+  :is(
+    [data-slot='message'],
+    [data-slot='bubble-content'],
+    [data-slot='bubble-content'] p,
+    [data-quote] > div,
+    .activity-header,
+    .thinking-text
+  ) {
+    font-size: inherit;
+    line-height: inherit;
+  }
+  [data-slot='message'] {
+    padding-block: 8px;
+  }
+
+  /* Your message: right, 77% at most, on a neutral surface. */
+  [data-chat-row='user'] [data-slot='bubble'] {
+    max-width: 77%;
+  }
+  [data-chat-row='user']
+    [data-slot='bubble'][data-variant='default']
+    > [data-slot='bubble-content'] {
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+
+    &::selection,
+    & ::selection {
+      color: var(--primary);
+      background-color: color-mix(in oklch, var(--primary) 10%, transparent);
+    }
+    & button {
+      color: var(--muted-foreground);
+    }
+    & button:hover {
+      color: var(--foreground);
+    }
+  }
+
+  /* Markdown: 0.75em after a block, 1.5em above a heading, small headings. */
+  [data-quote] > div {
+    > * {
+      margin-block: 0 0.75em;
+    }
+    > hr {
+      margin-block: 1em;
+    }
+    :is(h1, h2, h3, h4, h5, h6) {
+      margin: 1.5em 0 0.5em;
+      font-size: 13px;
+      line-height: 1.3;
+      font-weight: 560;
+    }
+    h1 {
+      font-size: 18px;
+    }
+    h2 {
+      font-size: 14px;
+    }
+    > :first-child {
+      margin-top: 0;
+    }
+    > :last-child {
+      margin-bottom: 0;
+    }
+    li {
+      padding-block: 0;
+      margin-bottom: 0.25em;
+    }
+    :is(ul, ol) :is(ul, ol) {
+      margin-block: 0.25em 0;
+    }
+    :is(strong, [data-streamdown='strong']) {
+      font-weight: 560;
+    }
+    :is(a, [data-streamdown='link']) {
+      --capy-ink: var(--primary);
+    }
+    [data-streamdown='blockquote'] {
+      --capy-ink: var(--muted-foreground);
+    }
+    [data-streamdown='inline-code'] {
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+      background: var(--secondary);
+      color: inherit;
+      font-size: 0.9em;
+      letter-spacing: normal;
+    }
+  }
+
+  /* Code: a hairline panel with a 32px header holding the language, wrap and copy. Code shows as
+     it lands; the line fade is the Jetty feel's. */
+  .group\/code {
+    --code-surface: var(--capy-panel);
+    padding-top: 32px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+
+    > pre {
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    &[data-language]::before {
+      content: attr(data-language);
+      position: absolute;
+      top: 0;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      height: 32px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: normal;
+      color: var(--muted-foreground);
+    }
+    > [contenteditable='false'] {
+      padding: 4px;
+      border-radius: 0 8px 0 0;
+      background: none;
+      opacity: 1;
+
+      &::before {
+        content: none;
+      }
+    }
+  }
+  pre .smooth-fade {
+    animation: none;
+  }
+
+  /* Work is quiet: commentary (a message more work follows) goes muted like reasoning and tools,
+     and every header starts on the text's edge. The :has() sits on one row's wrapper. */
+  [data-index]:has(+ [data-index] > [data-chat-row='work']) > [data-chat-row='assistant'] {
+    --capy-ink: var(--muted-foreground);
+    color: var(--muted-foreground);
+  }
+  .activity-header {
+    padding-inline-start: 0;
+    font-weight: inherit;
+  }
+  .thinking-text {
+    position: relative;
+    padding: 0 0 4px 24px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 2px;
+      bottom: 6px;
+      left: 11px;
+      width: 2px;
+      border-radius: 9999px;
+      background: var(--border);
+    }
+  }
+  [data-chat-row='work'] [data-slot='collapsible-content'] > .border {
+    margin-inline: 0;
+    border-width: 0.5px;
+    border-radius: 8px;
+    background: var(--capy-panel);
+  }
+
+  /* A header that opens shows a chevron on hover, after its label; it turns without a transition. */
+  button.activity-header[aria-expanded] {
+    > :nth-child(2) {
+      order: 2;
+    }
+    &::after {
+      content: '';
+      order: 1;
+      flex: none;
+      align-self: center;
+      width: 12px;
+      height: 12px;
+      background: currentColor;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.667' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6s6 4.42 6 6-6 6-6 6'/%3E%3C/svg%3E")
+        center / contain no-repeat;
+      opacity: 0;
+      transition: opacity 120ms var(--capy-ease);
+    }
+    &:is(:hover, :focus-visible)::after {
+      opacity: 1;
+      transition-duration: 150ms;
+    }
+    &[aria-expanded='true']::after {
+      rotate: 90deg;
+    }
+  }
+
+  /* One curve: 150ms in, 120ms out. */
+  [data-chat-row] :is(button, a) {
+    transition-duration: 120ms;
+    transition-timing-function: var(--capy-ease);
+
+    &:hover {
+      transition-duration: 150ms;
+    }
+  }
+  [data-chat-row='assistant'] [data-slot='bubble-content'] + div {
+    transition: opacity 100ms var(--capy-ease);
+  }
+  [data-slot='collapsible-content'][data-starting-style] {
+    opacity: 0;
+  }
+  .work-scroll {
+    transition: max-height 150ms var(--capy-ease);
+  }
+  .rolling-text-in {
+    animation-duration: 500ms, 150ms;
+    animation-timing-function: var(--capy-ease), linear;
+  }
+  .rolling-text-out {
+    animation-timing-function: var(--capy-ease), linear;
+  }
+}
+
+/* A row arriving fades in over 150ms. Work blocks and markers don't; nor does anything under
+   reduced motion, where panels only fade and shimmer stands still. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-chat-feel='capy']
+    [data-chat-thread]
+    [data-chat-row]:not([data-chat-row='work'], [data-chat-row='marker']) {
+    transition:
+      opacity 150ms var(--capy-ease),
+      color 150ms var(--capy-ease);
+
+    @starting-style {
+      opacity: calc(1 - var(--capy-armed));
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-chat-feel='capy'] [data-chat-thread] {
+    [data-slot='collapsible-content'] {
+      transition: opacity 110ms linear;
+    }
+    .shimmer {
+      --shimmer-image: none;
+      --shimmer-text-fill: currentColor;
+      animation: none;
+    }
+  }
+}
