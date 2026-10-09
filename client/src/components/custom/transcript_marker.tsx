@@ -406,9 +406,9 @@ export function PullRequestGroupSeam({ items }: { items: PullRequestItem[] }) {
           {Array.from(looks.values(), ({ look, count }) => (
             <span
               key={`${look.tone}:${look.icon.displayName ?? look.icon.name}`}
-              className='inline-flex items-center gap-[3px] font-mono text-muted-foreground'
+              className={cn('inline-flex items-center gap-[3px] font-mono', look.tone)}
             >
-              <look.icon aria-hidden='true' className={cn('size-3', look.tone)} />
+              <look.icon aria-hidden='true' className='size-3' />
               {count}
             </span>
           ))}
