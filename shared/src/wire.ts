@@ -334,7 +334,7 @@ export const QueuedMessage = Schema.Struct({
   reports: Schema.optional(Schema.Array(ChildReport)),
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),
-  replyTo: Schema.optional(Reply),
+  replies: Schema.optional(Schema.Array(Reply)),
 })
 export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 
@@ -965,7 +965,7 @@ export const methods = {
       attachments: Schema.optional(
         Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))
       ),
-      replyTo: Schema.optional(Reply),
+      replies: Schema.optional(Schema.Array(Reply)),
     }),
     result: Schema.Null,
   },
@@ -1013,7 +1013,7 @@ export const methods = {
       permissionMode: Schema.optional(PermissionMode),
       // Locks the thread on the first turn; omitted turns use the server default.
       provider: Schema.optional(ProviderId),
-      replyTo: Schema.optional(Reply),
+      replies: Schema.optional(Schema.Array(Reply)),
     }),
     result: Schema.Struct({ turnId: Schema.String }),
   },
@@ -1090,8 +1090,8 @@ export const methods = {
       messageId: Schema.String.check(Schema.isMinLength(1)),
       // Empty only when the message carries images.
       text: Schema.String,
-      // The chat item Jett is replying to, and the part of it he quotes.
-      replyTo: Schema.optional(Reply),
+      // The chat items Jett is replying to, and the part of each he quotes.
+      replies: Schema.optional(Schema.Array(Reply)),
       // New images, as turn.start takes them.
       attachments: Schema.optional(
         Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_IMAGES_PER_TURN))

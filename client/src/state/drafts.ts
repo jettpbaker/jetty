@@ -37,7 +37,7 @@ export type DraftTarget = {
 type Sending = {
   text: string
   images: readonly ReadyImage[]
-  quote?: Reply
+  quotes?: readonly Reply[]
   editing?: string
   target?: DraftTarget
   sent?: { threadId: string; messageId: string }
@@ -47,8 +47,8 @@ type Sending = {
 export type Draft = {
   text: string
   images: readonly ComposerImage[]
-  // what the message quotes from an agent's reply, shown on the composer's tab
-  quote?: Reply
+  // what the message quotes from the chat, each shown on its own composer tab
+  quotes?: readonly Reply[]
   // the queued message this draft rewrites
   editing?: string
   sending?: readonly Sending[]
@@ -81,13 +81,13 @@ const StoredTarget = Schema.Struct({
 })
 const StoredDraft = Schema.Struct({
   text: Schema.String,
-  quote: Schema.optional(Reply),
+  quotes: Schema.optional(Schema.Array(Reply)),
   editing: Schema.optional(Schema.String),
   sending: Schema.optional(
     Schema.Array(
       Schema.Struct({
         text: Schema.String,
-        quote: Schema.optional(Reply),
+        quotes: Schema.optional(Schema.Array(Reply)),
         editing: Schema.optional(Schema.String),
         target: Schema.optional(StoredTarget),
         sent: Schema.optional(Schema.Struct({ threadId: Schema.String, messageId: Schema.String })),
@@ -159,7 +159,7 @@ function loadDrafts() {
         text: [...back.map((entry) => entry.text), draft.text]
           .filter((text) => text.trim())
           .join('\n\n'),
-        quote: draft.quote ?? back.find((entry) => entry.quote)?.quote,
+        quotes: withQuotes(...back.map((entry) => entry.quotes), draft.quotes),
         editing: draft.editing ?? back.find((entry) => entry.editing)?.editing,
         target: draft.target ?? back.find((entry) => entry.target)?.target,
         images: [],
@@ -198,7 +198,7 @@ function persist(key: string, current: Draft, previous: Draft) {
   const sending = [...unsure, ...inFlight]
   const kept =
     draft.text !== '' ||
-    draft.quote !== undefined ||
+    draft.quotes !== undefined ||
     draft.editing !== undefined ||
     sending.length > 0 ||
     draft.target !== undefined ||
@@ -211,9 +211,9 @@ function persist(key: string, current: Draft, previous: Draft) {
       ? {
           ...draft,
           ...(sending.length > 0 && {
-            sending: sending.map(({ text, quote, editing, target, sent }) => ({
+            sending: sending.map(({ text, quotes, editing, target, sent }) => ({
               text,
-              quote,
+              quotes,
               editing,
               target,
               sent,
@@ -270,6 +270,16 @@ function change(registry: Registry, key: string, edit: (draft: Draft) => Draft) 
   persist(key, draft, previous)
 }
 
+// Each quote once, in order: the same words from the same message quoted twice are one quote.
+export function withQuotes(...lists: (readonly Reply[] | undefined)[]) {
+  const quotes: Reply[] = []
+  for (const list of lists)
+    for (const reply of list ?? [])
+      if (!quotes.some((each) => each.itemId === reply.itemId && each.text === reply.text))
+        quotes.push(reply)
+  return quotes.length ? quotes : undefined
+}
+
 // Each thread whose draft is rewriting a queued message, with that message's id.
 export function editingDrafts(registry: Registry) {
   const editing: [threadId: string, messageId: string][] = []
@@ -285,7 +295,7 @@ function restoreDraft(registry: Registry, key: string, restored: Sending) {
     typedFor: undefined,
     text: [restored.text, draft.text].filter((text) => text.trim()).join('\n\n'),
     images: [...restored.images, ...draft.images],
-    quote: draft.quote ?? restored.quote,
+    quotes: withQuotes(restored.quotes, draft.quotes),
     editing: draft.editing ?? restored.editing,
     target: key ? draft.target : (draft.target ?? restored.target),
   }))

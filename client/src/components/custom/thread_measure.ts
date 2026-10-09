@@ -124,10 +124,10 @@ function estimateSignature(row: ThreadRow) {
             ])
       break
     case 'user':
-      inputs = [row.item.text, row.item.attachments, !!row.item.from, !!row.item.replyTo]
+      inputs = [row.item.text, row.item.attachments, !!row.item.from, row.item.replies?.length]
       break
     case 'queued':
-      inputs = [row.entry.text, row.entry.attachments, !!row.entry.replyTo]
+      inputs = [row.entry.text, row.entry.attachments, row.entry.replies?.length]
       break
     case 'reports':
       inputs = row.reports.map((report) => report.question)
@@ -186,7 +186,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
           ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
           : full)
       if (row.item.from) height += 22
-      if (row.item.replyTo) height += quoteRow
+      height += quoteRow * (row.item.replies?.length ?? 0)
       if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
       for (const attachment of attachments)
         if (!attachment.mimeType.startsWith('image/')) height += lineHeight
@@ -201,7 +201,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
           ? 4 * lineHeight + 28
           : textHeight(row.id, text, width * 0.8, true, rough))
       if (attachments.length > 0) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
-      if (row.entry.replyTo) height += quoteRow
+      height += quoteRow * (row.entry.replies?.length ?? 0)
       return height
     }
     case 'queueRemoved':

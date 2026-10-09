@@ -253,6 +253,30 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`ALTER TABLE threads ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0`
     yield* sql`ALTER TABLE threads ADD COLUMN lands_on TEXT`
   }),
+  // A message quotes a list of replies, not one: each stored replyTo becomes a one-item replies.
+  '035_reply_lists': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const listed = (value: string) =>
+      `CASE WHEN json_type(${value}, '$.replyTo') = 'object'
+        THEN json_set(json_remove(${value}, '$.replyTo'), '$.replies',
+          json_array(json(json_extract(${value}, '$.replyTo'))))
+        ELSE json(${value}) END`
+    yield* sql.unsafe(`UPDATE thread_events
+      SET payload_json = json_set(payload_json, '$.item', ${listed("json_extract(payload_json, '$.item')")})
+      WHERE json_type(payload_json, '$.item.replyTo') = 'object'`)
+    yield* sql.unsafe(`UPDATE thread_states
+      SET state_json = json_set(state_json, '$.items', (
+        SELECT json_group_array(${listed('i.value')} ORDER BY i.key)
+        FROM json_each(thread_states.state_json, '$.items') i))
+      WHERE EXISTS (SELECT 1 FROM json_each(thread_states.state_json, '$.items') i
+        WHERE json_type(i.value, '$.replyTo') = 'object')`)
+    yield* sql.unsafe(`UPDATE threads
+      SET pending_messages = (
+        SELECT json_group_array(${listed('m.value')} ORDER BY m.key)
+        FROM json_each(threads.pending_messages) m)
+      WHERE EXISTS (SELECT 1 FROM json_each(threads.pending_messages) m
+        WHERE json_type(m.value, '$.replyTo') = 'object')`)
+  }),
 })
 
 export function databaseLayer(home: string) {

@@ -134,12 +134,12 @@ function addQueued(
   threadId: string,
   text: string,
   images: readonly ReadyImage[] = [],
-  replyTo?: Reply
+  replies?: readonly Reply[]
 ) {
   const message = {
     id: newId(),
     text,
-    ...(replyTo && { replyTo }),
+    ...(replies?.length && { replies }),
     createdAt: Date.now(),
     hop: 0,
     attachments: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
@@ -155,7 +155,7 @@ function addQueued(
   const staged = stageSend(registry, threadId, {
     text,
     images,
-    quote: replyTo,
+    quotes: replies,
     sent: { threadId, messageId: message.id },
   })
   // Adds go out one at a time per thread, so a message whose images take a while to store still
@@ -174,7 +174,7 @@ function addQueued(
               threadId,
               messageId: message.id,
               text,
-              ...(replyTo && { replyTo }),
+              ...(replies?.length && { replies }),
               ...(images.length > 0
                 ? {
                     attachments: images.map(({ name, mimeType, dataUrl }) => ({

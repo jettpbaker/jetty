@@ -240,7 +240,7 @@ export function QueuedBubble({
 }) {
   const actions = useQueueActions()
   const requestReveal = useRequestReveal()
-  const { replyTo } = entry
+  const { replies } = entry
   // Steer and Remove unmount their button; a keyboard user goes back to the composer.
   function act(run: () => void) {
     return () => {
@@ -250,10 +250,14 @@ export function QueuedBubble({
   }
   return (
     <Message align='end'>
-      <MessageContent className={cn(replyTo && 'gap-0.75')}>
-        {replyTo && (
-          <RepliedTo text={replyTo.text} onJump={() => requestReveal(threadId, replyTo.itemId)} />
-        )}
+      <MessageContent className={cn(replies && 'gap-0.75')}>
+        {replies?.map((reply) => (
+          <RepliedTo
+            key={`${reply.itemId}:${reply.text}`}
+            text={reply.text}
+            onJump={() => requestReveal(threadId, reply.itemId)}
+          />
+        ))}
         <Bubble variant={null} align='end'>
           <BubbleContent className='rounded-lg border-dashed border-primary bg-primary/8'>
             <QueuedText entry={entry} muted={editing} />

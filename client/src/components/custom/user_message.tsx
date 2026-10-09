@@ -76,7 +76,7 @@ export function UserMessage({
   threadId,
   text,
   skill,
-  replyTo,
+  replies,
   attachments,
   from,
   createdAt,
@@ -87,7 +87,7 @@ export function UserMessage({
   threadId: string
   text: string
   skill?: string
-  replyTo?: Reply
+  replies?: readonly Reply[]
   attachments: readonly Attachment[]
   from?: MessageSource
   createdAt: number
@@ -126,11 +126,15 @@ export function UserMessage({
   const others = attachments.filter((attachment) => !attachment.mimeType.startsWith('image/'))
   return (
     <Message align='end'>
-      <MessageContent className={cn(from ? (bot ? 'gap-1' : 'gap-1.5') : replyTo && 'gap-0.75')}>
+      <MessageContent className={cn(from ? (bot ? 'gap-1' : 'gap-1.5') : replies && 'gap-0.75')}>
         {from && <ThreadSourceLabel from={from} className='self-end' />}
-        {replyTo && (
-          <RepliedTo text={replyTo.text} onJump={() => reveal(threadId, replyTo.itemId)} />
-        )}
+        {replies?.map((reply) => (
+          <RepliedTo
+            key={`${reply.itemId}:${reply.text}`}
+            text={reply.text}
+            onJump={() => reveal(threadId, reply.itemId)}
+          />
+        ))}
         <Bubble
           variant={tinted ? 'tinted' : 'default'}
           align='end'

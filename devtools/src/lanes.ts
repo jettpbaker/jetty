@@ -389,7 +389,7 @@ export function buildTimeline(sources: Sources): Timeline {
     switch (item.kind) {
       case 'user_message': {
         const steer = !!turn && item.createdAt > turn.start + 50
-        const detail = [item.replyTo && `> ${item.replyTo.text}`, item.text]
+        const detail = [...(item.replies ?? []).map((reply) => `> ${reply.text}`), item.text]
           .filter(Boolean)
           .join('\n\n')
         const span = item.from
@@ -423,9 +423,9 @@ export function buildTimeline(sources: Sources): Timeline {
               instant: true,
               label: oneLine(item.text),
               actor: 'Jett',
-              tag: steer ? 'steer' : item.replyTo ? 'reply' : undefined,
+              tag: steer ? 'steer' : item.replies ? 'reply' : undefined,
               text: oneLine(item.text),
-              detail: item.replyTo ? detail : undefined,
+              detail: item.replies ? detail : undefined,
             })
         messageSpans.push(span)
         if (turn) link(span, turn, steer ? item.createdAt : turn.start)

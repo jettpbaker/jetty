@@ -106,8 +106,8 @@ export const ThreadItem = Schema.Union([
     skill: Schema.optional(Schema.String),
     text: Schema.String,
     attachments: Schema.Array(Attachment),
-    // What this one quotes, as it read when Jett sent it.
-    replyTo: Schema.optional(Reply),
+    // What this one quotes, each as it read when Jett sent it.
+    replies: Schema.optional(Schema.Array(Reply)),
     // Bot chats: the bot's emoji reaction to this message.
     reaction: Schema.optional(Schema.String),
     // Bot chats: Jetty's own wake, a check-in or its tidy pass's changes to review. Its turn shows

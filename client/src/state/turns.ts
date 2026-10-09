@@ -50,7 +50,7 @@ export type PendingPrompt = {
   id: string
   text: string
   images: readonly Attachment[]
-  replyTo?: Reply
+  replies?: readonly Reply[]
   sentAt: number
 }
 type Resolution = Readonly<Record<string, unknown>>
@@ -154,7 +154,7 @@ function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
     createdAt: prompt.sentAt,
     text: prompt.text,
     attachments: prompt.images,
-    ...(prompt.replyTo && { replyTo: prompt.replyTo }),
+    ...(prompt.replies?.length && { replies: prompt.replies }),
   }))
 }
 
@@ -180,7 +180,7 @@ function sendTurn(
   text: string,
   loadout: Loadout | undefined,
   images: readonly ReadyImage[] = [],
-  replyTo?: Reply,
+  replies?: readonly Reply[],
   fromDraft?: string,
   onFailure?: () => void
 ) {
@@ -189,7 +189,7 @@ function sendTurn(
   const staged = stageSend(registry, fromDraft, {
     text,
     images,
-    quote: replyTo,
+    quotes: replies,
     sent: { threadId, messageId: id },
   })
   if (loadout)
@@ -197,7 +197,7 @@ function sendTurn(
   const prompt: PendingPrompt = {
     id,
     text,
-    ...(replyTo && { replyTo }),
+    ...(replies?.length && { replies }),
     sentAt: Date.now(),
     images: images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
       id: url,
@@ -223,7 +223,7 @@ function sendTurn(
               threadId,
               messageId: prompt.id,
               text,
-              ...(replyTo && { replyTo }),
+              ...(replies?.length && { replies }),
               ...loadout,
               permissionMode: registry.get(accessModeAtom),
               ...(images.length > 0

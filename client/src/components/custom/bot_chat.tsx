@@ -46,6 +46,7 @@ import {
   useThread,
   useThreadMeta,
   useThreadOverlay,
+  withQuotes,
 } from '@/state'
 import {
   botTurnActivity,
@@ -88,7 +89,7 @@ type Message = {
   text: string
   attachments: readonly Attachment[]
   at: number
-  replyTo?: Reply
+  replies?: readonly Reply[]
   reaction?: string
   streaming?: boolean
 }
@@ -191,7 +192,7 @@ function toItems(
           attachments: item.kind === 'user_message' ? item.attachments : [],
           at: item.createdAt,
           ...(item.kind === 'user_message'
-            ? { replyTo: item.replyTo, reaction: item.reaction }
+            ? { replies: item.replies, reaction: item.reaction }
             : { streaming: item.streaming }),
         },
       })
@@ -217,7 +218,7 @@ function toItems(
           text: message.text,
           attachments: message.attachments,
           at: message.sentAt,
-          replyTo: message.replyTo,
+          replies: message.replies,
         },
       })
   return visible
@@ -289,10 +290,10 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const interrupt = useInterruptTurn()
   const calm = useReducedMotion() ?? false
   const [now] = useState(() => Date.now())
-  // The quote lives in the draft, like a thread's, so a failed send brings it back with the text.
-  const { draft, update: updateDraft } = useDraft(bot.id)
-  const replyTo = draft.quote
-  const setReplyTo = (quote: Reply | undefined) => updateDraft({ quote })
+  // Quotes live in the draft, like a thread's, so a failed send brings them back with the text.
+  const { draft, update: updateDraft, read: readDraft } = useDraft(bot.id)
+  const replies = draft.quotes
+  const setReplies = (quotes: readonly Reply[] | undefined) => updateDraft({ quotes })
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -333,13 +334,13 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   // started on its own while it shows nothing.
   const running = turnId ? !asking && (presence !== null || !quietTurn(items, turnId)) : false
   function send(text: string, images: readonly ReadyImage[]) {
-    sendToBot(bot.id, text, replyTo, [], images, bot.id)
-    setReplyTo(undefined)
+    sendToBot(bot.id, text, replies, [], images, bot.id)
+    setReplies(undefined)
     pinnedRef.current = true
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
   }
   function reply(quote: Reply) {
-    setReplyTo(quote)
+    setReplies(withQuotes(readDraft().quotes, [quote]))
     fieldRef.current?.focus()
   }
   function jump(id: string) {
@@ -393,8 +394,8 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
             bot={bot}
             fieldRef={fieldRef}
             busy={running}
-            replyTo={replyTo}
-            onClearReply={() => setReplyTo(undefined)}
+            replies={replies}
+            onRemoveReply={(index) => setReplies(withQuotes(replies?.toSpliced(index, 1)))}
             onSend={send}
             onStop={() => interrupt(bot.id)}
             className='pointer-events-auto'
@@ -640,13 +641,14 @@ function MessageRow({
           message.reaction && 'pt-1.5'
         )}
       >
-        {message.replyTo && (
+        {message.replies?.map((reply) => (
           <RepliedTo
-            text={message.replyTo.text}
-            onJump={() => onJump(message.replyTo!.itemId)}
+            key={`${reply.itemId}:${reply.text}`}
+            text={reply.text}
+            onJump={() => onJump(reply.itemId)}
             className='mb-0.75'
           />
-        )}
+        ))}
         {/* The width cap sits here, not on the bubble, so this box hugs the bubble and the hover
             actions sit right beside it even when its text wraps. */}
         <div
@@ -1002,7 +1004,7 @@ function ErrorRow({ id, error, bot, gap }: { id: string; error: ErrorItem; bot: 
     latestTurnId === error.turnId &&
     !pending.length &&
     message?.kind === 'user_message'
-      ? () => sendToBot(bot.id, message.text, message.replyTo, message.attachments)
+      ? () => sendToBot(bot.id, message.text, message.replies, message.attachments)
       : undefined
   return (
     <div data-row={id} className={cn('flex flex-col items-start gap-1.5', gapClass[gap])}>
@@ -1047,8 +1049,8 @@ function BotComposer({
   bot,
   fieldRef,
   busy,
-  replyTo,
-  onClearReply,
+  replies,
+  onRemoveReply,
   onSend,
   onStop,
   className,
@@ -1056,8 +1058,8 @@ function BotComposer({
   bot: Bot
   fieldRef: RefObject<HTMLTextAreaElement | null>
   busy: boolean
-  replyTo?: Reply
-  onClearReply: () => void
+  replies?: readonly Reply[]
+  onRemoveReply: (index: number) => void
   onSend: (text: string, images: readonly ReadyImage[]) => void
   onStop: () => void
   className?: string
@@ -1101,7 +1103,7 @@ function BotComposer({
   useLayoutEffect(() => {
     const box = boxRef.current
     if (!box) return
-    if (stacked || replyTo || staged)
+    if (stacked || replies || staged)
       for (const animation of box.getAnimations()) animation.cancel()
     const from = heightRef.current
     const to = box.offsetHeight
@@ -1119,12 +1121,12 @@ function BotComposer({
         Number(document.timeline.currentTime ?? performance.now())
       )
   })
-  // Replying stacks the pill like a wrapped draft: the quote, then the text, each on its own row
+  // Replying stacks the pill like a wrapped draft: the quotes, then the text, each on its own row
   // above the buttons. Staged images take a row of their own on top and leave the text beside them.
-  const rows = stacked || replyTo
+  const rows = stacked || replies
   let row = 1
   const imagesRow = staged ? row++ : 0
-  const replyRow = replyTo ? row++ : 0
+  const replyRow = replies ? row++ : 0
   const textRow = row
   const buttonsRow = rows ? ++row : row
   const errorRow = row + 1
@@ -1143,9 +1145,15 @@ function BotComposer({
           <StagedImages images={attachments.images} onRemove={attachments.remove} />
         </div>
       )}
-      {replyTo && (
-        <div className='col-span-3 min-w-0' style={{ gridRow: replyRow }}>
-          <ReplyTab text={replyTo.text} onClear={onClearReply} />
+      {replies && (
+        <div className='col-span-3 flex min-w-0 flex-col gap-1.5' style={{ gridRow: replyRow }}>
+          {replies.map((reply, index) => (
+            <ReplyTab
+              key={`${reply.itemId}:${reply.text}`}
+              text={reply.text}
+              onClear={() => onRemoveReply(index)}
+            />
+          ))}
         </div>
       )}
       <div
@@ -1175,7 +1183,7 @@ function BotComposer({
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
               send()
-            } else if (event.key === 'Escape' && replyTo) onClearReply()
+            } else if (event.key === 'Escape' && replies) onRemoveReply(replies.length - 1)
           }}
           className={cn(
             'skill-chip-text relative max-h-48 min-h-0 p-0 text-sm md:text-sm',

@@ -626,7 +626,7 @@ export function createRpcHandlers(
                   params.messageId,
                   params.text,
                   params.attachments,
-                  params.replyTo
+                  params.replies
                 )
                 .pipe(Effect.as(null))
             ),
@@ -796,14 +796,19 @@ export function createRpcHandlers(
               persistedAttachments.push(attachment)
             }
           }
-          const { replyTo } = params
-          if (replyTo) {
+          const { replies } = params
+          if (replies?.length) {
             const state = yield* store.getThreadState(params.botId)
-            const quoted = state.items.find((item) => item.id === replyTo.itemId)
-            if (!quoted || (quoted.kind !== 'assistant_message' && quoted.kind !== 'user_message'))
-              return yield* Effect.fail(
-                new StoreError('invalid_params', 'Quoted message not found')
+            for (const reply of replies) {
+              const quoted = state.items.find((item) => item.id === reply.itemId)
+              if (
+                !quoted ||
+                (quoted.kind !== 'assistant_message' && quoted.kind !== 'user_message')
               )
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', 'Quoted message not found')
+                )
+            }
           }
           const openQuestions = (yield* store.getThreadState(params.botId)).items.filter(
             (item) =>
@@ -823,7 +828,7 @@ export function createRpcHandlers(
               text: params.text,
               ...(params.attachments?.length && { attachments: params.attachments }),
               persistedAttachments,
-              replyTo,
+              replies,
             }),
             admissionScope
           )

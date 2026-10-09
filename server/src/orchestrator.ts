@@ -85,7 +85,7 @@ export type StartTurnInput = {
   resumeQueue?: boolean
   // The turn carries on the one before it, as the user's answer to its question does.
   carriesOn?: boolean
-  replyTo?: Reply
+  replies?: readonly Reply[]
 }
 
 function registryFrom(agent: Agent | AgentRegistry): AgentRegistry {
@@ -785,7 +785,7 @@ export function createOrchestrator({
     }
 
     function appendUser(
-      { threadId, messageId, text, queued, carriesOn, sendNow, replyTo }: StartTurnInput,
+      { threadId, messageId, text, queued, carriesOn, sendNow, replies }: StartTurnInput,
       turnId: string,
       meta: Attachment[],
       onCommit: Effect.Effect<void>
@@ -804,7 +804,7 @@ export function createOrchestrator({
           ...((queued?.kind === 'check_in' || queued?.kind === 'tidy') && { wake: queued.kind }),
           text,
           attachments: meta,
-          ...(replyTo ? { replyTo } : {}),
+          ...(replies?.length ? { replies } : {}),
         }
         return yield* locked(
           threadId,
@@ -1126,7 +1126,7 @@ export function createOrchestrator({
                   ...input,
                   text: queued.text,
                   queued,
-                  replyTo: queued.replyTo,
+                  replies: queued.replies,
                   model: thread.model,
                   effort: thread.effort,
                   fast: thread.fast,
@@ -1206,7 +1206,7 @@ export function createOrchestrator({
                   hop: 0,
                   attachments: saved.meta,
                   ...(input.carriesOn && { carriesOn: true as const }),
-                  ...(input.replyTo && { replyTo: input.replyTo }),
+                  ...(input.replies?.length && { replies: input.replies }),
                 }
                 // The message waits in the queue while the worktree is prepared, so a stopped
                 // or failed setup keeps it for Resume.
@@ -1261,8 +1261,8 @@ export function createOrchestrator({
                 thread.readOnly === true,
                 landsOn
               )
-              if (input.replyTo)
-                text = `> ${input.replyTo.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
+              for (const reply of (input.replies ?? []).toReversed())
+                text = `> ${reply.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
               if (botChat) {
                 if (!input.queued?.from) {
                   const previous = yield* store.getThreadState(thread.id)
@@ -1312,7 +1312,7 @@ export function createOrchestrator({
                     createdAt: Date.now(),
                     hop: 0,
                     attachments: saved.meta,
-                    ...(input.replyTo && { replyTo: input.replyTo }),
+                    ...(input.replies?.length && { replies: input.replies }),
                   }
                   yield* hub.withChromePublication(
                     store
@@ -1856,7 +1856,7 @@ export function createOrchestrator({
         messageId: string,
         text: string,
         uploads?: readonly UploadAttachment[],
-        replyTo?: Reply
+        replies?: readonly Reply[]
       ) {
         return Effect.gen(function* () {
           if (!text && !uploads?.length)
@@ -1872,7 +1872,7 @@ export function createOrchestrator({
                   createdAt: Date.now(),
                   hop: 0,
                   ...(saved.meta.length ? { attachments: saved.meta } : {}),
-                  ...(replyTo && { replyTo }),
+                  ...(replies?.length && { replies }),
                 })
                 .pipe(
                   Effect.tap((thread) =>

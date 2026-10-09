@@ -43,6 +43,7 @@ import {
   useThreadLoadout,
   useThreadMeta,
   useVisibleQueue,
+  withQuotes,
 } from '@/state'
 import { createItemSelection } from '@/state/item_selection'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
@@ -325,7 +326,7 @@ export function ThreadComposer({
       background && !threadId
         ? toast('Started in background', { action: { label: 'Open', onClick: open } })
         : undefined
-    sendTurn(id, text, loadout, attachments.take(), takeQuote(), draftKey, () => {
+    sendTurn(id, text, loadout, attachments.take(), takeQuotes(), draftKey, () => {
       if (notice !== undefined) toast.dismiss(notice)
     })
     if (threadId) return
@@ -339,21 +340,21 @@ export function ThreadComposer({
       if (!text) return
       queueActions.edit(threadId, editingEntry.id, text)
     } else if (!text && attachments.images.length === 0) return
-    else if (threadId && running) queueActions.add(threadId, text, attachments.take(), takeQuote())
+    else if (threadId && running) queueActions.add(threadId, text, attachments.take(), takeQuotes())
     else return startTurn(text, background)
     clearDraft()
   }
 
-  // A quote goes with the next new message, not with an edit to a queued one.
-  function takeQuote() {
-    const { quote } = read()
-    if (quote) update({ quote: undefined })
-    return quote
+  // Quotes go with the next new message, not with an edit to a queued one.
+  function takeQuotes() {
+    const { quotes } = read()
+    if (quotes) update({ quotes: undefined })
+    return quotes
   }
 
-  // Add to prompt in the chat: one quote at a time, then on to what's typed after it.
+  // Reply and Add to prompt in the chat: each adds a quote, then on to what's typed after it.
   function quote(reply: Reply) {
-    update({ quote: reply })
+    update({ quotes: withQuotes(read().quotes, [reply]) })
     const element = input.current
     element?.focus({ preventScroll: true })
     element?.setSelectionRange(element.value.length, element.value.length)
@@ -388,7 +389,7 @@ export function ThreadComposer({
     if (queues && !attachments.ready) return setWaitingEdit(entry)
     if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
     else if (editingEntry) queueActions.release(threadId, editingEntry.id)
-    else if (queues) queueActions.add(threadId, previous, attachments.take(), takeQuote())
+    else if (queues) queueActions.add(threadId, previous, attachments.take(), takeQuotes())
     queueActions.hold(threadId, entry.id)
     focusEdit.current = true
     update({
@@ -503,7 +504,7 @@ export function ThreadComposer({
             if (editing) {
               if (threadId) queueActions.release(threadId, editing)
               clearDraft()
-            } else if (saved.quote) update({ quote: undefined })
+            } else if (saved.quotes) update({ quotes: withQuotes(saved.quotes.slice(0, -1)) })
             else return false
             return true
           }),
@@ -557,15 +558,14 @@ export function ThreadComposer({
             mode.strip
           )
         }
-        reply={
-          saved.quote && (
-            <ReplyTab
-              text={saved.quote.text}
-              onClear={() => update({ quote: undefined })}
-              className='mx-1 mt-1 self-stretch rounded-[calc(var(--radius-md)-4px)]'
-            />
-          )
-        }
+        reply={saved.quotes?.map((reply, index) => (
+          <ReplyTab
+            key={`${reply.itemId}:${reply.text}`}
+            text={reply.text}
+            onClear={() => update({ quotes: withQuotes(saved.quotes?.toSpliced(index, 1)) })}
+            className='mx-1 mt-1 self-stretch rounded-[calc(var(--radius-md)-4px)]'
+          />
+        ))}
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
         sendDisabled={mode.sendDisabled}

@@ -49,6 +49,7 @@ export {
   useDraftEditing,
   useForgetDeletedDrafts,
   useSettleUnsureSends,
+  withQuotes,
   type Draft,
   type DraftTarget,
   type QuestionProgress,

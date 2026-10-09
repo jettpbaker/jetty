@@ -22,7 +22,7 @@ export type NewBot = Omit<ParamsOf<'bot.create'>, 'id'>
 export type PendingBotMessage = {
   id: string
   text: string
-  replyTo?: Reply
+  replies?: readonly Reply[]
   attachments: readonly Attachment[]
   sentAt: number
 }
@@ -139,7 +139,7 @@ function sendToBot(
   registry: Registry,
   botId: string,
   text: string,
-  replyTo?: Reply,
+  replies?: readonly Reply[],
   // Images the bot's thread already holds (Retry), or new ones from the composer.
   attachments: readonly Attachment[] = [],
   images: readonly ReadyImage[] = [],
@@ -149,7 +149,7 @@ function sendToBot(
   const message: PendingBotMessage = {
     id: crypto.randomUUID(),
     text,
-    ...(replyTo && { replyTo }),
+    ...(replies?.length && { replies }),
     attachments: [
       ...attachments,
       ...images.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
@@ -166,7 +166,7 @@ function sendToBot(
   const staged = stageSend(registry, fromDraft, {
     text,
     images,
-    quote: replyTo,
+    quotes: replies,
     sent: { threadId: botId, messageId: message.id },
   })
   registry.update(pendingMessagesAtom, (map) =>
@@ -187,7 +187,7 @@ function sendToBot(
           ...(images.length && {
             attachments: images.map(({ name, mimeType, dataUrl }) => ({ name, mimeType, dataUrl })),
           }),
-          ...(replyTo && { replyTo }),
+          ...(replies?.length && { replies }),
         })
       ).pipe(
         Effect.tap(() =>
