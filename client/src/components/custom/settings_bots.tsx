@@ -116,7 +116,7 @@ export function SettingsBots() {
               Edit
             </Button>
           </div>
-          <pre className='scrollbar-subtle max-h-60 overflow-auto px-4 pt-3 pb-3.5 font-mono text-xs leading-5 whitespace-pre-wrap'>
+          <pre className='scrollbar-subtle max-h-60 overflow-auto px-4 pt-3 pb-3.5 text-xs leading-5 whitespace-pre-wrap'>
             {info?.sharedPreferences.trim() || (
               <span className='text-muted-foreground'>
                 Nothing yet. Bots add what they learn about how you work.

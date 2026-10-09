@@ -177,6 +177,10 @@
   --color-pr-closed: var(--pr-closed);
   --radius-menu-item: 4px;
   --font-mono: 'Paper Mono', ui-monospace, monospace;
+  /* Paper Mono's narrow space (ss03) for one-line readouts; pre and code keep full-width spaces so
+     multi-line code still lines up in columns. */
+  --font-mono--font-feature-settings: 'ss03';
+  --default-mono-font-feature-settings: normal;
   --spacing-menu-item-compact: 26px;
   --spacing-glyph: 1.125rem;
   --font-heading: var(--font-sans);

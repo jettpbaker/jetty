@@ -39,5 +39,5 @@
   }
 }
 .tool-output {
-  @apply max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed;
+  @apply max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed;
 }
