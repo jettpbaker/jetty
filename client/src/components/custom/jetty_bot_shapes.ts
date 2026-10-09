@@ -173,8 +173,8 @@ export const botColors = {
 
 export const colorIds = Object.keys(botColors) as BotColor[]
 
-// In light mode each face takes its colour's deep ink (the accent's own
-// for the five shared colours) and the eyes go light. Dark keeps botColors.
+// In light mode each face takes its colour's deep ink (the matching accent's
+// light value) and the eyes go light. Dark keeps botColors.
 export const deepBotColors = {
   accent: 'var(--bot-accent-deep)',
   coral: 'oklch(0.52 0.16 32)',

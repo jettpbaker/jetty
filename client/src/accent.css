@@ -3,6 +3,31 @@
   --bot-accent-deep: oklch(0.5 0.18 282.178);
 }
 
+[data-accent='coral'] {
+  --accent-primary-light: oklch(0.52 0.16 32);
+  --accent-primary-dark: oklch(0.74 0.16 32);
+  --accent-primary-oled: oklch(0.74 0.198 32);
+}
+[data-accent='butter'] {
+  --accent-primary-light: oklch(0.52 0.1 90);
+  --accent-primary-dark: oklch(0.86 0.13 95);
+  --accent-primary-oled: oklch(0.82 0.191 95);
+}
+[data-accent='mint'] {
+  --accent-primary-light: oklch(0.52 0.12 158);
+  --accent-primary-dark: oklch(0.8 0.13 158);
+  --accent-primary-oled: oklch(0.76 0.191 158);
+}
+[data-accent='cloud'] {
+  --accent-primary-light: oklch(0.25 0 0);
+  --accent-primary-dark: oklch(0.933 0 0);
+  --accent-primary-oled: oklch(0.933 0 0);
+}
+[data-accent='slate'] {
+  --accent-primary-light: oklch(0.5 0.015 260);
+  --accent-primary-dark: oklch(0.772 0.015 260);
+  --accent-primary-oled: oklch(0.772 0.015 260);
+}
 [data-accent='lilac'] {
   --accent-primary-light: oklch(0.5 0.18 282.178);
   --accent-primary-dark: oklch(0.772 0.119 282.178);

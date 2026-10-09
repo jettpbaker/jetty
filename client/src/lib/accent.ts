@@ -1,11 +1,17 @@
 import { storage } from '@/platform'
 
+// The bots' face colours, in their order.
 export const accentPresets = [
-  { value: 'lilac', label: 'Lilac' },
-  { value: 'blue', label: 'Blue' },
-  { value: 'teal', label: 'Teal' },
-  { value: 'rose', label: 'Rose' },
+  { value: 'coral', label: 'Coral' },
   { value: 'orange', label: 'Orange' },
+  { value: 'butter', label: 'Butter' },
+  { value: 'mint', label: 'Mint' },
+  { value: 'teal', label: 'Teal' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'lilac', label: 'Lilac' },
+  { value: 'rose', label: 'Rose' },
+  { value: 'cloud', label: 'Cloud' },
+  { value: 'slate', label: 'Slate' },
 ] as const
 
 export type Accent = (typeof accentPresets)[number]['value']
