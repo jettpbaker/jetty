@@ -21,8 +21,15 @@ export function useSidebarRow(threadId: string) {
   return useAtomValue(rowAtom(threadId))
 }
 
+// The one time the sidebar orders, groups and labels a thread by: when its last turn ended, or
+// started while it's still running, so streaming never reshuffles the list and a row's age always
+// agrees with its place.
+export function listedAt(thread: Pick<ThreadMeta, 'turnStartedAt' | 'turnEndedAt' | 'updatedAt'>) {
+  return thread.turnEndedAt ?? thread.turnStartedAt ?? thread.updatedAt
+}
+
 // What the list orders and groups by, by value: a push that streams into a thread leaves the
-// list alone. Date groups read updatedAt by the day, and every push moves it.
+// list alone.
 const listAtom = Atom.readable((get) => {
   const chrome = get(chromeAtom)
   return (
@@ -36,9 +43,8 @@ const listAtom = Atom.readable((get) => {
         projectId: thread.projectId,
         status: thread.status,
         readyForReview: thread.readyForReview,
-        updatedDay: new Date(thread.updatedAt).setHours(0, 0, 0, 0),
-        // The last turn start, so streaming never reshuffles the list.
-        lastStartedAt: thread.turnStartedAt ?? thread.updatedAt,
+        listedDay: new Date(listedAt(thread)).setHours(0, 0, 0, 0),
+        listedAt: listedAt(thread),
         pinned: thread.pinned,
         archived: thread.archived,
         botId: thread.botId,

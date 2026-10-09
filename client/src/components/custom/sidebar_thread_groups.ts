@@ -1,7 +1,7 @@
-import type { SidebarList, SidebarRow } from '@/state/sidebar'
 import type { ProjectIcon, PullRequestLink } from '@jetty/shared/wire'
 
 import { formatAge, formatElapsed } from '@/lib/time'
+import { listedAt, type SidebarList, type SidebarRow } from '@/state/sidebar'
 
 import type { ThreadPullRequest } from './thread_pull_request'
 
@@ -33,7 +33,7 @@ export function sidebarThread({ thread, project }: SidebarRow, now: number): Sid
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
         ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
-        : formatAge(thread.updatedAt, now),
+        : formatAge(listedAt(thread), now),
     pinned: thread.pinned,
     archived: thread.archived,
     ...threadPullRequests(thread.pullRequests ?? []),
@@ -100,7 +100,7 @@ function threadInGroup(thread: ListedThread, grouping: ThreadGrouping, groupId: 
   if (grouping === 'project') return thread.projectId === groupId
   if (grouping === 'status') return thread.status === groupId
   if (grouping === 'bot') return (thread.botId ?? '') === groupId
-  return dateGroupId(thread.updatedDay, now) === groupId
+  return dateGroupId(thread.listedDay, now) === groupId
 }
 
 type ThreadListView = {
@@ -137,7 +137,7 @@ function groupSidebarThreads(
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
     // A quiet thread lists only when asked for: the switch, or a search that finds it.
     .filter((thread) => !thread.quiet || showQuiet || search)
-    .sort((a, b) => b.lastStartedAt - a.lastStartedAt)
+    .sort((a, b) => b.listedAt - a.listedAt)
   const filtered = matching.filter((thread) => !thread.archived && !thread.quiet)
   const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
   const grouped = groupsFor(grouping, remaining, bots).map((group) => ({
