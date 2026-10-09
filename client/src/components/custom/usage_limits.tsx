@@ -1,4 +1,5 @@
 import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
+import type { ReactNode } from 'react'
 
 import {
   ArrowUpRight01Icon,
@@ -95,6 +96,43 @@ function UsageBar({ window, className }: { window: UsageWindow; className?: stri
   )
 }
 
+// Hover or focus a window for its exact reset and whose limit it is.
+function WindowTip({
+  usage,
+  window,
+  className,
+  children,
+}: {
+  usage: ProviderUsage
+  window: UsageWindow
+  className?: string
+  children: ReactNode
+}) {
+  const who = [usage.plan, usage.account].filter(Boolean).join(' · ')
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focus shows the window's reset time and account
+            tabIndex={0}
+            className={cn(
+              'rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              className
+            )}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent className='flex-col items-start gap-1'>
+        {window.resetsAt !== undefined && <span>Resets {resetFormat.format(window.resetsAt)}</span>}
+        {who && <span className='text-muted-foreground'>{who}</span>}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function UsageRow({
   usage,
   window,
@@ -109,46 +147,35 @@ function UsageRow({
   const left = percentLeft(window)
   const reset = resetIn(window, now)
   const pace = paceOf(window, now)
-  const who = [usage.plan, usage.account].filter(Boolean).join(' · ')
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <div
-            // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focus shows the row's reset time and account
-            tabIndex={0}
-            className='col-span-full grid grid-cols-subgrid items-center gap-y-1 rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-ring'
-          />
-        }
+    <WindowTip
+      usage={usage}
+      window={window}
+      className='col-span-full grid grid-cols-subgrid items-center gap-y-1'
+    >
+      <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
+      <UsageBar window={window} className={compact ? 'h-0.75' : 'h-1'} />
+      <span
+        className={cn('text-right text-xs', left <= 10 ? 'text-destructive' : 'text-foreground')}
       >
-        <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
-        <UsageBar window={window} className={compact ? 'h-0.75' : 'h-1'} />
-        <span
-          className={cn('text-right text-xs', left <= 10 ? 'text-destructive' : 'text-foreground')}
-        >
-          <span className='font-mono tabular-nums'>{left}%</span> left
-        </span>
-        <span
-          className={cn(
-            'flex items-center justify-end gap-1 font-mono text-xs tabular-nums',
-            left === 0 ? 'text-foreground' : 'text-muted-foreground'
-          )}
-        >
-          {reset && (
-            <>
-              <UndoIcon aria-hidden='true' className='size-3' />
-              <span className='sr-only'>Resets in</span>
-              {reset}
-            </>
-          )}
-        </span>
-        {pace && <span className='col-[2/-1] text-xs text-muted-foreground'>{pace}</span>}
-      </TooltipTrigger>
-      <TooltipContent className='flex-col items-start gap-1'>
-        {window.resetsAt !== undefined && <span>Resets {resetFormat.format(window.resetsAt)}</span>}
-        {who && <span className='text-muted-foreground'>{who}</span>}
-      </TooltipContent>
-    </Tooltip>
+        <span className='font-mono tabular-nums'>{left}%</span> left
+      </span>
+      <span
+        className={cn(
+          'flex items-center justify-end gap-1 font-mono text-xs tabular-nums',
+          left === 0 ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        {reset && (
+          <>
+            <UndoIcon aria-hidden='true' className='size-3' />
+            <span className='sr-only'>Resets in</span>
+            {reset}
+          </>
+        )}
+      </span>
+      {pace && <span className='col-[2/-1] text-xs text-muted-foreground'>{pace}</span>}
+    </WindowTip>
   )
 }
 
@@ -156,6 +183,14 @@ function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] gap-x-3 gap-y-2'
     : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_4.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] @max-md:gap-x-3'
+}
+
+// Why a provider shows no windows, when it doesn't.
+function missingWindows(usage: ProviderUsage) {
+  if (usage.failed && usage.windows.length === 0) return 'Couldn’t read usage.'
+  if (!usage.connected) return 'Not signed in.'
+  if (usage.windows.length === 0) return 'No limits reported.'
+  return undefined
 }
 
 function UsageWindows({
@@ -167,11 +202,8 @@ function UsageWindows({
   now: number
   compact?: boolean
 }) {
-  if (usage.failed && usage.windows.length === 0)
-    return <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
-  if (!usage.connected) return <p className='text-xs text-muted-foreground'>Not signed in.</p>
-  if (usage.windows.length === 0)
-    return <p className='text-xs text-muted-foreground'>No limits reported.</p>
+  const missing = missingWindows(usage)
+  if (missing) return <p className='text-xs text-muted-foreground'>{missing}</p>
   return (
     <div data-usage-provider={usage.provider} className={cn('grid', windowsGrid(compact))}>
       {usage.windows.map((window) => (
