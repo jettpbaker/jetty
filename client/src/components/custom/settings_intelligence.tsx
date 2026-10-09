@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch'
 import { effortLabels, findModel, modelKey } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useChrome } from '@/state'
-import { useSetAgentBehaviour, useSetTitleModel, useSettingsInfo } from '@/state/models'
+import { useSetAgentBehaviour, useSetTitleModel } from '@/state/models'
 import { modelLabelText } from '@jetty/shared/model-name'
 import {
   agentBehaviours,
@@ -21,15 +21,14 @@ import {
   ArrowShrink02Icon,
   BookOpenIcon,
   Clock01Icon,
-  HistoryIcon,
+  NewspaperIcon,
   TextFontIcon,
 } from './huge_icons'
-import { GitPullRequestDraftIcon, GitPullRequestIcon } from './lucide_icons'
+import { GitPullRequestIcon } from './lucide_icons'
 import { ProviderGlyph } from './provider_glyph'
 import {
   ComingSoon,
   DisabledSwitch,
-  SettingsButton,
   SettingsCard,
   SettingsLinkRow,
   SettingsPage,
@@ -140,19 +139,10 @@ export function SettingsIntelligence() {
             }
           />
           <SettingsRow
-            id='pr-descriptions'
-            icon={<GitPullRequestDraftIcon />}
-            title='PR descriptions'
-            description="Drafts a pull request's title and body from its thread"
-            disabled
-          >
-            <ComingSoon />
-          </SettingsRow>
-          <SettingsRow
-            id='thread-recaps'
-            icon={HistoryIcon}
-            title='Thread recaps'
-            description='A few lines on what changed while you were away'
+            id='digest'
+            icon={NewspaperIcon}
+            title='Digest'
+            description='Catches you up on every thread when you come back'
             disabled
           >
             <ComingSoon />
@@ -265,7 +255,6 @@ export function SettingsThreadTitles() {
 
 export function SettingsGuidedReviews() {
   const { enabled, set } = useAgentBehaviours()
-  const guides = useSettingsInfo()?.guideCount
   return (
     <SettingsPage
       parent='intelligence'
@@ -351,23 +340,6 @@ export function SettingsGuidedReviews() {
             disabled
           >
             <ComingSoon />
-          </SettingsRow>
-          <SettingsRow
-            title='Saved guides'
-            description='Kept per head commit. A new push writes a fresh one.'
-          >
-            <span className='flex shrink-0 items-center gap-3'>
-              {guides !== undefined && (
-                <span className='text-13 text-muted-foreground'>
-                  {guides === 1 ? '1 guide' : `${guides} guides`}
-                </span>
-              )}
-              <DisabledTooltip reason={comingSoon} wrap='flex'>
-                <SettingsButton disabled className='pointer-events-none'>
-                  Clear
-                </SettingsButton>
-              </DisabledTooltip>
-            </span>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

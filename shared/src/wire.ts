@@ -584,7 +584,6 @@ export const methods = {
       userHome: Schema.String,
       databaseBytes: Schema.Number,
       sharedPreferences: Schema.String,
-      guideCount: Schema.Number,
     }),
   },
   'settings.setDefaultEnvironment': {

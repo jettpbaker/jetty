@@ -15,7 +15,6 @@ import {
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  SettingsSegmented,
   SettingsSelect,
 } from './settings_layout'
 
@@ -95,7 +94,7 @@ export function SettingsPreferences() {
               </>
             }
           >
-            <SettingsSegmented
+            <SettingsSelect
               label='Environment for new threads'
               value={environment}
               onChange={changeEnvironment}

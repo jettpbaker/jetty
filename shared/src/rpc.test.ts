@@ -62,7 +62,6 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
               userHome: '/user',
               databaseBytes: 0,
               sharedPreferences: '',
-              guideCount: 0,
             }),
           'settings.setDefaultEnvironment': () => Effect.succeed(null),
           'project.branches': () =>

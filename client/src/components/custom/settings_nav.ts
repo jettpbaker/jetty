@@ -101,8 +101,7 @@ export const settingsRows: SettingsRow[] = [
     hint: 'names branches',
   },
   { page: 'intelligence', id: 'guided-reviews', title: 'Guided reviews', keywords: 'Guide tab' },
-  { page: 'intelligence', id: 'pr-descriptions', title: 'PR descriptions' },
-  { page: 'intelligence', id: 'thread-recaps', title: 'Thread recaps' },
+  { page: 'intelligence', id: 'digest', title: 'Digest', keywords: 'recap, catch up' },
   {
     page: 'intelligence',
     id: 'pr-activity',

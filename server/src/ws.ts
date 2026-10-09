@@ -216,7 +216,6 @@ export function createRpcHandlers(
             sharedPreferences: (yield* fromPromise(() => preferences.exists()))
               ? yield* fromPromise(() => preferences.text())
               : '',
-            guideCount: yield* store.countReadyPullRequestGuides(),
           }
         }).pipe(Effect.mapError(wireError)),
       'settings.setBranchPrefix': ({ prefix }) =>

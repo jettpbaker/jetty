@@ -2165,14 +2165,6 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
-      countReadyPullRequestGuides() {
-        return sql<{
-          count: number
-        }>`SELECT COUNT(*) AS count FROM pull_request_guides WHERE status = 'ready'`.pipe(
-          Effect.map((rows) => rows[0]?.count ?? 0),
-          Effect.mapError(storeError)
-        )
-      },
       savePullRequestGuide(repo: string, number: number, guide: StoredPullRequestGuide) {
         return sql`INSERT INTO pull_request_guides
           (repo, number, head_sha, status, guide_json, model, metrics_json, error, created_at, updated_at)
