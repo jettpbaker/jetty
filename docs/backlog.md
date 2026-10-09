@@ -4,15 +4,11 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
 
 ## sketchpad designs not ported yet (needs Jett's call)
 
-- Design rebuilt Settings (sidebar nav, merged Models page) after our port.
-  Ignoring until Jett says otherwise.
 - PR view E (sketchpad `pr_redesign/jetty_style.tsx`). Agreed for the port:
   give the Changes tab the same diff skin (Jetty's status green/red).
 - Picks waiting until the ported UI is polished (sketchpad on :5174):
   - Command palette, two looks: `/components/command-palette`, or in the app
     preview `/components/app?palette=a|b`.
-  - Settings redesign, two looks (A Document, B Window): `/components/settings`,
-    or `/components/app?settings=a|b`.
   - Issues view (`/components/issues`, `/components/issue-page`) and PR view E's
     review flows (comment from the gutter, start a review, suggest, submit with a
     verdict). In its comment box, selecting text opens the formatting toolbar
@@ -52,6 +48,15 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
+- Browser notifications, for Settings › Notifications (drawn, all Coming soon).
+  Browsers allow them on localhost: ask permission from that page's switch, then
+  fire from events the client already gets over the socket (a thread needs you, a
+  turn ends while the tab is hidden, a bot messages you, a guide is ready). They
+  work only while a Jetty tab is open somewhere; closed-tab push (a service worker
+  and Web Push) isn't worth it for a local app. macOS must allow the browser's
+  notifications too.
+- An Archived threads page in Settings with proper search (Jett, "might want").
+  Needs a design.
 - Removing a bot: nothing in the server or UI yet, and no milestone covers it.
   Likely an "Archive bot" that hides it and can be restored (undo over a confirm
   dialog), the way threads archive. Needs Jett's calls on its worker threads (stay as
