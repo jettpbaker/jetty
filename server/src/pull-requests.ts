@@ -2391,11 +2391,21 @@ export function createPullRequests(store: Store, hub: Hub) {
           return { ...snapshot, data: snapshot.data }
         })
       )
-      function save(data: PullRequestData) {
+      // Once GitHub has taken the write, the PR watcher compares it with the PR before the write,
+      // as it does a read: the next read finds it saved already, so it would have nothing to tell.
+      function save(data: PullRequestData, taken = false) {
         return publication.withPermit(
           Effect.gen(function* () {
             const snapshot = { ...previous, data }
-            yield* store.savePullRequest(snapshot)
+            yield* store.transaction(
+              Effect.gen(function* () {
+                yield* store.savePullRequest(snapshot)
+                if (taken && observer && (yield* observer.watching))
+                  yield* observer
+                    .changed(ref, previous, data)
+                    .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+              })
+            )
             hub.pushPullRequest(decorate(snapshot))
             for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
               const thread = yield* store.requireThread(threadId)
@@ -2411,7 +2421,7 @@ export function createPullRequests(store: Store, hub: Hub) {
           catch: writeError,
         }).pipe(Effect.tapError(() => save(previous.data)))
         const current = yield* get(ref)
-        if (current.data) yield* save(confirm(current.data, result))
+        if (current.data) yield* save(confirm(current.data, result), true)
       }).pipe(
         Effect.ensuring(
           publication
