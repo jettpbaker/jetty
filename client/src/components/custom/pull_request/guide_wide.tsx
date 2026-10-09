@@ -329,10 +329,12 @@ export function GuideWide({
   }
 
   // Cards collapsing, a hidden section or a resize can move the rows without a scroll. Crossing the
-  // breakpoint puts the anchor back where it was before painting.
+  // breakpoint puts the anchor back where it was before painting. Another tab hides the pane, which
+  // then measures zero; it keeps what it last measured.
   useLayoutEffect(() => {
     const observer = new ResizeObserver(() => {
       const pane = paneRef.current!
+      if (pane.clientHeight === 0) return
       const wide = pane.getBoundingClientRect().width >= wideFrom
       const anchor = anchorRef.current
       if (anchor && wideRef.current !== null && wide !== wideRef.current)
