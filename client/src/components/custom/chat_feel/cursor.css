@@ -1,2 +1,389 @@
 /* Cursor's thread, rebuilt from ~/code/scratch/teardowns/chat-cursor.md. Every rule is scoped under
    :root[data-chat-feel='cursor'], and to [data-chat-thread] where it should only touch threads. */
+
+/* One foreground, three alpha tones; one 15/24 system face; one 12px radius. */
+:root[data-chat-feel='cursor'] :is([data-chat-thread], [data-chat-composer]) {
+  --cursor-text-primary: var(--foreground);
+  --cursor-text-secondary: color-mix(in oklab, var(--foreground) 74%, transparent);
+  --cursor-text-tertiary: color-mix(in oklab, var(--foreground) 60%, transparent);
+  --cursor-stroke-secondary: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --cursor-stroke-tertiary: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --cursor-bubble: color-mix(in oklab, var(--popover) 85%, transparent);
+  --cursor-bubble-solid: color-mix(in oklab, var(--popover) 85%, var(--background));
+  --cursor-radius: 12px;
+  --cursor-font: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --cursor-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --cursor-ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --muted-foreground: var(--cursor-text-tertiary);
+  --faint-foreground: var(--cursor-text-tertiary);
+  --motion-disclosure-open-duration: 150ms;
+  --motion-disclosure-close-duration: 150ms;
+  --motion-disclosure-fast-open-duration: 150ms;
+  --motion-disclosure-fast-close-duration: 150ms;
+  --motion-disclosure-ease: var(--cursor-ease-out-cubic);
+  --motion-control-duration: 150ms;
+  --motion-control-ease: var(--cursor-ease-out-cubic);
+  --shimmer-duration: 1s;
+  font-family: var(--cursor-font);
+}
+
+:root[data-chat-feel='cursor'] [data-chat-thread] {
+  /* A 780px column; with the list's 12px gap, rows sit 14px apart. */
+  & [data-chat-row] {
+    max-width: calc(780px + 3rem);
+    padding-block: 0 2px;
+    letter-spacing: -0.24px;
+  }
+  & :is(pre, code, kbd) {
+    letter-spacing: 0;
+  }
+
+  /* Everything but your message starts on the bubble's inner text edge: 12px padding + 1px border. */
+  & [data-chat-row]:not([data-chat-row='user'], [data-chat-row='queued']) > * {
+    max-width: calc(100% - 26px);
+    margin-inline: 13px;
+  }
+
+  & :is([data-slot='message'], [data-slot='bubble-content'], [data-slot='bubble-content'] > p) {
+    font-size: 15px;
+    line-height: 24px;
+  }
+  & [data-slot='bubble'][data-variant='ghost'] > [data-slot='bubble-content'] {
+    border-width: 0;
+  }
+  & [data-slot='message'] {
+    padding-bottom: 0;
+  }
+
+  /* Your message is a full-width bubble that looks like the composer you typed it in. */
+  & [data-chat-row='user'] [data-slot='bubble'] {
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+  }
+  & [data-chat-row='user'] [data-slot='bubble-content'] {
+    width: 100%;
+    min-width: 150px;
+    padding: 8px 12px;
+    border: 1px solid var(--cursor-stroke-tertiary);
+    border-radius: var(--cursor-radius);
+    background: var(--cursor-bubble);
+    color: var(--cursor-text-primary);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    backdrop-filter: blur(10px);
+    transition: border-color 100ms;
+  }
+  & [data-chat-row='user'] [data-slot='bubble-content']:hover {
+    border-color: var(--cursor-stroke-secondary);
+  }
+  & [data-chat-row='user'] [data-slot='bubble-content'] ::selection {
+    color: var(--primary);
+    background-color: color-mix(in oklch, var(--primary) 10%, transparent);
+  }
+  & [data-chat-row='user'] [data-slot='bubble-content'] > button {
+    color: var(--cursor-text-tertiary);
+    &:is(:hover, [aria-expanded='true']) {
+      color: var(--cursor-text-secondary);
+    }
+  }
+  /* Its time and copy sit inside its corner, so the bubble keeps the 14px rhythm. */
+  & [data-chat-row='user'] [data-slot='bubble'] > div:not([data-slot]) {
+    position: absolute;
+    right: 7px;
+    bottom: 5px;
+    padding-left: 20px;
+    border-radius: 0 0 11px 0;
+    background: linear-gradient(to right, transparent, var(--cursor-bubble-solid) 20px);
+  }
+  & [data-chat-row='user'][data-chat-new] {
+    animation: cursor-rise 160ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+  & [data-chat-row='queued'] [data-slot='bubble'] {
+    width: 100%;
+    max-width: none;
+    > [data-slot='bubble-content'] {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: var(--cursor-radius);
+    }
+  }
+
+  /* Errors are muted inline rows. */
+  & [data-slot='bubble'][data-variant='destructive'] > [data-slot='bubble-content'] {
+    padding: 0;
+    border-width: 0;
+    background: none;
+    color: var(--cursor-text-secondary);
+  }
+}
+
+/* Markdown: block 16px, list-before 8px, list-after 18px, heading-after 4px; headings 22/20/17 at
+   590 and line-height 1.42, with a top margin of 22/15 of their size. */
+:root[data-chat-feel='cursor']
+  [data-chat-thread]
+  [data-slot='bubble'][data-variant='ghost']
+  > [data-slot='bubble-content']
+  > div {
+  font-size: 15px;
+  line-height: 24px;
+
+  & > * {
+    margin-block: 16px 0;
+  }
+  & > :is(ul, ol) + * {
+    margin-top: 18px;
+  }
+  & > :is(h1, h2, h3) {
+    margin-top: calc(22em / 15);
+  }
+  & > :is(h1, h2, h3, h4, h5, h6) + * {
+    margin-top: 4px;
+  }
+  & > :is(ul, ol) {
+    margin-top: 8px;
+  }
+  & > :first-child {
+    margin-top: 0;
+  }
+  & :is(h1, h2, h3, h4, h5, h6) {
+    font-size: 1em;
+    font-weight: 590;
+    line-height: 1.42;
+  }
+  & h1 {
+    font-size: 1.466em;
+  }
+  & h2 {
+    font-size: 1.333em;
+  }
+  & h3 {
+    font-size: 1.133em;
+  }
+  & :is(strong, b, [data-streamdown='strong']) {
+    font-weight: 590;
+  }
+  & code[data-streamdown='inline-code'] {
+    padding: 1.5px 2px;
+    border-radius: 5px;
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    color: inherit;
+    font-family: var(--cursor-mono);
+    font-size: 0.9em;
+    line-height: inherit;
+  }
+  & :is(.group\/code, .min-h-9, table) {
+    border: 1px solid var(--cursor-stroke-secondary);
+    border-radius: var(--cursor-radius);
+  }
+  & table {
+    font-size: inherit;
+  }
+  & :is(th, td) {
+    border-color: var(--cursor-stroke-tertiary);
+  }
+  & th:first-child {
+    border-top-left-radius: calc(var(--cursor-radius) - 1px);
+  }
+  & th:last-child {
+    border-top-right-radius: calc(var(--cursor-radius) - 1px);
+  }
+  & .group\/code > [contenteditable] {
+    border-top-right-radius: calc(var(--cursor-radius) - 1px);
+  }
+  & pre code {
+    font-family: var(--cursor-mono);
+  }
+  /* Code never fades in. */
+  & pre .smooth-fade {
+    animation: none;
+  }
+}
+
+/* Work: tool and thinking lines are plain 15/24 text, a verb in the secondary tone and its details
+   in the tertiary; hover lifts each one step. Chevrons stay hidden until hover. */
+:root[data-chat-feel='cursor'] [data-chat-row='work'] {
+  font-variant-numeric: tabular-nums;
+
+  & .font-mono {
+    font-family: inherit;
+  }
+  & .pb-1 {
+    padding-bottom: 0;
+  }
+  & .activity-header {
+    min-height: 24px;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--cursor-text-tertiary);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 24px;
+    transition: color 100ms;
+    > span > :first-child {
+      color: var(--cursor-text-secondary);
+      transition: color 100ms;
+    }
+    > span + span {
+      font-size: inherit;
+    }
+  }
+  & button.activity-header:is(:hover, :focus-visible, [aria-expanded='true']) {
+    color: var(--cursor-text-secondary);
+    > span > :first-child {
+      color: var(--cursor-text-primary);
+    }
+  }
+  & .activity-header[aria-expanded] > span:first-child::after {
+    content: '';
+    display: inline-block;
+    align-self: center;
+    width: 12px;
+    height: 12px;
+    margin-left: 4px;
+    vertical-align: -1px;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='1.333 1.333 21.333 21.333' fill='none' stroke='black' stroke-width='2.37' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6c0 0 6 4.42 6 6s-6 6-6 6'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    opacity: 0;
+    transition:
+      opacity 100ms,
+      rotate 150ms var(--cursor-ease-out-cubic);
+  }
+  & .activity-header[aria-expanded]:is(:hover, :focus-visible) > span:first-child::after {
+    opacity: 1;
+  }
+  & .activity-header[aria-expanded='true'] > span:first-child::after {
+    rotate: 90deg;
+  }
+
+  /* Each line is a row of its own, 14px from the last. */
+  & .work-scroll > div > div > * {
+    margin-top: 14px;
+  }
+  & .thinking-text {
+    padding: 0;
+    color: var(--cursor-text-secondary);
+    font-size: 15px;
+    line-height: 24px;
+    opacity: 0.5;
+  }
+  & .bg-card.border {
+    margin: 4px 0 0;
+    border-color: var(--cursor-stroke-secondary);
+    border-radius: var(--cursor-radius);
+    background: none;
+  }
+}
+
+/* Subagent and workflow headers keep their own disclosure, with its chevron hidden until hover. */
+:root[data-chat-feel='cursor'] [data-chat-thread] :is(.group\/subagents, .group\/workflow) > svg {
+  opacity: 0;
+  transition:
+    opacity 100ms,
+    rotate 150ms var(--cursor-ease-out-cubic);
+}
+:root[data-chat-feel='cursor']
+  [data-chat-thread]
+  :is(.group\/subagents, .group\/workflow):is(:hover, :focus-visible)
+  > svg {
+  opacity: 1;
+}
+
+/* A label that changes rolls: the old one up and out, the new one in from below, 300ms. */
+:root[data-chat-feel='cursor'] [data-chat-thread] {
+  & .rolling-text-in {
+    animation: cursor-roll-in 300ms var(--cursor-ease-out-cubic) both;
+  }
+  & .rolling-text-out {
+    animation: cursor-roll-out 300ms var(--cursor-ease-out-cubic) both;
+  }
+}
+@keyframes cursor-roll-in {
+  from {
+    transform: translateY(calc(100% + 6px));
+  }
+}
+@keyframes cursor-roll-out {
+  to {
+    transform: translateY(calc(-100% - 6px));
+  }
+}
+
+/* One shimmer: 60% of the text's colour, swept by its full colour, every second. */
+:root[data-chat-feel='cursor'] [data-chat-thread] .shimmer {
+  --shimmer-image: linear-gradient(
+    90deg,
+    color-mix(in oklab, currentColor 60%, transparent) 25%,
+    currentColor 50%,
+    color-mix(in oklab, currentColor 60%, transparent) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* The composer: the bubble's surface, border, radius, shadow and blur, at 15/24. */
+:root[data-chat-feel='cursor'] [data-chat-composer] {
+  max-width: calc(780px + 3rem);
+
+  & > [data-perf-region='composer'] {
+    max-width: none;
+  }
+  & [data-slot='input-group'] {
+    max-width: none;
+    border: 1px solid var(--cursor-stroke-tertiary);
+    border-radius: var(--cursor-radius);
+    background: var(--cursor-bubble);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    backdrop-filter: blur(10px);
+    transition: border-color 100ms;
+  }
+  & [data-slot='input-group']:focus-within {
+    border-color: var(--cursor-stroke-secondary);
+  }
+  & .skill-chip-field :is(textarea, .skill-chip-mirror) {
+    padding-inline: 12px;
+    font-family: 'Skill Chip', var(--cursor-font);
+    font-size: 15px;
+    line-height: 24px;
+    letter-spacing: -0.24px;
+  }
+}
+
+/* New words fade in over 150ms, linear (cursor.tsx); new messages rise 8px over 160ms. */
+@keyframes cursor-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cursor-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+:root[data-chat-feel='cursor'] .cursor-fade {
+  animation: cursor-fade 150ms linear both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-chat-feel='cursor'] {
+    & .cursor-fade,
+    & [data-chat-row][data-chat-new],
+    & [data-chat-thread] .rolling-text-in {
+      animation: none;
+    }
+    & [data-chat-thread] .rolling-text-out {
+      display: none;
+    }
+    & [data-chat-thread] .shimmer {
+      animation: none;
+      background-image: none;
+      -webkit-text-fill-color: currentColor;
+    }
+    & [data-chat-thread] *,
+    & [data-chat-thread] *::after {
+      transition: none;
+    }
+  }
+}
