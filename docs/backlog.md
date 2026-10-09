@@ -57,6 +57,9 @@ Everything below is for one combined review of the chat, not separate ports.
   notifications too.
 - An Archived threads page in Settings with proper search (Jett, "might want").
   Needs a design.
+- Guides on Codex and Grok, not just Claude. `pr-guide.ts` runs on the Claude Agent
+  SDK, so Settings › Guided reviews lists Claude models only, and its Fast switch
+  stays off because Jetty has no Fast for Claude.
 - Removing a bot: nothing in the server or UI yet, and no milestone covers it.
   Likely an "Archive bot" that hides it and can be restored (undo over a confirm
   dialog), the way threads archive. Needs Jett's calls on its worker threads (stay as
