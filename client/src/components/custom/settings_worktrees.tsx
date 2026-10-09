@@ -1,7 +1,7 @@
 import { inComposition } from '@/lib/composition'
 import { useChrome } from '@/state'
 import { homePath, useSettingsInfo } from '@/state/models'
-import { useProjectsGit, useSetBranchPrefix } from '@/state/worktrees'
+import { useSetBranchPrefix } from '@/state/worktrees'
 import { useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
@@ -56,10 +56,6 @@ function BranchPrefix() {
 
 export function SettingsWorktrees() {
   const info = useSettingsInfo()
-  const projects = useChrome()?.projects ?? []
-  const setUp = useProjectsGit(projects.map((project) => project.id)).filter(
-    (git) => git?.git === 'ok' && !git.setupGuide
-  ).length
   return (
     <SettingsPage
       title='Worktrees'
@@ -119,7 +115,6 @@ export function SettingsWorktrees() {
                 Each project&apos;s <Mono>.jetty/worktree.json</Mono>
               </>
             }
-            value={`${setUp} of ${projects.length} ${projects.length === 1 ? 'project' : 'projects'}`}
           />
         </SettingsCard>
       </SettingsSection>

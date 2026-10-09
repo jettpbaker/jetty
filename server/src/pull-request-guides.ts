@@ -127,10 +127,15 @@ export function createPullRequestGuides(
     })
   }
 
+  // Writing ahead needs guides themselves on too.
+  const writingAhead = store
+    .getAgentBehaviours()
+    .pipe(Effect.map((settings) => settings.guidedReviews && settings.prefetchPullRequestGuides))
+
   function enqueue(ref: PullRequestListItem) {
     return Effect.gen(function* () {
       if (ref.state !== 'open' || !ref.headSha) return
-      if (!(yield* store.getAgentBehaviours()).prefetchPullRequestGuides) return
+      if (!(yield* writingAhead)) return
       const headSha = ref.headSha
       const key = guideKey(ref, headSha)
       if (queued.has(key) || running.has(key)) return
@@ -139,7 +144,7 @@ export function createPullRequestGuides(
       if (queued.has(key)) return
       queued.add(key)
       yield* Effect.gen(function* () {
-        if (!(yield* store.getAgentBehaviours()).prefetchPullRequestGuides) return
+        if (!(yield* writingAhead)) return
         const list = yield* store.getPullRequestList('for-you')
         if (
           !list.items?.some(
@@ -156,7 +161,7 @@ export function createPullRequestGuides(
         let snapshot = yield* pulls.get(ref)
         if (snapshot.status !== 'ready' || snapshot.data?.pull.head.sha !== headSha)
           snapshot = yield* pulls.refresh(ref)
-        if (!(yield* store.getAgentBehaviours()).prefetchPullRequestGuides) return
+        if (!(yield* writingAhead)) return
         if (
           snapshot.status !== 'ready' ||
           !snapshot.data ||

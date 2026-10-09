@@ -302,7 +302,6 @@ export function SettingsProjects() {
           icon={FolderGit2Icon}
           title='Worktrees'
           description='Where they live, the branch prefix, and which ignored files come along'
-          value={null}
         />
       </div>
       <ProjectFolderDialog

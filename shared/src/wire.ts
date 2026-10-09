@@ -108,6 +108,11 @@ export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | u
 
 export const agentBehaviours = [
   {
+    key: 'guidedReviews',
+    label: 'Show a Guide tab on pull requests',
+    defaultEnabled: true,
+  },
+  {
     key: 'prefetchPullRequestGuides',
     label: 'Prepare guides for PRs waiting on your review',
     defaultEnabled: true,

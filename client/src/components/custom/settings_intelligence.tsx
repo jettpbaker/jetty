@@ -42,7 +42,6 @@ import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import {
   ComingSoon,
-  DisabledSwitch,
   SettingsCard,
   SettingsLinkRow,
   SettingsPage,
@@ -119,37 +118,20 @@ function useJobModel(job: JobName) {
   return { catalog, value, set, ready: !!chrome }
 }
 
-function JobModelValue({
-  catalog,
-  value,
-}: {
-  catalog: readonly ProviderModel[]
-  value: Loadout | undefined
-}) {
-  if (!value) return 'None available'
-  const { model, name } = loadoutParts(catalog, value)
-  const details = describeLoadout(value)
-  return (
-    <>
-      <ProviderGlyph provider={value.provider} className='size-3' />
-      {model ? <ModelLabel model={model} /> : name}
-      {details && <span className='text-muted-foreground'>{details}</span>}
-    </>
-  )
-}
-
 // The composer's model menu without its loadout, on a settings select trigger.
 function JobModelSelect({
   label,
   catalog,
   value,
   lockedProvider,
+  disabled,
   onChange,
 }: {
   label: string
   catalog: readonly ProviderModel[]
   value: Loadout | undefined
   lockedProvider?: ProviderId
+  disabled?: boolean
   onChange: (loadout: Loadout) => void
 }) {
   const { refresh } = useModelRefresh()
@@ -162,6 +144,7 @@ function JobModelSelect({
     <DropdownMenu modal={false} onOpenChange={(open) => open && refresh()}>
       <DropdownMenuTrigger
         aria-label={`${label}: ${[name, details].filter(Boolean).join(', ') || 'none'}`}
+        disabled={disabled}
         render={<Button variant='ghost' className={cn(selectTriggerClass, 'group/chip')} />}
       >
         {value ? (
@@ -169,7 +152,7 @@ function JobModelSelect({
             <ProviderGlyph provider={value.provider} className='size-3' />
             {model ? <ModelLabel model={model} /> : name}
             {details && (
-              <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
+              <span className='text-muted-foreground group-hover/chip:text-foreground group-disabled/chip:text-current group-aria-expanded/chip:text-foreground'>
                 {details}
               </span>
             )}
@@ -189,7 +172,6 @@ function JobModelSelect({
 export function SettingsIntelligence() {
   const { enabled, set } = useAgentBehaviours()
   const titles = useJobModel('title')
-  const guides = useJobModel('guide')
   const tidying = useJobModel('tidy')
   return (
     <SettingsPage
@@ -222,7 +204,6 @@ export function SettingsIntelligence() {
             icon={BookOpenIcon}
             title='Guided reviews'
             description='Walks you through a pull request in chapters, from its Guide tab'
-            value={<JobModelValue catalog={guides.catalog} value={guides.value} />}
           />
           <SettingsRow
             id='tidying'
@@ -262,7 +243,6 @@ export function SettingsIntelligence() {
             icon={<GitPullRequestIcon />}
             title='Wake on PR activity'
             description='Agents pick up reviews, failing checks and conflicts on PRs they opened'
-            value={enabled('watchPullRequests') ? 'On' : 'Off'}
           />
           <SettingsRow
             id='archive'
@@ -283,7 +263,6 @@ export function SettingsIntelligence() {
             icon={Clock01Icon}
             title='Bot check-ins'
             description="Quiet bots look over their area, only while you're around"
-            value='Hourly'
           />
         </SettingsCard>
       </SettingsSection>
@@ -294,6 +273,8 @@ export function SettingsIntelligence() {
 export function SettingsGuidedReviews() {
   const { enabled, set } = useAgentBehaviours()
   const guides = useJobModel('guide')
+  const on = enabled('guidedReviews')
+  const off = on ? undefined : 'Turn on Guided reviews first'
   return (
     <SettingsPage
       parent='intelligence'
@@ -301,21 +282,28 @@ export function SettingsGuidedReviews() {
       description='A Guide tab on pull requests that walks you through the change in chapters, in the order it reads best.'
     >
       <SettingsCard className={guides.ready ? undefined : 'invisible'}>
-        <SettingsRow
-          title='Guided reviews'
-          description='Show a Guide tab on pull requests'
-          disabled
-        >
-          <DisabledSwitch checked label='Guided reviews' />
-        </SettingsRow>
-        <SettingsRow title='Model' description='Reads the diff and writes the chapters'>
-          <JobModelSelect
-            label='Guide model'
-            catalog={guides.catalog}
-            value={guides.value}
-            lockedProvider='claude'
-            onChange={guides.set}
+        <SettingsRow title='Guided reviews' description='Show a Guide tab on pull requests'>
+          <Switch
+            aria-label='Guided reviews'
+            checked={on}
+            onCheckedChange={(value) => set('guidedReviews', value)}
           />
+        </SettingsRow>
+        <SettingsRow
+          title='Model'
+          description='Reads the diff and writes the chapters'
+          disabled={!on}
+        >
+          <DisabledTooltip reason={off} wrap='flex shrink-0'>
+            <JobModelSelect
+              label='Guide model'
+              catalog={guides.catalog}
+              value={guides.value}
+              lockedProvider='claude'
+              disabled={!on}
+              onChange={guides.set}
+            />
+          </DisabledTooltip>
         </SettingsRow>
       </SettingsCard>
       <SettingsSection title='When to write one'>
@@ -342,12 +330,17 @@ export function SettingsGuidedReviews() {
             id='write-ahead'
             title='Write ahead for review requests'
             description="Start a guide when someone asks for your review, so it's ready when you open it"
+            disabled={!on}
           >
-            <Switch
-              aria-label='Write ahead for review requests'
-              checked={enabled('prefetchPullRequestGuides')}
-              onCheckedChange={(value) => set('prefetchPullRequestGuides', value)}
-            />
+            <DisabledTooltip reason={off} wrap='flex'>
+              <Switch
+                aria-label='Write ahead for review requests'
+                disabled={!on}
+                checked={enabled('prefetchPullRequestGuides')}
+                onCheckedChange={(value) => set('prefetchPullRequestGuides', value)}
+                className={cn(!on && 'pointer-events-none')}
+              />
+            </DisabledTooltip>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

@@ -216,7 +216,8 @@ export function SettingsRow({
   )
 }
 
-// A row that opens a page: the whole row is the link, its value and a chevron on the right.
+// A row that opens a page: the whole row is the link, with only a chevron on the right, so it
+// never reads as a dropdown.
 export function SettingsLinkRow({
   id,
   page,
@@ -224,7 +225,6 @@ export function SettingsLinkRow({
   title,
   description,
   icon,
-  value,
 }: {
   id: string
   page: string
@@ -232,7 +232,6 @@ export function SettingsLinkRow({
   title: string
   description: ReactNode
   icon?: Icon | ReactElement
-  value: ReactNode
 }) {
   return (
     <Link
@@ -247,10 +246,7 @@ export function SettingsLinkRow({
     >
       {icon && <RowIcon icon={icon} />}
       <RowText title={title} description={description} />
-      <span className='flex shrink-0 items-center gap-1.5 text-13 text-muted-foreground transition-colors group-hover/link:text-foreground [&_svg]:text-muted-foreground'>
-        {value}
-        <ArrowRight01Icon />
-      </span>
+      <ArrowRight01Icon className='shrink-0 text-muted-foreground transition-colors group-hover/link:text-foreground' />
     </Link>
   )
 }

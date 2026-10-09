@@ -60,6 +60,7 @@ import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
+import { useChrome } from '@/state'
 import {
   usePullRequestCommitFiles,
   usePullRequestDiffFileLoader,
@@ -1948,7 +1949,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
   }
-  const [tab, setTab] = useState('overview')
+  const guidesOn = useChrome()?.agentBehaviours?.guidedReviews ?? true
+  const [chosenTab, setTab] = useState('overview')
+  // Turning guides off in Settings takes an open Guide tab back to Overview.
+  const tab = chosenTab === 'guide' && !guidesOn ? 'overview' : chosenTab
   const painted = useContext(PrPaintedContext)
   const [diffSeen, setDiffSeen] = useState(false)
   if (tab === 'diff' && !diffSeen) setDiffSeen(true)
@@ -1956,7 +1960,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   if (tab === 'guide' && !guideSeen) setGuideSeen(true)
   // The PR's size is known up front, so a small one's Guide tab is disabled before anyone asks.
   const small = pr.data.pull.additions + pr.data.pull.deletions < GUIDE_MIN_CHANGED_LINES
-  const guide = usePullRequestGuide(ref, pr.data.pull.head.sha, guideSeen && !small)
+  const guide = usePullRequestGuide(ref, pr.data.pull.head.sha, guideSeen && !small && guidesOn)
   const guideSkipped = small || guide.state?.status === 'skipped'
   const [mode, setMode] = useState('all')
   const [pane, setPane] = useState(true)
@@ -1994,14 +1998,14 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
             target.closest('input, textarea, [role=dialog], [role=menu], [role=listbox]')))
       )
         return
-      if (e.key === '1' || e.key === '2' || (e.key === '3' && !guideSkipped)) {
+      if (e.key === '1' || e.key === '2' || (e.key === '3' && guidesOn && !guideSkipped)) {
         e.preventDefault()
         setTab(e.key === '1' ? 'overview' : e.key === '2' ? 'diff' : 'guide')
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [guideSkipped])
+  }, [guideSkipped, guidesOn])
   useEffect(() => {
     if (selected)
       view.current
@@ -2111,24 +2115,26 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         ['diff', 'Diff', 'Diff · 2'],
                         ['guide', 'Guide', guideSkipped ? 'Small PR, no guide' : 'Guide · 3'],
                       ] as const
-                    ).map(([value, label, hint]) => (
-                      <Hint key={value} text={hint}>
-                        <Button
-                          variant='ghost'
-                          tone='muted'
-                          size='sm'
-                          aria-pressed={tab === value}
-                          disabled={value === 'guide' && guideSkipped}
-                          className='rounded-sm font-normal aria-pressed:bg-accent'
-                          {...pressProps(() => {
-                            if (value === 'diff') perf.start('pr.diff')
-                            setTab(value)
-                          })}
-                        >
-                          {label}
-                        </Button>
-                      </Hint>
-                    ))}
+                    )
+                      .filter(([value]) => value !== 'guide' || guidesOn)
+                      .map(([value, label, hint]) => (
+                        <Hint key={value} text={hint}>
+                          <Button
+                            variant='ghost'
+                            tone='muted'
+                            size='sm'
+                            aria-pressed={tab === value}
+                            disabled={value === 'guide' && guideSkipped}
+                            className='rounded-sm font-normal aria-pressed:bg-accent'
+                            {...pressProps(() => {
+                              if (value === 'diff') perf.start('pr.diff')
+                              setTab(value)
+                            })}
+                          >
+                            {label}
+                          </Button>
+                        </Hint>
+                      ))}
                   </nav>
                   <div className='ml-auto flex items-center gap-1'>
                     {tab === 'guide' && guide.state?.guide && (
