@@ -26,6 +26,7 @@ export const providerNames: Record<UsageProvider, string> = {
 }
 
 const minute = 60_000
+const day = 1440 * minute
 const resetFormat = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
   day: 'numeric',
@@ -386,5 +387,215 @@ export function UsageBanner({
         <UsageSkeleton compact />
       )}
     </div>
+  )
+}
+
+/* The context ring's popover: this thread's provider in full, each other connected one's tightest window */
+
+// Jett's zones for a limit's bar and figure: the accent, amber from 75%, red from 90%.
+const warnAt = 75
+const limitAt = 90
+
+function limitTone(pct: number) {
+  if (pct >= limitAt) return { bar: 'bg-destructive', text: 'text-destructive' }
+  if (pct >= warnAt) return { bar: 'bg-status-attention', text: 'text-status-attention' }
+  return { bar: 'bg-primary', text: 'text-foreground' }
+}
+
+function used(window: UsageWindow) {
+  return Math.round(clamp(window.pct, 0, 100))
+}
+
+function tightest(windows: readonly UsageWindow[]) {
+  return windows.reduce((a, b) => (b.pct > a.pct ? b : a))
+}
+
+// "Weekly · Fable" is Fable's own window: its name is enough.
+function windowName(window: UsageWindow) {
+  return window.label.replace(/^Weekly · /, '')
+}
+
+export function Mono({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn('font-mono tabular-nums', className)}>{children}</span>
+}
+
+function Rule() {
+  return <div className='-mx-3 border-t border-border' />
+}
+
+function PlanHeading({
+  provider,
+  plan,
+  children,
+}: {
+  provider: UsageProvider
+  plan?: string
+  children?: ReactNode
+}) {
+  return (
+    <div className='flex items-center gap-1.5'>
+      <ProviderGlyph provider={provider} className='size-3 text-muted-foreground' />
+      <span className='font-medium'>{providerNames[provider]}</span>
+      {plan && <span className='text-muted-foreground'>{plan}</span>}
+      {children && <span className='ml-auto'>{children}</span>}
+    </div>
+  )
+}
+
+// Within a day, how long; further off, when. A clock time reads as words, like the pace line.
+function ResetLabel({ window, now }: { window: UsageWindow; now: number }) {
+  if (window.resetsAt === undefined) return null
+  const wait = window.resetsAt - now
+  return (
+    <span className='text-muted-foreground tabular-nums'>
+      {wait >= day ? (
+        `Resets ${dayFormat.format(window.resetsAt)}`
+      ) : (
+        <>
+          Resets in <Mono>{duration(wait)}</Mono>
+        </>
+      )}
+    </span>
+  )
+}
+
+function LimitLine({
+  usage,
+  window,
+  label,
+  now,
+  pace = true,
+}: {
+  usage: ProviderUsage
+  window: UsageWindow
+  label: ReactNode
+  now: number
+  pace?: boolean
+}) {
+  const value = used(window)
+  const tone = limitTone(value)
+  const note = pace ? paceOf(window, now) : undefined
+  return (
+    <WindowTip usage={usage} window={window} className='flex flex-col gap-1.5'>
+      <div className='flex items-center justify-between gap-3'>
+        <span className='flex min-w-0 items-center gap-1.5'>{label}</span>
+        <span className='flex shrink-0 items-center gap-2.5'>
+          <ResetLabel window={window} now={now} />
+          <Mono className={cn('w-8 text-right', tone.text)}>{value}%</Mono>
+        </span>
+      </div>
+      <span
+        aria-hidden='true'
+        className='relative block h-1 overflow-hidden rounded-full bg-accent'
+      >
+        <span
+          className={cn('absolute inset-y-0 left-0 rounded-full', tone.bar)}
+          style={{ width: `${value}%` }}
+        />
+      </span>
+      {note && <span className='text-muted-foreground'>{note}</span>}
+    </WindowTip>
+  )
+}
+
+// A limit line's shape, until a provider's first read lands. Accent, the bars' track: muted
+// disappears into the popover.
+function LimitSkeleton() {
+  return (
+    <div aria-hidden='true' className='flex flex-col gap-1.5'>
+      <div className='flex h-4 items-center'>
+        <Skeleton className='h-3 w-12 rounded-xs bg-accent' />
+      </div>
+      <Skeleton className='h-1 rounded-full bg-accent' />
+    </div>
+  )
+}
+
+// A read that failed keeps its last good windows, with their age beside the plan.
+export function RingLimits({
+  provider,
+  others,
+  usage,
+  failed,
+  now,
+}: {
+  provider: UsageProvider
+  others: readonly UsageProvider[]
+  usage: Partial<Record<UsageProvider, ProviderUsage>>
+  // the providers whose latest read failed
+  failed: ReadonlySet<UsageProvider>
+  now: number
+}) {
+  const plan = usage[provider]
+  const missing = plan && missingWindows(plan)
+  const stale = plan && (plan.failed || failed.has(provider)) && plan.windows.length > 0
+  const connected = others.flatMap((id) => {
+    const item = usage[id]
+    return item?.connected && item.windows.length > 0 ? [item] : []
+  })
+  return (
+    <>
+      <Rule />
+      <div className='flex flex-col gap-3'>
+        <PlanHeading provider={provider} plan={plan?.plan}>
+          {stale && plan.asOf !== undefined && (
+            <span className='text-muted-foreground'>
+              Updated <Mono>{duration(now - plan.asOf)}</Mono> ago
+            </span>
+          )}
+        </PlanHeading>
+        {plan ? (
+          missing ? (
+            <p className='text-muted-foreground'>{missing}</p>
+          ) : (
+            plan.windows.map((window) => (
+              <LimitLine
+                key={window.id}
+                usage={plan}
+                window={window}
+                now={now}
+                label={<span className='truncate text-muted-foreground'>{windowName(window)}</span>}
+              />
+            ))
+          )
+        ) : failed.has(provider) ? (
+          <p className='text-muted-foreground'>Couldn’t read usage.</p>
+        ) : (
+          <>
+            <LimitSkeleton />
+            <LimitSkeleton />
+          </>
+        )}
+      </div>
+      {connected.length > 0 && (
+        <>
+          <Rule />
+          <div className='flex flex-col gap-3'>
+            {connected.map((item) => {
+              const window = tightest(item.windows)
+              return (
+                <LimitLine
+                  key={item.provider}
+                  usage={item}
+                  window={window}
+                  now={now}
+                  pace={false}
+                  label={
+                    <>
+                      <ProviderGlyph
+                        provider={item.provider}
+                        className='size-3 shrink-0 text-muted-foreground'
+                      />
+                      <span>{providerNames[item.provider]}</span>
+                      <span className='truncate text-muted-foreground'>{windowName(window)}</span>
+                    </>
+                  }
+                />
+              )
+            })}
+          </div>
+        </>
+      )}
+    </>
   )
 }
