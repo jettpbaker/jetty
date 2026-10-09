@@ -629,11 +629,18 @@ function MessageRow({
             className='mb-0.75'
           />
         )}
-        <div className={cn('relative w-fit min-w-0 max-w-[calc(100%-3.5rem)]', jett && 'ml-auto')}>
+        {/* The width cap sits here, not on the bubble, so this box hugs the bubble and the hover
+            actions sit right beside it even when its text wraps. */}
+        <div
+          className={cn(
+            'relative w-fit min-w-0 max-w-[min(515px,calc(100%-3.5rem))]',
+            jett ? 'ml-auto' : 'has-[pre,table]:max-w-[calc(100%-3.5rem)]'
+          )}
+        >
           <Bubble
             variant={jett ? 'default' : 'muted'}
             align={jett ? 'end' : 'start'}
-            className={cn('max-w-[min(515px,100%)]', !jett && 'has-[pre,table]:max-w-full')}
+            className='max-w-full'
           >
             <BubbleContent
               data-quote={jett ? undefined : message.id}
