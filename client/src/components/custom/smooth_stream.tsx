@@ -189,7 +189,9 @@ function revealPlugin(clock: Clock) {
           for (let index = birthAt(offset); from < end; index++) {
             const to = Math.min(end, births[index + 1]?.from ?? Infinity)
             const value = child.value!.slice(from - offset, to - offset)
-            if (index < 0) children.push({ type: 'text', value })
+            // Whitespace can't visibly fade, and a span of it between table rows or list items
+            // is invalid HTML there.
+            if (index < 0 || !value.trim()) children.push({ type: 'text', value })
             else children.push(span(births[index]!.at, [{ type: 'text', value }]))
             from = to
           }
