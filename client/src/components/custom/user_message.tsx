@@ -31,14 +31,8 @@ function measureCollapsible(element: HTMLElement, text: string) {
   return collapsible
 }
 
-// A sent message's images as thumbnails, each opening the media viewer. Bots' chats show them too.
-export function MessageImages({
-  images,
-  tinted,
-}: {
-  images: readonly Attachment[]
-  tinted?: boolean
-}) {
+// A sent message's images as thumbnails, each opening the media viewer.
+function MessageImages({ images, tinted }: { images: readonly Attachment[]; tinted?: boolean }) {
   const openMedia = useOpenMedia()
   const thumbnailsRef = useRef<(HTMLButtonElement | null)[]>([])
   if (images.length === 0) return null

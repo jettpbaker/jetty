@@ -4,10 +4,11 @@ import type { Attachment, Reply, ThreadItem } from '@jetty/shared/items'
 import type { Bot, ThreadMeta } from '@jetty/shared/wire'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
+import { StagedImages, ThumbRow } from '@/components/custom/bot_attachments'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
-import { ComposerAttach, ComposerImages } from '@/components/custom/composer_attach'
+import { ComposerAttach } from '@/components/custom/composer_attach'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
 import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
 import {
@@ -23,7 +24,6 @@ import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
 import { linkMentions } from '@/components/custom/slash_model'
 import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
-import { MessageImages } from '@/components/custom/user_message'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
@@ -289,7 +289,10 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const interrupt = useInterruptTurn()
   const calm = useReducedMotion() ?? false
   const [now] = useState(() => Date.now())
-  const [replyTo, setReplyTo] = useState<Reply>()
+  // The quote lives in the draft, like a thread's, so a failed send brings it back with the text.
+  const { draft, update: updateDraft } = useDraft(bot.id)
+  const replyTo = draft.quote
+  const setReplyTo = (quote: Reply | undefined) => updateDraft({ quote })
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -330,7 +333,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   // started on its own while it shows nothing.
   const running = turnId ? !asking && (presence !== null || !quietTurn(items, turnId)) : false
   function send(text: string, images: readonly ReadyImage[]) {
-    sendToBot(bot.id, text, replyTo, [], images)
+    sendToBot(bot.id, text, replyTo, [], images, bot.id)
     setReplyTo(undefined)
     pinnedRef.current = true
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
@@ -620,6 +623,12 @@ function MessageRow({
   const images = message.attachments.filter((attachment) =>
     attachment.mimeType.startsWith('image/')
   )
+  // On the message's top-left corner: its thumbs when it has any, else its bubble.
+  const reaction = message.reaction && (
+    <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
+      <img src={emojiUrl(message.reaction)} alt={message.reaction} className='size-3' />
+    </span>
+  )
   return (
     <div className={cn('flex flex-col', gapClass[gap])}>
       <div
@@ -646,39 +655,34 @@ function MessageRow({
             jett ? 'ml-auto' : 'has-[pre,table]:max-w-[calc(100%-3.5rem)]'
           )}
         >
-          <Bubble
-            variant={jett ? 'default' : 'muted'}
-            align={jett ? 'end' : 'start'}
-            className='max-w-full'
-          >
-            <BubbleContent
-              data-quote={jett ? undefined : message.id}
-              className={cn(
-                'rounded-[18.5px] border-0 leading-normal',
-                jett
-                  ? 'whitespace-pre-wrap selection:bg-primary-foreground/25 selection:text-primary-foreground'
-                  : 'bot-reply'
+          {jett ? (
+            <div className='flex flex-col items-end gap-1'>
+              {images.length > 0 && (
+                <div className='relative'>
+                  <ThumbRow images={images} />
+                  {reaction}
+                </div>
               )}
-            >
-              {jett ? (
-                <>
-                  <MessageImages images={images} />
-                  {message.text && (
-                    <div className={cn(images.length > 0 && 'mt-2')}>
-                      <BotMentions text={message.text} />
-                    </div>
-                  )}
-                </>
-              ) : (
+              {message.text && (
+                <Bubble variant='default' align='end' className='max-w-full'>
+                  <BubbleContent className='rounded-[18.5px] border-0 leading-normal whitespace-pre-wrap selection:bg-primary-foreground/25 selection:text-primary-foreground'>
+                    <BotMentions text={message.text} />
+                  </BubbleContent>
+                  {images.length === 0 && reaction}
+                </Bubble>
+              )}
+            </div>
+          ) : (
+            <Bubble variant='muted' align='start' className='max-w-full'>
+              <BubbleContent
+                data-quote={message.id}
+                className='bot-reply rounded-[18.5px] border-0 leading-normal'
+              >
                 <Markdown>{message.text}</Markdown>
-              )}
-            </BubbleContent>
-            {message.reaction && (
-              <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
-                <img src={emojiUrl(message.reaction)} alt={message.reaction} className='size-3' />
-              </span>
-            )}
-          </Bubble>
+              </BubbleContent>
+              {reaction}
+            </Bubble>
+          )}
           <MessageActions
             side={jett ? 'left' : 'right'}
             text={message.text}
@@ -1059,7 +1063,7 @@ function BotComposer({
   className?: string
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
-  const attachments = useImageAttachments(bot.id)
+  const attachments = useImageAttachments(bot.id, { keepFailed: true })
   const staged = attachments.images.length > 0
   const draft = storedDraft.text
   const others = useBots().filter((other) => other.id !== bot.id)
@@ -1075,7 +1079,8 @@ function BotComposer({
   const heightRef = useRef(0)
   const sentRef = useRef(0)
   const calm = useReducedMotion() ?? false
-  const empty = !draft.trim() && !staged
+  // A failed image stays in view but sends nothing.
+  const empty = !draft.trim() && attachments.images.every((image) => image.error)
   useBotPresence(bot.id, !empty)
   const stop = empty && busy
   // Measured as shown, chips and all.
@@ -1114,9 +1119,9 @@ function BotComposer({
         Number(document.timeline.currentTime ?? performance.now())
       )
   })
-  // Replying or staging images stacks the pill like a wrapped draft: images, then the quote, then
-  // the text, each on its own row above the buttons.
-  const rows = stacked || replyTo || staged
+  // Replying stacks the pill like a wrapped draft: the quote, then the text, each on its own row
+  // above the buttons. Staged images take a row of their own on top and leave the text beside them.
+  const rows = stacked || replyTo
   let row = 1
   const imagesRow = staged ? row++ : 0
   const replyRow = replyTo ? row++ : 0
@@ -1129,13 +1134,13 @@ function BotComposer({
       className={cn(
         'grid grid-cols-[auto_1fr_auto] items-center gap-x-1.5 rounded-[20px] bg-popover p-1.5',
         botAccentClass,
-        rows && 'gap-y-1.5',
+        (rows || staged) && 'gap-y-1.5',
         className
       )}
     >
       {staged && (
         <div className='col-span-3 min-w-0' style={{ gridRow: imagesRow }}>
-          <ComposerImages images={attachments.images} onRemove={attachments.remove} />
+          <StagedImages images={attachments.images} onRemove={attachments.remove} />
         </div>
       )}
       {replyTo && (

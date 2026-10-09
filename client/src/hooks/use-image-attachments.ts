@@ -18,6 +18,8 @@ export type ComposerImage = {
   dataUrl?: string
   width?: number
   height?: number
+  // why it can't be sent, for a composer that keeps failed images in view
+  error?: string
 }
 export type ReadyImage = ComposerImage & { dataUrl: string }
 export type ImageAttachments = ReturnType<typeof useImageAttachments>
@@ -87,7 +89,12 @@ function lostNotice(names: readonly string[] | undefined) {
 // A queued message keeps the images it was queued with; an edit changes its text.
 const editingNotice = "Images can't be added while editing a queued message."
 
-export function useImageAttachments(key: string, editing = false) {
+// keepFailed leaves an image that can't be used in the row with its reason, rather than dropping it
+// with a notice under the composer.
+export function useImageAttachments(
+  key: string,
+  { editing = false, keepFailed = false }: { editing?: boolean; keepFailed?: boolean } = {}
+) {
   const { draft, update: updateDraft, read } = useDraft(key)
   const images = draft.images
   const [error, setError] = useState<string>()
@@ -107,17 +114,22 @@ export function useImageAttachments(key: string, editing = false) {
     setError(problem)
   }
 
+  function fail(url: string, problem: string) {
+    if (!keepFailed) return drop(url, problem)
+    patch(url, (image) => ({ ...image, error: problem }))
+  }
+
   async function prepare(url: string, file: File, type: ImageType) {
     const encoded = await encode(file, type).catch(() => undefined)
     if (!current().some((image) => image.url === url)) return
-    if (!encoded) return drop(url, `Couldn't read ${file.name}.`)
+    if (!encoded) return fail(url, `Couldn't read ${file.name}.`)
     const { blob, dataUrl, width, height } = encoded
     if (blob.size > MAX_IMAGE_BYTES) {
-      return drop(url, `${file.name} must be under ${megabytes(MAX_IMAGE_BYTES)}.`)
+      return fail(url, `${file.name} must be under ${megabytes(MAX_IMAGE_BYTES)}.`)
     }
     const others = current().filter((image) => image.url !== url && image.dataUrl)
     if (others.reduce((sum, image) => sum + image.sizeBytes, blob.size) > MAX_TURN_IMAGE_BYTES) {
-      return drop(url, `Images in one message must total under ${megabytes(MAX_TURN_IMAGE_BYTES)}.`)
+      return fail(url, `Images in one message must total under ${megabytes(MAX_TURN_IMAGE_BYTES)}.`)
     }
     const mimeType = isImageType(blob.type) ? blob.type : type
     patch(url, (image) => ({ ...image, mimeType, sizeBytes: blob.size, dataUrl, width, height }))
@@ -154,6 +166,7 @@ export function useImageAttachments(key: string, editing = false) {
     const ready = current().flatMap((image) =>
       image.dataUrl ? [{ ...image, dataUrl: image.dataUrl }] : []
     )
+    for (const image of current()) if (image.error) revokeBlobUrl(image.url)
     update([])
     setError(undefined)
     return ready
@@ -174,7 +187,7 @@ export function useImageAttachments(key: string, editing = false) {
       (error === editingNotice && !editing ? undefined : error) ?? lostNotice(draft.lostImages),
     // why images can't be added now
     refused: editing ? editingNotice : undefined,
-    ready: images.every((image) => image.dataUrl),
+    ready: images.every((image) => image.dataUrl || image.error),
     add,
     remove,
     take,

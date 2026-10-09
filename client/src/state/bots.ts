@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 import { chromeAtom, serverChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
+import { stageSend } from './drafts'
 import { settleWhen, trackCreation, without } from './mutations'
 import { threadAtom } from './threads'
 
@@ -141,7 +142,9 @@ function sendToBot(
   replyTo?: Reply,
   // Images the bot's thread already holds (Retry), or new ones from the composer.
   attachments: readonly Attachment[] = [],
-  images: readonly ReadyImage[] = []
+  images: readonly ReadyImage[] = [],
+  // The composer it came from, which gets it back if the send fails.
+  fromDraft?: string
 ) {
   const message: PendingBotMessage = {
     id: crypto.randomUUID(),
@@ -160,6 +163,12 @@ function sendToBot(
     ],
     sentAt: Date.now(),
   }
+  const staged = stageSend(registry, fromDraft, {
+    text,
+    images,
+    quote: replyTo,
+    sent: { threadId: botId, messageId: message.id },
+  })
   registry.update(pendingMessagesAtom, (map) =>
     new Map(map).set(botId, [...(map.get(botId) ?? noPending), message])
   )
@@ -183,6 +192,7 @@ function sendToBot(
       ).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
+            staged.sent()
             if (listed(registry, botId, message.id)) return drop()
             const stop = registry.subscribe(threadAtom(botId), () => {
               if (!listed(registry, botId, message.id)) return
@@ -193,7 +203,10 @@ function sendToBot(
         ),
         Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
       ),
-    drop
+    () => {
+      drop()
+      if (fromDraft !== undefined) staged.failed(fromDraft)
+    }
   )
   return message.id
 }
