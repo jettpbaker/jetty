@@ -424,6 +424,13 @@ export function ThreadList({
     ]
   )
   const view = `${threadId}:${agentId ?? ''}`
+  // Rows that arrive after the list mounts, and a first message sent just before, carry
+  // data-chat-new, so a chat feel can bring them in.
+  const [seeded] = useState(() => {
+    const now = Date.now()
+    const sent = (row: ThreadRow) => row.kind === 'user' && now - row.item.createdAt < 1000
+    return new Set(rows.flatMap((row) => (sent(row) ? [] : [row.id])))
+  })
   const [saved] = useState(() => {
     const position = positions.get(view)
     const index = rows.findIndex((row) => row.id === position?.anchor?.key)
@@ -803,6 +810,7 @@ export function ThreadList({
               >
                 <div
                   data-chat-row={rows[virtualRow.index]!.kind}
+                  data-chat-new={seeded.has(rows[virtualRow.index]!.id) ? undefined : ''}
                   className={cn(
                     'mx-auto w-full max-w-[708px] px-6',
                     paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'
