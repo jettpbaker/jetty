@@ -50,15 +50,40 @@ export function normalizeTitle(raw: string | null | undefined): string | null {
   return clampTitle(title)
 }
 
+// A PR or issue number: "#123", "PR 123", "pull request #123", "issue 812".
+export const NUMBERED = /(?:#|\b(?:PR|pull request|issue)\s+#?)\d+\b/i
+
+// The last resort when a model keeps a number in: drop it and the brackets or colon around it.
+function withoutNumbers(title: string) {
+  return normalizeTitle(
+    title
+      .replace(/\(\s*(?:#|\b(?:PR|pull request|issue)\s+#?)\d+\s*\)/gi, '')
+      .replace(/(?:#|\b(?:PR|pull request|issue)\s+#?)\d+\b:?/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^[\s:–—-]+|[\s:–—-]+$/g, '')
+  )
+}
+
 export function titleModelTitler(prompt: TitlePrompt, linkedItems: readonly string[] = []): Titler {
-  return (text) =>
-    prompt(TITLE_INSTRUCTIONS, titlePrompt(text, linkedItems)).pipe(
+  const ask = (text: string) =>
+    prompt(TITLE_INSTRUCTIONS, text).pipe(
       Effect.flatMap((reply) => {
         const title = normalizeTitle(reply)
         if (title) return Effect.succeed(title)
         return Effect.fail(new Error(`Title model reply is not a title: ${JSON.stringify(reply)}`))
       })
     )
+  // Models slip PR and issue numbers in despite the rule, so one retry says so, then they're cut.
+  return (text) =>
+    Effect.gen(function* () {
+      const opening = titlePrompt(text, linkedItems)
+      const first = yield* ask(opening)
+      if (!NUMBERED.test(first)) return first
+      const second = yield* ask(
+        `${opening}\n\nYour title "${first}" has a PR or issue number in it. Title it again without one, naming what the work is about.`
+      )
+      return NUMBERED.test(second) ? (withoutNumbers(second) ?? second) : second
+    })
 }
 
 export function firstLineTitler(text: string) {

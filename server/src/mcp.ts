@@ -40,6 +40,7 @@ import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { listSkills } from './skills'
 import { StoreError } from './store'
+import { NUMBERED } from './titler'
 
 const GROK_WORKTREE_NOTE =
   "Can't commit in a worktree yet (its sandbox can't write the repo's git folder). Fine for reading, and for threads in the project checkout."
@@ -151,7 +152,7 @@ const createInput = z.object({
     .max(200)
     .optional()
     .describe(
-      'Sidebar title: a few words naming what the thread is for. You know its purpose better than a title generated from the prompt, which is the fallback.'
+      "Sidebar title: a few words naming what the thread is for, like 'Fix flaky login test'. You know its purpose better than a title generated from the prompt, which is the fallback. Titles never carry PR or issue numbers: if a number is all you know, leave title out and Jetty names the thread from that PR or issue's own title."
     ),
   project: z
     .string()
@@ -433,7 +434,10 @@ export function createMcpHandler(
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
           yield* store.setPermissionMode(id, mode)
-          const title = input.title ?? (input.setup_worktrees ? 'Set up worktrees' : undefined)
+          // A title with a PR or issue number falls back to the titler, which names the work from that
+          // item's own title.
+          const given = input.title && !NUMBERED.test(input.title)
+          const title = given ? input.title : input.setup_worktrees ? 'Set up worktrees' : undefined
           if (title) yield* store.setThreadTitle(id, title)
           yield* store.enqueue(id, {
             id: newId(),
