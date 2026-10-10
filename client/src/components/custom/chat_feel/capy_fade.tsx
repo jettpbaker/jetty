@@ -7,10 +7,26 @@ import { Block, type BlockProps } from 'streamdown'
 // ease-out, over a time fitted to how fast chunks arrive.
 
 const steps = 24
+const borderSides = ['top', 'right', 'bottom', 'left']
 // Text that keeps its own look or acts as a control never fades.
 const excluded = 'pre, code, button, svg, .katex'
+const decorations =
+  'li, input[type="checkbox"], blockquote, hr, table, thead, tr, th, td, [data-streamdown="table-wrapper"], [data-streamdown="table-wrapper"] > div:has(> table)'
 // Elements a block renders at the top of the message, which carry its marker.
-const markable = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'blockquote', 'hr'])
+const markable = new Set([
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'blockquote',
+  'hr',
+  'table',
+])
 
 type HastNode = {
   type: string
@@ -27,12 +43,14 @@ type Segment = {
   ms: number
   step: number
   ranges: StaticRange[]
+  decorations: HTMLElement[]
 }
 
 type Fader = {
   container?: Element
   text: string
   segments: Segment[]
+  seen: WeakSet<Element>
   // The time between chunks, smoothed, and when the last one landed.
   gap: number
   last?: number
@@ -52,14 +70,17 @@ function shade(step: number) {
       const highlight = new Highlight()
       CSS.highlights.set(`capy-fade-${index}`, highlight)
       shades.push(highlight)
-      const share = (1 - (1 - index / steps) ** 1.6) * 100
-      rules += `:is([data-chat-feel='capy'], [data-chat-feel='hybrid']) ::highlight(capy-fade-${index}) { color: color-mix(in oklab, var(--capy-ink) ${share.toFixed(1)}%, transparent); }\n`
+      rules += `:is([data-chat-feel='capy'], [data-chat-feel='hybrid']) ::highlight(capy-fade-${index}) { color: color-mix(in oklab, var(--capy-ink) ${shareAt(index)}, transparent); }\n`
     }
     const sheet = new CSSStyleSheet()
     sheet.replaceSync(rules)
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
   }
   return shades[step]!
+}
+
+function shareAt(step: number) {
+  return `${((1 - (1 - step / steps) ** 1.6) * 100).toFixed(1)}%`
 }
 
 function stepAt(segment: Segment, now: number) {
@@ -71,6 +92,13 @@ function show(segment: Segment, step: number) {
   if (segment.step < steps) for (const range of segment.ranges) shade(segment.step).delete(range)
   segment.step = step
   if (step < steps) for (const range of segment.ranges) shade(step).add(range)
+  for (const element of segment.decorations) {
+    if (step === steps) element.removeAttribute('data-capy-decoration')
+    else {
+      element.setAttribute('data-capy-decoration', '')
+      element.style.setProperty('--capy-decoration-share', shareAt(step))
+    }
+  }
 }
 
 const fading = new Set<Fader>()
@@ -105,6 +133,7 @@ function textOf(container: Element) {
   )
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const textNode = node as Text
+    if (!/\S/.test(textNode.data)) continue
     nodes.push(textNode)
     starts.push(text.length)
     text += textNode.data
@@ -152,7 +181,9 @@ function sync(fader: Fader, container: Element, settle: boolean) {
     show(segment, steps)
     segment.to = Math.min(segment.to, same)
   }
-  const segments = fader.segments.filter((segment) => segment.from < segment.to)
+  const segments = fader.segments.filter(
+    (segment) => segment.from < segment.to || segment.decorations.length > 0
+  )
   if (same < text.length && !settle) {
     if (fader.last !== undefined)
       fader.gap = fader.gap * 0.7 + Math.min(now - fader.last, 1000) * 0.3
@@ -161,6 +192,7 @@ function sync(fader: Fader, container: Element, settle: boolean) {
     const last = segments.at(-1)
     if (text.length <= 64 && first?.from === 0) {
       first.to = text.length
+      for (const segment of segments.slice(1)) first.decorations.push(...segment.decorations)
       segments.length = 1
     } else if (
       last?.to === same &&
@@ -177,7 +209,53 @@ function sync(fader: Fader, container: Element, settle: boolean) {
         ms: Math.min(720, Math.max(280, fader.gap * 8)),
         step: steps,
         ranges: [],
+        decorations: [],
       })
+  }
+  const arriving: { element: HTMLElement; segment: Segment }[] = []
+  for (const element of container.querySelectorAll<HTMLElement>(decorations)) {
+    if (element.closest(excluded) || fader.seen.has(element)) continue
+    fader.seen.add(element)
+    if (settle) continue
+    const index = nodes.findIndex((node) => element.contains(node) && /\S/.test(node.data))
+    const next =
+      index < 0
+        ? nodes.findIndex(
+            (node) => element.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING
+          )
+        : index
+    const offset = next < 0 ? text.length - 1 : starts[next]!
+    if (index >= 0 && offset < same) continue
+    let segment = segments.find((part) => part.from <= offset && offset < part.to)
+    if (!segment) {
+      if (index >= 0) continue
+      segment = {
+        from: text.length,
+        to: text.length,
+        at: now,
+        ms: Math.min(720, Math.max(280, fader.gap * 8)),
+        step: steps,
+        ranges: [],
+        decorations: [],
+      }
+      segments.push(segment)
+    }
+    arriving.push({ element, segment })
+  }
+  const paints = arriving.map(({ element, segment }) => {
+    const style = getComputedStyle(element)
+    return {
+      element,
+      segment,
+      borders: borderSides.map((side) => style.getPropertyValue(`border-${side}-color`)),
+      background: style.backgroundColor,
+    }
+  })
+  for (const { element, segment, borders, background } of paints) {
+    for (const [index, side] of borderSides.entries())
+      element.style.setProperty(`--capy-decoration-${side}`, borders[index]!)
+    element.style.setProperty('--capy-decoration-background', background)
+    segment.decorations.push(element)
   }
   for (const segment of segments) {
     segment.ranges = rangesFor(nodes, starts, segment.from, segment.to)
@@ -207,16 +285,18 @@ function markPlugin(id: string) {
 // mid-reply) shows at once; everything after fades. `mounted` ends the mount.
 export function capyBlocks(text: string) {
   const id = `capy-message-${messages++}`
-  const fader: Fader = { text: '', segments: [], gap: 160 }
+  const fader: Fader = { text: '', segments: [], seen: new WeakSet(), gap: 160 }
   const mark = markPlugin(id)
   let settle = text.length > 0
   function SmoothBlock({ rehypePlugins, ...props }: BlockProps) {
     const plugins = useMemo(() => [...(rehypePlugins ?? []), mark], [rehypePlugins])
     useLayoutEffect(() => {
       if (!supported || reducedMotion.matches) return
-      if (!fader.container?.isConnected)
-        fader.container =
-          document.querySelector(`[data-capy-fade="${id}"]`)?.parentElement ?? undefined
+      if (!fader.container?.isConnected) {
+        const marker = document.querySelector(`[data-capy-fade="${id}"]`)
+        const block = marker?.closest('[data-streamdown="table-wrapper"]') ?? marker
+        fader.container = block?.parentElement ?? undefined
+      }
       if (fader.container) sync(fader, fader.container, settle)
     })
     return <Block {...props} rehypePlugins={plugins} />

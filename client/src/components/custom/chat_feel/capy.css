@@ -3,6 +3,42 @@
    should only touch threads.
    capy_fade.tsx draws the stream's colour fade; this file is type, layout and motion. */
 
+:is([data-chat-feel='capy'], [data-chat-feel='hybrid']) [data-capy-decoration] {
+  border-top-color: color-mix(
+    in oklab,
+    var(--capy-decoration-top) var(--capy-decoration-share),
+    transparent
+  );
+  border-right-color: color-mix(
+    in oklab,
+    var(--capy-decoration-right) var(--capy-decoration-share),
+    transparent
+  );
+  border-bottom-color: color-mix(
+    in oklab,
+    var(--capy-decoration-bottom) var(--capy-decoration-share),
+    transparent
+  );
+  border-left-color: color-mix(
+    in oklab,
+    var(--capy-decoration-left) var(--capy-decoration-share),
+    transparent
+  );
+  background-color: color-mix(
+    in oklab,
+    var(--capy-decoration-background) var(--capy-decoration-share),
+    transparent
+  );
+
+  &::marker {
+    color: color-mix(in oklab, currentColor var(--capy-decoration-share), transparent);
+  }
+
+  &[type='checkbox'] {
+    opacity: calc(var(--capy-decoration-share) / 100%);
+  }
+}
+
 /* Rows that mount in a thread's first 400ms (opening it, switching to it) don't fade in. */
 @property --capy-armed {
   syntax: '<number>';
@@ -43,6 +79,15 @@
   /* What new text fades up to; anything coloured on its own says so below. */
   --capy-ink: var(--foreground);
   animation: capy-arm 0s 400ms both;
+
+  /* currentColor inside a highlight resolves against the highlight's own faded colour. */
+  [data-slot='message'][data-interim-text] {
+    --capy-ink: var(--foreground);
+
+    &[data-interim-muted] {
+      --capy-ink: var(--muted-foreground);
+    }
+  }
 
   /* One 768px column, 736px of text. The list spaces rows 12px apart; a row's margin moves that
      to 6px within a turn and 16px before a user message or marker. */
