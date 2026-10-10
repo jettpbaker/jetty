@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import type { TurnView } from './projection'
 
+import { RollingDuration } from '../rolling_duration'
 import { formatActivityDuration } from '../work_model'
 import { TurnEntry } from './entry'
 import { TurnLabelText } from './label'
@@ -49,10 +50,10 @@ export function TurnRenderer({
             >
               {view.heading.text}
             </span>
-            {duration && (
+            {duration && view.elapsedSeconds !== undefined && (
               <>
                 {' '}
-                for <span className='font-mono'>{duration}</span>
+                for <RollingDuration seconds={view.elapsedSeconds} still={instant} />
               </>
             )}
           </span>
