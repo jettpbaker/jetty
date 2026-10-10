@@ -4,25 +4,40 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { TurnLabel } from './projection'
 
 import '../opencode_text.css'
-import { PaintRoll } from './paint_roll'
+import { RollingNumber } from '../rolling_number'
 
 function template(label: TurnLabel) {
   return label.count === undefined ? label.text : label.text.replace(String(label.count), '{count}')
 }
 
-function common(oldText: string, nextText: string) {
-  const oldChars = Array.from(oldText)
-  const nextChars = Array.from(nextText)
-  let index = 0
+function common(oldText: string, nextText: string, countChanged: boolean) {
+  let start = 0
+  while (start < oldText.length && start < nextText.length && oldText[start] === nextText[start])
+    start++
+  const countAt = oldText.indexOf('{count}')
+  if (countChanged && countAt >= 0 && start > countAt) start = countAt
+  if (start < 2) start = 0
+  let end = 0
   while (
-    index < oldChars.length &&
-    index < nextChars.length &&
-    oldChars[index] === nextChars[index]
+    end < oldText.length - start &&
+    end < nextText.length - start &&
+    oldText[oldText.length - end - 1] === nextText[nextText.length - end - 1]
   )
-    index++
-  return index >= 2 && index < oldChars.length && index < nextChars.length
-    ? oldChars.slice(0, index).join('')
-    : ''
+    end++
+  while (end > 0) {
+    const oldAt = oldText.length - end
+    const nextAt = nextText.length - end
+    if (
+      /\s/.test(oldText[oldAt]!) ||
+      (oldAt > 0 &&
+        nextAt > 0 &&
+        /\s/.test(oldText[oldAt - 1]!) &&
+        /\s/.test(nextText[nextAt - 1]!))
+    )
+      break
+    end--
+  }
+  return { prefix: nextText.slice(0, start), suffix: end ? nextText.slice(-end) : '' }
 }
 
 function LabelPart({ text, label, instant }: { text: string; label: TurnLabel; instant: boolean }) {
@@ -31,7 +46,11 @@ function LabelPart({ text, label, instant }: { text: string; label: TurnLabel; i
     return (
       <>
         {before}
-        <PaintRoll text={String(label.count)} quick instant={instant} />
+        {instant ? (
+          <span className='font-mono tabular-nums'>{label.count}</span>
+        ) : (
+          <RollingNumber value={label.count} className='font-mono' />
+        )}
         {after}
       </>
     )
@@ -74,7 +93,10 @@ export function TurnLabelText({
   const sameWidth = useRef(false)
   const fade = Number(useFadeDuration())
   const previous = paint.previous?.text
-  const prefix = previous === undefined ? '' : common(previous, value)
+  const { prefix, suffix } =
+    previous === undefined
+      ? { prefix: '', suffix: '' }
+      : common(previous, value, paint.previous?.count !== label.count)
   useLayoutEffect(() => {
     const root = rootRef.current
     const slot = slotRef.current
@@ -113,6 +135,8 @@ export function TurnLabelText({
       data-ready='false'
       data-active='false'
       data-v2-swap={previous !== undefined || undefined}
+      data-swap-from={paint.previous?.text.replace('{count}', String(paint.previous.count))}
+      data-swap-to={previous !== undefined ? label.text : undefined}
       aria-label={label.text}
       style={
         {
@@ -135,9 +159,9 @@ export function TurnLabelText({
         }}
       >
         {paint.previous && (
-          <span ref={oldRef} data-slot='tool-status-active' aria-hidden='true'>
+          <span ref={oldRef} data-slot='tool-status-active'>
             <LabelPart
-              text={previous!.slice(prefix.length)}
+              text={previous!.slice(prefix.length, previous!.length - suffix.length)}
               label={paint.previous}
               instant={instant}
             />
@@ -156,9 +180,18 @@ export function TurnLabelText({
               finish()
           }}
         >
-          <LabelPart text={value.slice(prefix.length)} label={label} instant={instant} />
+          <LabelPart
+            text={value.slice(prefix.length, value.length - suffix.length)}
+            label={label}
+            instant={instant}
+          />
         </span>
       </span>
+      {suffix && (
+        <span data-slot='tool-status-suffix' className={shimmer ? 'shimmer' : undefined}>
+          <LabelPart text={suffix} label={label} instant={instant} />
+        </span>
+      )}
     </span>
   )
 }

@@ -30,6 +30,8 @@ export type ThinkingActivity = {
   status: ActivityStatus
   summary: string
   tokens?: number
+  startedAt?: number
+  endedAt?: number
   elapsedSeconds?: number
 }
 export type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }

@@ -210,8 +210,8 @@ function galleryView(id: string, elapsed: number) {
 
 test('thinking projects ticking counts and preserves the total in past tense', () => {
   for (const [elapsed, count] of [
-    [0, 0],
-    [600, 5],
+    [0, 5],
+    [600, 10],
     [1200, 50],
   ]) {
     const row = galleryView('tokens', elapsed!).rows[0]!
@@ -342,4 +342,59 @@ test('thinking supports unknown and singular counts and Bash failures retain des
   expect(row.label.text).toBe('Failed Check the client')
   expect(row.label.failed).toBe(true)
   expect(row.label.mono).toBe(false)
+})
+
+test('empty thinking uses its own timestamps, ticks seconds, and freezes at completion', () => {
+  const thinking = {
+    type: 'thinking' as const,
+    id: 'thinking',
+    status: 'running' as const,
+    summary: '',
+    startedAt: 5000,
+  }
+  const work = {
+    kind: 'work' as const,
+    id: 'work',
+    turnId: 'turn',
+    status: 'running' as const,
+    startedAt: 0,
+    activities: [thinking],
+  }
+  for (const tokens of [undefined, 0]) {
+    for (const [now, text, count] of [
+      [5000, 'Thinking', undefined],
+      [5999, 'Thinking', undefined],
+      [6000, 'Thinking for 1s', 1],
+      [7999, 'Thinking for 2s', 2],
+    ] as const) {
+      const row = projectTurn({
+        work: { ...work, activities: [{ ...thinking, tokens }] },
+        revealDone: false,
+        now,
+      }).rows[0]!
+      expect(row.label.text).toBe(text)
+      expect(row.label.count).toBe(count)
+    }
+    for (const [endedAt, text] of [
+      [5999, 'Thought'],
+      [7200, 'Thought for 2s'],
+    ] as const) {
+      const row = projectTurn({
+        work: {
+          ...work,
+          activities: [{ ...thinking, status: 'complete', tokens, endedAt }],
+        },
+        revealDone: false,
+        now: 20000,
+      }).rows[0]!
+      expect(row.label.text).toBe(text)
+      expect(row.label.tense).toBe('past')
+    }
+  }
+  const tokens = projectTurn({
+    work: { ...work, activities: [{ ...thinking, tokens: 50 }] },
+    revealDone: false,
+    now: 20000,
+  }).rows[0]!
+  expect(tokens.label.text).toBe('Thinking for 50 tokens')
 })

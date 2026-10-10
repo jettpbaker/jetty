@@ -322,6 +322,9 @@ function toActivity(
       status: !running ? 'complete' : sessionActive ? 'running' : 'interrupted',
       summary: item.text,
       tokens: item.tokens,
+      startedAt: item.createdAt,
+      endedAt:
+        item.completedAt ?? (!running && next?.turnId === item.turnId ? next.createdAt : undefined),
       elapsedSeconds: running ? undefined : elapsedSeconds([item], next),
     }
   }

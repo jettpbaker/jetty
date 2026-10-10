@@ -21,7 +21,13 @@
     line-height: inherit;
   }
   [data-component='tool-status-title'] {
+    white-space: pre;
+    [data-slot] {
+      white-space: pre;
+      flex-shrink: 0;
+    }
     [data-slot='tool-status-swap'] {
+      overflow: visible;
       transition-duration: var(--v2-width);
     }
     [data-slot='tool-status-active'],

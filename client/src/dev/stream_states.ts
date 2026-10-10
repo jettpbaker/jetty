@@ -251,9 +251,9 @@ export const streamStates: StreamState[] = [
     'Thinking',
     'tokens',
     'Thinking tokens',
-    'Token deltas land as 0 → 5 → 50.',
-    [...start(), thinking()],
-    [...at(600, delta('think', '', 5)), ...at(1200, delta('think', '', 45))]
+    'Token deltas land as 5 → 10 → 50.',
+    [...start(), thinking('think', 5)],
+    [...at(600, delta('think', '', 5)), ...at(1200, delta('think', '', 40))]
   ),
   card(
     'Thinking',
@@ -270,6 +270,15 @@ export const streamStates: StreamState[] = [
     'The count survives the change to past tense.',
     [...start(), thinking('think', 50)],
     at(600, done('think'))
+  ),
+
+  card(
+    'Thinking',
+    'thought-seconds',
+    'Thinking without tokens → Thought for 2s',
+    'Empty thinking deltas tick the item timer, then preserve its own duration.',
+    start(),
+    [...at(600, thinking()), ...at(1200, delta('think', '')), ...at(2800, done('think'))]
   ),
 
   card(

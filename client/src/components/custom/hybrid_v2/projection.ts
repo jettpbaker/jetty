@@ -64,7 +64,7 @@ function label(verb: string, target = '', present = false, mono = false): TurnLa
   }
 }
 
-function activityRow(entry: WorkEntry, tail: boolean, running: boolean): TurnRow {
+function activityRow(entry: WorkEntry, tail: boolean, running: boolean, now?: number): TurnRow {
   const runningCalls =
     entry.type === 'tools'
       ? entry.calls.filter((call) => call.status === 'running').map((call) => call.id)
@@ -88,21 +88,34 @@ function activityRow(entry: WorkEntry, tail: boolean, running: boolean): TurnRow
     }
   } else if (entry.type === 'thinking') {
     const active = running && tail && entry.status === 'running'
+    const tokens = entry.tokens !== undefined && entry.tokens > 0 ? entry.tokens : undefined
+    const end = entry.endedAt ?? (active ? now : undefined)
+    const seconds = Math.floor(
+      Math.max(
+        0,
+        entry.startedAt !== undefined && end !== undefined
+          ? (end - entry.startedAt) / 1000
+          : (entry.elapsedSeconds ?? 0)
+      )
+    )
+    const count = tokens ?? (seconds >= 1 ? seconds : undefined)
     title = {
       ...label(
         active ? 'Thinking' : 'Thought',
-        entry.tokens === undefined
-          ? ''
-          : `for ${entry.tokens} token${entry.tokens === 1 ? '' : 's'}`,
+        tokens !== undefined
+          ? `for ${tokens} token${tokens === 1 ? '' : 's'}`
+          : seconds >= 1
+            ? `for ${seconds}s`
+            : '',
         active
       ),
-      count: entry.tokens,
+      count,
     }
   } else if (entry.type === 'threads') {
-    title = label(
-      'Created',
-      `${entry.threads.length} thread${entry.threads.length === 1 ? '' : 's'}`
-    )
+    title = {
+      ...label('Created', `${entry.threads.length} thread${entry.threads.length === 1 ? '' : 's'}`),
+      count: entry.threads.length,
+    }
   } else {
     title = label('Updated', 'task list')
   }
@@ -142,7 +155,7 @@ export function projectTurn({
     if (part.kind === 'work') {
       const entries = groupWorkActivities(part.activities, !running || !tail)
       for (const [at, entry] of entries.entries())
-        rows.push(activityRow(entry, tail && at === entries.length - 1, running))
+        rows.push(activityRow(entry, tail && at === entries.length - 1, running, now))
     } else if (part.kind === 'assistant' || part.kind === 'plan') {
       rows.push({
         id: part.id,
