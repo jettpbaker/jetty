@@ -5,7 +5,13 @@ import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
-import { ChatFeelContext, chatFeelNames, chatFeels, pinRootChatFeel } from '@/lib/chat-feel'
+import {
+  ChatFeelContext,
+  ChatSettledContext,
+  chatFeelNames,
+  chatFeels,
+  pinRootChatFeel,
+} from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
 import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
@@ -13,6 +19,8 @@ import { emptyThread } from '@jetty/shared/reducer'
 import { createFileRoute } from '@tanstack/react-router'
 import { Schema } from 'effect'
 import { useEffect, useRef, useState } from 'react'
+
+import './dev.feels.css'
 
 // An experiment: one real transcript replayed at its real speed into four threads at once, each
 // in a chat feel of its own, to compare how they feel.
@@ -92,7 +100,7 @@ function FeelReplay({
   const [thread, setThread] = useState(emptyThread)
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
-  const [seekRun, setSeekRun] = useState(0)
+  const [settled, setSettled] = useState(false)
   // One clock for all four panes: replay time, and the next event due.
   const clock = useRef({ at: 0, next: 0, thread: emptyThread })
 
@@ -123,24 +131,28 @@ function FeelReplay({
   function seek(at: number) {
     setPlaying(false)
     at = Math.max(0, Math.min(duration, Math.round(at)))
-    let state = emptyThread
-    let next = 0
+    setSettled(true)
+    const playhead = clock.current
+    const forward = at >= playhead.at
+    let state = forward ? playhead.thread : emptyThread
+    let next = forward ? playhead.next : 0
     const start = Date.now() - at
-    for (const { t, event } of replay.events) {
-      if (t > at) break
+    while (next < replay.events.length && replay.events[next]!.t <= at) {
+      const { t, event } = replay.events[next]!
       state = land(state, event, next + 1, start + t)
       next++
     }
     clock.current = { at, next, thread: state }
     setThread(state)
     setElapsed(at)
-    setSeekRun((value) => value + 1)
   }
 
   function playPause() {
     if (playing) setPlaying(false)
-    else if (clock.current.next < replay.events.length) setPlaying(true)
-    else onRestart()
+    else if (clock.current.next < replay.events.length) {
+      setSettled(false)
+      setPlaying(true)
+    } else onRestart()
   }
 
   // As the thread page reads it: running while a turn is live, idle once it completes.
@@ -154,8 +166,9 @@ function FeelReplay({
       <div className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'>
         {chatFeels.map((feel, index) => (
           <section
-            key={`${feel}-${seekRun}`}
+            key={feel}
             data-chat-feel={feel}
+            data-chat-settled={settled ? '' : undefined}
             aria-label={chatFeelNames[feel]}
             className='flex min-h-0 min-w-0 flex-col bg-background'
           >
@@ -163,17 +176,19 @@ function FeelReplay({
               {'ABCD'[index]} · {chatFeelNames[feel]}
             </h2>
             <ChatFeelContext value={feel}>
-              <ThreadList
-                threadId={`replay-${run}-${feel}`}
-                items={thread.items}
-                status={thread.status}
-                running={running}
-                outcomes={thread.turnOutcomes}
-                loadouts={thread.turnLoadouts}
-                projectPath={replay.projectPath}
-                provider={replay.provider}
-                onSelectAgent={() => undefined}
-              />
+              <ChatSettledContext value={settled}>
+                <ThreadList
+                  threadId={`replay-${run}-${feel}`}
+                  items={thread.items}
+                  status={thread.status}
+                  running={running}
+                  outcomes={thread.turnOutcomes}
+                  loadouts={thread.turnLoadouts}
+                  projectPath={replay.projectPath}
+                  provider={replay.provider}
+                  onSelectAgent={() => undefined}
+                />
+              </ChatSettledContext>
             </ChatFeelContext>
           </section>
         ))}

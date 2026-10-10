@@ -1,6 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 import type { Transition } from 'motion/react'
 
+import { useChatSettled } from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
 import { useEffect, useState } from 'react'
 
@@ -64,6 +65,7 @@ export function hybridActivity(
 }
 
 export function HybridNow({ activity, hidden }: { activity: string | null; hidden: boolean }) {
+  const settled = useChatSettled()
   const [idleReady, setIdleReady] = useState(false)
   const [wasHidden, setWasHidden] = useState(hidden)
   const [shown, setShown] = useState(() => ({ label: activity, since: Date.now() }))
@@ -88,6 +90,13 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
     const timer = setTimeout(() => setShown({ label: target, since: Date.now() }), delay)
     return () => clearTimeout(timer)
   }, [hidden, target, shown])
+
+  if (settled)
+    return (
+      <div className='hybrid-now activity-header text-muted-foreground' hidden={hidden}>
+        {activity ?? 'Planning next moves'}
+      </div>
+    )
 
   return (
     <div

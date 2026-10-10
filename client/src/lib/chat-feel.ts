@@ -52,6 +52,12 @@ function subscribe(listener: () => void) {
 // A subtree with a feel of its own; its element carries data-chat-feel, so the CSS follows.
 export const ChatFeelContext = createContext<ChatFeel | undefined>(undefined)
 
+export const ChatSettledContext = createContext(false)
+
+export function useChatSettled() {
+  return useContext(ChatSettledContext)
+}
+
 export function useChatFeel() {
   const scoped = useContext(ChatFeelContext)
   const global = useSyncExternalStore(subscribe, getChatFeel)

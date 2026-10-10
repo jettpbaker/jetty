@@ -1,0 +1,12 @@
+[data-chat-settled] {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .rolling-text-out {
+    display: none !important;
+  }
+}

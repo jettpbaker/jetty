@@ -42,7 +42,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
-import { useChatFeel } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -432,6 +432,7 @@ export function ThreadList({
   )
   const view = `${threadId}:${agentId ?? ''}`
   const feel = useChatFeel()
+  const settled = useChatSettled()
   const now = useMemo(
     () => (feel === 'hybrid' ? hybridActivity(rows, items, agentId) : undefined),
     [feel, rows, items, agentId]
@@ -631,6 +632,7 @@ export function ThreadList({
     const element = scroller.current
     const behind = element.scrollHeight - element.clientHeight - element.scrollTop
     const glides =
+      !settled &&
       !reducedMotion.matches &&
       behind < element.clientHeight &&
       landed.current.key === key &&
@@ -646,7 +648,7 @@ export function ThreadList({
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor])
+  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor, settled])
   useEffect(() => () => glider.current?.stop(), [])
 
   // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
@@ -821,7 +823,7 @@ export function ThreadList({
               >
                 <div
                   data-chat-row={rows[virtualRow.index]!.kind}
-                  data-chat-new={seeded.has(rows[virtualRow.index]!.id) ? undefined : ''}
+                  data-chat-new={settled || seeded.has(rows[virtualRow.index]!.id) ? undefined : ''}
                   className={cn(
                     'mx-auto w-full max-w-[708px] px-6',
                     paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'

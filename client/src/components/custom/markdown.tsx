@@ -17,7 +17,7 @@ import {
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
 import { replyShown, usePacedText, useReplyShown } from '@/components/custom/smooth_stream'
-import { useChatFeel } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
@@ -218,6 +218,7 @@ export function Markdown({
   )
   // The chat feel streaming when it mounted; ⌥⌘F remounts the thread to change it.
   const feel = useChatFeel()
+  const settled = useChatSettled()
   const [stream] = useState(() => streamFeels[feel])
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
   const [smooth] = useState(() =>
@@ -227,18 +228,18 @@ export function Markdown({
     () => smooth?.SmoothBlock ?? (html ? HtmlMarkdownBlock : MarkdownBlock)
   )
   useEffect(() => smooth?.mounted(), [smooth])
-  const text = smooth && streaming ? stream.wholeWords(children) : children
-  const shown = usePacedText(text, smooth && from, stream.pacing)
+  const text = !settled && smooth && streaming ? stream.wholeWords(children) : children
+  const shown = usePacedText(text, settled ? undefined : smooth && from, stream.pacing)
   useReplyShown(reply, shown.length)
   return (
     <Streamdown
       className={className}
       components={components}
       linkSafety={linkSafety}
-      isAnimating={streaming || shown !== text}
+      isAnimating={!settled && (streaming || shown !== text)}
       remarkPlugins={html ? htmlRemarkPlugins : remarkPlugins}
       rehypePlugins={html ? htmlRehypePlugins : rehypePlugins}
-      BlockComponent={BlockComponent}
+      BlockComponent={settled ? (html ? HtmlMarkdownBlock : MarkdownBlock) : BlockComponent}
       parseMarkdownIntoBlocksFn={blocksWithDefinitions}
     >
       {shown}

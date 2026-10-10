@@ -3,7 +3,7 @@ import type { ThreadEvent } from '@jetty/shared/events'
 import { cn } from '@/lib/utils'
 import { foldUpdate } from '@/state'
 import { emptyThread } from '@jetty/shared/reducer'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const tracks = [
   { kind: 'user_message', label: 'User', color: 'var(--primary)' },
@@ -69,6 +69,10 @@ export function ReplayTimeline({
   onSeek: (at: number) => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLDivElement>(null)
+  const timeRef = useRef<HTMLSpanElement>(null)
+  const seekFrame = useRef(0)
+  const pending = useRef<number | null>(null)
   const [width, setWidth] = useState(1)
   const [view, setView] = useState({ start: 0, zoom: 1 })
   const lanes = useMemo(() => replayBlocks(events, duration), [events, duration])
@@ -129,18 +133,50 @@ export function ReplayTimeline({
       setView((current) => ({ ...current, start: clamp(elapsed - visible * 0.1, maxStart) }))
   }, [elapsed, playing, start, visible, maxStart])
 
+  function showPlayhead(at: number) {
+    const head = (at - start) * scale
+    if (headRef.current) {
+      headRef.current.style.transform = `translateX(${Math.min(head, width - 1)}px)`
+      headRef.current.hidden = head < 0 || head > width
+    }
+    if (timeRef.current) timeRef.current.textContent = clockText(at)
+    viewportRef.current?.setAttribute('aria-valuenow', String(at))
+    viewportRef.current?.setAttribute('aria-valuetext', clockText(at, 3))
+  }
+
+  useLayoutEffect(() => {
+    showPlayhead(pending.current ?? elapsed)
+  })
+
+  useEffect(() => () => cancelAnimationFrame(seekFrame.current), [])
+
   function scrub(clientX: number) {
     const viewport = viewportRef.current
-    if (viewport)
-      onSeek(start + clamp(clientX - viewport.getBoundingClientRect().left, width) / scale)
+    if (!viewport) return
+    const at = clamp(
+      start + clamp(clientX - viewport.getBoundingClientRect().left, width) / scale,
+      duration
+    )
+    pending.current = at
+    showPlayhead(at)
+    if (seekFrame.current) return
+    seekFrame.current = requestAnimationFrame(() => {
+      seekFrame.current = 0
+      const at = pending.current!
+      pending.current = null
+      onSeek(at)
+    })
   }
 
   const head = (elapsed - start) * scale
   return (
-    <section aria-label='Replay timeline' className='flex shrink-0 flex-col gap-2 px-3 pt-2 pb-3'>
+    <section
+      aria-label='Replay timeline'
+      className='flex shrink-0 cursor-default flex-col gap-2 px-3 pt-2 pb-3'
+    >
       <div className='flex items-center justify-between gap-3 text-xs text-muted-foreground'>
         <span className='font-mono tabular-nums'>
-          {clockText(elapsed)} / {clockText(duration)}
+          <span ref={timeRef}>{clockText(elapsed)}</span> / {clockText(duration)}
         </span>
         <span>← / → 100ms · Shift 1s · ⌘ / Ctrl + scroll to zoom · Scroll to pan</span>
       </div>
@@ -163,7 +199,7 @@ export function ReplayTimeline({
           aria-valuemax={duration}
           aria-valuenow={elapsed}
           aria-valuetext={clockText(elapsed, 3)}
-          className='relative min-w-0 flex-1 touch-none cursor-ew-resize overflow-hidden select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          className='relative min-w-0 flex-1 touch-none cursor-default overflow-hidden select-none outline-none'
           onPointerDown={(event) => {
             if (event.button !== 0) return
             event.preventDefault()
@@ -250,15 +286,15 @@ export function ReplayTimeline({
               })}
             </div>
           ))}
-          {head >= 0 && head <= width && (
-            <div
-              aria-hidden
-              className='pointer-events-none absolute inset-y-0 w-px bg-primary'
-              style={{ left: Math.min(head, width - 1) }}
-            >
-              <div className='absolute top-0 left-1/2 h-3 w-2.5 -translate-x-1/2 rounded-b-sm bg-primary' />
-            </div>
-          )}
+          <div
+            ref={headRef}
+            hidden={head < 0 || head > width}
+            aria-hidden
+            className='pointer-events-none absolute inset-y-0 left-0 w-px bg-primary'
+            style={{ transform: `translateX(${Math.min(head, width - 1)}px)` }}
+          >
+            <div className='absolute top-0 left-1/2 h-3 w-2.5 -translate-x-1/2 rounded-b-sm bg-primary' />
+          </div>
         </div>
       </div>
     </section>

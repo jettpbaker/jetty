@@ -1,4 +1,4 @@
-import { useChatFeel } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
@@ -46,6 +46,7 @@ function WorkHistory({
 }) {
   const reducedMotion = useReducedMotion()
   const feel = useChatFeel()
+  const settled = useChatSettled()
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const shown = useRef(view)
@@ -70,7 +71,7 @@ function WorkHistory({
           element.style.height = ''
           edges(element)
         },
-        reducedMotion ? 0 : 250
+        reducedMotion || settled ? 0 : 250
       )
       return () => clearTimeout(release)
     }
@@ -92,7 +93,7 @@ function WorkHistory({
     observer.observe(element)
     observer.observe(list)
     return () => observer.disconnect()
-  }, [live, view, reducedMotion, feel])
+  }, [live, view, reducedMotion, feel, settled])
 
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
@@ -119,12 +120,14 @@ function WorkHistory({
             <motion.div
               key={entry.id}
               className='overflow-hidden'
-              initial={{ height: 0, opacity: 0 }}
+              initial={settled ? false : { height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               transition={
-                feel === 'capy' || feel === 'hybrid'
-                  ? capyMotion(true, reducedMotion)
-                  : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
+                settled
+                  ? { duration: 0 }
+                  : feel === 'capy' || feel === 'hybrid'
+                    ? capyMotion(true, reducedMotion)
+                    : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
               }
             >
               {entry.type === 'thinking' ? (
@@ -185,6 +188,7 @@ export function WorkBlock({
   assistantStreaming?: boolean
 }) {
   const feel = useChatFeel()
+  const settled = useChatSettled()
   const runningSeconds = useRunningSeconds(
     status === 'running' && !settingUp ? startedAt : undefined
   )
@@ -214,7 +218,7 @@ export function WorkBlock({
     runningSeconds !== undefined ? (
       <span className='inline-flex items-baseline whitespace-pre'>
         {' for '}
-        <RollingDuration seconds={runningSeconds} />
+        <RollingDuration seconds={runningSeconds} still={settled} />
       </span>
     ) : duration ? (
       <>
