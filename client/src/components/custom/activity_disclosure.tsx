@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button'
-import { useWorkIndent } from '@/lib/chat-feel'
 import { useId, useState, type ReactNode } from 'react'
 
 import './work.css'
@@ -28,7 +27,6 @@ export function ActivityDisclosure({
   hasPreview?: boolean
   flushHeader?: boolean
 }) {
-  const indent = useWorkIndent()
   const id = useId()
   const [view, setView] = useState<ActivityView>(defaultView)
   const [previousEnded, setPreviousEnded] = useState(ended)
@@ -49,7 +47,7 @@ export function ActivityDisclosure({
     </span>
   )
   return (
-    <div className='min-w-0' data-work-indent={flushHeader ? indent : undefined}>
+    <div className='min-w-0' data-flush-work={flushHeader || undefined}>
       {(ended ? hasContent : hasPreview) ? (
         <Button
           variant='ghost-text'

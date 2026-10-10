@@ -82,13 +82,6 @@ export function useInterimText() {
   return useContext(InterimTextContext)
 }
 
-export type WorkIndent = 'on' | 'off'
-export const WorkIndentContext = createContext<WorkIndent | undefined>(undefined)
-
-export function useWorkIndent() {
-  return useContext(WorkIndentContext)
-}
-
 export type LiveTurn = 'split' | 'single'
 export const LiveTurnContext = createContext<LiveTurn>('split')
 

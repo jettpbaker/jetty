@@ -26,8 +26,6 @@ import {
   InterimTextContext,
   type InterimText,
   type HybridLine,
-  WorkIndentContext,
-  type WorkIndent,
   MorphDurationContext,
   type MorphDuration,
   chatFeelNames,
@@ -85,7 +83,6 @@ function Feels() {
   const timeWarp = useTimeWarp(scan !== null)
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
-  const [indent, setIndent] = useState<WorkIndent>('on')
   const [tenseChange, setTenseChange] = useState<TenseChange>('smart')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
   const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
@@ -112,8 +109,6 @@ function Feels() {
       onHybridPacing={setHybridPacing}
       hybridLine={hybridLine}
       onHybridLine={setHybridLine}
-      indent={indent}
-      onIndent={setIndent}
       onPick={(name) => setPick(({ run }) => ({ name, run: run + 1 }))}
       onRestart={() => setPick(({ name, run }) => ({ name, run: run + 1 }))}
     />
@@ -150,8 +145,6 @@ function FeelReplay({
   name,
   morphDuration,
   onMorphDuration,
-  indent,
-  onIndent,
   hybridLine,
   onHybridLine,
   tenseChange,
@@ -171,8 +164,6 @@ function FeelReplay({
   name: string
   morphDuration: MorphDuration
   onMorphDuration: (morphDuration: MorphDuration) => void
-  indent: WorkIndent
-  onIndent: (indent: WorkIndent) => void
   interimText: InterimText
   onInterimText: (interimText: InterimText) => void
   tenseChange: TenseChange
@@ -329,68 +320,66 @@ function FeelReplay({
   return (
     <div className='fixed inset-0 z-50 flex flex-col bg-background' onFocus={dropControlFocus}>
       <LiveTurnContext value='single'>
-        <WorkIndentContext value={indent}>
-          <HybridLineContext value={hybridLine}>
-            <InterimTextContext value={interimText}>
-              <div
-                ref={panesRef}
-                className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'
-              >
-                {chatFeels.map((feel, index) => (
-                  <section
-                    key={feel}
-                    data-chat-feel={feel}
-                    data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
-                    data-chat-settled={settled ? '' : undefined}
-                    aria-label={chatFeelNames[feel]}
-                    className={cn(
-                      'flex min-h-0 min-w-0 flex-col bg-background',
-                      expanded === feel && 'col-span-2 row-span-2',
-                      expanded !== null && expanded !== feel && 'hidden'
-                    )}
-                  >
-                    <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
-                      {'ABCD'[index]} · {chatFeelNames[feel]}
-                      <Button
-                        variant='ghost'
-                        size='icon-xs'
-                        className='ml-auto'
-                        aria-label={`${expanded === feel ? 'Minimise' : 'Maximise'} ${chatFeelNames[feel]}`}
-                        aria-pressed={expanded === feel}
-                        {...pressProps(() => setExpanded(expanded === feel ? null : feel))}
-                      >
-                        {expanded === feel ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
-                      </Button>
-                    </h2>
-                    <MorphDurationContext value={feel === 'hybrid' ? morphDuration : '150'}>
-                      <TenseChangeContext value={feel === 'hybrid' ? tenseChange : undefined}>
-                        <ChatFeelContext value={feel}>
-                          <BatchTenseContext value={batchTense}>
-                            <HybridPacingContext value={hybridPacing}>
-                              <ChatSettledContext value={settled}>
-                                <ThreadList
-                                  threadId={`replay-${run}-${feel}`}
-                                  items={thread.items}
-                                  status={thread.status}
-                                  running={running}
-                                  outcomes={thread.turnOutcomes}
-                                  loadouts={thread.turnLoadouts}
-                                  projectPath={replay.projectPath}
-                                  provider={replay.provider}
-                                  onSelectAgent={() => undefined}
-                                />
-                              </ChatSettledContext>
-                            </HybridPacingContext>
-                          </BatchTenseContext>
-                        </ChatFeelContext>
-                      </TenseChangeContext>
-                    </MorphDurationContext>
-                  </section>
-                ))}
-              </div>
-            </InterimTextContext>
-          </HybridLineContext>
-        </WorkIndentContext>
+        <HybridLineContext value={hybridLine}>
+          <InterimTextContext value={interimText}>
+            <div
+              ref={panesRef}
+              className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'
+            >
+              {chatFeels.map((feel, index) => (
+                <section
+                  key={feel}
+                  data-chat-feel={feel}
+                  data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
+                  data-chat-settled={settled ? '' : undefined}
+                  aria-label={chatFeelNames[feel]}
+                  className={cn(
+                    'flex min-h-0 min-w-0 flex-col bg-background',
+                    expanded === feel && 'col-span-2 row-span-2',
+                    expanded !== null && expanded !== feel && 'hidden'
+                  )}
+                >
+                  <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
+                    {'ABCD'[index]} · {chatFeelNames[feel]}
+                    <Button
+                      variant='ghost'
+                      size='icon-xs'
+                      className='ml-auto'
+                      aria-label={`${expanded === feel ? 'Minimise' : 'Maximise'} ${chatFeelNames[feel]}`}
+                      aria-pressed={expanded === feel}
+                      {...pressProps(() => setExpanded(expanded === feel ? null : feel))}
+                    >
+                      {expanded === feel ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
+                    </Button>
+                  </h2>
+                  <MorphDurationContext value={feel === 'hybrid' ? morphDuration : '150'}>
+                    <TenseChangeContext value={feel === 'hybrid' ? tenseChange : undefined}>
+                      <ChatFeelContext value={feel}>
+                        <BatchTenseContext value={batchTense}>
+                          <HybridPacingContext value={hybridPacing}>
+                            <ChatSettledContext value={settled}>
+                              <ThreadList
+                                threadId={`replay-${run}-${feel}`}
+                                items={thread.items}
+                                status={thread.status}
+                                running={running}
+                                outcomes={thread.turnOutcomes}
+                                loadouts={thread.turnLoadouts}
+                                projectPath={replay.projectPath}
+                                provider={replay.provider}
+                                onSelectAgent={() => undefined}
+                              />
+                            </ChatSettledContext>
+                          </HybridPacingContext>
+                        </BatchTenseContext>
+                      </ChatFeelContext>
+                    </TenseChangeContext>
+                  </MorphDurationContext>
+                </section>
+              ))}
+            </div>
+          </InterimTextContext>
+        </HybridLineContext>
       </LiveTurnContext>
       <div className='flex h-10 shrink-0 items-center gap-1 border-t px-2'>
         <Button
@@ -500,18 +489,6 @@ function FeelReplay({
               { value: 'b', label: 'B' },
             ]}
             onChange={onInterimText}
-          />
-        </div>
-        <div className='flex items-center gap-1'>
-          <span className='text-xs text-muted-foreground'>Indent:</span>
-          <SettingsSegmented
-            label='Indent'
-            value={indent}
-            options={[
-              { value: 'on', label: 'On' },
-              { value: 'off', label: 'Off' },
-            ]}
-            onChange={onIndent}
           />
         </div>
       </div>
