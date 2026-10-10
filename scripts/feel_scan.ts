@@ -9,10 +9,12 @@ import { createGzip } from 'node:zlib'
 import { chromium } from 'playwright-core'
 
 // bun run feel:scan <output> [fold] [each|hold|count] [transcript...]
-// FEEL_ENGINE=today|v2 FEEL_TENSE_CHANGE=roll|crossfade|opencode FEEL_ROWS=animate|instant FEEL_REDUCED_MOTION=reduce
-const tenseChange = process.env.FEEL_TENSE_CHANGE ?? 'crossfade'
+// FEEL_ENGINE=today|v2 (v2 always uses after-reveal + count + opencode)
+// FEEL_TENSE_CHANGE=roll|crossfade|opencode FEEL_ROWS=animate|instant FEEL_REDUCED_MOTION=reduce
+const engine = process.env.FEEL_ENGINE ?? 'v2'
+if (!['today', 'v2'].includes(engine)) throw new Error(`Unknown engine: ${engine}`)
+const tenseChange = engine === 'v2' ? 'opencode' : (process.env.FEEL_TENSE_CHANGE ?? 'crossfade')
 const rows = process.env.FEEL_ROWS ?? 'animate'
-const engine = process.env.FEEL_ENGINE ?? 'today'
 const reducedMotion = process.env.FEEL_REDUCED_MOTION === 'reduce'
 if (!['roll', 'crossfade', 'opencode'].includes(tenseChange))
   throw new Error(`Unknown tense change: ${tenseChange}`)
@@ -20,7 +22,7 @@ if (!['animate', 'instant'].includes(rows)) throw new Error(`Unknown rows: ${row
 const root = resolve(import.meta.dir, '..')
 const frameMs = 16.7
 const viewport = { width: 1440, height: 900 }
-const batchLabel = process.argv[4] ?? 'hold'
+const batchLabel = engine === 'v2' ? 'count' : (process.argv[4] ?? 'hold')
 if (!['each', 'hold', 'count'].includes(batchLabel))
   throw new Error(`Unknown batch label: ${batchLabel}`)
 const availableTranscripts = [
@@ -33,7 +35,7 @@ for (const transcript of transcripts) {
   if (!availableTranscripts.includes(transcript))
     throw new Error(`Unknown transcript: ${transcript}`)
 }
-const fold = process.argv[3] ?? 'after-reveal'
+const fold = engine === 'v2' ? 'after-reveal' : (process.argv[3] ?? 'after-reveal')
 if (!['overlap', 'after-reveal', 'first'].includes(fold)) throw new Error(`Unknown fold: ${fold}`)
 
 type AnswerTiming = {
@@ -83,6 +85,18 @@ type Snapshot = {
   replayMs: number
   workRows: WorkRowState[]
   liveRows: number
+  semantics: {
+    id: string
+    cursor: string
+    rows: {
+      id: string
+      label: string
+      text: string
+      present: boolean
+      live: boolean
+      running: string[]
+    }[]
+  }[]
   swaps: SwapFrame[]
   slots: {
     id: string
@@ -113,6 +127,7 @@ type Finding = {
     | 'empty-hand-off'
     | 'stale-live-row'
     | 'live-row-overlap'
+    | 'projection'
   property: string
   before: unknown
   during: unknown
@@ -195,6 +210,10 @@ function installSampler(answers: AnswerTiming[]) {
     const path = []
     let node: HTMLElement | null = element
     while (node && node !== content) {
+      if (node.hasAttribute('data-v2-id')) {
+        path.unshift(`view[${node.dataset.v2Id}]`)
+        break
+      }
       if (node.hasAttribute('data-index')) {
         path.unshift(`row[${node.dataset.index}]`)
         break
@@ -270,7 +289,8 @@ function installSampler(answers: AnswerTiming[]) {
         .filter(
           (attr) =>
             /^(data-|aria-|role$)/.test(attr.name) &&
-            !['data-chat-new', 'data-discrete-running'].includes(attr.name)
+            !['data-chat-new', 'data-discrete-running'].includes(attr.name) &&
+            !attr.name.startsWith('data-v2-')
         )
         .map((attr) => `${attr.name}=${attr.value}`)
         .join(' ')
@@ -336,6 +356,11 @@ function installSampler(answers: AnswerTiming[]) {
       const work = content.querySelector(`[data-work-turn="${answer.turnId}"]`)
       const disclosure = work?.querySelector('[data-flush-work]')
       const body = disclosure?.querySelector<HTMLElement>(':scope > [aria-hidden]')
+      if (work?.getAttribute('data-v2-folded') === 'true') {
+        answer.foldStart ??= now
+        const rows = [...work.querySelectorAll<HTMLElement>('[data-v2-row]')]
+        if (rows.every((row) => row.getBoundingClientRect().height === 0)) answer.foldEnd ??= now
+      }
       if (body?.getAttribute('aria-hidden') === 'true') {
         answer.foldStart ??= now
         if (body.getBoundingClientRect().height === 0) answer.foldEnd ??= now
@@ -516,6 +541,18 @@ function installSampler(answers: AnswerTiming[]) {
       replayMs: replay.ms,
       workRows,
       liveRows: workRows.filter((row) => row.live).length,
+      semantics: [...content.querySelectorAll<HTMLElement>('[data-v2-turn]')].map((turn) => ({
+        id: turn.dataset.workTurn!,
+        cursor: turn.dataset.v2Cursor!,
+        rows: [...turn.querySelectorAll<HTMLElement>('[data-v2-row]')].map((row) => ({
+          id: row.dataset.v2Row!,
+          label: row.dataset.v2Label!,
+          text: textOf(row.querySelector('.activity-header') ?? row).trim(),
+          present: row.dataset.v2Kind === 'activity' && row.dataset.v2Tense === 'present',
+          live: row.dataset.v2Live === 'true',
+          running: row.dataset.v2Running?.split(',').filter(Boolean) ?? [],
+        })),
+      })),
       swaps: [
         ...content.querySelectorAll<HTMLElement>('[data-component="tool-status-title"]'),
       ].flatMap((title) => {
@@ -639,8 +676,25 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
   }
   for (let index = 0; index < frames.length; index++) {
     const running = frames[index]!.discrete
-    if (running.length > 1 && (index === 0 || frames[index - 1]!.discrete.length <= 1))
+    if (
+      engine === 'today' &&
+      running.length > 1 &&
+      (index === 0 || frames[index - 1]!.discrete.length <= 1)
+    )
       add(index, index, 'discrete transitions', 'overlap', 'running', 1, running, 1)
+  }
+  for (const [index, frame] of frames.entries()) {
+    for (const turn of frame.semantics) {
+      const live = turn.rows.filter((row) => row.live)
+      if (live.length > 1 || (live.length === 1 && turn.cursor !== live[0]!.id))
+        add(index, index, turn.id, 'projection', 'cursor', 1, live, turn.cursor)
+      for (const [at, row] of turn.rows.entries()) {
+        if (row.present && at < turn.rows.length - 1 && !row.running.length)
+          add(index, index, row.label, 'projection', 'tense', 'past', row, 'past')
+        if (row.label && row.label !== row.text)
+          add(index, index, row.label, 'projection', 'label', row.label, row.text, row.label)
+      }
+    }
   }
   for (let index = 1; index < frames.length; index++) {
     for (const slot of frames[index - 1]!.slots) {
@@ -947,7 +1001,7 @@ function freePort() {
 async function waitFor(url: string) {
   for (let attempt = 0; attempt < 600; attempt++) {
     try {
-      if ((await fetch(url)).ok) return
+      if ((await fetch(url, { signal: AbortSignal.timeout(2000) })).ok) return
     } catch {}
     await Bun.sleep(100)
   }
@@ -956,7 +1010,7 @@ async function waitFor(url: string) {
 
 async function prepare(page: Page, url: string, transcript: string, answers: AnswerTiming[]) {
   await page.goto(
-    `${url}/dev/feels?scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&tenseChange=${tenseChange}&rows=${rows}&engine=${encodeURIComponent(engine)}&perf=off`
+    `${url}/dev/feels?engine=${engine}&scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&tenseChange=${tenseChange}&rows=${rows}&perf=off`
   )
   await page.waitForLoadState('networkidle')
   await page.evaluate(async () => {
@@ -1024,7 +1078,7 @@ async function main() {
       )
     }
     const url = `http://localhost:${clientPort}`
-    await Promise.all([waitFor(`http://localhost:${serverPort}`), waitFor(url)])
+    await Promise.all([waitFor(`http://127.0.0.1:${serverPort}`), waitFor(url)])
     const cache = join(homedir(), 'Library/Caches/ms-playwright')
     const shells = [
       ...new Bun.Glob(
@@ -1202,6 +1256,10 @@ async function main() {
         }, {}),
       })
       console.log(JSON.stringify(semantics.at(-1)))
+      await Bun.write(
+        join(output, `${transcript}.findings.json`),
+        JSON.stringify(detected, null, 2)
+      )
       console.log(JSON.stringify(concurrency.at(-1)))
       findings.push(...detected)
       console.log(
@@ -1285,7 +1343,7 @@ async function main() {
     )
     await Bun.write(
       join(output, 'report.md'),
-      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; ${tenseChange} tense; ${rows} rows; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\nSemantic live rows (violating frames / row-pair frames / invalid multiple-live frames / max live rows):\n${semantics.map((entry) => `- ${entry.transcript}: ${entry.violationFrames} / ${entry.rowPairFrames} / ${entry.overlapFrames} / ${entry.maxLiveRows}`).join('\n')}\n\n${lines.join('\n')}\n`
+      `# Hybrid ${engine} feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; ${tenseChange} tense; ${rows} rows; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\nSemantic live rows (violating frames / row-pair frames / invalid multiple-live frames / max live rows):\n${semantics.map((entry) => `- ${entry.transcript}: ${entry.violationFrames} / ${entry.rowPairFrames} / ${entry.overlapFrames} / ${entry.maxLiveRows}`).join('\n')}\n\n${lines.join('\n')}\n`
     )
     console.log(`Report: ${output}`)
   } finally {

@@ -17,7 +17,15 @@ for (const name of ['one-turn', 'two-turns', 'opus-real']) {
       let sandboxChecked = false
       let previous = new Map<string, TurnView>()
       for (const [index, { t, event }] of replay.events.entries()) {
-        state = applyEvent(state, { seq: index + 1, ts: t, event: decode(event) })
+        const decoded = decode(event)
+        state = applyEvent(state, {
+          seq: index + 1,
+          ts: t,
+          event:
+            decoded.type === 'item.started'
+              ? { ...decoded, item: { ...decoded.item, createdAt: t } }
+              : decoded,
+        })
         const rows = singleTurnRows(
           build(state.items, {
             status: state.status,
@@ -36,7 +44,9 @@ for (const name of ['one-turn', 'two-turns', 'opus-real']) {
           if (work.kind !== 'work') continue
           const next = rows[at + 1]
           const answer = next?.kind === 'assistant' || next?.kind === 'plan' ? next : undefined
-          const view = projectTurn({ work, answer, revealDone: false })
+          const view = projectTurn({ work, answer, revealDone: false, now: t })
+          if (view.elapsedSeconds !== undefined)
+            expect(view.elapsedSeconds).toBeGreaterThanOrEqual(0)
           current.set(work.id, view)
           expect(
             view.rows.filter((row) => row.live).length + Number(view.now !== null)
