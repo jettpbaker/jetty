@@ -36,29 +36,12 @@
     .rolling-text-in {
       animation:
         tw-shimmer 1s linear infinite,
-        hybrid-now-in 300ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+        var(--rolling-text-in);
     }
     .rolling-text-out {
       display: block;
-      animation: hybrid-now-out 300ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+      animation: var(--rolling-text-out);
     }
-  }
-}
-
-@keyframes hybrid-now-in {
-  from {
-    transform: translateY(calc(100% + 6px));
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-@keyframes hybrid-now-out {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(calc(-100% - 6px));
   }
 }
 
