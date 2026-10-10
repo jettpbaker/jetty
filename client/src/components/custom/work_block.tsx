@@ -83,7 +83,6 @@ function WorkHistory({
       let height = feel === 'hybrid' ? 224 : 0
       if (feel !== 'hybrid')
         for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
-      element.style.height = feel === 'hybrid' ? `${height}px` : ''
       element.style.maxHeight = `${height}px`
       if (pinned.current) element.scrollTop = element.scrollHeight
       edges(element)
