@@ -45,6 +45,8 @@ type Snapshot = {
   elements: ElementState[]
   shifts: unknown[]
   timings: AnswerTiming[]
+  discrete: string[]
+  queue: { maxWait: number; example?: unknown }
 }
 type Finding = {
   transcript: string
@@ -53,7 +55,7 @@ type Finding = {
   endFrame: number
   element: string
   id: string
-  kind: 'shift' | 'height-dip' | 'flash' | 'remount' | 'text-retraction'
+  kind: 'shift' | 'height-dip' | 'flash' | 'remount' | 'text-retraction' | 'overlap'
   property: string
   before: unknown
   during: unknown
@@ -73,6 +75,7 @@ function installSampler(answers: AnswerTiming[]) {
   const shifts: unknown[] = []
   const nodes = new WeakMap<Element, number>()
   let serial = 0
+  const previousMotion = new WeakMap<Element, string>()
   const outgoing = '[aria-hidden="true"].rolling-text-out, [aria-hidden="true"].absolute'
 
   function textOf(element: Element): string {
@@ -197,7 +200,11 @@ function installSampler(answers: AnswerTiming[]) {
       }
       const rect = element.getBoundingClientRect()
       const attrs = [...element.attributes]
-        .filter((attr) => /^(data-|aria-|role$)/.test(attr.name) && attr.name !== 'data-chat-new')
+        .filter(
+          (attr) =>
+            /^(data-|aria-|role$)/.test(attr.name) &&
+            !['data-chat-new', 'data-discrete-running'].includes(attr.name)
+        )
         .map((attr) => `${attr.name}=${attr.value}`)
         .join(' ')
       const classes = [...element.classList]
@@ -258,7 +265,53 @@ function installSampler(answers: AnswerTiming[]) {
       if (!bubble.querySelector('.markdown-streaming') && !animating(bubble))
         answer.revealEnd ??= now
     }
+    const discrete = new Set<string>()
+    for (const animation of pane.getAnimations({ subtree: true })) {
+      const effect = animation.effect as KeyframeEffect | null
+      const timing = effect?.getComputedTiming()
+      const element = effect?.target
+      if (
+        !(element instanceof HTMLElement) ||
+        !timing ||
+        timing.iterations !== 1 ||
+        timing.progress === null ||
+        timing.progress >= 1
+      )
+        continue
+      const name = animation instanceof CSSAnimation ? animation.animationName : ''
+      const property = animation instanceof CSSTransition ? animation.transitionProperty : ''
+      if (name.startsWith('rolling-text-')) {
+        const owner = element.closest<HTMLElement>('.rolling-text-window')
+        if (owner) discrete.add(identity(owner))
+      } else if (
+        property === 'color' &&
+        element.matches('[data-interim-text], [data-interim-answer]')
+      ) {
+        discrete.add(identity(element))
+      }
+    }
+    for (const element of content.querySelectorAll<HTMLElement>('.overflow-hidden[style]')) {
+      if (!element.style.height || !element.style.opacity) continue
+      const stamp = element.style.height + ':' + element.style.opacity
+      const previous = previousMotion.get(element)
+      previousMotion.set(element, stamp)
+      if (
+        element.dataset.discreteRunning === 'true' ||
+        (!element.hasAttribute('data-discrete-running') &&
+          previous !== undefined &&
+          previous !== stamp &&
+          element.style.height !== 'auto')
+      )
+        discrete.add(identity(element))
+    }
+    const queue = (
+      pane.querySelector('[data-chat-thread]') as HTMLElement & {
+        feelQueue?: { maxWait: number; example?: unknown }
+      }
+    )?.feelQueue ?? { maxWait: 0 }
     return {
+      discrete: [...discrete],
+      queue: { ...queue },
       height: content.offsetHeight,
       elements,
       shifts: shifts.splice(0),
@@ -302,6 +355,11 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
       after,
       images: [frame - 1, frame, endFrame + 1].map((at) => `frames/${transcript}-${at}.png`),
     })
+  }
+  for (let index = 0; index < frames.length; index++) {
+    const running = frames[index]!.discrete
+    if (running.length > 1 && (index === 0 || frames[index - 1]!.discrete.length <= 1))
+      add(index, index, 'discrete transitions', 'overlap', 'running', 1, running, 1)
   }
   // Consecutive movement belongs to a grow-in; only isolated nudges are candidates.
   for (let index = 1; index < frames.length - 3; index++) {
@@ -443,6 +501,16 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
               (typeof before === 'string' &&
                 /^[\d,.]+$/.test(before) &&
                 Number(current.replaceAll(',', '')) >= Number(before.replaceAll(',', ''))))
+          const counterLabelGrowth =
+            property === 'text' &&
+            element?.counter &&
+            typeof current === 'string' &&
+            /\d/.test(current) &&
+            [before, next].some(
+              (value) =>
+                typeof value === 'string' &&
+                value.replace(/[\d,.]+/g, '#') === current.replace(/[\d,.]+/g, '#')
+            )
           const textAnimation =
             property === 'text' &&
             [start - 1, start, index].some((at) => maps[at]?.get(id)?.textAnimating)
@@ -466,6 +534,7 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
             !fadeIn &&
             !growth &&
             !countGrowth &&
+            !counterLabelGrowth &&
             !textAnimation &&
             !foldingDisclosure &&
             !completedLink
@@ -623,6 +692,14 @@ async function main() {
     await page.setViewportSize(viewport)
     const cdp = await context.newCDPSession(page)
     const findings: Finding[] = []
+    const concurrency: {
+      transcript: string
+      maxConcurrent: number
+      exampleFrame: number
+      ms: number
+      running: string[]
+      queue: Snapshot['queue']
+    }[] = []
     const timings: { transcript: string; answers: AnswerTiming[] }[] = []
     const crossChecks: { transcript: string; frame: number; entries: unknown[] }[] = []
     for (const transcript of transcripts) {
@@ -660,12 +737,28 @@ async function main() {
         disk.on('error', reject)
       })
       timings.push({ transcript, answers: frames.at(-1)!.timings })
+      const maxConcurrent = Math.max(...frames.map((frame) => frame.discrete.length))
+      const exampleFrame = frames.findIndex((frame) => frame.discrete.length === maxConcurrent)
+      concurrency.push({
+        transcript,
+        maxConcurrent,
+        exampleFrame,
+        ms: exampleFrame * frameMs,
+        running: frames[exampleFrame]!.discrete,
+        queue: frames.at(-1)!.queue,
+      })
       const detected = detect(transcript, frames)
+      console.log(JSON.stringify(concurrency.at(-1)))
       findings.push(...detected)
       console.log(`${transcript}: ${detected.length} findings; rerunning for crops`)
+      const lagFrame = Math.round(
+        ((frames.at(-1)!.queue.example as { started?: number } | undefined)?.started ?? 0) / frameMs
+      )
       const targets = new Set(
         detected.flatMap((finding) => [finding.frame - 1, finding.frame, finding.endFrame + 1])
       )
+      targets.add(exampleFrame)
+      if (Number.isFinite(lagFrame)) targets.add(lagFrame)
       await prepare(page, url, transcript, answers)
       for (let index = 0; index <= count; index++) {
         const snapshot =
@@ -694,6 +787,7 @@ async function main() {
     )
     const report = {
       fold,
+      concurrency,
       timings,
       frameMs,
       viewport,
@@ -702,13 +796,19 @@ async function main() {
       layoutShifts: crossChecks,
     }
     await Bun.write(join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
+    const summary = concurrency.map(({ transcript, maxConcurrent, queue, exampleFrame }) => {
+      const lagFrame = Math.round(
+        ((queue.example as { started?: number } | undefined)?.started ?? 0) / frameMs
+      )
+      return `| ${transcript} | ${maxConcurrent} | ${queue.maxWait.toFixed(1)}ms | [running](frames/${transcript}-${exampleFrame}.png) / [queue release](frames/${transcript}-${lagFrame}.png) |`
+    })
     const lines = findings.map(
       (finding) =>
         `- ${finding.transcript} · ${finding.ms}ms · frame ${finding.frame} · ${finding.kind} ${finding.property} · ${finding.id} · ${finding.element.replace(/\|/g, '\\|')} · ${JSON.stringify(finding.before)} → ${JSON.stringify(finding.during)} → ${JSON.stringify(finding.after)} · ${finding.images.map((path, index) => `[${['before', 'during', 'after'][index]}](${path})`).join(' / ')}`
     )
     await Bun.write(
       join(output, 'report.md'),
-      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n${lines.join('\n')}\n`
+      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\n${lines.join('\n')}\n`
     )
     console.log(`Report: ${output}`)
   } finally {
