@@ -1,9 +1,12 @@
-import { useChatSettled } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled, useMorphDuration } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { useState, type ReactNode } from 'react'
 import { TextMorph } from 'torph/react'
 
+import { capyEase } from './chat_feel/capy'
 import './rolling_text.css'
+
+const morphEase = `cubic-bezier(${capyEase.join(', ')})`
 
 export function TenseText({
   children: target,
@@ -23,6 +26,8 @@ export function TenseText({
   activeContent?: ReactNode
 }) {
   const settled = useChatSettled()
+  const feel = useChatFeel()
+  const morphDuration = useMorphDuration()
   const [text, setText] = useState({
     current: target,
     active,
@@ -67,6 +72,8 @@ export function TenseText({
         <TextMorph
           className={cn(shimmer && active && 'shimmer')}
           disabled={settled || !morph || active}
+          duration={feel === 'hybrid' ? Number(morphDuration) : undefined}
+          ease={feel === 'hybrid' ? morphEase : undefined}
           respectReducedMotion
         >
           {mono ? '' : target}
@@ -74,6 +81,8 @@ export function TenseText({
         <TextMorph
           className={cn('font-mono', shimmer && active && 'shimmer')}
           disabled={settled || !morph || active}
+          duration={feel === 'hybrid' ? Number(morphDuration) : undefined}
+          ease={feel === 'hybrid' ? morphEase : undefined}
           respectReducedMotion
         >
           {mono ? target : ''}

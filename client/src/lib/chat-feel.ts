@@ -112,3 +112,10 @@ export const TenseChangeContext = createContext<TenseChange | undefined>(undefin
 export function useTenseChange() {
   return useContext(TenseChangeContext)
 }
+
+export type MorphDuration = '150' | '300'
+export const MorphDurationContext = createContext<MorphDuration>('150')
+
+export function useMorphDuration() {
+  return useContext(MorphDurationContext)
+}

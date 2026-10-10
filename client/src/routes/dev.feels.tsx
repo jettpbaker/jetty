@@ -27,7 +27,8 @@ import {
   type HybridLine,
   WorkIndentContext,
   type WorkIndent,
-  type LiveTurn,
+  MorphDurationContext,
+  type MorphDuration,
   chatFeelNames,
   chatFeels,
   type ChatFeel,
@@ -82,7 +83,7 @@ function Feels() {
   const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
   const [interimText, setInterimText] = useState<InterimText>('b')
-  const [liveTurn, setLiveTurn] = useState<LiveTurn>('single')
+  const [morphDuration, setMorphDuration] = useState<MorphDuration>('150')
   useEffect(() => pinRootChatFeel(), [])
   return (
     <FeelReplay
@@ -91,8 +92,8 @@ function Feels() {
       name={pick.name}
       speed={speed}
       onSpeed={setSpeed}
-      liveTurn={liveTurn}
-      onLiveTurn={setLiveTurn}
+      morphDuration={morphDuration}
+      onMorphDuration={setMorphDuration}
       interimText={interimText}
       onInterimText={setInterimText}
       tenseChange={tenseChange}
@@ -128,8 +129,8 @@ function FeelReplay({
   name,
   speed,
   onSpeed,
-  liveTurn,
-  onLiveTurn,
+  morphDuration,
+  onMorphDuration,
   indent,
   onIndent,
   hybridLine,
@@ -149,8 +150,8 @@ function FeelReplay({
   name: string
   speed: Speed
   onSpeed: (speed: Speed) => void
-  liveTurn: LiveTurn
-  onLiveTurn: (liveTurn: LiveTurn) => void
+  morphDuration: MorphDuration
+  onMorphDuration: (morphDuration: MorphDuration) => void
   indent: WorkIndent
   onIndent: (indent: WorkIndent) => void
   interimText: InterimText
@@ -277,7 +278,7 @@ function FeelReplay({
 
   return (
     <div className='fixed inset-0 z-50 flex flex-col bg-background'>
-      <LiveTurnContext value={liveTurn}>
+      <LiveTurnContext value='single'>
         <WorkIndentContext value={indent}>
           <HybridLineContext value={hybridLine}>
             <InterimTextContext value={interimText}>
@@ -311,27 +312,29 @@ function FeelReplay({
                         {expanded === feel ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
                       </Button>
                     </h2>
-                    <TenseChangeContext value={feel === 'hybrid' ? tenseChange : undefined}>
-                      <ChatFeelContext value={feel}>
-                        <BatchTenseContext value={batchTense}>
-                          <HybridPacingContext value={hybridPacing}>
-                            <ChatSettledContext value={settled}>
-                              <ThreadList
-                                threadId={`replay-${run}-${feel}`}
-                                items={thread.items}
-                                status={thread.status}
-                                running={running}
-                                outcomes={thread.turnOutcomes}
-                                loadouts={thread.turnLoadouts}
-                                projectPath={replay.projectPath}
-                                provider={replay.provider}
-                                onSelectAgent={() => undefined}
-                              />
-                            </ChatSettledContext>
-                          </HybridPacingContext>
-                        </BatchTenseContext>
-                      </ChatFeelContext>
-                    </TenseChangeContext>
+                    <MorphDurationContext value={feel === 'hybrid' ? morphDuration : '150'}>
+                      <TenseChangeContext value={feel === 'hybrid' ? tenseChange : undefined}>
+                        <ChatFeelContext value={feel}>
+                          <BatchTenseContext value={batchTense}>
+                            <HybridPacingContext value={hybridPacing}>
+                              <ChatSettledContext value={settled}>
+                                <ThreadList
+                                  threadId={`replay-${run}-${feel}`}
+                                  items={thread.items}
+                                  status={thread.status}
+                                  running={running}
+                                  outcomes={thread.turnOutcomes}
+                                  loadouts={thread.turnLoadouts}
+                                  projectPath={replay.projectPath}
+                                  provider={replay.provider}
+                                  onSelectAgent={() => undefined}
+                                />
+                              </ChatSettledContext>
+                            </HybridPacingContext>
+                          </BatchTenseContext>
+                        </ChatFeelContext>
+                      </TenseChangeContext>
+                    </MorphDurationContext>
                   </section>
                 ))}
               </div>
@@ -352,80 +355,6 @@ function FeelReplay({
           <Refresh01Icon />
         </Button>
         <div className='flex-1' />
-        <span className='text-xs text-muted-foreground'>Live turn:</span>
-        <SettingsSegmented
-          label='Live turn'
-          value={liveTurn}
-          options={[
-            { value: 'split', label: 'Split' },
-            { value: 'single', label: 'Single' },
-          ]}
-          onChange={onLiveTurn}
-        />
-        <span className='text-xs text-muted-foreground'>Hybrid line:</span>
-        <SettingsSegmented
-          label='Hybrid line'
-          value={hybridLine}
-          options={[
-            { value: 'today', label: 'Today' },
-            { value: '2a', label: '2a' },
-            { value: '2b', label: '2b' },
-            { value: 'both', label: 'Both' },
-          ]}
-          onChange={onHybridLine}
-        />
-        <span className='text-xs text-muted-foreground'>Batch tense:</span>
-        <SettingsSegmented
-          label='Batch tense'
-          value={batchTense}
-          options={[
-            { value: 'now', label: 'Now' },
-            { value: 'open', label: 'Open' },
-          ]}
-          onChange={onBatchTense}
-        />
-        <span className='text-xs text-muted-foreground'>Tense change:</span>
-        <SettingsSegmented
-          label='Tense change'
-          value={tenseChange}
-          options={[
-            { value: 'roll', label: 'Roll' },
-            { value: 'torph', label: 'Torph' },
-          ]}
-          onChange={onTenseChange}
-        />
-        <span className='text-xs text-muted-foreground'>Hybrid pacing:</span>
-        <SettingsSegmented
-          label='Hybrid pacing'
-          value={hybridPacing}
-          options={[
-            { value: 'none', label: 'None' },
-            { value: 'cursor', label: 'Cursor' },
-            { value: 'jetty', label: 'Jetty' },
-          ]}
-          onChange={onHybridPacing}
-        />
-        <span className='text-xs text-muted-foreground'>Interim text:</span>
-        <SettingsSegmented
-          label='Interim text'
-          value={interimText}
-          options={[
-            { value: 'today', label: 'Today' },
-            { value: 'a', label: 'A' },
-            { value: 'b', label: 'B' },
-          ]}
-          onChange={onInterimText}
-        />
-        <span className='text-xs text-muted-foreground'>Indent:</span>
-        <SettingsSegmented
-          label='Indent'
-          value={indent}
-          options={[
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' },
-          ]}
-          onChange={onIndent}
-        />
         <SettingsSegmented
           label='Speed'
           value={speed}
@@ -438,6 +367,96 @@ function FeelReplay({
           options={names.map((value) => ({ value, label: value }))}
           onChange={onPick}
         />
+      </div>
+      <div className='flex shrink-0 flex-wrap items-center gap-1 px-2 pb-2'>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Hybrid line:</span>
+          <SettingsSegmented
+            label='Hybrid line'
+            value={hybridLine}
+            options={[
+              { value: 'today', label: 'Today' },
+              { value: '2a', label: '2a' },
+              { value: '2b', label: '2b' },
+              { value: 'both', label: 'Both' },
+            ]}
+            onChange={onHybridLine}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Batch tense:</span>
+          <SettingsSegmented
+            label='Batch tense'
+            value={batchTense}
+            options={[
+              { value: 'now', label: 'Now' },
+              { value: 'open', label: 'Open' },
+            ]}
+            onChange={onBatchTense}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Tense change:</span>
+          <SettingsSegmented
+            label='Tense change'
+            value={tenseChange}
+            options={[
+              { value: 'roll', label: 'Roll' },
+              { value: 'torph', label: 'Torph' },
+            ]}
+            onChange={onTenseChange}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Morph:</span>
+          <SettingsSegmented
+            label='Morph'
+            value={morphDuration}
+            options={[
+              { value: '150', label: '150' },
+              { value: '300', label: '300' },
+            ]}
+            onChange={onMorphDuration}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Hybrid pacing:</span>
+          <SettingsSegmented
+            label='Hybrid pacing'
+            value={hybridPacing}
+            options={[
+              { value: 'none', label: 'None' },
+              { value: 'cursor', label: 'Cursor' },
+              { value: 'jetty', label: 'Jetty' },
+            ]}
+            onChange={onHybridPacing}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Interim text:</span>
+          <SettingsSegmented
+            label='Interim text'
+            value={interimText}
+            options={[
+              { value: 'today', label: 'Today' },
+              { value: 'a', label: 'A' },
+              { value: 'b', label: 'B' },
+            ]}
+            onChange={onInterimText}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Indent:</span>
+          <SettingsSegmented
+            label='Indent'
+            value={indent}
+            options={[
+              { value: 'on', label: 'On' },
+              { value: 'off', label: 'Off' },
+            ]}
+            onChange={onIndent}
+          />
+        </div>
       </div>
       <ReplayTimeline
         events={replay.events}
