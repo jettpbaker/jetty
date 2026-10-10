@@ -1,7 +1,15 @@
 import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type WheelEvent,
+} from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { capyMotion } from './chat_feel/capy'
@@ -176,6 +184,8 @@ export function WorkBlock({
   restarted,
   nowActivity,
   assistantStreaming,
+  historyOnly = false,
+  children,
 }: {
   threadId: string
   activities: readonly WorkActivity[]
@@ -186,6 +196,8 @@ export function WorkBlock({
   restarted?: boolean
   nowActivity?: string | null
   assistantStreaming?: boolean
+  historyOnly?: boolean
+  children?: ReactNode
 }) {
   const feel = useChatFeel()
   const settled = useChatSettled()
@@ -199,6 +211,8 @@ export function WorkBlock({
     return feel === 'hybrid' ? hybridEntries(grouped) : grouped
   }, [groupEntries, activities, ended, feel])
   const duration = formatActivityDuration(elapsedSeconds)
+  if (historyOnly)
+    return <WorkHistory threadId={threadId} entries={entries} view='full' live={false} />
   const heading = settingUp
     ? 'Setting up worktree'
     : status === 'waiting'
@@ -238,18 +252,27 @@ export function WorkBlock({
       }
       titleSuffix={timing}
       ended={ended}
-      hasContent={entries.length > 0}
-      hasPreview={entries.length > previewCount}
-      renderContent={(view) => (
-        <WorkHistory
-          threadId={threadId}
-          entries={entries}
-          view={view}
-          live={!ended}
-          nowActivity={nowActivity}
-          assistantStreaming={assistantStreaming}
-        />
-      )}
+      hasContent={!!children || entries.length > 0}
+      hasPreview={!children && entries.length > previewCount}
+      renderContent={(view) =>
+        children ? (
+          <>
+            {children}
+            {feel === 'hybrid' && !ended && (
+              <HybridNow activity={nowActivity ?? null} hidden={assistantStreaming ?? false} />
+            )}
+          </>
+        ) : (
+          <WorkHistory
+            threadId={threadId}
+            entries={entries}
+            view={view}
+            live={!ended}
+            nowActivity={nowActivity}
+            assistantStreaming={assistantStreaming}
+          />
+        )
+      }
     />
   )
 }

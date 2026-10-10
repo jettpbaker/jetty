@@ -35,7 +35,7 @@ export function hybridActivity(
     (row) => row.kind === 'work' && (row.status === 'running' || row.status === 'waiting')
   )
   if (work?.kind !== 'work') return undefined
-  const streaming = rows.some(
+  const streaming = (work.flow ?? rows).some(
     (row) =>
       (row.kind === 'assistant' || row.kind === 'plan') &&
       row.item.turnId === work.turnId &&

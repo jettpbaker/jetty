@@ -118,13 +118,15 @@ function estimateSignature(row: ThreadRow) {
     case 'work':
       inputs = workEnded(row.status)
         ? true
-        : groupWorkActivities(row.activities, false)
-            .slice(-previewCount)
-            .map((entry) => [
-              entry.type,
-              entry.id,
-              entry.type === 'thinking' && entry.status === 'running',
-            ])
+        : row.flow
+          ? row.flow.map(estimateSignature)
+          : groupWorkActivities(row.activities, false)
+              .slice(-previewCount)
+              .map((entry) => [
+                entry.type,
+                entry.id,
+                entry.type === 'thinking' && entry.status === 'running',
+              ])
       break
     case 'user':
       inputs = [row.item.text, row.item.attachments, !!row.item.from, row.item.replies?.length]
@@ -167,7 +169,7 @@ export function estimatesChanged(previous: readonly ThreadRow[], rows: readonly 
 }
 
 // Rough estimates count lines from text length instead of laying the text out.
-export function estimateRow(row: ThreadRow, width: number, rough = false) {
+export function estimateRow(row: ThreadRow, width: number, rough = false): number {
   switch (row.kind) {
     case 'subagentDone':
       return 29
@@ -221,6 +223,10 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       )
     case 'work': {
       if (workEnded(row.status)) return 30
+      if (row.flow)
+        return (
+          32 + row.flow.reduce((height, part) => height + estimateRow(part, width, rough) + 12, 0)
+        )
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
         height += 28

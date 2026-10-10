@@ -54,6 +54,13 @@ export const ChatFeelContext = createContext<ChatFeel | undefined>(undefined)
 
 export const ChatSettledContext = createContext(false)
 
+export type LiveTurn = 'split' | 'single'
+export const LiveTurnContext = createContext<LiveTurn>('split')
+
+export function useLiveTurn() {
+  return useContext(LiveTurnContext)
+}
+
 export function useChatSettled() {
   return useContext(ChatSettledContext)
 }

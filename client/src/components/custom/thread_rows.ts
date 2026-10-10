@@ -60,6 +60,7 @@ export type ThreadRow =
       id: string
       turnId: string
       activities: WorkActivity[]
+      flow?: ThreadRow[]
       status: ActivityStatus
       startedAt?: number
       elapsedSeconds?: number
@@ -784,6 +785,54 @@ export function threadRows(
   stitchRuns(rows)
   if (queue) rows.push(...queueRows(queue, running))
   return reuseRows(allItems[0], groupPullRequestRows(rows))
+}
+
+// Keep the disclosure's identity through the live flow and its one fold at turn end.
+export function singleTurnRows(rows: ThreadRow[], items: readonly ThreadItem[]): ThreadRow[] {
+  const grouped: ThreadRow[] = []
+  for (let index = 0; index < rows.length;) {
+    const first = rows[index]!
+    if (first.kind !== 'work') {
+      grouped.push(first)
+      index++
+      continue
+    }
+    const flow: ThreadRow[] = []
+    let work = first
+    while (index < rows.length) {
+      const row = rows[index]!
+      if (row.kind === 'work' && row.turnId === first.turnId) work = row
+      else if (
+        (row.kind !== 'assistant' && row.kind !== 'plan') ||
+        row.item.turnId !== first.turnId
+      )
+        break
+      flow.push(row)
+      index++
+    }
+    const live = work.status === 'running' || work.status === 'waiting'
+    const last = flow.at(-1)
+    const answer =
+      !live && (last?.kind === 'assistant' || last?.kind === 'plan') ? flow.pop() : undefined
+    const start = items.find((item) => item.turnId === first.turnId)?.createdAt
+    const end =
+      answer && (answer.kind === 'assistant' || answer.kind === 'plan')
+        ? answer.item.completedAt
+        : undefined
+    grouped.push({
+      ...first,
+      status: work.status,
+      startedAt: live ? start : undefined,
+      elapsedSeconds:
+        start !== undefined && end !== undefined ? (end - start) / 1000 : work.elapsedSeconds,
+      settingUp: work.settingUp,
+      restarted: work.restarted,
+      activities: flow.flatMap((row) => (row.kind === 'work' ? row.activities : [])),
+      flow,
+    })
+    if (answer) grouped.push(answer)
+  }
+  return grouped
 }
 
 function groupPullRequestRows(rows: ThreadRow[]): ThreadRow[] {

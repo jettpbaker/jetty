@@ -23,6 +23,7 @@ import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/cu
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import {
   createThreadRows,
+  singleTurnRows,
   toSubagent,
   type SubagentItem,
   type ThreadRow,
@@ -42,7 +43,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
-import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled, useLiveTurn } from '@/lib/chat-feel'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -170,7 +171,7 @@ function contentWidth(scrollerWidth: number) {
   return Math.max(1, Math.min(708, scrollerWidth) - 48)
 }
 
-function rowStamp(row: ThreadRow) {
+function rowStamp(row: ThreadRow): string | number | boolean {
   switch (row.kind) {
     case 'assistant':
     case 'plan':
@@ -213,7 +214,7 @@ function rowStamp(row: ThreadRow) {
     case 'marker':
       return row.item.kind
     case 'work':
-      return `${row.status}:${row.settingUp}:${row.activities
+      return `${row.flow?.map(rowStamp).join('|') ?? ''}:${row.status}:${row.settingUp}:${row.activities
         .map((activity) =>
           activity.type === 'thinking'
             ? `${activity.id}:${activity.summary.length}:${activity.status}`
@@ -264,10 +265,12 @@ const ThreadItemRow = memo(function ThreadItemRow({
   projectPath,
   nowActivity,
   assistantStreaming,
+  historyOnly = false,
 }: {
   row: ThreadRow
   nowActivity?: string | null
   assistantStreaming?: boolean
+  historyOnly?: boolean
   threadId: string
   selectedAgent?: string
   onSelectAgent: (id: string) => void
@@ -346,7 +349,30 @@ const ThreadItemRow = memo(function ThreadItemRow({
         restarted={row.restarted}
         nowActivity={nowActivity}
         assistantStreaming={assistantStreaming}
-      />
+        historyOnly={historyOnly}
+      >
+        {row.flow && (
+          <div className='flex flex-col gap-3'>
+            {row.flow.map((part) => (
+              <div key={part.id} data-chat-row={part.kind}>
+                <ThreadItemRow
+                  row={
+                    part.kind === 'assistant' || part.kind === 'plan'
+                      ? { ...part, footer: undefined }
+                      : part
+                  }
+                  historyOnly
+                  threadId={threadId}
+                  selectedAgent={selectedAgent}
+                  onSelectAgent={onSelectAgent}
+                  provider={provider}
+                  projectPath={projectPath}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </WorkBlock>
     )
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
@@ -402,23 +428,11 @@ export function ThreadList({
   onSelectAgent: (id: string) => void
 }) {
   const queue = useTranscriptQueue(agentId ? undefined : threadId, items)
+  const feel = useChatFeel()
+  const single = useLiveTurn() === 'single' && feel !== 'cursor'
   const [buildRows] = useState(createThreadRows)
-  const rows = useMemo(
-    () =>
-      buildRows(items, {
-        status,
-        running,
-        outcomes,
-        loadouts,
-        projectPath,
-        threadId,
-        agentId,
-        settingUp,
-        queue,
-      }),
-    [
-      buildRows,
-      items,
+  const rows = useMemo(() => {
+    const rows = buildRows(items, {
       status,
       running,
       outcomes,
@@ -428,10 +442,23 @@ export function ThreadList({
       agentId,
       settingUp,
       queue,
-    ]
-  )
+    })
+    return single ? singleTurnRows(rows, items) : rows
+  }, [
+    buildRows,
+    items,
+    status,
+    running,
+    outcomes,
+    loadouts,
+    projectPath,
+    threadId,
+    agentId,
+    settingUp,
+    queue,
+    single,
+  ])
   const view = `${threadId}:${agentId ?? ''}`
-  const feel = useChatFeel()
   const settled = useChatSettled()
   const now = useMemo(
     () => (feel === 'hybrid' ? hybridActivity(rows, items, agentId) : undefined),
