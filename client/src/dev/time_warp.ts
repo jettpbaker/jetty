@@ -63,6 +63,7 @@ export function installTimeWarp(fixed = false) {
       if (scale === 0 && animation.currentTime === null) animation.currentTime = 0
     }
     if (animation.playbackRate !== rate * scale) animation.playbackRate = rate * scale
+    if (fixed && scale === 0) animation.pause()
   }
 
   function animations() {
