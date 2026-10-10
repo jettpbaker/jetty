@@ -22,6 +22,11 @@ type ElementState = {
   text: string
   state: string
   textState: boolean
+  node: number
+  painted: boolean
+  streaming: boolean
+  textAnimating: boolean
+  counter: boolean
 }
 type Snapshot = { height: number; elements: ElementState[]; shifts: unknown[] }
 type Finding = {
@@ -31,7 +36,7 @@ type Finding = {
   endFrame: number
   element: string
   id: string
-  kind: 'shift' | 'height-dip' | 'flash'
+  kind: 'shift' | 'height-dip' | 'flash' | 'remount' | 'text-retraction'
   property: string
   before: unknown
   during: unknown
@@ -49,6 +54,33 @@ function installSampler() {
   const content = pane.querySelector('[aria-label="Conversation"] > div') as HTMLElement
   const scroller = content.parentElement!
   const shifts: unknown[] = []
+  const nodes = new WeakMap<Element, number>()
+  let serial = 0
+  const outgoing = '[aria-hidden="true"].rolling-text-out, [aria-hidden="true"].absolute'
+
+  function textOf(element: Element): string {
+    if (element.matches(outgoing)) return ''
+    if (element.hasAttribute('torph-root')) {
+      const accessible = element.querySelector('[torph-sr]')
+      if (accessible) {
+        const stray = [...element.childNodes]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent)
+          .join('')
+        return accessible.textContent + stray
+      }
+    }
+    return [...element.childNodes]
+      .map((node) => (node instanceof Element ? textOf(node) : (node.textContent ?? '')))
+      .join('')
+  }
+
+  function animating(element: Element) {
+    return element.getAnimations({ subtree: true }).some((animation) => {
+      const timing = animation.effect?.getComputedTiming()
+      return timing && timing.progress !== null && timing.progress < 1 && timing.iterations === 1
+    })
+  }
   function recordShifts(entries: PerformanceEntry[]) {
     for (const raw of entries) {
       const entry = raw as PerformanceEntry & {
@@ -86,7 +118,9 @@ function installSampler() {
       }
       const siblings = node.parentElement ? [...node.parentElement.children] : []
       path.unshift(
-        `${node.localName}:${siblings.filter((sibling) => sibling.localName === node!.localName).indexOf(node)}`
+        node.id
+          ? `${node.localName}[${node.id}]`
+          : `${node.localName}:${siblings.filter((sibling) => sibling.localName === node!.localName).indexOf(node)}`
       )
       node = node.parentElement
     }
@@ -120,12 +154,12 @@ function installSampler() {
     const elements: ElementState[] = []
     const clip = scroller.getBoundingClientRect()
     for (const element of content.querySelectorAll<HTMLElement>('*')) {
-      if (element.closest('svg, [torph-item], [torph-sr]')) continue
+      if (element.closest(`svg, [torph-item], [torph-sr], ${outgoing}`)) continue
       const directText = [...element.childNodes].some(
         (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
       )
       const semantic = element.matches(
-        '[data-chat-row], [data-work-heading], [data-slot="bubble-content"], .activity-header, .hybrid-now, [class*="rolling-text"], h1,h2,h3,h4,p,li,pre,button,a,label'
+        '[data-chat-row], [data-work-heading], [data-slot="bubble-content"], .activity-header, .hybrid-now, [class*="rolling-text"], h1,h2,h3,h4,p,li,pre,button,a,label,span'
       )
       if (!directText && !semantic) continue
       let opacity = 1
@@ -152,19 +186,26 @@ function installSampler() {
       const classes = [...element.classList]
         .filter((name) => /shimmer|tense|rolling|hybrid-now|activity-header/.test(name))
         .join(' ')
-      const text = element.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+      const text = textOf(element).replace(/\s+/g, ' ').trim()
+      const painted = shown && opacity > 0.01 && rect.width > 0 && rect.height > 0
+      if (!nodes.has(element)) nodes.set(element, serial++)
+      const morphs = [...element.querySelectorAll('[torph-root]')]
+      const root = element.closest('[torph-root]')
+      if (root) morphs.push(root)
+      const rolling = element.matches('.rolling-text-window')
+        ? element.querySelector('.rolling-text-in')
+        : element.closest('.rolling-text-in')
       elements.push({
         id: identity(element),
         label: `${element.localName} ${attrs} ${classes} ${text.slice(0, 100)}`.trim(),
         top: layoutTop(element),
         height: Number(rect.height.toFixed(3)),
-        visible:
-          shown &&
-          opacity > 0.01 &&
-          rect.width > 0 &&
-          rect.height > 0 &&
-          rect.bottom > clip.top &&
-          rect.top < clip.bottom,
+        visible: painted && rect.bottom > clip.top && rect.top < clip.bottom,
+        painted,
+        node: nodes.get(element)!,
+        streaming: !!element.closest('[data-quote]'),
+        counter: !!(element.closest('.font-mono') || element.querySelector('.font-mono')),
+        textAnimating: morphs.some(animating) || !!(rolling && animating(rolling)),
         text,
         state: `${attrs} ${classes}`.trim(),
         textState:
@@ -217,6 +258,37 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
     for (const [id, element] of maps[index]!) {
       const before = maps[index - 1]!.get(id)
       if (!before || !element.visible || !before.visible) continue
+      if (element.node !== before.node && !element.textAnimating)
+        add(
+          index,
+          index,
+          element.label,
+          'remount',
+          'node',
+          before.node,
+          element.node,
+          element.node,
+          id
+        )
+      if (
+        element.streaming &&
+        before.textState &&
+        element.textState &&
+        before.text.startsWith(element.text) &&
+        before.text.length > element.text.length &&
+        !element.textAnimating
+      )
+        add(
+          index,
+          index,
+          element.label,
+          'text-retraction',
+          'text',
+          before.text,
+          element.text,
+          maps[index + 1]?.get(id)?.text,
+          id
+        )
       for (const property of ['top', 'height'] as const) {
         const delta = element[property] - before[property]
         if (Math.abs(delta) < 0.5 || Math.abs(delta) > 3) continue
@@ -269,6 +341,7 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
         const element = maps[index]?.get(id)
         if (property === 'exists') return !!element
         if (property === 'text' && !element?.textState) return null
+        if (property === 'visible') return element?.painted ?? null
         return element?.[property] ?? null
       }
       let start = 0
@@ -279,7 +352,49 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
         if (start > 0 && index - start <= 2) {
           const element = maps[start]!.get(id) ?? maps[start - 1]!.get(id)
           const visible = [start - 1, start, index].some((at) => maps[at]?.get(id)?.visible)
-          if (visible && current !== null)
+          const before = value(start - 1)
+          const fadeIn =
+            property === 'visible' && before === null && current === false && next === true
+          const growth =
+            property === 'text' &&
+            element?.streaming &&
+            typeof current === 'string' &&
+            ((typeof before === 'string' &&
+              current.startsWith(before) &&
+              (next === null || (typeof next === 'string' && next.startsWith(current)))) ||
+              (before === null && typeof next === 'string' && next.startsWith(current)))
+          const countGrowth =
+            property === 'text' &&
+            element?.counter &&
+            typeof current === 'string' &&
+            /^[\d,.]+$/.test(current) &&
+            ((typeof next === 'string' &&
+              /^[\d,.]+$/.test(next) &&
+              Number(next.replaceAll(',', '')) >= Number(current.replaceAll(',', ''))) ||
+              (next === null && typeof before === 'string' && /^[\d,.]+$/.test(before))) &&
+            (before === null ||
+              before === '' ||
+              (typeof before === 'string' &&
+                /^[\d,.]+$/.test(before) &&
+                Number(current.replaceAll(',', '')) >= Number(before.replaceAll(',', ''))))
+          const textAnimation =
+            property === 'text' &&
+            [start - 1, start, index].some((at) => maps[at]?.get(id)?.textAnimating)
+          const completedLink =
+            property === 'state' &&
+            before === null &&
+            typeof current === 'string' &&
+            current.includes('data-incomplete=true') &&
+            next === current.replace('data-incomplete=true', 'data-incomplete=false')
+          if (
+            visible &&
+            current !== null &&
+            !fadeIn &&
+            !growth &&
+            !countGrowth &&
+            !textAnimation &&
+            !completedLink
+          )
             add(
               start,
               index - 1,
