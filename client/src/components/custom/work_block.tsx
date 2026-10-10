@@ -243,7 +243,7 @@ export function WorkBlock({
     <ActivityDisclosure
       flushHeader
       title={
-        <span className={cn(status === 'running' && feel !== 'hybrid' && 'shimmer')}>
+        <span data-work-heading className={cn(status === 'running' && 'shimmer')}>
           {heading}
         </span>
       }

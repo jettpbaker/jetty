@@ -1,6 +1,6 @@
 [data-chat-feel='hybrid']:not([data-hybrid-line='2b'], [data-hybrid-line='both'])
   [data-chat-thread] {
-  .shimmer:not(.hybrid-now .shimmer) {
+  .shimmer:not(.hybrid-now .shimmer, [data-work-heading]) {
     --shimmer-image: none;
     --shimmer-text-fill: currentColor;
     animation: none;
