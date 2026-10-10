@@ -197,32 +197,11 @@ export function useTimeWarp() {
   useLayoutEffect(() => {
     const warp = installTimeWarp()
     warpRef.current = warp
-    function onKeyDown(event: KeyboardEvent) {
-      if (
-        (event.key !== '.' && event.key !== ' ') ||
-        event.repeat ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey
-      )
-        return
-      if (event.defaultPrevented) return
-      const target = event.target
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable || target.closest('input, textarea, [role="textbox"]'))
-      )
-        return
-      event.preventDefault()
-      setFrozen((value) => !value)
-    }
-    window.addEventListener('keydown', onKeyDown, true)
     return () => {
-      window.removeEventListener('keydown', onKeyDown, true)
       warp.dispose()
       warpRef.current = null
     }
   }, [])
   useLayoutEffect(() => warpRef.current?.setScale(frozen ? 0 : Number(speed)), [frozen, speed])
-  return { speed, setSpeed, frozen, toggleFrozen: () => setFrozen((value) => !value) }
+  return { speed, setSpeed, frozen, setFrozen }
 }

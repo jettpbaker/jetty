@@ -42,7 +42,7 @@ import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
 import { createFileRoute } from '@tanstack/react-router'
 import { Schema } from 'effect'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 
 import './dev.feels.css'
 
@@ -184,6 +184,24 @@ function FeelReplay({
   }, [settled, thread])
   useEffect(() => () => cancelAnimationFrame(settleFrame.current), [])
 
+  const onSpace = useEffectEvent(playPause)
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== ' ' || event.repeat || event.metaKey || event.ctrlKey || event.altKey)
+        return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.closest('input, textarea, select') || target.isContentEditable)
+      )
+        return
+      event.preventDefault()
+      onSpace()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [])
+
   useEffect(() => {
     if (expanded === null) return
     function onKeyDown(event: KeyboardEvent) {
@@ -258,10 +276,12 @@ function FeelReplay({
     setElapsed(at)
   }
 
+  // Pause freezes the whole page, mid-animation; Play thaws it and resumes the replay.
   function playPause() {
-    if (timeWarp.frozen) timeWarp.toggleFrozen()
-    else if (playing) setPlaying(false)
-    else if (clock.current.next < replay.events.length) {
+    if (playing && !timeWarp.frozen) return timeWarp.setFrozen(true)
+    timeWarp.setFrozen(false)
+    if (playing) return
+    if (clock.current.next < replay.events.length) {
       setSettled(false)
       setPlaying(true)
     } else onRestart()
@@ -350,16 +370,6 @@ function FeelReplay({
         </Button>
         <Button variant='ghost' size='icon-sm' aria-label='Restart' onClick={onRestart}>
           <Refresh01Icon />
-        </Button>
-        <Button
-          variant='ghost'
-          size='sm'
-          aria-label={timeWarp.frozen ? 'Unfreeze page (Space / .)' : 'Freeze page (Space / .)'}
-          aria-pressed={timeWarp.frozen}
-          {...pressProps(timeWarp.toggleFrozen)}
-        >
-          {timeWarp.frozen ? <PlayIcon filled /> : <PauseIcon filled />}
-          {timeWarp.frozen ? 'Frozen' : 'Freeze'}
         </Button>
         <div className='flex-1' />
         <SettingsSegmented
