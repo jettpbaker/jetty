@@ -1,5 +1,3 @@
-import type { ThreadState } from '@jetty/shared/reducer'
-
 import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_icons'
 import { HybridV2Pane } from '@/components/custom/hybrid_v2'
 import { ReplayTimeline } from '@/components/custom/replay_timeline'
@@ -8,6 +6,7 @@ import { ThreadList } from '@/components/custom/thread_list'
 import { threadRows } from '@/components/custom/thread_rows'
 import { describeToolBatch } from '@/components/custom/work_model'
 import { Button } from '@/components/ui/button'
+import { landReplayEvent as land } from '@/dev/replay_event'
 import { frameMs, speedOptions, useTimeWarp } from '@/dev/time_warp'
 import {
   HybridRowsContext,
@@ -36,10 +35,9 @@ import {
   pinRootChatFeel,
 } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
-import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
-import { createFileRoute, useLocation } from '@tanstack/react-router'
+import { createFileRoute, Link, useLocation } from '@tanstack/react-router'
 import { Schema } from 'effect'
 import {
   type FocusEvent,
@@ -151,18 +149,6 @@ function Feels() {
       onRebuild={() => setPick(({ name, run }) => ({ name, run: run + 1 }))}
     />
   )
-}
-
-// Each event lands stamped with the time it lands, so durations and ages read as they did live.
-function land(state: ThreadState, event: ThreadEvent, seq: number, ts = Date.now()) {
-  if (event.type === 'item.completed') noteCompleted(event.itemId)
-  return foldUpdate(state, {
-    type: 'event',
-    seq,
-    ts,
-    event:
-      event.type === 'item.started' ? { ...event, item: { ...event.item, createdAt: ts } } : event,
-  })
 }
 
 // Controls never keep focus here, so Space and the arrow keys always drive the replay.
@@ -508,6 +494,12 @@ function FeelReplay({
         <Button variant='ghost' size='icon-sm' aria-label='Restart' onClick={onRestart}>
           <Refresh01Icon />
         </Button>
+        <Link
+          to='/dev/stream-states'
+          className='text-xs text-muted-foreground hover:text-foreground'
+        >
+          Stream states
+        </Link>
         <div className='flex-1' />
         <SettingsSegmented
           label='Speed'

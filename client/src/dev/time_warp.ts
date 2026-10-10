@@ -15,7 +15,7 @@ type Timer = { due: number; delay: number; fire: () => void }
 
 export const frameMs = 16.7
 
-// Only installed by /dev/feels. Native scheduling keeps the debugging controls live at scale 0.
+// Only installed by the dev replay pages. Native scheduling keeps the debugging controls live at scale 0.
 export function installTimeWarp(fixed = false) {
   const original = {
     now: performance.now,

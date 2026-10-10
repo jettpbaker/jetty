@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as BotsBotIdRouteImport } from './routes/bots.$botId'
 import { Route as DevFeelsRouteImport } from './routes/dev.feels'
+import { Route as DevStreamStatesRouteImport } from './routes/dev.stream-states'
 import { Route as PullRequestsIndexRouteImport } from './routes/pull-requests.index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsPageRouteImport } from './routes/settings.$page'
@@ -43,6 +44,11 @@ const BotsBotIdRoute = BotsBotIdRouteImport.update({
 const DevFeelsRoute = DevFeelsRouteImport.update({
   id: '/dev/feels',
   path: '/dev/feels',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevStreamStatesRoute = DevStreamStatesRouteImport.update({
+  id: '/dev/stream-states',
+  path: '/dev/stream-states',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PullRequestsIndexRoute = PullRequestsIndexRouteImport.update({
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/usage': typeof UsageRoute
   '/bots/$botId': typeof BotsBotIdRoute
   '/dev/feels': typeof DevFeelsRoute
+  '/dev/stream-states': typeof DevStreamStatesRoute
   '/settings/$page': typeof SettingsPageRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
   '/pull-requests/': typeof PullRequestsIndexRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/usage': typeof UsageRoute
   '/bots/$botId': typeof BotsBotIdRoute
   '/dev/feels': typeof DevFeelsRoute
+  '/dev/stream-states': typeof DevStreamStatesRoute
   '/settings/$page': typeof SettingsPageRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
   '/pull-requests': typeof PullRequestsIndexRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/usage': typeof UsageRoute
   '/bots/$botId': typeof BotsBotIdRoute
   '/dev/feels': typeof DevFeelsRoute
+  '/dev/stream-states': typeof DevStreamStatesRoute
   '/settings/$page': typeof SettingsPageRoute
   '/threads/$threadId': typeof ThreadsThreadIdRoute
   '/pull-requests/': typeof PullRequestsIndexRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/usage'
     | '/bots/$botId'
     | '/dev/feels'
+    | '/dev/stream-states'
     | '/settings/$page'
     | '/threads/$threadId'
     | '/pull-requests/'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/usage'
     | '/bots/$botId'
     | '/dev/feels'
+    | '/dev/stream-states'
     | '/settings/$page'
     | '/threads/$threadId'
     | '/pull-requests'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/usage'
     | '/bots/$botId'
     | '/dev/feels'
+    | '/dev/stream-states'
     | '/settings/$page'
     | '/threads/$threadId'
     | '/pull-requests/'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   UsageRoute: typeof UsageRoute
   BotsBotIdRoute: typeof BotsBotIdRoute
   DevFeelsRoute: typeof DevFeelsRoute
+  DevStreamStatesRoute: typeof DevStreamStatesRoute
   ThreadsThreadIdRoute: typeof ThreadsThreadIdRoute
   PullRequestsIndexRoute: typeof PullRequestsIndexRoute
   PullRequestsOwnerRepoNumberRoute: typeof PullRequestsOwnerRepoNumberRoute
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       path: '/dev/feels'
       fullPath: '/dev/feels'
       preLoaderRoute: typeof DevFeelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev/stream-states': {
+      id: '/dev/stream-states'
+      path: '/dev/stream-states'
+      fullPath: '/dev/stream-states'
+      preLoaderRoute: typeof DevStreamStatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pull-requests/': {
@@ -252,6 +272,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsageRoute: UsageRoute,
   BotsBotIdRoute: BotsBotIdRoute,
   DevFeelsRoute: DevFeelsRoute,
+  DevStreamStatesRoute: DevStreamStatesRoute,
   ThreadsThreadIdRoute: ThreadsThreadIdRoute,
   PullRequestsIndexRoute: PullRequestsIndexRoute,
   PullRequestsOwnerRepoNumberRoute: PullRequestsOwnerRepoNumberRoute,
