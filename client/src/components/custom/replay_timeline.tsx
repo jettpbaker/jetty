@@ -19,11 +19,13 @@ function replayBlocks(events: ReplayEvent[], duration: number) {
   let state = emptyThread
   for (const [index, { t, event }] of events.entries()) {
     state = foldUpdate(state, { type: 'event', seq: index + 1, ts: t, event })
-    if (event.type === 'item.started')
-      spans.set(event.item.id, { start: t, end: duration, open: true })
+    if (event.type === 'item.started') {
+      const instant = event.item.kind === 'user_message'
+      spans.set(event.item.id, { start: t, end: instant ? t : duration, open: !instant })
+    }
     if (event.type === 'item.completed') {
       const span = spans.get(event.itemId)
-      if (span) {
+      if (span?.open) {
         span.end = t
         span.open = false
       }
