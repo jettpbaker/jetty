@@ -9,9 +9,10 @@ import { createGzip } from 'node:zlib'
 import { chromium } from 'playwright-core'
 
 // bun run feel:scan <output> [fold] [each|hold|count] [transcript...]
-// FEEL_TENSE_CHANGE=roll|crossfade|opencode FEEL_ROWS=animate|instant FEEL_REDUCED_MOTION=reduce
+// FEEL_ENGINE=today|v2 FEEL_TENSE_CHANGE=roll|crossfade|opencode FEEL_ROWS=animate|instant FEEL_REDUCED_MOTION=reduce
 const tenseChange = process.env.FEEL_TENSE_CHANGE ?? 'crossfade'
 const rows = process.env.FEEL_ROWS ?? 'animate'
+const engine = process.env.FEEL_ENGINE ?? 'today'
 const reducedMotion = process.env.FEEL_REDUCED_MOTION === 'reduce'
 if (!['roll', 'crossfade', 'opencode'].includes(tenseChange))
   throw new Error(`Unknown tense change: ${tenseChange}`)
@@ -76,7 +77,12 @@ type SwapFrame = {
   transform: string
   animations: { property: string; ms: number | null; duration: number | string; easing: string }[]
 }
+type WorkRowState = { id: string; label: string; top: number; live: boolean; running: string[] }
+type ReplayState = { ms: number; running: { id: string; label: string; counted: string }[] }
 type Snapshot = {
+  replayMs: number
+  workRows: WorkRowState[]
+  liveRows: number
   swaps: SwapFrame[]
   slots: {
     id: string
@@ -105,6 +111,8 @@ type Finding = {
     | 'text-retraction'
     | 'overlap'
     | 'empty-hand-off'
+    | 'stale-live-row'
+    | 'live-row-overlap'
   property: string
   before: unknown
   during: unknown
@@ -114,6 +122,7 @@ type Finding = {
 type ScanWindow = typeof window & {
   __feelClock: { step: <T>(sample: () => T) => Promise<T>; now: () => number }
   __feelSample: () => Snapshot
+  __feelReplay: () => ReplayState
 }
 
 // Runs in the browser. Offsets exclude CSS transforms, including rolling text and scroll glides.
@@ -451,7 +460,62 @@ function installSampler(answers: AnswerTiming[]) {
           })
         return { id: identity(list), now: now?.visible ? now : null, rows }
       })
+    // Contract (Today and v2): chronological .activity-header work rows under [data-work-turn],
+    // visible ink + .shimmer/present-tense labels; __feelReplay supplies event-open IDs/labels and ms.
+    // Labels must identify the work (or a counted batch); parallel rows require distinct open IDs.
+    const replay = (window as ScanWindow).__feelReplay()
+    const workRows = [...content.querySelectorAll<HTMLElement>('[data-work-turn] .activity-header')]
+      .filter((header) => {
+        const id = identity(header)
+        return (
+          !header.matches('[data-flush]') &&
+          elements.some(
+            (element) =>
+              element.ink &&
+              element.visible &&
+              (element.id === id || element.id.startsWith(`${id}/`))
+          )
+        )
+      })
+      .map((header) => {
+        const label = textOf(header).replace(/\s+/g, ' ').trim()
+        const id = identity(header)
+        const shimmer = [header, ...header.querySelectorAll<HTMLElement>('.shimmer')].some(
+          (node) => {
+            if (!node.classList.contains('shimmer')) return false
+            const owner = identity(node)
+            return elements.some(
+              (element) =>
+                element.ink &&
+                element.visible &&
+                (element.id === owner || element.id.startsWith(`${owner}/`))
+            )
+          }
+        )
+        return {
+          id,
+          label,
+          top: layoutTop(header),
+          live:
+            shimmer ||
+            /^(Thinking|Reading|Editing|Writing|Searching|Running|Calling|Planning|Archiving|Messaging|Marking|Linking|Sharing|Creating|Updating|Fetching|Listing|Switching|Setting)\b/.test(
+              label
+            ),
+          running: replay.running
+            .filter((item) => {
+              const normalize = (text: string) => text.replace(/\s+/g, ' ').trim()
+              return item.label === 'Thinking'
+                ? /^Thinking\b/.test(label)
+                : normalize(item.label) === label ||
+                    normalize(item.counted) === label.replace(/\b\d+\b/, '{count}')
+            })
+            .map((item) => item.id),
+        }
+      })
     return {
+      replayMs: replay.ms,
+      workRows,
+      liveRows: workRows.filter((row) => row.live).length,
       swaps: [
         ...content.querySelectorAll<HTMLElement>('[data-component="tool-status-title"]'),
       ].flatMap((title) => {
@@ -518,7 +582,10 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
   ) {
     findings.push({
       transcript,
-      ms: Number((frame * frameMs).toFixed(1)),
+      ms:
+        kind === 'stale-live-row' || kind === 'live-row-overlap'
+          ? frames[frame]!.replayMs
+          : Number((frame * frameMs).toFixed(1)),
       frame,
       endFrame,
       element,
@@ -530,6 +597,45 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
       after,
       images: [frame - 1, frame, endFrame + 1].map((at) => `frames/${transcript}-${at}.png`),
     })
+  }
+  const semantic = new Map<string, Finding>()
+  for (let index = 0; index < frames.length; index++) {
+    const snapshot = frames[index]!
+    function flag(key: string, row: string, kind: Finding['kind'], during: unknown) {
+      const previous = semantic.get(key)
+      if (previous?.endFrame === index - 1) {
+        previous.endFrame = index
+        previous.images[2] = `frames/${transcript}-${index + 1}.png`
+      } else {
+        add(index, index, row, kind, 'live rows', null, during, null, key)
+        semantic.set(key, findings.at(-1)!)
+      }
+    }
+    for (const [position, row] of snapshot.workRows.entries()) {
+      if (!row.live) continue
+      for (const newer of snapshot.workRows.slice(position + 1)) {
+        if (newer.top <= row.top) continue
+        if (row.running.some((id) => newer.running.some((other) => other !== id))) continue
+        flag(`${row.id} -> ${newer.id}`, row.label, 'stale-live-row', {
+          live: row.label,
+          newer: newer.label,
+          running: row.running,
+          newerRunning: newer.running,
+        })
+      }
+    }
+    const live = snapshot.workRows.filter((row) => row.live)
+    function parallel(position: number, used: Set<string>): boolean {
+      if (position === live.length) return true
+      return live[position]!.running.some(
+        (id) => !used.has(id) && parallel(position + 1, new Set([...used, id]))
+      )
+    }
+    if (live.length > 1 && !parallel(0, new Set()))
+      flag('live rows', live.map((row) => row.label).join(' + '), 'live-row-overlap', {
+        count: live.length,
+        rows: live,
+      })
   }
   for (let index = 0; index < frames.length; index++) {
     const running = frames[index]!.discrete
@@ -850,16 +956,20 @@ async function waitFor(url: string) {
 
 async function prepare(page: Page, url: string, transcript: string, answers: AnswerTiming[]) {
   await page.goto(
-    `${url}/dev/feels?scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&tenseChange=${tenseChange}&rows=${rows}&perf=off`
+    `${url}/dev/feels?scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&tenseChange=${tenseChange}&rows=${rows}&engine=${encodeURIComponent(engine)}&perf=off`
   )
   await page.waitForLoadState('networkidle')
   await page.evaluate(async () => {
     await Promise.all([...document.fonts].map((font) => font.load()))
     await document.fonts.ready
   })
-  await page.waitForFunction(() => !!(window as ScanWindow).__feelClock, undefined, {
-    polling: 100,
-  })
+  await page.waitForFunction(
+    () => !!(window as ScanWindow).__feelClock && !!(window as ScanWindow).__feelReplay,
+    undefined,
+    {
+      polling: 100,
+    }
+  )
   await page.evaluate(installSampler, answers)
 }
 
@@ -974,6 +1084,14 @@ async function main() {
       running: string[]
       queue: Snapshot['queue']
     }[] = []
+    const semantics: {
+      transcript: string
+      violationFrames: number
+      rowPairFrames: number
+      overlapFrames: number
+      maxLiveRows: number
+      liveRowCounts: Record<number, number>
+    }[] = []
     const timings: { transcript: string; answers: AnswerTiming[] }[] = []
     const crossChecks: { transcript: string; frame: number; entries: unknown[] }[] = []
     const rollingLabels: {
@@ -1059,6 +1177,31 @@ async function main() {
       rollingLabels.push({ transcript, mode: batchLabel, shortest: shortestVisible(frames) })
       console.log(JSON.stringify(rollingLabels.at(-1)))
       const detected = detect(transcript, frames)
+      const stale = detected.filter((finding) => finding.kind === 'stale-live-row')
+      semantics.push({
+        transcript,
+        violationFrames: new Set(
+          stale.flatMap((finding) =>
+            Array.from(
+              { length: finding.endFrame - finding.frame + 1 },
+              (_, offset) => finding.frame + offset
+            )
+          )
+        ).size,
+        rowPairFrames: stale.reduce(
+          (total, finding) => total + finding.endFrame - finding.frame + 1,
+          0
+        ),
+        overlapFrames: detected
+          .filter((finding) => finding.kind === 'live-row-overlap')
+          .reduce((total, finding) => total + finding.endFrame - finding.frame + 1, 0),
+        maxLiveRows: Math.max(...frames.map((frame) => frame.liveRows)),
+        liveRowCounts: frames.reduce<Record<number, number>>((counts, frame) => {
+          counts[frame.liveRows] = (counts[frame.liveRows] ?? 0) + 1
+          return counts
+        }, {}),
+      })
+      console.log(JSON.stringify(semantics.at(-1)))
       console.log(JSON.stringify(concurrency.at(-1)))
       findings.push(...detected)
       console.log(
@@ -1103,6 +1246,8 @@ async function main() {
         a.property.localeCompare(b.property)
     )
     const report = {
+      engine,
+      semantics,
       tenseChange,
       rows,
       reducedMotion,
@@ -1140,7 +1285,7 @@ async function main() {
     )
     await Bun.write(
       join(output, 'report.md'),
-      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; ${tenseChange} tense; ${rows} rows; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\n${lines.join('\n')}\n`
+      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; ${tenseChange} tense; ${rows} rows; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\nSemantic live rows (violating frames / row-pair frames / invalid multiple-live frames / max live rows):\n${semantics.map((entry) => `- ${entry.transcript}: ${entry.violationFrames} / ${entry.rowPairFrames} / ${entry.overlapFrames} / ${entry.maxLiveRows}`).join('\n')}\n\n${lines.join('\n')}\n`
     )
     console.log(`Report: ${output}`)
   } finally {

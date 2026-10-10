@@ -4,6 +4,8 @@ import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_ico
 import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
+import { threadRows } from '@/components/custom/thread_rows'
+import { describeToolBatch } from '@/components/custom/work_model'
 import { Button } from '@/components/ui/button'
 import { frameMs, speedOptions, useTimeWarp } from '@/dev/time_warp'
 import {
@@ -278,6 +280,58 @@ function FeelReplay({
 
   // Replay time and the next event due share the animation clock.
   const clock = useRef({ at: 0, next: 0, thread: emptyThread })
+
+  useEffect(() => {
+    const scanWindow = window as typeof window & { __feelReplay?: () => unknown }
+    scanWindow.__feelReplay = () => {
+      const playhead = clock.current
+      const open = new Set<string>()
+      for (const { event } of replay.events.slice(0, playhead.next)) {
+        if (
+          event.type === 'item.started' &&
+          (event.item.kind === 'tool_call' || event.item.kind === 'reasoning')
+        )
+          open.add(event.item.id)
+        if (event.type === 'item.completed') open.delete(event.itemId)
+      }
+      const activities = threadRows(playhead.thread.items, {
+        status: playhead.thread.status,
+        running: true,
+        projectPath: replay.projectPath,
+      }).flatMap((row) => (row.kind === 'work' ? row.activities : []))
+      return {
+        ms: Number(playhead.at.toFixed(1)),
+        running: activities.flatMap((activity) => {
+          if (!open.has(activity.id)) return []
+          if (activity.type === 'thinking')
+            return [{ id: activity.id, label: 'Thinking', counted: '' }]
+          if (activity.type !== 'tool') return []
+          const call = { ...activity, status: 'running' as const }
+          const label = describeToolBatch({
+            type: 'tools',
+            id: call.id,
+            calls: [call],
+            sealed: false,
+          })
+          const counted = describeToolBatch(
+            { type: 'tools', id: call.id, calls: [call, call], sealed: false },
+            true,
+            true
+          )
+          return [
+            {
+              id: call.id,
+              label: label.description ?? `${label.verb} ${label.target}`,
+              counted: `${counted.verb} ${counted.target}`.replace('2 ', '{count} '),
+            },
+          ]
+        }),
+      }
+    }
+    return () => {
+      delete scanWindow.__feelReplay
+    }
+  }, [replay])
 
   useEffect(() => {
     if (!playing) return
