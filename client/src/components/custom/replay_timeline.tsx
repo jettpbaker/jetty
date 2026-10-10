@@ -1,8 +1,10 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
+import { keyTarget } from '@/components/custom/keybinds'
 import { cn } from '@/lib/utils'
 import { foldUpdate } from '@/state'
 import { emptyThread } from '@jetty/shared/reducer'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const tracks = [
@@ -172,6 +174,41 @@ export function ReplayTimeline({
     })
   }
 
+  useHotkeys(
+    (
+      ['ArrowLeft', 'ArrowRight', 'Shift+ArrowLeft', 'Shift+ArrowRight', 'Home', 'End'] as const
+    ).map((hotkey) => ({
+      hotkey,
+      callback: (event: KeyboardEvent) => {
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+        const target = keyTarget(event)
+        if (
+          target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.closest(
+              'input, textarea, select, [role="textbox"], [role="radio"], [role="radiogroup"], [data-slot="toggle-group"], [role="combobox"], [role="menu"], [role="menubar"], [role^="menuitem"], [role="listbox"], [role="option"], [role="tablist"], [aria-haspopup="menu"], [aria-haspopup="listbox"]'
+            ))
+        )
+          return
+        if ((event.key === 'Home' || event.key === 'End') && target !== viewportRef.current) return
+        event.preventDefault()
+        const at =
+          event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? duration
+              : clamp(
+                  elapsed + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1000 : 100),
+                  duration
+                )
+        onSeek(at)
+        if (at < start || at > start + visible)
+          setView((current) => ({ ...current, start: clamp(at - visible * 0.1, maxStart) }))
+      },
+    })),
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false }
+  )
+
   const head = (elapsed - start) * scale
   return (
     <section
@@ -227,24 +264,6 @@ export function ReplayTimeline({
               pending.current = null
             }
             onScrubChange?.(false)
-          }}
-          onKeyDown={(event) => {
-            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-            event.preventDefault()
-            event.stopPropagation()
-            const at =
-              event.key === 'Home'
-                ? 0
-                : event.key === 'End'
-                  ? duration
-                  : clamp(
-                      elapsed +
-                        (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1000 : 100),
-                      duration
-                    )
-            onSeek(at)
-            if (at < start || at > start + visible)
-              setView((current) => ({ ...current, start: clamp(at - visible * 0.1, maxStart) }))
           }}
         >
           <div className='relative h-7 border-b bg-muted/40 font-mono text-[10px] text-muted-foreground'>
