@@ -11,6 +11,7 @@ import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
+import { slowMoOptions, useTimeWarp } from '@/dev/time_warp'
 import {
   TenseChangeContext,
   type TenseChange,
@@ -74,6 +75,7 @@ const speeds = ['0.125', '0.25', '0.5', '1', '2'] as const
 type Speed = (typeof speeds)[number]
 
 function Feels() {
+  const timeWarp = useTimeWarp()
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
   const [speed, setSpeed] = useState<Speed>('1')
@@ -88,6 +90,7 @@ function Feels() {
   return (
     <FeelReplay
       key={pick.run}
+      timeWarp={timeWarp}
       run={pick.run}
       name={pick.name}
       speed={speed}
@@ -125,6 +128,7 @@ function land(state: ThreadState, event: ThreadEvent, seq: number, ts = Date.now
 }
 
 function FeelReplay({
+  timeWarp,
   run,
   name,
   speed,
@@ -146,6 +150,7 @@ function FeelReplay({
   onPick,
   onRestart,
 }: {
+  timeWarp: ReturnType<typeof useTimeWarp>
   run: number
   name: string
   speed: Speed
@@ -354,6 +359,25 @@ function FeelReplay({
         <Button variant='ghost' size='icon-sm' aria-label='Restart' onClick={onRestart}>
           <Refresh01Icon />
         </Button>
+        <Button
+          variant='ghost'
+          size='sm'
+          aria-label={timeWarp.frozen ? 'Unfreeze page (.)' : 'Freeze page (.)'}
+          aria-pressed={timeWarp.frozen}
+          {...pressProps(timeWarp.toggleFrozen)}
+        >
+          {timeWarp.frozen ? <PlayIcon filled /> : <PauseIcon filled />}
+          {timeWarp.frozen ? 'Frozen' : 'Freeze'}
+        </Button>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Slow-mo:</span>
+          <SettingsSegmented
+            label='Slow-mo'
+            value={timeWarp.slowMo}
+            options={slowMoOptions}
+            onChange={timeWarp.setSlowMo}
+          />
+        </div>
         <div className='flex-1' />
         <SettingsSegmented
           label='Speed'
