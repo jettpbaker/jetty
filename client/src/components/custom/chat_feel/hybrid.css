@@ -87,7 +87,7 @@
   [data-interim-text] {
     color: var(--foreground);
     --capy-ink: currentColor;
-    transition: color 150ms var(--capy-ease);
+    transition: color 400ms ease;
 
     &[data-interim-muted] {
       color: var(--muted-foreground);
