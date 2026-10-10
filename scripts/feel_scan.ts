@@ -8,15 +8,19 @@ import { join, resolve } from 'node:path'
 import { createGzip } from 'node:zlib'
 import { chromium } from 'playwright-core'
 
+// bun run feel:scan <output> [fold] [each|hold|count] [transcript...]
 const root = resolve(import.meta.dir, '..')
 const frameMs = 16.7
 const viewport = { width: 1440, height: 900 }
+const batchLabel = process.argv[4] ?? 'hold'
+if (!['each', 'hold', 'count'].includes(batchLabel))
+  throw new Error(`Unknown batch label: ${batchLabel}`)
 const availableTranscripts = [
   ...new Bun.Glob('*.json').scanSync({ cwd: join(root, 'client/src/dev/replays') }),
 ]
   .map((file) => file.replace(/\.json$/, ''))
   .sort()
-const transcripts = process.argv.length > 4 ? process.argv.slice(4) : availableTranscripts
+const transcripts = process.argv.length > 5 ? process.argv.slice(5) : availableTranscripts
 for (const transcript of transcripts) {
   if (!availableTranscripts.includes(transcript))
     throw new Error(`Unknown transcript: ${transcript}`)
@@ -48,6 +52,10 @@ type ElementState = {
   streaming: boolean
   textAnimating: boolean
   counter: boolean
+  rolling: boolean
+  rollingNow: boolean
+  rollingFrom: string | null
+  batchLabel: boolean
 }
 type Snapshot = {
   slots: {
@@ -250,6 +258,12 @@ function installSampler(answers: AnswerTiming[]) {
         ink: directText && painted && text.length > 0,
         node: nodes.get(element)!,
         streaming: !!element.closest('[data-quote]'),
+        batchLabel: !!element.closest('[data-batch-tense]'),
+        rollingFrom: element.querySelector(':scope > .rolling-text-out')?.textContent ?? null,
+        rolling: element.matches('.rolling-text-window'),
+        rollingNow: [...element.children].some(
+          (child) => child.matches('.rolling-text-in') && animating(child)
+        ),
         counter: !!(element.closest('.font-mono') || element.querySelector('.font-mono')),
         textAnimating:
           morphs.some(animating) ||
@@ -687,6 +701,58 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
   )
 }
 
+function shortestVisible(frames: Snapshot[]) {
+  const labels = new Map<
+    string,
+    { text: string; since: number; stable: boolean; painted: boolean }
+  >()
+  let shortest: { ms: number; frames: number; frame: number; label: string; id: string } | null =
+    null
+  for (let frame = 0; frame < frames.length; frame++) {
+    const present = new Set<string>()
+    for (const element of frames[frame]!.elements) {
+      if (!element.rolling || !element.batchLabel) continue
+      present.add(element.id)
+      const before = labels.get(element.id)
+      const arrivingRoll =
+        element.painted && element.rollingNow && !before?.painted && element.rollingFrom !== null
+      if (
+        element.painted &&
+        element.rollingNow &&
+        ((before?.stable && element.text !== before.text) || arrivingRoll)
+      ) {
+        // A roll already underway at first paint gives only a one-frame upper bound.
+        const duration = arrivingRoll ? 1 : Math.max(1, frame - before!.since)
+        if (!shortest || duration < shortest.frames)
+          shortest = {
+            ms: Number((duration * frameMs).toFixed(1)),
+            frames: duration,
+            frame,
+            label: arrivingRoll ? element.rollingFrom! : before!.text,
+            id: element.id,
+          }
+      }
+      if (!element.painted || element.rollingNow) {
+        labels.set(element.id, {
+          text: element.text,
+          since: frame,
+          stable: false,
+          painted: element.painted,
+        })
+      } else if (!before?.stable || before.text !== element.text) {
+        labels.set(element.id, {
+          text: element.text,
+          since: frame,
+          stable: true,
+          painted: element.painted,
+        })
+      }
+    }
+    for (const id of labels.keys()) if (!present.has(id)) labels.delete(id)
+  }
+  return shortest
+}
+
 function freePort() {
   const server = Bun.serve({ port: 0, fetch: () => new Response() })
   const port = server.port!
@@ -705,7 +771,9 @@ async function waitFor(url: string) {
 }
 
 async function prepare(page: Page, url: string, transcript: string, answers: AnswerTiming[]) {
-  await page.goto(`${url}/dev/feels?scan=${transcript}&fold=${fold}&perf=off`)
+  await page.goto(
+    `${url}/dev/feels?scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&perf=off`
+  )
   await page.waitForLoadState('networkidle')
   await page.evaluate(async () => {
     await Promise.all([...document.fonts].map((font) => font.load()))
@@ -825,6 +893,11 @@ async function main() {
     }[] = []
     const timings: { transcript: string; answers: AnswerTiming[] }[] = []
     const crossChecks: { transcript: string; frame: number; entries: unknown[] }[] = []
+    const rollingLabels: {
+      transcript: string
+      mode: string
+      shortest: ReturnType<typeof shortestVisible>
+    }[] = []
     for (const transcript of transcripts) {
       const replay = await Bun.file(join(root, `client/src/dev/replays/${transcript}.json`)).json()
       const replies = new Map<string, string>()
@@ -883,6 +956,8 @@ async function main() {
             handoffs.push({ transcript, frame: index, from: slot.now.label, to: arrival.label })
         }
       }
+      rollingLabels.push({ transcript, mode: batchLabel, shortest: shortestVisible(frames) })
+      console.log(JSON.stringify(rollingLabels.at(-1)))
       const detected = detect(transcript, frames)
       console.log(JSON.stringify(concurrency.at(-1)))
       findings.push(...detected)
@@ -928,6 +1003,8 @@ async function main() {
         a.property.localeCompare(b.property)
     )
     const report = {
+      batchLabel,
+      rollingLabels,
       fold,
       concurrency,
       handoffs,
@@ -959,7 +1036,7 @@ async function main() {
     )
     await Bun.write(
       join(output, 'report.md'),
-      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\n${lines.join('\n')}\n`
+      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\n${lines.join('\n')}\n`
     )
     console.log(`Report: ${output}`)
   } finally {
