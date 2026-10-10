@@ -163,7 +163,8 @@
           "kind": "tool_call",
           "toolName": "Bash",
           "input": {
-            "command": "cd /Users/jettb/code/scratch/cloudlets && ls -la && cat AGENTS.md README.md 2>/dev/null | head -80 && cat package.json 2>/dev/null"
+            "command": "cd /Users/jettb/code/scratch/cloudlets && ls -la && cat AGENTS.md README.md 2>/dev/null | head -80 && cat package.json 2>/dev/null",
+            "description": "List project files and read project guidance"
           },
           "output": "",
           "status": "running"
@@ -199,7 +200,8 @@
           "kind": "tool_call",
           "toolName": "Bash",
           "input": {
-            "command": "cd /Users/jettb/code/scratch/cloudlets && find src -type f | xargs wc -l && cat .env.example vercel.ts && cat src/*.ts | head -250"
+            "command": "cd /Users/jettb/code/scratch/cloudlets && find src -type f | xargs wc -l && cat .env.example vercel.ts && cat src/*.ts | head -250",
+            "description": "Count source lines and inspect sandbox implementation"
           },
           "output": "",
           "status": "running"
