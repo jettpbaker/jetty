@@ -266,6 +266,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   nowActivity,
   assistantStreaming,
   historyOnly = false,
+  sealBatches = false,
   interimMuted = false,
   promotedAnswer = false,
 }: {
@@ -273,6 +274,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   nowActivity?: string | null
   assistantStreaming?: boolean
   historyOnly?: boolean
+  sealBatches?: boolean
   interimMuted?: boolean
   promotedAnswer?: boolean
   threadId: string
@@ -370,6 +372,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         restarted={row.restarted}
         nowActivity={nowActivity}
         assistantStreaming={assistantStreaming}
+        sealBatches={sealBatches || (row.flow !== undefined && row.flow.at(-1)?.kind !== 'work')}
         historyOnly={historyOnly}
       >
         {row.flow && (
@@ -383,6 +386,10 @@ const ThreadItemRow = memo(function ThreadItemRow({
                       : part
                   }
                   historyOnly
+                  sealBatches={
+                    index !== row.flow!.length - 1 ||
+                    (row.status !== 'running' && row.status !== 'waiting')
+                  }
                   interimMuted={interim === 'a' || index < lastStep}
                   threadId={threadId}
                   selectedAgent={selectedAgent}

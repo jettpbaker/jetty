@@ -1,4 +1,4 @@
-import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
+import { useBatchTense, useChatFeel, useChatSettled, useHybridLine } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
@@ -185,6 +185,7 @@ export function WorkBlock({
   nowActivity,
   assistantStreaming,
   historyOnly = false,
+  sealBatches = false,
   children,
 }: {
   threadId: string
@@ -197,6 +198,7 @@ export function WorkBlock({
   nowActivity?: string | null
   assistantStreaming?: boolean
   historyOnly?: boolean
+  sealBatches?: boolean
   children?: ReactNode
 }) {
   const feel = useChatFeel()
@@ -204,9 +206,20 @@ export function WorkBlock({
   const runningSeconds = useRunningSeconds(
     status === 'running' && !settingUp ? startedAt : undefined
   )
+  const hybridLine = useHybridLine()
+  const batchTense = useBatchTense()
+  const openTense = feel === 'hybrid' && batchTense === 'open'
   const ended = workEnded(status)
+  const sealed = ended || (openTense && sealBatches)
   const [groupEntries] = useState(createWorkEntries)
-  const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
+  const entries = useMemo(
+    () => groupEntries(activities, sealed),
+    [groupEntries, activities, sealed]
+  )
+  const latest = entries.at(-1)
+  const openBatch = openTense && latest?.type === 'tools' && !latest.sealed
+  const hideNow =
+    assistantStreaming || (openBatch && (hybridLine === '2a' || hybridLine === 'both'))
   const duration = formatActivityDuration(elapsedSeconds)
   if (historyOnly)
     return <WorkHistory threadId={threadId} entries={entries} view='full' live={false} />
@@ -256,7 +269,7 @@ export function WorkBlock({
           <>
             {children}
             {feel === 'hybrid' && !ended && (
-              <HybridNow activity={nowActivity ?? null} hidden={assistantStreaming ?? false} />
+              <HybridNow activity={nowActivity ?? null} hidden={hideNow} />
             )}
           </>
         ) : (
@@ -266,7 +279,7 @@ export function WorkBlock({
             view={view}
             live={!ended}
             nowActivity={nowActivity}
-            assistantStreaming={assistantStreaming}
+            assistantStreaming={hideNow}
           />
         )
       }

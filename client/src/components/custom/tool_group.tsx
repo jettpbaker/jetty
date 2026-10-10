@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useBatchTense, useChatFeel } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import { ThreadLink } from './entity_link'
@@ -13,12 +14,17 @@ import {
 } from './work_model'
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
-  const label = describeToolBatch(batch)
+  const feel = useChatFeel()
+  const batchTense = useBatchTense()
+  const openTense = feel === 'hybrid' && batchTense === 'open'
+  const label = describeToolBatch(batch, openTense)
   return (
     <Collapsible>
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
+        data-batch-tense={openTense ? 'open' : undefined}
+        data-batch-open={openTense && !batch.sealed ? '' : undefined}
         aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
       >
         <span className='flex min-w-0 items-baseline gap-1'>
@@ -34,8 +40,17 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             </span>
           ) : (
             <>
-              <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
-              <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
+              {openTense ? (
+                <RollingText className={cn('shrink-0', label.active && 'shimmer')}>
+                  {label.verb}
+                </RollingText>
+              ) : (
+                <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
+              )}
+              <RollingText
+                key={openTense ? undefined : label.verb}
+                className={cn(!label.prose && 'font-mono')}
+              >
                 {label.target}
               </RollingText>
             </>

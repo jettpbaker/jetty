@@ -12,6 +12,8 @@ import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
 import {
+  BatchTenseContext,
+  type BatchTense,
   ChatFeelContext,
   ChatSettledContext,
   LiveTurnContext,
@@ -73,6 +75,7 @@ function Feels() {
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
   const [speed, setSpeed] = useState<Speed>('1')
   const [indent, setIndent] = useState<WorkIndent>('on')
+  const [batchTense, setBatchTense] = useState<BatchTense>('open')
   const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
   const [interimText, setInterimText] = useState<InterimText>('b')
@@ -89,6 +92,8 @@ function Feels() {
       onLiveTurn={setLiveTurn}
       interimText={interimText}
       onInterimText={setInterimText}
+      batchTense={batchTense}
+      onBatchTense={setBatchTense}
       hybridPacing={hybridPacing}
       onHybridPacing={setHybridPacing}
       hybridLine={hybridLine}
@@ -124,6 +129,8 @@ function FeelReplay({
   onIndent,
   hybridLine,
   onHybridLine,
+  batchTense,
+  onBatchTense,
   hybridPacing,
   onHybridPacing,
   interimText,
@@ -141,6 +148,8 @@ function FeelReplay({
   onIndent: (indent: WorkIndent) => void
   interimText: InterimText
   onInterimText: (interimText: InterimText) => void
+  batchTense: BatchTense
+  onBatchTense: (batchTense: BatchTense) => void
   hybridPacing: HybridPacing
   onHybridPacing: (hybridPacing: HybridPacing) => void
   hybridLine: HybridLine
@@ -294,21 +303,23 @@ function FeelReplay({
                       </Button>
                     </h2>
                     <ChatFeelContext value={feel}>
-                      <HybridPacingContext value={hybridPacing}>
-                        <ChatSettledContext value={settled}>
-                          <ThreadList
-                            threadId={`replay-${run}-${feel}`}
-                            items={thread.items}
-                            status={thread.status}
-                            running={running}
-                            outcomes={thread.turnOutcomes}
-                            loadouts={thread.turnLoadouts}
-                            projectPath={replay.projectPath}
-                            provider={replay.provider}
-                            onSelectAgent={() => undefined}
-                          />
-                        </ChatSettledContext>
-                      </HybridPacingContext>
+                      <BatchTenseContext value={batchTense}>
+                        <HybridPacingContext value={hybridPacing}>
+                          <ChatSettledContext value={settled}>
+                            <ThreadList
+                              threadId={`replay-${run}-${feel}`}
+                              items={thread.items}
+                              status={thread.status}
+                              running={running}
+                              outcomes={thread.turnOutcomes}
+                              loadouts={thread.turnLoadouts}
+                              projectPath={replay.projectPath}
+                              provider={replay.provider}
+                              onSelectAgent={() => undefined}
+                            />
+                          </ChatSettledContext>
+                        </HybridPacingContext>
+                      </BatchTenseContext>
                     </ChatFeelContext>
                   </section>
                 ))}
@@ -351,6 +362,16 @@ function FeelReplay({
             { value: 'both', label: 'Both' },
           ]}
           onChange={onHybridLine}
+        />
+        <span className='text-xs text-muted-foreground'>Batch tense:</span>
+        <SettingsSegmented
+          label='Batch tense'
+          value={batchTense}
+          options={[
+            { value: 'now', label: 'Now' },
+            { value: 'open', label: 'Open' },
+          ]}
+          onChange={onBatchTense}
         />
         <span className='text-xs text-muted-foreground'>Hybrid pacing:</span>
         <SettingsSegmented

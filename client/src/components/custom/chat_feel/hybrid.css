@@ -1,6 +1,6 @@
 [data-chat-feel='hybrid']:not([data-hybrid-line='2b'], [data-hybrid-line='both'])
   [data-chat-thread] {
-  .shimmer:not(.hybrid-now .shimmer, [data-work-heading]) {
+  .shimmer:not(.hybrid-now .shimmer, [data-work-heading], [data-batch-open] .shimmer) {
     --shimmer-image: none;
     --shimmer-text-fill: currentColor;
     animation: none;
@@ -15,11 +15,11 @@
   .work-scroll[data-above] {
     mask-image: linear-gradient(to bottom, transparent, black 24px);
   }
-  .rolling-text-in,
-  .rolling-text-out {
+  .rolling-text-in:not([data-batch-tense='open'] *),
+  .rolling-text-out:not([data-batch-tense='open'] *) {
     animation: none;
   }
-  .rolling-text-out {
+  .rolling-text-out:not([data-batch-tense='open'] *) {
     display: none;
   }
 

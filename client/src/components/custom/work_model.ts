@@ -161,7 +161,7 @@ export function createWorkEntries() {
   }
 }
 
-export function describeToolBatch({ calls, sealed }: ToolBatch) {
+export function describeToolBatch({ calls, sealed }: ToolBatch, openTense = false) {
   const first = calls[0]!
   const latest = calls.at(-1)!
   const count = (status: ActivityStatus) => calls.filter((call) => call.status === status).length
@@ -171,10 +171,12 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const cancelled = count('cancelled')
   const interrupted = count('interrupted')
   const words = first.words ?? vocabulary[first.kind]
-  const active = running.length > 0
-  const summarise = (sealed && calls.length > 1 && !active) || running.length > 1
+  const open = openTense && !sealed
+  const latestFailed = ['failed', 'cancelled', 'interrupted'].includes(latest.status)
+  const active = open ? !latestFailed : running.length > 0
+  const summarise = (sealed && calls.length > 1 && !active) || (!open && running.length > 1)
   const shown = active ? running.length : completed || calls.length
-  const current = running[0] ?? latest
+  const current = open ? latest : (running[0] ?? latest)
   const description =
     first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
   const target = !summarise

@@ -61,6 +61,13 @@ export function useHybridLine() {
   return useContext(HybridLineContext)
 }
 
+export type BatchTense = 'now' | 'open'
+export const BatchTenseContext = createContext<BatchTense>('now')
+
+export function useBatchTense() {
+  return useContext(BatchTenseContext)
+}
+
 export type HybridPacing = 'none' | 'cursor' | 'jetty'
 export const HybridPacingContext = createContext<HybridPacing>('cursor')
 
