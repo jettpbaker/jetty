@@ -486,7 +486,8 @@ function installSampler(answers: AnswerTiming[]) {
         return { id: identity(list), now: now?.visible ? now : null, rows }
       })
     // Contract (Today and v2): chronological .activity-header work rows under [data-work-turn],
-    // visible ink + .shimmer/present-tense labels; __feelReplay supplies event-open IDs/labels and ms.
+    // excluding the turn's own heading ([data-work-heading]), visible ink + .shimmer/present-tense
+    // labels; __feelReplay supplies event-open IDs/labels and ms.
     // Labels must identify the work (or a counted batch); parallel rows require distinct open IDs.
     const replay = (window as ScanWindow).__feelReplay()
     const workRows = [...content.querySelectorAll<HTMLElement>('[data-work-turn] .activity-header')]
@@ -494,6 +495,7 @@ function installSampler(answers: AnswerTiming[]) {
         const id = identity(header)
         return (
           !header.matches('[data-flush]') &&
+          !header.querySelector('[data-work-heading]') &&
           elements.some(
             (element) =>
               element.ink &&
