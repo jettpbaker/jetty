@@ -3,7 +3,7 @@ import type { Transition } from 'motion/react'
 
 import { useChatSettled, useHybridLine } from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
-import { useEffect, useState } from 'react'
+import { createContext, useEffect, useLayoutEffect, useState } from 'react'
 
 import type { ThreadRow } from '../thread_rows'
 
@@ -54,7 +54,17 @@ export function hybridActivity(
   return { workId: work.id, activity, streaming }
 }
 
-export function HybridNow({ activity, hidden }: { activity: string | null; hidden: boolean }) {
+export const HybridNowSlotContext = createContext(false)
+
+export function HybridNow({
+  activity,
+  hidden,
+  onVisibilityChange,
+}: {
+  activity: string | null
+  hidden: boolean
+  onVisibilityChange?: (visible: boolean) => void
+}) {
   const line = useHybridLine()
   hidden ||=
     (line === '2a' || line === 'both') && activity !== null && !activity.startsWith('Waiting for')
@@ -84,6 +94,12 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
     const timer = setTimeout(() => setShown({ label: target, since: Date.now() }), delay)
     return () => clearTimeout(timer)
   }, [hidden, target, shown])
+
+  const visible = !hidden && shown.label !== null
+  useLayoutEffect(() => {
+    onVisibilityChange?.(visible)
+    return () => onVisibilityChange?.(false)
+  }, [visible, onVisibilityChange])
 
   return (
     <div

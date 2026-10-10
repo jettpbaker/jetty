@@ -2,6 +2,7 @@ import { useBatchTense, useChatFeel, useChatSettled, useHybridLine } from '@/lib
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -13,7 +14,7 @@ import {
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { capyMotion } from './chat_feel/capy'
-import { HybridNow } from './chat_feel/hybrid'
+import { HybridNow, HybridNowSlotContext } from './chat_feel/hybrid'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -37,6 +38,47 @@ function edges(element: HTMLElement) {
   )
 }
 
+function WorkEntryRow({
+  entry,
+  threadId,
+  settled,
+  feel,
+  reducedMotion,
+}: {
+  entry: WorkEntry
+  threadId: string
+  settled: boolean
+  feel: ReturnType<typeof useChatFeel>
+  reducedMotion: boolean | null
+}) {
+  const nowVisible = useContext(HybridNowSlotContext)
+  const [replacesNow] = useState(nowVisible)
+  return (
+    <motion.div
+      className='overflow-hidden'
+      initial={settled ? false : { height: replacesNow ? 'auto' : 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      transition={
+        settled
+          ? { duration: 0 }
+          : feel === 'capy' || feel === 'hybrid'
+            ? capyMotion(true, reducedMotion)
+            : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
+      }
+    >
+      {entry.type === 'thinking' ? (
+        <ThinkingBlock activity={entry} />
+      ) : entry.type === 'todo' ? (
+        <TodoLink threadId={threadId} update={entry.update} />
+      ) : entry.type === 'threads' ? (
+        <ThreadGroup batch={entry} />
+      ) : (
+        <ToolGroup batch={entry} />
+      )}
+    </motion.div>
+  )
+}
+
 function WorkHistory({
   threadId,
   entries,
@@ -44,6 +86,7 @@ function WorkHistory({
   live,
   nowActivity,
   assistantStreaming,
+  onNowVisibilityChange,
 }: {
   threadId: string
   entries: WorkEntry[]
@@ -51,6 +94,7 @@ function WorkHistory({
   live: boolean
   nowActivity?: string | null
   assistantStreaming?: boolean
+  onNowVisibilityChange?: (visible: boolean) => void
 }) {
   const reducedMotion = useReducedMotion()
   const feel = useChatFeel()
@@ -125,33 +169,22 @@ function WorkHistory({
       <div>
         <AnimatePresence initial={false}>
           {entries.map((entry) => (
-            <motion.div
+            <WorkEntryRow
               key={entry.id}
-              className='overflow-hidden'
-              initial={settled ? false : { height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              transition={
-                settled
-                  ? { duration: 0 }
-                  : feel === 'capy' || feel === 'hybrid'
-                    ? capyMotion(true, reducedMotion)
-                    : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
-              }
-            >
-              {entry.type === 'thinking' ? (
-                <ThinkingBlock activity={entry} />
-              ) : entry.type === 'todo' ? (
-                <TodoLink threadId={threadId} update={entry.update} />
-              ) : entry.type === 'threads' ? (
-                <ThreadGroup batch={entry} />
-              ) : (
-                <ToolGroup batch={entry} />
-              )}
-            </motion.div>
+              entry={entry}
+              threadId={threadId}
+              settled={settled}
+              feel={feel}
+              reducedMotion={reducedMotion}
+            />
           ))}
         </AnimatePresence>
         {feel === 'hybrid' && live && (
-          <HybridNow activity={nowActivity ?? null} hidden={assistantStreaming ?? false} />
+          <HybridNow
+            activity={nowActivity ?? null}
+            hidden={assistantStreaming ?? false}
+            onVisibilityChange={onNowVisibilityChange}
+          />
         )}
       </div>
     </div>
@@ -203,6 +236,7 @@ export function WorkBlock({
 }) {
   const feel = useChatFeel()
   const settled = useChatSettled()
+  const [nowVisible, setNowVisible] = useState(false)
   const runningSeconds = useRunningSeconds(
     status === 'running' && !settingUp ? startedAt : undefined
   )
@@ -220,6 +254,12 @@ export function WorkBlock({
   const openBatch = openTense && latest?.type === 'tools' && !latest.sealed
   const hideNow =
     assistantStreaming || (openBatch && (hybridLine === '2a' || hybridLine === 'both'))
+  const replacesNow =
+    nowVisible &&
+    (hideNow ||
+      ((hybridLine === '2a' || hybridLine === 'both') &&
+        nowActivity != null &&
+        !nowActivity.startsWith('Waiting for')))
   const duration = formatActivityDuration(elapsedSeconds)
   if (historyOnly)
     return <WorkHistory threadId={threadId} entries={entries} view='full' live={false} />
@@ -253,36 +293,43 @@ export function WorkBlock({
       ''
     )
   return (
-    <ActivityDisclosure
-      flushHeader
-      title={
-        <span data-work-heading className={cn(status === 'running' && 'shimmer')}>
-          {heading}
-        </span>
-      }
-      titleSuffix={timing}
-      ended={ended}
-      hasContent={!!children || entries.length > 0}
-      hasPreview={!children && entries.length > previewCount}
-      renderContent={(view) =>
-        children ? (
-          <>
-            {children}
-            {feel === 'hybrid' && !ended && (
-              <HybridNow activity={nowActivity ?? null} hidden={hideNow} />
-            )}
-          </>
-        ) : (
-          <WorkHistory
-            threadId={threadId}
-            entries={entries}
-            view={view}
-            live={!ended}
-            nowActivity={nowActivity}
-            assistantStreaming={hideNow}
-          />
-        )
-      }
-    />
+    <HybridNowSlotContext value={replacesNow}>
+      <ActivityDisclosure
+        flushHeader
+        title={
+          <span data-work-heading className={cn(status === 'running' && 'shimmer')}>
+            {heading}
+          </span>
+        }
+        titleSuffix={timing}
+        ended={ended}
+        hasContent={!!children || entries.length > 0}
+        hasPreview={!children && entries.length > previewCount}
+        renderContent={(view) =>
+          children ? (
+            <>
+              {children}
+              {feel === 'hybrid' && !ended && (
+                <HybridNow
+                  activity={nowActivity ?? null}
+                  hidden={hideNow}
+                  onVisibilityChange={setNowVisible}
+                />
+              )}
+            </>
+          ) : (
+            <WorkHistory
+              threadId={threadId}
+              entries={entries}
+              view={view}
+              live={!ended}
+              nowActivity={nowActivity}
+              assistantStreaming={hideNow}
+              onNowVisibilityChange={setNowVisible}
+            />
+          )
+        }
+      />
+    </HybridNowSlotContext>
   )
 }
