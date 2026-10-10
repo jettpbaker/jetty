@@ -1,6 +1,7 @@
 import type { ThreadState } from '@jetty/shared/reducer'
 
 import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_icons'
+import { HybridV2Pane } from '@/components/custom/hybrid_v2'
 import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
@@ -48,6 +49,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { flushSync } from 'react-dom'
 
 import './dev.feels.css'
 
@@ -79,6 +81,9 @@ const names = [...replays.keys()]
 function Feels() {
   const search = useLocation({ select: (location) => location.searchStr })
   const params = new URLSearchParams(search)
+  const [engine, setEngine] = useState<'today' | 'v2'>(
+    params.get('engine') === 'today' ? 'today' : 'v2'
+  )
   const scan = params.get('scan')
   const fold = params.get('fold')
   const timeWarp = useTimeWarp(scan !== null)
@@ -111,6 +116,13 @@ function Feels() {
   return (
     <FeelReplay
       key={pick.run}
+      engine={engine}
+      onEngine={(value) => {
+        setEngine(value)
+        const next = new URLSearchParams(search)
+        next.set('engine', value)
+        window.history.replaceState(null, '', `/dev/feels?${next}`)
+      }}
       timeWarp={timeWarp}
       run={pick.run}
       name={pick.name}
@@ -165,6 +177,8 @@ function dropControlFocus(event: FocusEvent<HTMLDivElement>) {
 }
 
 function FeelReplay({
+  engine,
+  onEngine,
   timeWarp,
   run,
   name,
@@ -192,6 +206,8 @@ function FeelReplay({
   onRestart,
   onRebuild,
 }: {
+  engine: 'today' | 'v2'
+  onEngine: (engine: 'today' | 'v2') => void
   timeWarp: ReturnType<typeof useTimeWarp>
   run: number
   name: string
@@ -222,6 +238,7 @@ function FeelReplay({
   const replay = replays.get(name)!
   const duration = replay.events.at(-1)!.t
   const [thread, setThread] = useState(emptyThread)
+  const replayStart = useRef(Date.now())
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
   const [settled, setSettled] = useState(false)
@@ -269,6 +286,7 @@ function FeelReplay({
   }, [])
 
   function releaseSettled() {
+    if (engine === 'v2') return
     cancelAnimationFrame(settleFrame.current)
     settleFrame.current = requestAnimationFrame(() => setSettled(false))
   }
@@ -339,11 +357,18 @@ function FeelReplay({
     const playhead = clock.current
     let last = performance.now()
     let frame = requestAnimationFrame(function tick(now) {
+      if (engine === 'v2' && playhead !== clock.current) return
       playhead.at = Math.min(duration, playhead.at + Math.max(0, now - last))
       last = now
       let state = playhead.thread
       while (playhead.next < events.length && events[playhead.next]!.t <= playhead.at) {
-        state = land(state, events[playhead.next]!.event, playhead.next + 1)
+        const { t, event } = events[playhead.next]!
+        state = land(
+          state,
+          event,
+          playhead.next + 1,
+          engine === 'v2' ? replayStart.current + t : undefined
+        )
         playhead.next++
       }
       if (state !== playhead.thread) {
@@ -355,7 +380,7 @@ function FeelReplay({
       else setPlaying(false)
     })
     return () => cancelAnimationFrame(frame)
-  }, [playing, replay, duration])
+  }, [playing, replay, duration, engine])
 
   function seek(at: number) {
     setPlaying(false)
@@ -367,15 +392,23 @@ function FeelReplay({
     const forward = at >= playhead.at
     let state = forward ? playhead.thread : emptyThread
     let next = forward ? playhead.next : 0
-    const start = Date.now() - at
+    const start = engine === 'v2' ? replayStart.current : Date.now() - at
     while (next < replay.events.length && replay.events[next]!.t <= at) {
       const { t, event } = replay.events[next]!
       state = land(state, event, next + 1, start + t)
       next++
     }
     clock.current = { at, next, thread: state }
-    setThread(state)
-    setElapsed(at)
+    if (engine === 'v2') {
+      flushSync(() => {
+        setThread(state)
+        setElapsed(at)
+        setSettled(true)
+      })
+    } else {
+      setThread(state)
+      setElapsed(at)
+    }
     timeWarp.seekFrame(at)
   }
 
@@ -407,6 +440,7 @@ function FeelReplay({
             <section
               ref={paneRef}
               data-chat-feel='hybrid'
+              data-engine={engine}
               data-hybrid-line={hybridLine}
               data-hybrid-fold={hybridFold}
               data-chat-settled={settled ? '' : undefined}
@@ -424,17 +458,26 @@ function FeelReplay({
                             <HybridPacingContext value={hybridPacing}>
                               <HybridFoldContext value={hybridFold}>
                                 <ChatSettledContext value={settled}>
-                                  <ThreadList
-                                    threadId={`replay-${run}-hybrid`}
-                                    items={thread.items}
-                                    status={thread.status}
-                                    running={running}
-                                    outcomes={thread.turnOutcomes}
-                                    loadouts={thread.turnLoadouts}
-                                    projectPath={replay.projectPath}
-                                    provider={replay.provider}
-                                    onSelectAgent={() => undefined}
-                                  />
+                                  {engine === 'v2' ? (
+                                    <HybridV2Pane
+                                      thread={thread}
+                                      threadId={`replay-${run}-v2`}
+                                      projectPath={replay.projectPath}
+                                      now={replayStart.current + elapsed}
+                                    />
+                                  ) : (
+                                    <ThreadList
+                                      threadId={`replay-${run}-hybrid`}
+                                      items={thread.items}
+                                      status={thread.status}
+                                      running={running}
+                                      outcomes={thread.turnOutcomes}
+                                      loadouts={thread.turnLoadouts}
+                                      projectPath={replay.projectPath}
+                                      provider={replay.provider}
+                                      onSelectAgent={() => undefined}
+                                    />
+                                  )}
                                 </ChatSettledContext>
                               </HybridFoldContext>
                             </HybridPacingContext>
@@ -481,6 +524,18 @@ function FeelReplay({
       </div>
       <div className='flex shrink-0 flex-wrap items-center gap-1 px-2 pb-2'>
         <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Engine:</span>
+          <SettingsSegmented
+            label='Engine'
+            value={engine}
+            options={[
+              { value: 'today', label: 'Today' },
+              { value: 'v2', label: 'v2' },
+            ]}
+            onChange={onEngine}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
           <span className='text-xs text-muted-foreground'>Hybrid line:</span>
           <SettingsSegmented
             label='Hybrid line'
@@ -494,7 +549,7 @@ function FeelReplay({
             onChange={onHybridLine}
           />
         </div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' hidden={engine === 'v2'}>
           <span className='text-xs text-muted-foreground'>Batch tense:</span>
           <SettingsSegmented
             label='Batch tense'
@@ -506,7 +561,7 @@ function FeelReplay({
             onChange={onBatchTense}
           />
         </div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' hidden={engine === 'v2'}>
           <span className='text-xs text-muted-foreground'>Batch label:</span>
           <SettingsSegmented
             label='Batch label'
@@ -519,7 +574,7 @@ function FeelReplay({
             onChange={onBatchLabel}
           />
         </div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' hidden={engine === 'v2'}>
           <span className='text-xs text-muted-foreground'>Lift:</span>
           <SettingsSegmented
             label='Lift'
@@ -531,7 +586,7 @@ function FeelReplay({
             onChange={onLift}
           />
         </div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' hidden={engine === 'v2'}>
           <span className='text-xs text-muted-foreground'>Rows:</span>
           <SettingsSegmented
             label='Rows'
@@ -543,7 +598,7 @@ function FeelReplay({
             onChange={onRows}
           />
         </div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' hidden={engine === 'v2'}>
           <span className='text-xs text-muted-foreground'>Tense change:</span>
           <SettingsSegmented
             label='Tense change'
@@ -568,7 +623,7 @@ function FeelReplay({
             onChange={onFadeDuration}
           />
         </div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' hidden={engine === 'v2'}>
           <span className='text-xs text-muted-foreground'>Fold:</span>
           <SettingsSegmented
             label='Fold'

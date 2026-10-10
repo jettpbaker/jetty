@@ -82,3 +82,92 @@ for (const name of ['one-turn', 'two-turns', 'opus-real']) {
     })
   })
 }
+
+test('parallel tools keep their own tense while the tail alone owns the cursor', () => {
+  const work = {
+    kind: 'work' as const,
+    id: 'work',
+    turnId: 'turn',
+    status: 'running' as const,
+    activities: [
+      {
+        type: 'tool' as const,
+        id: 'read',
+        kind: 'read' as const,
+        name: 'Read',
+        target: 'src/a.ts',
+        status: 'running' as const,
+      },
+      { type: 'thinking' as const, id: 'thinking', status: 'running' as const, summary: '' },
+    ],
+  }
+  for (const line of ['today', '2a', '2b', 'both'] as const) {
+    const view = projectTurn({ work, revealDone: false, line })
+    expect(view.cursor).toBe('thinking')
+    expect(view.rows.map((row) => row.live)).toEqual([false, true])
+    expect(view.rows.map((row) => row.label.tense)).toEqual(['present', 'present'])
+    expect(view.rows[0]!.runningCalls).toEqual(['read'])
+    expect(view.rows[0]!.entry?.type === 'tools' && view.rows[0]!.entry.sealed).toBe(true)
+    expect(view.now?.text ?? null).toBe(line === 'today' || line === '2b' ? 'Thinking' : null)
+  }
+})
+
+test('gaps have an immediate stand-in and an interim message owns the tail and seals the batch', () => {
+  const build = createThreadRows()
+  const events = [
+    { type: 'turn.started', turnId: 'turn' },
+    {
+      type: 'item.started',
+      item: {
+        id: 'user',
+        turnId: 'turn',
+        createdAt: 0,
+        kind: 'user_message',
+        text: 'hello',
+        attachments: [],
+      },
+    },
+    {
+      type: 'item.started',
+      item: {
+        id: 'read',
+        turnId: 'turn',
+        createdAt: 1,
+        kind: 'tool_call',
+        toolName: 'Read',
+        input: { file_path: 'src/a.ts' },
+        output: '',
+        status: 'succeeded',
+        completedAt: 2,
+      },
+    },
+    {
+      type: 'item.started',
+      item: {
+        id: 'interim',
+        turnId: 'turn',
+        createdAt: 3,
+        kind: 'assistant_message',
+        text: 'Next step',
+        streaming: false,
+      },
+    },
+  ]
+  let state = emptyThread
+  for (const [index, event] of events.entries())
+    state = applyEvent(state, { seq: index + 1, ts: index, event: decode(event) })
+  const rows = singleTurnRows(
+    build(state.items, { status: state.status, running: true }),
+    state.items
+  )
+  const work = rows.find((row) => row.kind === 'work')!
+  if (work.kind !== 'work') throw new Error('Missing work')
+  const view = projectTurn({ work, revealDone: false })
+  expect(view.rows[0]!.label.text).toBe('Read src/a.ts')
+  expect(view.rows[0]!.entry?.type === 'tools' && view.rows[0]!.entry.sealed).toBe(true)
+  expect(view.now).toBeNull()
+  expect(view.cursor).toBe('interim')
+  const gap = projectTurn({ work: { ...work, flow: [], activities: [] }, revealDone: false })
+  expect(gap.now?.text).toBe('Planning next moves')
+  expect(gap.cursor).toBe('user:work:now')
+})

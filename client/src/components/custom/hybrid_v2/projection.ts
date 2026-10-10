@@ -26,7 +26,7 @@ export type TurnRow = {
   streaming?: boolean
   muted?: boolean
 }
-export type TurnAnswer = { id: string; text: string; streaming: boolean }
+export type TurnAnswer = TurnRow & { kind: 'text'; text: string; streaming: boolean }
 export type TurnView = {
   id: string
   turnId: string
@@ -128,7 +128,7 @@ export function projectTurn({
         id: part.id,
         kind: 'text',
         label: label(''),
-        live: running && tail && part.streaming,
+        live: running && tail,
         shimmer: false,
         runningCalls: [],
         text: part.item.text,
@@ -141,14 +141,14 @@ export function projectTurn({
   for (const [index, row] of rows.entries()) {
     if (row.kind === 'text' && interim === 'b') row.muted = index < lastStep
     row.shimmer =
-      row.kind === 'activity' && row.label.tense === 'present' && (line === '2b' || line === 'both')
+      row.kind === 'activity' &&
+      row.label.tense === 'present' &&
+      ((row.entry?.type === 'tools' && !row.entry.sealed) || line === '2b' || line === 'both')
   }
   const tail = rows.at(-1)
   const cursor = tail?.live ? tail.id : null
   const hasLive = rows.some((row) => row.live || row.runningCalls.length > 0)
-  const hideNow =
-    (tail?.kind === 'text' && tail.streaming) ||
-    (cursor !== null && (line === '2a' || line === 'both'))
+  const hideNow = tail?.kind === 'text' || (cursor !== null && (line === '2a' || line === 'both'))
   const nowLabel =
     !running || hideNow
       ? null
@@ -168,7 +168,19 @@ export function projectTurn({
     rows,
     cursor: cursor ?? (nowLabel ? `${work.id}:now` : null),
     now: nowLabel,
-    answer: answer ? { id: answer.id, text: answer.item.text, streaming: answer.streaming } : null,
+    answer: answer
+      ? {
+          id: answer.id,
+          kind: 'text',
+          label: label(''),
+          live: false,
+          shimmer: false,
+          runningCalls: [],
+          text: answer.item.text,
+          streaming: answer.streaming,
+          muted: false,
+        }
+      : null,
     folded: !running && !!answer && revealDone,
   }
 }

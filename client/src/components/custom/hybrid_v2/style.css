@@ -1,0 +1,68 @@
+[data-chat-feel='hybrid'] [data-hybrid-v2] {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  font-weight: 450;
+  animation: none;
+
+  [data-v2-row],
+  [data-chat-row] {
+    transition: none;
+  }
+  .work-scroll {
+    transition: none;
+  }
+  .activity-header {
+    border: 0;
+    padding-inline: 0;
+    justify-content: start;
+    gap: 0;
+    line-height: inherit;
+  }
+  [data-component='tool-status-title'] {
+    [data-slot='tool-status-swap'] {
+      transition-duration: var(--v2-width);
+    }
+    [data-slot='tool-status-active'],
+    [data-slot='tool-status-done'] {
+      transition-duration: var(--v2-fade), var(--v2-lift), var(--v2-lift);
+    }
+    &[data-ready='false'] [data-slot] {
+      transition-duration: 0ms;
+    }
+  }
+  .rolling-text-in {
+    animation: var(--rolling-text-in);
+  }
+  .rolling-text-out {
+    display: block;
+    animation: var(--rolling-text-out);
+  }
+  .rolling-text-quick .rolling-text-in,
+  .rolling-text-quick .rolling-text-out {
+    animation-duration: 150ms;
+  }
+  [data-slot='message'][data-interim-text='a'] {
+    padding-block: 8px;
+  }
+  [data-slot='bubble-content'] {
+    overflow: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-chat-feel='hybrid'] [data-hybrid-v2] {
+    .rolling-text-in {
+      animation: none;
+    }
+    .rolling-text-out {
+      display: none;
+    }
+    [data-component='tool-status-title'] [data-slot] {
+      transition-duration: 0ms;
+    }
+    [data-slot='message'] {
+      transition: none;
+    }
+  }
+}
