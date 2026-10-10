@@ -1,13 +1,12 @@
 import type { ThreadState } from '@jetty/shared/reducer'
 
 import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_icons'
+import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import { ChatFeelContext, chatFeelNames, chatFeels, pinRootChatFeel } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
-import { cn } from '@/lib/utils'
 import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
@@ -43,30 +42,6 @@ const names = [...replays.keys()]
 const speeds = ['0.25', '0.5', '1', '2'] as const
 type Speed = (typeof speeds)[number]
 
-const tickKinds = {
-  user_message: { label: 'User message', color: 'bg-sky-500' },
-  reasoning: { label: 'Thinking', color: 'bg-violet-500' },
-  tool_call: { label: 'Tool call', color: 'bg-amber-500' },
-  assistant_message: { label: 'Assistant text', color: 'bg-emerald-500' },
-} as const
-
-function eventTicks(replay: Replay) {
-  const kinds = new Map<string, keyof typeof tickKinds>()
-  return replay.events.flatMap(({ t, event }, index) => {
-    if (event.type === 'item.started' && event.item.kind in tickKinds)
-      kinds.set(event.item.id, event.item.kind as keyof typeof tickKinds)
-    const kind =
-      event.type === 'item.started'
-        ? kinds.get(event.item.id)
-        : 'itemId' in event
-          ? kinds.get(event.itemId)
-          : undefined
-    return kind ? [{ t, index, ...tickKinds[kind] }] : []
-  })
-}
-
-const ticks = new Map([...replays].map(([name, replay]) => [name, eventTicks(replay)]))
-
 function Feels() {
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
@@ -95,11 +70,6 @@ function land(state: ThreadState, event: ThreadEvent, seq: number, ts = Date.now
     event:
       event.type === 'item.started' ? { ...event, item: { ...event.item, createdAt: ts } } : event,
   })
-}
-
-function clockText(ms: number) {
-  const seconds = ms / 1000
-  return `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(1).padStart(4, '0')}`
 }
 
 function FeelReplay({
@@ -152,7 +122,7 @@ function FeelReplay({
 
   function seek(at: number) {
     setPlaying(false)
-    at = Math.max(0, Math.min(duration, at))
+    at = Math.max(0, Math.min(duration, Math.round(at)))
     let state = emptyThread
     let next = 0
     const start = Date.now() - at
@@ -234,57 +204,13 @@ function FeelReplay({
           onChange={onPick}
         />
       </div>
-      <section aria-label='Replay timeline' className='flex shrink-0 flex-col gap-2 px-3 pt-2 pb-3'>
-        <div className='flex items-center justify-between gap-3 text-xs text-muted-foreground'>
-          <span className='font-mono tabular-nums'>
-            {clockText(elapsed)} / {clockText(duration)}
-          </span>
-          <span>← / → 100ms · Shift 1s</span>
-        </div>
-        <div className='relative'>
-          <Slider
-            aria-label='Replay playhead'
-            aria-valuetext={clockText(elapsed)}
-            min={0}
-            max={duration}
-            step={1}
-            thumbAlignment='center'
-            value={elapsed}
-            onPointerDownCapture={() => setPlaying(false)}
-            onValueChange={(value) => seek(Array.isArray(value) ? value[0]! : value)}
-            onKeyDownCapture={(event) => {
-              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-              event.preventDefault()
-              event.stopPropagation()
-              seek(
-                clock.current.at +
-                  (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1000 : 100)
-              )
-            }}
-          />
-          <div
-            aria-hidden
-            className='pointer-events-none absolute inset-x-0 top-1/2 h-3 -translate-y-1/2'
-          >
-            {ticks.get(name)!.map(({ t, index, label, color }) => (
-              <span
-                key={index}
-                title={`${label} · ${clockText(t)}`}
-                className={cn('absolute h-full w-px', color)}
-                style={{ left: `${duration ? (t / duration) * 100 : 0}%` }}
-              />
-            ))}
-          </div>
-        </div>
-        <div className='flex flex-wrap gap-3 text-xs text-muted-foreground'>
-          {Object.values(tickKinds).map(({ label, color }) => (
-            <span key={label} className='flex items-center gap-1.5'>
-              <span className={cn('h-2 w-1 rounded-sm', color)} />
-              {label}
-            </span>
-          ))}
-        </div>
-      </section>
+      <ReplayTimeline
+        events={replay.events}
+        duration={duration}
+        elapsed={elapsed}
+        playing={playing}
+        onSeek={seek}
+      />
     </div>
   )
 }
