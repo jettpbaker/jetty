@@ -3,6 +3,7 @@ import type { Transition } from 'motion/react'
 
 import { useChatSettled, useHybridLine } from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
+import { motion, useReducedMotion } from 'motion/react'
 import { createContext, useEffect, useLayoutEffect, useState } from 'react'
 
 import type { ThreadRow } from '../thread_rows'
@@ -69,6 +70,7 @@ export function HybridNow({
   hidden ||=
     (line === '2a' || line === 'both') && activity !== null && !activity.startsWith('Waiting for')
   const settled = useChatSettled()
+  const reducedMotion = useReducedMotion()
   const [idleReady, setIdleReady] = useState(false)
   const [wasHidden, setWasHidden] = useState(hidden)
   const [shown, setShown] = useState(() => ({ label: activity, since: Date.now() }))
@@ -102,12 +104,18 @@ export function HybridNow({
   }, [visible, onVisibilityChange])
 
   return (
-    <div
-      className='hybrid-now activity-header text-muted-foreground'
-      hidden={hidden || shown.label === null}
-    >
+    <div className='hybrid-now text-muted-foreground' hidden={hidden || shown.label === null}>
       {!hidden && shown.label !== null && (
-        <RollingText textClassName='shimmer'>{shown.label}</RollingText>
+        <motion.div
+          className='overflow-hidden'
+          initial={settled ? false : { height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          transition={settled ? { duration: 0 } : capyMotion(true, reducedMotion)}
+        >
+          <div className='activity-header'>
+            <RollingText textClassName='shimmer'>{shown.label}</RollingText>
+          </div>
+        </motion.div>
       )}
     </div>
   )
