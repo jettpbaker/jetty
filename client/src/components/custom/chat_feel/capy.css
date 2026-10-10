@@ -66,6 +66,11 @@
   }
 }
 
+/* Hybrid is headed for the app, so it speaks the app's own sans. */
+[data-chat-feel='hybrid'] {
+  --capy-font: var(--font-sans);
+}
+
 :is([data-chat-feel='capy'], [data-chat-feel='hybrid']) [data-chat-thread] {
   --motion-disclosure-open-duration: 150ms;
   --motion-disclosure-close-duration: 120ms;
