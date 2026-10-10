@@ -40,7 +40,7 @@ import { cn } from '@/lib/utils'
 import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useLocation } from '@tanstack/react-router'
 import { Schema } from 'effect'
 import {
   type FocusEvent,
@@ -80,9 +80,11 @@ const replays = new Map(
 const names = [...replays.keys()]
 
 function Feels() {
-  const timeWarp = useTimeWarp()
+  const search = useLocation({ select: (location) => location.searchStr })
+  const scan = new URLSearchParams(search).get('scan')
+  const timeWarp = useTimeWarp(scan !== null)
   // Restarting or picking another transcript mounts every pane afresh.
-  const [pick, setPick] = useState({ name: names[0]!, run: 0 })
+  const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
   const [indent, setIndent] = useState<WorkIndent>('on')
   const [tenseChange, setTenseChange] = useState<TenseChange>('smart')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
@@ -97,6 +99,7 @@ function Feels() {
       timeWarp={timeWarp}
       run={pick.run}
       name={pick.name}
+      scanning={scan !== null}
       morphDuration={morphDuration}
       onMorphDuration={setMorphDuration}
       interimText={interimText}
@@ -142,6 +145,7 @@ function dropControlFocus(event: FocusEvent<HTMLDivElement>) {
 
 function FeelReplay({
   timeWarp,
+  scanning,
   run,
   name,
   morphDuration,
@@ -162,6 +166,7 @@ function FeelReplay({
   onRestart,
 }: {
   timeWarp: ReturnType<typeof useTimeWarp>
+  scanning: boolean
   run: number
   name: string
   morphDuration: MorphDuration
@@ -187,7 +192,7 @@ function FeelReplay({
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
   const [settled, setSettled] = useState(false)
-  const [expanded, setExpanded] = useState<ChatFeel | null>(null)
+  const [expanded, setExpanded] = useState<ChatFeel | null>(scanning ? 'hybrid' : null)
   const panesRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   const settleFrame = useRef(0)
@@ -203,9 +208,18 @@ function FeelReplay({
   useEffect(() => () => cancelAnimationFrame(settleFrame.current), [])
 
   const onSpace = useEffectEvent(playPause)
+  const onStep = useEffectEvent(() => {
+    if (timeWarp.frozen) void timeWarp.step()
+  })
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== ' ' || event.repeat || event.metaKey || event.ctrlKey || event.altKey)
+      if (
+        ![' ', '.'].includes(event.key) ||
+        event.repeat ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
         return
       const target = event.target
       if (
@@ -214,7 +228,8 @@ function FeelReplay({
       )
         return
       event.preventDefault()
-      onSpace()
+      if (event.key === '.') onStep()
+      else onSpace()
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
@@ -381,7 +396,11 @@ function FeelReplay({
         <Button
           variant='ghost'
           size='icon-sm'
-          aria-label={playing && !timeWarp.frozen ? 'Pause' : 'Play'}
+          aria-label={
+            playing && !timeWarp.frozen
+              ? 'Pause (Space; . steps while paused)'
+              : 'Play (Space; . next frame)'
+          }
           {...pressProps(playPause)}
         >
           {playing && !timeWarp.frozen ? <PauseIcon filled /> : <PlayIcon filled />}

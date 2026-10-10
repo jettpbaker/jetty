@@ -1,4 +1,4 @@
-import { frame, frameSteps } from 'motion/react'
+import { frame, frameData, frameSteps } from 'motion/react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 export const speedOptions = [
@@ -10,10 +10,12 @@ export const speedOptions = [
 ] as const
 type Speed = (typeof speedOptions)[number]['value']
 
-type Timer = { due: number; delay: number }
+type Timer = { due: number; delay: number; fire: () => void }
+
+export const frameMs = 16.7
 
 // Only installed by /dev/feels. Native scheduling keeps the debugging controls live at scale 0.
-export function installTimeWarp() {
+export function installTimeWarp(fixed = false) {
   const original = {
     now: performance.now,
     dateNow: Date.now,
@@ -30,9 +32,9 @@ export function installTimeWarp() {
   const startTimeDescriptor = Object.getOwnPropertyDescriptor(Animation.prototype, 'startTime')!
   const realNow = original.now.bind(performance)
   let realBase = realNow()
-  let clockBase = realBase
-  const dateBase = original.dateNow() - clockBase
-  let scale = 1
+  let clockBase = fixed ? 0 : realBase
+  const dateBase = fixed ? 1_700_000_000_000 : original.dateNow() - clockBase
+  let scale = fixed ? 0 : 1
   let installed = true
   const timers = new Map<number, Timer>()
   const frames = new Map<number, { callback: FrameRequestCallback; native: number }>()
@@ -43,7 +45,11 @@ export function installTimeWarp() {
   }
 
   function adjust(animation: Animation) {
-    if (animation.playState === 'finished') return
+    if (
+      animation.playState === 'finished' ||
+      (animation.timeline && animation.timeline !== document.timeline)
+    )
+      return
     let rate = rates.get(animation)
     if (rate === undefined) {
       rate = animation.playbackRate
@@ -104,18 +110,20 @@ export function installTimeWarp() {
   // The short native pulse checks a virtual deadline; scale changes preserve time remaining.
   function timer(handler: TimerHandler, timeout = 0, args: unknown[], repeat: boolean) {
     const delay = Math.max(0, Math.min(Number(timeout) || 0, 2_147_483_647))
-    const entry = { due: now() + delay, delay }
+    const entry = { due: now() + delay, delay, fire }
+    function fire() {
+      if (repeat) entry.due = now() + entry.delay
+      else {
+        original.clearInterval.call(window, id)
+        timers.delete(id)
+      }
+      if (typeof handler === 'function') handler.apply(window, args)
+      else original.timeout.call(window, handler, 0)
+    }
     const id = original.interval.call(
       window,
       () => {
-        if (scale === 0 || now() < entry.due) return
-        if (repeat) entry.due = now() + entry.delay
-        else {
-          original.clearInterval.call(window, id)
-          timers.delete(id)
-        }
-        if (typeof handler === 'function') handler.apply(window, args)
-        else original.timeout.call(window, handler, 0)
+        if (scale > 0 && now() >= entry.due) fire()
       },
       Math.max(1, Math.min(delay, 8))
     )
@@ -171,6 +179,83 @@ export function installTimeWarp() {
   })
   animations()
 
+  function finishStep(animation: Animation) {
+    animation.addEventListener(
+      'finish',
+      (event) => {
+        if (event.isTrusted) event.stopImmediatePropagation()
+      },
+      { capture: true }
+    )
+    animation.finish()
+    animation.dispatchEvent(
+      new AnimationPlaybackEvent('finish', { currentTime: animation.currentTime as number })
+    )
+    const target = (animation.effect as KeyframeEffect | null)?.target
+    if (animation instanceof CSSAnimation && target) {
+      target.dispatchEvent(
+        new AnimationEvent('animationend', {
+          bubbles: true,
+          animationName: animation.animationName,
+        })
+      )
+    } else if (animation instanceof CSSTransition && target) {
+      target.dispatchEvent(
+        new TransitionEvent('transitionend', {
+          bubbles: true,
+          propertyName: animation.transitionProperty,
+        })
+      )
+    }
+  }
+  function suppressNativeEnd(event: Event) {
+    if (scale === 0 && event.isTrusted) event.stopImmediatePropagation()
+  }
+  document.addEventListener('animationend', suppressNativeEnd, true)
+  document.addEventListener('transitionend', suppressNativeEnd, true)
+
+  // Run one page frame while native scheduling continues to service React and the controls.
+  function step<T>(sample?: () => T): Promise<T | undefined> {
+    if (scale !== 0) return Promise.resolve(undefined)
+    return new Promise((resolve) => {
+      original.raf.call(window, () => {
+        original.timeout.call(window, () => advance(sample).then(resolve), 0)
+      })
+    })
+  }
+
+  function advance<T>(sample?: () => T): Promise<T | undefined> {
+    clockBase += frameMs
+    animations()
+    for (const [animation, rate] of rates) {
+      if (typeof animation.currentTime !== 'number') continue
+      animation.currentTime += frameMs * rate
+      const end = animation.effect?.getComputedTiming().endTime
+      if (typeof end === 'number' && animation.currentTime >= end) finishStep(animation)
+    }
+    for (const [id, entry] of Array.from(timers)) {
+      if (timers.has(id) && entry.due <= now()) entry.fire()
+    }
+    for (const [id, entry] of Array.from(frames)) {
+      if (!frames.has(id)) continue
+      original.cancelRaf.call(window, entry.native)
+      frames.delete(id)
+      entry.callback(now())
+    }
+    Object.assign(frameData, { delta: frameMs, timestamp: now(), isProcessing: true })
+    for (const { process } of steps) process(frameData)
+    frameData.isProcessing = false
+    return new Promise((resolve) => {
+      original.raf.call(window, () => {
+        animations()
+        queueMicrotask(() => {
+          const result = sample?.()
+          original.timeout.call(window, () => resolve(result), 0)
+        })
+      })
+    })
+  }
+
   function dispose() {
     const remaining = now()
     clockBase = realBase = realNow()
@@ -180,6 +265,8 @@ export function installTimeWarp() {
     timers.clear()
     original.cancelRaf.call(window, scan)
     document.removeEventListener('animationstart', animations, true)
+    document.removeEventListener('animationend', suppressNativeEnd, true)
+    document.removeEventListener('transitionend', suppressNativeEnd, true)
     document.removeEventListener('transitionrun', animations, true)
     for (const [animation, rate] of rates) animation.playbackRate = rate
     rates.clear()
@@ -199,21 +286,22 @@ export function installTimeWarp() {
     Object.defineProperty(Animation.prototype, 'startTime', startTimeDescriptor)
     frame.read(() => {})
   }
-  return { setScale, dispose }
+  return { setScale, step, now, dispose }
 }
 
-export function useTimeWarp() {
+export function useTimeWarp(fixed = false) {
   const warpRef = useRef<ReturnType<typeof installTimeWarp> | null>(null)
   const [speed, setSpeed] = useState<Speed>('1')
-  const [frozen, setFrozen] = useState(false)
+  const [frozen, setFrozen] = useState(fixed)
   useLayoutEffect(() => {
-    const warp = installTimeWarp()
+    const warp = installTimeWarp(fixed)
+    if (fixed) Object.assign(window, { __feelClock: warp })
     warpRef.current = warp
     return () => {
       warp.dispose()
       warpRef.current = null
     }
-  }, [])
+  }, [fixed])
   useLayoutEffect(() => warpRef.current?.setScale(frozen ? 0 : Number(speed)), [frozen, speed])
-  return { speed, setSpeed, frozen, setFrozen }
+  return { speed, setSpeed, frozen, setFrozen, step: () => warpRef.current?.step() }
 }
