@@ -94,7 +94,7 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
   if (settled)
     return (
       <div className='hybrid-now activity-header text-muted-foreground' hidden={hidden}>
-        {activity ?? 'Planning next moves'}
+        <span className='truncate'>{activity ?? 'Planning next moves'}</span>
       </div>
     )
 

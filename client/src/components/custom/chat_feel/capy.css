@@ -46,7 +46,7 @@
 
   /* One 768px column, 736px of text. The list spaces rows 12px apart; a row's margin moves that
      to 6px within a turn and 16px before a user message or marker. */
-  [data-chat-row] {
+  [data-index] > [data-chat-row] {
     max-width: 768px;
     padding-inline: 16px;
     margin-top: -6px;
