@@ -8,6 +8,7 @@ import {
   type PermissionResult,
   type PermissionUpdate,
   type Query,
+  type SDKMessage,
   type SDKUserMessage,
   type SessionMessage,
 } from '@anthropic-ai/claude-agent-sdk'
@@ -30,6 +31,7 @@ import {
 } from 'effect'
 import { join } from 'node:path'
 
+import type { ClaudeCapture } from './claude-capture'
 import type { Store } from './store'
 
 import {
@@ -73,6 +75,7 @@ export type ClaudeOptions = {
     provider: 'claude'
   }) => Promise<McpSdkServerConfigWithInstance>
   query?: QueryFactory
+  capture?: ClaudeCapture
   ttlMs?: number
   interruptGraceMs?: number
   supportsAutoMode?: (model: string) => boolean
@@ -274,6 +277,12 @@ export function createClaudeAdapter(
         Effect.andThen(
           Effect.sync(() => {
             session.options = next
+            config.capture?.lifecycle(
+              session.threadId,
+              session.activeTurnId,
+              'options.changed',
+              next
+            )
           })
         )
       )
@@ -283,17 +292,24 @@ export function createClaudeAdapter(
       return !session.closed && sessions.get(session.threadId) === session
     }
 
+    function emitCaptured(session: WarmSession, event: ThreadEvent, sourceSeq?: number) {
+      if (!config.capture) return session.emit(event)
+      return Effect.sync(() =>
+        config.capture?.output(session.threadId, session.activeTurnId, event, sourceSeq)
+      ).pipe(Effect.andThen(session.emit(event)))
+    }
+
     function noteManualCompact(session: WarmSession, failure: string) {
       return Effect.gen(function* () {
         if (!session.compact || session.compactFailureNoted) return
         const detail = compactFailureReason(session.failReason === 'interrupted', failure)
         if (!detail) return
         session.compactFailureNoted = true
-        yield* session.emit(couldntCompact(session.activeTurnId, detail))
+        yield* emitCaptured(session, couldntCompact(session.activeTurnId, detail))
       })
     }
 
-    function publish(session: WarmSession, event: ThreadEvent) {
+    function publish(session: WarmSession, event: ThreadEvent, sourceSeq?: number) {
       return Effect.gen(function* () {
         const grace = yield* session.publication.withPermit(
           Effect.gen(function* () {
@@ -315,7 +331,7 @@ export function createClaudeAdapter(
                   } satisfies ThreadEvent)
                 : withoutToolFailure(event, session.runningAgents)
             if (outgoing.type === 'turn.failed') yield* noteManualCompact(session, outgoing.error)
-            yield* session.emit(outgoing)
+            yield* emitCaptured(session, outgoing, sourceSeq)
             trackAgents(session.runningAgents, event)
             if (terminal) {
               session.awaitingResult = false
@@ -340,9 +356,9 @@ export function createClaudeAdapter(
       ) {
         return Effect.gen(function* () {
           for (const [itemId, { result }] of pending) {
-            yield* session
-              .emit({ type: 'item.completed', itemId, patch })
-              .pipe(Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error))))
+            yield* emitCaptured(session, { type: 'item.completed', itemId, patch }).pipe(
+              Effect.catch((error) => (session.closed ? Effect.void : Effect.fail(error)))
+            )
             pending.delete(itemId)
             yield* Deferred.succeed(result, { behavior: 'deny', message })
           }
@@ -375,22 +391,25 @@ export function createClaudeAdapter(
           return false
         session.closed = true
         session.accepting = false
+        config.capture?.lifecycle(session.threadId, session.activeTurnId, 'session.closed', {
+          reason,
+        })
         yield* Queue.end(session.input)
         yield* Effect.try(() => closeQuery(session)).pipe(Effect.ignore)
         yield* denyPending(session).pipe(Effect.ignore)
         for (const itemId of session.runningAgents)
-          yield* session
-            .emit({ type: 'item.completed', itemId, patch: { status: 'stopped' } })
-            .pipe(Effect.ignore)
+          yield* emitCaptured(session, {
+            type: 'item.completed',
+            itemId,
+            patch: { status: 'stopped' },
+          }).pipe(Effect.ignore)
         session.runningAgents.clear()
         for (const itemId of session.runningWorkflows)
-          yield* session
-            .emit({
-              type: 'item.completed',
-              itemId,
-              patch: { status: 'stopped', stopReason: 'crash' },
-            })
-            .pipe(Effect.ignore)
+          yield* emitCaptured(session, {
+            type: 'item.completed',
+            itemId,
+            patch: { status: 'stopped', stopReason: 'crash' },
+          }).pipe(Effect.ignore)
         session.runningWorkflows.clear()
         // Shutdown leaves the persisted "still running" flag. The next boot says the work stopped.
         if (session.backgroundTasks.tasks().length) {
@@ -401,16 +420,15 @@ export function createClaudeAdapter(
           session.awaitingResult = false
           const error = session.failReason ?? reason
           yield* noteManualCompact(session, error).pipe(Effect.ignore)
-          yield* session
-            .emit({
-              type: 'turn.failed',
-              turnId: session.activeTurnId,
-              error,
-            })
-            .pipe(Effect.ignore)
+          yield* emitCaptured(session, {
+            type: 'turn.failed',
+            turnId: session.activeTurnId,
+            error,
+          }).pipe(Effect.ignore)
         }
         if (sessions.get(session.threadId) === session) sessions.delete(session.threadId)
         yield* Deferred.succeed(session.done, undefined)
+        if (config.capture) yield* Effect.promise(() => config.capture!.flush())
         return true
       }).pipe(session.publication.withPermit, Effect.uninterruptible)
     }
@@ -486,21 +504,34 @@ export function createClaudeAdapter(
 
     function readSession(session: WarmSession) {
       const messages = {
-        [Symbol.asyncIterator]() {
+        [Symbol.asyncIterator](): AsyncIterator<{
+          message: SDKMessage
+          sourceSeq: number | undefined
+        }> {
           const iterator = session.query[Symbol.asyncIterator]()
           return {
-            next: () => iterator.next(),
+            async next() {
+              const next = await iterator.next()
+              if (next.done) return { done: true as const, value: undefined }
+              const sourceSeq = config.capture?.source(
+                session.threadId,
+                session.activeTurnId,
+                next.value
+              )
+              return { done: false as const, value: { message: next.value, sourceSeq } }
+            },
             return() {
               closeQuery(session)
               return (
-                iterator.return?.() ?? Promise.resolve({ done: true as const, value: undefined })
+                iterator.return?.().then(() => ({ done: true as const, value: undefined })) ??
+                Promise.resolve({ done: true as const, value: undefined })
               )
             },
           }
         },
       }
       return Stream.fromAsyncIterable(messages, (error) => new AgentError(String(error))).pipe(
-        Stream.runForEach((message) =>
+        Stream.runForEach(({ message, sourceSeq }) =>
           Effect.gen(function* () {
             if (!current(session)) return
             if (
@@ -538,17 +569,21 @@ export function createClaudeAdapter(
                 yield* Effect.logWarning(
                   'Jetty MCP failed to connect; orchestration tools unavailable'
                 )
-                yield* publish(session, {
-                  type: 'item.started',
-                  item: {
-                    id: newId(),
-                    turnId: session.activeTurnId,
-                    createdAt: Date.now(),
-                    kind: 'error',
-                    message:
-                      'Jetty tools failed to connect. Delegation and review tools are unavailable in this thread.',
+                yield* publish(
+                  session,
+                  {
+                    type: 'item.started',
+                    item: {
+                      id: newId(),
+                      turnId: session.activeTurnId,
+                      createdAt: Date.now(),
+                      kind: 'error',
+                      message:
+                        'Jetty tools failed to connect. Delegation and review tools are unavailable in this thread.',
+                    },
                   },
-                })
+                  sourceSeq
+                )
               }
             }
             // Background subagents keep working after the turn that spawned them ends.
@@ -576,13 +611,16 @@ export function createClaudeAdapter(
               session.activeTurnId = turnId
               session.failReason = null
               session.ctx = createTranslateCtx(turnId, session.ctx)
+              config.capture?.lifecycle(session.threadId, turnId, 'turn.started', {
+                unsolicited: true,
+              })
               session.awaitingResult = true
               session.wakePending = false
               session.accepting = true
               session.done = yield* Deferred.make<void, AgentError>()
               if (session.idle) yield* Fiber.interrupt(session.idle)
               session.idle = null
-              yield* publish(session, { type: 'turn.started', turnId })
+              yield* publish(session, { type: 'turn.started', turnId }, sourceSeq)
             }
             if (!session.awaitingResult && message.type !== 'system' && !fromSubagent) return
             if (
@@ -624,6 +662,12 @@ export function createClaudeAdapter(
               try: () => translate(message as SdkLikeMessage, session.ctx),
               catch: (error) => new AgentError(String(error)),
             })
+            config.capture?.translation(
+              session.threadId,
+              session.activeTurnId,
+              sourceSeq,
+              translated
+            )
             const events: ThreadEvent[] = []
             for (const original of translated) {
               if (
@@ -652,7 +696,9 @@ export function createClaudeAdapter(
                 .pipe(Effect.mapError((error) => new AgentError(error.message)))
               session.ctx.sessionId = null
             }
-            for (const event of events) yield* publish(session, event)
+            for (const event of events) yield* publish(session, event, sourceSeq)
+            if (message.type === 'result' && config.capture)
+              yield* Effect.promise(() => config.capture!.flush())
             const sdk = message as SdkLikeMessage
             if (
               sdk.type === 'system' &&
@@ -679,8 +725,14 @@ export function createClaudeAdapter(
           })
         ),
         Effect.matchEffect({
-          onFailure: (error) => retire(session, error.message),
-          onSuccess: () => retire(session, 'stream ended'),
+          onFailure: (error) =>
+            Effect.sync(() =>
+              config.capture?.lifecycle(session.threadId, session.activeTurnId, 'stream.failed')
+            ).pipe(Effect.andThen(retire(session, error.message))),
+          onSuccess: () =>
+            Effect.sync(() =>
+              config.capture?.lifecycle(session.threadId, session.activeTurnId, 'stream.ended')
+            ).pipe(Effect.andThen(retire(session, 'stream ended'))),
         })
       )
     }
@@ -735,7 +787,7 @@ export function createClaudeAdapter(
                 return
               }
               session.pendingQuestions.set(itemId, { result, input: toolInput })
-              yield* session.emit({
+              yield* emitCaptured(session, {
                 type: 'item.started',
                 item: {
                   ...base,
@@ -763,7 +815,7 @@ export function createClaudeAdapter(
                 suggestions: options.suggestions,
                 ...(bot && bot.rule ? { rule: { text: bot.rule, source: bot.title } } : {}),
               })
-              yield* session.emit({
+              yield* emitCaptured(session, {
                 type: 'item.started',
                 item: {
                   ...base,
@@ -782,7 +834,7 @@ export function createClaudeAdapter(
                 },
               })
             }
-            yield* session.emit({ type: 'session.status', status: 'awaiting_approval' })
+            yield* emitCaptured(session, { type: 'session.status', status: 'awaiting_approval' })
           }).pipe(
             Effect.onError(() =>
               Effect.sync(() => {
@@ -811,7 +863,7 @@ export function createClaudeAdapter(
             const question = session.pendingQuestions.has(itemId)
             const pending = question ? session.pendingQuestions : session.pendingApprovals
             if (!pending.has(itemId)) return
-            yield* session.emit({
+            yield* emitCaptured(session, {
               type: 'item.completed',
               itemId,
               patch: question ? { skipped: true } : { withdrawn: true },
@@ -819,7 +871,7 @@ export function createClaudeAdapter(
             pending.delete(itemId)
             if (!session.awaitingResult) return
             const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
-            yield* session.emit({
+            yield* emitCaptured(session, {
               type: 'session.status',
               status: waiting ? 'awaiting_approval' : 'running',
             })
@@ -848,12 +900,13 @@ export function createClaudeAdapter(
               const pending = pendingOf(session).get(itemId)
               if (!current(session) || !session.accepting || !pending) return false
               if (beforeResolve) yield* beforeResolve(session, pending)
-              yield* session.emit({ type: 'item.completed', itemId, patch })
+              yield* emitCaptured(session, { type: 'item.completed', itemId, patch })
               pendingOf(session).delete(itemId)
               const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
-              yield* session
-                .emit({ type: 'session.status', status: waiting ? 'awaiting_approval' : 'running' })
-                .pipe(Effect.ensuring(Deferred.succeed(pending.result, result(pending))))
+              yield* emitCaptured(session, {
+                type: 'session.status',
+                status: waiting ? 'awaiting_approval' : 'running',
+              }).pipe(Effect.ensuring(Deferred.succeed(pending.result, result(pending))))
               return true
             })
           )
@@ -908,7 +961,9 @@ export function createClaudeAdapter(
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
         const instructions =
           !bot && sdkMcp && jettyInstructions(behaviours, input.parentThreadId, workspace)
-        const usageIdentity = yield* Effect.promise(() => readClaudeUsageIdentity())
+        const usageIdentity = config.query
+          ? undefined
+          : yield* Effect.promise(() => readClaudeUsageIdentity())
         const q = yield* Effect.acquireRelease(
           Effect.try({
             try: () =>
@@ -1199,6 +1254,18 @@ export function createClaudeAdapter(
           return yield* Effect.gen(function* () {
             started.activeTurnId = input.turnId
             started.ctx = createTranslateCtx(input.turnId, started.ctx)
+            config.capture?.lifecycle(input.threadId, input.turnId, 'turn.started', {
+              fresh,
+              compact: Boolean(input.compact),
+              resumed: Boolean(started.rewoundTo),
+              model: started.options.model,
+              effort: started.options.effort,
+              permissionMode: started.options.permissionMode,
+              includePartialMessages: true,
+              forwardSubagentText: true,
+              perTaskStopAffordance: true,
+              contextReset: true,
+            })
             started.emit = emit
             started.awaitingResult = true
             started.wakePending = false
@@ -1264,6 +1331,9 @@ export function createClaudeAdapter(
               Effect.gen(function* () {
                 if (!current(session) || !session.awaitingResult) return null
                 session.failReason = reason
+                config.capture?.lifecycle(threadId, session.activeTurnId, 'turn.interrupted', {
+                  reason,
+                })
                 session.accepting = false
                 yield* denyPending(session)
                 return session.activeTurnId
