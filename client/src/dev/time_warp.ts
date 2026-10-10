@@ -1,13 +1,14 @@
 import { frame, frameSteps } from 'motion/react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
-export const slowMoOptions = [
+export const speedOptions = [
+  { value: '0.125', label: '0.125×' },
+  { value: '0.25', label: '0.25×' },
+  { value: '0.5', label: '0.5×' },
   { value: '1', label: '1×' },
-  { value: '0.5', label: '½' },
-  { value: '0.25', label: '¼' },
-  { value: '0.1', label: '⅒' },
+  { value: '2', label: '2×' },
 ] as const
-export type SlowMo = (typeof slowMoOptions)[number]['value']
+type Speed = (typeof speedOptions)[number]['value']
 
 type Timer = { due: number; delay: number }
 
@@ -191,34 +192,37 @@ export function installTimeWarp() {
 
 export function useTimeWarp() {
   const warpRef = useRef<ReturnType<typeof installTimeWarp> | null>(null)
-  const [slowMo, setSlowMo] = useState<SlowMo>('1')
+  const [speed, setSpeed] = useState<Speed>('1')
   const [frozen, setFrozen] = useState(false)
   useLayoutEffect(() => {
     const warp = installTimeWarp()
     warpRef.current = warp
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== '.' || event.repeat || event.ctrlKey || event.metaKey || event.altKey)
+      if (
+        (event.key !== '.' && event.key !== ' ') ||
+        event.repeat ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      )
         return
       if (event.defaultPrevented) return
       const target = event.target
       if (
         target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.closest(
-            'input, textarea, select, button, a, summary, [role="button"], [role="textbox"], [role="combobox"], [role="slider"], [role="spinbutton"], [role="radio"], [role="radiogroup"], [role="checkbox"], [role="switch"], [role="menu"], [role="menubar"], [role^="menuitem"], [role="listbox"], [role="option"], [role="tablist"], [role="tree"], [role="grid"], [contenteditable], [data-slot="toggle-group"]'
-          ))
+        (target.isContentEditable || target.closest('input, textarea, [role="textbox"]'))
       )
         return
       event.preventDefault()
       setFrozen((value) => !value)
     }
-    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
     return () => {
-      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keydown', onKeyDown, true)
       warp.dispose()
       warpRef.current = null
     }
   }, [])
-  useLayoutEffect(() => warpRef.current?.setScale(frozen ? 0 : Number(slowMo)), [frozen, slowMo])
-  return { slowMo, setSlowMo, frozen, toggleFrozen: () => setFrozen((value) => !value) }
+  useLayoutEffect(() => warpRef.current?.setScale(frozen ? 0 : Number(speed)), [frozen, speed])
+  return { speed, setSpeed, frozen, toggleFrozen: () => setFrozen((value) => !value) }
 }

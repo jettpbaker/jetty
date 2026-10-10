@@ -11,7 +11,7 @@ import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
-import { slowMoOptions, useTimeWarp } from '@/dev/time_warp'
+import { speedOptions, useTimeWarp } from '@/dev/time_warp'
 import {
   TenseChangeContext,
   type TenseChange,
@@ -71,14 +71,11 @@ const replays = new Map(
   ])
 )
 const names = [...replays.keys()]
-const speeds = ['0.125', '0.25', '0.5', '1', '2'] as const
-type Speed = (typeof speeds)[number]
 
 function Feels() {
   const timeWarp = useTimeWarp()
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
-  const [speed, setSpeed] = useState<Speed>('1')
   const [indent, setIndent] = useState<WorkIndent>('on')
   const [tenseChange, setTenseChange] = useState<TenseChange>('torph')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
@@ -93,8 +90,6 @@ function Feels() {
       timeWarp={timeWarp}
       run={pick.run}
       name={pick.name}
-      speed={speed}
-      onSpeed={setSpeed}
       morphDuration={morphDuration}
       onMorphDuration={setMorphDuration}
       interimText={interimText}
@@ -131,8 +126,6 @@ function FeelReplay({
   timeWarp,
   run,
   name,
-  speed,
-  onSpeed,
   morphDuration,
   onMorphDuration,
   indent,
@@ -153,8 +146,6 @@ function FeelReplay({
   timeWarp: ReturnType<typeof useTimeWarp>
   run: number
   name: string
-  speed: Speed
-  onSpeed: (speed: Speed) => void
   morphDuration: MorphDuration
   onMorphDuration: (morphDuration: MorphDuration) => void
   indent: WorkIndent
@@ -228,7 +219,7 @@ function FeelReplay({
     const playhead = clock.current
     let last = performance.now()
     let frame = requestAnimationFrame(function tick(now) {
-      playhead.at = Math.min(duration, playhead.at + Math.max(0, now - last) * Number(speed))
+      playhead.at = Math.min(duration, playhead.at + Math.max(0, now - last))
       last = now
       let state = playhead.thread
       while (playhead.next < events.length && events[playhead.next]!.t <= playhead.at) {
@@ -244,7 +235,7 @@ function FeelReplay({
       else setPlaying(false)
     })
     return () => cancelAnimationFrame(frame)
-  }, [playing, replay, duration, speed])
+  }, [playing, replay, duration])
 
   function seek(at: number) {
     setPlaying(false)
@@ -268,7 +259,8 @@ function FeelReplay({
   }
 
   function playPause() {
-    if (playing) setPlaying(false)
+    if (timeWarp.frozen) timeWarp.toggleFrozen()
+    else if (playing) setPlaying(false)
     else if (clock.current.next < replay.events.length) {
       setSettled(false)
       setPlaying(true)
@@ -351,10 +343,10 @@ function FeelReplay({
         <Button
           variant='ghost'
           size='icon-sm'
-          aria-label={playing ? 'Pause' : 'Play'}
+          aria-label={playing && !timeWarp.frozen ? 'Pause' : 'Play'}
           {...pressProps(playPause)}
         >
-          {playing ? <PauseIcon filled /> : <PlayIcon filled />}
+          {playing && !timeWarp.frozen ? <PauseIcon filled /> : <PlayIcon filled />}
         </Button>
         <Button variant='ghost' size='icon-sm' aria-label='Restart' onClick={onRestart}>
           <Refresh01Icon />
@@ -362,28 +354,19 @@ function FeelReplay({
         <Button
           variant='ghost'
           size='sm'
-          aria-label={timeWarp.frozen ? 'Unfreeze page (.)' : 'Freeze page (.)'}
+          aria-label={timeWarp.frozen ? 'Unfreeze page (Space / .)' : 'Freeze page (Space / .)'}
           aria-pressed={timeWarp.frozen}
           {...pressProps(timeWarp.toggleFrozen)}
         >
           {timeWarp.frozen ? <PlayIcon filled /> : <PauseIcon filled />}
           {timeWarp.frozen ? 'Frozen' : 'Freeze'}
         </Button>
-        <div className='flex items-center gap-1'>
-          <span className='text-xs text-muted-foreground'>Slow-mo:</span>
-          <SettingsSegmented
-            label='Slow-mo'
-            value={timeWarp.slowMo}
-            options={slowMoOptions}
-            onChange={timeWarp.setSlowMo}
-          />
-        </div>
         <div className='flex-1' />
         <SettingsSegmented
           label='Speed'
-          value={speed}
-          options={speeds.map((value) => ({ value, label: `${value}×` }))}
-          onChange={onSpeed}
+          value={timeWarp.speed}
+          options={speedOptions}
+          onChange={timeWarp.setSpeed}
         />
         <SettingsSelect
           label='Transcript'
