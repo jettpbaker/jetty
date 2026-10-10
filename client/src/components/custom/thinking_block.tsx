@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button'
+import { useChatFeel, useTenseChange } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
+import { TenseText } from './tense_text'
 import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
 
 const TICK_MS = 120
@@ -71,6 +73,8 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
     update()
     return () => observer.disconnect()
   }, [])
+  const feel = useChatFeel()
+  const tenseChange = useTenseChange()
   const active = activity.status === 'running'
   const tokens = activity.tokens !== undefined && (
     <>
@@ -92,12 +96,37 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
           : `Thinking ${activity.status}`
   const amount = tokens || duration
   const summary = activity.summary.trim()
-  const heading = (
-    <span>
-      <span className={cn(active && 'shimmer')}>{state}</span>
-      {amount && <> for {amount}</>}
-    </span>
-  )
+  const heading =
+    feel === 'hybrid' && tenseChange !== undefined ? (
+      <span className='flex min-w-0 items-baseline'>
+        <TenseText active={active} morph={tenseChange === 'torph'} shimmer>
+          {state}
+        </TenseText>
+        <TenseText active={active} morph={tenseChange === 'torph'}>
+          {amount ? '\u00a0for\u00a0' : ''}
+        </TenseText>
+        <TenseText
+          active={active}
+          morph={tenseChange === 'torph'}
+          mono
+          activeContent={
+            activity.tokens !== undefined ? (
+              <TokenCount value={activity.tokens} from={mountTokens ?? 0} settled={ended} />
+            ) : undefined
+          }
+        >
+          {activity.tokens !== undefined ? activity.tokens.toLocaleString('en') : duration || ''}
+        </TenseText>
+        <TenseText active={active} morph={tenseChange === 'torph'}>
+          {activity.tokens !== undefined ? `\u00a0token${activity.tokens === 1 ? '' : 's'}` : ''}
+        </TenseText>
+      </span>
+    ) : (
+      <span>
+        <span className={cn(active && 'shimmer')}>{state}</span>
+        {amount && <> for {amount}</>}
+      </span>
+    )
   return (
     <div className='min-w-0'>
       {summary && (ended || overflowing) ? (

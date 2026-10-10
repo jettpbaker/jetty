@@ -1,10 +1,11 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { useBatchTense, useChatFeel } from '@/lib/chat-feel'
+import { useBatchTense, useChatFeel, useTenseChange } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import { ThreadLink } from './entity_link'
 import { RollingText } from './rolling_text'
+import { TenseText } from './tense_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
 import {
   describeToolBatch,
@@ -15,6 +16,8 @@ import {
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const feel = useChatFeel()
+  const tenseChange = useTenseChange()
+  const morph = feel === 'hybrid' && tenseChange === 'torph'
   const batchTense = useBatchTense()
   const openTense = feel === 'hybrid' && batchTense === 'open'
   const label = describeToolBatch(batch, openTense)
@@ -28,7 +31,25 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
       >
         <span className='flex min-w-0 items-baseline gap-1'>
-          {label.description ? (
+          {morph && !label.description ? (
+            <>
+              <TenseText active={label.active} morph className='shrink-0' shimmer>
+                {label.verb}
+              </TenseText>
+              <TenseText active={label.active} morph mono={!label.prose}>
+                {label.target}
+              </TenseText>
+            </>
+          ) : morph && label.description ? (
+            <TenseText
+              active={label.active}
+              morph
+              shimmer
+              className={cn(label.failed && 'text-status-error')}
+            >
+              {label.description}
+            </TenseText>
+          ) : label.description ? (
             <span
               className={cn(
                 'truncate',

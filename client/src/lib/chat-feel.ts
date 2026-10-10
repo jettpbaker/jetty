@@ -105,3 +105,10 @@ export function useChatFeel() {
   const global = useSyncExternalStore(subscribe, getChatFeel)
   return scoped ?? global
 }
+
+export type TenseChange = 'roll' | 'torph'
+export const TenseChangeContext = createContext<TenseChange | undefined>(undefined)
+
+export function useTenseChange() {
+  return useContext(TenseChangeContext)
+}
