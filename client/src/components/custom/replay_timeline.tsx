@@ -64,6 +64,7 @@ export function ReplayTimeline({
   duration,
   elapsed,
   playing,
+  frame,
   onSeek,
   onScrubChange,
 }: {
@@ -71,6 +72,7 @@ export function ReplayTimeline({
   duration: number
   elapsed: number
   playing: boolean
+  frame?: number
   onSeek: (at: number) => void
   onScrubChange?: (active: boolean) => void
 }) {
@@ -218,6 +220,7 @@ export function ReplayTimeline({
       <div className='flex items-center justify-between gap-3 text-xs text-muted-foreground'>
         <span className='font-mono tabular-nums'>
           <span ref={timeRef}>{clockText(elapsed)}</span> / {clockText(duration)}
+          {frame !== undefined && <span className='ml-2'>f {frame}</span>}
         </span>
         <span>← / → 100ms · Shift 1s · ⌘ / Ctrl + scroll to zoom · Scroll to pan</span>
       </div>

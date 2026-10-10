@@ -544,47 +544,6 @@ async function main() {
     browser = await chromium.connectOverCDP(`http://localhost:${port}`)
     const context = browser.contexts()[0]!
     const page = context.pages()[0]!
-    // Host tasks and resize delivery must have fixed frame boundaries too; do not flush React effects.
-    await page.addInitScript(() => {
-      const NativeResizeObserver = ResizeObserver
-      window.ResizeObserver = function (callback: ResizeObserverCallback) {
-        const pending = new Map<Element, ResizeObserverEntry>()
-        let queued = false
-        return new NativeResizeObserver((entries, observer) => {
-          if (!(window as ScanWindow).__feelClock) return callback(entries, observer)
-          for (const entry of entries) pending.set(entry.target, entry)
-          if (queued) return
-          queued = true
-          setTimeout(() => {
-            queued = false
-            const entries = [...pending.values()]
-            pending.clear()
-            callback(entries, observer)
-          }, 0)
-        })
-      } as unknown as typeof ResizeObserver
-      const NativeChannel = MessageChannel
-      window.MessageChannel = function () {
-        const channel = new NativeChannel()
-        const post = channel.port2.postMessage.bind(channel.port2)
-        channel.port2.postMessage = (message) => {
-          if (!(window as ScanWindow).__feelClock) return post(message)
-          setTimeout(
-            () =>
-              channel.port1.onmessage?.call(
-                channel.port1,
-                new MessageEvent('message', { data: message })
-              ),
-            0
-          )
-        }
-        return channel
-      } as unknown as typeof MessageChannel
-      Object.defineProperty(performance, 'now', {
-        configurable: true,
-        value: () => (window as ScanWindow).__feelClock?.now() ?? 0,
-      })
-    })
     page.on('pageerror', (error) => console.error(error))
     await page.setViewportSize(viewport)
     const cdp = await context.newCDPSession(page)

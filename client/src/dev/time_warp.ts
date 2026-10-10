@@ -1,5 +1,6 @@
 import { frame, frameData, frameSteps } from 'motion/react'
 import { useLayoutEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 
 export const speedOptions = [
   { value: '0.125', label: '0.125×' },
@@ -27,18 +28,86 @@ export function installTimeWarp(fixed = false) {
     clearInterval: window.clearInterval,
     animate: Element.prototype.animate,
     finish: Animation.prototype.finish,
+    resizeObserver: window.ResizeObserver,
   }
   const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
   const startTimeDescriptor = Object.getOwnPropertyDescriptor(Animation.prototype, 'startTime')!
-  const realNow = fixed ? () => 0 : original.now.bind(performance)
+  const realNow = original.now.bind(performance)
   let realBase = realNow()
-  let clockBase = fixed ? 0 : realBase
-  const dateBase = fixed ? 1_700_000_000_000 : original.dateNow() - clockBase
+  let clockBase = 0
+  const dateBase = 1_700_000_000_000
   let scale = fixed ? 0 : 1
   let installed = true
   const timers = new Map<number, Timer>()
   const frames = new Map<number, { callback: FrameRequestCallback; native: number }>()
   const rates = new Map<Animation, number>()
+  let frameNumber = 0
+  const observers = new Map<
+    ResizeObserver,
+    { callback: ResizeObserverCallback; targets: Map<Element, string> }
+  >()
+  window.ResizeObserver = function (callback: ResizeObserverCallback) {
+    const observer: ResizeObserver = {
+      observe(target) {
+        if (!observers.has(observer)) observers.set(observer, { callback, targets: new Map() })
+        observers.get(observer)!.targets.set(target, '')
+      },
+      unobserve(target) {
+        observers.get(observer)?.targets.delete(target)
+      },
+      disconnect() {
+        observers.delete(observer)
+      },
+    }
+    observers.set(observer, { callback, targets: new Map() })
+    return observer
+  } as unknown as typeof ResizeObserver
+
+  // Deliver layout changes at the same virtual boundary, even when no native frame is painted.
+  function resize() {
+    for (const [observer, { callback, targets }] of observers) {
+      const entries: ResizeObserverEntry[] = []
+      for (const [target, previous] of targets) {
+        const style = getComputedStyle(target)
+        const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+        const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+        const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth)
+        const borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+        const width = parseFloat(style.width) || 0
+        const height = parseFloat(style.height) || 0
+        const borderBox = style.boxSizing === 'border-box'
+        const contentWidth = Math.max(0, width - (borderBox ? paddingX + borderX : 0))
+        const contentHeight = Math.max(0, height - (borderBox ? paddingY + borderY : 0))
+        const stamp = `${contentWidth}:${contentHeight}`
+        if (stamp === previous) continue
+        targets.set(target, stamp)
+        const size = { inlineSize: contentWidth, blockSize: contentHeight }
+        entries.push({
+          target,
+          contentRect: new DOMRectReadOnly(
+            parseFloat(style.paddingLeft),
+            parseFloat(style.paddingTop),
+            contentWidth,
+            contentHeight
+          ),
+          contentBoxSize: [size],
+          borderBoxSize: [
+            {
+              inlineSize: contentWidth + paddingX + borderX,
+              blockSize: contentHeight + paddingY + borderY,
+            },
+          ],
+          devicePixelContentBoxSize: [
+            {
+              inlineSize: contentWidth * devicePixelRatio,
+              blockSize: contentHeight * devicePixelRatio,
+            },
+          ],
+        })
+      }
+      if (entries.length) callback(entries, observer)
+    }
+  }
 
   function now() {
     return scale === 0 ? clockBase : clockBase + (realNow() - realBase) * scale
@@ -63,7 +132,10 @@ export function installTimeWarp(fixed = false) {
       if (scale === 0 && animation.currentTime === null) animation.currentTime = 0
     }
     if (animation.playbackRate !== rate * scale) animation.playbackRate = rate * scale
-    if (fixed && scale === 0) animation.pause()
+    if (fixed) {
+      if (scale === 0) animation.pause()
+      else if (animation.playState === 'paused') animation.play()
+    }
   }
 
   function animations() {
@@ -167,6 +239,7 @@ export function installTimeWarp(fixed = false) {
   let scan = original.raf.call(window, scanAnimations)
   function scanAnimations() {
     animations()
+    if (scale > 0) resize()
     scan = original.raf.call(window, scanAnimations)
   }
 
@@ -216,28 +289,33 @@ export function installTimeWarp(fixed = false) {
   document.addEventListener('transitionend', suppressNativeEnd, true)
 
   // Run one page frame while native scheduling continues to service React and the controls.
-  function step<T>(sample?: () => T): Promise<T | undefined> {
+  function step<T>(sample?: () => T, paint = true): Promise<T | undefined> {
     if (scale !== 0) return Promise.resolve(undefined)
+    frameNumber++
     clockBase += frameMs
-    animations()
     for (const [animation, rate] of rates) {
       if (typeof animation.currentTime !== 'number') continue
       animation.currentTime += frameMs * rate
       const end = animation.effect?.getComputedTiming().endTime
       if (typeof end === 'number' && animation.currentTime >= end) finishStep(animation)
     }
-    for (const [id, entry] of Array.from(timers)) {
-      if (timers.has(id) && entry.due <= now()) entry.fire()
-    }
-    for (const [id, entry] of Array.from(frames)) {
-      if (!frames.has(id)) continue
-      original.cancelRaf.call(window, entry.native)
-      frames.delete(id)
-      entry.callback(now())
-    }
-    Object.assign(frameData, { delta: frameMs, timestamp: now(), isProcessing: true })
-    for (const { process } of steps) process(frameData)
-    frameData.isProcessing = false
+    flushSync(() => {
+      for (const [id, entry] of Array.from(timers)) {
+        if (timers.has(id) && entry.due <= now()) entry.fire()
+      }
+      for (const [id, entry] of Array.from(frames)) {
+        if (!frames.has(id)) continue
+        original.cancelRaf.call(window, entry.native)
+        frames.delete(id)
+        entry.callback(now())
+      }
+      Object.assign(frameData, { delta: frameMs, timestamp: now(), isProcessing: true })
+      for (const { process } of steps) process(frameData)
+      frameData.isProcessing = false
+    })
+    flushSync(resize)
+    animations()
+    if (!paint) return Promise.resolve(sample?.())
     return new Promise((resolve) => {
       original.raf.call(window, () => {
         animations()
@@ -273,25 +351,116 @@ export function installTimeWarp(fixed = false) {
     window.clearInterval = original.clearInterval
     Element.prototype.animate = original.animate
     Animation.prototype.finish = original.finish
+    window.ResizeObserver = original.resizeObserver
     Object.defineProperty(Animation.prototype, 'startTime', startTimeDescriptor)
     frame.read(() => {})
   }
-  return { setScale, step, now, dispose }
+  return {
+    setScale,
+    step,
+    now,
+    dispose,
+    frame: () => frameNumber,
+    nativeFrame: (callback: FrameRequestCallback) => original.raf.call(window, callback),
+    realNow,
+  }
 }
 
 export function useTimeWarp(fixed = false) {
   const warpRef = useRef<ReturnType<typeof installTimeWarp> | null>(null)
   const [speed, setSpeed] = useState<Speed>('1')
   const [frozen, setFrozen] = useState(fixed)
+  const [ready, setReady] = useState(false)
+  const [currentFrame, setCurrentFrame] = useState(0)
+  const [rebuilding, setRebuilding] = useState(false)
+  const seekRef = useRef<number | null>(null)
+  const targetRef = useRef(0)
+  const steppingRef = useRef(false)
   useLayoutEffect(() => {
     const warp = installTimeWarp(fixed)
     if (fixed) Object.assign(window, { __feelClock: warp })
     warpRef.current = warp
+    setReady(true)
     return () => {
-      warp.dispose()
+      warpRef.current?.dispose()
       warpRef.current = null
     }
   }, [fixed])
-  useLayoutEffect(() => warpRef.current?.setScale(frozen ? 0 : Number(speed)), [frozen, speed])
-  return { speed, setSpeed, frozen, setFrozen, step: () => warpRef.current?.step() }
+  useLayoutEffect(() => {
+    const warp = warpRef.current!
+    warp.setScale(frozen ? 0 : Number(speed))
+    if (!frozen && steppingRef.current) targetRef.current = warp.frame()
+    if (frozen) setCurrentFrame(seekRef.current ?? Math.round(warp.now() / frameMs))
+  }, [frozen, speed])
+  function reset(restart: () => void, paused = frozen) {
+    flushSync(() => setReady(false))
+    warpRef.current!.dispose()
+    const warp = installTimeWarp(true)
+    warpRef.current = warp
+    if (fixed) Object.assign(window, { __feelClock: warp })
+    warp.setScale(paused ? 0 : Number(speed))
+    seekRef.current = null
+    flushSync(() => {
+      setCurrentFrame(0)
+      setReady(true)
+      restart()
+    })
+    return warp
+  }
+  function seekFrame(at: number) {
+    seekRef.current = Math.round(at / frameMs)
+    setCurrentFrame(seekRef.current)
+  }
+  async function move(direction: number, restart: () => void, playing: boolean) {
+    let warp = warpRef.current!
+    if (!frozen) {
+      warp.setScale(0)
+      setFrozen(true)
+      setCurrentFrame(seekRef.current ?? Math.round(warp.now() / frameMs))
+      if (playing) return
+    }
+    targetRef.current = Math.max(
+      0,
+      (steppingRef.current
+        ? targetRef.current
+        : (seekRef.current ?? Math.round(warp.now() / frameMs))) + direction
+    )
+    if (steppingRef.current) return
+    steppingRef.current = true
+    try {
+      while (warpRef.current === warp) {
+        if (
+          targetRef.current < warp.frame() ||
+          seekRef.current !== null ||
+          Math.abs(warp.now() - warp.frame() * frameMs) > 0.01
+        ) {
+          flushSync(() => setRebuilding(true))
+          warp = reset(restart, true)
+        }
+        const deadline = warp.realNow() + 12
+        while (warp.frame() < targetRef.current && warp.realNow() < deadline)
+          await warp.step(undefined, false)
+        if (warp.frame() === targetRef.current) {
+          setCurrentFrame(warp.frame())
+          break
+        }
+        await new Promise<void>((resolve) => warp.nativeFrame(() => resolve()))
+      }
+    } finally {
+      steppingRef.current = false
+      setRebuilding(false)
+    }
+  }
+  return {
+    speed,
+    setSpeed,
+    frozen,
+    setFrozen,
+    ready,
+    currentFrame,
+    rebuilding,
+    move,
+    reset,
+    seekFrame,
+  }
 }

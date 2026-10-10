@@ -5,7 +5,7 @@ import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
-import { speedOptions, useTimeWarp } from '@/dev/time_warp'
+import { frameMs, speedOptions, useTimeWarp } from '@/dev/time_warp'
 import {
   TenseChangeContext,
   type TenseChange,
@@ -41,8 +41,7 @@ import {
 
 import './dev.feels.css'
 
-// An experiment: one real transcript replayed at its real speed into four threads at once, each
-// in a chat feel of its own, to compare how they feel.
+// A real transcript replayed at its real speed to inspect the Hybrid chat feel.
 export const Route = createFileRoute('/dev/feels')({ component: Feels })
 
 type Replay = {
@@ -80,6 +79,7 @@ function Feels() {
   const [interimText, setInterimText] = useState<InterimText>('b')
   const [morphDuration, setMorphDuration] = useState<MorphDuration>('150')
   useEffect(() => pinRootChatFeel(), [])
+  if (!timeWarp.ready) return null
   return (
     <FeelReplay
       key={pick.run}
@@ -98,8 +98,9 @@ function Feels() {
       onHybridPacing={setHybridPacing}
       hybridLine={hybridLine}
       onHybridLine={setHybridLine}
-      onPick={(name) => setPick(({ run }) => ({ name, run: run + 1 }))}
-      onRestart={() => setPick(({ name, run }) => ({ name, run: run + 1 }))}
+      onPick={(name) => timeWarp.reset(() => setPick(({ run }) => ({ name, run: run + 1 })))}
+      onRestart={() => timeWarp.reset(() => setPick(({ name, run }) => ({ name, run: run + 1 })))}
+      onRebuild={() => setPick(({ name, run }) => ({ name, run: run + 1 }))}
     />
   )
 }
@@ -145,6 +146,7 @@ function FeelReplay({
   onInterimText,
   onPick,
   onRestart,
+  onRebuild,
 }: {
   timeWarp: ReturnType<typeof useTimeWarp>
   run: number
@@ -163,6 +165,7 @@ function FeelReplay({
   onHybridLine: (hybridLine: HybridLine) => void
   onPick: (name: string) => void
   onRestart: () => void
+  onRebuild: () => void
 }) {
   const replay = replays.get(name)!
   const duration = replay.events.at(-1)!.t
@@ -185,14 +188,15 @@ function FeelReplay({
   useEffect(() => () => cancelAnimationFrame(settleFrame.current), [])
 
   const onSpace = useEffectEvent(playPause)
-  const onStep = useEffectEvent(() => {
-    if (timeWarp.frozen) void timeWarp.step()
+  const onStep = useEffectEvent((direction: number) => {
+    if (!timeWarp.frozen) timeWarp.seekFrame(clock.current.at)
+    void timeWarp.move(direction, onRebuild, playing)
   })
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
-        ![' ', '.'].includes(event.key) ||
-        event.repeat ||
+        ![' ', '.', '>', ',', '<'].includes(event.key) ||
+        (event.key === ' ' && event.repeat) ||
         event.metaKey ||
         event.ctrlKey ||
         event.altKey
@@ -205,8 +209,8 @@ function FeelReplay({
       )
         return
       event.preventDefault()
-      if (event.key === '.') onStep()
-      else onSpace()
+      if (event.key === ' ') onSpace()
+      else onStep(event.key === '.' || event.key === '>' ? 1 : -1)
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
@@ -222,7 +226,7 @@ function FeelReplay({
     if (!active) releaseSettled()
   }
 
-  // One clock for all four panes: replay time, and the next event due.
+  // Replay time and the next event due share the animation clock.
   const clock = useRef({ at: 0, next: 0, thread: emptyThread })
 
   useEffect(() => {
@@ -268,11 +272,15 @@ function FeelReplay({
     clock.current = { at, next, thread: state }
     setThread(state)
     setElapsed(at)
+    timeWarp.seekFrame(at)
   }
 
   // Pause freezes the whole page, mid-animation; Play thaws it and resumes the replay.
   function playPause() {
-    if (playing && !timeWarp.frozen) return timeWarp.setFrozen(true)
+    if (playing && !timeWarp.frozen) {
+      timeWarp.seekFrame(clock.current.at)
+      return timeWarp.setFrozen(true)
+    }
     timeWarp.setFrozen(false)
     if (playing) return
     if (clock.current.next < replay.events.length) {
@@ -299,6 +307,7 @@ function FeelReplay({
               data-chat-settled={settled ? '' : undefined}
               aria-label='Hybrid'
               className='flex min-h-0 flex-1 flex-col bg-background'
+              style={timeWarp.rebuilding ? { opacity: 0 } : undefined}
             >
               <MorphDurationContext value={morphDuration}>
                 <TenseChangeContext value={tenseChange}>
@@ -333,8 +342,8 @@ function FeelReplay({
           size='icon-sm'
           aria-label={
             playing && !timeWarp.frozen
-              ? 'Pause (Space; . steps while paused)'
-              : 'Play (Space; . next frame)'
+              ? 'Pause (Space; , / . step while paused)'
+              : 'Play (Space; , previous frame / . next frame)'
           }
           {...pressProps(playPause)}
         >
@@ -442,7 +451,14 @@ function FeelReplay({
         events={replay.events}
         duration={duration}
         elapsed={elapsed}
-        playing={playing}
+        playing={playing && !timeWarp.frozen}
+        frame={
+          timeWarp.frozen
+            ? timeWarp.currentFrame
+            : playing
+              ? undefined
+              : Math.round(elapsed / frameMs)
+        }
         onSeek={seek}
         onScrubChange={scrubChange}
       />
