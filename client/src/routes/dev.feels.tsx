@@ -1,6 +1,12 @@
 import type { ThreadState } from '@jetty/shared/reducer'
 
-import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_icons'
+import {
+  ArrowExpand01Icon,
+  ArrowShrink02Icon,
+  PauseIcon,
+  PlayIcon,
+  Refresh01Icon,
+} from '@/components/custom/huge_icons'
 import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
@@ -20,9 +26,11 @@ import {
   type LiveTurn,
   chatFeelNames,
   chatFeels,
+  type ChatFeel,
   pinRootChatFeel,
 } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
+import { cn } from '@/lib/utils'
 import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
@@ -146,6 +154,7 @@ function FeelReplay({
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
   const [settled, setSettled] = useState(false)
+  const [expanded, setExpanded] = useState<ChatFeel | null>(null)
   const panesRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   const settleFrame = useRef(0)
@@ -159,6 +168,22 @@ function FeelReplay({
     }
   }, [settled, thread])
   useEffect(() => () => cancelAnimationFrame(settleFrame.current), [])
+
+  useEffect(() => {
+    if (expanded === null) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.closest('input, textarea, select') || target.isContentEditable)
+      )
+        return
+      setExpanded(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [expanded])
 
   function releaseSettled() {
     cancelAnimationFrame(settleFrame.current)
@@ -249,10 +274,24 @@ function FeelReplay({
                     data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
                     data-chat-settled={settled ? '' : undefined}
                     aria-label={chatFeelNames[feel]}
-                    className='flex min-h-0 min-w-0 flex-col bg-background'
+                    className={cn(
+                      'flex min-h-0 min-w-0 flex-col bg-background',
+                      expanded === feel && 'col-span-2 row-span-2',
+                      expanded !== null && expanded !== feel && 'hidden'
+                    )}
                   >
                     <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
                       {'ABCD'[index]} · {chatFeelNames[feel]}
+                      <Button
+                        variant='ghost'
+                        size='icon-xs'
+                        className='ml-auto'
+                        aria-label={`${expanded === feel ? 'Minimise' : 'Maximise'} ${chatFeelNames[feel]}`}
+                        aria-pressed={expanded === feel}
+                        {...pressProps(() => setExpanded(expanded === feel ? null : feel))}
+                      >
+                        {expanded === feel ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
+                      </Button>
                     </h2>
                     <ChatFeelContext value={feel}>
                       <HybridPacingContext value={hybridPacing}>
