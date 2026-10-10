@@ -1,4 +1,4 @@
-import { getChatFeel } from '@/lib/chat-feel'
+import { useChatFeel } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
@@ -40,6 +40,7 @@ function WorkHistory({
   live: boolean
 }) {
   const reducedMotion = useReducedMotion()
+  const feel = useChatFeel()
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const shown = useRef(view)
@@ -111,7 +112,7 @@ function WorkHistory({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               transition={
-                getChatFeel() === 'capy'
+                feel === 'capy'
                   ? capyMotion(true, reducedMotion)
                   : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
               }

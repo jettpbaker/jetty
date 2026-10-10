@@ -1,5 +1,5 @@
 import { storage } from '@/platform'
-import { useSyncExternalStore } from 'react'
+import { createContext, useContext, useSyncExternalStore } from 'react'
 
 // An experiment: the thread rendered the way Capy, Cursor or opencode render theirs, to feel which
 // one Jetty's should become. ⌥⌘F cycles; components/custom/chat_feel/ holds each one.
@@ -15,13 +15,14 @@ export const chatFeelNames: Record<ChatFeel, string> = {
 const key = 'jetty.chatFeel'
 const listeners = new Set<() => void>()
 let current: ChatFeel = chatFeels.find((feel) => feel === storage.get(key)) ?? 'jetty'
+let rootPinned = false
 
-export function getChatFeel() {
+function getChatFeel() {
   return current
 }
 
 export function applyChatFeel() {
-  document.documentElement.dataset.chatFeel = current
+  document.documentElement.dataset.chatFeel = rootPinned ? 'jetty' : current
 }
 
 export function cycleChatFeel() {
@@ -32,11 +33,27 @@ export function cycleChatFeel() {
   return current
 }
 
+// While feels render side by side (/dev/feels), the root stays on Jetty, which has no rules, so the
+// global feel can't reach into them. Returns the unpin.
+export function pinRootChatFeel() {
+  rootPinned = true
+  applyChatFeel()
+  return () => {
+    rootPinned = false
+    applyChatFeel()
+  }
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener)
   return () => void listeners.delete(listener)
 }
 
+// A subtree with a feel of its own; its element carries data-chat-feel, so the CSS follows.
+export const ChatFeelContext = createContext<ChatFeel | undefined>(undefined)
+
 export function useChatFeel() {
-  return useSyncExternalStore(subscribe, getChatFeel)
+  const scoped = useContext(ChatFeelContext)
+  const global = useSyncExternalStore(subscribe, getChatFeel)
+  return scoped ?? global
 }

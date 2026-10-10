@@ -1,14 +1,15 @@
 /* opencode's thread, rebuilt from ~/code/scratch/teardowns/chat-opencode.md. Every rule is scoped under
-   :root[data-chat-feel='opencode'], and to [data-chat-thread] where it should only touch threads. */
+   [data-chat-feel='opencode'] (the root, or a pane of /dev/feels), and to [data-chat-thread] where
+   it should only touch threads. */
 
-:root[data-chat-feel='opencode'] {
+[data-chat-feel='opencode'] {
   /* opencode's v2 hairline: 10% of the text colour. */
   --opencode-hairline: color-mix(in oklch, var(--foreground) 10%, transparent);
   --opencode-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* The system UI stack, and an 800px column (1000px on wide screens). */
-:root[data-chat-feel='opencode'] :is([data-chat-thread], [data-chat-composer]) {
+[data-chat-feel='opencode'] :is([data-chat-thread], [data-chat-composer]) {
   font-family:
     ui-sans-serif,
     system-ui,
@@ -22,7 +23,7 @@
   }
 }
 
-:root[data-chat-feel='opencode'] [data-chat-composer] {
+[data-chat-feel='opencode'] [data-chat-composer] {
   max-width: 800px;
   padding-inline: 12px;
 
@@ -31,7 +32,7 @@
   }
 }
 
-:root[data-chat-feel='opencode'] [data-chat-thread] {
+[data-chat-feel='opencode'] [data-chat-thread] {
   [data-chat-row] {
     max-width: 800px;
     padding-inline: 16px;
@@ -318,20 +319,20 @@
 }
 
 @media (min-width: 768px) {
-  :root[data-chat-feel='opencode'] [data-chat-thread] [data-chat-row] {
+  [data-chat-feel='opencode'] [data-chat-thread] [data-chat-row] {
     padding-inline: 20px;
   }
 }
 
 @media (min-width: 1536px) {
-  :root[data-chat-feel='opencode'] :is([data-chat-thread] [data-chat-row], [data-chat-composer]) {
+  [data-chat-feel='opencode'] :is([data-chat-thread] [data-chat-row], [data-chat-composer]) {
     max-width: 1000px;
   }
 }
 
 /* Hover chrome rests at opacity 0 in its own 24px row and fades in over 150ms. */
 @media (prefers-reduced-motion: no-preference) {
-  :root[data-chat-feel='opencode'] [data-chat-thread] {
+  [data-chat-feel='opencode'] [data-chat-thread] {
     [data-slot='bubble'] > div:last-child:not([data-slot]),
     [class~='group/code'] > div:last-child {
       transition: opacity 150ms ease;

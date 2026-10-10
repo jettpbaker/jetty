@@ -1,0 +1,1039 @@
+{
+  "title": "Alternative sandbox providers",
+  "provider": "claude",
+  "projectPath": "/Users/jettb/code/scratch/cloudlets",
+  "events": [
+    {
+      "t": 0,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-c0e4-7177-9d53-feb39f604bd7",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595430189,
+          "kind": "user_message",
+          "text": "What other sandbox providers could we consider for this project?",
+          "attachments": []
+        }
+      }
+    },
+    {
+      "t": 0,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-c0e4-7177-9d53-feb39f604bd7"
+      }
+    },
+    {
+      "t": 5,
+      "event": {
+        "type": "turn.started",
+        "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+        "loadout": {
+          "model": "claude-sonnet-5-5",
+          "effort": "medium",
+          "fast": false
+        }
+      }
+    },
+    {
+      "t": 1347,
+      "event": {
+        "type": "context.updated",
+        "usage": {
+          "usedTokens": 18647,
+          "maxTokens": 1000000,
+          "compactAt": 967000,
+          "slices": [
+            {
+              "label": "System prompt",
+              "tokens": 2257
+            },
+            {
+              "label": "System tools",
+              "tokens": 3311
+            },
+            {
+              "label": "MCP server instructions",
+              "tokens": 681
+            },
+            {
+              "label": "Memory files",
+              "tokens": 3973
+            },
+            {
+              "label": "Skills",
+              "tokens": 8415
+            },
+            {
+              "label": "Messages",
+              "tokens": 10
+            }
+          ],
+          "model": "claude-sonnet-5-5",
+          "asOf": 1791595431536
+        }
+      }
+    },
+    {
+      "t": 3284,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-ce01-7850-a91d-2d4deb44628c",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595433473,
+          "kind": "reasoning",
+          "text": "",
+          "streaming": true
+        }
+      }
+    },
+    {
+      "t": 3613,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-ce01-7850-a91d-2d4deb44628c",
+        "delta": "",
+        "tokens": 50
+      }
+    },
+    {
+      "t": 3654,
+      "event": {
+        "type": "context.updated",
+        "usage": {
+          "usedTokens": 33585,
+          "maxTokens": 1000000,
+          "compactAt": 967000,
+          "slices": [
+            {
+              "label": "System prompt",
+              "tokens": 2257
+            },
+            {
+              "label": "System tools",
+              "tokens": 3311
+            },
+            {
+              "label": "MCP server instructions",
+              "tokens": 2108
+            },
+            {
+              "label": "Memory files",
+              "tokens": 3973
+            },
+            {
+              "label": "Skills",
+              "tokens": 8415
+            },
+            {
+              "label": "Messages",
+              "tokens": 13521
+            }
+          ],
+          "model": "claude-sonnet-5-5",
+          "asOf": 1791595433842
+        }
+      }
+    },
+    {
+      "t": 3745,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-ce01-7850-a91d-2d4deb44628c",
+        "delta": ""
+      }
+    },
+    {
+      "t": 3746,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-ce01-7850-a91d-2d4deb44628c"
+      }
+    },
+    {
+      "t": 3747,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-cfd0-76a7-8d5c-e1d9d943a643",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595433936,
+          "kind": "assistant_message",
+          "text": "",
+          "streaming": true
+        }
+      }
+    },
+    {
+      "t": 3792,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-cfd0-76a7-8d5c-e1d9d943a643",
+        "delta": "Let me look at what the project does first, so the suggestions f"
+      }
+    },
+    {
+      "t": 3877,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-cfd0-76a7-8d5c-e1d9d943a643",
+        "delta": "it."
+      }
+    },
+    {
+      "t": 3896,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-cfd0-76a7-8d5c-e1d9d943a643"
+      }
+    },
+    {
+      "t": 4424,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-d274-70fb-b68d-8d4f59199464",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595434612,
+          "kind": "tool_call",
+          "toolName": "Bash",
+          "input": {
+            "command": "cd /Users/jettb/code/scratch/cloudlets && ls -la && cat AGENTS.md CLAUDE.md README.md 2>/dev/null | head -80 && cat package.json 2>/dev/null | head -40"
+          },
+          "output": "",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "t": 5006,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-d274-70fb-b68d-8d4f59199464",
+        "delta": "total 120\ndrwxr-xr-x@ 15 jettb  staff    480 24 Aug 19:42 .\ndrwxr-xr-x@ 63 jettb  staff   2016  9 Oct 20:19 ..\n-rw-r--r--@  1 jettb  staff    148 24 Aug 19:38 .env\n-rw-r--r--@  1 jettb  staff    164 24 Aug 19:34 .env.example\n-rw-r--r--@  1 jettb  staff   1263 24 Aug 19:42 .env.local\n-rw-r--r--@  1 jettb  staff     62 24 Aug 19:42 .gitignore\n-rw-r--r--@  1 jettb  staff    202 24 Aug 19:27 .oxfmtrc.json\n-rw-r--r--@  1 jettb  staff    317 24 Aug 19:27 .oxlintrc.json\ndrwxr-xr-x@  9 jettb  staff    288 24 Aug 20:48 .vercel\n-rw-r--r--@  1 jettb  staff  21401 24 Aug 19:30 bun.lock\ndrwxr-xr-x@ 53 jettb  staff   1696 24 Aug 19:30 node_modules\n-rw-r--r--@  1 jettb  staff    526 24 Aug 19:30 package.json\ndrwxr-xr-x@  5 jettb  staff    160 24 Aug 19:21 src\n-rw-r--r--@  1 jettb  staff    236 24 Aug 19:30 tsconfig.json\n-rw-r--r--@  1 jettb  staff    250 24 Aug 20:06 vercel.ts\n{\n  \"name\": \"cloudlets\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"bun --watch src/index.ts\",\n    \"fmt\": \"oxfmt\",\n    \"fmt:check\": \"oxfmt --check\",\n    \"lint\": \"oxlint\"\n  },\n  \"dependencies\": {\n    \"@modelcontextprotocol/server\": \"^2.0.0\",\n    \"@vercel/config\": \"^0.6.1\",\n    \"e2b\": \"^2.8.0\",\n    \"hono\": \"^4.9.0\",\n    \"mcp-handler\": \"^2.0.0\",\n    \"zod\": \"^4.2.0\"\n  },\n  \"devDependencies\": {\n    \"@types/bun\": \"^1.2.0\",\n    \"oxfmt\": \"^0.64.0\",\n    \"oxlint\": \"^1.79.0\",\n    \"typescript\": \"^5.9.0\"\n  }\n}"
+      }
+    },
+    {
+      "t": 5006,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-d274-70fb-b68d-8d4f59199464",
+        "patch": {
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "t": 6174,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-d94a-7a6e-a88e-c06581267756",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595436362,
+          "kind": "tool_call",
+          "toolName": "Bash",
+          "input": {
+            "command": "cd /Users/jettb/code/scratch/cloudlets && find src -type f | head -20 && wc -l src/* src/*/* 2>/dev/null | tail -20 && cat .env.example vercel.ts"
+          },
+          "output": "",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "t": 6662,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-d94a-7a6e-a88e-c06581267756",
+        "delta": "src/mcp.ts\nsrc/sandbox.ts\nsrc/index.ts\n(eval):1: no matches found: src/*/*\nE2B_API_KEY=\n# Nickname for this POC box (metadata). Leave as poc.\n# Only set this to a real E2B id if you want to pin a specific machine.\nCLOUDLETS_SANDBOX_ID=poc\nimport type { VercelConfig } from '@vercel/config/v1'\n\nexport const config: VercelConfig = {\n  bunVersion: '1.4.x',\n  functions: {\n    'src/index.ts': {\n      includeFiles: 'node_modules/chalk/source/vendor/**',\n      maxDuration: 300,\n    },\n  },\n}"
+      }
+    },
+    {
+      "t": 6662,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-d94a-7a6e-a88e-c06581267756",
+        "patch": {
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "t": 7703,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-df44-7b86-8a72-c81ba44621ae",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595437892,
+          "kind": "tool_call",
+          "toolName": "Read",
+          "input": {
+            "file_path": "/Users/jettb/code/scratch/cloudlets/src/sandbox.ts"
+          },
+          "output": "",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "t": 7723,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-df44-7b86-8a72-c81ba44621ae",
+        "delta": "1\timport { CommandExitError, Sandbox } from 'e2b'\n2\t\n3\tconst WORKSPACE = '/home/user/workspace'\n4\tconst IDLE_MS = 10 * 60 * 1000\n5\t\n6\tfunction requireApiKey() {\n7\t  if (!process.env.E2B_API_KEY) {\n8\t    throw new Error('E2B_API_KEY is not set')\n9\t  }\n10\t}\n11\t\n12\texport function looksLikeSandboxId(value: string): boolean {\n13\t  return value.length >= 16 && /^[a-z0-9-]+$/i.test(value)\n14\t}\n15\t\n16\texport function resolvePath(path: string): string {\n17\t  if (path.startsWith('/')) return path\n18\t  const trimmed = path.replace(/^\\.\\//, '')\n19\t  return `${WORKSPACE}/${trimmed}`\n20\t}\n21\t\n22\texport async function createSandbox(): Promise<Sandbox> {\n23\t  requireApiKey()\n24\t  const sandbox = await Sandbox.create({\n25\t    timeoutMs: IDLE_MS,\n26\t    metadata: { app: 'cloudlets' },\n27\t    lifecycle: {\n28\t      onTimeout: 'pause',\n29\t      autoResume: true,\n30\t    },\n31\t  })\n32\t  await sandbox.commands.run(`mkdir -p ${WORKSPACE}`)\n33\t  return sandbox\n34\t}\n35\t\n36\texport async function getSandbox(sandboxId: string): Promise<Sandbox> {\n37\t  requireApiKey()\n38\t  const requested = sandboxId.trim()\n39\t  if (!looksLikeSandboxId(requested)) {\n40\t    throw new Error(\n41\t      `\"${requested}\" is not an E2B sandbox id. Call create first and pass the sandbox_id it returns.`,\n42\t    )\n43\t  }\n44\t  return Sandbox.connect(requested, { timeoutMs: IDLE_MS })\n45\t}\n46\t\n47\texport function formatCommandError(error: unknown): string {\n48\t  if (error instanceof CommandExitError) {\n49\t    const parts = [\n50\t      `exit ${error.exitCode}`,\n51\t      error.stdout ? `stdout:\\n${error.stdout}` : '',\n52\t      error.stderr ? `stderr:\\n${error.stderr}` : '',\n53\t    ].filter(Boolean)\n54\t    return parts.join('\\n\\n')\n55\t  }\n56\t  return error instanceof Error ? error.message : String(error)\n57\t}\n58\t\n59\texport { WORKSPACE }\n60\t"
+      }
+    },
+    {
+      "t": 7723,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-df44-7b86-8a72-c81ba44621ae",
+        "patch": {
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "t": 7939,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-e030-7cfd-ab52-17660e21768b",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595438128,
+          "kind": "tool_call",
+          "toolName": "Read",
+          "input": {
+            "file_path": "/Users/jettb/code/scratch/cloudlets/src/mcp.ts"
+          },
+          "output": "",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "t": 7952,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-e030-7cfd-ab52-17660e21768b",
+        "delta": "1\timport type { Sandbox } from 'e2b'\n2\timport { createMcpHandler } from 'mcp-handler'\n3\timport { z } from 'zod'\n4\t\n5\timport { createSandbox, formatCommandError, getSandbox, resolvePath, WORKSPACE } from './sandbox.js'\n6\t\n7\tconst RUN_TIMEOUT_MS = 90_000\n8\tconst LOG_LIMIT = 12_000\n9\t\n10\tconst sandboxIdField = z\n11\t  .string()\n12\t  .min(1)\n13\t  .describe('Required. sandbox_id from the create tool. Do not invent one.')\n14\t\n15\tconst CREATE_NOTES = [\n16\t  `Workspace is ${WORKSPACE}. Relative paths go there.`,\n17\t  'Installed: Node 20.9.0, npm, Yarn, Python 3.11, git, curl, gh, build-essential. Bun is not installed. npm and PyPI egress works.',\n18\t  'Node is 20.9.0, not 20.19+. Current create-vite@latest and Vite 6+ need ^20.19 or >=22.12 and will crash (EBADENGINE / styleText). Pin an older scaffolder, e.g. npm create vite@5 -- --yes, or install vite@5. Do not use @latest for Vite.',\n19\t  'write_file creates parent directories. There is no list_files; use run with ls.',\n20\t  'run(background=true) returns only a pid. Redirect to a log if you need to see whether a server booted.',\n21\t  'Foreground run times out at 90s with no job handle. For long installs, use background and poll a log.',\n22\t  'Vite/Next preview: set server.allowedHosts to true or *.e2b.app is blocked.',\n23\t  'The box pauses after 10 minutes with no tool calls or preview hits. The next hit wakes it.',\n24\t].join('\\n')\n25\t\n26\tfunction clip(text: string): string {\n27\t  if (text.length <= LOG_LIMIT) return text\n28\t  return `${text.slice(0, LOG_LIMIT)}\\n…truncated (${text.length} chars)`\n29\t}\n30\t\n31\tfunction fail(message: string) {\n32\t  return {\n33\t    content: [{ type: 'text' as const, text: message }],\n34\t    isError: true,\n35\t  }\n36\t}\n37\t\n38\tfunction ok(text: string) {\n39\t  return {\n40\t    content: [{ type: 'text' as const, text }],\n41\t  }\n42\t}\n43\t\n44\tfunction withId(text: string, sandbox: Sandbox) {\n45\t  return ok(`${text}\\n\\nsandbox_id=${sandbox.sandboxId}`)\n46\t}\n47\t\n48\texport const mcpHandler = createMcpHandler(\n49\t  server => {\n50\t    server.registerTool(\n51\t      'create',\n52\t      {\n53\t        title: 'Create sandbox',\n54\t        description:\n55\t          'Call this first in a conversation. Creates a new sandbox and returns sandbox_id plus environment notes. Then pass that sandbox_id to every other Cloudlets tool.',\n56\t        inputSchema: z.object({}),\n57\t      },\n58\t      async () => {\n59\t        try {\n60\t          const sandbox = await createSandbox()\n61\t          return ok(\n62\t            [\n63\t              `sandbox_id=${sandbox.sandboxId}`,\n64\t              'Pass this sandbox_id on every later write_file, read_file, run, and preview_url call. If you skip create or invent an id, those tools will fail.',\n65\t              '',\n66\t              CREATE_NOTES,\n67\t            ].join('\\n'),\n68\t          )\n69\t        } catch (error) {\n70\t          return fail(formatCommandError(error))\n71\t        }\n72\t      },\n73\t    )\n74\t\n75\t    server.registerTool(\n76\t      'write_file',\n77\t      {\n78\t        title: 'Write file',\n79\t        description: `Write a file in the sandbox. Call create first. Relative paths go under ${WORKSPACE}. Parent directories are created.`,\n80\t        inputSchema: z.object({\n81\t          sandbox_id: sandboxIdField,\n82\t          path: z.string().min(1),\n83\t          content: z.string(),\n84\t        }),\n85\t      },\n86\t      async ({ path, content, sandbox_id }) => {\n87\t        try {\n88\t          const sandbox = await getSandbox(sandbox_id)\n89\t          const full = resolvePath(path)\n90\t          await sandbox.files.write(full, content)\n91\t          return withId(`wrote ${full}`, sandbox)\n92\t        } catch (error) {\n93\t          return fail(formatCommandError(error))\n94\t        }\n95\t      },\n96\t    )\n97\t\n98\t    server.registerTool(\n99\t      'read_file',\n100\t      {\n101\t        title: 'Read file',\n102\t        description: `Read a file from the sandbox. Call create first. Relative paths go under ${WORKSPACE}.`,\n103\t        inputSchema: z.object({\n104\t          sandbox_id: sandboxIdField,\n105\t          path: z.string().min(1),\n106\t        }),\n107\t      },\n108\t      async ({ path, sandbox_id }) => {\n109\t        try {\n110\t          const sandbox = await getSandbox(sandbox_id)\n111\t          const full = resolvePath(path)\n112\t          const content = await sandbox.files.read(full)\n113\t          return withId(clip(content), sandbox)\n114\t        } catch (error) {\n115\t          return fail(formatCommandError(error))\n116\t        }\n117\t      },\n118\t    )\n119\t\n120\t    server.registerTool(\n121\t      'run',\n122\t      {\n123\t        title: 'Run command',\n124\t        description: `Run a shell command in ${WORKSPACE}. Call create first. Use background=true for long-lived processes such as a dev server. Background returns only a pid; redirect to a log if you need boot output. Foreground commands time out after 90 seconds. stdout and stderr are always returned as labelled fields.`,\n125\t        inputSchema: z.object({\n126\t          sandbox_id: sandboxIdField,\n127\t          command: z.string().min(1),\n128\t          background: z.boolean().optional(),\n129\t        }),\n130\t      },\n131\t      async ({ command, background, sandbox_id }) => {\n132\t        try {\n133\t          const sandbox = await getSandbox(sandbox_id)\n134\t          if (background) {\n135\t            const handle = await sandbox.commands.run(command, {\n136\t              cwd: WORKSPACE,\n137\t              background: true,\n138\t            })\n139\t            return withId(`started in background, pid ${handle.pid}`, sandbox)\n140\t          }\n141\t\n142\t          const result = await sandbox.commands.run(command, {\n143\t            cwd: WORKSPACE,\n144\t            timeoutMs: RUN_TIMEOUT_MS,\n145\t          })\n146\t          const parts = [\n147\t            `exit ${result.exitCode}`,\n148\t            `stdout:\\n${result.stdout ? clip(result.stdout) : '(empty)'}`,\n149\t            `stderr:\\n${result.stderr ? clip(result.stderr) : '(empty)'}`,\n150\t          ]\n151\t          const text = parts.join('\\n\\n')\n152\t          return result.exitCode === 0\n153\t            ? withId(text, sandbox)\n154\t            : fail(`${text}\\n\\nsandbox_id=${sandbox.sandboxId}`)\n155\t        } catch (error) {\n156\t          return fail(formatCommandError(error))\n157\t        }\n158\t      },\n159\t    )\n160\t\n161\t    server.registerTool(\n162\t      'preview_url',\n163\t      {\n164\t        title: 'Preview URL',\n165\t        description:\n166\t          'Public HTTPS URL for a port already listening inside the sandbox. Call create first, then start the server with run(background=true). Vite 5.4.12+ and some Next dev servers reject unknown Host headers; set server.allowedHosts to true or the preview URL 403s while the process is still up.',\n167\t        inputSchema: z.object({\n168\t          sandbox_id: sandboxIdField,\n169\t          port: z.number().int().min(1).max(65535).default(3000),\n170\t        }),\n171\t      },\n172\t      async ({ port, sandbox_id }) => {\n173\t        try {\n174\t          const sandbox = await getSandbox(sandbox_id)\n175\t          const host = sandbox.getHost(port)\n176\t          const url = host.startsWith('http') ? host : `https://${host}`\n177\t          return withId(\n178\t            `${url}\\nIf this is a paused box, the first hit may take a second to wake.`,\n179\t            sandbox,\n180\t          )\n181\t        } catch (error) {\n182\t          return fail(formatCommandError(error))\n183\t        }\n184\t      },\n185\t    )\n186\t  },\n187\t  {\n188\t    serverInfo: {\n189\t      name: 'cloudlets',\n190\t      version: '0.1.0',\n191\t    },\n192\t    instructions: [\n193\t      'Call create first. It returns sandbox_id and environment notes.',\n194\t      'Pass that sandbox_id to every later write_file, read_file, run, and preview_url call. Those tools require it and will not create a box.',\n195\t      'If you already have a sandbox_id from this conversation, skip create and reuse it.',\n196\t    ].join(' '),\n197\t  },\n198\t)\n199\t"
+      }
+    },
+    {
+      "t": 7953,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-e030-7cfd-ab52-17660e21768b",
+        "patch": {
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "t": 8676,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-e311-7d09-9178-a898df79d74b",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595438865,
+          "kind": "reasoning",
+          "text": "",
+          "streaming": true
+        }
+      }
+    },
+    {
+      "t": 8692,
+      "event": {
+        "type": "context.updated",
+        "usage": {
+          "usedTokens": 39318,
+          "maxTokens": 1000000,
+          "compactAt": 967000,
+          "slices": [
+            {
+              "label": "System prompt",
+              "tokens": 2257
+            },
+            {
+              "label": "System tools",
+              "tokens": 3376
+            },
+            {
+              "label": "MCP server instructions",
+              "tokens": 2108
+            },
+            {
+              "label": "Memory files",
+              "tokens": 3973
+            },
+            {
+              "label": "Skills",
+              "tokens": 8415
+            },
+            {
+              "label": "Messages",
+              "tokens": 19189
+            }
+          ],
+          "model": "claude-sonnet-5-5",
+          "asOf": 1791595438880
+        }
+      }
+    },
+    {
+      "t": 9232,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-e311-7d09-9178-a898df79d74b",
+        "delta": "",
+        "tokens": 50
+      }
+    },
+    {
+      "t": 10174,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-e311-7d09-9178-a898df79d74b",
+        "delta": ""
+      }
+    },
+    {
+      "t": 10175,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-e311-7d09-9178-a898df79d74b"
+      }
+    },
+    {
+      "t": 10442,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-e9f6-7209-852f-39ac5c645585",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595440630,
+          "kind": "tool_call",
+          "toolName": "ToolSearch",
+          "input": {
+            "query": "select:WebSearch",
+            "max_results": 1
+          },
+          "output": "",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "t": 10442,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-e9f6-7209-852f-39ac5c645585",
+        "delta": "{\"type\":\"tool_reference\",\"tool_name\":\"WebSearch\"}"
+      }
+    },
+    {
+      "t": 10443,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-e9f6-7209-852f-39ac5c645585",
+        "patch": {
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "t": 11702,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12368-eee2-74f8-bfc4-2c24c3c668cb",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595441890,
+          "kind": "tool_call",
+          "toolName": "WebSearch",
+          "input": {
+            "query": "AI agent sandbox providers comparison E2B Daytona Modal Vercel Sandbox Cloudflare Sandbox pause resume preview URLs 2026",
+            "mode": "standard"
+          },
+          "output": "",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "t": 23455,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12368-eee2-74f8-bfc4-2c24c3c668cb",
+        "delta": "Web search results for query: \"AI agent sandbox providers comparison E2B Daytona Modal Vercel Sandbox Cloudflare Sandbox pause resume preview URLs 2026\"\n\nLinks: [{\"title\":\"Where to Run Agent Code: AI Agent Sandbox Providers Compared\",\"url\":\"https://fly.io/learn/agent-sandbox-providers/\"},{\"title\":\"gist.github.com\",\"url\":\"https://gist.github.com/zeroasterisk/05ed613b1e4d71aac20b370999fcac69\"},{\"title\":\"Best Daytona.io alternatives for sandbox environments in 2026\",\"url\":\"https://blaxel.ai/blog/daytona-dev-environment-pricing-alternatives\"},{\"title\":\"best ai agent sandboxes 2026\",\"url\":\"https://blogs.novita.ai/best-ai-agent-sandboxes-2026/\"},{\"title\":\"AI Code Sandbox Benchmark 2026: Modal vs E2B vs Daytona vs Cloudflare vs Vercel vs Beam vs Blaxel\",\"url\":\"https://hub.superagent.sh/blog/ai-code-sandbox-benchmark-2026\"},{\"title\":\"AI Code Sandbox Benchmark 2026: Modal vs E2B vs Daytona vs Cloudflare vs Vercel vs Beam vs Blaxel\",\"url\":\"https://www.superagent.sh/blog/ai-code-sandbox-benchmark-2026\"},{\"title\":\"Sandboxing AI-Generated Code: E2B vs Vercel Sandbox vs Modal vs Daytona in 2026\",\"url\":\"https://www.alexcloudstar.com/blog/sandboxing-ai-generated-code-execution-2026/\"},{\"title\":\"ai agent code sandbox comparison 2026\",\"url\":\"https://developersdigest.tech/blog/ai-agent-code-sandbox-comparison-2026\"},{\"title\":\"AI Code Sandbox Benchmark 2026: Modal vs E2B vs Daytona vs Cloudflare vs Vercel vs Beam vs Blaxel\",\"url\":\"https://poker.superagent.sh/blog/ai-code-sandbox-benchmark-2026\"}]\n\nLinks: [{\"title\":\"mastra.ai\",\"url\":\"https://mastra.ai/docs/deployment/sandbox\"},{\"title\":\"> Discover all available pages from the documentation index: https://mastra.ai/llms.txt\",\"url\":\"https://mastra.ai/docs/deployment/sandbox.md\"},{\"title\":\"vercel ai sdk\",\"url\":\"https://docs.e2b.dev/agents/vercel-ai-sdk\"},{\"title\":\"resume sandbox\",\"url\":\"https://www.e2b.dev/docs/api-reference/sandboxes/resume-sandbox\"},{\"title\":\"better e2b sandbox\",\"url\":\"https://marketplace.dify.ai/plugin/lysonober/better-e2b-sandbox\"},{\"title\":\"www.daytona.io\",\"url\":\"https://www.daytona.io/docs/en/preview\"},{\"title\":\"www.daytona.io\",\"url\":\"https://www.daytona.io/docs/ja/preview\"},{\"title\":\"developers.cloudflare.com\",\"url\":\"https://developers.cloudflare.com/sandbox/api/ports/index.md\"},{\"title\":\"codex-container-api-docs.previews.developers.cloudflare.com\",\"url\":\"https://codex-container-api-docs.previews.developers.cloudflare.com/sandbox/guides/expose-services/index.md\"}]\n\nShort answer: E2B and Daytona have the clearest pause/resume and preview-URL behavior in these sources. Cloudflare's preview URLs are documented, but I didn't find its pause/resume behavior. The searches didn't turn up Modal's pause/resume or preview-URL details, so treat that part as unknown. Most sources are vendor-adjacent blogs, and their performance numbers conflict.\n\n**Isolation**\n- Firecracker microVMs: E2B makes each sandbox a Firecracker microVM rather than a container, booting its own kernel, and Vercel Sandbox works the same way.\n- Modal uses gVisor, which is a userspace kernel that answers the tenant's syscalls itself.\n- Daytona offers two classes: an isolated container with dedicated namespaces, and a full VM whose kernel makes pause, fork and hot snapshots possible.\n- Cloudflare builds on Containers, giving each sandbox its own container with a full Linux environment.\n\n**Pause and resume**\n- E2B: its SDK docs say stop() pauses the sandbox — filesystem and memory preserved — rather than killing it; destroy() removes it for good. Resume can happen from a different process if you set a session ID.\n- Daytona: according to a Mastra deployment guide, stopping a Daytona sandbox persists its filesystem but not running processes, so a server has to be relaunched on wake. Daytona's VM-class option is the one that supports pause and hot snapshots, per the first source.\n- Vercel: the same Mastra guide says a paused sandbox resume there's no relaunch step like on Vercel, which implies Vercel needs a relaunch. Its plan limits also matter: timeout can't exceed the maximum sandbox lifetime of your plan, 45 minutes on Pro.\n- Modal and Cloudflare: I found no source describing their pause/resume semantics.\n\n**Preview URLs**\n- Daytona: Any process listening for HTTP traffic on ports 3000 - 9999 can be previewed through a generated URL. Access depends on the sandbox's public setting, and the standard URL's token resets automatically when the sandbox restarts.\n- E2B: preview URLs follow a fixed pattern. Per E2B's API reference, you construct sandbox URLs as https://{port}-{sandboxID}.e2b.app.\n- Vercel: according to the Mastra guide, Vercel exposes only ports declared at creation, unlike E2B and Daytona.\n- Cloudflare: you call sandbox.exposePort(port, options), and the preview URL needs a domain you own, because it cannot be a .workers.dev domain as it doesn't support wildcard DNS patterns. Stable URLs are possible: with a custom token, the URL stays the same across restarts, while the default URL changes on restart.\n\n**Performance and limits (conflicting sources)**\n- One comparison lists cold starts of about 300–500 ms for E2B and Daytona, and about 50 ms for Vercel. Another lists about 150 ms for E2B, about 90 ms for Daytona, and 2–3 seconds for Cloudflare. Don't rely on either without testing.\n- Max runtime also varies by source. One benchmark lists 24 hours for E2B on Pro, while a Vercel-specific source says Vercel Pro is capped at 45 minutes.\n\n**Practical takeaways**\n- For stateful agents that need resume with memory intact, E2B's documented pause is the clearest match here.\n- For stable preview links on Cloudflare, use custom tokens. Daytona's preview tokens change on restart.\n- Verify Modal's pause/resume and preview-URL behavior against its docs before deciding, since I couldn't confirm either from these results.\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks."
+      }
+    },
+    {
+      "t": 23456,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12368-eee2-74f8-bfc4-2c24c3c668cb",
+        "patch": {
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "t": 24138,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12369-1f77-76f9-bf0d-1aeee9b142fe",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595454327,
+          "kind": "reasoning",
+          "text": "",
+          "streaming": true
+        }
+      }
+    },
+    {
+      "t": 24733,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-1f77-76f9-bf0d-1aeee9b142fe",
+        "delta": "",
+        "tokens": 50
+      }
+    },
+    {
+      "t": 26008,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-1f77-76f9-bf0d-1aeee9b142fe",
+        "delta": "",
+        "tokens": 100
+      }
+    },
+    {
+      "t": 31532,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-1f77-76f9-bf0d-1aeee9b142fe",
+        "delta": ""
+      }
+    },
+    {
+      "t": 31532,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12369-1f77-76f9-bf0d-1aeee9b142fe"
+      }
+    },
+    {
+      "t": 31532,
+      "event": {
+        "type": "item.started",
+        "item": {
+          "id": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+          "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+          "createdAt": 1791595461721,
+          "kind": "assistant_message",
+          "text": "",
+          "streaming": true
+        }
+      }
+    },
+    {
+      "t": 31582,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "Your project uses five things from E2B: create a box, read and write files, run a command in the foreground or background, get a public preview URL for a port, and pause on idle with auto-resume. All E2B calls sit in `src/sandbox.ts`, plus the `Sandbox` type and `getHost()` in `src/mcp.ts`, so trying another provider is a small swap.\n\nHere are the realistic alternatives, ranked by how well they fit that surface:\n\n1. **Daytona**: the closest drop-in.\n   - It has preview URLs for ports 3000–9999 and a stop/start lifecycle.\n   - Stopping keeps the filesystem but not running processes, so a dev server has to be relaunched on wake. E2B's pause keeps memory, so this is a real downgrade for your \"wake on first hit\" behavior.\n   - Preview tokens reset on restart.\n   - It also offers a VM class that supports pause and snapshots.\n\n2. **Cloudflare Sandbox**: worth it if you want to live on Cloudflare.\n   - It has `exposePort()` preview URLs, but they need a custom domain you own, not `.workers.dev`.\n   - With a custom token the URL stays stable across restarts.\n   - I couldn't confirm its pause/resume semantics.\n\n3. **Vercel Sandbox**: you already deploy on Vercel (`vercel.ts`, `.vercel/`), so billing and auth are one place.\n   - It is Firecracker-based like E2B.\n   - It only exposes ports you declare at creation, which doesn't fit the `preview_url(port)` tool as written.\n   - Pro plan runtime is capped at 45 minutes.\n\n4. **Modal**: it uses gVisor and is strong for Python and compute-heavy work.\n   - It is a weaker match for a \"persistent box with a public dev-server URL\" tool.\n   - I couldn't confirm its pause/resume or preview-URL behavior.\n\n5. **Fly.io Machines**: not agent-specific, but they fit your pattern.\n   - They suspend and resume, and give you your own public URL.\n   - You would build more yourself: file APIs, exec, and so on.\n\n6. **Self-hosted E2B**: the same API on your own infrastructure, and the only option that removes vendor lock-in.\n\nThe search also surfaced Blaxel, Beam and"
+      }
+    },
+    {
+      "t": 31648,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " Novita as newer ent"
+      }
+    },
+    {
+      "t": 31715,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "rants. I haven't checked them against"
+      }
+    },
+    {
+      "t": 31781,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " your five requ"
+      }
+    },
+    {
+      "t": 31848,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "irements.\n\n**My take:** st"
+      }
+    },
+    {
+      "t": 31914,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ay on E2B. Mem"
+      }
+    },
+    {
+      "t": 31981,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ory-preserving pause, arb"
+      }
+    },
+    {
+      "t": 32047,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "itrary-port preview URLs and"
+      }
+    },
+    {
+      "t": 32115,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " the SDK sh"
+      }
+    },
+    {
+      "t": 32181,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ape are exactly what your tools"
+      }
+    },
+    {
+      "t": 32248,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " expose,"
+      }
+    },
+    {
+      "t": 32314,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " and none of the others beat it on"
+      }
+    },
+    {
+      "t": 32382,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " that combination. The"
+      }
+    },
+    {
+      "t": 32448,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " case for"
+      }
+    },
+    {
+      "t": 32514,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " switching is cost or cons"
+      }
+    },
+    {
+      "t": 32580,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "olidation. If you want to"
+      }
+    },
+    {
+      "t": 32672,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " try one, Daytona is the cheapest exper"
+      }
+    },
+    {
+      "t": 32748,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "iment, and I'd pair it with"
+      }
+    },
+    {
+      "t": 32814,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " a \"relaunch the server"
+      }
+    },
+    {
+      "t": 32881,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " on wake\" step.\n\nCold-start numb"
+      }
+    },
+    {
+      "t": 32948,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ers across sources conflict, so I w"
+      }
+    },
+    {
+      "t": 33015,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ouldn't trust any benchmark without test"
+      }
+    },
+    {
+      "t": 33081,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ing. Most of the"
+      }
+    },
+    {
+      "t": 33148,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " sources are vendor blogs.\n\nDo you want"
+      }
+    },
+    {
+      "t": 33214,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " me to sketch a prov"
+      }
+    },
+    {
+      "t": 33282,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ider-agnostic interface in `sandbox."
+      }
+    },
+    {
+      "t": 33350,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ts` for a Daytona pro"
+      }
+    },
+    {
+      "t": 33415,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "of of concept, or is this"
+      }
+    },
+    {
+      "t": 33481,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " just ex"
+      }
+    },
+    {
+      "t": 33548,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ploration?\n\nSources:\n- ["
+      }
+    },
+    {
+      "t": 33615,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "Where to Run Agent Code: A"
+      }
+    },
+    {
+      "t": 33681,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "I Agent Sandbox Providers Compared ("
+      }
+    },
+    {
+      "t": 33748,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "Fly.io)](https://fly.io/learn"
+      }
+    },
+    {
+      "t": 33815,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "/agent-sandbox-providers/)\n- ["
+      }
+    },
+    {
+      "t": 33882,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "AI Code Sandbox Benchmark 2"
+      }
+    },
+    {
+      "t": 33949,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "026 ("
+      }
+    },
+    {
+      "t": 34015,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "Superagent)](https://www.superagent.sh/"
+      }
+    },
+    {
+      "t": 34082,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "blog/ai-code-sandbox-benchm"
+      }
+    },
+    {
+      "t": 34149,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ark-2026)\n- [Sandboxing AI"
+      }
+    },
+    {
+      "t": 34216,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "-Generated Code: E2B vs Vercel"
+      }
+    },
+    {
+      "t": 34283,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " Sandbox vs Modal vs Daytona"
+      }
+    },
+    {
+      "t": 34350,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "](https://www.alexcloudstar.com/bl"
+      }
+    },
+    {
+      "t": 34417,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "og/sandboxing-ai-generated-code-"
+      }
+    },
+    {
+      "t": 34484,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "execution-2026/)\n- [Mastra sand"
+      }
+    },
+    {
+      "t": 34549,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "box deployment guide](https://m"
+      }
+    },
+    {
+      "t": 34616,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "astra.ai/docs/deployment/sandb"
+      }
+    },
+    {
+      "t": 34686,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "ox)\n- [Daytona preview docs](https://"
+      }
+    },
+    {
+      "t": 34750,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "www.daytona.io/docs/en/preview)"
+      }
+    },
+    {
+      "t": 34817,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "\n- [Cloudflare Sandbox ports"
+      }
+    },
+    {
+      "t": 34885,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": " API](https://developers.cloudflare.com/s"
+      }
+    },
+    {
+      "t": 34951,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "andbox/api/ports/index.md)\n- ["
+      }
+    },
+    {
+      "t": 35017,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "E2B resume sandbox API](https://www"
+      }
+    },
+    {
+      "t": 35084,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": ".e2b.dev/docs/api-reference/"
+      }
+    },
+    {
+      "t": 35140,
+      "event": {
+        "type": "item.delta",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef",
+        "delta": "sandboxes/resume-sandbox)"
+      }
+    },
+    {
+      "t": 35140,
+      "event": {
+        "type": "item.completed",
+        "itemId": "01a12369-3c59-79c5-96ea-e8c4f52e07ef"
+      }
+    },
+    {
+      "t": 35161,
+      "event": {
+        "type": "turn.completed",
+        "turnId": "01a12368-c12d-708d-8549-7a3432b83741",
+        "usage": {
+          "inputTokens": 12,
+          "outputTokens": 2426
+        },
+        "costUsd": 0.1293863
+      }
+    },
+    {
+      "t": 35182,
+      "event": {
+        "type": "context.updated",
+        "usage": {
+          "usedTokens": 44776,
+          "maxTokens": 1000000,
+          "compactAt": 967000,
+          "slices": [
+            {
+              "label": "System prompt",
+              "tokens": 2257
+            },
+            {
+              "label": "System tools",
+              "tokens": 3611
+            },
+            {
+              "label": "MCP server instructions",
+              "tokens": 2108
+            },
+            {
+              "label": "Memory files",
+              "tokens": 3973
+            },
+            {
+              "label": "Skills",
+              "tokens": 8415
+            },
+            {
+              "label": "Messages",
+              "tokens": 24412
+            }
+          ],
+          "model": "claude-sonnet-5-5",
+          "asOf": 1791595465370
+        }
+      }
+    }
+  ]
+}

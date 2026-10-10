@@ -59,6 +59,8 @@ export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export {
   completedAgo,
+  foldUpdate,
+  noteCompleted,
   useOverviewItems,
   useThread,
   useThreadContext,

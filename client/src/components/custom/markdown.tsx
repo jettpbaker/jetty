@@ -17,7 +17,7 @@ import {
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
 import { replyShown, usePacedText, useReplyShown } from '@/components/custom/smooth_stream'
-import { getChatFeel } from '@/lib/chat-feel'
+import { useChatFeel } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
@@ -217,7 +217,8 @@ export function Markdown({
       : Math.min(children.length, replyShown(reply) ?? (arrived ? 0 : children.length))
   )
   // The chat feel streaming when it mounted; ⌥⌘F remounts the thread to change it.
-  const [stream] = useState(() => streamFeels[getChatFeel()])
+  const feel = useChatFeel()
+  const [stream] = useState(() => streamFeels[feel])
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
   const [smooth] = useState(() =>
     streaming || from < children.length ? stream.smoothBlocks(children.slice(0, from)) : undefined

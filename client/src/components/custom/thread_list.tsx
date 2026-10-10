@@ -41,7 +41,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
-import { getChatFeel } from '@/lib/chat-feel'
+import { useChatFeel } from '@/lib/chat-feel'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -424,6 +424,7 @@ export function ThreadList({
     ]
   )
   const view = `${threadId}:${agentId ?? ''}`
+  const feel = useChatFeel()
   // Rows that arrive after the list mounts, and a first message sent just before, carry
   // data-chat-new, so a chat feel can bring them in.
   const [seeded] = useState(() => {
@@ -620,7 +621,7 @@ export function ThreadList({
     const behind = element.scrollHeight - element.clientHeight - element.scrollTop
     const glides =
       !reducedMotion.matches &&
-      getChatFeel() !== 'opencode' &&
+      feel !== 'opencode' &&
       behind < element.clientHeight &&
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
@@ -635,7 +636,7 @@ export function ThreadList({
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor])
+  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor, feel])
   useEffect(() => () => glider.current?.stop(), [])
 
   // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
@@ -657,14 +658,14 @@ export function ThreadList({
     const element = scroller.current
     if (!element) return
     pin(true)
-    if (reducedMotion.matches || getChatFeel() === 'opencode') {
+    if (reducedMotion.matches || feel === 'opencode') {
       virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       return
     }
     const start = element.scrollHeight - element.clientHeight * 2
     if (element.scrollTop < start) element.scrollTop = start
     gliderFor(element).start()
-  }, [pin, virtualizer, gliderFor])
+  }, [pin, virtualizer, gliderFor, feel])
 
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {

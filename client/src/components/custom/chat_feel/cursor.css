@@ -1,8 +1,9 @@
 /* Cursor's thread, rebuilt from ~/code/scratch/teardowns/chat-cursor.md. Every rule is scoped under
-   :root[data-chat-feel='cursor'], and to [data-chat-thread] where it should only touch threads. */
+   [data-chat-feel='cursor'] (the root, or a pane of /dev/feels), and to [data-chat-thread] where it
+   should only touch threads. */
 
 /* One foreground, three alpha tones; one 15/24 system face; one 12px radius. */
-:root[data-chat-feel='cursor'] :is([data-chat-thread], [data-chat-composer]) {
+[data-chat-feel='cursor'] :is([data-chat-thread], [data-chat-composer]) {
   --cursor-text-primary: var(--foreground);
   --cursor-text-secondary: color-mix(in oklab, var(--foreground) 74%, transparent);
   --cursor-text-tertiary: color-mix(in oklab, var(--foreground) 60%, transparent);
@@ -27,7 +28,7 @@
   font-family: var(--cursor-font);
 }
 
-:root[data-chat-feel='cursor'] [data-chat-thread] {
+[data-chat-feel='cursor'] [data-chat-thread] {
   /* A 780px column; with the list's 12px gap, rows sit 14px apart. */
   & [data-chat-row] {
     max-width: calc(780px + 3rem);
@@ -119,7 +120,7 @@
 
 /* Markdown: block 16px, list-before 8px, list-after 18px, heading-after 4px; headings 22/20/17 at
    590 and line-height 1.42, with a top margin of 22/15 of their size. */
-:root[data-chat-feel='cursor']
+[data-chat-feel='cursor']
   [data-chat-thread]
   [data-slot='bubble'][data-variant='ghost']
   > [data-slot='bubble-content']
@@ -201,7 +202,7 @@
 
 /* Work: tool and thinking lines are plain 15/24 text, a verb in the secondary tone and its details
    in the tertiary; hover lifts each one step. Chevrons stay hidden until hover. */
-:root[data-chat-feel='cursor'] [data-chat-row='work'] {
+[data-chat-feel='cursor'] [data-chat-row='work'] {
   font-variant-numeric: tabular-nums;
 
   & .font-mono {
@@ -278,13 +279,13 @@
 }
 
 /* Subagent and workflow headers keep their own disclosure, with its chevron hidden until hover. */
-:root[data-chat-feel='cursor'] [data-chat-thread] :is(.group\/subagents, .group\/workflow) > svg {
+[data-chat-feel='cursor'] [data-chat-thread] :is(.group\/subagents, .group\/workflow) > svg {
   opacity: 0;
   transition:
     opacity 100ms,
     rotate 150ms var(--cursor-ease-out-cubic);
 }
-:root[data-chat-feel='cursor']
+[data-chat-feel='cursor']
   [data-chat-thread]
   :is(.group\/subagents, .group\/workflow):is(:hover, :focus-visible)
   > svg {
@@ -292,7 +293,7 @@
 }
 
 /* A label that changes rolls: the old one up and out, the new one in from below, 300ms. */
-:root[data-chat-feel='cursor'] [data-chat-thread] {
+[data-chat-feel='cursor'] [data-chat-thread] {
   & .rolling-text-in {
     animation: cursor-roll-in 300ms var(--cursor-ease-out-cubic) both;
   }
@@ -312,7 +313,7 @@
 }
 
 /* One shimmer: 60% of the text's colour, swept by its full colour, every second. */
-:root[data-chat-feel='cursor'] [data-chat-thread] .shimmer {
+[data-chat-feel='cursor'] [data-chat-thread] .shimmer {
   --shimmer-image: linear-gradient(
     90deg,
     color-mix(in oklab, currentColor 60%, transparent) 25%,
@@ -323,7 +324,7 @@
 }
 
 /* The composer: the bubble's surface, border, radius, shadow and blur, at 15/24. */
-:root[data-chat-feel='cursor'] [data-chat-composer] {
+[data-chat-feel='cursor'] [data-chat-composer] {
   max-width: calc(780px + 3rem);
 
   & > [data-perf-region='composer'] {
@@ -362,12 +363,12 @@
     transform: translateY(8px);
   }
 }
-:root[data-chat-feel='cursor'] .cursor-fade {
+[data-chat-feel='cursor'] .cursor-fade {
   animation: cursor-fade 150ms linear both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root[data-chat-feel='cursor'] {
+  [data-chat-feel='cursor'] {
     & .cursor-fade,
     & [data-chat-row][data-chat-new],
     & [data-chat-thread] .rolling-text-in {

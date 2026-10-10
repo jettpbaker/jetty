@@ -1,5 +1,6 @@
 /* Capy's thread, rebuilt from ~/code/scratch/teardowns/chat-capy.md. Every rule is scoped under
-   :root[data-chat-feel='capy'], and to [data-chat-thread] where it should only touch threads.
+   [data-chat-feel='capy'] (the root, or a pane of /dev/feels), and to [data-chat-thread] where it
+   should only touch threads.
    capy_fade.tsx draws the stream's colour fade; this file is type, layout and motion. */
 
 /* Rows that mount in a thread's first 400ms (opening it, switching to it) don't fade in. */
@@ -14,7 +15,7 @@
   }
 }
 
-:root[data-chat-feel='capy'] {
+[data-chat-feel='capy'] {
   --capy-ease: cubic-bezier(0.23, 1, 0.32, 1);
   /* Inter where it's installed; Geist, the app's own sans, everywhere else. */
   --capy-font: Inter, 'Inter Variable', 'Geist Variable', sans-serif;
@@ -29,7 +30,7 @@
   }
 }
 
-:root[data-chat-feel='capy'] [data-chat-thread] {
+[data-chat-feel='capy'] [data-chat-thread] {
   --motion-disclosure-open-duration: 150ms;
   --motion-disclosure-close-duration: 120ms;
   --motion-disclosure-fast-open-duration: 150ms;
@@ -282,7 +283,7 @@
 /* A row arriving fades in over 150ms. Work blocks and markers don't; nor does anything under
    reduced motion, where panels only fade and shimmer stands still. */
 @media (prefers-reduced-motion: no-preference) {
-  :root[data-chat-feel='capy']
+  [data-chat-feel='capy']
     [data-chat-thread]
     [data-chat-row]:not([data-chat-row='work'], [data-chat-row='marker']) {
     transition:
@@ -295,7 +296,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-chat-feel='capy'] [data-chat-thread] {
+  [data-chat-feel='capy'] [data-chat-thread] {
     [data-slot='collapsible-content'] {
       transition: opacity 110ms linear;
     }
