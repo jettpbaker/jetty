@@ -10,6 +10,8 @@ import {
   ChatSettledContext,
   LiveTurnContext,
   HybridLineContext,
+  InterimTextContext,
+  type InterimText,
   type HybridLine,
   WorkIndentContext,
   type WorkIndent,
@@ -62,6 +64,7 @@ function Feels() {
   const [speed, setSpeed] = useState<Speed>('1')
   const [indent, setIndent] = useState<WorkIndent>('on')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
+  const [interimText, setInterimText] = useState<InterimText>('b')
   const [liveTurn, setLiveTurn] = useState<LiveTurn>('single')
   useEffect(() => pinRootChatFeel(), [])
   return (
@@ -73,6 +76,8 @@ function Feels() {
       onSpeed={setSpeed}
       liveTurn={liveTurn}
       onLiveTurn={setLiveTurn}
+      interimText={interimText}
+      onInterimText={setInterimText}
       hybridLine={hybridLine}
       onHybridLine={setHybridLine}
       indent={indent}
@@ -106,6 +111,8 @@ function FeelReplay({
   onIndent,
   hybridLine,
   onHybridLine,
+  interimText,
+  onInterimText,
   onPick,
   onRestart,
 }: {
@@ -117,6 +124,8 @@ function FeelReplay({
   onLiveTurn: (liveTurn: LiveTurn) => void
   indent: WorkIndent
   onIndent: (indent: WorkIndent) => void
+  interimText: InterimText
+  onInterimText: (interimText: InterimText) => void
   hybridLine: HybridLine
   onHybridLine: (hybridLine: HybridLine) => void
   onPick: (name: string) => void
@@ -219,40 +228,42 @@ function FeelReplay({
       <LiveTurnContext value={liveTurn}>
         <WorkIndentContext value={indent}>
           <HybridLineContext value={hybridLine}>
-            <div
-              ref={panesRef}
-              className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'
-            >
-              {chatFeels.map((feel, index) => (
-                <section
-                  key={feel}
-                  data-chat-feel={feel}
-                  data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
-                  data-chat-settled={settled ? '' : undefined}
-                  aria-label={chatFeelNames[feel]}
-                  className='flex min-h-0 min-w-0 flex-col bg-background'
-                >
-                  <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
-                    {'ABCD'[index]} · {chatFeelNames[feel]}
-                  </h2>
-                  <ChatFeelContext value={feel}>
-                    <ChatSettledContext value={settled}>
-                      <ThreadList
-                        threadId={`replay-${run}-${feel}`}
-                        items={thread.items}
-                        status={thread.status}
-                        running={running}
-                        outcomes={thread.turnOutcomes}
-                        loadouts={thread.turnLoadouts}
-                        projectPath={replay.projectPath}
-                        provider={replay.provider}
-                        onSelectAgent={() => undefined}
-                      />
-                    </ChatSettledContext>
-                  </ChatFeelContext>
-                </section>
-              ))}
-            </div>
+            <InterimTextContext value={interimText}>
+              <div
+                ref={panesRef}
+                className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'
+              >
+                {chatFeels.map((feel, index) => (
+                  <section
+                    key={feel}
+                    data-chat-feel={feel}
+                    data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
+                    data-chat-settled={settled ? '' : undefined}
+                    aria-label={chatFeelNames[feel]}
+                    className='flex min-h-0 min-w-0 flex-col bg-background'
+                  >
+                    <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
+                      {'ABCD'[index]} · {chatFeelNames[feel]}
+                    </h2>
+                    <ChatFeelContext value={feel}>
+                      <ChatSettledContext value={settled}>
+                        <ThreadList
+                          threadId={`replay-${run}-${feel}`}
+                          items={thread.items}
+                          status={thread.status}
+                          running={running}
+                          outcomes={thread.turnOutcomes}
+                          loadouts={thread.turnLoadouts}
+                          projectPath={replay.projectPath}
+                          provider={replay.provider}
+                          onSelectAgent={() => undefined}
+                        />
+                      </ChatSettledContext>
+                    </ChatFeelContext>
+                  </section>
+                ))}
+              </div>
+            </InterimTextContext>
           </HybridLineContext>
         </WorkIndentContext>
       </LiveTurnContext>
@@ -290,6 +301,17 @@ function FeelReplay({
             { value: 'both', label: 'Both' },
           ]}
           onChange={onHybridLine}
+        />
+        <span className='text-xs text-muted-foreground'>Interim text:</span>
+        <SettingsSegmented
+          label='Interim text'
+          value={interimText}
+          options={[
+            { value: 'today', label: 'Today' },
+            { value: 'a', label: 'A' },
+            { value: 'b', label: 'B' },
+          ]}
+          onChange={onInterimText}
         />
         <span className='text-xs text-muted-foreground'>Indent:</span>
         <SettingsSegmented

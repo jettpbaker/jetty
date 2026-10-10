@@ -77,3 +77,29 @@
     }
   }
 }
+
+[data-chat-feel='hybrid'] [data-chat-thread] {
+  [data-slot='message'][data-interim-text],
+  [data-slot='message'][data-interim-answer='b'] {
+    padding-block: var(--spacing);
+  }
+
+  [data-interim-text] {
+    color: var(--foreground);
+    --capy-ink: currentColor;
+    transition: color 150ms var(--capy-ease);
+
+    &[data-interim-muted] {
+      color: var(--muted-foreground);
+    }
+  }
+
+  [data-interim-answer='a'] {
+    color: var(--foreground);
+    transition: color 150ms var(--capy-ease);
+
+    @starting-style {
+      color: var(--muted-foreground);
+    }
+  }
+}

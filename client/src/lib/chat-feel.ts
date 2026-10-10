@@ -61,6 +61,13 @@ export function useHybridLine() {
   return useContext(HybridLineContext)
 }
 
+export type InterimText = 'today' | 'a' | 'b'
+export const InterimTextContext = createContext<InterimText>('b')
+
+export function useInterimText() {
+  return useContext(InterimTextContext)
+}
+
 export type WorkIndent = 'on' | 'off'
 export const WorkIndentContext = createContext<WorkIndent | undefined>(undefined)
 

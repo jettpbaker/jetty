@@ -43,7 +43,7 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
-import { useChatFeel, useChatSettled, useLiveTurn } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled, useInterimText, useLiveTurn } from '@/lib/chat-feel'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -266,17 +266,24 @@ const ThreadItemRow = memo(function ThreadItemRow({
   nowActivity,
   assistantStreaming,
   historyOnly = false,
+  interimMuted = false,
+  promotedAnswer = false,
 }: {
   row: ThreadRow
   nowActivity?: string | null
   assistantStreaming?: boolean
   historyOnly?: boolean
+  interimMuted?: boolean
+  promotedAnswer?: boolean
   threadId: string
   selectedAgent?: string
   onSelectAgent: (id: string) => void
   provider?: string
   projectPath?: string
 }) {
+  const feel = useChatFeel()
+  const interimText = useInterimText()
+  const interim = feel === 'hybrid' && interimText !== 'today' ? interimText : undefined
   if (row.kind === 'user')
     return (
       <UserMessage
@@ -311,7 +318,13 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
       // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
-      <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
+      <Message
+        align='start'
+        className={cn(row.footer === undefined && 'pb-1')}
+        data-interim-text={historyOnly ? interim : undefined}
+        data-interim-muted={interimMuted ? '' : undefined}
+        data-interim-answer={promotedAnswer ? interim : undefined}
+      >
         <MessageContent>
           <Bubble variant='ghost' align='start'>
             <BubbleContent data-quote={row.item.id}>
@@ -337,7 +350,15 @@ const ThreadItemRow = memo(function ThreadItemRow({
         </MessageContent>
       </Message>
     )
-  if (row.kind === 'work')
+  if (row.kind === 'work') {
+    const lastStep =
+      row.flow?.findLastIndex(
+        (part) =>
+          part.kind === 'work' &&
+          part.activities.some(
+            (activity) => activity.type === 'thinking' || activity.type === 'tool'
+          )
+      ) ?? -1
     return (
       <WorkBlock
         threadId={threadId}
@@ -352,8 +373,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
         historyOnly={historyOnly}
       >
         {row.flow && (
-          <div className='flex flex-col gap-3'>
-            {row.flow.map((part) => (
+          <div className={cn('flex flex-col', interim ? 'gap-0' : 'gap-3')}>
+            {row.flow.map((part, index) => (
               <div key={part.id} data-chat-row={part.kind}>
                 <ThreadItemRow
                   row={
@@ -362,6 +383,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
                       : part
                   }
                   historyOnly
+                  interimMuted={interim === 'a' || index < lastStep}
                   threadId={threadId}
                   selectedAgent={selectedAgent}
                   onSelectAgent={onSelectAgent}
@@ -374,6 +396,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         )}
       </WorkBlock>
     )
+  }
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
@@ -859,6 +882,7 @@ export function ThreadList({
                 >
                   <ThreadItemRow
                     row={rows[virtualRow.index]!}
+                    promotedAnswer={single && rows[virtualRow.index - 1]?.kind === 'work'}
                     nowActivity={
                       now?.workId === rows[virtualRow.index]!.id ? now.activity : undefined
                     }
