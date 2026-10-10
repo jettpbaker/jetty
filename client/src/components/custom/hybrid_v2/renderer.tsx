@@ -51,10 +51,10 @@ export function TurnRenderer({
               {view.heading.text}
             </span>
             {duration && view.elapsedSeconds !== undefined && (
-              <>
-                {' '}
-                for <RollingDuration seconds={view.elapsedSeconds} still={instant} />
-              </>
+              <span className='inline-flex items-baseline whitespace-pre'>
+                {' for '}
+                <RollingDuration seconds={view.elapsedSeconds} still={instant} />
+              </span>
             )}
           </span>
         </Button>
