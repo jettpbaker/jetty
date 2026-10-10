@@ -1,4 +1,10 @@
-import { useBatchTense, useChatFeel, useChatSettled, useHybridLine } from '@/lib/chat-feel'
+import {
+  useBatchTense,
+  useChatFeel,
+  useChatSettled,
+  useHybridLine,
+  useWorkLift,
+} from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
@@ -61,6 +67,8 @@ function WorkEntryRow({
     !!replacesNow
   )
   const entranceRef = entrance.elementRef
+  const workLift = useWorkLift()
+  const lift = feel === 'hybrid' && workLift === '4px' ? 4 : 0
   const content = (
     <>
       {entry.type === 'thinking' ? (
@@ -111,8 +119,10 @@ function WorkEntryRow({
           entrance.finish()
       }}
       className='overflow-hidden'
-      initial={settled ? false : { height: 0, opacity: 0 }}
-      animate={entrance.value ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
+      initial={settled ? false : { height: 0, opacity: 0, y: lift }}
+      animate={
+        entrance.value ? { height: 'auto', opacity: 1, y: 0 } : { height: 0, opacity: 0, y: lift }
+      }
       transition={
         settled || !entrance.animate
           ? { duration: 0 }

@@ -11,6 +11,8 @@ import {
   type TenseChange,
   BatchTenseContext,
   type BatchTense,
+  WorkLiftContext,
+  type WorkLift,
   ChatFeelContext,
   ChatSettledContext,
   LiveTurnContext,
@@ -78,6 +80,7 @@ function Feels() {
   const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
   const [tenseChange, setTenseChange] = useState<TenseChange>('crossfade')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
+  const [lift, setLift] = useState<WorkLift>('off')
   const [hybridFold, setHybridFold] = useState<HybridFold>(
     fold === 'overlap' || fold === 'first' ? fold : 'after-reveal'
   )
@@ -101,6 +104,8 @@ function Feels() {
       onTenseChange={setTenseChange}
       batchTense={batchTense}
       onBatchTense={setBatchTense}
+      lift={lift}
+      onLift={setLift}
       hybridFold={hybridFold}
       onHybridFold={setHybridFold}
       hybridPacing={hybridPacing}
@@ -149,6 +154,8 @@ function FeelReplay({
   onTenseChange,
   batchTense,
   onBatchTense,
+  lift,
+  onLift,
   hybridFold,
   onHybridFold,
   hybridPacing,
@@ -170,6 +177,8 @@ function FeelReplay({
   onTenseChange: (tenseChange: TenseChange) => void
   batchTense: BatchTense
   onBatchTense: (batchTense: BatchTense) => void
+  lift: WorkLift
+  onLift: (lift: WorkLift) => void
   hybridFold: HybridFold
   onHybridFold: (hybridFold: HybridFold) => void
   hybridPacing: HybridPacing
@@ -327,23 +336,25 @@ function FeelReplay({
                 <TenseChangeContext value={tenseChange}>
                   <ChatFeelContext value='hybrid'>
                     <BatchTenseContext value={batchTense}>
-                      <HybridPacingContext value={hybridPacing}>
-                        <HybridFoldContext value={hybridFold}>
-                          <ChatSettledContext value={settled}>
-                            <ThreadList
-                              threadId={`replay-${run}-hybrid`}
-                              items={thread.items}
-                              status={thread.status}
-                              running={running}
-                              outcomes={thread.turnOutcomes}
-                              loadouts={thread.turnLoadouts}
-                              projectPath={replay.projectPath}
-                              provider={replay.provider}
-                              onSelectAgent={() => undefined}
-                            />
-                          </ChatSettledContext>
-                        </HybridFoldContext>
-                      </HybridPacingContext>
+                      <WorkLiftContext value={lift}>
+                        <HybridPacingContext value={hybridPacing}>
+                          <HybridFoldContext value={hybridFold}>
+                            <ChatSettledContext value={settled}>
+                              <ThreadList
+                                threadId={`replay-${run}-hybrid`}
+                                items={thread.items}
+                                status={thread.status}
+                                running={running}
+                                outcomes={thread.turnOutcomes}
+                                loadouts={thread.turnLoadouts}
+                                projectPath={replay.projectPath}
+                                provider={replay.provider}
+                                onSelectAgent={() => undefined}
+                              />
+                            </ChatSettledContext>
+                          </HybridFoldContext>
+                        </HybridPacingContext>
+                      </WorkLiftContext>
                     </BatchTenseContext>
                   </ChatFeelContext>
                 </TenseChangeContext>
@@ -407,6 +418,18 @@ function FeelReplay({
               { value: 'open', label: 'Open' },
             ]}
             onChange={onBatchTense}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Lift:</span>
+          <SettingsSegmented
+            label='Lift'
+            value={lift}
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: '4px', label: '4px' },
+            ]}
+            onChange={onLift}
           />
         </div>
         <div className='flex items-center gap-1'>

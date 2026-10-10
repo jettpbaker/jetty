@@ -1,7 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 import type { Transition } from 'motion/react'
 
-import { useChatSettled, useHybridLine } from '@/lib/chat-feel'
+import { useChatSettled, useHybridLine, useWorkLift } from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
 import { motion, useReducedMotion } from 'motion/react'
 import { createContext, useEffect, useLayoutEffect, useState } from 'react'
@@ -114,6 +114,7 @@ function HybridNowContent({ label }: { label: string }) {
   const settled = useChatSettled()
   const reducedMotion = useReducedMotion()
   const entrance = useDiscrete(true, false, 'now line')
+  const lift = useWorkLift() === '4px' ? 4 : 0
   const entranceRef = entrance.elementRef
   return (
     <motion.div
@@ -128,8 +129,10 @@ function HybridNowContent({ label }: { label: string }) {
           entrance.finish()
       }}
       className='overflow-hidden'
-      initial={settled ? false : { height: 0, opacity: 0 }}
-      animate={entrance.value ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
+      initial={settled ? false : { height: 0, opacity: 0, y: lift }}
+      animate={
+        entrance.value ? { height: 'auto', opacity: 1, y: 0 } : { height: 0, opacity: 0, y: lift }
+      }
       transition={settled || !entrance.animate ? { duration: 0 } : capyMotion(true, reducedMotion)}
     >
       <div className='activity-header'>

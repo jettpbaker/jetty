@@ -61,6 +61,14 @@ export function useHybridLine() {
   return useContext(HybridLineContext)
 }
 
+// Capy's work entries rise 4px as they fade in.
+export type WorkLift = 'off' | '4px'
+export const WorkLiftContext = createContext<WorkLift>('off')
+
+export function useWorkLift() {
+  return useContext(WorkLiftContext)
+}
+
 export type BatchTense = 'now' | 'open'
 export const BatchTenseContext = createContext<BatchTense>('now')
 
