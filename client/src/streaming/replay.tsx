@@ -203,7 +203,10 @@ function StreamingReplay() {
       <header className='flex flex-col gap-2'>
         <h1 className='text-xl font-semibold'>Streaming replay</h1>
         <p className='text-sm text-muted-foreground'>
-          Synthetic timings only. Immediate observed text; no pacing or production renderer choice.
+          {recording.fidelity === 'synthetic'
+            ? 'Synthetic timings only.'
+            : 'Captured session; locally observed server timing, not provider-generation or browser timing.'}{' '}
+          Immediate observed text; no pacing or production renderer choice.
         </p>
       </header>
       <ToggleGroup aria-label='Load synthetic recording' variant='outline' value={[recording.id]}>
@@ -219,9 +222,8 @@ function StreamingReplay() {
       </ToggleGroup>
       <Replay key={recording.id} recording={recording} />
       <p className='text-xs text-muted-foreground'>
-        A snapshot or retained whole-message transcript cannot recover original deltas or timing. No
-        private conversations, provider calls or recorder are used here. Rendering candidates are
-        not stream authorities.
+        A snapshot or retained whole-message transcript cannot recover original deltas or timing.
+        Playback itself invokes no provider. Rendering candidates are not stream authorities.
       </p>
     </main>
   )

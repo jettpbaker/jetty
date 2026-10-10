@@ -13,7 +13,7 @@ const Input = Schema.Struct({
 const Recording = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
-  fidelity: Schema.Literal('synthetic'),
+  fidelity: Schema.Literals(['synthetic', 'server-observed']),
   durationMs: Offset,
   capture: Schema.Literals(['complete', 'incomplete']),
   inputs: Schema.Array(Input),
