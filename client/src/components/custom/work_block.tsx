@@ -14,6 +14,7 @@ import {
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { capyMotion } from './chat_feel/capy'
+import { useDiscrete } from './chat_feel/discrete'
 import { HybridNow, HybridNowSlotContext } from './chat_feel/hybrid'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
@@ -53,13 +54,29 @@ function WorkEntryRow({
 }) {
   const nowVisible = useContext(HybridNowSlotContext)
   const [replacesNow] = useState(nowVisible)
+  const entrance = useDiscrete(true, false, 'work row')
+  const entranceRef = entrance.elementRef
   return (
     <motion.div
+      ref={entranceRef}
+      data-discrete-running='false'
+      onAnimationStart={() => {
+        if (entrance.animate && entranceRef.current)
+          entranceRef.current.dataset.discreteRunning = 'true'
+      }}
+      onAnimationComplete={(definition) => {
+        if (typeof definition === 'object' && 'opacity' in definition && definition.opacity === 1)
+          entrance.finish()
+      }}
       className='overflow-hidden'
       initial={settled ? false : { height: replacesNow ? 'auto' : 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
+      animate={
+        entrance.value
+          ? { height: 'auto', opacity: 1 }
+          : { height: replacesNow ? 'auto' : 0, opacity: 0 }
+      }
       transition={
-        settled
+        settled || !entrance.animate
           ? { duration: 0 }
           : feel === 'capy' || feel === 'hybrid'
             ? capyMotion(true, reducedMotion)

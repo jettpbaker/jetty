@@ -2,10 +2,11 @@ import { useChatSettled } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 
+import { useDiscrete } from './chat_feel/discrete'
 import './rolling_text.css'
 
 export function RollingText({
-  children: target,
+  children: incoming,
   className,
   textClassName,
 }: {
@@ -13,12 +14,23 @@ export function RollingText({
   className?: string
   textClassName?: string
 }) {
-  const settled = useChatSettled()
-  const [text, setText] = useState({ current: target, previous: undefined as string | undefined })
+  const change = useDiscrete<string, HTMLSpanElement>(incoming, incoming, 'rolling label', true)
+  const target = change.value
+  const changeRef = change.elementRef
+  const settled = useChatSettled() || !change.animate
+  const [text, setText] = useState({
+    current: target,
+    previous: undefined as string | undefined,
+    generation: 0,
+  })
   if (text.current !== target || (settled && text.previous !== undefined))
-    setText({ current: target, previous: settled ? undefined : text.current })
+    setText({
+      current: target,
+      previous: settled ? undefined : text.current,
+      generation: text.generation + (settled ? 0 : 1),
+    })
   return (
-    <span className={cn('rolling-text-window', className)} key={text.current}>
+    <span ref={changeRef} className={cn('rolling-text-window', className)} key={text.generation}>
       {text.previous !== undefined && (
         <span aria-hidden='true' className='rolling-text-out whitespace-nowrap'>
           {text.previous}

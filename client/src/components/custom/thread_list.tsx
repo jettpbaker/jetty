@@ -72,6 +72,8 @@ import {
 } from 'react'
 import { flushSync } from 'react-dom'
 
+import { DiscreteProvider, useDiscrete } from './chat_feel/discrete'
+
 const pinSlack = 96
 const rowGap = 12
 // Keeps a jumped-to message below the conversation's top blur.
@@ -303,6 +305,14 @@ const ThreadItemRow = memo(function ThreadItemRow({
   const feel = useChatFeel()
   const interimText = useInterimText()
   const interim = feel === 'hybrid' && interimText !== 'today' ? interimText : undefined
+  const tone = interimMuted ? 'muted' : 'foreground'
+  const muted = useDiscrete(
+    tone,
+    promotedAnswer && interim === 'a' ? 'pending' : tone,
+    'interim tone',
+    true
+  )
+  const muteRef = muted.elementRef
   if (row.kind === 'user')
     return (
       <UserMessage
@@ -338,10 +348,18 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return (
       // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
       <Message
+        ref={muteRef}
+        style={
+          muted.value === 'pending'
+            ? { color: 'var(--muted-foreground)', transition: 'none' }
+            : muted.animate || !interim
+              ? undefined
+              : { transition: 'none' }
+        }
         align='start'
         className={cn(row.footer === undefined && 'pb-1')}
         data-interim-text={historyOnly ? interim : undefined}
-        data-interim-muted={interimMuted ? '' : undefined}
+        data-interim-muted={muted.value === 'muted' ? '' : undefined}
         data-interim-answer={promotedAnswer ? interim : undefined}
       >
         <MessageContent>
@@ -949,97 +967,102 @@ export function ThreadList({
   )
 
   return (
-    <MediaLightboxProvider>
-      <div
-        data-perf-region='messages'
-        data-chat-thread
-        className='relative flex min-h-0 flex-1 flex-col'
-      >
-        <section
-          ref={scroller}
-          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
-          aria-label='Conversation'
-          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
-          tabIndex={0}
-          onScroll={({ currentTarget: element }) => {
-            // Only the reader's own scroll up lets go. The browser moves the list up too, clamping
-            // it to content that shrank for a layout, and the glide can trail the bottom.
-            const up = element.scrollTop < shownTop.current - 1
-            const hand = byHand.current.held || performance.now() - byHand.current.at < 500
-            const behind = element.scrollHeight - element.clientHeight - element.scrollTop
-            shownTop.current = element.scrollTop
-            // A clamp that keeps the list on its bottom (a taller window) isn't letting go.
-            if (up && hand && behind >= 1) pin(false)
-            // Coming back down near the bottom holds on, as does landing right on it; the
-            // virtualizer holding a reader's place as a row above grows doesn't.
-            else if (behind < (hand && !up ? pinSlack : 1)) pin(true)
-            checkAway(element)
-          }}
+    <DiscreteProvider>
+      <MediaLightboxProvider>
+        <div
+          data-perf-region='messages'
+          data-chat-thread
+          className='relative flex min-h-0 flex-1 flex-col'
         >
-          <div className='relative w-full' style={{ height: totalSize }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const row = rows[virtualRow.index]!
-              return (
-                <div
-                  key={virtualRow.key}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  className='absolute top-0 left-0 w-full'
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
-                >
+          <section
+            ref={scroller}
+            className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+            aria-label='Conversation'
+            // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
+            tabIndex={0}
+            onScroll={({ currentTarget: element }) => {
+              // Only the reader's own scroll up lets go. The browser moves the list up too, clamping
+              // it to content that shrank for a layout, and the glide can trail the bottom.
+              const up = element.scrollTop < shownTop.current - 1
+              const hand = byHand.current.held || performance.now() - byHand.current.at < 500
+              const behind = element.scrollHeight - element.clientHeight - element.scrollTop
+              shownTop.current = element.scrollTop
+              // A clamp that keeps the list on its bottom (a taller window) isn't letting go.
+              if (up && hand && behind >= 1) pin(false)
+              // Coming back down near the bottom holds on, as does landing right on it; the
+              // virtualizer holding a reader's place as a row above grows doesn't.
+              else if (behind < (hand && !up ? pinSlack : 1)) pin(true)
+              checkAway(element)
+            }}
+          >
+            <div className='relative w-full' style={{ height: totalSize }}>
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const row = rows[virtualRow.index]!
+                return (
                   <div
-                    data-chat-row={row.kind}
-                    data-work-turn={row.kind === 'work' ? row.turnId : undefined}
-                    data-chat-new={settled || seeded.has(row.id) ? undefined : ''}
-                    className={cn(
-                      'mx-auto w-full max-w-[708px] px-6',
-                      paddedRows.has(row.kind) && 'py-1.5'
-                    )}
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    className='absolute top-0 left-0 w-full'
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
                   >
-                    <ThreadItemRow
-                      row={row}
-                      deferFold={
-                        feel === 'hybrid' &&
-                        fold === 'after-reveal' &&
-                        !settled &&
-                        row.kind === 'work' &&
-                        (rows[virtualRow.index + 1]?.kind === 'assistant' ||
-                          rows[virtualRow.index + 1]?.kind === 'plan') &&
-                        !revealed.has(rows[virtualRow.index + 1]!.id)
-                      }
-                      onFolded={foldFirst ? foldComplete : undefined}
-                      onRevealComplete={
-                        feel === 'hybrid' && fold === 'after-reveal' ? revealComplete : undefined
-                      }
-                      heldText={foldFirst}
-                      promotedAnswer={single && rows[virtualRow.index - 1]?.kind === 'work'}
-                      nowActivity={now?.workId === row.id ? now.activity : undefined}
-                      assistantStreaming={now?.workId === row.id && now.streaming}
-                      threadId={threadId}
-                      selectedAgent={agentId}
-                      onSelectAgent={onSelectAgent}
-                      provider={provider}
-                      projectPath={projectPath}
-                    />
+                    <div
+                      data-chat-row={row.kind}
+                      data-work-turn={row.kind === 'work' ? row.turnId : undefined}
+                      data-chat-new={settled || seeded.has(row.id) ? undefined : ''}
+                      className={cn(
+                        'mx-auto w-full max-w-[708px] px-6',
+                        paddedRows.has(row.kind) && 'py-1.5'
+                      )}
+                    >
+                      <ThreadItemRow
+                        row={row}
+                        deferFold={
+                          feel === 'hybrid' &&
+                          fold === 'after-reveal' &&
+                          !settled &&
+                          row.kind === 'work' &&
+                          (rows[virtualRow.index + 1]?.kind === 'assistant' ||
+                            rows[virtualRow.index + 1]?.kind === 'plan') &&
+                          !revealed.has(rows[virtualRow.index + 1]!.id)
+                        }
+                        onFolded={foldFirst ? foldComplete : undefined}
+                        onRevealComplete={
+                          feel === 'hybrid' && fold === 'after-reveal' ? revealComplete : undefined
+                        }
+                        heldText={foldFirst}
+                        promotedAnswer={single && rows[virtualRow.index - 1]?.kind === 'work'}
+                        nowActivity={now?.workId === row.id ? now.activity : undefined}
+                        assistantStreaming={now?.workId === row.id && now.streaming}
+                        threadId={threadId}
+                        selectedAgent={agentId}
+                        onSelectAgent={onSelectAgent}
+                        provider={provider}
+                        projectPath={projectPath}
+                      />
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-        <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />
-        {!agentId && (
-          <AddToPrompt chatRef={scroller} onAdd={(reply) => chatComposer(threadId)?.quote(reply)} />
-        )}
-        <ThreadMinimap
-          turns={turns}
-          rows={latestRows}
-          scroller={scroller}
-          virtualizer={virtualizer}
-          gutter={gutter}
-          onSelect={jumpTo}
-        />
-      </div>
-    </MediaLightboxProvider>
+                )
+              })}
+            </div>
+          </section>
+          <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />
+          {!agentId && (
+            <AddToPrompt
+              chatRef={scroller}
+              onAdd={(reply) => chatComposer(threadId)?.quote(reply)}
+            />
+          )}
+          <ThreadMinimap
+            turns={turns}
+            rows={latestRows}
+            scroller={scroller}
+            virtualizer={virtualizer}
+            gutter={gutter}
+            onSelect={jumpTo}
+          />
+        </div>
+      </MediaLightboxProvider>
+    </DiscreteProvider>
   )
 }

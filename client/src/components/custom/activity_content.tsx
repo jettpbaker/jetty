@@ -4,6 +4,7 @@ import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
 import { motion, useReducedMotion } from 'motion/react'
 
 import { capyMotion } from './chat_feel/capy'
+import { useDiscrete } from './chat_feel/discrete'
 import { hybridFold } from './chat_feel/hybrid'
 
 export function ActivityContent({
@@ -23,19 +24,33 @@ export function ActivityContent({
   const feel = useChatFeel()
   const settled = useChatSettled()
   const cursor = feel === 'cursor'
+  const fold = useDiscrete(open, open, 'activity fold')
+  const foldRef = fold.elementRef
   return (
     <motion.div
+      ref={foldRef}
+      data-discrete-running='false'
+      onAnimationStart={() => {
+        if (fold.animate && foldRef.current) foldRef.current.dataset.discreteRunning = 'true'
+      }}
       id={id}
       initial={false}
-      onAnimationComplete={() => {
-        if (!open) onFolded?.()
+      onAnimationComplete={(definition) => {
+        if (
+          typeof definition !== 'object' ||
+          !('opacity' in definition) ||
+          definition.opacity !== (fold.value ? 1 : 0)
+        )
+          return
+        fold.finish()
+        if (!fold.value) onFolded?.()
       }}
-      inert={!open}
-      aria-hidden={!open}
+      inert={!fold.value}
+      aria-hidden={!fold.value}
       className='overflow-hidden'
-      animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
+      animate={{ height: fold.value ? 'auto' : 0, opacity: fold.value ? 1 : 0 }}
       transition={
-        settled
+        settled || !fold.animate
           ? { duration: 0 }
           : feel === 'hybrid' && turnEnd
             ? hybridFold(open, reducedMotion)

@@ -1,17 +1,18 @@
 import { useChatSettled, useFadeDuration, useTenseChange } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from 'motion/react'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
 import { capyEase } from './chat_feel/capy'
+import { useDiscrete } from './chat_feel/discrete'
 import './rolling_text.css'
 
 const fadeEase = `cubic-bezier(${capyEase.join(', ')})`
 
 export function TenseText({
-  children: target,
-  active,
-  mono = false,
+  children: incoming,
+  active: incomingActive,
+  mono: incomingMono = false,
   className,
   shimmer = false,
   activeContent,
@@ -23,7 +24,20 @@ export function TenseText({
   shimmer?: boolean
   activeContent?: ReactNode
 }) {
-  const settled = useChatSettled()
+  const requested = useMemo(
+    () => ({ target: incoming, active: incomingActive, mono: incomingMono }),
+    [incoming, incomingActive, incomingMono]
+  )
+  const change = useDiscrete<typeof requested, HTMLSpanElement>(
+    requested,
+    requested,
+    'tense label',
+    true,
+    incomingActive && activeContent !== undefined
+  )
+  const { target, active, mono } = change.value
+  const changeRef = change.elementRef
+  const settled = useChatSettled() || !change.animate
   const reducedMotion = useReducedMotion()
   const fade = Number(useFadeDuration())
   const crossfadeFlips = useTenseChange() === 'crossfade'
@@ -40,7 +54,7 @@ export function TenseText({
       current: target,
       active,
       mono,
-      generation: text.generation + (text.current !== target && !liveContent ? 1 : 0),
+      generation: text.generation + (text.current !== target && !liveContent && !settled ? 1 : 0),
       previous:
         // Text appearing from nothing is an entrance, not another of the same thing: no roll.
         !liveContent && !settled && !reducedMotion && text.current !== '' && text.current !== target
@@ -56,7 +70,7 @@ export function TenseText({
   }
 
   return (
-    <span className={cn('rolling-text-window', className)}>
+    <span ref={changeRef} className={cn('rolling-text-window', className)}>
       {text.previous && (
         <span
           key='out'
@@ -81,7 +95,7 @@ export function TenseText({
         key={text.generation}
         className={cn(
           'block truncate',
-          mono && 'font-mono',
+          text.mono && 'font-mono',
           shimmer && active && 'shimmer',
           text.previous && !text.previous.crossfade && 'rolling-text-in'
         )}
@@ -100,7 +114,7 @@ export function TenseText({
           setText((current) => (current.previous ? { ...current, previous: undefined } : current))
         }}
       >
-        {active && activeContent !== undefined ? activeContent : target}
+        {active && activeContent !== undefined ? activeContent : text.current}
       </span>
     </span>
   )

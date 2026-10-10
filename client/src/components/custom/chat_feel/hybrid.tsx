@@ -11,6 +11,7 @@ import type { ThreadRow } from '../thread_rows'
 import { RollingText } from '../rolling_text'
 import { describeToolBatch } from '../work_model'
 import { capyEase, capyMotion } from './capy'
+import { useDiscrete } from './discrete'
 
 export function hybridFold(open: boolean, reducedMotion: boolean | null): Transition {
   if (reducedMotion) return { duration: 0 }
@@ -70,7 +71,6 @@ export function HybridNow({
   hidden ||=
     (line === '2a' || line === 'both') && activity !== null && !activity.startsWith('Waiting for')
   const settled = useChatSettled()
-  const reducedMotion = useReducedMotion()
   const [idleReady, setIdleReady] = useState(false)
   const [wasHidden, setWasHidden] = useState(hidden)
   const [shown, setShown] = useState(() => ({ label: activity, since: Date.now() }))
@@ -105,18 +105,36 @@ export function HybridNow({
 
   return (
     <div className='hybrid-now text-muted-foreground' hidden={hidden || shown.label === null}>
-      {!hidden && shown.label !== null && (
-        <motion.div
-          className='overflow-hidden'
-          initial={settled ? false : { height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          transition={settled ? { duration: 0 } : capyMotion(true, reducedMotion)}
-        >
-          <div className='activity-header'>
-            <RollingText textClassName='shimmer'>{shown.label}</RollingText>
-          </div>
-        </motion.div>
-      )}
+      {!hidden && shown.label !== null && <HybridNowContent label={shown.label} />}
     </div>
+  )
+}
+
+function HybridNowContent({ label }: { label: string }) {
+  const settled = useChatSettled()
+  const reducedMotion = useReducedMotion()
+  const entrance = useDiscrete(true, false, 'now line')
+  const entranceRef = entrance.elementRef
+  return (
+    <motion.div
+      ref={entranceRef}
+      data-discrete-running='false'
+      onAnimationStart={() => {
+        if (entrance.animate && entranceRef.current)
+          entranceRef.current.dataset.discreteRunning = 'true'
+      }}
+      onAnimationComplete={(definition) => {
+        if (typeof definition === 'object' && 'opacity' in definition && definition.opacity === 1)
+          entrance.finish()
+      }}
+      className='overflow-hidden'
+      initial={settled ? false : { height: 0, opacity: 0 }}
+      animate={entrance.value ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
+      transition={settled || !entrance.animate ? { duration: 0 } : capyMotion(true, reducedMotion)}
+    >
+      <div className='activity-header'>
+        <RollingText textClassName='shimmer'>{label}</RollingText>
+      </div>
+    </motion.div>
   )
 }
