@@ -12,6 +12,17 @@ const root = resolve(import.meta.dir, '..')
 const frameMs = 16.7
 const viewport = { width: 1440, height: 900 }
 const transcripts = ['one-turn', 'two-turns']
+const fold = process.argv[3] ?? 'after-reveal'
+if (!['overlap', 'after-reveal', 'first'].includes(fold)) throw new Error(`Unknown fold: ${fold}`)
+
+type AnswerTiming = {
+  turnId: string
+  reply: string
+  firstCharacters?: number
+  foldStart?: number
+  foldEnd?: number
+  revealEnd?: number
+}
 
 type ElementState = {
   id: string
@@ -24,11 +35,17 @@ type ElementState = {
   textState: boolean
   node: number
   painted: boolean
+  ink: boolean
   streaming: boolean
   textAnimating: boolean
   counter: boolean
 }
-type Snapshot = { height: number; elements: ElementState[]; shifts: unknown[] }
+type Snapshot = {
+  height: number
+  elements: ElementState[]
+  shifts: unknown[]
+  timings: AnswerTiming[]
+}
 type Finding = {
   transcript: string
   ms: number
@@ -49,7 +66,7 @@ type ScanWindow = typeof window & {
 }
 
 // Runs in the browser. Offsets exclude CSS transforms, including rolling text and scroll glides.
-function installSampler() {
+function installSampler(answers: AnswerTiming[]) {
   const pane = document.querySelector('[data-chat-feel="hybrid"]')!
   const content = pane.querySelector('[aria-label="Conversation"] > div') as HTMLElement
   const scroller = content.parentElement!
@@ -202,6 +219,7 @@ function installSampler() {
         height: Number(rect.height.toFixed(3)),
         visible: painted && rect.bottom > clip.top && rect.top < clip.bottom,
         painted,
+        ink: directText && painted && text.length > 0,
         node: nodes.get(element)!,
         streaming: !!element.closest('[data-quote]'),
         counter: !!(element.closest('.font-mono') || element.querySelector('.font-mono')),
@@ -213,7 +231,39 @@ function installSampler() {
           element.matches('p,li,pre,[data-work-heading],.hybrid-now,.rolling-text-window'),
       })
     }
-    return { height: content.offsetHeight, elements, shifts: shifts.splice(0) }
+    for (const element of elements) {
+      if (!/data-chat-row=assistant|data-slot=bubble-content|hybrid-now/.test(element.label))
+        continue
+      if (elements.some((child) => child.ink && child.id.startsWith(`${element.id}/`))) continue
+      element.painted = element.visible = false
+    }
+    const now = Number((window as ScanWindow).__feelClock.now().toFixed(1))
+    for (const answer of answers) {
+      const work = content.querySelector(`[data-work-turn="${answer.turnId}"]`)
+      const disclosure = work?.querySelector('[data-flush-work]')
+      const body = disclosure?.querySelector<HTMLElement>(':scope > [aria-hidden]')
+      if (body?.getAttribute('aria-hidden') === 'true') {
+        answer.foldStart ??= now
+        if (body.getBoundingClientRect().height === 0) answer.foldEnd ??= now
+      }
+      const bubble = content.querySelector(`[data-quote="${answer.reply}"]`)
+      if (!bubble?.textContent?.trim()) continue
+      const painted = elements.some(
+        (element) =>
+          element.visible &&
+          element.ink &&
+          element.id.startsWith(`${identity(bubble as HTMLElement)}/`)
+      )
+      if (painted) answer.firstCharacters ??= now
+      if (!bubble.querySelector('.markdown-streaming') && !animating(bubble))
+        answer.revealEnd ??= now
+    }
+    return {
+      height: content.offsetHeight,
+      elements,
+      shifts: shifts.splice(0),
+      timings: answers.map((answer) => ({ ...answer })),
+    }
   }
   ;(window as ScanWindow).__feelSample = sample
 }
@@ -322,7 +372,23 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
     const recovery = [1, 2, 3, 4, 5, 6, 7, 8].find(
       (distance) => frames[index + distance] && frames[index + distance]!.height >= before - 0.5
     )
-    if (recovery)
+    // Fold first deliberately shrinks, then grows. Recovery during the fold is still a fault.
+    const sequentialFold =
+      recovery &&
+      fold === 'first' &&
+      frames
+        .at(-1)!
+        .timings.some(
+          (answer) =>
+            answer.foldStart !== undefined &&
+            answer.foldEnd !== undefined &&
+            answer.revealEnd !== undefined &&
+            index * frameMs >= answer.foldStart &&
+            index * frameMs <= answer.foldEnd &&
+            (index + recovery) * frameMs >= answer.foldEnd &&
+            (index + recovery) * frameMs <= answer.revealEnd
+        )
+    if (recovery && !sequentialFold)
       add(
         index,
         index + recovery - 1,
@@ -380,6 +446,14 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
           const textAnimation =
             property === 'text' &&
             [start - 1, start, index].some((at) => maps[at]?.get(id)?.textAnimating)
+          const foldingDisclosure =
+            fold === 'after-reveal' &&
+            property === 'state' &&
+            before === null &&
+            element?.label.includes('activity-header Worked') &&
+            typeof current === 'string' &&
+            current.includes('aria-expanded=true') &&
+            next === current.replace('aria-expanded=true', 'aria-expanded=false')
           const completedLink =
             property === 'state' &&
             before === null &&
@@ -393,6 +467,7 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
             !growth &&
             !countGrowth &&
             !textAnimation &&
+            !foldingDisclosure &&
             !completedLink
           )
             add(
@@ -425,7 +500,7 @@ function freePort() {
   const server = Bun.serve({ port: 0, fetch: () => new Response() })
   const port = server.port!
   server.stop(true)
-  return port
+  return [5173, 5174, 8787, 5200, 8820].includes(port) ? freePort() : port
 }
 
 async function waitFor(url: string) {
@@ -438,8 +513,8 @@ async function waitFor(url: string) {
   throw new Error(`Timed out waiting for ${url}`)
 }
 
-async function prepare(page: Page, url: string, transcript: string) {
-  await page.goto(`${url}/dev/feels?scan=${transcript}&perf=off`)
+async function prepare(page: Page, url: string, transcript: string, answers: AnswerTiming[]) {
+  await page.goto(`${url}/dev/feels?scan=${transcript}&fold=${fold}&perf=off`)
   await page.waitForLoadState('networkidle')
   await page.evaluate(async () => {
     await Promise.all([...document.fonts].map((font) => font.load()))
@@ -448,7 +523,7 @@ async function prepare(page: Page, url: string, transcript: string) {
   await page.waitForFunction(() => !!(window as ScanWindow).__feelClock, undefined, {
     polling: 100,
   })
-  await page.evaluate(installSampler)
+  await page.evaluate(installSampler, answers)
 }
 
 async function advance(page: Page): Promise<Snapshot> {
@@ -548,11 +623,20 @@ async function main() {
     await page.setViewportSize(viewport)
     const cdp = await context.newCDPSession(page)
     const findings: Finding[] = []
+    const timings: { transcript: string; answers: AnswerTiming[] }[] = []
     const crossChecks: { transcript: string; frame: number; entries: unknown[] }[] = []
     for (const transcript of transcripts) {
       const replay = await Bun.file(join(root, `client/src/dev/replays/${transcript}.json`)).json()
+      const replies = new Map<string, string>()
+      const answers: AnswerTiming[] = []
+      for (const { event } of replay.events) {
+        if (event.type === 'item.started' && event.item.kind === 'assistant_message')
+          replies.set(event.item.turnId, event.item.id)
+        if (event.type === 'turn.completed' && replies.has(event.turnId))
+          answers.push({ turnId: event.turnId, reply: replies.get(event.turnId)! })
+      }
       const count = Math.ceil((replay.events.at(-1).t + 2000) / frameMs)
-      await prepare(page, url, transcript)
+      await prepare(page, url, transcript, answers)
       const frames: Snapshot[] = [await page.evaluate(() => (window as ScanWindow).__feelSample())]
       const hashes = [digest(frames[0])]
       const gzip = createGzip()
@@ -575,13 +659,14 @@ async function main() {
         disk.on('finish', resolve)
         disk.on('error', reject)
       })
+      timings.push({ transcript, answers: frames.at(-1)!.timings })
       const detected = detect(transcript, frames)
       findings.push(...detected)
       console.log(`${transcript}: ${detected.length} findings; rerunning for crops`)
       const targets = new Set(
         detected.flatMap((finding) => [finding.frame - 1, finding.frame, finding.endFrame + 1])
       )
-      await prepare(page, url, transcript)
+      await prepare(page, url, transcript, answers)
       for (let index = 0; index <= count; index++) {
         const snapshot =
           index === 0
@@ -608,6 +693,8 @@ async function main() {
         a.property.localeCompare(b.property)
     )
     const report = {
+      fold,
+      timings,
       frameMs,
       viewport,
       frameControl: 'time_warp fixed steps; native paint-boundary sampling',
@@ -621,7 +708,7 @@ async function main() {
     )
     await Bun.write(
       join(output, 'report.md'),
-      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; default toggles. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n${lines.join('\n')}\n`
+      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n${lines.join('\n')}\n`
     )
     console.log(`Report: ${output}`)
   } finally {
