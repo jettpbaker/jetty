@@ -25,6 +25,7 @@ type LabelFrame = {
   text: string
   emptyNumbers: number
   staticOpacity: number[]
+  problems: string[]
 }
 type StateFrame = { frame: number; ms: number; rows: LabelFrame[] }
 type StateWindow = typeof window & {
@@ -132,6 +133,55 @@ function installSampler(id: string) {
     }
     return { text: root ? read(root) : '', emptyNumbers, lostSpaces }
   }
+  // Pixel faults DOM text can't show: a text clip blanks anything on its own layer
+  // (rolling digits, fading swaps), a raised middle jumps the baseline, and an unclipped
+  // middle paints over the suffix.
+  function problems(row: Element, title: Element | null) {
+    const found: string[] = []
+    if (
+      [row, ...row.querySelectorAll('*')].some(
+        (element) => getComputedStyle(element).backgroundClip === 'text'
+      )
+    )
+      found.push('text clip')
+    if (!title) return found
+    function glyphs(element: Element | null) {
+      const rects: DOMRect[] = []
+      if (!element) return rects
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement!
+        if (!node.textContent?.trim() || parent.closest('[torph-root], .sr-only')) continue
+        if (opacity(parent) <= 0.05) continue
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        rects.push(range.getBoundingClientRect())
+      }
+      return rects
+    }
+    const slot = title.querySelector('[data-slot="tool-status-swap"]')
+    const parts = ['prefix', 'active', 'done', 'suffix'].map((name) =>
+      glyphs(title.querySelector(`[data-slot="tool-status-${name}"]`)).filter(
+        (rect) => rect.width > 0
+      )
+    )
+    const bottoms = parts.flat().map((rect) => rect.bottom)
+    if (bottoms.length && Math.max(...bottoms) - Math.min(...bottoms) > 1) found.push('baseline')
+    if (slot) {
+      const box = slot.getBoundingClientRect()
+      const clipped = getComputedStyle(slot).overflowX !== 'visible'
+      const middle = [...parts[1]!, ...parts[2]!].map((rect) => ({
+        left: clipped ? Math.max(rect.left, box.left) : rect.left,
+        right: clipped ? Math.min(rect.right, box.right) : rect.right,
+      }))
+      const visible = middle.filter((rect) => rect.right - rect.left > 0.5)
+      const prefixRight = Math.max(-Infinity, ...parts[0]!.map((rect) => rect.right))
+      const suffixLeft = Math.min(Infinity, ...parts[3]!.map((rect) => rect.left))
+      if (visible.some((rect) => rect.right > suffixLeft + 0.5 || rect.left < prefixRight - 0.5))
+        found.push('overlap')
+    }
+    return found
+  }
   function piece(element: Element | null): Piece {
     if (!element) return { text: '', opacity: 0, lostSpaces: 0 }
     const value = ink(element)
@@ -160,6 +210,7 @@ function installSampler(id: string) {
               text: all.text,
               emptyNumbers: all.emptyNumbers,
               staticOpacity: [],
+              problems: problems(row, null),
             },
           ]
         }
@@ -182,6 +233,7 @@ function installSampler(id: string) {
             text: all.text,
             emptyNumbers: all.emptyNumbers,
             staticOpacity: [],
+            problems: problems(row, null),
           },
         ]
       }
@@ -207,6 +259,7 @@ function installSampler(id: string) {
           staticOpacity: [prefix, suffix]
             .filter((part) => part.text)
             .map((part) => part.opacity / opacity(title)),
+          problems: problems(row, title),
         },
       ]
     })
@@ -375,6 +428,7 @@ async function main() {
             .screenshot({ path: join(output, `${card.id}-${frame}.png`), animations: 'allow' })
         frames.push({ frame, ms: Number((frame * frameMs).toFixed(1)), rows })
         for (const row of rows) {
+          for (const reason of row.problems) failures.push({ card: card.id, frame, row, reason })
           if (!row.label) continue
           const from = row.from ?? previous.get(row.id) ?? row.expected
           const to = row.to ?? row.expected
