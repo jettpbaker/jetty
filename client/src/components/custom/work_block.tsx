@@ -219,6 +219,8 @@ export function WorkBlock({
   assistantStreaming,
   historyOnly = false,
   sealBatches = false,
+  deferFold = false,
+  onFolded,
   children,
 }: {
   threadId: string
@@ -232,6 +234,8 @@ export function WorkBlock({
   assistantStreaming?: boolean
   historyOnly?: boolean
   sealBatches?: boolean
+  deferFold?: boolean
+  onFolded?: () => void
   children?: ReactNode
 }) {
   const feel = useChatFeel()
@@ -303,6 +307,8 @@ export function WorkBlock({
         }
         titleSuffix={timing}
         ended={ended}
+        deferFold={deferFold}
+        onFolded={onFolded}
         hasContent={!!children || entries.length > 0}
         hasPreview={!children && entries.length > previewCount}
         renderContent={(view) =>
@@ -322,7 +328,7 @@ export function WorkBlock({
               threadId={threadId}
               entries={entries}
               view={view}
-              live={!ended}
+              live={!ended || deferFold}
               nowActivity={nowActivity}
               assistantStreaming={hideNow}
               onNowVisibilityChange={setNowVisible}

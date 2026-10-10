@@ -11,11 +11,13 @@ export function ActivityContent({
   open,
   children,
   turnEnd = false,
+  onFolded,
 }: {
   id: string
   open: boolean
   children: ReactNode
   turnEnd?: boolean
+  onFolded?: () => void
 }) {
   const reducedMotion = useReducedMotion()
   const feel = useChatFeel()
@@ -25,6 +27,9 @@ export function ActivityContent({
     <motion.div
       id={id}
       initial={false}
+      onAnimationComplete={() => {
+        if (!open) onFolded?.()
+      }}
       inert={!open}
       aria-hidden={!open}
       className='overflow-hidden'

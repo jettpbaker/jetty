@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 
 import './markdown.css'
 import { toJsxRuntime } from 'hast-util-to-jsx-runtime'
-import { useEffect, useState, type ComponentProps, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 import remarkBreaks from 'remark-breaks'
 import remarkParse from 'remark-parse'
@@ -207,6 +207,7 @@ export function Markdown({
   streaming,
   arrived,
   reply,
+  onRevealComplete,
   html,
   className = 'text-sm leading-relaxed',
 }: {
@@ -218,6 +219,7 @@ export function Markdown({
   arrived?: boolean
   // The reply's id, so mounting it again carries on what it showed before.
   reply?: string
+  onRevealComplete?: () => void
   className?: string
 }) {
   // What shows at once: all of a stream so far, else what this reply already showed, else nothing
@@ -248,7 +250,21 @@ export function Markdown({
   const shown = usePacedText(text, settled ? undefined : smooth && from, pacing)
   useReplyShown(reply, shown.length)
   const animating = !settled && (streaming || shown !== text)
-  return (
+  const markdownRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (animating || !onRevealComplete) return
+    const animations = markdownRef
+      .current!.getAnimations({ subtree: true })
+      .filter((animation) => animation.effect?.getComputedTiming().iterations === 1)
+    let active = true
+    void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
+      if (active) onRevealComplete()
+    })
+    return () => {
+      active = false
+    }
+  }, [animating, shown, onRevealComplete])
+  const markdown = (
     <Streamdown
       className={cn(className, animating && 'markdown-streaming')}
       components={components}
@@ -261,6 +277,13 @@ export function Markdown({
     >
       {shown}
     </Streamdown>
+  )
+  return onRevealComplete ? (
+    <div ref={markdownRef} className='contents'>
+      {markdown}
+    </div>
+  ) : (
+    markdown
   )
 }
 

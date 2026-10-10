@@ -17,6 +17,7 @@ import {
   useTranscriptQueue,
 } from '@/components/custom/queued_messages'
 import { ScrollToBottom, scrollToBottomAfter } from '@/components/custom/scroll_to_bottom'
+import { replyShown } from '@/components/custom/smooth_stream'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
@@ -43,7 +44,13 @@ import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
-import { useChatFeel, useChatSettled, useInterimText, useLiveTurn } from '@/lib/chat-feel'
+import {
+  useChatFeel,
+  useChatSettled,
+  useHybridFold,
+  useInterimText,
+  useLiveTurn,
+} from '@/lib/chat-feel'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -269,6 +276,10 @@ const ThreadItemRow = memo(function ThreadItemRow({
   sealBatches = false,
   interimMuted = false,
   promotedAnswer = false,
+  deferFold = false,
+  onFolded,
+  onRevealComplete,
+  heldText = false,
 }: {
   row: ThreadRow
   nowActivity?: string | null
@@ -277,12 +288,18 @@ const ThreadItemRow = memo(function ThreadItemRow({
   sealBatches?: boolean
   interimMuted?: boolean
   promotedAnswer?: boolean
+  deferFold?: boolean
+  onFolded?: (id: string) => void
+  onRevealComplete?: (id: string) => void
+  heldText?: boolean
   threadId: string
   selectedAgent?: string
   onSelectAgent: (id: string) => void
   provider?: string
   projectPath?: string
 }) {
+  const revealComplete = useCallback(() => onRevealComplete?.(row.id), [onRevealComplete, row.id])
+  const folded = useCallback(() => onFolded?.(row.id), [onFolded, row.id])
   const feel = useChatFeel()
   const interimText = useInterimText()
   const interim = feel === 'hybrid' && interimText !== 'today' ? interimText : undefined
@@ -334,8 +351,9 @@ const ThreadItemRow = memo(function ThreadItemRow({
               <Markdown
                 streaming={row.streaming}
                 // Claude often sends a reply written after a tool call all at once.
-                arrived={!row.streaming && completedAgo(row.item.id) < 1000}
-                reply={row.item.id}
+                arrived={heldText || (!row.streaming && completedAgo(row.item.id) < 1000)}
+                onRevealComplete={onRevealComplete ? revealComplete : undefined}
+                reply={`${threadId}:${row.item.id}`}
               >
                 {row.item.text}
               </Markdown>
@@ -374,6 +392,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
         assistantStreaming={assistantStreaming}
         sealBatches={sealBatches || (row.flow !== undefined && row.flow.at(-1)?.kind !== 'work')}
         historyOnly={historyOnly}
+        deferFold={deferFold}
+        onFolded={onFolded ? folded : undefined}
       >
         {row.flow && (
           <div className={cn('flex flex-col', interim ? 'gap-0' : 'gap-3')}>
@@ -386,6 +406,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
                       : part
                   }
                   historyOnly
+                  heldText={heldText}
                   sealBatches={
                     index !== row.flow!.length - 1 ||
                     (row.status !== 'running' && row.status !== 'waiting')
@@ -460,9 +481,20 @@ export function ThreadList({
   const queue = useTranscriptQueue(agentId ? undefined : threadId, items)
   const feel = useChatFeel()
   const single = useLiveTurn() === 'single' && feel !== 'cursor'
+  const settled = useChatSettled()
+  const fold = useHybridFold()
+  const foldFirst = feel === 'hybrid' && fold === 'first' && !settled
+  const [revealed, setRevealed] = useState(() => new Set<string>())
+  const [folded, setFolded] = useState(() => new Set<string>())
+  const revealComplete = useCallback((id: string) => {
+    setRevealed((current) => (current.has(id) ? current : new Set([...current, id])))
+  }, [])
+  const foldComplete = useCallback((id: string) => {
+    setFolded((current) => (current.has(id) ? current : new Set([...current, id])))
+  }, [])
   const [buildRows] = useState(createThreadRows)
-  const rows = useMemo(() => {
-    const rows = buildRows(items, {
+  const allRows = useMemo(() => {
+    let rows = buildRows(items, {
       status,
       running,
       outcomes,
@@ -473,6 +505,17 @@ export function ThreadList({
       settingUp,
       queue,
     })
+    if (foldFirst)
+      rows = rows.filter((row) => {
+        if (row.kind !== 'assistant' && row.kind !== 'plan') return true
+        if ((replyShown(`${threadId}:${row.id}`) ?? 0) > 0) return true
+        if (row.item.completedAt === undefined) return false
+        if (outcomes?.[row.item.turnId]) return true
+        const index = items.findIndex((item) => item.id === row.item.id)
+        return items
+          .slice(index + 1)
+          .some((item) => item.turnId === row.item.turnId && item.agentId === row.item.agentId)
+      })
     return single ? singleTurnRows(rows, items) : rows
   }, [
     buildRows,
@@ -487,9 +530,25 @@ export function ThreadList({
     settingUp,
     queue,
     single,
+    foldFirst,
   ])
+  const rows = useMemo(
+    () =>
+      foldFirst
+        ? allRows.filter((row, index) => {
+            const work = allRows[index - 1]
+            return (
+              (row.kind !== 'assistant' && row.kind !== 'plan') ||
+              work?.kind !== 'work' ||
+              work.status !== 'complete' ||
+              folded.has(work.id) ||
+              (replyShown(`${threadId}:${row.id}`) ?? 0) > 0
+            )
+          })
+        : allRows,
+    [allRows, foldFirst, folded, threadId]
+  )
   const view = `${threadId}:${agentId ?? ''}`
-  const settled = useChatSettled()
   const now = useMemo(
     () => (feel === 'hybrid' ? hybridActivity(rows, items, agentId) : undefined),
     [feel, rows, items, agentId]
@@ -531,11 +590,20 @@ export function ThreadList({
   const { getItemKey, estimateSize } = useMemo(
     () => ({
       getItemKey: (index: number) => estimatedRows[index]!.id,
-      estimateSize: (index: number) =>
-        estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)),
+      estimateSize: (index: number) => {
+        const row = estimatedRows[index]!
+        if (
+          foldFirst &&
+          (row.kind === 'assistant' || row.kind === 'plan') &&
+          !seeded.has(row.id) &&
+          replyShown(`${threadId}:${row.id}`) === undefined
+        )
+          return 0
+        return estimateRow(row, width, rough.has(row.id))
+      },
     }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fontsReady changes text layout
-    [estimatedRows, width, fontsReady, rough]
+    [estimatedRows, width, fontsReady, rough, foldFirst, seeded, threadId]
   )
 
   // A row the ResizeObserver sees change size (a block easing shut, sizes saved when the thread was
@@ -574,6 +642,7 @@ export function ThreadList({
       const answer = rows[workIndex + 1]
       if (
         feel === 'hybrid' &&
+        fold === 'overlap' &&
         work?.kind === 'work' &&
         work.status === 'complete' &&
         answer?.kind === 'assistant'
@@ -908,38 +977,54 @@ export function ThreadList({
           }}
         >
           <div className='relative w-full' style={{ height: totalSize }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => (
-              <div
-                key={virtualRow.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                className='absolute top-0 left-0 w-full'
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
-              >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index]!
+              return (
                 <div
-                  data-chat-row={rows[virtualRow.index]!.kind}
-                  data-chat-new={settled || seeded.has(rows[virtualRow.index]!.id) ? undefined : ''}
-                  className={cn(
-                    'mx-auto w-full max-w-[708px] px-6',
-                    paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'
-                  )}
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  className='absolute top-0 left-0 w-full'
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  <ThreadItemRow
-                    row={rows[virtualRow.index]!}
-                    promotedAnswer={single && rows[virtualRow.index - 1]?.kind === 'work'}
-                    nowActivity={
-                      now?.workId === rows[virtualRow.index]!.id ? now.activity : undefined
-                    }
-                    assistantStreaming={now?.workId === rows[virtualRow.index]!.id && now.streaming}
-                    threadId={threadId}
-                    selectedAgent={agentId}
-                    onSelectAgent={onSelectAgent}
-                    provider={provider}
-                    projectPath={projectPath}
-                  />
+                  <div
+                    data-chat-row={row.kind}
+                    data-work-turn={row.kind === 'work' ? row.turnId : undefined}
+                    data-chat-new={settled || seeded.has(row.id) ? undefined : ''}
+                    className={cn(
+                      'mx-auto w-full max-w-[708px] px-6',
+                      paddedRows.has(row.kind) && 'py-1.5'
+                    )}
+                  >
+                    <ThreadItemRow
+                      row={row}
+                      deferFold={
+                        feel === 'hybrid' &&
+                        fold === 'after-reveal' &&
+                        !settled &&
+                        row.kind === 'work' &&
+                        (rows[virtualRow.index + 1]?.kind === 'assistant' ||
+                          rows[virtualRow.index + 1]?.kind === 'plan') &&
+                        !revealed.has(rows[virtualRow.index + 1]!.id)
+                      }
+                      onFolded={foldFirst ? foldComplete : undefined}
+                      onRevealComplete={
+                        feel === 'hybrid' && fold === 'after-reveal' ? revealComplete : undefined
+                      }
+                      heldText={foldFirst}
+                      promotedAnswer={single && rows[virtualRow.index - 1]?.kind === 'work'}
+                      nowActivity={now?.workId === row.id ? now.activity : undefined}
+                      assistantStreaming={now?.workId === row.id && now.streaming}
+                      threadId={threadId}
+                      selectedAgent={agentId}
+                      onSelectAgent={onSelectAgent}
+                      provider={provider}
+                      projectPath={projectPath}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
         <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />

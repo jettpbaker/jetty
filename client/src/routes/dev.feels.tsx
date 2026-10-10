@@ -14,6 +14,8 @@ import {
   ChatFeelContext,
   ChatSettledContext,
   LiveTurnContext,
+  HybridFoldContext,
+  type HybridFold,
   HybridLineContext,
   HybridPacingContext,
   type HybridPacing,
@@ -68,12 +70,17 @@ const names = [...replays.keys()]
 
 function Feels() {
   const search = useLocation({ select: (location) => location.searchStr })
-  const scan = new URLSearchParams(search).get('scan')
+  const params = new URLSearchParams(search)
+  const scan = params.get('scan')
+  const fold = params.get('fold')
   const timeWarp = useTimeWarp(scan !== null)
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
   const [tenseChange, setTenseChange] = useState<TenseChange>('smart')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
+  const [hybridFold, setHybridFold] = useState<HybridFold>(
+    fold === 'overlap' || fold === 'first' ? fold : 'after-reveal'
+  )
   const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
   const [interimText, setInterimText] = useState<InterimText>('b')
@@ -94,6 +101,8 @@ function Feels() {
       onTenseChange={setTenseChange}
       batchTense={batchTense}
       onBatchTense={setBatchTense}
+      hybridFold={hybridFold}
+      onHybridFold={setHybridFold}
       hybridPacing={hybridPacing}
       onHybridPacing={setHybridPacing}
       hybridLine={hybridLine}
@@ -140,6 +149,8 @@ function FeelReplay({
   onTenseChange,
   batchTense,
   onBatchTense,
+  hybridFold,
+  onHybridFold,
   hybridPacing,
   onHybridPacing,
   interimText,
@@ -159,6 +170,8 @@ function FeelReplay({
   onTenseChange: (tenseChange: TenseChange) => void
   batchTense: BatchTense
   onBatchTense: (batchTense: BatchTense) => void
+  hybridFold: HybridFold
+  onHybridFold: (hybridFold: HybridFold) => void
   hybridPacing: HybridPacing
   onHybridPacing: (hybridPacing: HybridPacing) => void
   hybridLine: HybridLine
@@ -304,6 +317,7 @@ function FeelReplay({
               ref={paneRef}
               data-chat-feel='hybrid'
               data-hybrid-line={hybridLine}
+              data-hybrid-fold={hybridFold}
               data-chat-settled={settled ? '' : undefined}
               aria-label='Hybrid'
               className='flex min-h-0 flex-1 flex-col bg-background'
@@ -314,19 +328,21 @@ function FeelReplay({
                   <ChatFeelContext value='hybrid'>
                     <BatchTenseContext value={batchTense}>
                       <HybridPacingContext value={hybridPacing}>
-                        <ChatSettledContext value={settled}>
-                          <ThreadList
-                            threadId={`replay-${run}-hybrid`}
-                            items={thread.items}
-                            status={thread.status}
-                            running={running}
-                            outcomes={thread.turnOutcomes}
-                            loadouts={thread.turnLoadouts}
-                            projectPath={replay.projectPath}
-                            provider={replay.provider}
-                            onSelectAgent={() => undefined}
-                          />
-                        </ChatSettledContext>
+                        <HybridFoldContext value={hybridFold}>
+                          <ChatSettledContext value={settled}>
+                            <ThreadList
+                              threadId={`replay-${run}-hybrid`}
+                              items={thread.items}
+                              status={thread.status}
+                              running={running}
+                              outcomes={thread.turnOutcomes}
+                              loadouts={thread.turnLoadouts}
+                              projectPath={replay.projectPath}
+                              provider={replay.provider}
+                              onSelectAgent={() => undefined}
+                            />
+                          </ChatSettledContext>
+                        </HybridFoldContext>
                       </HybridPacingContext>
                     </BatchTenseContext>
                   </ChatFeelContext>
@@ -418,6 +434,19 @@ function FeelReplay({
               { value: 'default', label: 'Default' },
             ]}
             onChange={onMorphDuration}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Fold:</span>
+          <SettingsSegmented
+            label='Fold'
+            value={hybridFold}
+            options={[
+              { value: 'overlap', label: 'Overlap' },
+              { value: 'after-reveal', label: 'After reveal' },
+              { value: 'first', label: 'Fold first' },
+            ]}
+            onChange={onHybridFold}
           />
         </div>
         <div className='flex items-center gap-1'>

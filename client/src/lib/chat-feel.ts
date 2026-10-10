@@ -68,6 +68,13 @@ export function useBatchTense() {
   return useContext(BatchTenseContext)
 }
 
+export type HybridFold = 'overlap' | 'after-reveal' | 'first'
+export const HybridFoldContext = createContext<HybridFold>('overlap')
+
+export function useHybridFold() {
+  return useContext(HybridFoldContext)
+}
+
 export type HybridPacing = 'none' | 'cursor' | 'jetty'
 export const HybridPacingContext = createContext<HybridPacing>('cursor')
 

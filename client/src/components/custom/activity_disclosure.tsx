@@ -16,6 +16,8 @@ export function ActivityDisclosure({
   renderContent,
   hasPreview = false,
   flushHeader = false,
+  onFolded,
+  deferFold = false,
 }: {
   title: ReactNode
   titleSuffix?: ReactNode
@@ -26,6 +28,8 @@ export function ActivityDisclosure({
   renderContent: (view: ActivityView) => ReactNode
   hasPreview?: boolean
   flushHeader?: boolean
+  onFolded?: () => void
+  deferFold?: boolean
 }) {
   const id = useId()
   const [view, setView] = useState<ActivityView>(defaultView)
@@ -35,7 +39,7 @@ export function ActivityDisclosure({
     setPreviousEnded(ended)
     setClosed(ended)
   }
-  const expanded = ended ? !closed : view === 'full'
+  const expanded = ended ? !closed || deferFold : view === 'full'
   function toggle() {
     if (ended) setClosed((value) => !value)
     else setView((value) => (value === 'full' ? 'preview' : 'full'))
@@ -67,8 +71,13 @@ export function ActivityDisclosure({
           {heading}
         </div>
       )}
-      <ActivityContent id={id} open={!ended || !closed} turnEnd={ended}>
-        {renderContent(ended ? 'full' : view)}
+      <ActivityContent
+        id={id}
+        open={!ended || !closed || deferFold}
+        turnEnd={ended}
+        onFolded={onFolded}
+      >
+        {renderContent(ended && !deferFold ? 'full' : view)}
       </ActivityContent>
       {footer}
     </div>
