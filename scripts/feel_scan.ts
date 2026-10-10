@@ -11,7 +11,16 @@ import { chromium } from 'playwright-core'
 const root = resolve(import.meta.dir, '..')
 const frameMs = 16.7
 const viewport = { width: 1440, height: 900 }
-const transcripts = ['one-turn', 'two-turns']
+const availableTranscripts = [
+  ...new Bun.Glob('*.json').scanSync({ cwd: join(root, 'client/src/dev/replays') }),
+]
+  .map((file) => file.replace(/\.json$/, ''))
+  .sort()
+const transcripts = process.argv.length > 4 ? process.argv.slice(4) : availableTranscripts
+for (const transcript of transcripts) {
+  if (!availableTranscripts.includes(transcript))
+    throw new Error(`Unknown transcript: ${transcript}`)
+}
 const fold = process.argv[3] ?? 'after-reveal'
 if (!['overlap', 'after-reveal', 'first'].includes(fold)) throw new Error(`Unknown fold: ${fold}`)
 
