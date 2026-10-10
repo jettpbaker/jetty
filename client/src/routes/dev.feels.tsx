@@ -4,8 +4,10 @@ import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_ico
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import { ChatFeelContext, chatFeelNames, chatFeels, pinRootChatFeel } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
+import { cn } from '@/lib/utils'
 import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
@@ -41,6 +43,30 @@ const names = [...replays.keys()]
 const speeds = ['0.25', '0.5', '1', '2'] as const
 type Speed = (typeof speeds)[number]
 
+const tickKinds = {
+  user_message: { label: 'User message', color: 'bg-sky-500' },
+  reasoning: { label: 'Thinking', color: 'bg-violet-500' },
+  tool_call: { label: 'Tool call', color: 'bg-amber-500' },
+  assistant_message: { label: 'Assistant text', color: 'bg-emerald-500' },
+} as const
+
+function eventTicks(replay: Replay) {
+  const kinds = new Map<string, keyof typeof tickKinds>()
+  return replay.events.flatMap(({ t, event }, index) => {
+    if (event.type === 'item.started' && event.item.kind in tickKinds)
+      kinds.set(event.item.id, event.item.kind as keyof typeof tickKinds)
+    const kind =
+      event.type === 'item.started'
+        ? kinds.get(event.item.id)
+        : 'itemId' in event
+          ? kinds.get(event.itemId)
+          : undefined
+    return kind ? [{ t, index, ...tickKinds[kind] }] : []
+  })
+}
+
+const ticks = new Map([...replays].map(([name, replay]) => [name, eventTicks(replay)]))
+
 function Feels() {
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
@@ -60,8 +86,7 @@ function Feels() {
 }
 
 // Each event lands stamped with the time it lands, so durations and ages read as they did live.
-function land(state: ThreadState, event: ThreadEvent, seq: number) {
-  const ts = Date.now()
+function land(state: ThreadState, event: ThreadEvent, seq: number, ts = Date.now()) {
   if (event.type === 'item.completed') noteCompleted(event.itemId)
   return foldUpdate(state, {
     type: 'event',
@@ -97,6 +122,7 @@ function FeelReplay({
   const [thread, setThread] = useState(emptyThread)
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
+  const [seekRun, setSeekRun] = useState(0)
   // One clock for all four panes: replay time, and the next event due.
   const clock = useRef({ at: 0, next: 0, thread: emptyThread })
 
@@ -124,6 +150,23 @@ function FeelReplay({
     return () => cancelAnimationFrame(frame)
   }, [playing, replay, duration, speed])
 
+  function seek(at: number) {
+    setPlaying(false)
+    at = Math.max(0, Math.min(duration, at))
+    let state = emptyThread
+    let next = 0
+    const start = Date.now() - at
+    for (const { t, event } of replay.events) {
+      if (t > at) break
+      state = land(state, event, next + 1, start + t)
+      next++
+    }
+    clock.current = { at, next, thread: state }
+    setThread(state)
+    setElapsed(at)
+    setSeekRun((value) => value + 1)
+  }
+
   function playPause() {
     if (playing) setPlaying(false)
     else if (clock.current.next < replay.events.length) setPlaying(true)
@@ -138,39 +181,10 @@ function FeelReplay({
 
   return (
     <div className='fixed inset-0 z-50 flex flex-col bg-background'>
-      <header className='flex h-10 shrink-0 items-center gap-1 border-b px-2'>
-        <Button
-          variant='ghost'
-          size='icon-sm'
-          aria-label={playing ? 'Pause' : 'Play'}
-          {...pressProps(playPause)}
-        >
-          {playing ? <PauseIcon filled /> : <PlayIcon filled />}
-        </Button>
-        <Button variant='ghost' size='icon-sm' aria-label='Restart' onClick={onRestart}>
-          <Refresh01Icon />
-        </Button>
-        <span className='px-1.5 font-mono text-xs text-muted-foreground tabular-nums'>
-          {clockText(elapsed)} / {clockText(duration)}
-        </span>
-        <div className='flex-1' />
-        <SettingsSegmented
-          label='Speed'
-          value={speed}
-          options={speeds.map((value) => ({ value, label: `${value}×` }))}
-          onChange={onSpeed}
-        />
-        <SettingsSelect
-          label='Transcript'
-          value={name}
-          options={names.map((value) => ({ value, label: value }))}
-          onChange={onPick}
-        />
-      </header>
       <div className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'>
         {chatFeels.map((feel, index) => (
           <section
-            key={feel}
+            key={`${feel}-${seekRun}`}
             data-chat-feel={feel}
             aria-label={chatFeelNames[feel]}
             className='flex min-h-0 min-w-0 flex-col bg-background'
@@ -194,6 +208,83 @@ function FeelReplay({
           </section>
         ))}
       </div>
+      <div className='flex h-10 shrink-0 items-center gap-1 border-t px-2'>
+        <Button
+          variant='ghost'
+          size='icon-sm'
+          aria-label={playing ? 'Pause' : 'Play'}
+          {...pressProps(playPause)}
+        >
+          {playing ? <PauseIcon filled /> : <PlayIcon filled />}
+        </Button>
+        <Button variant='ghost' size='icon-sm' aria-label='Restart' onClick={onRestart}>
+          <Refresh01Icon />
+        </Button>
+        <div className='flex-1' />
+        <SettingsSegmented
+          label='Speed'
+          value={speed}
+          options={speeds.map((value) => ({ value, label: `${value}×` }))}
+          onChange={onSpeed}
+        />
+        <SettingsSelect
+          label='Transcript'
+          value={name}
+          options={names.map((value) => ({ value, label: value }))}
+          onChange={onPick}
+        />
+      </div>
+      <section aria-label='Replay timeline' className='flex shrink-0 flex-col gap-2 px-3 pt-2 pb-3'>
+        <div className='flex items-center justify-between gap-3 text-xs text-muted-foreground'>
+          <span className='font-mono tabular-nums'>
+            {clockText(elapsed)} / {clockText(duration)}
+          </span>
+          <span>← / → 100ms · Shift 1s</span>
+        </div>
+        <div className='relative'>
+          <Slider
+            aria-label='Replay playhead'
+            aria-valuetext={clockText(elapsed)}
+            min={0}
+            max={duration}
+            step={1}
+            thumbAlignment='center'
+            value={elapsed}
+            onPointerDownCapture={() => setPlaying(false)}
+            onValueChange={(value) => seek(Array.isArray(value) ? value[0]! : value)}
+            onKeyDownCapture={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+              event.preventDefault()
+              event.stopPropagation()
+              seek(
+                clock.current.at +
+                  (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1000 : 100)
+              )
+            }}
+          />
+          <div
+            aria-hidden
+            className='pointer-events-none absolute inset-x-0 top-1/2 h-3 -translate-y-1/2'
+          >
+            {ticks.get(name)!.map(({ t, index, label, color }) => (
+              <span
+                key={index}
+                title={`${label} · ${clockText(t)}`}
+                className={cn('absolute h-full w-px', color)}
+                style={{ left: `${duration ? (t / duration) * 100 : 0}%` }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className='flex flex-wrap gap-3 text-xs text-muted-foreground'>
+          {Object.values(tickKinds).map(({ label, color }) => (
+            <span key={label} className='flex items-center gap-1.5'>
+              <span className={cn('h-2 w-1 rounded-sm', color)} />
+              {label}
+            </span>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }
