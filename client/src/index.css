@@ -5,11 +5,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Geist's own ascent and descent, so a mono run never stretches a sans line or moves its baseline. */
 @font-face {
   font-family: 'Paper Mono';
   src: url('./assets/fonts/paper-mono.woff2') format('woff2');
   font-weight: 100 800;
   font-display: swap;
+  ascent-override: 100.5%;
+  descent-override: 29.5%;
 }
 
 @utility inline-code {
