@@ -9,6 +9,8 @@ import {
   ChatFeelContext,
   ChatSettledContext,
   LiveTurnContext,
+  WorkIndentContext,
+  type WorkIndent,
   type LiveTurn,
   chatFeelNames,
   chatFeels,
@@ -56,6 +58,7 @@ function Feels() {
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
   const [speed, setSpeed] = useState<Speed>('1')
+  const [indent, setIndent] = useState<WorkIndent>('on')
   const [liveTurn, setLiveTurn] = useState<LiveTurn>('single')
   useEffect(() => pinRootChatFeel(), [])
   return (
@@ -67,6 +70,8 @@ function Feels() {
       onSpeed={setSpeed}
       liveTurn={liveTurn}
       onLiveTurn={setLiveTurn}
+      indent={indent}
+      onIndent={setIndent}
       onPick={(name) => setPick(({ run }) => ({ name, run: run + 1 }))}
       onRestart={() => setPick(({ name, run }) => ({ name, run: run + 1 }))}
     />
@@ -92,6 +97,8 @@ function FeelReplay({
   onSpeed,
   liveTurn,
   onLiveTurn,
+  indent,
+  onIndent,
   onPick,
   onRestart,
 }: {
@@ -101,6 +108,8 @@ function FeelReplay({
   onSpeed: (speed: Speed) => void
   liveTurn: LiveTurn
   onLiveTurn: (liveTurn: LiveTurn) => void
+  indent: WorkIndent
+  onIndent: (indent: WorkIndent) => void
   onPick: (name: string) => void
   onRestart: () => void
 }) {
@@ -173,36 +182,38 @@ function FeelReplay({
   return (
     <div className='fixed inset-0 z-50 flex flex-col bg-background'>
       <LiveTurnContext value={liveTurn}>
-        <div className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'>
-          {chatFeels.map((feel, index) => (
-            <section
-              key={feel}
-              data-chat-feel={feel}
-              data-chat-settled={settled ? '' : undefined}
-              aria-label={chatFeelNames[feel]}
-              className='flex min-h-0 min-w-0 flex-col bg-background'
-            >
-              <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
-                {'ABCD'[index]} · {chatFeelNames[feel]}
-              </h2>
-              <ChatFeelContext value={feel}>
-                <ChatSettledContext value={settled}>
-                  <ThreadList
-                    threadId={`replay-${run}-${feel}`}
-                    items={thread.items}
-                    status={thread.status}
-                    running={running}
-                    outcomes={thread.turnOutcomes}
-                    loadouts={thread.turnLoadouts}
-                    projectPath={replay.projectPath}
-                    provider={replay.provider}
-                    onSelectAgent={() => undefined}
-                  />
-                </ChatSettledContext>
-              </ChatFeelContext>
-            </section>
-          ))}
-        </div>
+        <WorkIndentContext value={indent}>
+          <div className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'>
+            {chatFeels.map((feel, index) => (
+              <section
+                key={feel}
+                data-chat-feel={feel}
+                data-chat-settled={settled ? '' : undefined}
+                aria-label={chatFeelNames[feel]}
+                className='flex min-h-0 min-w-0 flex-col bg-background'
+              >
+                <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
+                  {'ABCD'[index]} · {chatFeelNames[feel]}
+                </h2>
+                <ChatFeelContext value={feel}>
+                  <ChatSettledContext value={settled}>
+                    <ThreadList
+                      threadId={`replay-${run}-${feel}`}
+                      items={thread.items}
+                      status={thread.status}
+                      running={running}
+                      outcomes={thread.turnOutcomes}
+                      loadouts={thread.turnLoadouts}
+                      projectPath={replay.projectPath}
+                      provider={replay.provider}
+                      onSelectAgent={() => undefined}
+                    />
+                  </ChatSettledContext>
+                </ChatFeelContext>
+              </section>
+            ))}
+          </div>
+        </WorkIndentContext>
       </LiveTurnContext>
       <div className='flex h-10 shrink-0 items-center gap-1 border-t px-2'>
         <Button
@@ -226,6 +237,16 @@ function FeelReplay({
             { value: 'single', label: 'Single' },
           ]}
           onChange={onLiveTurn}
+        />
+        <span className='text-xs text-muted-foreground'>Indent:</span>
+        <SettingsSegmented
+          label='Indent'
+          value={indent}
+          options={[
+            { value: 'on', label: 'On' },
+            { value: 'off', label: 'Off' },
+          ]}
+          onChange={onIndent}
         />
         <SettingsSegmented
           label='Speed'

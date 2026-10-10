@@ -10,3 +10,22 @@
     display: none !important;
   }
 }
+
+[data-chat-feel] [data-work-indent] {
+  > .overflow-hidden > .pb-1 {
+    padding-inline-start: 24px;
+  }
+
+  .activity-header {
+    padding-inline-start: 0;
+    border-inline-start-width: 0;
+  }
+
+  [data-slot='bubble'][data-variant='ghost'] > [data-slot='bubble-content'] {
+    border-inline-start-width: 0;
+  }
+
+  &[data-work-indent='off'] > .overflow-hidden > .pb-1 {
+    padding-inline-start: 0;
+  }
+}
