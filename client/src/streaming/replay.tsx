@@ -17,6 +17,8 @@ import { createRoot } from 'react-dom/client'
 import { Streamdown } from 'streamdown'
 
 import '../index.css'
+import type { LocalRecording } from './local_recording'
+
 import { createPlaybackClock } from './clock'
 import { createDeliverySimulation, type DeliveryMode } from './delivery'
 import { createStreamEngine, projectStream, type StreamRecording } from './engine'
@@ -151,21 +153,29 @@ function Replay({ recording }: { recording: StreamRecording }) {
         <StreamingTurnStatus presentation={presentation} />
         <Separator />
       </section>
-      <div className='grid items-start gap-6 lg:grid-cols-3'>
-        {renderers.map(({ title, render }) => (
-          <section key={title} aria-label={title} className='flex min-w-0 flex-col gap-4'>
-            <h2 className='text-sm font-medium'>{title}</h2>
-            <MessageGroup>
-              {presentation.texts.map((item) => (
-                <Message key={item.id}>
-                  <MessageContent>
-                    <StreamingText item={item} renderText={render} />
-                  </MessageContent>
-                </Message>
-              ))}
-            </MessageGroup>
-          </section>
-        ))}
+      <div
+        className={
+          recording.fidelity === 'synthetic'
+            ? 'grid items-start gap-6 lg:grid-cols-3'
+            : 'grid items-start gap-6'
+        }
+      >
+        {(recording.fidelity === 'synthetic' ? renderers : renderers.slice(0, 1)).map(
+          ({ title, render }) => (
+            <section key={title} aria-label={title} className='flex min-w-0 flex-col gap-4'>
+              <h2 className='text-sm font-medium'>{title}</h2>
+              <MessageGroup>
+                {presentation.texts.map((item) => (
+                  <Message key={item.id}>
+                    <MessageContent>
+                      <StreamingText item={item} renderText={render} />
+                    </MessageContent>
+                  </Message>
+                ))}
+              </MessageGroup>
+            </section>
+          )
+        )}
       </div>
       <Separator className='my-6' />
       <section aria-label='Input journal' className='flex flex-col gap-3'>
@@ -196,8 +206,10 @@ function Replay({ recording }: { recording: StreamRecording }) {
   )
 }
 
-function StreamingReplay() {
-  const [recording, setRecording] = useState(recordings[0]!)
+function StreamingReplay({ local, invalid }: { local?: LocalRecording; invalid: boolean }) {
+  const available = local ? [local.recording, ...recordings] : recordings
+  const [recording, setRecording] = useState(available[0]!)
+  const provenance = recording === local?.recording ? local.provenance : undefined
   return (
     <main className='mx-auto flex max-w-7xl flex-col gap-4 p-6'>
       <header className='flex flex-col gap-2'>
@@ -209,17 +221,44 @@ function StreamingReplay() {
           Immediate observed text; no pacing or production renderer choice.
         </p>
       </header>
-      <ToggleGroup aria-label='Load synthetic recording' variant='outline' value={[recording.id]}>
-        {recordings.map((fixture) => (
+      {invalid && (
+        <p className='text-sm text-destructive'>
+          The local recording or provenance could not be validated. No local content was admitted.
+        </p>
+      )}
+      <ToggleGroup aria-label='Load recording' variant='outline' value={[recording.id]}>
+        {available.map((fixture) => (
           <ToggleGroupItem
             key={fixture.id}
             value={fixture.id}
+            data-recording-id={fixture.id}
             onClick={() => setRecording(fixture)}
           >
             {fixture.title}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
+      {provenance && (
+        <section
+          aria-label='Local recording provenance'
+          className='flex flex-col gap-2 text-xs text-muted-foreground'
+        >
+          <p>
+            Local reviewed assistant/turn-only projection. Reasoning, tools, approvals and context
+            are omitted. Path-redacted, not byte-identical whole-source text.
+          </p>
+          <p>{provenance.clock}</p>
+          <p>
+            Observed model: <span className='font-mono'>{provenance.model}</span>. Requested effort:{' '}
+            {provenance.requestedEffort}; applied effort: {provenance.observedEffort}.
+          </p>
+          <p>
+            <span className='font-mono'>{provenance.mappedInputs}</span> input mappings validated
+            against tape/source counts. Raw tape is not loaded. Privacy pattern scans are bounded,
+            not a confidentiality guarantee.
+          </p>
+        </section>
+      )}
       <Replay key={recording.id} recording={recording} />
       <p className='text-xs text-muted-foreground'>
         A snapshot or retained whole-message transcript cannot recover original deltas or timing.
@@ -229,4 +268,9 @@ function StreamingReplay() {
   )
 }
 
-if (import.meta.env.DEV) createRoot(document.getElementById('root')!).render(<StreamingReplay />)
+if (import.meta.env.DEV) {
+  const { localInput } = await import('./local_recording')
+  createRoot(document.getElementById('root')!).render(
+    <StreamingReplay local={localInput.recording} invalid={localInput.invalid} />
+  )
+}
