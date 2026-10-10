@@ -65,6 +65,7 @@ export function hybridActivity(
 
 export function HybridNow({ activity, hidden }: { activity: string | null; hidden: boolean }) {
   const [idleReady, setIdleReady] = useState(false)
+  const [wasHidden, setWasHidden] = useState(hidden)
   const [shown, setShown] = useState(() => ({ label: activity, since: Date.now() }))
 
   useEffect(() => {
@@ -75,6 +76,12 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
   }, [activity, hidden])
 
   const target = activity ?? (idleReady ? 'Planning next moves' : null)
+  if (hidden !== wasHidden) {
+    setWasHidden(hidden)
+    if (!hidden && target !== null && target !== shown.label) {
+      setShown({ label: target, since: Date.now() })
+    }
+  }
   useEffect(() => {
     if (hidden || target === null || target === shown.label) return
     const delay = shown.label === null ? 0 : Math.max(0, 1200 - (Date.now() - shown.since))
@@ -87,7 +94,9 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
       className='hybrid-now activity-header text-muted-foreground'
       hidden={hidden || shown.label === null}
     >
-      <RollingText textClassName='shimmer'>{shown.label ?? ''}</RollingText>
+      {!hidden && shown.label !== null && (
+        <RollingText textClassName='shimmer'>{shown.label}</RollingText>
+      )}
     </div>
   )
 }
