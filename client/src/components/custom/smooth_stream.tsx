@@ -106,7 +106,9 @@ export function usePacedText(text: string, from?: number, step: Pacing = jettyPa
     })
     return () => cancelAnimationFrame(frame)
   }, [pacing, step])
-  return pacing ? wholeWords(text.slice(0, shown)) : text
+  // A pace can start after a partial word already showed. Keep that prefix; advance cuts new
+  // stretches at word boundaries, but rounding the old prefix back would retract live text.
+  return pacing ? text.slice(0, shown) : text
 }
 
 // How much of each reply has shown in this window, and when, so one mounted again (the reply moving

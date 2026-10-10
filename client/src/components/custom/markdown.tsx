@@ -57,8 +57,19 @@ function remarkEscapeInternalTags() {
   return visit
 }
 
+// Tight lists drop paragraph wrappers; a later blank line makes them loose and remounts the
+// text already shown. Keep the paragraph structure from the start (list paragraphs are inline).
+function remarkStableLists() {
+  function visit(node: MarkdownNode & { spread?: boolean }) {
+    if (node.type === 'list' || node.type === 'listItem') node.spread = true
+    for (const child of node.children ?? []) visit(child)
+  }
+  return visit
+}
+
 const sharedRemarkPlugins = [
   ...Object.values(defaultRemarkPlugins),
+  remarkStableLists,
   remarkBreaks,
   remarkFileLinks,
   remarkEntityLinks,
