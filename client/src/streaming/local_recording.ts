@@ -94,10 +94,13 @@ export type LocalRecording = ReturnType<typeof loadLocalRecording>
 
 function discoverLocalRecording() {
   if (!import.meta.env?.DEV) return { recording: undefined, invalid: false }
-  const files = import.meta.glob('/streaming-replay.local/recording.*.json', {
-    eager: true,
-    import: 'default',
-  })
+  const files = import.meta.glob(
+    [
+      '/streaming-replay.local/recording.viewer.json',
+      '/streaming-replay.local/recording.manifest.json',
+    ],
+    { eager: true, import: 'default' }
+  )
   const value = files['/streaming-replay.local/recording.viewer.json']
   const manifest = files['/streaming-replay.local/recording.manifest.json']
   if (!value && !manifest) return { recording: undefined, invalid: false }
