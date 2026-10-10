@@ -145,7 +145,8 @@ function resolve(
 }
 
 // The turn a message shown as sent belongs to until the server's copy arrives.
-export const pendingTurnId = 'pending'
+export { pendingTurnId } from './pending_turn'
+import { pendingTurnId } from './pending_turn'
 
 function pendingUserItems(pending: readonly PendingPrompt[]): ThreadItem[] {
   return pending.map((prompt) => ({

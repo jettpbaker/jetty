@@ -3,8 +3,8 @@ import type { TurnOutcome } from '@jetty/shared/reducer'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { createItemSelection, itemDeltasSince } from '@/state/item_selection'
+import { pendingTurnId } from '@/state/pending_turn'
 import { isQueuedEditing } from '@/state/queue_editing'
-import { pendingTurnId } from '@/state/turns'
 import {
   awaitsInput,
   RESTART_LIMIT_NOTE,
