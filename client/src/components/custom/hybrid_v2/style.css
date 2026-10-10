@@ -27,7 +27,6 @@
       flex-shrink: 0;
     }
     [data-slot='tool-status-swap'] {
-      overflow: visible;
       transition-duration: var(--v2-width);
     }
     [data-slot='tool-status-active'],
@@ -36,6 +35,39 @@
     }
     &[data-ready='false'] [data-slot] {
       transition-duration: 0ms;
+    }
+    &[data-v2-swap][data-active='false'] [data-slot='tool-status-done'] {
+      opacity: 0;
+      filter: blur(0.9px);
+      transform: translateY(0.03em);
+    }
+  }
+  /* A moving mask, not shadcn's background-clip: text, which can't paint rolling
+     digits or swaps inside it: those draw on their own layers. Light fades the band
+     like shadcn; dark draws shadcn's bright band and dims the rest to muted. */
+  .shimmer {
+    --_base: 1;
+    --_band: 0.2;
+    --_mid: calc((var(--_base) + var(--_band)) / 2);
+    --_spread: var(--shimmer-spread);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    mask-image: linear-gradient(
+      calc(90deg + var(--shimmer-angle)),
+      rgb(0 0 0 / var(--_base)) calc(50% - var(--_spread)),
+      rgb(0 0 0 / var(--_mid)) calc(50% - var(--_spread) * 0.5),
+      rgb(0 0 0 / var(--_band)) 50%,
+      rgb(0 0 0 / var(--_mid)) calc(50% + var(--_spread) * 0.5),
+      rgb(0 0 0 / var(--_base)) calc(50% + var(--_spread))
+    );
+    mask-size: calc(200% + var(--_spread) * 2) 100%;
+    mask-repeat: no-repeat;
+    mask-position: 0 0;
+    animation-name: v2-shimmer;
+    &:is(.dark *) {
+      --_base: 0.53;
+      --_band: 1;
+      color: oklch(from currentColor max(0.8, calc(l + 0.4)) c h);
     }
   }
   .rolling-text-in {
@@ -70,5 +102,13 @@
     [data-slot='message'] {
       transition: none;
     }
+  }
+}
+@keyframes v2-shimmer {
+  from {
+    mask-position: 100% 0;
+  }
+  to {
+    mask-position: 0 0;
   }
 }

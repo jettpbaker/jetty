@@ -1,4 +1,5 @@
 import { useFadeDuration } from '@/lib/chat-feel'
+import { cn } from '@/lib/utils'
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 
 import type { TurnLabel } from './projection'
@@ -97,20 +98,21 @@ export function TurnLabelText({
     previous === undefined
       ? { prefix: '', suffix: '' }
       : common(previous, value, paint.previous?.count !== label.count)
+  const oldMiddle = previous?.slice(prefix.length, previous.length - suffix.length)
   useLayoutEffect(() => {
     const root = rootRef.current
     const slot = slotRef.current
     const old = oldRef.current
     const next = nextRef.current
     if (!root || !slot) return
-    if (!old || !next || instant) {
+    if (previous === undefined || !next || instant) {
       slot.style.width = ''
       root.dataset.ready = 'false'
       return
     }
     root.dataset.ready = 'false'
     root.dataset.active = 'false'
-    const oldWidth = Math.ceil(old.getBoundingClientRect().width)
+    const oldWidth = old ? Math.ceil(old.getBoundingClientRect().width) : 0
     const nextWidth = Math.ceil(next.getBoundingClientRect().width)
     sameWidth.current = oldWidth === nextWidth
     slot.style.width = `${oldWidth}px`
@@ -131,7 +133,7 @@ export function TurnLabelText({
     <span
       ref={rootRef}
       data-component='tool-status-title'
-      className={label.failed ? 'text-status-error' : undefined}
+      className={cn(label.failed && 'text-status-error', shimmer && 'shimmer')}
       data-ready='false'
       data-active='false'
       data-v2-swap={previous !== undefined || undefined}
@@ -147,7 +149,7 @@ export function TurnLabelText({
       }
     >
       {prefix && (
-        <span data-slot='tool-status-prefix' className={shimmer ? 'shimmer' : undefined}>
+        <span data-slot='tool-status-prefix'>
           <LabelPart text={prefix} label={label} instant={instant} />
         </span>
       )}
@@ -158,19 +160,14 @@ export function TurnLabelText({
           if (event.target === event.currentTarget && event.propertyName === 'width') finish()
         }}
       >
-        {paint.previous && (
+        {paint.previous && oldMiddle && (
           <span ref={oldRef} data-slot='tool-status-active'>
-            <LabelPart
-              text={previous!.slice(prefix.length, previous!.length - suffix.length)}
-              label={paint.previous}
-              instant={instant}
-            />
+            <LabelPart text={oldMiddle} label={paint.previous} instant={instant} />
           </span>
         )}
         <span
           ref={nextRef}
           data-slot='tool-status-done'
-          className={shimmer ? 'shimmer' : undefined}
           onTransitionEnd={(event) => {
             if (
               event.target === event.currentTarget &&
@@ -188,7 +185,7 @@ export function TurnLabelText({
         </span>
       </span>
       {suffix && (
-        <span data-slot='tool-status-suffix' className={shimmer ? 'shimmer' : undefined}>
+        <span data-slot='tool-status-suffix'>
           <LabelPart text={suffix} label={label} instant={instant} />
         </span>
       )}

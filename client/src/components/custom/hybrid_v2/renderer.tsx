@@ -86,7 +86,7 @@ export function TurnRenderer({
                     {view.now.count === undefined ? (
                       <PaintRoll text={view.now.text} instant={instant} />
                     ) : (
-                      <TurnLabelText label={view.now} shimmer={!instant} instant={instant} />
+                      <TurnLabelText label={view.now} shimmer={false} instant={instant} />
                     )}
                   </span>
                 </div>
