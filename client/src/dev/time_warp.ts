@@ -241,10 +241,7 @@ export function installTimeWarp(fixed = false) {
     return new Promise((resolve) => {
       original.raf.call(window, () => {
         animations()
-        queueMicrotask(() => {
-          const result = sample?.()
-          original.timeout.call(window, () => resolve(result), 0)
-        })
+        original.timeout.call(window, () => resolve(sample?.()), 0)
       })
     })
   }
