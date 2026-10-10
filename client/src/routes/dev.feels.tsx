@@ -7,6 +7,8 @@ import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
 import { frameMs, speedOptions, useTimeWarp } from '@/dev/time_warp'
 import {
+  HybridRowsContext,
+  type HybridRows,
   TenseChangeContext,
   type TenseChange,
   BatchLabelContext,
@@ -80,7 +82,14 @@ function Feels() {
   const timeWarp = useTimeWarp(scan !== null)
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
-  const [tenseChange, setTenseChange] = useState<TenseChange>('crossfade')
+  const [tenseChange, setTenseChange] = useState<TenseChange>(
+    params.get('tenseChange') === 'opencode' || params.get('tenseChange') === 'roll'
+      ? (params.get('tenseChange') as TenseChange)
+      : 'crossfade'
+  )
+  const [rows, setRows] = useState<HybridRows>(
+    params.get('rows') === 'instant' ? 'instant' : 'animate'
+  )
   const [batchLabel, setBatchLabel] = useState<BatchLabel>(
     params.get('batchLabel') === 'each' || params.get('batchLabel') === 'count'
       ? (params.get('batchLabel') as BatchLabel)
@@ -107,6 +116,8 @@ function Feels() {
       onFadeDuration={setFadeDuration}
       interimText={interimText}
       onInterimText={setInterimText}
+      rows={rows}
+      onRows={setRows}
       tenseChange={tenseChange}
       onTenseChange={setTenseChange}
       batchLabel={batchLabel}
@@ -159,6 +170,8 @@ function FeelReplay({
   onFadeDuration,
   hybridLine,
   onHybridLine,
+  rows,
+  onRows,
   tenseChange,
   onTenseChange,
   batchLabel,
@@ -184,6 +197,8 @@ function FeelReplay({
   onFadeDuration: (fadeDuration: FadeDuration) => void
   interimText: InterimText
   onInterimText: (interimText: InterimText) => void
+  rows: HybridRows
+  onRows: (rows: HybridRows) => void
   tenseChange: TenseChange
   onTenseChange: (tenseChange: TenseChange) => void
   batchLabel: BatchLabel
@@ -345,35 +360,37 @@ function FeelReplay({
               className='flex min-h-0 flex-1 flex-col bg-background'
               style={timeWarp.rebuilding ? { opacity: 0 } : undefined}
             >
-              <FadeDurationContext value={fadeDuration}>
-                <TenseChangeContext value={tenseChange}>
-                  <ChatFeelContext value='hybrid'>
-                    <BatchLabelContext value={batchLabel}>
-                      <BatchTenseContext value={batchTense}>
-                        <WorkLiftContext value={lift}>
-                          <HybridPacingContext value={hybridPacing}>
-                            <HybridFoldContext value={hybridFold}>
-                              <ChatSettledContext value={settled}>
-                                <ThreadList
-                                  threadId={`replay-${run}-hybrid`}
-                                  items={thread.items}
-                                  status={thread.status}
-                                  running={running}
-                                  outcomes={thread.turnOutcomes}
-                                  loadouts={thread.turnLoadouts}
-                                  projectPath={replay.projectPath}
-                                  provider={replay.provider}
-                                  onSelectAgent={() => undefined}
-                                />
-                              </ChatSettledContext>
-                            </HybridFoldContext>
-                          </HybridPacingContext>
-                        </WorkLiftContext>
-                      </BatchTenseContext>
-                    </BatchLabelContext>
-                  </ChatFeelContext>
-                </TenseChangeContext>
-              </FadeDurationContext>
+              <HybridRowsContext value={rows}>
+                <FadeDurationContext value={fadeDuration}>
+                  <TenseChangeContext value={tenseChange}>
+                    <ChatFeelContext value='hybrid'>
+                      <BatchLabelContext value={batchLabel}>
+                        <BatchTenseContext value={batchTense}>
+                          <WorkLiftContext value={lift}>
+                            <HybridPacingContext value={hybridPacing}>
+                              <HybridFoldContext value={hybridFold}>
+                                <ChatSettledContext value={settled}>
+                                  <ThreadList
+                                    threadId={`replay-${run}-hybrid`}
+                                    items={thread.items}
+                                    status={thread.status}
+                                    running={running}
+                                    outcomes={thread.turnOutcomes}
+                                    loadouts={thread.turnLoadouts}
+                                    projectPath={replay.projectPath}
+                                    provider={replay.provider}
+                                    onSelectAgent={() => undefined}
+                                  />
+                                </ChatSettledContext>
+                              </HybridFoldContext>
+                            </HybridPacingContext>
+                          </WorkLiftContext>
+                        </BatchTenseContext>
+                      </BatchLabelContext>
+                    </ChatFeelContext>
+                  </TenseChangeContext>
+                </FadeDurationContext>
+              </HybridRowsContext>
             </section>
           </InterimTextContext>
         </HybridLineContext>
@@ -461,6 +478,18 @@ function FeelReplay({
           />
         </div>
         <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Rows:</span>
+          <SettingsSegmented
+            label='Rows'
+            value={rows}
+            options={[
+              { value: 'animate', label: 'Animate' },
+              { value: 'instant', label: 'Instant' },
+            ]}
+            onChange={onRows}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
           <span className='text-xs text-muted-foreground'>Tense change:</span>
           <SettingsSegmented
             label='Tense change'
@@ -468,6 +497,7 @@ function FeelReplay({
             options={[
               { value: 'roll', label: 'Roll' },
               { value: 'crossfade', label: 'Crossfade' },
+              { value: 'opencode', label: 'Opencode' },
             ]}
             onChange={onTenseChange}
           />

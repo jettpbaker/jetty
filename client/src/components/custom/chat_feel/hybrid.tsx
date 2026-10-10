@@ -1,7 +1,13 @@
 import type { ThreadItem } from '@jetty/shared/items'
 import type { Transition } from 'motion/react'
 
-import { hybridLabelHoldMs, useChatSettled, useHybridLine, useWorkLift } from '@/lib/chat-feel'
+import {
+  hybridLabelHoldMs,
+  useChatSettled,
+  useHybridLine,
+  useHybridRows,
+  useWorkLift,
+} from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
 import { motion, useReducedMotion } from 'motion/react'
 import { createContext, useEffect, useLayoutEffect, useState } from 'react'
@@ -114,7 +120,8 @@ export function HybridNow({
 function HybridNowContent({ label }: { label: string }) {
   const settled = useChatSettled()
   const reducedMotion = useReducedMotion()
-  const entrance = useDiscrete(true, false, 'now line')
+  const instant = useHybridRows() === 'instant'
+  const entrance = useDiscrete(true, false, 'now line', false, instant)
   const lift = useWorkLift() === '4px' ? 4 : 0
   const entranceRef = entrance.elementRef
   return (
@@ -130,11 +137,13 @@ function HybridNowContent({ label }: { label: string }) {
           entrance.finish()
       }}
       className='overflow-hidden'
-      initial={settled ? false : { height: 0, opacity: 0, y: lift }}
+      initial={settled || instant ? false : { height: 0, opacity: 0, y: lift }}
       animate={
         entrance.value ? { height: 'auto', opacity: 1, y: 0 } : { height: 0, opacity: 0, y: lift }
       }
-      transition={settled || !entrance.animate ? { duration: 0 } : capyMotion(true, reducedMotion)}
+      transition={
+        settled || instant || !entrance.animate ? { duration: 0 } : capyMotion(true, reducedMotion)
+      }
     >
       <div className='activity-header'>
         <RollingText textClassName='shimmer'>{label}</RollingText>

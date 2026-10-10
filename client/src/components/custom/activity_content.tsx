@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled, useHybridRows } from '@/lib/chat-feel'
 import { motion, useReducedMotion } from 'motion/react'
 
 import { capyMotion } from './chat_feel/capy'
@@ -24,6 +24,7 @@ export function ActivityContent({
   const feel = useChatFeel()
   const settled = useChatSettled()
   const cursor = feel === 'cursor'
+  const instant = useHybridRows() === 'instant' && feel === 'hybrid'
   const fold = useDiscrete(open, open, 'activity fold')
   const foldRef = fold.elementRef
   return (
@@ -50,7 +51,7 @@ export function ActivityContent({
       className='overflow-hidden'
       animate={{ height: fold.value ? 'auto' : 0, opacity: fold.value ? 1 : 0 }}
       transition={
-        settled || !fold.animate
+        settled || instant || !fold.animate
           ? { duration: 0 }
           : feel === 'hybrid' && turnEnd
             ? hybridFold(open, reducedMotion)

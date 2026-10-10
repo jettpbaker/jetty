@@ -102,7 +102,11 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
       : duration || ''
   const heading =
     feel === 'hybrid' && tenseChange !== undefined ? (
-      tenseChange === 'crossfade' ? (
+      tenseChange === 'opencode' ? (
+        <TenseText active={active} shimmer>
+          {`${state}${amountText ? ` for ${amountText}` : ''}`}
+        </TenseText>
+      ) : tenseChange === 'crossfade' ? (
         <TenseText
           active={active}
           shimmer

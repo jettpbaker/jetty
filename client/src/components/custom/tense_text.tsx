@@ -1,10 +1,11 @@
-import { useChatSettled, useFadeDuration, useTenseChange } from '@/lib/chat-feel'
+import { hybridLabelHoldMs, useChatSettled, useFadeDuration, useTenseChange } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { capyEase } from './chat_feel/capy'
 import { useDiscrete } from './chat_feel/discrete'
+import { OpencodeText } from './opencode_text'
 import { RollingText } from './rolling_text'
 import './rolling_text.css'
 
@@ -38,11 +39,12 @@ export function TenseText({
     () => ({ target: targetText, active: incomingActive, mono: incomingMono, counted }),
     [targetText, incomingActive, incomingMono, counted]
   )
+  const opencode = useTenseChange() === 'opencode'
   const change = useDiscrete<typeof requested, HTMLSpanElement>(
     requested,
     requested,
     'tense label',
-    true,
+    !opencode,
     incomingActive && activeContent !== undefined,
     holdMs
   )
@@ -89,6 +91,23 @@ export function TenseText({
   } else if ((settled || reducedMotion) && text.previous) {
     setText({ ...text, previous: undefined })
   }
+
+  if (opencode)
+    return (
+      <span ref={changeRef} className={className}>
+        <OpencodeText
+          active={active}
+          mono={mono}
+          shimmer={shimmer}
+          instant={settled || !!reducedMotion}
+          onFinish={change.finish}
+          activeContent={activeContent}
+          count={text.counted ? displayCount : undefined}
+        >
+          {text.current}
+        </OpencodeText>
+      </span>
+    )
 
   return (
     <span ref={changeRef} className={cn('rolling-text-window', className)}>
@@ -142,7 +161,11 @@ export function TenseText({
         ) : text.counted ? (
           <span className='inline-flex items-baseline'>
             <span className='whitespace-pre'>{text.current.split('{count}')[0]}</span>
-            <RollingText quick className='font-mono'>
+            <RollingText
+              quick
+              holdMs={holdMs || (counted ? hybridLabelHoldMs : 0)}
+              className='font-mono'
+            >
               {String(displayCount)}
             </RollingText>
             <span className='whitespace-pre'>{text.current.split('{count}')[1]}</span>

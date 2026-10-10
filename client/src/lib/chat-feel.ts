@@ -123,7 +123,7 @@ export function useChatFeel() {
   return scoped ?? global
 }
 
-export type TenseChange = 'roll' | 'crossfade'
+export type TenseChange = 'roll' | 'crossfade' | 'opencode'
 export const TenseChangeContext = createContext<TenseChange | undefined>(undefined)
 
 export function useTenseChange() {
@@ -135,4 +135,11 @@ export const FadeDurationContext = createContext<FadeDuration>('150')
 
 export function useFadeDuration() {
   return useContext(FadeDurationContext)
+}
+
+export type HybridRows = 'animate' | 'instant'
+export const HybridRowsContext = createContext<HybridRows>('animate')
+
+export function useHybridRows() {
+  return useContext(HybridRowsContext)
 }

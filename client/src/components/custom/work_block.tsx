@@ -3,6 +3,7 @@ import {
   useChatFeel,
   useChatSettled,
   useHybridLine,
+  useHybridRows,
   useWorkLift,
 } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
@@ -60,11 +61,14 @@ function WorkEntryRow({
 }) {
   const nowLabel = useContext(HybridNowSlotContext)
   const [replacesNow] = useState(nowLabel)
+  const rows = useHybridRows()
+  const instant = feel === 'hybrid' && rows === 'instant'
   const entrance = useDiscrete(
     true,
     false,
     replacesNow ? 'now hand-off' : 'work row',
-    !!replacesNow
+    !!replacesNow,
+    instant && !replacesNow
   )
   const entranceRef = entrance.elementRef
   const workLift = useWorkLift()
@@ -119,12 +123,12 @@ function WorkEntryRow({
           entrance.finish()
       }}
       className='overflow-hidden'
-      initial={settled ? false : { height: 0, opacity: 0, y: lift }}
+      initial={settled || instant ? false : { height: 0, opacity: 0, y: lift }}
       animate={
         entrance.value ? { height: 'auto', opacity: 1, y: 0 } : { height: 0, opacity: 0, y: lift }
       }
       transition={
-        settled || !entrance.animate
+        settled || instant || !entrance.animate
           ? { duration: 0 }
           : feel === 'capy' || feel === 'hybrid'
             ? capyMotion(true, reducedMotion)

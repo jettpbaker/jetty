@@ -27,7 +27,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const batchTense = useBatchTense()
   const openTense = feel === 'hybrid' && batchTense === 'open'
   const batchLabel = useBatchLabel()
-  const holdMs = feel === 'hybrid' && batchLabel === 'hold' ? hybridLabelHoldMs : 0
+  const holdMs = feel === 'hybrid' && batchLabel !== 'each' ? hybridLabelHoldMs : 0
   const countLabel = feel === 'hybrid' && batchLabel === 'count'
   const label = describeToolBatch(batch, openTense, countLabel)
   const describedBatch =

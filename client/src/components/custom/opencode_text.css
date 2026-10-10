@@ -1,0 +1,60 @@
+[data-component='tool-status-title'] {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  text-align: start;
+
+  [data-slot='tool-status-prefix'] {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  [data-slot='tool-status-swap'] {
+    display: inline-grid;
+    overflow: hidden;
+    justify-items: start;
+    transition: width 480ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  [data-slot='tool-status-active'],
+  [data-slot='tool-status-done'] {
+    grid-area: 1 / 1;
+    white-space: nowrap;
+    justify-self: start;
+    text-align: start;
+    transition-property: opacity, filter, transform;
+    transition-duration: 240ms, 192ms, 192ms;
+    transition-timing-function: ease-out, ease-out, ease-out;
+  }
+  [data-slot='tool-status-active'] {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+  [data-slot='tool-status-done'] {
+    opacity: 0;
+    filter: blur(0.9px);
+    transform: translateY(0.03em);
+  }
+  &[data-active='true'],
+  &:not(:has([data-slot='tool-status-active'])) {
+    [data-slot='tool-status-active'] {
+      opacity: 0;
+      filter: blur(0.9px);
+      transform: translateY(0.03em);
+    }
+    [data-slot='tool-status-done'] {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(0);
+    }
+  }
+  &[data-ready='false'] {
+    [data-slot] {
+      transition-duration: 0ms;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-component='tool-status-title'] [data-slot] {
+    transition-duration: 0ms;
+  }
+}
