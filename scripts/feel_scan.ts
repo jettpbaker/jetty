@@ -41,6 +41,11 @@ type ElementState = {
   counter: boolean
 }
 type Snapshot = {
+  slots: {
+    id: string
+    now: { label: string; top: number } | null
+    rows: { node: number; label: string; top: number; visible: boolean }[]
+  }[]
   height: number
   elements: ElementState[]
   shifts: unknown[]
@@ -55,7 +60,14 @@ type Finding = {
   endFrame: number
   element: string
   id: string
-  kind: 'shift' | 'height-dip' | 'flash' | 'remount' | 'text-retraction' | 'overlap'
+  kind:
+    | 'shift'
+    | 'height-dip'
+    | 'flash'
+    | 'remount'
+    | 'text-retraction'
+    | 'overlap'
+    | 'empty-hand-off'
   property: string
   before: unknown
   during: unknown
@@ -230,7 +242,13 @@ function installSampler(answers: AnswerTiming[]) {
         node: nodes.get(element)!,
         streaming: !!element.closest('[data-quote]'),
         counter: !!(element.closest('.font-mono') || element.querySelector('.font-mono')),
-        textAnimating: morphs.some(animating) || !!(rolling && animating(rolling)),
+        textAnimating:
+          morphs.some(animating) ||
+          !!(rolling && animating(rolling)) ||
+          !!(
+            element.closest('[data-handoff-running]') &&
+            animating(element.closest('[data-handoff-running]')!)
+          ),
         text,
         state: `${attrs} ${classes}`.trim(),
         textState:
@@ -281,7 +299,12 @@ function installSampler(answers: AnswerTiming[]) {
       const name = animation instanceof CSSAnimation ? animation.animationName : ''
       const property = animation instanceof CSSTransition ? animation.transitionProperty : ''
       if (name.startsWith('rolling-text-')) {
-        const owner = element.closest<HTMLElement>('.rolling-text-window')
+        const handoffLabel = element.matches(
+          '.hybrid-handoff-row .activity-header > :first-child, .hybrid-handoff > [aria-hidden] > .rolling-text-out'
+        )
+        const owner = handoffLabel
+          ? element.closest<HTMLElement>('[data-now-handoff]')
+          : element.closest<HTMLElement>('.rolling-text-window')
         if (owner) discrete.add(identity(owner))
       } else if (
         property === 'color' &&
@@ -309,7 +332,58 @@ function installSampler(answers: AnswerTiming[]) {
         feelQueue?: { maxWait: number; example?: unknown }
       }
     )?.feelQueue ?? { maxWait: 0 }
+    const slots = [...content.querySelectorAll<HTMLElement>('[data-work-turn]')]
+      .filter((list) => !list.parentElement?.closest('[data-work-turn]'))
+      .map((list) => {
+        function headerState(row: Element) {
+          const header = row.querySelector<HTMLElement>('.activity-header')
+          if (!header) return null
+          const id = identity(header)
+          const visible = elements.some(
+            (element) => element.ink && element.visible && element.id.startsWith(`${id}/`)
+          )
+          return {
+            node: nodes.get(header)!,
+            label: textOf(header).trim(),
+            top: layoutTop(header),
+            visible,
+          }
+        }
+        const nowRow = list.querySelector('.hybrid-now')
+        let now = nowRow && headerState(nowRow)
+        if (!now?.visible) {
+          for (const handoff of list.querySelectorAll<HTMLElement>('[data-now-handoff]')) {
+            const outgoing = handoff.querySelector<HTMLElement>(':scope > [aria-hidden] > span')
+            if (!outgoing) continue
+            const rect = outgoing.getBoundingClientRect()
+            if (
+              Number(getComputedStyle(outgoing).opacity) <= 0.01 ||
+              rect.height === 0 ||
+              getComputedStyle(outgoing.parentElement!).display === 'none' ||
+              rect.bottom <= clip.top ||
+              rect.top >= clip.bottom
+            )
+              continue
+            const header = outgoing.parentElement!
+            now = {
+              node: nodes.get(header) ?? -1,
+              label: outgoing.textContent!.trim(),
+              top: layoutTop(header),
+              visible: true,
+            }
+            break
+          }
+        }
+        const rows = [...list.querySelectorAll('.work-scroll > div > div')]
+          .filter((row) => !row.classList.contains('hybrid-now'))
+          .flatMap((row) => {
+            const header = headerState(row)
+            return header ? [header] : []
+          })
+        return { id: identity(list), now: now?.visible ? now : null, rows }
+      })
     return {
+      slots,
       discrete: [...discrete],
       queue: { ...queue },
       height: content.offsetHeight,
@@ -360,6 +434,45 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
     const running = frames[index]!.discrete
     if (running.length > 1 && (index === 0 || frames[index - 1]!.discrete.length <= 1))
       add(index, index, 'discrete transitions', 'overlap', 'running', 1, running, 1)
+  }
+  for (let index = 1; index < frames.length; index++) {
+    for (const slot of frames[index - 1]!.slots) {
+      if (!slot.now) continue
+      const next = frames[index]!.slots.find((entry) => entry.id === slot.id)
+      if (!next || next.now) continue
+      const arrived = next.rows.filter(
+        (row) => !slot.rows.some((before) => before.node === row.node)
+      )
+      if (!arrived.length) continue
+      let end = index
+      while (end < frames.length) {
+        const current = frames[end]!.slots.find((entry) => entry.id === slot.id)
+        if (
+          !current ||
+          current.now ||
+          current.rows.some(
+            (row) =>
+              row.visible &&
+              arrived.some((arrival) => arrival.node === row.node) &&
+              Math.abs(row.top - slot.now!.top) < 3
+          )
+        )
+          break
+        end++
+      }
+      if (end > index)
+        add(
+          index,
+          end - 1,
+          slot.now.label,
+          'empty-hand-off',
+          'slot',
+          slot.now,
+          end - index,
+          arrived,
+          slot.id
+        )
+    }
   }
   // Consecutive movement belongs to a grow-in; only isolated nudges are candidates.
   for (let index = 1; index < frames.length - 3; index++) {
@@ -692,6 +805,7 @@ async function main() {
     await page.setViewportSize(viewport)
     const cdp = await context.newCDPSession(page)
     const findings: Finding[] = []
+    const handoffs: { transcript: string; frame: number; from: string; to: string }[] = []
     const concurrency: {
       transcript: string
       maxConcurrent: number
@@ -747,9 +861,25 @@ async function main() {
         running: frames[exampleFrame]!.discrete,
         queue: frames.at(-1)!.queue,
       })
+      for (let index = 1; index < frames.length; index++) {
+        for (const slot of frames[index - 1]!.slots) {
+          if (!slot.now) continue
+          const next = frames[index]!.slots.find((entry) => entry.id === slot.id)
+          const arrival = next?.rows.find(
+            (row) =>
+              !slot.rows.some((before) => before.node === row.node) &&
+              Math.abs(row.top - slot.now!.top) < 3
+          )
+          if (arrival)
+            handoffs.push({ transcript, frame: index, from: slot.now.label, to: arrival.label })
+        }
+      }
       const detected = detect(transcript, frames)
       console.log(JSON.stringify(concurrency.at(-1)))
       findings.push(...detected)
+      console.log(
+        `${transcript}: ${detected.filter((finding) => finding.kind === 'empty-hand-off').reduce((total, finding) => total + finding.endFrame - finding.frame + 1, 0)} empty hand-off frames`
+      )
       console.log(`${transcript}: ${detected.length} findings; rerunning for crops`)
       const lagFrame = Math.round(
         ((frames.at(-1)!.queue.example as { started?: number } | undefined)?.started ?? 0) / frameMs
@@ -757,6 +887,9 @@ async function main() {
       const targets = new Set(
         detected.flatMap((finding) => [finding.frame - 1, finding.frame, finding.endFrame + 1])
       )
+      for (const handoff of handoffs.filter((entry) => entry.transcript === transcript)) {
+        for (const offset of [-1, 0, 1, 8, 30]) targets.add(handoff.frame + offset)
+      }
       targets.add(exampleFrame)
       if (Number.isFinite(lagFrame)) targets.add(lagFrame)
       await prepare(page, url, transcript, answers)
@@ -788,6 +921,15 @@ async function main() {
     const report = {
       fold,
       concurrency,
+      handoffs,
+      emptyHandOffFrames: transcripts.map((transcript) => ({
+        transcript,
+        count: findings
+          .filter(
+            (finding) => finding.transcript === transcript && finding.kind === 'empty-hand-off'
+          )
+          .reduce((total, finding) => total + finding.endFrame - finding.frame + 1, 0),
+      })),
       timings,
       frameMs,
       viewport,
