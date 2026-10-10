@@ -70,7 +70,7 @@ const replays = new Map(
   ])
 )
 const names = [...replays.keys()]
-const speeds = ['0.25', '0.5', '1', '2'] as const
+const speeds = ['0.125', '0.25', '0.5', '1', '2'] as const
 type Speed = (typeof speeds)[number]
 
 function Feels() {
