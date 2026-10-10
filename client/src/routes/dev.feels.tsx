@@ -42,7 +42,14 @@ import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
 import { createFileRoute } from '@tanstack/react-router'
 import { Schema } from 'effect'
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type FocusEvent,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 
 import './dev.feels.css'
 
@@ -120,6 +127,17 @@ function land(state: ThreadState, event: ThreadEvent, seq: number, ts = Date.now
     event:
       event.type === 'item.started' ? { ...event, item: { ...event.item, createdAt: ts } } : event,
   })
+}
+
+// Controls never keep focus here, so Space and the arrow keys always drive the replay.
+function dropControlFocus(event: FocusEvent<HTMLDivElement>) {
+  const target = event.target
+  if (
+    target instanceof HTMLElement &&
+    event.currentTarget.contains(target) &&
+    target.matches('button, a, [role="button"], [role="radio"], [role="combobox"], [role="tab"]')
+  )
+    target.blur()
 }
 
 function FeelReplay({
@@ -294,7 +312,7 @@ function FeelReplay({
     (thread.status === 'running' && thread.activeTurnId !== null)
 
   return (
-    <div className='fixed inset-0 z-50 flex flex-col bg-background'>
+    <div className='fixed inset-0 z-50 flex flex-col bg-background' onFocus={dropControlFocus}>
       <LiveTurnContext value='single'>
         <WorkIndentContext value={indent}>
           <HybridLineContext value={hybridLine}>

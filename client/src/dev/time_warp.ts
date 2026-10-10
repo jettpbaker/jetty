@@ -24,6 +24,7 @@ export function installTimeWarp() {
     clearTimeout: window.clearTimeout,
     clearInterval: window.clearInterval,
     animate: Element.prototype.animate,
+    finish: Animation.prototype.finish,
   }
   const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
   const startTimeDescriptor = Object.getOwnPropertyDescriptor(Animation.prototype, 'startTime')!
@@ -42,6 +43,7 @@ export function installTimeWarp() {
   }
 
   function adjust(animation: Animation) {
+    if (animation.playState === 'finished') return
     let rate = rates.get(animation)
     if (rate === undefined) {
       rate = animation.playbackRate
@@ -134,6 +136,15 @@ export function installTimeWarp() {
     adjust(animation)
     return animation
   }
+  // WAAPI refuses to finish an animation at playbackRate 0, and settling a scrub finishes them.
+  Animation.prototype.finish = function () {
+    const rate = rates.get(this)
+    if (rate !== undefined) {
+      this.playbackRate = rate
+      rates.delete(this)
+    }
+    original.finish.call(this)
+  }
   // Motion gives WAAPI a performance.now() start time; its timeline still uses real time.
   Object.defineProperty(Animation.prototype, 'startTime', {
     ...startTimeDescriptor,
@@ -184,6 +195,7 @@ export function installTimeWarp() {
     window.clearTimeout = original.clearTimeout
     window.clearInterval = original.clearInterval
     Element.prototype.animate = original.animate
+    Animation.prototype.finish = original.finish
     Object.defineProperty(Animation.prototype, 'startTime', startTimeDescriptor)
     frame.read(() => {})
   }
