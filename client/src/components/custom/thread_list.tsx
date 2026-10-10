@@ -471,6 +471,7 @@ export function ThreadList({
     const sent = (row: ThreadRow) => row.kind === 'user' && now - row.item.createdAt < 1000
     return new Set(rows.flatMap((row) => (sent(row) ? [] : [row.id])))
   })
+  if (settled) for (const row of rows) seeded.add(row.id)
   const [saved] = useState(() => {
     const position = positions.get(view)
     const index = rows.findIndex((row) => row.id === position?.anchor?.key)

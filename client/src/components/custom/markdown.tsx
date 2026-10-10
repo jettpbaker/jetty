@@ -239,7 +239,7 @@ export function Markdown({
       isAnimating={!settled && (streaming || shown !== text)}
       remarkPlugins={html ? htmlRemarkPlugins : remarkPlugins}
       rehypePlugins={html ? htmlRehypePlugins : rehypePlugins}
-      BlockComponent={settled ? (html ? HtmlMarkdownBlock : MarkdownBlock) : BlockComponent}
+      BlockComponent={BlockComponent}
       parseMarkdownIntoBlocksFn={blocksWithDefinitions}
     >
       {shown}

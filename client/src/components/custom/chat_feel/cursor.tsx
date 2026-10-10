@@ -1,3 +1,4 @@
+import { useChatSettled } from '@/lib/chat-feel'
 import { useMemo, useState } from 'react'
 import { Block, type BlockProps } from 'streamdown'
 
@@ -132,10 +133,12 @@ function smoothBlocks(text: string) {
   const tail: Tail = { index: -1, left: [] }
   let mounting = text.length > 0
   function SmoothBlock({ rehypePlugins, ...props }: BlockProps) {
+    const settled = useChatSettled()
     const { index } = props
     const [clock] = useState(
       () => clocks[index] ?? (clocks[index] = { index, text: '', births: [], settle: mounting })
     )
+    if (settled) clock.settle = true
     const plugins = useMemo(
       () => [...(rehypePlugins ?? []), fadePlugin(clock, tail)],
       [rehypePlugins, clock]

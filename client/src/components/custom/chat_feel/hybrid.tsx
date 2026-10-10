@@ -1,7 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 import type { Transition } from 'motion/react'
 
-import { useChatSettled } from '@/lib/chat-feel'
+import { useChatSettled, useHybridLine } from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
 import { useEffect, useState } from 'react'
 
@@ -55,6 +55,9 @@ export function hybridActivity(
 }
 
 export function HybridNow({ activity, hidden }: { activity: string | null; hidden: boolean }) {
+  const line = useHybridLine()
+  hidden ||=
+    (line === '2a' || line === 'both') && activity !== null && !activity.startsWith('Waiting for')
   const settled = useChatSettled()
   const [idleReady, setIdleReady] = useState(false)
   const [wasHidden, setWasHidden] = useState(hidden)
@@ -67,7 +70,8 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
     return () => clearTimeout(timer)
   }, [activity, hidden])
 
-  const target = activity ?? (idleReady ? 'Planning next moves' : null)
+  const target = activity ?? (settled || idleReady ? 'Planning next moves' : null)
+  if (settled && target !== shown.label) setShown({ label: target, since: Date.now() })
   if (hidden !== wasHidden) {
     setWasHidden(hidden)
     if (!hidden && target !== null && target !== shown.label) {
@@ -80,13 +84,6 @@ export function HybridNow({ activity, hidden }: { activity: string | null; hidde
     const timer = setTimeout(() => setShown({ label: target, since: Date.now() }), delay)
     return () => clearTimeout(timer)
   }, [hidden, target, shown])
-
-  if (settled)
-    return (
-      <div className='hybrid-now activity-header text-muted-foreground' hidden={hidden}>
-        <span className='truncate'>{activity ?? 'Planning next moves'}</span>
-      </div>
-    )
 
   return (
     <div

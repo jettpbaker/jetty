@@ -54,6 +54,13 @@ export const ChatFeelContext = createContext<ChatFeel | undefined>(undefined)
 
 export const ChatSettledContext = createContext(false)
 
+export type HybridLine = 'today' | '2a' | '2b' | 'both'
+export const HybridLineContext = createContext<HybridLine>('today')
+
+export function useHybridLine() {
+  return useContext(HybridLineContext)
+}
+
 export type WorkIndent = 'on' | 'off'
 export const WorkIndentContext = createContext<WorkIndent | undefined>(undefined)
 

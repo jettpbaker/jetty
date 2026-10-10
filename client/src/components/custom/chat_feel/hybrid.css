@@ -1,10 +1,13 @@
-[data-chat-feel='hybrid'] [data-chat-thread] {
+[data-chat-feel='hybrid']:not([data-hybrid-line='2b'], [data-hybrid-line='both'])
+  [data-chat-thread] {
   .shimmer:not(.hybrid-now .shimmer) {
     --shimmer-image: none;
     --shimmer-text-fill: currentColor;
     animation: none;
   }
+}
 
+[data-chat-feel='hybrid'] [data-chat-thread] {
   .work-scroll[data-live-preview] > div {
     display: flex;
     flex-direction: column;

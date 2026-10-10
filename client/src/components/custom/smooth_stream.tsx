@@ -1,3 +1,4 @@
+import { useChatSettled } from '@/lib/chat-feel'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Block, type BlockProps } from 'streamdown'
 
@@ -82,7 +83,8 @@ export function usePacedText(text: string, from?: number, step: Pacing = jettyPa
   const behind = from === undefined ? 0 : text.length - shown
   const pacing = !reducedMotion.matches && behind > (rolling ? step.chars : step.lump)
   if (pacing !== rolling) setRolling(pacing)
-  if (behind < 0 || (behind > 0 && !pacing)) setShown(text.length)
+  if ((from === undefined && shown !== text.length) || behind < 0 || (behind > 0 && !pacing))
+    setShown(text.length)
   useEffect(() => {
     if (!pacing) return
     let size = 0
@@ -241,11 +243,13 @@ export function smoothBlocks(text: string) {
   const clocks: Clock[] = []
   let mounting = text.length > 0
   function SmoothBlock({ rehypePlugins, ...props }: BlockProps) {
+    const settled = useChatSettled()
     const { index } = props
     const [clock] = useState(
       () =>
         clocks[index] ?? (clocks[index] = { text: '', births: [], settle: mounting, shown: false })
     )
+    if (settled) clock.settle = true
     const plugins = useMemo(
       () => [...(rehypePlugins ?? []), revealPlugin(clock)],
       [rehypePlugins, clock]

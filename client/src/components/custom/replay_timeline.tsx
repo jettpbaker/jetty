@@ -63,12 +63,14 @@ export function ReplayTimeline({
   elapsed,
   playing,
   onSeek,
+  onScrubChange,
 }: {
   events: ReplayEvent[]
   duration: number
   elapsed: number
   playing: boolean
   onSeek: (at: number) => void
+  onScrubChange?: (active: boolean) => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLDivElement>(null)
@@ -207,6 +209,7 @@ export function ReplayTimeline({
             event.preventDefault()
             event.currentTarget.focus()
             event.currentTarget.setPointerCapture(event.pointerId)
+            onScrubChange?.(true)
             scrub(event.clientX)
           }}
           onPointerMove={(event) => {
@@ -215,6 +218,15 @@ export function ReplayTimeline({
           onPointerUp={(event) => {
             if (event.currentTarget.hasPointerCapture(event.pointerId))
               event.currentTarget.releasePointerCapture(event.pointerId)
+          }}
+          onLostPointerCapture={() => {
+            cancelAnimationFrame(seekFrame.current)
+            seekFrame.current = 0
+            if (pending.current !== null) {
+              onSeek(pending.current)
+              pending.current = null
+            }
+            onScrubChange?.(false)
           }}
           onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return

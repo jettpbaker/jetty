@@ -2,7 +2,7 @@
   *,
   *::before,
   *::after {
-    animation: none !important;
+    animation-play-state: paused !important;
     transition: none !important;
   }
 

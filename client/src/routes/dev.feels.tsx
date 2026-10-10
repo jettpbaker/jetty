@@ -9,6 +9,8 @@ import {
   ChatFeelContext,
   ChatSettledContext,
   LiveTurnContext,
+  HybridLineContext,
+  type HybridLine,
   WorkIndentContext,
   type WorkIndent,
   type LiveTurn,
@@ -22,7 +24,7 @@ import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
 import { createFileRoute } from '@tanstack/react-router'
 import { Schema } from 'effect'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import './dev.feels.css'
 
@@ -59,6 +61,7 @@ function Feels() {
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
   const [speed, setSpeed] = useState<Speed>('1')
   const [indent, setIndent] = useState<WorkIndent>('on')
+  const [hybridLine, setHybridLine] = useState<HybridLine>('both')
   const [liveTurn, setLiveTurn] = useState<LiveTurn>('single')
   useEffect(() => pinRootChatFeel(), [])
   return (
@@ -70,6 +73,8 @@ function Feels() {
       onSpeed={setSpeed}
       liveTurn={liveTurn}
       onLiveTurn={setLiveTurn}
+      hybridLine={hybridLine}
+      onHybridLine={setHybridLine}
       indent={indent}
       onIndent={setIndent}
       onPick={(name) => setPick(({ run }) => ({ name, run: run + 1 }))}
@@ -99,6 +104,8 @@ function FeelReplay({
   onLiveTurn,
   indent,
   onIndent,
+  hybridLine,
+  onHybridLine,
   onPick,
   onRestart,
 }: {
@@ -110,6 +117,8 @@ function FeelReplay({
   onLiveTurn: (liveTurn: LiveTurn) => void
   indent: WorkIndent
   onIndent: (indent: WorkIndent) => void
+  hybridLine: HybridLine
+  onHybridLine: (hybridLine: HybridLine) => void
   onPick: (name: string) => void
   onRestart: () => void
 }) {
@@ -119,6 +128,30 @@ function FeelReplay({
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
   const [settled, setSettled] = useState(false)
+  const panesRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+  const settleFrame = useRef(0)
+
+  useLayoutEffect(() => {
+    for (const animation of panesRef.current!.getAnimations({ subtree: true })) {
+      if (settled) {
+        if (animation.effect?.getComputedTiming().iterations === Infinity) animation.pause()
+        else animation.finish()
+      } else if (animation.playState === 'paused') animation.play()
+    }
+  }, [settled, thread])
+  useEffect(() => () => cancelAnimationFrame(settleFrame.current), [])
+
+  function releaseSettled() {
+    cancelAnimationFrame(settleFrame.current)
+    settleFrame.current = requestAnimationFrame(() => setSettled(false))
+  }
+
+  function scrubChange(active: boolean) {
+    dragging.current = active
+    if (!active) releaseSettled()
+  }
+
   // One clock for all four panes: replay time, and the next event due.
   const clock = useRef({ at: 0, next: 0, thread: emptyThread })
 
@@ -150,6 +183,8 @@ function FeelReplay({
     setPlaying(false)
     at = Math.max(0, Math.min(duration, Math.round(at)))
     setSettled(true)
+    cancelAnimationFrame(settleFrame.current)
+    if (!dragging.current) releaseSettled()
     const playhead = clock.current
     const forward = at >= playhead.at
     let state = forward ? playhead.thread : emptyThread
@@ -183,36 +218,42 @@ function FeelReplay({
     <div className='fixed inset-0 z-50 flex flex-col bg-background'>
       <LiveTurnContext value={liveTurn}>
         <WorkIndentContext value={indent}>
-          <div className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'>
-            {chatFeels.map((feel, index) => (
-              <section
-                key={feel}
-                data-chat-feel={feel}
-                data-chat-settled={settled ? '' : undefined}
-                aria-label={chatFeelNames[feel]}
-                className='flex min-h-0 min-w-0 flex-col bg-background'
-              >
-                <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
-                  {'ABCD'[index]} · {chatFeelNames[feel]}
-                </h2>
-                <ChatFeelContext value={feel}>
-                  <ChatSettledContext value={settled}>
-                    <ThreadList
-                      threadId={`replay-${run}-${feel}`}
-                      items={thread.items}
-                      status={thread.status}
-                      running={running}
-                      outcomes={thread.turnOutcomes}
-                      loadouts={thread.turnLoadouts}
-                      projectPath={replay.projectPath}
-                      provider={replay.provider}
-                      onSelectAgent={() => undefined}
-                    />
-                  </ChatSettledContext>
-                </ChatFeelContext>
-              </section>
-            ))}
-          </div>
+          <HybridLineContext value={hybridLine}>
+            <div
+              ref={panesRef}
+              className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'
+            >
+              {chatFeels.map((feel, index) => (
+                <section
+                  key={feel}
+                  data-chat-feel={feel}
+                  data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
+                  data-chat-settled={settled ? '' : undefined}
+                  aria-label={chatFeelNames[feel]}
+                  className='flex min-h-0 min-w-0 flex-col bg-background'
+                >
+                  <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
+                    {'ABCD'[index]} · {chatFeelNames[feel]}
+                  </h2>
+                  <ChatFeelContext value={feel}>
+                    <ChatSettledContext value={settled}>
+                      <ThreadList
+                        threadId={`replay-${run}-${feel}`}
+                        items={thread.items}
+                        status={thread.status}
+                        running={running}
+                        outcomes={thread.turnOutcomes}
+                        loadouts={thread.turnLoadouts}
+                        projectPath={replay.projectPath}
+                        provider={replay.provider}
+                        onSelectAgent={() => undefined}
+                      />
+                    </ChatSettledContext>
+                  </ChatFeelContext>
+                </section>
+              ))}
+            </div>
+          </HybridLineContext>
         </WorkIndentContext>
       </LiveTurnContext>
       <div className='flex h-10 shrink-0 items-center gap-1 border-t px-2'>
@@ -237,6 +278,18 @@ function FeelReplay({
             { value: 'single', label: 'Single' },
           ]}
           onChange={onLiveTurn}
+        />
+        <span className='text-xs text-muted-foreground'>Hybrid line:</span>
+        <SettingsSegmented
+          label='Hybrid line'
+          value={hybridLine}
+          options={[
+            { value: 'today', label: 'Today' },
+            { value: '2a', label: '2a' },
+            { value: '2b', label: '2b' },
+            { value: 'both', label: 'Both' },
+          ]}
+          onChange={onHybridLine}
         />
         <span className='text-xs text-muted-foreground'>Indent:</span>
         <SettingsSegmented
@@ -267,6 +320,7 @@ function FeelReplay({
         elapsed={elapsed}
         playing={playing}
         onSeek={seek}
+        onScrubChange={scrubChange}
       />
     </div>
   )
