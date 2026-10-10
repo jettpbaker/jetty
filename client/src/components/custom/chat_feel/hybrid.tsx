@@ -86,7 +86,7 @@ export function HybridNow({
   if (settled && target !== shown.label) setShown({ label: target, since: Date.now() })
   if (hidden !== wasHidden) {
     setWasHidden(hidden)
-    if (!hidden && target !== null && target !== shown.label) {
+    if (!hidden && target !== shown.label) {
       setShown({ label: target, since: Date.now() })
     }
   }

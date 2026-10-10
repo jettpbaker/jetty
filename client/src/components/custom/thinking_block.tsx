@@ -119,7 +119,7 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
         </TenseText>
       ) : (
         <span className='flex min-w-0 items-baseline'>
-          <TenseText active={active} verb shimmer>
+          <TenseText active={active} shimmer>
             {state}
           </TenseText>
           <TenseText active={active}>{amount ? '\u00a0for\u00a0' : ''}</TenseText>

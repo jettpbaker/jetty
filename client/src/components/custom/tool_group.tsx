@@ -45,7 +45,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             </TenseText>
           ) : tenseText && !label.description ? (
             <>
-              <TenseText active={label.active} verb className='shrink-0' shimmer>
+              <TenseText active={label.active} className='shrink-0' shimmer>
                 {label.verb}
               </TenseText>
               <TenseText active={label.active} mono={!label.prose}>

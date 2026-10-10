@@ -106,16 +106,16 @@ export function useChatFeel() {
   return scoped ?? global
 }
 
-export type TenseChange = 'roll' | 'torph' | 'crossfade' | 'smart'
+export type TenseChange = 'roll' | 'crossfade'
 export const TenseChangeContext = createContext<TenseChange | undefined>(undefined)
 
 export function useTenseChange() {
   return useContext(TenseChangeContext)
 }
 
-export type MorphDuration = '150' | '300' | 'default'
-export const MorphDurationContext = createContext<MorphDuration>('150')
+export type FadeDuration = '150' | '300'
+export const FadeDurationContext = createContext<FadeDuration>('150')
 
-export function useMorphDuration() {
-  return useContext(MorphDurationContext)
+export function useFadeDuration() {
+  return useContext(FadeDurationContext)
 }

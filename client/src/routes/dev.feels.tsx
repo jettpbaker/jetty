@@ -22,8 +22,8 @@ import {
   InterimTextContext,
   type InterimText,
   type HybridLine,
-  MorphDurationContext,
-  type MorphDuration,
+  FadeDurationContext,
+  type FadeDuration,
   pinRootChatFeel,
 } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
@@ -76,7 +76,7 @@ function Feels() {
   const timeWarp = useTimeWarp(scan !== null)
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
-  const [tenseChange, setTenseChange] = useState<TenseChange>('smart')
+  const [tenseChange, setTenseChange] = useState<TenseChange>('crossfade')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
   const [hybridFold, setHybridFold] = useState<HybridFold>(
     fold === 'overlap' || fold === 'first' ? fold : 'after-reveal'
@@ -84,7 +84,7 @@ function Feels() {
   const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
   const [interimText, setInterimText] = useState<InterimText>('b')
-  const [morphDuration, setMorphDuration] = useState<MorphDuration>('150')
+  const [fadeDuration, setFadeDuration] = useState<FadeDuration>('300')
   useEffect(() => pinRootChatFeel(), [])
   if (!timeWarp.ready) return null
   return (
@@ -93,8 +93,8 @@ function Feels() {
       timeWarp={timeWarp}
       run={pick.run}
       name={pick.name}
-      morphDuration={morphDuration}
-      onMorphDuration={setMorphDuration}
+      fadeDuration={fadeDuration}
+      onFadeDuration={setFadeDuration}
       interimText={interimText}
       onInterimText={setInterimText}
       tenseChange={tenseChange}
@@ -141,8 +141,8 @@ function FeelReplay({
   timeWarp,
   run,
   name,
-  morphDuration,
-  onMorphDuration,
+  fadeDuration,
+  onFadeDuration,
   hybridLine,
   onHybridLine,
   tenseChange,
@@ -162,8 +162,8 @@ function FeelReplay({
   timeWarp: ReturnType<typeof useTimeWarp>
   run: number
   name: string
-  morphDuration: MorphDuration
-  onMorphDuration: (morphDuration: MorphDuration) => void
+  fadeDuration: FadeDuration
+  onFadeDuration: (fadeDuration: FadeDuration) => void
   interimText: InterimText
   onInterimText: (interimText: InterimText) => void
   tenseChange: TenseChange
@@ -323,7 +323,7 @@ function FeelReplay({
               className='flex min-h-0 flex-1 flex-col bg-background'
               style={timeWarp.rebuilding ? { opacity: 0 } : undefined}
             >
-              <MorphDurationContext value={morphDuration}>
+              <FadeDurationContext value={fadeDuration}>
                 <TenseChangeContext value={tenseChange}>
                   <ChatFeelContext value='hybrid'>
                     <BatchTenseContext value={batchTense}>
@@ -347,7 +347,7 @@ function FeelReplay({
                     </BatchTenseContext>
                   </ChatFeelContext>
                 </TenseChangeContext>
-              </MorphDurationContext>
+              </FadeDurationContext>
             </section>
           </InterimTextContext>
         </HybridLineContext>
@@ -416,24 +416,21 @@ function FeelReplay({
             value={tenseChange}
             options={[
               { value: 'roll', label: 'Roll' },
-              { value: 'torph', label: 'Torph' },
               { value: 'crossfade', label: 'Crossfade' },
-              { value: 'smart', label: 'Smart' },
             ]}
             onChange={onTenseChange}
           />
         </div>
         <div className='flex items-center gap-1'>
-          <span className='text-xs text-muted-foreground'>Morph:</span>
+          <span className='text-xs text-muted-foreground'>Fade:</span>
           <SettingsSegmented
-            label='Morph'
-            value={morphDuration}
+            label='Fade'
+            value={fadeDuration}
             options={[
               { value: '150', label: '150' },
               { value: '300', label: '300' },
-              { value: 'default', label: 'Default' },
             ]}
-            onChange={onMorphDuration}
+            onChange={onFadeDuration}
           />
         </div>
         <div className='flex items-center gap-1'>

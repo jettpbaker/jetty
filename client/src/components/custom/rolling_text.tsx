@@ -20,7 +20,7 @@ export function RollingText({
   return (
     <span className={cn('rolling-text-window', className)} key={text.current}>
       {text.previous !== undefined && (
-        <span aria-hidden='true' className='rolling-text-out truncate'>
+        <span aria-hidden='true' className='rolling-text-out whitespace-nowrap'>
           {text.previous}
         </span>
       )}

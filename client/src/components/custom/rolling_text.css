@@ -7,7 +7,9 @@
     rolling-text-fade-out 225ms linear both;
   position: relative;
   min-width: 0;
-  overflow: hidden;
+  /* Rolls need the vertical mask; outgoing text may be wider than what replaces it. */
+  overflow-x: visible;
+  overflow-y: clip;
 }
 .rolling-text-out {
   position: absolute;
