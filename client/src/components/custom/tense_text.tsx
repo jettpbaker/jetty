@@ -5,6 +5,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 
 import { capyEase } from './chat_feel/capy'
 import { useDiscrete } from './chat_feel/discrete'
+import { RollingText } from './rolling_text'
 import './rolling_text.css'
 
 const fadeEase = `cubic-bezier(${capyEase.join(', ')})`
@@ -16,6 +17,8 @@ export function TenseText({
   className,
   shimmer = false,
   activeContent,
+  holdMs = 0,
+  count,
 }: {
   children: string
   active: boolean
@@ -23,19 +26,27 @@ export function TenseText({
   className?: string
   shimmer?: boolean
   activeContent?: ReactNode
+  holdMs?: number
+  count?: number
 }) {
+  const [lastCount, setLastCount] = useState(count)
+  if (count !== undefined && count !== lastCount) setLastCount(count)
+  const displayCount = count ?? lastCount
+  const counted = count !== undefined
+  const targetText = count === undefined ? incoming : incoming.replace(String(count), '{count}')
   const requested = useMemo(
-    () => ({ target: incoming, active: incomingActive, mono: incomingMono }),
-    [incoming, incomingActive, incomingMono]
+    () => ({ target: targetText, active: incomingActive, mono: incomingMono, counted }),
+    [targetText, incomingActive, incomingMono, counted]
   )
   const change = useDiscrete<typeof requested, HTMLSpanElement>(
     requested,
     requested,
     'tense label',
     true,
-    incomingActive && activeContent !== undefined
+    incomingActive && activeContent !== undefined,
+    holdMs
   )
-  const { target, active, mono } = change.value
+  const { target, active, mono, counted: shownCounted } = change.value
   const changeRef = change.elementRef
   const settled = useChatSettled() || !change.animate
   const reducedMotion = useReducedMotion()
@@ -45,15 +56,24 @@ export function TenseText({
     current: target,
     active,
     mono,
+    counted: shownCounted,
     generation: 0,
-    previous: undefined as { value: string; mono: boolean; crossfade: boolean } | undefined,
+    previous: undefined as
+      | { value: string; mono: boolean; counted: boolean; crossfade: boolean }
+      | undefined,
   })
-  if (text.current !== target || text.active !== active || text.mono !== mono) {
+  if (
+    text.current !== target ||
+    text.active !== active ||
+    text.mono !== mono ||
+    text.counted !== shownCounted
+  ) {
     const liveContent = active && activeContent !== undefined
     setText({
       current: target,
       active,
       mono,
+      counted: shownCounted,
       generation: text.generation + (text.current !== target && !liveContent && !settled ? 1 : 0),
       previous:
         // Text appearing from nothing is an entrance, not another of the same thing: no roll.
@@ -61,6 +81,7 @@ export function TenseText({
           ? {
               value: text.current,
               mono: text.mono,
+              counted: text.counted,
               crossfade: crossfadeFlips && text.active && !active,
             }
           : undefined,
@@ -88,7 +109,9 @@ export function TenseText({
               : undefined
           }
         >
-          {text.previous.value}
+          {text.previous.counted
+            ? text.previous.value.replace('{count}', String(displayCount))
+            : text.previous.value}
         </span>
       )}
       <span
@@ -114,7 +137,19 @@ export function TenseText({
           setText((current) => (current.previous ? { ...current, previous: undefined } : current))
         }}
       >
-        {active && activeContent !== undefined ? activeContent : text.current}
+        {active && activeContent !== undefined ? (
+          activeContent
+        ) : text.counted ? (
+          <span className='inline-flex items-baseline'>
+            <span className='whitespace-pre'>{text.current.split('{count}')[0]}</span>
+            <RollingText quick className='font-mono'>
+              {String(displayCount)}
+            </RollingText>
+            <span className='whitespace-pre'>{text.current.split('{count}')[1]}</span>
+          </span>
+        ) : (
+          text.current
+        )}
       </span>
     </span>
   )

@@ -69,6 +69,15 @@ export function useWorkLift() {
   return useContext(WorkLiftContext)
 }
 
+export const hybridLabelHoldMs = 1200
+
+export type BatchLabel = 'each' | 'hold' | 'count'
+export const BatchLabelContext = createContext<BatchLabel>('hold')
+
+export function useBatchLabel() {
+  return useContext(BatchLabelContext)
+}
+
 export type BatchTense = 'now' | 'open'
 export const BatchTenseContext = createContext<BatchTense>('now')
 

@@ -161,7 +161,11 @@ export function createWorkEntries() {
   }
 }
 
-export function describeToolBatch({ calls, sealed }: ToolBatch, openTense = false) {
+export function describeToolBatch(
+  { calls, sealed }: ToolBatch,
+  openTense = false,
+  countOpen = false
+) {
   const first = calls[0]!
   const latest = calls.at(-1)!
   const count = (status: ActivityStatus) => calls.filter((call) => call.status === status).length
@@ -174,8 +178,12 @@ export function describeToolBatch({ calls, sealed }: ToolBatch, openTense = fals
   const open = openTense && !sealed
   const latestFailed = ['failed', 'cancelled', 'interrupted'].includes(latest.status)
   const active = open ? !latestFailed : running.length > 0
-  const summarise = (sealed && calls.length > 1 && !active) || (!open && running.length > 1)
-  const shown = active ? running.length : completed || calls.length
+  const summarise =
+    (countOpen && !sealed && calls.length > 1) ||
+    (sealed && calls.length > 1 && !active) ||
+    (!open && running.length > 1)
+  const shown =
+    countOpen && !sealed ? calls.length : active ? running.length : completed || calls.length
   const current = open ? latest : (running[0] ?? latest)
   const description =
     first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
@@ -202,6 +210,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch, openTense = fals
           .join(', ')
   return {
     verb,
+    count: summarise ? shown : undefined,
     description:
       description && (current.status === 'failed' || current.status === 'interrupted')
         ? `${current.status === 'failed' ? 'Failed' : 'Stopped'} ${description}`

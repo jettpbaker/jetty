@@ -64,3 +64,8 @@
     display: none;
   }
 }
+
+.rolling-text-quick {
+  --rolling-text-in: rolling-text-in 150ms cubic-bezier(0.19, 1, 0.22, 1) both;
+  --rolling-text-out: rolling-text-out 150ms cubic-bezier(0.19, 1, 0.22, 1) both;
+}

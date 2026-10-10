@@ -9,6 +9,8 @@ import { frameMs, speedOptions, useTimeWarp } from '@/dev/time_warp'
 import {
   TenseChangeContext,
   type TenseChange,
+  BatchLabelContext,
+  type BatchLabel,
   BatchTenseContext,
   type BatchTense,
   WorkLiftContext,
@@ -79,6 +81,11 @@ function Feels() {
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: scan && replays.has(scan) ? scan : names[0]!, run: 0 })
   const [tenseChange, setTenseChange] = useState<TenseChange>('crossfade')
+  const [batchLabel, setBatchLabel] = useState<BatchLabel>(
+    params.get('batchLabel') === 'each' || params.get('batchLabel') === 'count'
+      ? (params.get('batchLabel') as BatchLabel)
+      : 'hold'
+  )
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
   const [lift, setLift] = useState<WorkLift>('off')
   const [hybridFold, setHybridFold] = useState<HybridFold>(
@@ -102,6 +109,8 @@ function Feels() {
       onInterimText={setInterimText}
       tenseChange={tenseChange}
       onTenseChange={setTenseChange}
+      batchLabel={batchLabel}
+      onBatchLabel={setBatchLabel}
       batchTense={batchTense}
       onBatchTense={setBatchTense}
       lift={lift}
@@ -152,6 +161,8 @@ function FeelReplay({
   onHybridLine,
   tenseChange,
   onTenseChange,
+  batchLabel,
+  onBatchLabel,
   batchTense,
   onBatchTense,
   lift,
@@ -175,6 +186,8 @@ function FeelReplay({
   onInterimText: (interimText: InterimText) => void
   tenseChange: TenseChange
   onTenseChange: (tenseChange: TenseChange) => void
+  batchLabel: BatchLabel
+  onBatchLabel: (batchLabel: BatchLabel) => void
   batchTense: BatchTense
   onBatchTense: (batchTense: BatchTense) => void
   lift: WorkLift
@@ -335,27 +348,29 @@ function FeelReplay({
               <FadeDurationContext value={fadeDuration}>
                 <TenseChangeContext value={tenseChange}>
                   <ChatFeelContext value='hybrid'>
-                    <BatchTenseContext value={batchTense}>
-                      <WorkLiftContext value={lift}>
-                        <HybridPacingContext value={hybridPacing}>
-                          <HybridFoldContext value={hybridFold}>
-                            <ChatSettledContext value={settled}>
-                              <ThreadList
-                                threadId={`replay-${run}-hybrid`}
-                                items={thread.items}
-                                status={thread.status}
-                                running={running}
-                                outcomes={thread.turnOutcomes}
-                                loadouts={thread.turnLoadouts}
-                                projectPath={replay.projectPath}
-                                provider={replay.provider}
-                                onSelectAgent={() => undefined}
-                              />
-                            </ChatSettledContext>
-                          </HybridFoldContext>
-                        </HybridPacingContext>
-                      </WorkLiftContext>
-                    </BatchTenseContext>
+                    <BatchLabelContext value={batchLabel}>
+                      <BatchTenseContext value={batchTense}>
+                        <WorkLiftContext value={lift}>
+                          <HybridPacingContext value={hybridPacing}>
+                            <HybridFoldContext value={hybridFold}>
+                              <ChatSettledContext value={settled}>
+                                <ThreadList
+                                  threadId={`replay-${run}-hybrid`}
+                                  items={thread.items}
+                                  status={thread.status}
+                                  running={running}
+                                  outcomes={thread.turnOutcomes}
+                                  loadouts={thread.turnLoadouts}
+                                  projectPath={replay.projectPath}
+                                  provider={replay.provider}
+                                  onSelectAgent={() => undefined}
+                                />
+                              </ChatSettledContext>
+                            </HybridFoldContext>
+                          </HybridPacingContext>
+                        </WorkLiftContext>
+                      </BatchTenseContext>
+                    </BatchLabelContext>
                   </ChatFeelContext>
                 </TenseChangeContext>
               </FadeDurationContext>
@@ -418,6 +433,19 @@ function FeelReplay({
               { value: 'open', label: 'Open' },
             ]}
             onChange={onBatchTense}
+          />
+        </div>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs text-muted-foreground'>Batch label:</span>
+          <SettingsSegmented
+            label='Batch label'
+            value={batchLabel}
+            options={[
+              { value: 'each', label: 'Each' },
+              { value: 'hold', label: 'Hold' },
+              { value: 'count', label: 'Count' },
+            ]}
+            onChange={onBatchLabel}
           />
         </div>
         <div className='flex items-center gap-1'>

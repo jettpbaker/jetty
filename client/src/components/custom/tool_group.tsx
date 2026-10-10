@@ -1,6 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { useBatchTense, useChatFeel, useTenseChange } from '@/lib/chat-feel'
+import {
+  hybridLabelHoldMs,
+  useBatchLabel,
+  useBatchTense,
+  useChatFeel,
+  useTenseChange,
+} from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import { ThreadLink } from './entity_link'
@@ -20,11 +26,15 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const tenseText = feel === 'hybrid' && tenseChange !== undefined
   const batchTense = useBatchTense()
   const openTense = feel === 'hybrid' && batchTense === 'open'
-  const label = describeToolBatch(batch, openTense)
+  const batchLabel = useBatchLabel()
+  const holdMs = feel === 'hybrid' && batchLabel === 'hold' ? hybridLabelHoldMs : 0
+  const countLabel = feel === 'hybrid' && batchLabel === 'count'
+  const label = describeToolBatch(batch, openTense, countLabel)
   const describedBatch =
     feel === 'hybrid' &&
     batch.calls[0]!.kind === 'terminal' &&
-    batch.calls.some((call) => call.description?.trim())
+    batch.calls.some((call) => call.description?.trim()) &&
+    !(countLabel && label.count !== undefined)
   return (
     <Collapsible>
       <CollapsibleTrigger
@@ -37,6 +47,8 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         <span className='flex min-w-0 items-baseline gap-1'>
           {describedBatch || (tenseText && tenseChange === 'crossfade') ? (
             <TenseText
+              holdMs={holdMs}
+              count={countLabel ? label.count : undefined}
               active={label.active}
               shimmer
               className={cn(label.failed && 'text-status-error')}
@@ -45,10 +57,15 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
             </TenseText>
           ) : tenseText && !label.description ? (
             <>
-              <TenseText active={label.active} className='shrink-0' shimmer>
+              <TenseText holdMs={holdMs} active={label.active} className='shrink-0' shimmer>
                 {label.verb}
               </TenseText>
-              <TenseText active={label.active} mono={!label.prose}>
+              <TenseText
+                count={countLabel ? label.count : undefined}
+                holdMs={holdMs}
+                active={label.active}
+                mono={!label.prose}
+              >
                 {label.target}
               </TenseText>
             </>
@@ -65,13 +82,14 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
           ) : (
             <>
               {openTense ? (
-                <RollingText className={cn('shrink-0', label.active && 'shimmer')}>
+                <RollingText holdMs={holdMs} className={cn('shrink-0', label.active && 'shimmer')}>
                   {label.verb}
                 </RollingText>
               ) : (
                 <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
               )}
               <RollingText
+                holdMs={holdMs}
                 key={openTense ? undefined : label.verb}
                 className={cn(!label.prose && 'font-mono')}
               >

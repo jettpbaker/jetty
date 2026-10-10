@@ -72,7 +72,8 @@ export function useDiscrete<T, E extends HTMLElement = HTMLDivElement>(
   initial: T,
   label: string,
   css = false,
-  immediate = false
+  immediate = false,
+  holdMs = 0
 ) {
   const queue = useContext(DiscreteContext)
   const feel = useChatFeel()
@@ -81,12 +82,41 @@ export function useDiscrete<T, E extends HTMLElement = HTMLDivElement>(
   const owner = useRef({})
   const elementRef = useRef<E | null>(null)
   const [shown, setShown] = useState({ value: initial, animate: false })
+  const [readyAt, setReadyAt] = useState<number | null>(null)
+  const holdFrame = useRef(0)
   const ownerValue = owner.current
 
   const finish = useCallback(() => {
     if (elementRef.current) elementRef.current.dataset.discreteRunning = 'false'
+    if (holdMs) {
+      cancelAnimationFrame(holdFrame.current)
+      holdFrame.current = requestAnimationFrame(() => setReadyAt(performance.now() + holdMs))
+    }
     queue?.finish(ownerValue)
-  }, [queue, ownerValue])
+  }, [queue, ownerValue, holdMs])
+
+  useLayoutEffect(() => {
+    if (!enabled || !holdMs || readyAt !== null) return
+    let frame = 0
+    function checkVisible() {
+      const element = elementRef.current
+      const rect = element?.getBoundingClientRect()
+      let visible = !!rect && rect.width > 0 && rect.height > 0
+      for (let node = element; node && visible; node = node.parentElement as E | null) {
+        const css = getComputedStyle(node)
+        visible =
+          css.display !== 'none' && css.visibility === 'visible' && Number(css.opacity) > 0.01
+        if (rect && (css.overflowY === 'hidden' || css.overflowY === 'clip')) {
+          const clip = node.getBoundingClientRect()
+          visible &&= rect.bottom > clip.top && rect.top < clip.bottom
+        }
+      }
+      if (visible) setReadyAt(performance.now() + holdMs)
+      else frame = requestAnimationFrame(checkVisible)
+    }
+    frame = requestAnimationFrame(checkVisible)
+    return () => cancelAnimationFrame(frame)
+  }, [enabled, holdMs, readyAt])
 
   useLayoutEffect(() => {
     if (Object.is(target, shown.value)) return
@@ -96,9 +126,27 @@ export function useDiscrete<T, E extends HTMLElement = HTMLDivElement>(
       setShown({ value: target, animate: false })
       return
     }
-    queue.request(ownerValue, label, (animate) => setShown({ value: target, animate }))
-    return () => queue.cancel(ownerValue)
-  }, [target, shown.value, enabled, queue, ownerValue, label])
+    function request() {
+      queue!.request(ownerValue, label, (animate) => {
+        if (holdMs) {
+          setReadyAt(Infinity)
+          if (!animate) {
+            cancelAnimationFrame(holdFrame.current)
+            holdFrame.current = requestAnimationFrame(() => setReadyAt(performance.now() + holdMs))
+          }
+        }
+        setShown({ value: target, animate })
+      })
+    }
+    if (holdMs && (readyAt === null || readyAt === Infinity)) return
+    const delay = holdMs ? Math.max(0, (readyAt ?? 0) - performance.now()) : 0
+    const timer = delay ? setTimeout(request, delay) : undefined
+    if (!delay) request()
+    return () => {
+      clearTimeout(timer)
+      queue.cancel(ownerValue)
+    }
+  }, [target, shown.value, enabled, queue, ownerValue, label, holdMs, readyAt])
 
   useLayoutEffect(() => {
     if (!css || !shown.animate) return
@@ -137,6 +185,7 @@ export function useDiscrete<T, E extends HTMLElement = HTMLDivElement>(
 
   useLayoutEffect(
     () => () => {
+      cancelAnimationFrame(holdFrame.current)
       queue?.cancel(ownerValue)
       queue?.finish(ownerValue)
     },

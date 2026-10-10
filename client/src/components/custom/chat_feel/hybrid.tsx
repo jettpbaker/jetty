@@ -1,7 +1,7 @@
 import type { ThreadItem } from '@jetty/shared/items'
 import type { Transition } from 'motion/react'
 
-import { useChatSettled, useHybridLine, useWorkLift } from '@/lib/chat-feel'
+import { hybridLabelHoldMs, useChatSettled, useHybridLine, useWorkLift } from '@/lib/chat-feel'
 import { awaitsInput } from '@jetty/shared/items'
 import { motion, useReducedMotion } from 'motion/react'
 import { createContext, useEffect, useLayoutEffect, useState } from 'react'
@@ -92,7 +92,8 @@ export function HybridNow({
   }
   useEffect(() => {
     if (hidden || target === null || target === shown.label) return
-    const delay = shown.label === null ? 0 : Math.max(0, 1200 - (Date.now() - shown.since))
+    const delay =
+      shown.label === null ? 0 : Math.max(0, hybridLabelHoldMs - (Date.now() - shown.since))
     const timer = setTimeout(() => setShown({ label: target, since: Date.now() }), delay)
     return () => clearTimeout(timer)
   }, [hidden, target, shown])

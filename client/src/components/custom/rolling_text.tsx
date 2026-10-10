@@ -9,12 +9,23 @@ export function RollingText({
   children: incoming,
   className,
   textClassName,
+  holdMs = 0,
+  quick = false,
 }: {
   children: string
   className?: string
   textClassName?: string
+  holdMs?: number
+  quick?: boolean
 }) {
-  const change = useDiscrete<string, HTMLSpanElement>(incoming, incoming, 'rolling label', true)
+  const change = useDiscrete<string, HTMLSpanElement>(
+    incoming,
+    incoming,
+    'rolling label',
+    true,
+    false,
+    holdMs
+  )
   const target = change.value
   const changeRef = change.elementRef
   const settled = useChatSettled() || !change.animate
@@ -30,7 +41,11 @@ export function RollingText({
       generation: text.generation + (settled ? 0 : 1),
     })
   return (
-    <span ref={changeRef} className={cn('rolling-text-window', className)} key={text.generation}>
+    <span
+      ref={changeRef}
+      className={cn('rolling-text-window', quick && 'rolling-text-quick', className)}
+      key={text.generation}
+    >
       {text.previous !== undefined && (
         <span aria-hidden='true' className='rolling-text-out whitespace-nowrap'>
           {text.previous}
