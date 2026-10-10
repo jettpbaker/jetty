@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent 
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { capyMotion } from './chat_feel/capy'
-import { HybridNow } from './chat_feel/hybrid'
+import { hybridEntries, HybridNow } from './chat_feel/hybrid'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -190,7 +190,10 @@ export function WorkBlock({
   )
   const ended = workEnded(status)
   const [groupEntries] = useState(createWorkEntries)
-  const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
+  const entries = useMemo(() => {
+    const grouped = groupEntries(activities, ended)
+    return feel === 'hybrid' ? hybridEntries(grouped) : grouped
+  }, [groupEntries, activities, ended, feel])
   const duration = formatActivityDuration(elapsedSeconds)
   const heading = settingUp
     ? 'Setting up worktree'

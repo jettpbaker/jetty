@@ -7,12 +7,22 @@ import { useEffect, useState } from 'react'
 import type { ThreadRow } from '../thread_rows'
 
 import { RollingText } from '../rolling_text'
-import { describeToolBatch } from '../work_model'
+import { describeToolBatch, workEnded, type WorkEntry } from '../work_model'
 import { capyEase, capyMotion } from './capy'
 
 export function hybridFold(open: boolean, reducedMotion: boolean | null): Transition {
   if (reducedMotion) return { duration: 0 }
   return open ? capyMotion(true, false) : { duration: 0.24, ease: capyEase }
+}
+
+export function hybridEntries(entries: readonly WorkEntry[]) {
+  return entries.flatMap((entry): WorkEntry[] => {
+    if (entry.type === 'thinking') return workEnded(entry.status) ? [entry] : []
+    if (entry.type !== 'tools') return [entry]
+    const calls = entry.calls.filter((call) => workEnded(call.status))
+    if (calls.length === 0) return []
+    return [calls.length === entry.calls.length ? entry : { ...entry, calls }]
+  })
 }
 
 export function hybridActivity(
