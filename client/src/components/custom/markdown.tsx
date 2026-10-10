@@ -247,12 +247,13 @@ export function Markdown({
       : stream.pacing
   const shown = usePacedText(text, settled ? undefined : smooth && from, pacing)
   useReplyShown(reply, shown.length)
+  const animating = !settled && (streaming || shown !== text)
   return (
     <Streamdown
-      className={className}
+      className={cn(className, animating && 'markdown-streaming')}
       components={components}
       linkSafety={linkSafety}
-      isAnimating={!settled && (streaming || shown !== text)}
+      isAnimating={animating}
       remarkPlugins={html ? htmlRemarkPlugins : remarkPlugins}
       rehypePlugins={html ? htmlRehypePlugins : rehypePlugins}
       BlockComponent={BlockComponent}

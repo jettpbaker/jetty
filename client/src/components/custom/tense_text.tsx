@@ -1,8 +1,8 @@
 import { useChatFeel, useChatSettled, useMorphDuration, useTenseChange } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from 'motion/react'
-import { useEffect, useState, type ReactNode } from 'react'
-import { TextMorph } from 'torph/react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { MorphController } from 'torph'
 
 import { capyEase } from './chat_feel/capy'
 import './rolling_text.css'
@@ -43,7 +43,6 @@ export function TenseText({
     active,
     mono,
     generation: 0,
-    morphFrom: undefined as string | undefined,
     previous: undefined as { value: string; mono: boolean; crossfade: boolean } | undefined,
   })
   if (text.current !== target || text.active !== active || text.mono !== mono) {
@@ -55,24 +54,21 @@ export function TenseText({
       current: target,
       active,
       mono,
-      generation: text.generation + (morphFlip || liveContent ? 0 : 1),
-      morphFrom: morphFlip && text.current !== target ? text.current : undefined,
+      generation: text.generation + (text.current !== target && !morphFlip && !liveContent ? 1 : 0),
       previous:
         !morphFlip && !liveContent && !settled && !reducedMotion && text.current !== target
           ? { value: text.current, mono: text.mono, crossfade }
           : undefined,
     })
-  } else if ((settled || reducedMotion) && (text.previous || text.morphFrom !== undefined)) {
-    setText({ ...text, previous: undefined, morphFrom: undefined })
+  } else if ((settled || reducedMotion) && text.previous) {
+    setText({ ...text, previous: undefined })
   }
 
-  function finishMorph() {
-    setText((current) => ({ ...current, morphFrom: undefined }))
-  }
   return (
-    <span className={cn('rolling-text-window', className)} key={text.generation}>
+    <span className={cn('rolling-text-window', className)}>
       {text.previous && (
         <span
+          key='out'
           aria-hidden='true'
           className={cn(
             'absolute inset-0 pointer-events-none truncate',
@@ -90,14 +86,13 @@ export function TenseText({
           {text.previous.value}
         </span>
       )}
-      {active && activeContent}
       <span
+        key={text.generation}
         className={cn(
           'block truncate',
           mono && 'font-mono',
           shimmer && active && 'shimmer',
-          text.previous && !text.previous.crossfade && 'rolling-text-in',
-          active && activeContent !== undefined && 'hidden'
+          text.previous && !text.previous.crossfade && 'rolling-text-in'
         )}
         style={
           text.previous?.crossfade
@@ -114,8 +109,14 @@ export function TenseText({
           setText((current) => (current.previous ? { ...current, previous: undefined } : current))
         }}
       >
-        {text.morphFrom !== undefined && !settled && morph && !reducedMotion ? (
-          <MorphingText from={text.morphFrom} target={target} onFinish={finishMorph} {...timing} />
+        {active && activeContent !== undefined ? (
+          activeContent
+        ) : morph ? (
+          <MorphingText
+            value={target}
+            disabled={active || settled || !!reducedMotion}
+            {...timing}
+          />
         ) : (
           target
         )}
@@ -124,28 +125,27 @@ export function TenseText({
   )
 }
 
+// Torph owns this node for its lifetime. Attach and update before paint; its React adapter's
+// effects leave an uninitialised frame, and replacing its children with React text corrupts it.
 function MorphingText({
-  from,
-  target,
-  onFinish,
-  ...timing
+  value,
+  disabled,
+  duration,
+  ease,
 }: {
-  from: string
-  target: string
-  onFinish: () => void
-  duration?: number
-  ease?: string
+  value: string
+  disabled: boolean
+  duration: number
+  ease: string
 }) {
-  const [value, setValue] = useState(from)
-  useEffect(() => setValue(target), [target])
-  return (
-    <TextMorph
-      {...timing}
-      onAnimationComplete={onFinish}
-      onAnimationCancel={onFinish}
-      respectReducedMotion
-    >
-      {value}
-    </TextMorph>
-  )
+  const elementRef = useRef<HTMLSpanElement>(null)
+  const [controller] = useState(() => new MorphController())
+  useLayoutEffect(() => {
+    controller.attach(elementRef.current!, { duration, ease, disabled })
+    return () => controller.destroy()
+  }, [controller, duration, ease, disabled])
+  useLayoutEffect(() => {
+    controller.update(value)
+  }, [controller, value, duration, ease, disabled])
+  return <span ref={elementRef} className='inline-block align-top' />
 }

@@ -544,6 +544,7 @@ export function ThreadList({
   // once for all the rows that changed.
   const [, redraw] = useReducer((count: number) => count + 1, 0)
   const redrawQueued = useRef(false)
+  const replacement = useRef<{ id: string; height: number }>(undefined)
   function redrawBeforePaint() {
     if (redrawQueued.current) return
     redrawQueued.current = true
@@ -566,7 +567,43 @@ export function ThreadList({
     // The virtualizer keeps only measurements that differ from the estimate, so a row whose
     // estimate was exact would take its next estimate while its content is still animating in.
     measureElement: (element, entry, instance) => {
-      const size = measureElement(element, entry, instance)
+      let size = measureElement(element, entry, instance)
+      const index = instance.indexFromElement(element)
+      const workIndex = rows[index]?.kind === 'work' ? index : index - 1
+      const work = rows[workIndex]
+      const answer = rows[workIndex + 1]
+      if (
+        feel === 'hybrid' &&
+        work?.kind === 'work' &&
+        work.status === 'complete' &&
+        answer?.kind === 'assistant'
+      ) {
+        const workElement = instance.elementsCache.get(work.id)
+        const answerElement = instance.elementsCache.get(answer.id)
+        if (workElement && answerElement?.querySelector('.markdown-streaming')) {
+          // Measure both sides together; their resize entries can land in different frames.
+          // Release work space only as the paced answer replaces it.
+          const answerHeight = Math.round(answerElement.getBoundingClientRect().height)
+          const workHeight = Math.round(workElement.getBoundingClientRect().height)
+          const height = Math.max(
+            workHeight + answerHeight,
+            replacement.current?.id === work.id ? replacement.current.height : 0
+          )
+          replacement.current = { id: work.id, height }
+          const retained = Math.max(workHeight, height - answerHeight)
+          if (index === workIndex) {
+            instance.resizeItem(workIndex + 1, answerHeight)
+            size = retained
+          } else {
+            instance.resizeItem(workIndex, retained)
+            size = answerHeight
+          }
+        } else if (replacement.current?.id === work.id) {
+          replacement.current = undefined
+          if (workElement && index !== workIndex)
+            instance.resizeItem(workIndex, Math.round(workElement.getBoundingClientRect().height))
+        }
+      }
       const item = instance.measurementsCache[instance.indexFromElement(element)]
       if (item?.size === size) instance.itemSizeCache.set(item.key, size)
       else if (entry) redrawBeforePaint()
