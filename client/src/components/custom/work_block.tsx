@@ -52,10 +52,52 @@ function WorkEntryRow({
   feel: ReturnType<typeof useChatFeel>
   reducedMotion: boolean | null
 }) {
-  const nowVisible = useContext(HybridNowSlotContext)
-  const [replacesNow] = useState(nowVisible)
-  const entrance = useDiscrete(true, false, 'work row')
+  const nowLabel = useContext(HybridNowSlotContext)
+  const [replacesNow] = useState(nowLabel)
+  const entrance = useDiscrete(
+    true,
+    false,
+    replacesNow ? 'now hand-off' : 'work row',
+    !!replacesNow
+  )
   const entranceRef = entrance.elementRef
+  const content = (
+    <>
+      {entry.type === 'thinking' ? (
+        <ThinkingBlock activity={entry} />
+      ) : entry.type === 'todo' ? (
+        <TodoLink threadId={threadId} update={entry.update} />
+      ) : entry.type === 'threads' ? (
+        <ThreadGroup batch={entry} />
+      ) : (
+        <ToolGroup batch={entry} />
+      )}
+    </>
+  )
+  if (replacesNow)
+    return (
+      <div
+        ref={entranceRef}
+        className='hybrid-handoff rolling-text-window'
+        data-now-handoff={replacesNow}
+        data-handoff-running={(entrance.value && entrance.animate) || undefined}
+      >
+        <div
+          className='hybrid-handoff-row'
+          style={{ visibility: entrance.value ? undefined : 'hidden' }}
+        >
+          {content}
+        </div>
+        {(!entrance.value || entrance.animate) && (
+          <div
+            aria-hidden='true'
+            className='activity-header absolute inset-x-0 top-0 text-muted-foreground'
+          >
+            <span className={entrance.value ? 'rolling-text-out' : undefined}>{replacesNow}</span>
+          </div>
+        )}
+      </div>
+    )
   return (
     <motion.div
       ref={entranceRef}
@@ -69,12 +111,8 @@ function WorkEntryRow({
           entrance.finish()
       }}
       className='overflow-hidden'
-      initial={settled ? false : { height: replacesNow ? 'auto' : 0, opacity: 0 }}
-      animate={
-        entrance.value
-          ? { height: 'auto', opacity: 1 }
-          : { height: replacesNow ? 'auto' : 0, opacity: 0 }
-      }
+      initial={settled ? false : { height: 0, opacity: 0 }}
+      animate={entrance.value ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
       transition={
         settled || !entrance.animate
           ? { duration: 0 }
@@ -83,15 +121,7 @@ function WorkEntryRow({
             : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
       }
     >
-      {entry.type === 'thinking' ? (
-        <ThinkingBlock activity={entry} />
-      ) : entry.type === 'todo' ? (
-        <TodoLink threadId={threadId} update={entry.update} />
-      ) : entry.type === 'threads' ? (
-        <ThreadGroup batch={entry} />
-      ) : (
-        <ToolGroup batch={entry} />
-      )}
+      {content}
     </motion.div>
   )
 }
@@ -111,7 +141,7 @@ function WorkHistory({
   live: boolean
   nowActivity?: string | null
   assistantStreaming?: boolean
-  onNowVisibilityChange?: (visible: boolean) => void
+  onNowVisibilityChange?: (label: string | null) => void
 }) {
   const reducedMotion = useReducedMotion()
   const feel = useChatFeel()
@@ -257,7 +287,7 @@ export function WorkBlock({
 }) {
   const feel = useChatFeel()
   const settled = useChatSettled()
-  const [nowVisible, setNowVisible] = useState(false)
+  const [nowLabel, setNowLabel] = useState<string | null>(null)
   const runningSeconds = useRunningSeconds(
     status === 'running' && !settingUp ? startedAt : undefined
   )
@@ -276,7 +306,7 @@ export function WorkBlock({
   const hideNow =
     assistantStreaming || (openBatch && (hybridLine === '2a' || hybridLine === 'both'))
   const replacesNow =
-    nowVisible &&
+    nowLabel !== null &&
     (hideNow ||
       ((hybridLine === '2a' || hybridLine === 'both') &&
         nowActivity != null &&
@@ -314,7 +344,7 @@ export function WorkBlock({
       ''
     )
   return (
-    <HybridNowSlotContext value={replacesNow}>
+    <HybridNowSlotContext value={replacesNow ? nowLabel : null}>
       <ActivityDisclosure
         flushHeader
         title={
@@ -336,7 +366,7 @@ export function WorkBlock({
                 <HybridNow
                   activity={nowActivity ?? null}
                   hidden={hideNow}
-                  onVisibilityChange={setNowVisible}
+                  onVisibilityChange={setNowLabel}
                 />
               )}
             </>
@@ -348,7 +378,7 @@ export function WorkBlock({
               live={!ended || deferFold}
               nowActivity={nowActivity}
               assistantStreaming={hideNow}
-              onNowVisibilityChange={setNowVisible}
+              onNowVisibilityChange={setNowLabel}
             />
           )
         }

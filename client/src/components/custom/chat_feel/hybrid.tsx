@@ -56,7 +56,7 @@ export function hybridActivity(
   return { workId: work.id, activity, streaming }
 }
 
-export const HybridNowSlotContext = createContext(false)
+export const HybridNowSlotContext = createContext<string | null>(null)
 
 export function HybridNow({
   activity,
@@ -65,7 +65,7 @@ export function HybridNow({
 }: {
   activity: string | null
   hidden: boolean
-  onVisibilityChange?: (visible: boolean) => void
+  onVisibilityChange?: (label: string | null) => void
 }) {
   const line = useHybridLine()
   hidden ||=
@@ -99,9 +99,9 @@ export function HybridNow({
 
   const visible = !hidden && shown.label !== null
   useLayoutEffect(() => {
-    onVisibilityChange?.(visible)
-    return () => onVisibilityChange?.(false)
-  }, [visible, onVisibilityChange])
+    onVisibilityChange?.(visible ? shown.label : null)
+    return () => onVisibilityChange?.(null)
+  }, [visible, shown.label, onVisibilityChange])
 
   return (
     <div className='hybrid-now text-muted-foreground' hidden={hidden || shown.label === null}>
