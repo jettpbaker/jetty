@@ -1,15 +1,15 @@
 import { storage } from '@/platform'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 
-// An experiment: the thread rendered the way Capy, Cursor or opencode render theirs, to feel which
+// An experiment: the thread rendered the way Capy, Cursor or a hybrid render theirs, to feel which
 // one Jetty's should become. ⌥⌘F cycles; components/custom/chat_feel/ holds each one.
-export const chatFeels = ['jetty', 'capy', 'cursor', 'opencode'] as const
+export const chatFeels = ['jetty', 'capy', 'cursor', 'hybrid'] as const
 export type ChatFeel = (typeof chatFeels)[number]
 export const chatFeelNames: Record<ChatFeel, string> = {
   jetty: 'Jetty',
   capy: 'Capy',
   cursor: 'Cursor',
-  opencode: 'opencode',
+  hybrid: 'Hybrid',
 }
 
 const key = 'jetty.chatFeel'

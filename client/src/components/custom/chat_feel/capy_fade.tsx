@@ -53,7 +53,7 @@ function shade(step: number) {
       CSS.highlights.set(`capy-fade-${index}`, highlight)
       shades.push(highlight)
       const share = (1 - (1 - index / steps) ** 1.6) * 100
-      rules += `[data-chat-feel='capy'] ::highlight(capy-fade-${index}) { color: color-mix(in oklab, var(--capy-ink) ${share.toFixed(1)}%, transparent); }\n`
+      rules += `:is([data-chat-feel='capy'], [data-chat-feel='hybrid']) ::highlight(capy-fade-${index}) { color: color-mix(in oklab, var(--capy-ink) ${share.toFixed(1)}%, transparent); }\n`
     }
     const sheet = new CSSStyleSheet()
     sheet.replaceSync(rules)

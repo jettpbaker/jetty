@@ -6,9 +6,11 @@ import './rolling_text.css'
 export function RollingText({
   children: target,
   className,
+  textClassName,
 }: {
   children: string
   className?: string
+  textClassName?: string
 }) {
   const [text, setText] = useState({ current: target, previous: undefined as string | undefined })
   if (text.current !== target) setText({ current: target, previous: text.current })
@@ -19,7 +21,13 @@ export function RollingText({
           {text.previous}
         </span>
       )}
-      <span className={cn('block truncate', text.previous !== undefined && 'rolling-text-in')}>
+      <span
+        className={cn(
+          'block truncate',
+          textClassName,
+          text.previous !== undefined && 'rolling-text-in'
+        )}
+      >
         {text.current}
       </span>
     </span>

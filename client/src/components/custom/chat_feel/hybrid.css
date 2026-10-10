@@ -1,0 +1,78 @@
+[data-chat-feel='hybrid'] [data-chat-thread] {
+  .shimmer:not(.hybrid-now .shimmer) {
+    --shimmer-image: none;
+    --shimmer-text-fill: currentColor;
+    animation: none;
+  }
+
+  .work-scroll[data-live-preview] > div {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .work-scroll[data-above] {
+    mask-image: linear-gradient(to bottom, transparent, black 24px);
+  }
+  .rolling-text-in,
+  .rolling-text-out {
+    animation: none;
+  }
+  .rolling-text-out {
+    display: none;
+  }
+
+  .hybrid-now {
+    flex-shrink: 0;
+    &[hidden] {
+      display: none;
+    }
+
+    .shimmer {
+      --shimmer-duration: 1s;
+      animation-timing-function: linear;
+    }
+    .rolling-text-in {
+      animation:
+        tw-shimmer 1s linear infinite,
+        hybrid-now-in 300ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+    }
+    .rolling-text-out {
+      display: block;
+      animation: hybrid-now-out 300ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+    }
+  }
+}
+
+@keyframes hybrid-now-in {
+  from {
+    transform: translateY(calc(100% + 6px));
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes hybrid-now-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(-100% - 6px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-chat-feel='hybrid'] [data-chat-thread] .work-scroll {
+    transition: none;
+  }
+  [data-chat-feel='hybrid'] [data-chat-thread] .hybrid-now {
+    .shimmer,
+    .rolling-text-in,
+    .rolling-text-out {
+      animation: none;
+    }
+    .rolling-text-out {
+      display: none;
+    }
+  }
+}

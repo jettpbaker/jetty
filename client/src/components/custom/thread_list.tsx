@@ -3,6 +3,7 @@ import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
+import { hybridActivity } from '@/components/custom/chat_feel/hybrid'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { GalleryMessage } from '@/components/custom/gallery_message'
@@ -261,8 +262,12 @@ const ThreadItemRow = memo(function ThreadItemRow({
   onSelectAgent,
   provider,
   projectPath,
+  nowActivity,
+  assistantStreaming,
 }: {
   row: ThreadRow
+  nowActivity?: string | null
+  assistantStreaming?: boolean
   threadId: string
   selectedAgent?: string
   onSelectAgent: (id: string) => void
@@ -339,6 +344,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
         elapsedSeconds={row.elapsedSeconds}
         settingUp={row.settingUp}
         restarted={row.restarted}
+        nowActivity={nowActivity}
+        assistantStreaming={assistantStreaming}
       />
     )
   if (row.kind === 'subagents')
@@ -425,6 +432,10 @@ export function ThreadList({
   )
   const view = `${threadId}:${agentId ?? ''}`
   const feel = useChatFeel()
+  const now = useMemo(
+    () => (feel === 'hybrid' ? hybridActivity(rows, items, agentId) : undefined),
+    [feel, rows, items, agentId]
+  )
   // Rows that arrive after the list mounts, and a first message sent just before, carry
   // data-chat-new, so a chat feel can bring them in.
   const [seeded] = useState(() => {
@@ -621,7 +632,6 @@ export function ThreadList({
     const behind = element.scrollHeight - element.clientHeight - element.scrollTop
     const glides =
       !reducedMotion.matches &&
-      feel !== 'opencode' &&
       behind < element.clientHeight &&
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
@@ -636,7 +646,7 @@ export function ThreadList({
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor, feel])
+  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor])
   useEffect(() => () => glider.current?.stop(), [])
 
   // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
@@ -658,14 +668,14 @@ export function ThreadList({
     const element = scroller.current
     if (!element) return
     pin(true)
-    if (reducedMotion.matches || feel === 'opencode') {
+    if (reducedMotion.matches) {
       virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       return
     }
     const start = element.scrollHeight - element.clientHeight * 2
     if (element.scrollTop < start) element.scrollTop = start
     gliderFor(element).start()
-  }, [pin, virtualizer, gliderFor, feel])
+  }, [pin, virtualizer, gliderFor])
 
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
@@ -819,6 +829,10 @@ export function ThreadList({
                 >
                   <ThreadItemRow
                     row={rows[virtualRow.index]!}
+                    nowActivity={
+                      now?.workId === rows[virtualRow.index]!.id ? now.activity : undefined
+                    }
+                    assistantStreaming={now?.workId === rows[virtualRow.index]!.id && now.streaming}
                     threadId={threadId}
                     selectedAgent={agentId}
                     onSelectAgent={onSelectAgent}

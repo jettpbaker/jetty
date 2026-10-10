@@ -67,7 +67,7 @@ export function ActivityDisclosure({
           {heading}
         </div>
       )}
-      <ActivityContent id={id} open={!ended || !closed}>
+      <ActivityContent id={id} open={!ended || !closed} turnEnd={ended}>
         {renderContent(ended ? 'full' : view)}
       </ActivityContent>
       {footer}

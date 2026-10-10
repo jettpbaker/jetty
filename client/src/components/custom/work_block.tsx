@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent 
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { capyMotion } from './chat_feel/capy'
+import { HybridNow } from './chat_feel/hybrid'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -33,11 +34,15 @@ function WorkHistory({
   entries,
   view,
   live,
+  nowActivity,
+  assistantStreaming,
 }: {
   threadId: string
   entries: WorkEntry[]
   view: ActivityView
   live: boolean
+  nowActivity?: string | null
+  assistantStreaming?: boolean
 }) {
   const reducedMotion = useReducedMotion()
   const feel = useChatFeel()
@@ -45,8 +50,7 @@ function WorkHistory({
   const pinned = useRef(true)
   const shown = useRef(view)
 
-  // A live preview is as tall as its latest entries and scrolls back through the rest, pinned to
-  // the newest. Writes go straight to the node, so a growing entry never re-renders the log.
+  // Writes go straight to the node, so a growing entry never re-renders the pinned log.
   useLayoutEffect(() => {
     const element = scroller.current!
     const list = element.firstElementChild as HTMLElement
@@ -56,10 +60,14 @@ function WorkHistory({
       if (!element.style.maxHeight) return
       // Opening grows to the whole log and a finished block keeps its preview while it closes;
       // either way it then sizes itself.
-      if (live) element.style.maxHeight = `${list.offsetHeight}px`
+      if (live) {
+        element.style.height = ''
+        element.style.maxHeight = `${list.offsetHeight}px`
+      }
       const release = setTimeout(
         () => {
           element.style.maxHeight = ''
+          element.style.height = ''
           edges(element)
         },
         reducedMotion ? 0 : 250
@@ -72,8 +80,10 @@ function WorkHistory({
     }
     pinned.current = true
     function measure() {
-      let height = 0
-      for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
+      let height = feel === 'hybrid' ? 224 : 0
+      if (feel !== 'hybrid')
+        for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
+      element.style.height = feel === 'hybrid' ? `${height}px` : ''
       element.style.maxHeight = `${height}px`
       if (pinned.current) element.scrollTop = element.scrollHeight
       edges(element)
@@ -83,7 +93,7 @@ function WorkHistory({
     observer.observe(element)
     observer.observe(list)
     return () => observer.disconnect()
-  }, [live, view, reducedMotion])
+  }, [live, view, reducedMotion, feel])
 
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
@@ -100,6 +110,7 @@ function WorkHistory({
     <div
       ref={scroller}
       className='work-scroll no-scrollbar overflow-y-auto'
+      data-live-preview={live && view === 'preview' ? '' : undefined}
       onScroll={onScroll}
       onWheel={onWheel}
     >
@@ -112,7 +123,7 @@ function WorkHistory({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               transition={
-                feel === 'capy'
+                feel === 'capy' || feel === 'hybrid'
                   ? capyMotion(true, reducedMotion)
                   : { duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }
               }
@@ -129,6 +140,9 @@ function WorkHistory({
             </motion.div>
           ))}
         </AnimatePresence>
+        {feel === 'hybrid' && live && (
+          <HybridNow activity={nowActivity ?? null} hidden={assistantStreaming ?? false} />
+        )}
       </div>
     </div>
   )
@@ -158,6 +172,8 @@ export function WorkBlock({
   elapsedSeconds,
   settingUp,
   restarted,
+  nowActivity,
+  assistantStreaming,
 }: {
   threadId: string
   activities: readonly WorkActivity[]
@@ -166,7 +182,10 @@ export function WorkBlock({
   elapsedSeconds?: number
   settingUp?: boolean
   restarted?: boolean
+  nowActivity?: string | null
+  assistantStreaming?: boolean
 }) {
+  const feel = useChatFeel()
   const runningSeconds = useRunningSeconds(
     status === 'running' && !settingUp ? startedAt : undefined
   )
@@ -206,13 +225,24 @@ export function WorkBlock({
   return (
     <ActivityDisclosure
       flushHeader
-      title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
+      title={
+        <span className={cn(status === 'running' && feel !== 'hybrid' && 'shimmer')}>
+          {heading}
+        </span>
+      }
       titleSuffix={timing}
       ended={ended}
       hasContent={entries.length > 0}
       hasPreview={entries.length > previewCount}
       renderContent={(view) => (
-        <WorkHistory threadId={threadId} entries={entries} view={view} live={!ended} />
+        <WorkHistory
+          threadId={threadId}
+          entries={entries}
+          view={view}
+          live={!ended}
+          nowActivity={nowActivity}
+          assistantStreaming={assistantStreaming}
+        />
       )}
     />
   )
