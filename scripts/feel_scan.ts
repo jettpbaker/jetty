@@ -49,8 +49,8 @@ function installSampler() {
   const content = pane.querySelector('[aria-label="Conversation"] > div') as HTMLElement
   const scroller = content.parentElement!
   const shifts: unknown[] = []
-  const observer = new PerformanceObserver((list) => {
-    for (const raw of list.getEntries()) {
+  function recordShifts(entries: PerformanceEntry[]) {
+    for (const raw of entries) {
       const entry = raw as PerformanceEntry & {
         value: number
         hadRecentInput: boolean
@@ -72,7 +72,8 @@ function installSampler() {
         })),
       })
     }
-  })
+  }
+  const observer = new PerformanceObserver((list) => recordShifts(list.getEntries()))
   observer.observe({ type: 'layout-shift' })
 
   function identity(element: HTMLElement) {
@@ -115,6 +116,7 @@ function installSampler() {
   }
 
   function sample(): Snapshot {
+    recordShifts(observer.takeRecords())
     const elements: ElementState[] = []
     const clip = scroller.getBoundingClientRect()
     for (const element of content.querySelectorAll<HTMLElement>('*')) {
@@ -373,11 +375,11 @@ async function main() {
   try {
     for (const [name, command] of [
       ['server', ['bun', 'server/src/main.ts']],
-      ['client', ['bun', 'run', 'dev:client']],
+      ['client', ['bun', join(root, 'client/node_modules/vite/bin/vite.js')]],
     ] as const) {
       processes.push(
         Bun.spawn([...command], {
-          cwd: root,
+          cwd: name === 'client' ? join(root, 'client') : root,
           env,
           stdout: Bun.file(join(scratch, `${name}.log`)),
           stderr: 'inherit',
@@ -427,8 +429,25 @@ async function main() {
     browser = await chromium.connectOverCDP(`http://localhost:${port}`)
     const context = browser.contexts()[0]!
     const page = context.pages()[0]!
-    // React captures native time and MessageChannel at import. Queue its host tasks on page time.
+    // Host tasks and resize delivery must have fixed frame boundaries too; do not flush React effects.
     await page.addInitScript(() => {
+      const NativeResizeObserver = ResizeObserver
+      window.ResizeObserver = function (callback: ResizeObserverCallback) {
+        const pending = new Map<Element, ResizeObserverEntry>()
+        let queued = false
+        return new NativeResizeObserver((entries, observer) => {
+          if (!(window as ScanWindow).__feelClock) return callback(entries, observer)
+          for (const entry of entries) pending.set(entry.target, entry)
+          if (queued) return
+          queued = true
+          setTimeout(() => {
+            queued = false
+            const entries = [...pending.values()]
+            pending.clear()
+            callback(entries, observer)
+          }, 0)
+        })
+      } as unknown as typeof ResizeObserver
       const NativeChannel = MessageChannel
       window.MessageChannel = function () {
         const channel = new NativeChannel()
