@@ -41,7 +41,7 @@ function TokenCount({ value, from, settled }: { value: number; from: number; set
     return () => cancelAnimationFrame(frame)
   }, [value, settled])
   return (
-    <span ref={ref} className='font-mono leading-0'>
+    <span ref={ref} className='font-mono'>
       {initial.toLocaleString('en')}
     </span>
   )

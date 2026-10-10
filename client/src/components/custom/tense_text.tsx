@@ -77,7 +77,8 @@ export function TenseText({
           aria-hidden='true'
           className={cn(
             'absolute inset-0 pointer-events-none whitespace-nowrap',
-            !text.previous.crossfade && 'rolling-text-out'
+            !text.previous.crossfade && 'rolling-text-out',
+            text.previous.mono && 'font-mono'
           )}
           style={
             text.previous.crossfade
@@ -87,13 +88,14 @@ export function TenseText({
               : undefined
           }
         >
-          <Mono on={text.previous.mono}>{text.previous.value}</Mono>
+          {text.previous.value}
         </span>
       )}
       <span
         key={text.generation}
         className={cn(
           'block truncate',
+          text.mono && 'font-mono',
           shimmer && active && 'shimmer',
           text.previous && !text.previous.crossfade && 'rolling-text-in'
         )}
@@ -112,16 +114,8 @@ export function TenseText({
           setText((current) => (current.previous ? { ...current, previous: undefined } : current))
         }}
       >
-        <Mono on={text.mono}>
-          {active && activeContent !== undefined ? activeContent : text.current}
-        </Mono>
+        {active && activeContent !== undefined ? activeContent : text.current}
       </span>
     </span>
   )
-}
-
-// Paper Mono's vertical metrics differ from the sans, so a mono run in a sans line stretches the
-// line box and drops the baseline half a pixel. With no line height it can't stretch anything.
-function Mono({ on, children }: { on: boolean; children: ReactNode }) {
-  return on ? <span className='font-mono leading-0'>{children}</span> : children
 }
