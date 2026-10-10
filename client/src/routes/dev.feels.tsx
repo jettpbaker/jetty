@@ -77,7 +77,7 @@ function Feels() {
   // Restarting or picking another transcript mounts every pane afresh.
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
   const [indent, setIndent] = useState<WorkIndent>('on')
-  const [tenseChange, setTenseChange] = useState<TenseChange>('torph')
+  const [tenseChange, setTenseChange] = useState<TenseChange>('smart')
   const [batchTense, setBatchTense] = useState<BatchTense>('open')
   const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
@@ -410,6 +410,8 @@ function FeelReplay({
             options={[
               { value: 'roll', label: 'Roll' },
               { value: 'torph', label: 'Torph' },
+              { value: 'crossfade', label: 'Crossfade' },
+              { value: 'smart', label: 'Smart' },
             ]}
             onChange={onTenseChange}
           />

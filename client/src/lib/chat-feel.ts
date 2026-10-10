@@ -106,7 +106,7 @@ export function useChatFeel() {
   return scoped ?? global
 }
 
-export type TenseChange = 'roll' | 'torph'
+export type TenseChange = 'roll' | 'torph' | 'crossfade' | 'smart'
 export const TenseChangeContext = createContext<TenseChange | undefined>(undefined)
 
 export function useTenseChange() {

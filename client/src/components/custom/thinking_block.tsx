@@ -96,31 +96,49 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
           : `Thinking ${activity.status}`
   const amount = tokens || duration
   const summary = activity.summary.trim()
+  const amountText =
+    activity.tokens !== undefined
+      ? `${activity.tokens.toLocaleString('en')} token${activity.tokens === 1 ? '' : 's'}`
+      : duration || ''
   const heading =
     feel === 'hybrid' && tenseChange !== undefined ? (
-      <span className='flex min-w-0 items-baseline'>
-        <TenseText active={active} morph={tenseChange === 'torph'} shimmer>
-          {state}
-        </TenseText>
-        <TenseText active={active} morph={tenseChange === 'torph'}>
-          {amount ? '\u00a0for\u00a0' : ''}
-        </TenseText>
+      tenseChange === 'crossfade' ? (
         <TenseText
           active={active}
-          morph={tenseChange === 'torph'}
-          mono
+          shimmer
           activeContent={
-            activity.tokens !== undefined ? (
-              <TokenCount value={activity.tokens} from={mountTokens ?? 0} settled={ended} />
+            active ? (
+              <>
+                <span className='shimmer'>{state}</span>
+                {amount && <> for {amount}</>}
+              </>
             ) : undefined
           }
         >
-          {activity.tokens !== undefined ? activity.tokens.toLocaleString('en') : duration || ''}
+          {`${state}${amountText ? ` for ${amountText}` : ''}`}
         </TenseText>
-        <TenseText active={active} morph={tenseChange === 'torph'}>
-          {activity.tokens !== undefined ? `\u00a0token${activity.tokens === 1 ? '' : 's'}` : ''}
-        </TenseText>
-      </span>
+      ) : (
+        <span className='flex min-w-0 items-baseline'>
+          <TenseText active={active} verb shimmer>
+            {state}
+          </TenseText>
+          <TenseText active={active}>{amount ? '\u00a0for\u00a0' : ''}</TenseText>
+          <TenseText
+            active={active}
+            mono
+            activeContent={
+              activity.tokens !== undefined ? (
+                <TokenCount value={activity.tokens} from={mountTokens ?? 0} settled={ended} />
+              ) : undefined
+            }
+          >
+            {activity.tokens !== undefined ? activity.tokens.toLocaleString('en') : duration || ''}
+          </TenseText>
+          <TenseText active={active}>
+            {activity.tokens !== undefined ? `\u00a0token${activity.tokens === 1 ? '' : 's'}` : ''}
+          </TenseText>
+        </span>
+      )
     ) : (
       <span>
         <span className={cn(active && 'shimmer')}>{state}</span>
