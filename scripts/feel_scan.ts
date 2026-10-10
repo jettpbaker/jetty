@@ -9,6 +9,13 @@ import { createGzip } from 'node:zlib'
 import { chromium } from 'playwright-core'
 
 // bun run feel:scan <output> [fold] [each|hold|count] [transcript...]
+// FEEL_TENSE_CHANGE=roll|crossfade|opencode FEEL_ROWS=animate|instant FEEL_REDUCED_MOTION=reduce
+const tenseChange = process.env.FEEL_TENSE_CHANGE ?? 'crossfade'
+const rows = process.env.FEEL_ROWS ?? 'animate'
+const reducedMotion = process.env.FEEL_REDUCED_MOTION === 'reduce'
+if (!['roll', 'crossfade', 'opencode'].includes(tenseChange))
+  throw new Error(`Unknown tense change: ${tenseChange}`)
+if (!['animate', 'instant'].includes(rows)) throw new Error(`Unknown rows: ${rows}`)
 const root = resolve(import.meta.dir, '..')
 const frameMs = 16.7
 const viewport = { width: 1440, height: 900 }
@@ -57,7 +64,20 @@ type ElementState = {
   rollingFrom: string | null
   batchLabel: boolean
 }
+type SwapFrame = {
+  from: string
+  to: string
+  width: number
+  oldWidth: number
+  newWidth: number
+  outgoing: number
+  incoming: number
+  blur: string
+  transform: string
+  animations: { property: string; ms: number | null; duration: number | string; easing: string }[]
+}
 type Snapshot = {
+  swaps: SwapFrame[]
   slots: {
     id: string
     now: { label: string; top: number } | null
@@ -108,7 +128,12 @@ function installSampler(answers: AnswerTiming[]) {
   const outgoing = '[aria-hidden="true"].rolling-text-out, [aria-hidden="true"].absolute'
 
   function textOf(element: Element): string {
-    if (element.matches(outgoing)) return ''
+    if (element.matches(outgoing) || element.matches('[data-slot="tool-status-active"]')) return ''
+    if (
+      element.matches('[data-component="tool-status-title"]') &&
+      element.hasAttribute('aria-label')
+    )
+      return element.getAttribute('aria-label')!
     if (element.hasAttribute('torph-root')) {
       const accessible = element.querySelector('[torph-sr]')
       if (accessible) {
@@ -169,7 +194,7 @@ function installSampler(answers: AnswerTiming[]) {
       path.unshift(
         node.id
           ? `${node.localName}[${node.id}]`
-          : `${node.localName}:${siblings.filter((sibling) => sibling.localName === node!.localName).indexOf(node)}`
+          : `${node.localName}:${siblings.filter((sibling) => sibling.localName === node!.localName && !sibling.matches(outgoing)).indexOf(node)}`
       )
       node = node.parentElement
     }
@@ -204,9 +229,13 @@ function installSampler(answers: AnswerTiming[]) {
     const clip = scroller.getBoundingClientRect()
     for (const element of content.querySelectorAll<HTMLElement>('*')) {
       if (element.closest(`svg, [torph-item], [torph-sr], ${outgoing}`)) continue
-      const directText = [...element.childNodes].some(
-        (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
-      )
+      const title = element.closest('[data-component="tool-status-title"]')
+      if (title && title !== element) continue
+      const directText =
+        (title === element && !!textOf(element).trim()) ||
+        [...element.childNodes].some(
+          (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
+        )
       const semantic = element.matches(
         '[data-chat-row], [data-work-heading], [data-slot="bubble-content"], .activity-header, .hybrid-now, [class*="rolling-text"], h1,h2,h3,h4,p,li,pre,button,a,label,span'
       )
@@ -245,9 +274,7 @@ function installSampler(answers: AnswerTiming[]) {
       const morphs = [...element.querySelectorAll('[torph-root]')]
       const root = element.closest('[torph-root]')
       if (root) morphs.push(root)
-      const rolling = element.matches('.rolling-text-window')
-        ? element.querySelector('.rolling-text-in')
-        : element.closest('.rolling-text-in')
+      const rolling = element.closest('.rolling-text-window')
       elements.push({
         id: identity(element),
         label: `${element.localName} ${attrs} ${classes} ${text.slice(0, 100)}`.trim(),
@@ -262,11 +289,21 @@ function installSampler(answers: AnswerTiming[]) {
         rollingFrom: element.querySelector(':scope > .rolling-text-out')?.textContent ?? null,
         rolling: element.matches('.rolling-text-window'),
         rollingNow: [...element.children].some(
-          (child) => child.matches('.rolling-text-in') && animating(child)
+          (child) =>
+            animating(child) &&
+            (child.matches('.rolling-text-in') ||
+              child
+                .getAnimations()
+                .some(
+                  (animation) =>
+                    animation instanceof CSSAnimation &&
+                    animation.animationName === 'rolling-text-fade-in'
+                ))
         ),
         counter: !!(element.closest('.font-mono') || element.querySelector('.font-mono')),
         textAnimating:
           morphs.some(animating) ||
+          !!(title && animating(title)) ||
           !!(rolling && animating(rolling)) ||
           !!(
             element.closest('[data-handoff-running]') &&
@@ -321,7 +358,16 @@ function installSampler(answers: AnswerTiming[]) {
         continue
       const name = animation instanceof CSSAnimation ? animation.animationName : ''
       const property = animation instanceof CSSTransition ? animation.transitionProperty : ''
-      if (name.startsWith('rolling-text-')) {
+      if (
+        animation instanceof CSSTransition &&
+        element.matches(
+          '[data-slot="tool-status-active"], [data-slot="tool-status-done"], [data-slot="tool-status-swap"]'
+        )
+      ) {
+        discrete.add(
+          identity(element.closest<HTMLElement>('[data-component="tool-status-title"]')!)
+        )
+      } else if (name.startsWith('rolling-text-')) {
         const handoffLabel = element.matches(
           '.hybrid-handoff-row .activity-header > :first-child, .hybrid-handoff > [aria-hidden] > .rolling-text-out'
         )
@@ -406,6 +452,38 @@ function installSampler(answers: AnswerTiming[]) {
         return { id: identity(list), now: now?.visible ? now : null, rows }
       })
     return {
+      swaps: [
+        ...content.querySelectorAll<HTMLElement>('[data-component="tool-status-title"]'),
+      ].flatMap((title) => {
+        const old = title.querySelector<HTMLElement>('[data-slot="tool-status-active"]')
+        const next = title.querySelector<HTMLElement>('[data-slot="tool-status-done"]')
+        const slot = title.querySelector<HTMLElement>('[data-slot="tool-status-swap"]')
+        if (!old || !next || !slot) return []
+        return [
+          {
+            from:
+              (title.querySelector('[data-slot="tool-status-prefix"]')?.textContent ?? '') +
+              old.textContent,
+            to: title.getAttribute('aria-label') ?? '',
+            width: slot.getBoundingClientRect().width,
+            oldWidth: Math.ceil(old.getBoundingClientRect().width),
+            newWidth: Math.ceil(next.getBoundingClientRect().width),
+            outgoing: Number(getComputedStyle(old).opacity),
+            incoming: Number(getComputedStyle(next).opacity),
+            blur: getComputedStyle(old).filter,
+            transform: getComputedStyle(old).transform,
+            animations: title
+              .getAnimations({ subtree: true })
+              .filter((animation) => animation instanceof CSSTransition)
+              .map((animation) => ({
+                property: (animation as CSSTransition).transitionProperty,
+                ms: typeof animation.currentTime === 'number' ? animation.currentTime : null,
+                duration: animation.effect!.getTiming().duration,
+                easing: animation.effect!.getTiming().easing,
+              })),
+          },
+        ]
+      }),
       slots,
       discrete: [...discrete],
       queue: { ...queue },
@@ -648,7 +726,7 @@ function detect(transcript: string, frames: Snapshot[]): Finding[] {
                 value.replace(/[\d,.]+/g, '#') === current.replace(/[\d,.]+/g, '#')
             )
           const textAnimation =
-            property === 'text' &&
+            (property === 'text' || property === 'visible') &&
             [start - 1, start, index].some((at) => maps[at]?.get(id)?.textAnimating)
           const foldingDisclosure =
             fold === 'after-reveal' &&
@@ -772,7 +850,7 @@ async function waitFor(url: string) {
 
 async function prepare(page: Page, url: string, transcript: string, answers: AnswerTiming[]) {
   await page.goto(
-    `${url}/dev/feels?scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&perf=off`
+    `${url}/dev/feels?scan=${transcript}&fold=${fold}&batchLabel=${batchLabel}&tenseChange=${tenseChange}&rows=${rows}&perf=off`
   )
   await page.waitForLoadState('networkidle')
   await page.evaluate(async () => {
@@ -880,7 +958,12 @@ async function main() {
     const page = context.pages()[0]!
     page.on('pageerror', (error) => console.error(error))
     await page.setViewportSize(viewport)
+    if (reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' })
     const cdp = await context.newCDPSession(page)
+    const opencodeSwaps: {
+      transcript: string
+      frames: { frame: number; ms: number; swap: SwapFrame }[]
+    }[] = []
     const findings: Finding[] = []
     const handoffs: { transcript: string; frame: number; from: string; to: string }[] = []
     const concurrency: {
@@ -932,6 +1015,23 @@ async function main() {
         disk.on('finish', resolve)
         disk.on('error', reject)
       })
+      const swapStart = frames.findIndex((snapshot) =>
+        snapshot.swaps.some(
+          (swap) => swap.from.startsWith('Thinking') && swap.to.startsWith('Thought')
+        )
+      )
+      if (swapStart >= 0)
+        opencodeSwaps.push({
+          transcript,
+          frames: frames.slice(swapStart, swapStart + 38).flatMap((snapshot, offset) => {
+            const swap = snapshot.swaps.find(
+              (swap) => swap.from.startsWith('Thinking') && swap.to.startsWith('Thought')
+            )
+            return swap
+              ? [{ frame: swapStart + offset, ms: Number((offset * frameMs).toFixed(1)), swap }]
+              : []
+          }),
+        })
       timings.push({ transcript, answers: frames.at(-1)!.timings })
       const maxConcurrent = Math.max(...frames.map((frame) => frame.discrete.length))
       const exampleFrame = frames.findIndex((frame) => frame.discrete.length === maxConcurrent)
@@ -1003,6 +1103,10 @@ async function main() {
         a.property.localeCompare(b.property)
     )
     const report = {
+      tenseChange,
+      rows,
+      reducedMotion,
+      opencodeSwaps,
       batchLabel,
       rollingLabels,
       fold,
@@ -1036,7 +1140,7 @@ async function main() {
     )
     await Bun.write(
       join(output, 'report.md'),
-      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\n${lines.join('\n')}\n`
+      `# Pane D feel scan\n\n16.7ms fixed frames; 1440×900; ${fold} fold; ${batchLabel} batch labels; ${tenseChange} tense; ${rows} rows; other toggles default. Loose heuristics: findings require inspection. Raw per-frame DOM records and Chrome layout-shift cross-checks are included.\n\n| Transcript | Max concurrent | Max queue wait | Example frames |\n| --- | ---: | ---: | --- |\n${summary.join('\n')}\n\nShortest settled batch label before its next roll (16.7ms sampling; first-paint rolls are bounded by one frame):\n${rollingLabels.map(({ transcript, shortest }) => `- ${transcript}: ${shortest ? `${shortest.ms}ms (${shortest.frames} frames), ${shortest.label}` : 'no repeated roll'}`).join('\n')}\n\n${lines.join('\n')}\n`
     )
     console.log(`Report: ${output}`)
   } finally {
