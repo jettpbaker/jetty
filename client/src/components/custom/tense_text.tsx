@@ -69,20 +69,16 @@ export function TenseText({
       <span
         className={cn(
           'block truncate',
+          shimmer && active && 'shimmer',
           text.previous && 'rolling-text-in',
           active && activeContent !== undefined && 'hidden'
         )}
       >
-        <TextMorph
-          className={cn(shimmer && active && 'shimmer')}
-          disabled={settled || !morph || active}
-          {...timing}
-          respectReducedMotion
-        >
+        <TextMorph disabled={settled || !morph || active} {...timing} respectReducedMotion>
           {mono ? '' : target}
         </TextMorph>
         <TextMorph
-          className={cn('font-mono', shimmer && active && 'shimmer')}
+          className='font-mono'
           disabled={settled || !morph || active}
           {...timing}
           respectReducedMotion
