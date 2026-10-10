@@ -30,7 +30,7 @@ export function installTimeWarp(fixed = false) {
   }
   const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
   const startTimeDescriptor = Object.getOwnPropertyDescriptor(Animation.prototype, 'startTime')!
-  const realNow = original.now.bind(performance)
+  const realNow = fixed ? () => 0 : original.now.bind(performance)
   let realBase = realNow()
   let clockBase = fixed ? 0 : realBase
   const dateBase = fixed ? 1_700_000_000_000 : original.dateNow() - clockBase
@@ -41,7 +41,7 @@ export function installTimeWarp(fixed = false) {
   const rates = new Map<Animation, number>()
 
   function now() {
-    return clockBase + (realNow() - realBase) * scale
+    return scale === 0 ? clockBase : clockBase + (realNow() - realBase) * scale
   }
 
   function adjust(animation: Animation) {
@@ -217,14 +217,6 @@ export function installTimeWarp(fixed = false) {
   // Run one page frame while native scheduling continues to service React and the controls.
   function step<T>(sample?: () => T): Promise<T | undefined> {
     if (scale !== 0) return Promise.resolve(undefined)
-    return new Promise((resolve) => {
-      original.raf.call(window, () => {
-        original.timeout.call(window, () => advance(sample).then(resolve), 0)
-      })
-    })
-  }
-
-  function advance<T>(sample?: () => T): Promise<T | undefined> {
     clockBase += frameMs
     animations()
     for (const [animation, rate] of rates) {
