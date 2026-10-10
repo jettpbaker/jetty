@@ -1,4 +1,7 @@
 import type { HybridLine, InterimText } from '@/lib/chat-feel'
+import type { ThreadItem } from '@jetty/shared/items'
+
+import { awaitsInput } from '@jetty/shared/items'
 
 import type { ThreadRow } from '../thread_rows'
 import type { WorkEntry } from '../work_model'
@@ -16,11 +19,12 @@ export type TurnLabel = {
 }
 export type TurnRow = {
   id: string
-  kind: 'activity' | 'text'
+  kind: 'activity' | 'text' | 'marker'
   label: TurnLabel
   live: boolean
   shimmer: boolean
   runningCalls: readonly string[]
+  item?: Extract<ThreadItem, { kind: 'approval' | 'question' }>
   entry?: WorkEntry
   text?: string
   streaming?: boolean
@@ -42,6 +46,7 @@ export type TurnView = {
 export type TurnInput = {
   work: Extract<ThreadRow, { kind: 'work' }>
   answer?: Extract<ThreadRow, { kind: 'assistant' | 'plan' }>
+  items?: readonly ThreadItem[]
   revealDone: boolean
   line?: HybridLine
   interim?: InterimText
@@ -77,16 +82,22 @@ function activityRow(entry: WorkEntry, tail: boolean, running: boolean): TurnRow
       target: summary.target,
       count: counted ? entry.calls.length : undefined,
       tense: description.active ? 'present' : 'past',
-      mono: !summary.prose,
+      mono: (counted || !description.description) && !summary.prose,
       failed: description.failed > 0,
-      text: `${description.verb} ${summary.target}`.trim(),
+      text: (!counted && description.description) || `${description.verb} ${summary.target}`.trim(),
     }
   } else if (entry.type === 'thinking') {
-    title = label(
-      running && tail && entry.status === 'running' ? 'Thinking' : 'Thought',
-      '',
-      running && tail && entry.status === 'running'
-    )
+    const active = running && tail && entry.status === 'running'
+    title = {
+      ...label(
+        active ? 'Thinking' : 'Thought',
+        entry.tokens === undefined
+          ? ''
+          : `for ${entry.tokens} token${entry.tokens === 1 ? '' : 's'}`,
+        active
+      ),
+      count: entry.tokens,
+    }
   } else if (entry.type === 'threads') {
     title = label(
       'Created',
@@ -99,7 +110,7 @@ function activityRow(entry: WorkEntry, tail: boolean, running: boolean): TurnRow
     id: entry.id,
     kind: 'activity',
     label: title,
-    live: running && tail && title.tense === 'present',
+    live: running && (tail || runningCalls.length > 0) && title.tense === 'present',
     shimmer: false,
     runningCalls,
     entry,
@@ -109,12 +120,21 @@ function activityRow(entry: WorkEntry, tail: boolean, running: boolean): TurnRow
 export function projectTurn({
   work,
   answer,
+  items = [],
   revealDone,
   line = 'both',
   interim = 'b',
   now,
 }: TurnInput): TurnView {
   const running = !workEnded(work.status)
+  const requests = items.filter(
+    (item): item is Extract<ThreadItem, { kind: 'approval' | 'question' }> =>
+      item.turnId === work.turnId &&
+      !item.agentId &&
+      (item.kind === 'approval' || item.kind === 'question')
+  )
+  const pending = running ? requests.findLast(awaitsInput) : undefined
+  const waiting = running && (pending !== undefined || work.status === 'waiting')
   const rows: TurnRow[] = []
   const flow = work.flow ?? [work]
   for (const [index, part] of flow.entries()) {
@@ -140,26 +160,47 @@ export function projectTurn({
   const lastStep = rows.findLastIndex((row) => row.kind === 'activity')
   for (const [index, row] of rows.entries()) {
     if (row.kind === 'text' && interim === 'b') row.muted = index < lastStep
+    if (waiting) row.live = false
     row.shimmer =
+      !waiting &&
       row.kind === 'activity' &&
       row.label.tense === 'present' &&
-      ((row.entry?.type === 'tools' && !row.entry.sealed) || line === '2b' || line === 'both')
+      (row.runningCalls.length > 0 ||
+        (row.entry?.type === 'tools' && !row.entry.sealed) ||
+        line === '2b' ||
+        line === 'both')
   }
   const tail = rows.at(-1)
   const cursor = tail?.live ? tail.id : null
   const hasLive = rows.some((row) => row.live || row.runningCalls.length > 0)
   const hideNow = tail?.kind === 'text' || (cursor !== null && (line === '2a' || line === 'both'))
-  const nowLabel =
-    !running || hideNow
+  const nowLabel = waiting
+    ? label('Waiting for', pending?.kind === 'question' ? 'your answer' : 'approval', true)
+    : !running || hideNow
       ? null
       : hasLive
         ? (rows.findLast((row) => row.label.tense === 'present')?.label ?? null)
         : label('Planning next moves', '', true)
+  for (const item of requests) {
+    if (awaitsInput(item)) continue
+    const next = rows.findIndex(
+      (row) => items.findIndex((candidate) => candidate.id === row.id) > items.indexOf(item)
+    )
+    rows.splice(next < 0 ? rows.length : next, 0, {
+      id: item.id,
+      kind: 'marker',
+      item,
+      label: label(''),
+      live: false,
+      shimmer: false,
+      runningCalls: [],
+    })
+  }
   return {
     id: work.id,
     turnId: work.turnId,
     running,
-    heading: label(running ? 'Working' : 'Worked', '', running),
+    heading: label(waiting ? 'Waiting for you' : running ? 'Working' : 'Worked', '', running),
     elapsedSeconds:
       work.elapsedSeconds ??
       (now !== undefined && work.startedAt !== undefined

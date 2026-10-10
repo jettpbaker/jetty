@@ -5,6 +5,7 @@ import type { TurnView } from './projection'
 
 import { formatActivityDuration } from '../work_model'
 import { TurnEntry } from './entry'
+import { TurnLabelText } from './label'
 import { PaintRoll } from './paint_roll'
 
 export function TurnRenderer({
@@ -35,13 +36,17 @@ export function TurnRenderer({
     >
       <div data-flush-work>
         <Button
+          data-flush
           variant='ghost-text'
           className='activity-header text-muted-foreground'
           aria-expanded={open}
           onClick={() => setExpanded(!expanded)}
         >
           <span>
-            <span data-work-heading className={view.running && !instant ? 'shimmer' : undefined}>
+            <span
+              data-work-heading
+              className={view.heading.text === 'Working' && !instant ? 'shimmer' : undefined}
+            >
               {view.heading.text}
             </span>
             {duration && (
@@ -76,7 +81,11 @@ export function TurnRenderer({
               <div className='hybrid-now'>
                 <div className='activity-header text-muted-foreground'>
                   <span className={instant ? undefined : 'shimmer'}>
-                    <PaintRoll text={view.now.text} instant={instant} />
+                    {view.now.count === undefined ? (
+                      <PaintRoll text={view.now.text} instant={instant} />
+                    ) : (
+                      <TurnLabelText label={view.now} shimmer={!instant} instant={instant} />
+                    )}
                   </span>
                 </div>
               </div>

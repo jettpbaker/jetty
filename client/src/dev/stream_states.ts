@@ -128,7 +128,7 @@ export const streamStates: StreamState[] = [
     'Turn',
     'waiting',
     'Awaiting approval',
-    'Waiting keeps the work header; no approval UI yet.',
+    'Waiting for approval appears under Waiting for you.',
     [...start(), read()],
     at(
       600,
@@ -142,8 +142,77 @@ export const streamStates: StreamState[] = [
         toolCallId: 'read',
       }),
       { type: 'session.status', status: 'awaiting_approval' }
-    ),
-    'Approval and question rows are omitted by HybridV2Pane.'
+    )
+  ),
+  card(
+    'Turn',
+    'approved',
+    'Approval answered',
+    'The waiting line hands back to work and an Allowed row appears.',
+    [
+      ...start(),
+      read(),
+      item({
+        id: 'approval',
+        kind: 'approval',
+        title: 'Allow read?',
+        toolName: 'Read',
+        input: { file_path: 'src/app.tsx' },
+        suggestions: [],
+        toolCallId: 'read',
+      }),
+      { type: 'session.status', status: 'awaiting_approval' },
+    ],
+    at(600, done('approval', { decision: 'allow' }), { type: 'session.status', status: 'running' })
+  ),
+  card(
+    'Turn',
+    'question',
+    'Waiting for your answer',
+    'A question overrides the tool cursor while it waits.',
+    [...start(), read()],
+    at(
+      600,
+      item({
+        id: 'question',
+        kind: 'question',
+        questions: [
+          {
+            question: 'Which file?',
+            header: 'File',
+            multiSelect: false,
+            options: [],
+          },
+        ],
+      }),
+      { type: 'session.status', status: 'awaiting_approval' }
+    )
+  ),
+  card(
+    'Turn',
+    'answered',
+    'Question answered',
+    'An Answered row appears when the question settles.',
+    [
+      ...start(),
+      item({
+        id: 'question',
+        kind: 'question',
+        questions: [
+          {
+            question: 'Which file?',
+            header: 'File',
+            multiSelect: false,
+            options: [],
+          },
+        ],
+      }),
+      { type: 'session.status', status: 'awaiting_approval' },
+    ],
+    at(600, done('question', { answers: { 'Which file?': 'src/app.tsx' } }), {
+      type: 'session.status',
+      status: 'running',
+    })
   ),
   card(
     'Turn',
@@ -184,8 +253,7 @@ export const streamStates: StreamState[] = [
     'Thinking tokens',
     'Token deltas land as 0 → 5 → 50.',
     [...start(), thinking()],
-    [...at(600, delta('think', '', 5)), ...at(1200, delta('think', '', 45))],
-    'Tokens reach the activity model, but v2 does not render them.'
+    [...at(600, delta('think', '', 5)), ...at(1200, delta('think', '', 45))]
   ),
   card(
     'Thinking',
@@ -193,6 +261,14 @@ export const streamStates: StreamState[] = [
     'Thinking → Thought',
     'Watch the Opencode label swap and the returning stand-in.',
     [...start(), thinking()],
+    at(600, done('think'))
+  ),
+  card(
+    'Thinking',
+    'thought-tokens',
+    'Thought for 50 tokens',
+    'The count survives the change to past tense.',
+    [...start(), thinking('think', 50)],
     at(600, done('think'))
   ),
 
@@ -232,10 +308,9 @@ export const streamStates: StreamState[] = [
     'Tools',
     'bash',
     'Described Bash',
-    'The command swaps to past; its description is not shown.',
+    'The description stays prose as the call settles.',
     [...start(), tool('cmd', 'Bash', 'bun run lint', 'Check the client')],
-    at(600, done('cmd', { status: 'succeeded' }), end()),
-    'The v2 label uses the command target, not describeToolBatch.description.'
+    at(600, done('cmd', { status: 'succeeded' }), end())
   ),
   card(
     'Tools',
@@ -244,9 +319,9 @@ export const streamStates: StreamState[] = [
     'A command batch seals without changing its count.',
     [
       ...start(),
-      tool('a', 'Bash', 'bun run lint'),
+      tool('a', 'Bash', 'bun run lint', 'Check the client'),
       done('a', { status: 'succeeded' }),
-      tool('b', 'Bash', 'bun run typecheck'),
+      tool('b', 'Bash', 'bun run typecheck', 'Check types'),
     ],
     at(600, done('b', { status: 'succeeded' }), end())
   ),
@@ -290,8 +365,18 @@ export const streamStates: StreamState[] = [
     'Parallel tools, different kinds',
     'Both calls remain running when the second row arrives.',
     [...start(), read()],
-    at(600, tool('cmd', 'Bash', 'bun run lint')),
-    'Both running call ids survive, but only the tail row is live and shimmers.'
+    [
+      ...at(600, tool('cmd', 'Bash', 'bun run lint')),
+      ...at(1400, done('read', { status: 'succeeded' })),
+    ]
+  ),
+  card(
+    'Tools',
+    'sequential',
+    'Sequential tool hand-off',
+    'A finished row loses live styling when the next kind arrives.',
+    [...start(), ...finishedRead()],
+    at(600, tool('cmd', 'Bash', 'bun run lint'))
   ),
   card(
     'Tools',

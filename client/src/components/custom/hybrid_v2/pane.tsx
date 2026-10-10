@@ -31,7 +31,7 @@ function Pane({ thread, threadId, projectPath, now }: PaneProps) {
       loadouts: thread.turnLoadouts,
       projectPath,
       threadId,
-    }),
+    }).filter((row) => row.kind !== 'marker'),
     thread.items
   )
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -92,6 +92,7 @@ function Pane({ thread, threadId, projectPath, now }: PaneProps) {
             <TurnSurface
               key={row.id}
               work={row}
+              items={thread.items}
               answer={next?.kind === 'assistant' || next?.kind === 'plan' ? next : undefined}
               threadId={threadId}
               now={now}

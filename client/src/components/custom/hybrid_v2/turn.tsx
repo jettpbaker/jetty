@@ -1,3 +1,5 @@
+import type { ThreadItem } from '@jetty/shared/items'
+
 import { useChatSettled, useHybridLine, useInterimText } from '@/lib/chat-feel'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -10,11 +12,13 @@ import { TurnRenderer } from './renderer'
 export function TurnSurface({
   work,
   answer,
+  items,
   threadId,
   now,
 }: {
   work: Extract<ThreadRow, { kind: 'work' }>
   answer?: Extract<ThreadRow, { kind: 'assistant' | 'plan' }>
+  items?: readonly ThreadItem[]
   threadId: string
   now: number
 }) {
@@ -28,12 +32,13 @@ export function TurnSurface({
       projectTurn({
         work,
         answer,
+        items,
         revealDone: instant || revealed === answer?.id,
         line,
         interim,
         now,
       }),
-    [work, answer, instant, revealed, line, interim, now]
+    [work, answer, items, instant, revealed, line, interim, now]
   )
   const [last, setLast] = useState({ view, previous: undefined as TurnView | undefined })
   if (last.view !== view) setLast({ view, previous: instant ? undefined : last.view })

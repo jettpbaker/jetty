@@ -8,6 +8,7 @@ import type { TurnRow } from './projection'
 import { capyMotion } from '../chat_feel/capy'
 import { Markdown } from '../markdown'
 import { ToolCallDetails } from '../tool_call'
+import { TranscriptMarker } from '../transcript_marker'
 import { TurnLabelText } from './label'
 
 function ActivityRow({
@@ -149,7 +150,9 @@ export function TurnEntry({
       }
       onAnimationComplete={() => setEntered(true)}
     >
-      {row.kind === 'text' ? (
+      {row.kind === 'marker' && row.item ? (
+        <TranscriptMarker item={row.item} />
+      ) : row.kind === 'text' ? (
         <TextRow
           row={row}
           reply={reply}

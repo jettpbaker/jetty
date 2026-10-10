@@ -5,12 +5,13 @@ import { Schema } from 'effect'
 
 import { projectTurn, type TurnView } from '../src/components/custom/hybrid_v2/projection'
 import { createThreadRows, singleTurnRows } from '../src/components/custom/thread_rows'
+import { streamStates } from '../src/dev/stream_states'
 
 const decode = Schema.decodeUnknownSync(ThreadEvent)
 
 for (const name of ['one-turn', 'two-turns', 'opus-real']) {
   describe(name, () => {
-    test('projects each event with one cursor, truthful tense, sealed batches and counts', async () => {
+    test('projects each event with truthful live rows, sealed batches and counts', async () => {
       const replay = await Bun.file(`${import.meta.dir}/../src/dev/replays/${name}.json`).json()
       const build = createThreadRows()
       let state = emptyThread
@@ -48,9 +49,8 @@ for (const name of ['one-turn', 'two-turns', 'opus-real']) {
           if (view.elapsedSeconds !== undefined)
             expect(view.elapsedSeconds).toBeGreaterThanOrEqual(0)
           current.set(work.id, view)
-          expect(
-            view.rows.filter((row) => row.live).length + Number(view.now !== null)
-          ).toBeLessThanOrEqual(1)
+          for (const row of view.rows.filter((row) => row.live))
+            expect(row.id === view.cursor || row.runningCalls.length > 0).toBe(true)
           expect(view.cursor !== null).toBe(view.rows.some((row) => row.live) || view.now !== null)
           expect(view.folded).toBe(false)
           expect(projectTurn({ work, answer, revealDone: true }).folded).toBe(
@@ -82,7 +82,7 @@ for (const name of ['one-turn', 'two-turns', 'opus-real']) {
                 row.entry?.type === 'tools' &&
                 row.entry.calls.some((call) => call.target === 'src/sandbox.ts')
             )
-            if (read && view.rows.some((row) => row.label.text === 'Thinking')) {
+            if (read && view.rows.some((row) => row.label.verb === 'Thinking')) {
               expect(read.label.text).toBe('Read 2 files')
               expect(read.live).toBe(false)
               expect(read.shimmer).toBe(false)
@@ -118,8 +118,9 @@ test('parallel tools keep their own tense while the tail alone owns the cursor',
   for (const line of ['today', '2a', '2b', 'both'] as const) {
     const view = projectTurn({ work, revealDone: false, line })
     expect(view.cursor).toBe('thinking')
-    expect(view.rows.map((row) => row.live)).toEqual([false, true])
+    expect(view.rows.map((row) => row.live)).toEqual([true, true])
     expect(view.rows.map((row) => row.label.tense)).toEqual(['present', 'present'])
+    expect(view.rows[0]!.shimmer).toBe(true)
     expect(view.rows[0]!.runningCalls).toEqual(['read'])
     expect(view.rows[0]!.entry?.type === 'tools' && view.rows[0]!.entry.sealed).toBe(true)
     expect(view.now?.text ?? null).toBe(line === 'today' || line === '2b' ? 'Thinking' : null)
@@ -184,4 +185,161 @@ test('gaps have an immediate stand-in and an interim message owns the tail and s
   const gap = projectTurn({ work: { ...work, flow: [], activities: [] }, revealDone: false })
   expect(gap.now?.text).toBe('Planning next moves')
   expect(gap.cursor).toBe('user:work:now')
+})
+
+function galleryView(id: string, elapsed: number) {
+  const card = streamStates.find((card) => card.id === id)!
+  let state = emptyThread
+  const events = [
+    ...card.initial,
+    ...card.events.filter(({ t }) => t <= elapsed).map(({ event }) => event),
+  ]
+  for (const [index, event] of events.entries())
+    state = applyEvent(state, { seq: index + 1, ts: index, event })
+  const rows = singleTurnRows(
+    createThreadRows()(state.items, {
+      status: state.status,
+      running: state.activeTurnId !== null,
+    }).filter((row) => row.kind !== 'marker'),
+    state.items
+  )
+  const work = rows.find((row) => row.kind === 'work')!
+  if (work.kind !== 'work') throw new Error('Missing work')
+  return projectTurn({ work, items: state.items, revealDone: false })
+}
+
+test('thinking projects ticking counts and preserves the total in past tense', () => {
+  for (const [elapsed, count] of [
+    [0, 0],
+    [600, 5],
+    [1200, 50],
+  ]) {
+    const row = galleryView('tokens', elapsed!).rows[0]!
+    expect(row.label.count).toBe(count)
+    expect(row.label.text).toBe(`Thinking for ${count} tokens`)
+  }
+  const thought = galleryView('thought-tokens', 600).rows[0]!
+  expect(thought.label.count).toBe(50)
+  expect(thought.label.text).toBe('Thought for 50 tokens')
+  expect(thought.label.tense).toBe('past')
+})
+
+test('Bash descriptions stay prose while described batches use counts', () => {
+  const active = galleryView('bash', 0).rows[0]!
+  expect(active.label.text).toBe('Check the client')
+  expect(active.label.mono).toBe(false)
+  expect(active.label.tense).toBe('present')
+  const past = galleryView('bash', 600).rows[0]!
+  expect(past.label.text).toBe('Check the client')
+  expect(past.label.tense).toBe('past')
+  const batch = galleryView('commands', 600).rows[0]!
+  expect(batch.label.text).toBe('Ran 2 commands')
+  expect(batch.label.count).toBe(2)
+})
+
+test('approval and question waits own the now-line and project settled rows', () => {
+  for (const [id, text] of [
+    ['waiting', 'Waiting for approval'],
+    ['question', 'Waiting for your answer'],
+  ]) {
+    const view = galleryView(id!, 600)
+    expect(view.heading.text).toBe('Waiting for you')
+    expect(view.now?.text).toBe(text)
+    expect(view.cursor).toBe(`${view.id}:now`)
+    expect(view.rows.every((row) => !row.live && !row.shimmer)).toBe(true)
+    expect(view.rows.some((row) => row.kind === 'marker')).toBe(false)
+  }
+  for (const id of ['approved', 'answered']) {
+    const view = galleryView(id, 600)
+    expect(view.heading.text).toBe('Working')
+    expect(view.rows.at(-1)?.kind).toBe('marker')
+    expect(view.rows.at(-1)?.item?.id).toBe(id === 'approved' ? 'approval' : 'question')
+  }
+})
+
+test('parallel rows are live only while their calls run or they own the cursor', () => {
+  const parallel = galleryView('parallel', 600)
+  expect(parallel.rows.map((row) => row.live)).toEqual([true, true])
+  expect(parallel.rows.map((row) => row.shimmer)).toEqual([true, true])
+  expect(parallel.cursor).toBe('cmd')
+  for (const id of ['parallel', 'sequential']) {
+    const view = galleryView(id, 1400)
+    expect(view.rows.map((row) => row.live)).toEqual([false, true])
+    expect(view.rows.map((row) => row.shimmer)).toEqual([false, true])
+    expect(view.rows.map((row) => row.label.tense)).toEqual(['past', 'present'])
+  }
+})
+
+test('settled requests appear once in order as work continues, excluding subagent requests', () => {
+  const card = streamStates.find((card) => card.id === 'approved')!
+  let state = emptyThread
+  const events = [
+    ...card.initial,
+    ...card.events.map(({ event }) => event),
+    decode({
+      type: 'item.started',
+      item: {
+        id: 'bash',
+        turnId: 'turn',
+        createdAt: 20,
+        kind: 'tool_call',
+        toolName: 'Bash',
+        input: { command: 'bun run lint' },
+        output: '',
+        status: 'running',
+      },
+    }),
+  ]
+  for (const [index, event] of events.entries())
+    state = applyEvent(state, { seq: index + 1, ts: index, event })
+  const rows = singleTurnRows(
+    createThreadRows()(state.items, { status: state.status, running: true }).filter(
+      (row) => row.kind !== 'marker'
+    ),
+    state.items
+  )
+  const works = rows.filter((row) => row.kind === 'work')
+  expect(works).toHaveLength(1)
+  const work = works[0]!
+  const approval = state.items.find((item) => item.kind === 'approval')!
+  const view = projectTurn({
+    work,
+    items: [...state.items, { ...approval, id: 'subagent', agentId: 'child' }],
+    revealDone: false,
+  })
+  expect(view.rows.map((row) => row.id)).toEqual(['read', 'approval', 'bash'])
+  expect(view.cursor).toBe('bash')
+  expect(view.now).toBeNull()
+})
+
+test('thinking supports unknown and singular counts and Bash failures retain descriptions', () => {
+  const work = {
+    kind: 'work' as const,
+    id: 'work',
+    turnId: 'turn',
+    status: 'running' as const,
+    activities: [
+      { type: 'thinking' as const, id: 'thinking', status: 'running' as const, summary: '' },
+    ],
+  }
+  expect(projectTurn({ work, revealDone: false }).rows[0]!.label.text).toBe('Thinking')
+  expect(
+    projectTurn({
+      work: { ...work, activities: [{ ...work.activities[0]!, tokens: 1 }] },
+      revealDone: false,
+    }).rows[0]!.label.text
+  ).toBe('Thinking for 1 token')
+  const call = {
+    type: 'tool' as const,
+    id: 'bash',
+    kind: 'terminal' as const,
+    name: 'Bash',
+    target: 'bun run lint',
+    description: 'Check the client',
+    status: 'failed' as const,
+  }
+  const row = projectTurn({ work: { ...work, activities: [call] }, revealDone: false }).rows[0]!
+  expect(row.label.text).toBe('Failed Check the client')
+  expect(row.label.failed).toBe(true)
+  expect(row.label.mono).toBe(false)
 })
