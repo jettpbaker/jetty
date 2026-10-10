@@ -38,6 +38,7 @@ export function TurnRenderer({
       <div data-flush-work>
         <Button
           data-flush
+          data-v2-heading={`${view.heading.text}${duration ? ` for ${duration}` : ''}`}
           variant='ghost-text'
           className='activity-header text-muted-foreground'
           aria-expanded={open}

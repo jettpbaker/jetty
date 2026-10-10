@@ -18,7 +18,7 @@ import {
   pinRootChatFeel,
 } from '@/lib/chat-feel'
 import { emptyThread } from '@jetty/shared/reducer'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useLocation } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 
 import './dev.feels.css'
@@ -28,12 +28,20 @@ export const Route = createFileRoute('/dev/stream-states')({ component: StreamSt
 const groups = ['Turn', 'Thinking', 'Tools', 'Text', 'Now-line', 'Fold'] as const
 
 function StreamStates() {
-  const warp = useTimeWarp()
+  const search = useLocation({ select: (location) => location.searchStr })
+  const warp = useTimeWarp(new URLSearchParams(search).has('scan'))
+  const onStep = useEffectEvent(() => warp.step())
   const onSpace = useEffectEvent(() => warp.setFrozen(!warp.frozen))
   useEffect(() => pinRootChatFeel(), [])
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
-      if (event.key !== ' ' || event.repeat || event.metaKey || event.ctrlKey || event.altKey)
+      if (
+        ![' ', '.'].includes(event.key) ||
+        event.repeat ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
         return
       const target = event.target
       if (
@@ -42,7 +50,8 @@ function StreamStates() {
       )
         return
       event.preventDefault()
-      onSpace()
+      if (event.key === '.') void onStep()
+      else onSpace()
     }
     window.addEventListener('keydown', keydown, true)
     return () => window.removeEventListener('keydown', keydown, true)
@@ -59,7 +68,8 @@ function StreamStates() {
           </Link>
           <h1 className='text-xl font-medium'>Stream states</h1>
           <p className='max-w-2xl text-sm text-muted-foreground'>
-            Hybrid v2, one transition at a time. Replay a card once; Space freezes the whole page.
+            Hybrid v2, one transition at a time. Replay a card once; Space freezes the whole page; .
+            steps one frame.
           </p>
           <div className='flex items-center gap-3'>
             <span className='text-xs text-muted-foreground'>Speed</span>

@@ -24,7 +24,8 @@
     "sandbox": "bun perf/sandbox.ts",
     "paper:capture": "bun perf/paper/capture.ts",
     "devtools": "bun devtools/src/server.ts",
-    "feel:scan": "bun scripts/feel_scan.ts"
+    "feel:scan": "bun scripts/feel_scan.ts",
+    "feel:states": "bun scripts/feel_states.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

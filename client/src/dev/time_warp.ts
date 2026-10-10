@@ -407,6 +407,15 @@ export function useTimeWarp(fixed = false) {
     })
     return warp
   }
+  async function step() {
+    const warp = warpRef.current!
+    if (!frozen) {
+      warp.setScale(0)
+      setFrozen(true)
+    }
+    await warp.step()
+    setCurrentFrame(warp.frame())
+  }
   function seekFrame(at: number) {
     seekRef.current = Math.round(at / frameMs)
     setCurrentFrame(seekRef.current)
@@ -458,6 +467,7 @@ export function useTimeWarp(fixed = false) {
     setFrozen,
     ready,
     currentFrame,
+    step,
     rebuilding,
     move,
     reset,
