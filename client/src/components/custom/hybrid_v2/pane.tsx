@@ -30,6 +30,7 @@ function Pane({ thread, threadId, projectPath, now }: PaneProps) {
       outcomes: thread.turnOutcomes,
       loadouts: thread.turnLoadouts,
       projectPath,
+      threadId,
     }),
     thread.items
   )

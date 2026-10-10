@@ -24,8 +24,12 @@ for (const name of ['one-turn', 'two-turns', 'opus-real']) {
             running: state.activeTurnId !== null,
             outcomes: state.turnOutcomes,
             projectPath: replay.projectPath,
+            threadId: name,
           }),
           state.items
+        )
+        expect(rows.filter((row) => row.kind === 'user').length).toBe(
+          state.items.filter((item) => item.kind === 'user_message').length
         )
         const current = new Map<string, TurnView>()
         for (const [at, work] of rows.entries()) {
