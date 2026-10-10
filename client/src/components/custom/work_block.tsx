@@ -13,7 +13,7 @@ import {
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { capyMotion } from './chat_feel/capy'
-import { hybridEntries, HybridNow } from './chat_feel/hybrid'
+import { HybridNow } from './chat_feel/hybrid'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -206,10 +206,7 @@ export function WorkBlock({
   )
   const ended = workEnded(status)
   const [groupEntries] = useState(createWorkEntries)
-  const entries = useMemo(() => {
-    const grouped = groupEntries(activities, ended)
-    return feel === 'hybrid' ? hybridEntries(grouped) : grouped
-  }, [groupEntries, activities, ended, feel])
+  const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
   const duration = formatActivityDuration(elapsedSeconds)
   if (historyOnly)
     return <WorkHistory threadId={threadId} entries={entries} view='full' live={false} />
