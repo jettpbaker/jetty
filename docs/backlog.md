@@ -80,13 +80,20 @@ Everything below is for one combined review of the chat, not separate ports.
   recommended). Not picked yet.
 - Message footers: the whole footer reveals on hover; `revealWholeFooter` in
   `message_footer.tsx` flips it to time and model always visible.
-- A `message_user`-style tool for Jetty's agent, as Capy does (`~/code/scratch/teardowns/chat-capy.md`
-  §2): user-facing text goes through the tool, and plain text is commentary. Today interim text and
-  the final answer are both just text, told apart only once the turn ends after them, so the UI
-  guesses: the fold has to wait for the answer to finish revealing (Capy folds as the answer
-  starts), and links an agent mentions mid-turn get buried in the folded work (80% of URLs and
-  thread links in Jett's interim text never reappear in the final answer, measured 10 Oct). Open:
-  how it maps onto the Claude Code provider, and the fallback when an agent answers in plain text.
+- The final answer carries what the user needs. Interim text and the final answer are both just
+  text, told apart only once the turn ends after them, and anything said mid-turn gets folded
+  away: 80% of the URLs and thread links in Jett's interim text never reappear in the final answer
+  (measured 10 Oct over his Claude Code sessions).
+  - First, a prompt line in Jetty's agent instructions: the user only sees the final message once
+    the turn ends, so repeat anything they need there (links to threads, PRs or files it created),
+    even if said earlier. Measure it passively: rerun the dropped-link count over normal sessions
+    afterwards, with no extra usage. Watch for answers growing repetitive.
+  - Only if that doesn't move the number, a `message_user`-style tool, as Capy does
+    (`~/code/scratch/teardowns/chat-capy.md` §2): user-facing text goes through the tool and plain
+    text is commentary, so the UI knows the answer from its first character and can fold as it
+    starts. Risks under the Claude Code harness: it fights the model's habit that plain text is the
+    reply (fallbacks for plain-text answers and stray calls), and a tool call doesn't end the turn,
+    so each turn costs an extra model round trip unless a hook stops after the tool (unverified).
 
 ## later
 
