@@ -1,12 +1,6 @@
 import type { ThreadState } from '@jetty/shared/reducer'
 
-import {
-  ArrowExpand01Icon,
-  ArrowShrink02Icon,
-  PauseIcon,
-  PlayIcon,
-  Refresh01Icon,
-} from '@/components/custom/huge_icons'
+import { PauseIcon, PlayIcon, Refresh01Icon } from '@/components/custom/huge_icons'
 import { ReplayTimeline } from '@/components/custom/replay_timeline'
 import { SettingsSegmented, SettingsSelect } from '@/components/custom/settings_layout'
 import { ThreadList } from '@/components/custom/thread_list'
@@ -28,13 +22,9 @@ import {
   type HybridLine,
   MorphDurationContext,
   type MorphDuration,
-  chatFeelNames,
-  chatFeels,
-  type ChatFeel,
   pinRootChatFeel,
 } from '@/lib/chat-feel'
 import { pressProps } from '@/lib/press'
-import { cn } from '@/lib/utils'
 import { foldUpdate, noteCompleted } from '@/state'
 import { ThreadEvent } from '@jetty/shared/events'
 import { emptyThread } from '@jetty/shared/reducer'
@@ -96,7 +86,6 @@ function Feels() {
       timeWarp={timeWarp}
       run={pick.run}
       name={pick.name}
-      scanning={scan !== null}
       morphDuration={morphDuration}
       onMorphDuration={setMorphDuration}
       interimText={interimText}
@@ -140,7 +129,6 @@ function dropControlFocus(event: FocusEvent<HTMLDivElement>) {
 
 function FeelReplay({
   timeWarp,
-  scanning,
   run,
   name,
   morphDuration,
@@ -159,7 +147,6 @@ function FeelReplay({
   onRestart,
 }: {
   timeWarp: ReturnType<typeof useTimeWarp>
-  scanning: boolean
   run: number
   name: string
   morphDuration: MorphDuration
@@ -183,13 +170,12 @@ function FeelReplay({
   const [playing, setPlaying] = useState(true)
   const [elapsed, setElapsed] = useState(0)
   const [settled, setSettled] = useState(false)
-  const [expanded, setExpanded] = useState<ChatFeel | null>(scanning ? 'hybrid' : null)
-  const panesRef = useRef<HTMLDivElement>(null)
+  const paneRef = useRef<HTMLElement>(null)
   const dragging = useRef(false)
   const settleFrame = useRef(0)
 
   useLayoutEffect(() => {
-    for (const animation of panesRef.current!.getAnimations({ subtree: true })) {
+    for (const animation of paneRef.current!.getAnimations({ subtree: true })) {
       if (settled) {
         if (animation.effect?.getComputedTiming().iterations === Infinity) animation.pause()
         else animation.finish()
@@ -225,22 +211,6 @@ function FeelReplay({
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [])
-
-  useEffect(() => {
-    if (expanded === null) return
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      const target = event.target
-      if (
-        target instanceof HTMLElement &&
-        (target.closest('input, textarea, select') || target.isContentEditable)
-      )
-        return
-      setExpanded(null)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [expanded])
 
   function releaseSettled() {
     cancelAnimationFrame(settleFrame.current)
@@ -322,62 +292,38 @@ function FeelReplay({
       <LiveTurnContext value='single'>
         <HybridLineContext value={hybridLine}>
           <InterimTextContext value={interimText}>
-            <div
-              ref={panesRef}
-              className='grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border'
+            <section
+              ref={paneRef}
+              data-chat-feel='hybrid'
+              data-hybrid-line={hybridLine}
+              data-chat-settled={settled ? '' : undefined}
+              aria-label='Hybrid'
+              className='flex min-h-0 flex-1 flex-col bg-background'
             >
-              {chatFeels.map((feel, index) => (
-                <section
-                  key={feel}
-                  data-chat-feel={feel}
-                  data-hybrid-line={feel === 'hybrid' ? hybridLine : undefined}
-                  data-chat-settled={settled ? '' : undefined}
-                  aria-label={chatFeelNames[feel]}
-                  className={cn(
-                    'flex min-h-0 min-w-0 flex-col bg-background',
-                    expanded === feel && 'col-span-2 row-span-2',
-                    expanded !== null && expanded !== feel && 'hidden'
-                  )}
-                >
-                  <h2 className='flex h-8 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground'>
-                    {'ABCD'[index]} · {chatFeelNames[feel]}
-                    <Button
-                      variant='ghost'
-                      size='icon-xs'
-                      className='ml-auto'
-                      aria-label={`${expanded === feel ? 'Minimise' : 'Maximise'} ${chatFeelNames[feel]}`}
-                      aria-pressed={expanded === feel}
-                      {...pressProps(() => setExpanded(expanded === feel ? null : feel))}
-                    >
-                      {expanded === feel ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
-                    </Button>
-                  </h2>
-                  <MorphDurationContext value={feel === 'hybrid' ? morphDuration : '150'}>
-                    <TenseChangeContext value={feel === 'hybrid' ? tenseChange : undefined}>
-                      <ChatFeelContext value={feel}>
-                        <BatchTenseContext value={batchTense}>
-                          <HybridPacingContext value={hybridPacing}>
-                            <ChatSettledContext value={settled}>
-                              <ThreadList
-                                threadId={`replay-${run}-${feel}`}
-                                items={thread.items}
-                                status={thread.status}
-                                running={running}
-                                outcomes={thread.turnOutcomes}
-                                loadouts={thread.turnLoadouts}
-                                projectPath={replay.projectPath}
-                                provider={replay.provider}
-                                onSelectAgent={() => undefined}
-                              />
-                            </ChatSettledContext>
-                          </HybridPacingContext>
-                        </BatchTenseContext>
-                      </ChatFeelContext>
-                    </TenseChangeContext>
-                  </MorphDurationContext>
-                </section>
-              ))}
-            </div>
+              <MorphDurationContext value={morphDuration}>
+                <TenseChangeContext value={tenseChange}>
+                  <ChatFeelContext value='hybrid'>
+                    <BatchTenseContext value={batchTense}>
+                      <HybridPacingContext value={hybridPacing}>
+                        <ChatSettledContext value={settled}>
+                          <ThreadList
+                            threadId={`replay-${run}-hybrid`}
+                            items={thread.items}
+                            status={thread.status}
+                            running={running}
+                            outcomes={thread.turnOutcomes}
+                            loadouts={thread.turnLoadouts}
+                            projectPath={replay.projectPath}
+                            provider={replay.provider}
+                            onSelectAgent={() => undefined}
+                          />
+                        </ChatSettledContext>
+                      </HybridPacingContext>
+                    </BatchTenseContext>
+                  </ChatFeelContext>
+                </TenseChangeContext>
+              </MorphDurationContext>
+            </section>
           </InterimTextContext>
         </HybridLineContext>
       </LiveTurnContext>
