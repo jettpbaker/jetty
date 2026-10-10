@@ -8,6 +8,8 @@ import { capyEase } from './chat_feel/capy'
 import './rolling_text.css'
 
 const morphEase = `cubic-bezier(${capyEase.join(', ')})`
+// Torph's own default; crossfades borrow whichever timing the morph uses.
+const torphTiming = { duration: 400, ease: 'cubic-bezier(0.19, 1, 0.22, 1)' }
 
 export function TenseText({
   children: target,
@@ -35,7 +37,7 @@ export function TenseText({
   const timing =
     feel === 'hybrid' && morphDuration !== 'default'
       ? { duration: Number(morphDuration), ease: morphEase }
-      : {}
+      : torphTiming
   const [text, setText] = useState({
     current: target,
     active,
@@ -79,7 +81,9 @@ export function TenseText({
           )}
           style={
             text.previous.crossfade
-              ? { animation: `rolling-text-fade-out 120ms ${morphEase} both` }
+              ? {
+                  animation: `rolling-text-fade-out ${timing.duration * 0.8}ms ${timing.ease} both`,
+                }
               : undefined
           }
         >
@@ -97,7 +101,7 @@ export function TenseText({
         )}
         style={
           text.previous?.crossfade
-            ? { animation: `rolling-text-fade-in 150ms ${morphEase} both` }
+            ? { animation: `rolling-text-fade-in ${timing.duration}ms ${timing.ease} both` }
             : undefined
         }
         onAnimationEnd={(event) => {
