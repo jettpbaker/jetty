@@ -17,7 +17,7 @@ import {
   MarkdownTableRow,
 } from '@/components/custom/markdown_table'
 import { replyShown, usePacedText, useReplyShown } from '@/components/custom/smooth_stream'
-import { useChatFeel, useChatSettled } from '@/lib/chat-feel'
+import { useChatFeel, useChatSettled, useHybridPacing } from '@/lib/chat-feel'
 import { cn } from '@/lib/utils'
 
 import './markdown.css'
@@ -219,6 +219,7 @@ export function Markdown({
   // The chat feel streaming when it mounted; ⌥⌘F remounts the thread to change it.
   const feel = useChatFeel()
   const settled = useChatSettled()
+  const hybridPacing = useHybridPacing()
   const [stream] = useState(() => streamFeels[feel])
   // A message that mounts mid-stream keeps Streamdown's blocks for life, swapping would remount it.
   const [smooth] = useState(() =>
@@ -229,7 +230,11 @@ export function Markdown({
   )
   useEffect(() => smooth?.mounted(), [smooth])
   const text = !settled && smooth && streaming ? stream.wholeWords(children) : children
-  const shown = usePacedText(text, settled ? undefined : smooth && from, stream.pacing)
+  const pacing =
+    feel === 'hybrid'
+      ? streamFeels[hybridPacing === 'none' ? 'capy' : hybridPacing].pacing
+      : stream.pacing
+  const shown = usePacedText(text, settled ? undefined : smooth && from, pacing)
   useReplyShown(reply, shown.length)
   return (
     <Streamdown

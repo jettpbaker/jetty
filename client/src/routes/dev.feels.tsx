@@ -10,6 +10,8 @@ import {
   ChatSettledContext,
   LiveTurnContext,
   HybridLineContext,
+  HybridPacingContext,
+  type HybridPacing,
   InterimTextContext,
   type InterimText,
   type HybridLine,
@@ -63,6 +65,7 @@ function Feels() {
   const [pick, setPick] = useState({ name: names[0]!, run: 0 })
   const [speed, setSpeed] = useState<Speed>('1')
   const [indent, setIndent] = useState<WorkIndent>('on')
+  const [hybridPacing, setHybridPacing] = useState<HybridPacing>('cursor')
   const [hybridLine, setHybridLine] = useState<HybridLine>('both')
   const [interimText, setInterimText] = useState<InterimText>('b')
   const [liveTurn, setLiveTurn] = useState<LiveTurn>('single')
@@ -78,6 +81,8 @@ function Feels() {
       onLiveTurn={setLiveTurn}
       interimText={interimText}
       onInterimText={setInterimText}
+      hybridPacing={hybridPacing}
+      onHybridPacing={setHybridPacing}
       hybridLine={hybridLine}
       onHybridLine={setHybridLine}
       indent={indent}
@@ -111,6 +116,8 @@ function FeelReplay({
   onIndent,
   hybridLine,
   onHybridLine,
+  hybridPacing,
+  onHybridPacing,
   interimText,
   onInterimText,
   onPick,
@@ -126,6 +133,8 @@ function FeelReplay({
   onIndent: (indent: WorkIndent) => void
   interimText: InterimText
   onInterimText: (interimText: InterimText) => void
+  hybridPacing: HybridPacing
+  onHybridPacing: (hybridPacing: HybridPacing) => void
   hybridLine: HybridLine
   onHybridLine: (hybridLine: HybridLine) => void
   onPick: (name: string) => void
@@ -246,19 +255,21 @@ function FeelReplay({
                       {'ABCD'[index]} · {chatFeelNames[feel]}
                     </h2>
                     <ChatFeelContext value={feel}>
-                      <ChatSettledContext value={settled}>
-                        <ThreadList
-                          threadId={`replay-${run}-${feel}`}
-                          items={thread.items}
-                          status={thread.status}
-                          running={running}
-                          outcomes={thread.turnOutcomes}
-                          loadouts={thread.turnLoadouts}
-                          projectPath={replay.projectPath}
-                          provider={replay.provider}
-                          onSelectAgent={() => undefined}
-                        />
-                      </ChatSettledContext>
+                      <HybridPacingContext value={hybridPacing}>
+                        <ChatSettledContext value={settled}>
+                          <ThreadList
+                            threadId={`replay-${run}-${feel}`}
+                            items={thread.items}
+                            status={thread.status}
+                            running={running}
+                            outcomes={thread.turnOutcomes}
+                            loadouts={thread.turnLoadouts}
+                            projectPath={replay.projectPath}
+                            provider={replay.provider}
+                            onSelectAgent={() => undefined}
+                          />
+                        </ChatSettledContext>
+                      </HybridPacingContext>
                     </ChatFeelContext>
                   </section>
                 ))}
@@ -301,6 +312,17 @@ function FeelReplay({
             { value: 'both', label: 'Both' },
           ]}
           onChange={onHybridLine}
+        />
+        <span className='text-xs text-muted-foreground'>Hybrid pacing:</span>
+        <SettingsSegmented
+          label='Hybrid pacing'
+          value={hybridPacing}
+          options={[
+            { value: 'none', label: 'None' },
+            { value: 'cursor', label: 'Cursor' },
+            { value: 'jetty', label: 'Jetty' },
+          ]}
+          onChange={onHybridPacing}
         />
         <span className='text-xs text-muted-foreground'>Interim text:</span>
         <SettingsSegmented

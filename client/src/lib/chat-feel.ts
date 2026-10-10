@@ -61,6 +61,13 @@ export function useHybridLine() {
   return useContext(HybridLineContext)
 }
 
+export type HybridPacing = 'none' | 'cursor' | 'jetty'
+export const HybridPacingContext = createContext<HybridPacing>('cursor')
+
+export function useHybridPacing() {
+  return useContext(HybridPacingContext)
+}
+
 export type InterimText = 'today' | 'a' | 'b'
 export const InterimTextContext = createContext<InterimText>('b')
 
