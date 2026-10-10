@@ -28,6 +28,10 @@ export function TenseText({
   const settled = useChatSettled()
   const feel = useChatFeel()
   const morphDuration = useMorphDuration()
+  const timing =
+    feel === 'hybrid' && morphDuration !== 'default'
+      ? { duration: Number(morphDuration), ease: morphEase }
+      : {}
   const [text, setText] = useState({
     current: target,
     active,
@@ -72,8 +76,7 @@ export function TenseText({
         <TextMorph
           className={cn(shimmer && active && 'shimmer')}
           disabled={settled || !morph || active}
-          duration={feel === 'hybrid' ? Number(morphDuration) : undefined}
-          ease={feel === 'hybrid' ? morphEase : undefined}
+          {...timing}
           respectReducedMotion
         >
           {mono ? '' : target}
@@ -81,8 +84,7 @@ export function TenseText({
         <TextMorph
           className={cn('font-mono', shimmer && active && 'shimmer')}
           disabled={settled || !morph || active}
-          duration={feel === 'hybrid' ? Number(morphDuration) : undefined}
-          ease={feel === 'hybrid' ? morphEase : undefined}
+          {...timing}
           respectReducedMotion
         >
           {mono ? target : ''}

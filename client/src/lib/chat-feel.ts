@@ -113,7 +113,7 @@ export function useTenseChange() {
   return useContext(TenseChangeContext)
 }
 
-export type MorphDuration = '150' | '300'
+export type MorphDuration = '150' | '300' | 'default'
 export const MorphDurationContext = createContext<MorphDuration>('150')
 
 export function useMorphDuration() {

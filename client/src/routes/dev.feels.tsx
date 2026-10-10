@@ -415,6 +415,7 @@ function FeelReplay({
             options={[
               { value: '150', label: '150' },
               { value: '300', label: '300' },
+              { value: 'default', label: 'Default' },
             ]}
             onChange={onMorphDuration}
           />
