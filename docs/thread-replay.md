@@ -129,9 +129,9 @@ Searching the web → Searched the web. Replay restarts every example, including
 file count. The file disclosure can be expanded to inspect the individual calls.
 The tool row also has its own Replay button, which leaves the entrance comparison running.
 
-Completion transitions below it compare the current instant Reading → Read change with four
-dev-only alternatives: a control-duration crossfade, a disclosure-duration fade through,
-an 8px upward swap, and a character morph using the existing Torph library. Each has an
-independent Replay button. The count stays at 3 to isolate the completion change, which
-starts after one second. Reduced motion replaces movement with the control-duration fade.
-These experiments do not change the production tool label.
+Character morph variations below it compare four dev-only Reading → Read transitions using
+the existing Torph library: the original 250ms disclosure curve, the same curve at the 150ms
+control duration, the original with a brief 1px blur, and 250ms with the stronger popup curve.
+Each has an independent Replay button. The count stays at 3 to isolate the completion change,
+which starts after one second. Reduced motion replaces movement and blur with the
+control-duration fade. These experiments do not change the production tool label.
