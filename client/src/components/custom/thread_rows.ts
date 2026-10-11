@@ -282,6 +282,20 @@ export function projectRelative(path: string, projectPath: string | undefined) {
   return path.startsWith(root) ? path.slice(root.length) : path
 }
 
+function toolFiles(input: Record<string, unknown>, projectPath: string | undefined) {
+  const files = new Set<string>()
+  const changes = Array.isArray(input.changes) ? input.changes : []
+  for (const source of [input, ...changes]) {
+    if (!source || typeof source !== 'object') continue
+    for (const key of pathKeys) {
+      const path = (source as Record<string, unknown>)[key]
+      if (typeof path === 'string' && path)
+        files.add(projectRelative(path, projectPath).replace(/^(?:\.\/)+/, ''))
+    }
+  }
+  return [...files]
+}
+
 function toolDescription(input: unknown) {
   if (!input || typeof input !== 'object') return undefined
   const { description } = input as Record<string, unknown>
@@ -339,10 +353,11 @@ function toActivity(
     string,
     unknown
   >
+  const kind = toolKind(item.toolName)
   return {
     type: 'tool',
     id: item.id,
-    kind: toolKind(item.toolName),
+    kind,
     name,
     words: jetty?.words,
     target: jetty
@@ -351,6 +366,7 @@ function toActivity(
         ? name
         : toolTarget(item.toolName, item.input, projectPath),
     description: toolDescription(item.input),
+    files: ['read', 'edit', 'write'].includes(kind) ? toolFiles(fields, projectPath) : undefined,
     // A tool Stop cut off is completed with its status left unsettled; a later turn keeps the
     // session active, but that tool stays stopped.
     status:

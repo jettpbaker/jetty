@@ -3,6 +3,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils'
 
 import { ThreadLink } from './entity_link'
+import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
 import {
@@ -14,6 +15,55 @@ import {
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const label = describeToolBatch(batch)
+  const heading = (
+    <>
+      <span className='flex min-w-0 items-baseline gap-1'>
+        {label.description ? (
+          <span
+            className={cn(
+              'truncate',
+              label.active && 'shimmer',
+              label.failed && 'text-status-error'
+            )}
+          >
+            {label.description}
+          </span>
+        ) : (
+          <>
+            <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
+            {label.fileCount !== undefined ? (
+              <span className='inline-flex items-baseline gap-1'>
+                <RollingNumber value={label.fileCount} className='font-mono' />
+                <span>{label.fileCount === 1 ? 'file' : 'files'}</span>
+              </span>
+            ) : label.target ? (
+              <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
+                {label.target}
+              </RollingText>
+            ) : null}
+          </>
+        )}
+      </span>
+      {label.notices && (
+        <span
+          className={cn(
+            'ml-auto shrink-0 text-xs',
+            label.failed ? 'text-status-error' : 'text-muted-foreground'
+          )}
+        >
+          {label.notices}
+        </span>
+      )}
+    </>
+  )
+  if (batch.calls[0]!.kind === 'web')
+    return (
+      <div
+        className={cn('activity-header text-muted-foreground', label.failed && 'text-status-error')}
+      >
+        {heading}
+      </div>
+    )
   return (
     <Collapsible>
       <CollapsibleTrigger
@@ -21,39 +71,10 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         className='activity-header'
         aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
       >
-        <span className='flex min-w-0 items-baseline gap-1'>
-          {label.description ? (
-            <span
-              className={cn(
-                'truncate',
-                label.active && 'shimmer',
-                label.failed && 'text-status-error'
-              )}
-            >
-              {label.description}
-            </span>
-          ) : (
-            <>
-              <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
-              <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
-                {label.target}
-              </RollingText>
-            </>
-          )}
-        </span>
-        {label.notices && (
-          <span
-            className={cn(
-              'ml-auto shrink-0 text-xs',
-              label.failed ? 'text-status-error' : 'text-muted-foreground'
-            )}
-          >
-            {label.notices}
-          </span>
-        )}
+        {heading}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {batch.calls.length === 1 ? (
+        {batch.calls.length === 1 && label.fileCount === undefined ? (
           <ToolCallDetails call={batch.calls[0]!} />
         ) : (
           <div className='pb-1'>

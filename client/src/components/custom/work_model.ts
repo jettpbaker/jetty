@@ -19,6 +19,7 @@ export type ToolActivity = {
   // A Jetty tool's own vocabulary; its target names threads or models, so it reads as prose.
   words?: ToolWords
   target: string
+  files?: string[]
   description?: string
   status: ActivityStatus
   input?: string
@@ -134,7 +135,14 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
 function sameActivity(a: WorkActivity, b: WorkActivity) {
   return (
     Object.keys(a).length === Object.keys(b).length &&
-    Object.entries(a).every(([key, value]) => value === b[key as keyof WorkActivity])
+    Object.entries(a).every(([key, value]) => {
+      if (key === 'files' && a.type === 'tool' && b.type === 'tool')
+        return (
+          a.files?.length === b.files?.length &&
+          (a.files ?? []).every((file, index) => file === b.files?.[index])
+        )
+      return value === b[key as keyof WorkActivity]
+    })
   )
 }
 
@@ -176,23 +184,33 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const failed = count('failed')
   const cancelled = count('cancelled')
   const interrupted = count('interrupted')
+  const fileCount = ['read', 'edit', 'write'].includes(first.kind)
+    ? Math.max(1, new Set(calls.flatMap((call) => call.files ?? [call.target])).size)
+    : undefined
   const words = first.words ?? vocabulary[first.kind]
-  const active = running.length > 0
-  const summarise = (sealed && calls.length > 1 && !active) || running.length > 1
-  const shown = active ? running.length : completed || calls.length
+  const active =
+    running.length > 0 ||
+    (fileCount !== undefined && !sealed && failed + cancelled + interrupted === 0)
+  const summarise =
+    fileCount !== undefined || (sealed && calls.length > 1 && !active) || running.length > 1
+  const shown = fileCount ?? (active ? running.length : completed || calls.length)
   const current = running[0] ?? latest
   const description =
     first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
-  const target = !summarise
-    ? current.target
-    : first.kind === 'generic' && !first.words
-      ? `${shown} ${first.name} call${shown === 1 ? '' : 's'}`
-      : `${shown} ${shown === 1 ? words.singular : words.noun}`
+  let target = current.target
+  if (first.kind === 'web') target = ''
+  else if (summarise)
+    target =
+      first.kind === 'generic' && !first.words
+        ? `${shown} ${first.name} call${shown === 1 ? '' : 's'}`
+        : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done
   if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
-    if (latest.status === 'failed') verb = 'Failed'
-    else if (latest.status === 'cancelled') verb = 'Cancelled'
-    else if (latest.status === 'interrupted') verb = 'Stopped'
+    if (latest.status === 'failed') verb = first.kind === 'web' ? 'Web search failed' : 'Failed'
+    else if (latest.status === 'cancelled')
+      verb = first.kind === 'web' ? 'Web search cancelled' : 'Cancelled'
+    else if (latest.status === 'interrupted')
+      verb = first.kind === 'web' ? 'Web search stopped' : 'Stopped'
   }
   const notices =
     calls.length === 1
@@ -211,6 +229,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
         ? `${current.status === 'failed' ? 'Failed' : 'Stopped'} ${description}`
         : description,
     target,
+    fileCount,
     // A count ("2 files") is words. A single path or command stays machine text.
     prose: first.words !== undefined || summarise,
     active,
