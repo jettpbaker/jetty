@@ -20,6 +20,11 @@
 .work-text {
   @apply px-2 py-1 text-sm leading-5 text-foreground;
 }
+.work-scroll .activity-header,
+.work-scroll .thinking-text,
+.work-scroll .work-text {
+  padding-inline-start: 0;
+}
 .thinking-tail {
   @apply flex max-h-[4.5rem] flex-col justify-end overflow-hidden;
   mask-image: linear-gradient(to bottom, transparent, black 1rem);

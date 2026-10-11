@@ -63,12 +63,12 @@ function RaisedWork({ activities }: { activities: WorkActivity[] }) {
           <span className='shimmer'>Working</span>
         </span>
       </div>
-      <div className='pb-1'>
+      <div className='work-scroll pb-1'>
         {entries.map((entry, index) => (
           <div
             key={entry.id}
             data-entrance-row
-            className={index > 0 ? 'work-raise-enter' : undefined}
+            className={index > 0 && entry.type !== 'text' ? 'work-raise-enter' : undefined}
           >
             {entry.type === 'thinking' ? (
               <ThinkingBlock activity={entry} />

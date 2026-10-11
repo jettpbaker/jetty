@@ -103,7 +103,9 @@ function WorkHistory({
         {entries.map((entry) => (
           <div
             key={entry.id}
-            className={initialEntries.has(entry.id) ? undefined : 'work-raise-enter'}
+            className={cn(
+              entry.type !== 'text' && !initialEntries.has(entry.id) && 'work-raise-enter'
+            )}
           >
             {entry.type === 'thinking' ? (
               <ThinkingBlock activity={entry} />

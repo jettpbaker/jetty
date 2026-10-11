@@ -118,7 +118,8 @@ server-observed recording described above.
 Open `/work-motion.html` on the same Vite server to compare the current work block with a
 raise-up entrance. Replay runs the same short Thinking → streamed reply → tool sequence on
 both sides. The current side renders `WorkBlock`; the experiment reuses the production
-Thinking, Markdown and tool components with an 8px rise and fade, without the height reveal.
+Thinking, Markdown and tool components. Non-text entries use an 8px rise and fade, without
+the height reveal; replies use only the production word fades.
 The entrance reads the shared disclosure duration and easing tokens. Reduced motion uses
 only a fade at the shared control duration. Streamed words use the production 300ms fade.
 It has three entries and does not model history scrolling or end-of-turn collapse.
