@@ -1,3 +1,4 @@
+import { bottomGlide } from '@/lib/bottom-glide'
 import { cn } from '@/lib/utils'
 import { completedAgo } from '@/state/threads'
 import { useReducedMotion } from 'motion/react'
@@ -44,6 +45,7 @@ function WorkHistory({
   const [initialEntries] = useState(() => new Set(entries.map((entry) => entry.id)))
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
+  const glideRef = useRef<ReturnType<typeof bottomGlide> | null>(null)
 
   // A live preview is as tall as its latest entries and scrolls back through the rest, pinned to
   // the newest. Writes go straight to the node, so a growing entry never re-renders the log.
@@ -67,19 +69,29 @@ function WorkHistory({
       return
     }
     pinned.current = true
+    const glide = bottomGlide(element, () => edges(element))
+    glideRef.current = glide
+    let initial = true
     function measure() {
       let height = 0
       for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
       element.style.maxHeight = list.children.length > previewCount ? `${height}px` : ''
-      if (pinned.current && list.children.length > previewCount)
-        element.scrollTop = element.scrollHeight
+      if (pinned.current && list.children.length > previewCount) {
+        if (initial || reducedMotion) glide.write(element.scrollHeight)
+        else glide.start()
+      }
+      initial = false
       edges(element)
     }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     observer.observe(list)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      glide.stop()
+      glideRef.current = null
+    }
   }, [live, view, reducedMotion])
 
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
@@ -90,7 +102,10 @@ function WorkHistory({
   }
 
   function onWheel(event: WheelEvent<HTMLDivElement>) {
-    if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) pinned.current = false
+    if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) {
+      pinned.current = false
+      glideRef.current?.stop()
+    }
   }
 
   return (
@@ -101,7 +116,7 @@ function WorkHistory({
       onWheel={onWheel}
     >
       <div>
-        {entries.map((entry) => (
+        {entries.map((entry, index) => (
           <div
             key={entry.id}
             className={cn(
@@ -112,7 +127,7 @@ function WorkHistory({
               <ThinkingBlock activity={entry} />
             ) : entry.type === 'text' ? (
               <Markdown
-                className='work-text'
+                className={cn('work-text', index < entries.length - 1 && 'work-text-past')}
                 streaming={entry.streaming}
                 arrived={!entry.streaming && completedAgo(entry.id) < 1000}
                 reply={entry.id}

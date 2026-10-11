@@ -107,7 +107,21 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
   for (const activity of activities) {
     const previous = entries.at(-1)
     const head = previous?.type === 'tools' ? previous.calls[0]! : undefined
-    if (
+    if (activity.type === 'thinking' && previous?.type === 'thinking') {
+      entries[entries.length - 1] = {
+        ...activity,
+        id: previous.id,
+        summary: [previous.summary, activity.summary].filter(Boolean).join('\n\n'),
+        tokens:
+          previous.tokens === undefined && activity.tokens === undefined
+            ? undefined
+            : (previous.tokens ?? 0) + (activity.tokens ?? 0),
+        elapsedSeconds:
+          previous.elapsedSeconds === undefined && activity.elapsedSeconds === undefined
+            ? undefined
+            : (previous.elapsedSeconds ?? 0) + (activity.elapsedSeconds ?? 0),
+      }
+    } else if (
       activity.type === 'tool' &&
       previous?.type === 'tools' &&
       head?.kind === activity.kind &&

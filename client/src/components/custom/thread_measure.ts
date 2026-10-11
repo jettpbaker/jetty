@@ -20,7 +20,6 @@ import {
 } from './user_message'
 import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
-const font = '14px "Geist Variable"'
 const lineHeight = 23
 // The footer under a message, and the bubble's gap above it.
 const footerRow = 28
@@ -35,6 +34,7 @@ type Measured = {
   prepared?: PreparedText
   width?: number
   lineHeight?: number
+  fontSize?: number
   height: number
 }
 const cache = new Map<string, Measured>()
@@ -66,8 +66,14 @@ function keepPrepared(id: string, entry: Measured) {
   }
 }
 
-function roughHeight(text: string, width: number, preWrap: boolean, leading: number) {
-  const perLine = Math.max(1, Math.floor(width / charWidth))
+function roughHeight(
+  text: string,
+  width: number,
+  preWrap: boolean,
+  leading: number,
+  fontSize: number
+) {
+  const perLine = Math.max(1, Math.floor(width / ((charWidth * fontSize) / 14)))
   let lines = 0
   for (const line of preWrap ? text.split('\n') : [text])
     lines += Math.max(1, Math.ceil(line.length / perLine))
@@ -80,16 +86,21 @@ function textHeight(
   width: number,
   preWrap: boolean,
   rough: boolean,
-  leading = lineHeight
+  leading = lineHeight,
+  fontSize = 14
 ) {
-  if (rough) return roughHeight(text, width, preWrap, leading)
+  if (rough) return roughHeight(text, width, preWrap, leading, fontSize)
   let entry = cache.get(id)
-  if (!entry || entry.text !== text) {
-    entry = { text, height: 0 }
+  if (!entry || entry.text !== text || entry.fontSize !== fontSize) {
+    entry = { text, fontSize, height: 0 }
     cache.set(id, entry)
   }
   if (entry.width !== width || entry.lineHeight !== leading) {
-    entry.prepared ??= prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined)
+    entry.prepared ??= prepare(
+      text || ' ',
+      `${fontSize}px "Geist Variable"`,
+      preWrap ? { whiteSpace: 'pre-wrap' } : undefined
+    )
     entry.width = width
     entry.lineHeight = leading
     entry.height = layout(entry.prepared, Math.max(1, width), leading).height
@@ -107,15 +118,16 @@ function markdownHeight(
   text: string,
   width: number,
   rough: boolean,
-  leading = lineHeight
+  leading = lineHeight,
+  fontSize = 14
 ) {
-  if (!text.includes('![')) return textHeight(id, text, width, false, rough, leading)
+  if (!text.includes('![')) return textHeight(id, text, width, false, rough, leading, fontSize)
   let media = 0
   const prose = text.replace(imageLine, () => {
     media += frameHeight(width)
     return ''
   })
-  return textHeight(id, prose, width, false, rough, leading) + media
+  return textHeight(id, prose, width, false, rough, leading, fontSize) + media
 }
 
 function captionHeight(id: string, caption: string | undefined, width: number, rough: boolean) {
@@ -236,7 +248,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'plan':
       // A streaming reply would be laid out again on every delta; it's measured once on screen.
       return (
-        markdownHeight(row.id, row.item.text, width, rough || row.streaming) +
+        markdownHeight(row.id, row.item.text, width, rough || row.streaming, 13 * 1.625, 13) +
         8 +
         (row.footer === undefined ? 4 : footerRow)
       )
@@ -246,10 +258,13 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
         height +=
           entry.type === 'text'
-            ? markdownHeight(entry.id, entry.text, width - 8, rough, 20) + 8
+            ? markdownHeight(entry.id, entry.text, width - 8, rough, 20, 13) + 8
             : 28
         if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
-          height += Math.min(72, textHeight(entry.id, entry.summary, width, true, rough))
+          height += Math.min(
+            72,
+            textHeight(entry.id, entry.summary, width, true, rough, 13 * 1.625, 13)
+          )
       }
       return height
     }

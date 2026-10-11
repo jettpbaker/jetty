@@ -1,7 +1,7 @@
 @reference '../../index.css';
 
 .activity-header {
-  @apply flex h-auto min-h-7 w-full min-w-0 items-center justify-start gap-2 rounded-menu-item border-0 px-2 py-1 text-left text-sm font-normal;
+  @apply flex h-auto min-h-7 w-full min-w-0 items-center justify-start gap-2 rounded-menu-item border-0 px-2 py-1 text-left text-13 leading-5 font-normal;
 }
 .activity-header > span:first-child {
   block-size: 1lh;
@@ -18,7 +18,18 @@
   @apply px-2 pb-1 text-13 leading-relaxed whitespace-pre-wrap text-muted-foreground;
 }
 .work-text {
-  @apply px-2 py-1 text-sm leading-5 text-foreground;
+  @apply px-2 py-1 text-13 leading-5 text-foreground;
+  transition: color var(--motion-control-duration) var(--motion-control-ease);
+}
+.work-text-past {
+  @apply text-muted-foreground;
+}
+.work-text .inline-code,
+.thread-reply .inline-code {
+  font-size: inherit;
+}
+.work-scroll {
+  overflow-anchor: none;
 }
 .work-scroll .activity-header,
 .work-scroll .thinking-text,

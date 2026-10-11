@@ -12,6 +12,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { loadAccent } from '@/lib/accent'
 import { pressProps } from '@/lib/press'
 import { applyTheme } from '@/lib/theme'
+import { cn } from '@/lib/utils'
 import { chromeSnapshotAtom } from '@/state/chrome'
 import { StateProvider } from '@/state/provider'
 import { useEffect, useState } from 'react'
@@ -78,7 +79,11 @@ function RaisedWork({ activities }: { activities: WorkActivity[] }) {
             {entry.type === 'thinking' ? (
               <ThinkingBlock activity={entry} />
             ) : entry.type === 'text' ? (
-              <Markdown className='work-text' streaming={entry.streaming} reply={entry.id}>
+              <Markdown
+                className={cn('work-text', index < entries.length - 1 && 'work-text-past')}
+                streaming={entry.streaming}
+                reply={entry.id}
+              >
                 {entry.text}
               </Markdown>
             ) : entry.type === 'tools' ? (
