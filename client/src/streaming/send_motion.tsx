@@ -17,11 +17,40 @@ import '../index.css'
 import '../accent.css'
 
 const options = [
-  { title: 'Current', detail: 'Instant', duration: 0, hold: 0 },
-  { title: 'Quick glide', detail: '150ms', duration: 150, hold: 0 },
-  { title: 'Gentle glide', detail: '250ms · suggested', duration: 250, hold: 0 },
-  { title: 'Brief hold + glide', detail: '150ms hold · 250ms glide', duration: 250, hold: 150 },
+  {
+    title: 'Current glide',
+    detail: '250ms · fast start',
+    duration: 250,
+    gentle: false,
+    spring: false,
+    continuous: false,
+  },
+  {
+    title: 'No initial nudge',
+    detail: '250ms · starts at the current scroll position',
+    duration: 250,
+    gentle: false,
+    spring: false,
+    continuous: true,
+  },
+  {
+    title: 'Gentler start',
+    detail: '350ms · ease in and out',
+    duration: 350,
+    gentle: true,
+    spring: false,
+    continuous: false,
+  },
+  {
+    title: 'Spring settle',
+    detail: '450ms spring · no bounce',
+    duration: 450,
+    gentle: false,
+    spring: true,
+    continuous: false,
+  },
 ]
+
 const response =
   "I'll check the layout and spacing first, then tighten up the transitions. The existing components can stay in place while I work through those changes."
 const responseWords = response.split(' ')
@@ -34,11 +63,9 @@ function Example({ option, run }: { option: (typeof options)[number]; run: numbe
   const messageRef = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
   const animationRef = useRef<ReturnType<typeof animate> | null>(null)
-  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function stop() {
     animationRef.current?.stop()
-    if (holdRef.current !== null) clearTimeout(holdRef.current)
   }
 
   const interrupt = useEffectEvent(stop)
@@ -60,7 +87,6 @@ function Example({ option, run }: { option: (typeof options)[number]; run: numbe
     return () => {
       clearTimeout(timer)
       animationRef.current?.stop()
-      if (holdRef.current !== null) clearTimeout(holdRef.current)
     }
   }, [run, localRun])
 
@@ -75,24 +101,29 @@ function Example({ option, run }: { option: (typeof options)[number]; run: numbe
       scroller.scrollTop -
       24
     const userHeight = (message.firstElementChild as HTMLElement).offsetHeight
-    const start = Math.max(0, top - scroller.clientHeight + userHeight + 48)
+    const start = option.continuous
+      ? scroller.scrollTop
+      : Math.max(0, top - scroller.clientHeight + userHeight + 48)
     scroller.scrollTop = start
-    if (reducedMotion || !option.duration) {
+    if (reducedMotion) {
       scroller.scrollTop = top
       return
     }
-    holdRef.current = setTimeout(() => {
-      animationRef.current = animate(start, top, {
-        duration: option.duration / 1000,
-        ease: getMotionTokens().disclosure.ease,
-        onUpdate: (value) => {
-          scroller.scrollTop = value
-        },
-      })
-    }, option.hold)
+    animationRef.current = animate(start, top, {
+      ...(option.spring
+        ? { type: 'spring' as const, duration: option.duration / 1000, bounce: 0 }
+        : {
+            duration: option.duration / 1000,
+            ease: option.gentle
+              ? ([0.4, 0, 0.2, 1] as [number, number, number, number])
+              : getMotionTokens().disclosure.ease,
+          }),
+      onUpdate: (value) => {
+        scroller.scrollTop = value
+      },
+    })
     return () => {
       animationRef.current?.stop()
-      if (holdRef.current !== null) clearTimeout(holdRef.current)
     }
   }, [sent, option, reducedMotion])
 
@@ -126,13 +157,25 @@ function Example({ option, run }: { option: (typeof options)[number]; run: numbe
       </div>
       <section
         ref={scrollerRef}
-        className='relative h-96 overflow-y-auto overscroll-contain no-scrollbar'
-        style={{ overflowAnchor: 'none' }}
+        className='relative overflow-y-auto overscroll-contain no-scrollbar'
+        style={{ overflowAnchor: 'none', height: 'min(70dvh, 640px)' }}
         // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- each independent conversation needs keyboard scrolling
         tabIndex={0}
         aria-label={`${option.title} conversation`}
       >
         <div className='flex min-h-full flex-col gap-6 px-2 py-6'>
+          <UserMessage
+            id={`${option.title}:earlier`}
+            threadId='send-motion'
+            text='How are the file and command details looking?'
+            attachments={[]}
+            createdAt={1791699900000}
+          />
+          <Markdown>
+            {
+              'File operations and Bash commands now use a cumulative counter. Each batch can be expanded to inspect its individual actions.\n\nThe descriptions stay inside the dropdown, with the command and output available one level below. Failures retain their operation name and error details.\n\nThe work history shows its five latest actions by default. Opening Working reveals the complete history, so earlier actions remain accessible without filling the chat.'
+            }
+          </Markdown>
           <UserMessage
             id={`${option.title}:old`}
             threadId='send-motion'
@@ -193,7 +236,8 @@ function App() {
             <div>
               <h1 className='text-sm font-medium'>Send anchoring</h1>
               <p className='mt-2 text-sm text-muted-foreground'>
-                Keep the conversation visible as your new message moves into place.
+                Compare longer travel at chat height. Each replay starts with the previous
+                conversation.
               </p>
             </div>
             <Button size='sm' {...pressProps(() => setRun(run + 1))}>
